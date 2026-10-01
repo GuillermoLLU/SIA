@@ -1,0 +1,17 @@
+# dependencias y builds
+node_modules/
+dist-app/
+web/dist/
+
+# contenido generado/sincronizado en runtime (Supa es la fuente de verdad)
+workspace/skills/
+workspace/uploads/
+workspace/lab-drafts/
+workspace/modes/*/skills
+workspace/.claude-mcp.json
+workspace/.copilot-mcp.json
+
+# sistema y logs
+.DS_Store
+*.log
+nohup.out

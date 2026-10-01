@@ -1,0 +1,45 @@
+name: build-windows
+
+# Construye el instalador .exe de SIA en una máquina Windows de GitHub.
+# Se lanza a mano (workflow_dispatch) o al publicar un tag v* (y entonces
+# adjunta el .exe a la release).
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write # necesario para adjuntar el .exe a la release
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Instalar dependencias
+        run: npm install
+
+      - name: Instalar dependencias de la web
+        run: npm install
+        working-directory: web
+
+      - name: Construir instalador
+        run: npm run dist:win
+
+      - name: Adjuntar a la release (si es un tag)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist-app/*.exe
+
+      - name: Guardar artefacto (lanzamiento manual)
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: SIA-windows
+          path: dist-app/*.exe
