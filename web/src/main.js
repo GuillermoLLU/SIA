@@ -1875,6 +1875,16 @@ const refreshAdmin = async ({ quiet = false } = {}) => {
   }
 };
 
+// Algo de Configuración ha cambiado lo que abre o ve este equipo (claves de
+// poder, tokens, bases): permisos, iconos de la barra, cajas de bases y la
+// vista abierta se ponen al día sin cerrar y abrir Configuración.
+const settingsChanged = async () => {
+  await refreshAdmin();
+  if (!settingsModal.hidden) { renderMenu(); renderGrid(); }
+  if (!viewLab.hidden) labRefresh({ background: true });
+  if (!viewAdmin.hidden) adminRefresh();
+};
+
 /* Los permisos pueden cambiar sin que este SIA se entere: el owner edita una
    clave de poder (misma clave, otras vistas) o la borra. Se vuelven a
    comprobar al recuperar el foco la ventana y cada dos minutos, para que un
@@ -2524,7 +2534,8 @@ const baseCard = (b, part = 'config') => {
       api, esc, toast, setStatus: dbSetStatus, copyWithFeedback, COPY_ICON,
       onTokensChanged: async (tokens) => {
         const r = await api(`/bases/${encodeURIComponent(b.id)}`, { method: 'PUT', body: JSON.stringify({ tokens }) });
-        renderMenu(); renderGrid(); // las cajas enseñan cuántos grupos hay activos
+        b.tokens = r.tokens;
+        settingsChanged(); // otros grupos = otras skills, otros enlaces, otros proyectos
         return r.tokens;
       },
     });
@@ -3283,20 +3294,78 @@ const renderGroupView = () => {
     const shared = p.grantedTokens.filter((t) => t !== g.token).map(adminGroupName);
     const card = document.createElement('div');
     card.className = 'admin-card';
-    card.innerHTML = `<div class="ac-title">${esc(p.name)}</div>
+    const others = adminData.groups.filter((og) => og.token !== g.token);
+    card.innerHTML = `
+      <span class="ac-actions">
+        ${others.length ? `<button type="button" class="icon-btn" data-act="move" title="Mover a otro grupo" aria-label="Mover a otro grupo">${MOVE_ICON}</button>` : ''}
+        <button type="button" class="icon-btn danger" data-act="remove" title="Eliminar proyecto" aria-label="Eliminar proyecto">${TRASH_ICON}</button>
+      </span>
+      <div class="ac-title">${esc(p.name)}</div>
       <div class="ac-pills">${shared.map((n) => `<span class="ac-pill">+ ${esc(n)}</span>`).join('')}</div>
       <div class="ac-meta tnum">${entries} ${entries === 1 ? 'entrada' : 'entradas'}</div>`;
-    card.addEventListener('click', () => { adminSel = { view: 'project', group: g.token, project: p.id }; renderMain(); });
+    card.addEventListener('click', (e) => { if (e.target.closest('.ac-actions')) return; adminSel = { view: 'project', group: g.token, project: p.id }; renderMain(); });
+    card.querySelector('[data-act="move"]')?.addEventListener('click', (e) => { e.stopPropagation(); moveProjectDialog(p, g); });
+    card.querySelector('[data-act="remove"]').addEventListener('click', (e) => { e.stopPropagation(); deleteProject(p, g.token); });
     grid.appendChild(card);
   }
 
   adminMain.querySelector('#new-project').addEventListener('click', () => newProject(g));
   adminMain.querySelector('#del-group').addEventListener('click', async () => {
-    if (!await dlgConfirm('Eliminar grupo', `Se eliminará <strong>${esc(g.name)}</strong> y sus accesos (los proyectos NO se borran). ¿Seguro?`, 'Eliminar')) return;
+    // se van con él sus skills y los proyectos que SOLO él usa; los compartidos se quedan
+    const only = projs.filter((p) => p.grantedTokens.every((t) => t === g.token));
+    const shared = projs.length - only.length;
+    const entries = only.reduce((n, p) => n + p.contexts.reduce((m, c) => m + c.entries, 0), 0);
+    const what = [
+      only.length ? `${only.length} ${only.length === 1 ? 'proyecto' : 'proyectos'} con ${entries} ${entries === 1 ? 'entrada' : 'entradas'}` : null,
+      'sus skills',
+    ].filter(Boolean).join(' y ');
+    if (!await dlgConfirm('Eliminar grupo', `Se eliminará <strong>${esc(g.name)}</strong> con ${what}.${shared ? ` ${shared} ${shared === 1 ? 'proyecto compartido con otros grupos se queda' : 'proyectos compartidos con otros grupos se quedan'}.` : ''} Irreversible.`, 'Eliminar')) return;
     try { await api(`/admin/groups/${encodeURIComponent(g.token)}`, { method: 'DELETE' }); adminSel.group = null; adminRefresh(); } catch (e) { dlgAlert('No se pudo eliminar', esc(e.message)); }
   });
 };
 
+// mover = dar acceso al grupo destino y quitárselo al actual; el proyecto
+// conserva lo compartido con otros grupos
+const moveProject = async (p, from, to) => {
+  const dest = adminData.groups.find((x) => x.token === to);
+  try {
+    await api('/admin/grants', { method: 'POST', body: JSON.stringify({ token: to, project_id: p.id }) });
+    await api('/admin/grants', { method: 'DELETE', body: JSON.stringify({ token: from, project_id: p.id }) });
+    toast(`«${p.name}» movido a ${dest?.name || 'otro grupo'}`);
+    adminRefresh();
+  } catch (err) { dlgAlert('No se pudo mover', esc(err.message)); }
+};
+/* Diálogo «Mover a otro grupo»: una fila por grupo (nombre y cuántos proyectos
+   tiene), el actual marcado y sin elegir, el destino se marca con un punto;
+   «Mover» se enciende al elegir. */
+const moveProjectDialog = async (p, g) => {
+  const others = adminData.groups.filter((og) => og.token !== g.token);
+  if (!others.length) return;
+  let picked = null;
+  const body = `<p class="dlg-lead">A qué grupo pasa <strong>${esc(p.name)}</strong>. Lo que comparte con otros grupos no cambia.</p>
+    <ul class="token-list move-list">
+      <li class="current"><span class="pick"><span class="dot"></span><span class="name">${esc(g.name)}</span></span><span class="gh-tok">actual</span></li>
+      ${others.map((og) => `<li data-to="${esc(og.token)}"><button type="button" class="pick"><span class="dot"></span><span class="name">${esc(og.name)}</span></button><span class="gh-tok tnum">${og.projectIds.length} ${og.projectIds.length === 1 ? 'proyecto' : 'proyectos'}</span></li>`).join('')}
+    </ul>`;
+  const done = openDialog({ title: 'Mover a otro grupo', bodyHTML: body, okLabel: 'Mover', centered: true });
+  const ok = dlgActions.querySelector('.lab-btn.primary');
+  ok.disabled = true;
+  for (const li of dlgBody.querySelectorAll('.move-list li[data-to]')) {
+    li.querySelector('.pick').addEventListener('click', () => {
+      for (const x of dlgBody.querySelectorAll('.move-list li')) x.classList.remove('active');
+      li.classList.add('active');
+      picked = li.dataset.to;
+      ok.disabled = false;
+    });
+  }
+  if (!(await done) || !picked) return;
+  await moveProject(p, g.token, picked);
+};
+const deleteProject = async (p, groupToken) => {
+  const entries = p.contexts.reduce((n, c) => n + c.entries, 0);
+  if (!await dlgConfirm('Eliminar proyecto', `Se eliminará <strong>${esc(p.name)}</strong> y sus ${entries} entrada(s). Irreversible.`, 'Eliminar')) return;
+  try { await api(`/admin/projects/${p.id}`, { method: 'DELETE' }); adminSel = { view: 'group', group: groupToken, project: null }; adminRefresh(); } catch (e) { dlgAlert('No se pudo eliminar', esc(e.message)); }
+};
 const newProject = async (g) => {
   const name = await dlgPrompt('Nuevo proyecto', 'Patronaje', `Crear un proyecto en «${esc(g.name)}»:`);
   if (!name) return;
@@ -3315,8 +3384,7 @@ const renderProjectView = () => {
   const entries = p.contexts.reduce((n, c) => n + c.entries, 0);
   adminMain.innerHTML = `
     <div class="admin-breadcrumb"><button id="bc-group">${esc(g ? g.name : 'Grupos')}</button><span>/</span><span>${esc(p.name)}</span></div>
-    <div class="admin-main-head"><h1>${esc(p.name)}</h1><span class="spacer"></span>
-      <button class="admin-ghost danger" id="del-project">Eliminar proyecto</button></div>
+    <div class="admin-main-head"><h1>${esc(p.name)}</h1></div>
     <div class="admin-main-sub"><span class="tnum">${entries} ${entries === 1 ? 'entrada' : 'entradas'}</span></div>
     <div class="admin-block"><h3>Compartir con otros grupos</h3><div class="access-chips" id="share"></div></div>
     <div class="admin-block"><h3>Entradas de conocimiento</h3><div class="entry-list" id="entry-list"><div class="entry-empty">Cargando…</div></div></div>`;
@@ -3341,11 +3409,6 @@ const renderProjectView = () => {
     });
     share.appendChild(chip);
   }
-
-  adminMain.querySelector('#del-project').addEventListener('click', async () => {
-    if (!await dlgConfirm('Eliminar proyecto', `Se eliminará <strong>${esc(p.name)}</strong> y sus ${entries} entrada(s). Irreversible.`, 'Eliminar')) return;
-    try { await api(`/admin/projects/${p.id}`, { method: 'DELETE' }); adminSel = { view: 'group', group: adminSel.group, project: null }; adminRefresh(); } catch (e) { dlgAlert('No se pudo eliminar', esc(e.message)); }
-  });
 };
 
 // cargar y pintar las entradas de un proyecto (capa de contextos oculta)
@@ -3668,6 +3731,7 @@ const PERM_DEFS = [
   { id: 'invite', label: 'Invitar' }, // compartir los grupos a los que uno tiene token
 ];
 const permsSummary = (p) => p.owner ? 'todo (owner)' : (PERM_DEFS.filter((d) => p[d.id]).map((d) => d.label).join(', ') || 'nada');
+const MOVE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v2"/><path d="M3 7v10a2 2 0 0 0 2 2h6"/><path d="M14 16h7"/><path d="m18 13 3 3-3 3"/></svg>';
 const TRASH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
 
 const keysList = document.getElementById('keys-list');
@@ -3734,7 +3798,7 @@ const keyEditor = (k, li) => {
       await api(`/keys/${encodeURIComponent(k.key)}`, { method: 'PUT', body: JSON.stringify({ name, perms }), headers: { 'X-SIA-Base': keysBase } });
       keyEditCancel = null;
       toast(`Clave «${name}» actualizada`);
-      keysRefresh();
+      keysRefresh(); settingsChanged();
     } catch (e) { dbSetStatus(status, e.message, 'bad'); save.disabled = false; }
   };
   save.addEventListener('click', submit);
@@ -3768,7 +3832,7 @@ const keyItem = (k) => {
   li.querySelector('[data-act="edit"]')?.addEventListener('click', () => keyEditor(k, li));
   li.querySelector('[data-act="del"]')?.addEventListener('click', async () => {
     if (!(await dlgConfirm('Borrar clave', `Quien tenga la clave <strong>${esc(k.name)}</strong> dejará de abrir sus vistas al momento.`, 'Borrar'))) return;
-    try { await api(`/keys/${encodeURIComponent(k.key)}`, { method: 'DELETE', headers: { 'X-SIA-Base': keysBase } }); toast(`Clave «${k.name}» borrada`); keysRefresh(); }
+    try { await api(`/keys/${encodeURIComponent(k.key)}`, { method: 'DELETE', headers: { 'X-SIA-Base': keysBase } }); toast(`Clave «${k.name}» borrada`); keysRefresh(); settingsChanged(); }
     catch (e) { dbSetStatus(keysStatus, e.message, 'bad'); }
   });
   return li;
@@ -3798,7 +3862,7 @@ keysNewCreate.addEventListener('click', async () => {
     keysNewName.value = ''; resetPicked();
     dbSetStatus(keysNewStatus, '');
     toast(`Clave «${name}» creada`);
-    keysRefresh();
+    keysRefresh(); settingsChanged();
   } catch (e) { dbSetStatus(keysNewStatus, e.message, 'bad'); }
   finally { keysNewCreate.disabled = false; }
 });

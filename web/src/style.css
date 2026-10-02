@@ -1496,3 +1496,19 @@ body.phone #nav-links, body.phone #view-links { display: none; }
 .db-choose { justify-content: center; }
 .db-form[data-mode="choose"] { flex: 1; justify-content: center; padding-bottom: 40px; }
 .db-form[data-mode="choose"] > .db-lead, .db-form[data-mode="choose"] > .db-actions { display: none; }
+
+/* cards de proyecto: acciones al pasar el ratón (mover, papelera), como en las
+   cajas de bases; «mover» despliega un menú con los otros grupos pegado a la card */
+.admin-card { position: relative; }
+.admin-card .ac-actions { position: absolute; top: 6px; right: 6px; display: flex; gap: 2px; opacity: 0; transition: opacity .12s ease; }
+.admin-card:hover .ac-actions, .admin-card:focus-within .ac-actions { opacity: 1; }
+/* diálogo «Mover a otro grupo» */
+.dlg-lead { margin: 0 0 12px; font-size: 13px; color: var(--text-low); line-height: 1.5; }
+.dlg-lead strong { color: var(--text); }
+.move-list { margin-top: 0; }
+.move-list li { padding: 9px 12px; }
+.move-list li.current { border-style: dashed; color: var(--text-low); }
+.move-list li.current .pick { cursor: default; }
+.move-list li.current .pick .dot { border-color: var(--text-low); background: var(--text-low); opacity: .5; }
+.move-list li .pick .name { font-size: 13px; }
+.move-list li .gh-tok { font-size: 12px; }

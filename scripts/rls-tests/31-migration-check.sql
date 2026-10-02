@@ -11,4 +11,5 @@ set role anon;
 select assert_eq((select count(*) from public.match_chunks((select array_agg(0.1)::extensions.vector(384) from generate_series(1,384)), 0.0, 10, null)), 1::bigint, 'búsqueda con el token viejo funciona');
 select assert_eq((select array_agg(id) from public.skills where scope is not null), array['sv'], 'skill vieja visible con su token');
 reset role;
+select assert_eq((select confdeltype from pg_constraint where conname = 'context_entries_context_id_fkey'), 'c'::"char", 'la clave ajena sin cascada queda reparada');
 select 'MIGRACIÓN OK' as resultado;

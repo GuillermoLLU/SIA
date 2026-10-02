@@ -1,5 +1,8 @@
 \set ON_ERROR_STOP on
--- base del esquema 1 con datos y claves antiguas
+-- base del esquema 1 con datos y claves antiguas; una clave ajena SIN cascada,
+-- como en las bases más antiguas, para comprobar que el esquema 2 la repara
+alter table public.context_entries drop constraint context_entries_context_id_fkey;
+alter table public.context_entries add constraint context_entries_context_id_fkey foreign key (context_id) references public.contexts(id);
 insert into public.projects (name) values ('Viejo');
 insert into public.contexts (project_id, name) values (1, 'ctx');
 insert into public.context_entries (context_id, content) values (1, 'entrada antigua');

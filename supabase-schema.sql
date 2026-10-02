@@ -274,6 +274,52 @@ begin
 end;
 $$;
 
+-- ── Borrado en cascada ──────────────────────────────────────────
+-- Las claves ajenas de arriba llevan ON DELETE CASCADE, pero una base montada
+-- con un esquema anterior puede tenerlas sin él (create table if not exists
+-- no las toca): aquí se recrean con cascada las que no la tengan, para que
+-- borrar un proyecto arrastre contextos, entradas, chunks, accesos y enlaces.
+do $$
+declare r record;
+begin
+  for r in
+    select con.conname, cls.relname as tbl, att.attname as col, ref.relname as reftbl, ratt.attname as refcol
+    from pg_constraint con
+    join pg_class cls on cls.oid = con.conrelid
+    join pg_namespace ns on ns.oid = cls.relnamespace
+    join pg_class ref on ref.oid = con.confrelid
+    join pg_attribute att on att.attrelid = con.conrelid and att.attnum = con.conkey[1]
+    join pg_attribute ratt on ratt.attrelid = con.confrelid and ratt.attnum = con.confkey[1]
+    where con.contype = 'f' and ns.nspname = 'public' and con.confdeltype <> 'c'
+      and cls.relname in ('contexts', 'context_entries', 'context_chunks', 'skill_files', 'access_grants', 'project_links')
+  loop
+    execute format('alter table public.%I drop constraint %I', r.tbl, r.conname);
+    execute format('alter table public.%I add constraint %I foreign key (%I) references public.%I(%I) on delete cascade', r.tbl, r.conname, r.col, r.reftbl, r.refcol);
+  end loop;
+end $$;
+
+-- Borrar un grupo es borrar lo suyo: sus skills (scope no es clave ajena:
+-- admite nulo = común y valores de grupos ya borrados en bases antiguas) y
+-- los proyectos a los que SOLO él daba acceso, con todo su conocimiento. Los
+-- proyectos compartidos con otro grupo se quedan. Va ANTES del borrado para
+-- mirar los accesos del grupo mientras existen.
+create or replace function public.sia_group_deleted()
+returns trigger
+language plpgsql security definer
+set search_path = ''
+as $$
+begin
+  delete from public.skills where scope = old.token;
+  delete from public.projects p
+  where p.id in (select project_id from public.access_grants where token = old.token)
+    and not exists (select 1 from public.access_grants g where g.project_id = p.id and g.token <> old.token);
+  return old;
+end;
+$$;
+drop trigger if exists sia_group_deleted on public.access_groups;
+create trigger sia_group_deleted before delete on public.access_groups
+  for each row execute function public.sia_group_deleted();
+
 -- ── Row Level Security ──────────────────────────────────────────
 -- Activado en todo. Sin política que lo permita, anon no ve ni toca nada.
 -- Las políticas escriben las funciones como subconsulta — (select fn()) y

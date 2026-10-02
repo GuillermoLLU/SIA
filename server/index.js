@@ -1276,6 +1276,7 @@ const apiServer = http.createServer(async (req, res) => {
       if (parts[2] === 'groups' && req.method === 'DELETE' && parts[3]) {
         const { error } = await db.from('access_groups').delete().eq('token', decodeURIComponent(parts[3]));
         if (error) return json(res, 500, { error: error.message });
+        await syncSkills(viewBase); // la base borra las skills del grupo (disparador): fuera de la copia local
         return json(res, 200, { ok: true });
       }
       // crear proyecto (+ contexto inicial con el mismo nombre)
