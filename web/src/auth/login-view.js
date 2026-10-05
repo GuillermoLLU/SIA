@@ -96,7 +96,6 @@ const passwordGate = (session, logoHtml) => new Promise((resolve) => {
   el.className = 'lock-gate';
   el.innerHTML = `<form class="lock-card login-card login-password" novalidate>
     ${logoHtml}
-    <p class="login-lead">Elige tu contraseña: la que tienes te la dio un administrador.</p>
     <input class="settings-input login-input" name="password" type="password" placeholder="Contraseña nueva" autocomplete="new-password" />
     <input class="settings-input login-input" name="repeat" type="password" placeholder="Repítela" autocomplete="new-password" />
     <p class="login-hint">Mínimo 6 caracteres.</p>
