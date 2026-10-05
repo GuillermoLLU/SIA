@@ -618,7 +618,15 @@ const lockTry = (key) => {
 const platform = createPlatformClient({ ...(loadPlatformConfig(ROOT) || { url: '', key: '' }), fetch });
 const auth = createAuth({ platform, readConfig: readUserConfig, writeConfig: writeUserConfig });
 const users = createUserAdmin({ platform });
-const knowledge = createKnowledge({ platform });
+// Grupos de una base de conocimiento (access_groups) con su clave de poder;
+// fetch de Node, con TLS verificado (viaja una clave de poder).
+const readGroups = async ({ url, key, powerKey }) => {
+  const { data, error } = await createClient(url, key, { global: { fetch, headers: siaHeaders([], powerKey) }, auth: { persistSession: false } })
+    .from('access_groups').select('token, name').order('name');
+  if (error) throw new Error(error.message);
+  return data || [];
+};
+const knowledge = createKnowledge({ platform, readGroups });
 // Lo asignado a quien inicia sesión (o abre la app con la sesión guardada).
 // Si cambia, se reconecta y se resincronizan las skills.
 const loadAssigned = async (token) => {
@@ -843,8 +851,8 @@ const readBody = (req) => new Promise((resolve, reject) => {
   req.on('data', (c) => { b += c; if (b.length > 40_000_000) req.destroy(); });
   req.on('end', () => { try { resolve(b ? JSON.parse(b) : {}); } catch (e) { reject(e); } });
 });
-const authRoute = authRoutes(auth, { json, readBody, onSession: loadAssigned, onLogout: clearAssigned });
-const usersRoute = usersRoutes(users, auth, { json, readBody });
+const authRoute = authRoutes(auth, { json, readBody, onSession: loadAssigned, onLogout: clearAssigned, platform });
+const usersRoute = usersRoutes(users, auth, { json, readBody, assignKnowledge: (jwt, userId, baseId, ids) => knowledge.setGroups(jwt, userId, baseId, ids) });
 const knowledgeRoute = knowledgeRoutes(knowledge, auth, { json, readBody, onChange: loadAssigned });
 const validId = (s) => typeof s === 'string' && /^[a-z0-9][a-z0-9_-]{1,63}$/i.test(s);
 let uploadSeq = 0;
@@ -1111,7 +1119,7 @@ const apiServer = http.createServer(async (req, res) => {
       || (parts[1] === 'access' && parts[2] === 'groups');
     if (adminOnly && who?.user.role !== 'admin') return json(res, 403, { error: 'Solo para administradores.' });
     if (parts[1] === 'users') return usersRoute(req, res, parts[2]);
-    if (parts[1] === 'knowledge') return knowledgeRoute(req, res, parts[2], parts[3]);
+    if (parts[1] === 'knowledge') return knowledgeRoute(req, res, parts.slice(2));
 
     // Sin base de conocimiento solo funciona lo que no la necesita (terminal,
     // móvil, config personal, adjuntos). Lo demás: 503 con aviso claro.

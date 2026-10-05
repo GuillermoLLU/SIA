@@ -1,14 +1,15 @@
 // /api/users/*: gestión de usuarios, solo para administradores (sesión en
 // X-SIA-Auth). La base vuelve a comprobarlo todo con el JWT de quien llama.
 //   GET    /      → { users }
-//   POST   /      { email, name, password, role } → { user }
+//   POST   /      { email, name, password, role, knowledge? } → { user, warning? }
+//                 knowledge = { baseId: [ids de grupo] }: lo que verá desde el alta
 //   PUT    /:id   { name?, role?, active?, password? } → { ok }
 //   DELETE /:id   → { ok }
 // Los errores de la base o de la función llegan con su estado y su texto.
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export const usersRoutes = (users, auth, { json, readBody }) => async (req, res, id) => {
+export const usersRoutes = (users, auth, { json, readBody, assignKnowledge }) => async (req, res, id) => {
   const token = req.headers['x-sia-auth'];
   try {
     const ctx = await auth.context(token);
@@ -19,8 +20,16 @@ export const usersRoutes = (users, auth, { json, readBody }) => async (req, res,
 
     if (!id && req.method === 'GET') return json(res, 200, { users: await users.list(jwt) });
     if (!id && req.method === 'POST') {
-      const { email, name, password, role } = await readBody(req);
-      return json(res, 200, { user: await users.create(jwt, { email, name, password, role }) });
+      const { email, name, password, role, knowledge } = await readBody(req);
+      const user = await users.create(jwt, { email, name, password, role });
+      // el conocimiento elegido en el alta, base a base; la persona ya existe:
+      // si algo falla se avisa, no se deshace el alta
+      const failed = [];
+      for (const [baseId, ids] of Object.entries(knowledge || {})) {
+        if (!UUID.test(baseId) || !Array.isArray(ids) || !ids.length) continue;
+        try { await assignKnowledge(jwt, user.id, baseId, ids); } catch (e) { failed.push(e.message); }
+      }
+      return json(res, 200, { user, ...(failed.length ? { warning: `Creada, pero no se pudo asignar parte de su conocimiento: ${failed[0]}` } : {}) });
     }
     if (id && req.method === 'PUT') {
       const { name, role, active, password } = await readBody(req);

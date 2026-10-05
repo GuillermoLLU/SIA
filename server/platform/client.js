@@ -17,6 +17,8 @@ const AUTH_MESSAGES = {
   refresh_token_not_found: 'La sesión ha caducado.',
   refresh_token_already_used: 'La sesión ha caducado.',
   session_not_found: 'La sesión ha caducado.',
+  same_password: 'La contraseña nueva tiene que ser distinta de la actual.',
+  weak_password: 'La contraseña no cumple la política: 12 o más, con minúsculas, mayúsculas, números y algún símbolo.',
 };
 // PostgREST manda 42501 (sin permiso) como 401/403: aquí siempre 403.
 const statusOf = (r, data) => (data?.code === '42501' ? 403 : r.status >= 500 ? 502 : r.status);
@@ -52,6 +54,7 @@ export const createPlatformClient = ({ url, key, fetch }) => {
     signIn: async (email, password) => tokens(await request('/auth/v1/token?grant_type=password', { method: 'POST', body: { email, password } })),
     refresh: async (refreshToken) => tokens(await request('/auth/v1/token?grant_type=refresh_token', { method: 'POST', body: { refresh_token: refreshToken } })),
     signOut: (jwt) => request('/auth/v1/logout?scope=local', { method: 'POST', jwt }),
+    updateOwnPassword: (jwt, password) => request('/auth/v1/user', { method: 'PUT', body: { password }, jwt }),
     rpc: (jwt, fn, args = {}) => request(`/rest/v1/rpc/${fn}`, { method: 'POST', body: args, jwt }),
     users: (jwt, body) => request('/functions/v1/sia-users', { method: 'POST', body, jwt }),
   };

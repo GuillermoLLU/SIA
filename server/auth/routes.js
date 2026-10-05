@@ -4,9 +4,12 @@
 //   GET  me      → { user } | 401
 //   POST login   { email, password, remember } → { token, user } | 401 | 429
 //   POST logout  → { ok }
+//   POST password { password } → { ok }   cambiar la propia (obligatorio si la puso un admin)
 // Si la base de la instancia no responde: 503 con el motivo.
 
-export const authRoutes = (auth, { json, readBody, onSession, onLogout }) => async (req, res, action) => {
+import { passwordProblem } from './password.js';
+
+export const authRoutes = (auth, { json, readBody, onSession, onLogout, platform }) => async (req, res, action) => {
   const token = req.headers['x-sia-auth'];
   try {
     if (action === 'me' && req.method === 'GET') {
@@ -23,6 +26,17 @@ export const authRoutes = (auth, { json, readBody, onSession, onLogout }) => asy
       await onSession(r.token);
       return json(res, 200, { token: r.token, user: r.user });
     }
+    if (action === 'password' && req.method === 'POST') {
+      const ctx = await auth.context(token);
+      if (!ctx) return json(res, 401, { error: 'Inicia sesión.' });
+      const { password } = await readBody(req);
+      const problem = passwordProblem(password);
+      if (problem) return json(res, 400, { error: problem });
+      await platform.updateOwnPassword(ctx.accessToken, password);
+      await platform.rpc(ctx.accessToken, 'platform_password_changed');
+      auth.refreshProfile(token);
+      return json(res, 200, { ok: true });
+    }
     if (action === 'logout' && req.method === 'POST') {
       await auth.logout(token);
       await onLogout();
@@ -30,6 +44,7 @@ export const authRoutes = (auth, { json, readBody, onSession, onLogout }) => asy
     }
     return json(res, 404, { error: 'no encontrado' });
   } catch (e) {
-    return json(res, e.status === 502 || e.status === 503 ? 503 : 500, { error: e.status ? e.message : 'Error interno.' });
+    if (!e.status) return json(res, 500, { error: 'Error interno.' });
+    return json(res, e.status >= 500 ? 503 : e.status, { error: e.message });
   }
 };
