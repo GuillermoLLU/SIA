@@ -4,7 +4,7 @@
 //   POST login   { name, password, remember } → { token, user } | 401 | 429
 //   POST logout  → { ok }
 
-import { publicUser } from './users.js';
+import { publicUser } from '../users/users.js';
 
 export const authRoutes = (auth, { json, readBody }) => async (req, res, action) => {
   const token = req.headers['x-sia-auth'];

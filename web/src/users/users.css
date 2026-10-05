@@ -1,0 +1,32 @@
+/* Vista «Usuarios»: cabecera como la de Enlaces y una fila por usuario
+   (inicial, nombre, rol y acciones). */
+#view-users { padding: 26px 30px; overflow-y: auto; }
+.users-head { display: flex; align-items: center; gap: 16px; }
+.users-title { flex: 1; }
+.users-head h2 { margin: 0; font-size: 19px; font-weight: 650; color: var(--text); }
+.users-sub { margin: 4px 0 0; font-size: 13px; color: var(--text-low); }
+.users-head .lab-btn { height: 34px; padding: 0 16px; font-size: 13px; }
+
+.users-list { list-style: none; margin: 22px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; max-width: 760px; }
+.user-row {
+  display: flex; align-items: center; gap: 14px;
+  padding: 10px 12px; border: 1px solid var(--border); background: var(--surface);
+  transition: border-color 0.15s ease;
+}
+.user-row:hover { border-color: var(--text-low); }
+.user-avatar {
+  flex: none; width: 32px; height: 32px; display: grid; place-items: center;
+  background: var(--text); color: var(--bg); font-size: 14px; font-weight: 650;
+}
+.user-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; color: var(--text); }
+.user-me { margin-left: 6px; padding: 1px 6px; border: 1px solid var(--border); font-size: 11px; color: var(--text-low); }
+.user-role { flex: none; width: 112px; font-size: 12.5px; color: var(--text-low); }
+.user-role.admin { color: var(--text); font-weight: 600; }
+.user-actions { flex: none; display: flex; gap: 2px; }
+.user-actions .icon-btn svg { width: 16px; height: 16px; }
+.user-actions .icon-btn:disabled { opacity: 0.3; cursor: not-allowed; background: transparent; }
+.users-empty { font-size: 13px; color: var(--text-low); }
+
+/* formulario de alta/edición, dentro del diálogo genérico */
+.user-form { display: flex; flex-direction: column; gap: 14px; }
+.dialog .modal-body .user-form .settings-input { margin-top: 0; }

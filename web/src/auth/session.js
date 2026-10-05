@@ -9,6 +9,9 @@ const storedToken = () => localStorage.getItem(TOKEN_KEY) || sessionStorage.getI
 const forget = () => { localStorage.removeItem(TOKEN_KEY); sessionStorage.removeItem(TOKEN_KEY); };
 
 export const createAuthSession = (apiBase) => ({
+  // Cabecera con la sesión, para las llamadas que la exigen (p. ej. /api/users).
+  headers: () => ({ 'X-SIA-Auth': storedToken() }),
+
   // El último usuario que entró, para dejarlo escrito en el formulario.
   lastName: () => localStorage.getItem(NAME_KEY) || '',
 

@@ -12,6 +12,8 @@ import { createAuthSession } from './auth/session.js';
 import { ensureLogin } from './auth/login-view.js';
 import { wireLogout } from './auth/logout-button.js';
 import { themeById, toggledTheme } from './theme/themes.js';
+import { createUsersApi } from './users/users-api.js';
+import { mountUsersView } from './users/users-view.js';
 
 // Favicon de la pestaña (la S).
 {
@@ -1582,6 +1584,8 @@ const navAdmin = document.getElementById('nav-admin');
 const viewAdmin = document.getElementById('view-admin');
 const navLinks = document.getElementById('nav-links');
 const viewLinks = document.getElementById('view-links');
+const navUsers = document.getElementById('nav-users');
+const viewUsers = document.getElementById('view-users');
 const linksGrid = document.getElementById('links-grid');
 const linksFilters = document.getElementById('links-filters');
 
@@ -1618,12 +1622,13 @@ const renderBasePick = (view) => {
     grid.appendChild(btn);
   }
   basePickBody.append(title, grid);
-  viewChat.hidden = true; viewLab.hidden = true; viewAdmin.hidden = true; viewLinks.hidden = true;
+  viewChat.hidden = true; viewLab.hidden = true; viewAdmin.hidden = true; viewLinks.hidden = true; viewUsers.hidden = true;
   viewBasePick.hidden = false;
   navChat.classList.remove('active');
   navLab.classList.toggle('active', view === 'lab');
   navAdmin.classList.toggle('active', view === 'admin');
   navLinks.classList.toggle('active', view === 'links');
+  navUsers.classList.remove('active');
 };
 // Dentro de una vista, con varias bases, el título recuerda la base en uso
 // («Laboratorio de skills · Soporte»). Para cambiar de base se vuelve a pulsar
@@ -1650,14 +1655,17 @@ const showView = (name) => {
   viewLab.hidden = name !== 'lab';
   viewAdmin.hidden = name !== 'admin';
   viewLinks.hidden = name !== 'links';
+  viewUsers.hidden = name !== 'users';
   if (VIEW_TITLE_EL[name]) paintViewTitle(name);
   navChat.classList.toggle('active', name === 'chat');
   navLab.classList.toggle('active', name === 'lab');
   navAdmin.classList.toggle('active', name === 'admin');
   navLinks.classList.toggle('active', name === 'links');
+  navUsers.classList.toggle('active', name === 'users');
   if (name === 'lab') labRefresh();
   if (name === 'admin') adminRefresh();
   if (name === 'links') linksRefresh();
+  if (name === 'users') usersView.refresh();
   if (name === 'chat') {
     const s = activeId ? sessions.get(activeId) : null;
     if (s && s.launched) requestAnimationFrame(() => { s.fit.fit(); sendResize(s); s.term.focus(); });
@@ -2093,6 +2101,13 @@ settingsModal.addEventListener('mousedown', (e) => { if (e.target === settingsMo
 
 // Cerrar sesión (barra lateral): web/src/auth/logout-button.js
 wireLogout(document.getElementById('logout-btn'), { ...AUTH, confirm: dlgConfirm });
+
+// Usuarios (barra lateral, solo administradores): web/src/users/
+const usersView = AUTH?.user.role === 'admin'
+  ? mountUsersView(viewUsers, { api: createUsersApi(API_BASE, AUTH.session), me: AUTH.user, dialog: openDialog, confirm: dlgConfirm, alert: dlgAlert })
+  : null;
+navUsers.hidden = !usersView;
+navUsers.addEventListener('click', () => showView('users'));
 
 /* ── Bloqueo de pantalla ──────────────────────────────────────────
    El candado de la barra lateral tapa la ventana hasta dar el PIN; la primera

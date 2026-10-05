@@ -1,28 +1,21 @@
-// Inicio de sesión: casos de uso sobre el dominio (users.js) y la config
-// personal, que llega inyectada (readConfig/writeConfig) para no atarse al disco.
+// Inicio de sesión: casos de uso sobre las sesiones (sessions.js). Llegan
+// inyectados la config personal (readConfig/writeConfig, para no atarse al
+// disco) y la lista de usuarios (users, del slice server/users).
 //
-// Las sesiones con «Recordar» se guardan (solo su hash) en la config y
+// Las sesiones con «Mantener la sesión» se guardan (solo su hash) en la config y
 // sobreviven a reinicios; las demás viven en memoria. Cinco intentos fallidos
 // seguidos imponen 30 s de espera.
 
-import { normalizeUsers, checkLogin, newSession, liveSessions, userForToken, tokenHash } from './users.js';
+import { checkLogin } from '../users/users.js';
+import { newSession, liveSessions, userForToken, tokenHash } from './sessions.js';
 
 const MAX_FAILS = 5;
 const WAIT_MS = 30_000;
 
-export const createAuth = ({ readConfig, writeConfig, now = Date.now }) => {
+export const createAuth = ({ readConfig, writeConfig, users, now = Date.now }) => {
   const memSessions = [];
   const fails = { n: 0, until: 0 };
-  const users = () => normalizeUsers(readConfig().users);
   const sessions = () => [...memSessions, ...(readConfig().sessions || [])];
-
-  // Primer arranque sin usuarios: deja guardado el administrador inicial. → true si lo creó.
-  const ensureUsers = () => {
-    const cfg = readConfig();
-    if (Array.isArray(cfg.users) && cfg.users.length) return false;
-    writeConfig({ ...cfg, users: normalizeUsers(cfg.users) });
-    return true;
-  };
 
   const userOf = (token) => userForToken(sessions(), users(), token, now());
 
@@ -55,5 +48,5 @@ export const createAuth = ({ readConfig, writeConfig, now = Date.now }) => {
     if (cfg.sessions?.some((s) => s.hash === h)) writeConfig({ ...cfg, sessions: cfg.sessions.filter((s) => s.hash !== h) });
   };
 
-  return { ensureUsers, userOf, login, logout };
+  return { userOf, login, logout };
 };

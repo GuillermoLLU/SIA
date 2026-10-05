@@ -14,6 +14,8 @@ import { makeDiagnose, schemaOk } from './base/diagnose.js';
 import { buildSchemaSql } from './base/schema-sql.js';
 import { createAuth } from './auth/service.js';
 import { authRoutes } from './auth/routes.js';
+import { createUserAdmin } from './users/service.js';
+import { usersRoutes } from './users/routes.js';
 import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -597,9 +599,10 @@ const lockTry = (key) => {
   return { ok: false };
 };
 
-/* ── Inicio de sesión: server/auth/ ── */
-const auth = createAuth({ readConfig: readUserConfig, writeConfig: writeUserConfig });
-if (auth.ensureUsers()) console.log('[sia] creado el usuario administrador inicial');
+/* ── Usuarios (server/users/) e inicio de sesión (server/auth/) ── */
+const users = createUserAdmin({ readConfig: readUserConfig, writeConfig: writeUserConfig });
+if (users.ensureSeed()) console.log('[sia] creado el usuario administrador inicial');
+const auth = createAuth({ readConfig: readUserConfig, writeConfig: writeUserConfig, users: users.all });
 
 /* Claves de GitHub: se guardan varias (trabajo, personal…) y solo UNA está
    activa; es la que viaja a los chats que se abran a partir de ese momento.
@@ -799,6 +802,7 @@ const readBody = (req) => new Promise((resolve, reject) => {
   req.on('end', () => { try { resolve(b ? JSON.parse(b) : {}); } catch (e) { reject(e); } });
 });
 const authRoute = authRoutes(auth, { json, readBody });
+const usersRoute = usersRoutes(users, { json, readBody, currentUser: (req) => auth.userOf(req.headers['x-sia-auth']) });
 const validId = (s) => typeof s === 'string' && /^[a-z0-9][a-z0-9_-]{1,63}$/i.test(s);
 let uploadSeq = 0;
 const validFiles = (files) => Array.isArray(files) && files.length &&
@@ -1043,6 +1047,7 @@ const apiServer = http.createServer(async (req, res) => {
     // con el candado echado, esta máquina no ve nada más (el móvil emparejado
     // va por su propio candado, arriba, en el cortafuegos)
     if (SCREEN_LOCKED && isLoopback(req)) return json(res, 423, { error: 'pantalla bloqueada', locked: true });
+    if (parts[1] === 'users') return usersRoute(req, res, parts[2]);
 
     // Sin base de conocimiento solo funciona lo que no la necesita (terminal,
     // móvil, config personal, adjuntos). Lo demás: 503 con aviso claro.
