@@ -2088,8 +2088,8 @@ const closeSettings = () => { settingsModal.hidden = true; };
 settingsClose.addEventListener('click', closeSettings);
 settingsModal.addEventListener('mousedown', (e) => { if (e.target === settingsModal) closeSettings(); });
 
-// Cerrar sesión (barra lateral): web/src/auth/logout-button.js
-wireLogout(document.getElementById('logout-btn'), { ...AUTH, confirm: dlgConfirm });
+// Cerrar sesión (pie de Configuración): web/src/auth/logout-button.js
+wireLogout(document.getElementById('settings-session'), { ...AUTH, confirm: dlgConfirm });
 
 // Personas (barra lateral, con esa vista): web/src/users/
 const usersView = canView('people')

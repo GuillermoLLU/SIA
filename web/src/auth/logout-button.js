@@ -1,10 +1,13 @@
-// Botón «Cerrar sesión» de la barra lateral. Sin usuario (móvil emparejado,
-// que entra por su emparejamiento) no se enseña.
+// Pie de Configuración: quién ha iniciado sesión y «Cerrar sesión». Sin
+// usuario (móvil emparejado, que entra por su emparejamiento) no se enseña.
 
-export const wireLogout = (btn, { user, session, confirm }) => {
-  if (!user) { btn.hidden = true; return; }
-  btn.title = `Cerrar sesión (${user.name})`;
-  btn.addEventListener('click', async () => {
+export const wireLogout = (box, { user, session, confirm }) => {
+  if (!user) { box.hidden = true; return; }
+  box.hidden = false;
+  const who = box.querySelector('#session-who');
+  who.textContent = 'Sesión de ';
+  who.append(Object.assign(document.createElement('b'), { textContent: user.name }));
+  box.querySelector('#logout-btn').addEventListener('click', async () => {
     const lead = document.createElement('p');
     lead.className = 'dlg-lead';
     lead.textContent = `Saldrás de SIA como ${user.name}. Los chats abiertos siguen trabajando en el ordenador.`;
