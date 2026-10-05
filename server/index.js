@@ -632,7 +632,18 @@ const readGroups = async ({ url, key, powerKey }) => {
   if (error) throw new Error(error.message);
   return data || [];
 };
-const knowledge = createKnowledge({ platform, readGroups });
+// Claves de poder de las personas en una base (power_keys), con la clave de
+// la instancia en ella: solo el dueño las gestiona, así que tiene que ser la suya.
+const baseKeys = (() => {
+  const keys = ({ url, key, powerKey }) => createClient(url, key, { global: { fetch, headers: siaHeaders([], powerKey) }, auth: { persistSession: false } }).from('power_keys');
+  const ok = (error) => { if (error) throw new Error(`La base no deja crear claves de poder (${error.message}): en Configuración tiene que tener la clave del dueño.`); };
+  return {
+    async create(c, { name, perms }) { const key = randomUUID(); const { error } = await keys(c).insert({ key, name, owner: false, perms }); ok(error); return key; },
+    async update(c, key, { name, perms }) { const { data, error } = await keys(c).update({ name, perms }).eq('key', key).select('key'); ok(error); return data.length > 0; },
+    async remove(c, key) { const { error } = await keys(c).delete().eq('key', key); ok(error); },
+  };
+})();
+const knowledge = createKnowledge({ platform, readGroups, baseKeys });
 // Lo asignado a quien inicia sesión (o abre la app con la sesión guardada).
 // Si cambia, se reconecta y se resincronizan las skills.
 const loadAssigned = async (token) => {
@@ -643,6 +654,13 @@ const loadAssigned = async (token) => {
     if (configures) {
       const problems = await knowledge.syncFromConfig(ctx.accessToken, localBases());
       for (const p of problems) console.warn(`[sia] no se pudo llevar a la instancia ${p}`);
+    }
+    // quien gestiona Personas deja al día las claves de todos (por si algo
+    // cambió fuera de SIA o quedó a medias); sin esperar
+    if (can(ctx.user, 'people')) {
+      knowledge.syncPeople(ctx.accessToken, null)
+        .then((problems) => problems.forEach((p) => console.warn(`[sia] clave de poder de una persona: ${p}`)))
+        .catch((e) => console.warn(`[sia] no se pudieron revisar las claves de las personas: ${e.message}`));
     }
     const next = { configures, bases: toAssignedBases(await knowledge.mine(ctx.accessToken)) };
     if (JSON.stringify(next) === JSON.stringify(assigned)) return;
@@ -863,8 +881,9 @@ const readBody = (req) => new Promise((resolve, reject) => {
   req.on('end', () => { try { resolve(b ? JSON.parse(b) : {}); } catch (e) { reject(e); } });
 });
 const authRoute = authRoutes(auth, { json, readBody, onSession: loadAssigned, onLogout: clearAssigned, platform });
-const usersRoute = usersRoutes(users, auth, { json, readBody, assignKnowledge: (jwt, userId, baseId, ids) => knowledge.setGroups(jwt, userId, baseId, ids) });
-const knowledgeRoute = knowledgeRoutes(knowledge, auth, { json, readBody, onChange: loadAssigned });
+const syncKeys = (jwt, userId, opts) => knowledge.syncPeople(jwt, [userId], opts);
+const usersRoute = usersRoutes(users, auth, { json, readBody, syncKeys, assignKnowledge: (jwt, userId, baseId, ids) => knowledge.setGroups(jwt, userId, baseId, ids) });
+const knowledgeRoute = knowledgeRoutes(knowledge, auth, { json, readBody, syncKeys, onChange: loadAssigned });
 const validId = (s) => typeof s === 'string' && /^[a-z0-9][a-z0-9_-]{1,63}$/i.test(s);
 let uploadSeq = 0;
 const validFiles = (files) => Array.isArray(files) && files.length &&

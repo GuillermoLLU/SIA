@@ -83,7 +83,14 @@ de 6 caracteres o más, SSL obligatorio y claves legacy
 desactivadas. Las pruebas del SQL: `npm run test:platform` (Docker).
 
 Vistas por persona (`platform.users.views`: links, lab, admin, people,
-knowledge); el rol (**admin** / **agent**) solo pone las de partida. Nadie
+knowledge); el rol (**admin** / **agent**) solo pone las de partida. Una
+base de conocimiento solo entiende de claves de poder, así que cada persona
+tiene en cada base que ve su propia clave («SIA · email», en
+`platform.person_keys` y Vault) con solo los permisos de sus vistas
+(Laboratorio, Administración, Enlaces). La crea, la ajusta y la quita el
+bridge de quien gestiona Personas (con la clave del dueño de la base, que
+tiene la instancia), y el bridge de la persona la recibe al iniciar sesión:
+nadie reparte claves a mano. Nadie
 cambia su propio rol ni sus vistas ni se desactiva, así que siempre queda
 alguien con Personas. Todo pasa por funciones de la base que comprueban
 quién llama y sus vistas; las tablas no se pueden leer ni con la publishable.

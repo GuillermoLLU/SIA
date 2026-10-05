@@ -10,11 +10,17 @@
 // clave de poder son las de la instancia (las que se asignan en Personas).
 // syncFromConfig da de alta las que falten y las renombra; quitar una base en
 // Configuración la quita de la instancia (removeByUrl).
+//
+// Cada persona tiene en cada base que ve su clave de poder con los permisos
+// de sus vistas (person-keys.js). syncPeople la crea, la pone al día o la
+// quita en la base con baseKeys (inyectado: create / update / remove sobre
+// power_keys, con la clave de la instancia) y la guarda en la instancia.
 
 import { PlatformError } from '../platform/client.js';
 import { toGroups, publicGroups, pickGroups } from './groups.js';
+import { planKeys, keyName } from './person-keys.js';
 
-export const createKnowledge = ({ platform, readGroups }) => {
+export const createKnowledge = ({ platform, readGroups, baseKeys }) => {
   const groupsByBase = new Map(); // baseId → [{ id, name, token }]
 
   // Prueba una clave de poder antes de guardarla: tiene que abrir los grupos.
@@ -38,7 +44,39 @@ export const createKnowledge = ({ platform, readGroups }) => {
     }));
   };
 
+  // Conexión a cada base con la clave de la instancia: baseId → { url, key, powerKey }.
+  const connections = async (jwt) => new Map((await platform.rpc(jwt, 'platform_base_access'))
+    .map((a) => [a.id, { url: a.url, key: a.publishable_key, powerKey: a.power_key }]));
+
+  // Claves de unas personas (ids; null: todas) al día con sus vistas y lo que
+  // ven. drop: quitárselas todas (antes de borrarlas). → [problemas]
+  const syncPeople = async (jwt, ids, { drop = false } = {}) => {
+    const [people, conn, keys] = await Promise.all([
+      platform.rpc(jwt, 'platform_list_users'), connections(jwt), platform.rpc(jwt, 'platform_person_keys', {})]);
+    const targets = ids ? ids.map((id) => people.find((p) => p.id === id) || { id }) : people;
+    const problems = [];
+    for (const person of targets) {
+      const current = new Map(keys.filter((k) => k.user_id === person.id).map((k) => [k.base_id, k.power_key]));
+      for (const step of planKeys(drop ? null : person, new Set(conn.keys()), current)) {
+        const c = conn.get(step.baseId);
+        const save = (key) => platform.rpc(jwt, 'platform_set_person_key', { p_user: person.id, p_base: step.baseId, p_power_key: key });
+        try {
+          if (step.action === 'remove') {
+            if (c) await baseKeys.remove(c, step.key).catch(() => {}); // ya no estaba: da igual
+            await save(null);
+            continue;
+          }
+          const fields = { name: keyName(person), perms: step.perms };
+          if (step.action === 'update' && await baseKeys.update(c, step.key, fields)) continue;
+          await save(await baseKeys.create(c, fields)); // nueva, o la anterior ya no estaba en la base
+        } catch (e) { problems.push(e.message); }
+      }
+    }
+    return problems;
+  };
+
   return {
+    syncPeople,
     // lo asignado a quien llama (filas de platform_my_knowledge)
     mine: (jwt) => platform.rpc(jwt, 'platform_my_knowledge'),
     bases,
@@ -71,6 +109,11 @@ export const createKnowledge = ({ platform, readGroups }) => {
     async removeByUrl(jwt, url) {
       const inst = (await platform.rpc(jwt, 'platform_list_bases')).find((b) => b.url === url);
       if (!inst) return;
+      // fuera de la base las claves que SIA dio en ella; en la instancia se van con la base
+      const c = (await connections(jwt)).get(inst.id);
+      if (c) {
+        for (const k of await platform.rpc(jwt, 'platform_person_keys', { p_base: inst.id })) await baseKeys.remove(c, k.power_key).catch(() => {});
+      }
       await platform.rpc(jwt, 'platform_remove_base', { p_base: inst.id });
       groupsByBase.delete(inst.id);
     },

@@ -1760,7 +1760,7 @@ const refreshAdmin = async ({ quiet = false } = {}) => {
     // cada vista, si la tiene (el bridge también lo exige) y si alguna base la abre
     navLab.hidden = !canView('lab') || !basesFor('lab').length;
     navAdmin.hidden = !canView('admin') || !basesFor('admin').length;
-    navLinks.hidden = !(canView('links') || canView('admin')) || !basesFor('links').length;
+    navLinks.hidden = !canView('links') || !basesFor('links').length;
     if (navLab.hidden && !viewLab.hidden) showView('chat');
     if (navAdmin.hidden && !viewAdmin.hidden) showView('chat');
     if (navLinks.hidden && !viewLinks.hidden) showView('chat');

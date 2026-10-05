@@ -156,10 +156,25 @@ select expect_error($$select public.platform_copy_knowledge('00000000-0000-0000-
 select public.platform_set_knowledge(:U2, (select id from public.platform_list_bases() where name = 'Soporte'), '[]');
 select assert_eq((select knowledge from public.platform_list_users() where id = :U2), '[]'::jsonb, 'lista vacía: deja de ver la base');
 
+-- ── 5b. clave de poder de cada persona en cada base (Vault) ──
+select public.platform_set_person_key(:U1, (select id from public.platform_list_bases() where name = 'Soporte'), 'pk-persona-uno-1');
+select public.platform_set_person_key(:U1, (select id from public.platform_list_bases() where name = 'Soporte'), 'pk-persona-uno-2');
+select assert_eq((select power_key from public.platform_person_keys(:U1)), 'pk-persona-uno-2', 'poner y cambiar la clave de alguien');
+select expect_error($$select public.platform_set_person_key('00000000-0000-0000-0000-0000000000a2', gen_random_uuid(), 'pk-persona-x-1')$$, 'base inexistente');
+select public.platform_set_person_key(:U2, (select id from public.platform_list_bases() where name = 'Logística'), 'pk-persona-dos-1');
+select public.platform_set_person_key(:U2, (select id from public.platform_list_bases() where name = 'Logística'), null);
+select assert_eq((select count(*) from public.platform_person_keys(:U2)), 0::bigint, 'olvidar una clave');
+reset role;
+select assert_eq((select count(*) from vault.secrets where name like 'sia-person-%'), 1::bigint, 'y sale de Vault');
+set role authenticated;
+
 -- ── 6. agente: solo su conocimiento ──
 select t_as(:U1);
 select assert_eq((select group_token from public.platform_my_knowledge()), 'tok-soporte-n1-secreto', 'el agente recibe su token entero');
 select assert_eq((select publishable_key from public.platform_my_knowledge()), 'sb_publishable_abcdefghijklmnopqrstuvwxyz', 'y la clave publishable de la base');
+select assert_eq((select power_key from public.platform_my_knowledge()), 'pk-persona-uno-2', 'y su clave de poder en esa base');
+select expect_error('select count(*) from public.platform_person_keys()', 'el agente no ve las claves de otros');
+select expect_error($$select public.platform_set_person_key('00000000-0000-0000-0000-0000000000a2', gen_random_uuid(), 'pk-persona-x-1')$$, 'ni se pone claves');
 select expect_error('select count(*) from public.platform_base_access()', 'el agente no recibe claves de poder');
 select expect_error($$select public.platform_set_knowledge('00000000-0000-0000-0000-0000000000a2', gen_random_uuid(), '[]')$$, 'el agente no asigna');
 select expect_error($$select public.platform_copy_knowledge('00000000-0000-0000-0000-0000000000a2', '00000000-0000-0000-0000-0000000000a1')$$, 'el agente no copia');
@@ -173,6 +188,7 @@ select t_as(:AD);
 select public.platform_remove_base((select id from public.platform_list_bases() where name = 'Soporte'));
 reset role;
 select assert_eq((select count(*) from vault.secrets where name like 'sia-base-%'), 1::bigint, 'quitar la base borra su clave de Vault');
+select assert_eq((select count(*) from vault.secrets where name like 'sia-person-%'), 0::bigint, 'y las de las personas en ella');
 insert into auth.sessions (user_id) values ('00000000-0000-0000-0000-0000000000a2');
 set role authenticated;
 select t_as(:U1);

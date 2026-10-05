@@ -9,6 +9,10 @@
 --    users              las personas (1:1 con auth.users de Supabase Auth), su rol y sus vistas
 --    knowledge_bases    las bases de conocimiento (otros proyectos Supabase)
 --    knowledge_grants   qué grupos (tokens) de qué base tiene cada usuario: el RAG que ve
+--    person_keys        la clave de poder de cada persona en cada base que ve (en
+--                       Vault), con solo los permisos de sus vistas (Laboratorio,
+--                       Administración, Enlaces). La crea en la base el bridge de
+--                       quien gestiona Personas; el de la persona la usa.
 --    audit_log          registro de todo cambio (solo se añade, nunca se edita)
 --
 --  Vistas: lo que cada persona puede ver y hacer en SIA (el Chat, siempre)
@@ -105,6 +109,13 @@ create table if not exists platform.knowledge_grants (
 );
 create index if not exists grants_base on platform.knowledge_grants (base_id);
 
+create table if not exists platform.person_keys (
+  user_id       uuid not null references platform.users (id) on delete cascade,
+  base_id       uuid not null references platform.knowledge_bases (id) on delete cascade,
+  power_secret  uuid not null,
+  primary key (user_id, base_id)
+);
+
 create table if not exists platform.audit_log (
   id           bigint generated always as identity primary key,
   happened_at  timestamptz not null default now(),
@@ -144,6 +155,7 @@ alter table platform.users            enable row level security;
 alter table platform.knowledge_bases  enable row level security;
 alter table platform.knowledge_grants enable row level security;
 alter table platform.audit_log        enable row level security;
+alter table platform.person_keys      enable row level security;
 revoke all on all tables in schema platform from public, anon, authenticated;
 revoke all on all sequences in schema platform from public, anon, authenticated;
 
@@ -156,6 +168,18 @@ end $$;
 drop trigger if exists audit_log_immutable on platform.audit_log;
 create trigger audit_log_immutable before update or delete on platform.audit_log
   for each row execute function platform.audit_log_immutable();
+
+-- La clave de una persona sale de Vault con su fila (también al borrar a la
+-- persona o la base).
+create or replace function platform.person_key_forget() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  delete from vault.secrets where id = old.power_secret;
+  return old;
+end $$;
+drop trigger if exists person_key_forget on platform.person_keys;
+create trigger person_key_forget after delete on platform.person_keys
+  for each row execute function platform.person_key_forget();
 
 -- ── Alta en Supabase Auth → fila en platform.users (siempre como agente) ──
 -- El nombre llega en user_metadata.name (lo pone la Edge Function de alta).
@@ -310,16 +334,19 @@ begin
 end $$;
 
 -- Mi conocimiento: bases y tokens de grupo asignados (con el token entero:
--- es lo que SIA manda a cada base).
-create or replace function public.platform_my_knowledge()
-returns table (base_id uuid, base_name text, url text, publishable_key text, group_name text, group_token text)
+-- es lo que SIA manda a cada base) y mi clave de poder en cada una, si tengo.
+drop function if exists public.platform_my_knowledge();
+create function public.platform_my_knowledge()
+returns table (base_id uuid, base_name text, url text, publishable_key text, group_name text, group_token text, power_key text)
 language plpgsql stable security definer set search_path = '' as $$
 #variable_conflict use_column
 declare v_me uuid := platform.require_user();
 begin
   return query
-    select b.id, b.name, b.url, b.publishable_key, g.group_name, g.group_token
+    select b.id, b.name, b.url, b.publishable_key, g.group_name, g.group_token, d.decrypted_secret
     from platform.knowledge_grants g join platform.knowledge_bases b on b.id = g.base_id
+    left join platform.person_keys k on k.user_id = v_me and k.base_id = b.id
+    left join vault.decrypted_secrets d on d.id = k.power_secret
     where g.user_id = v_me
     order by b.name, g.group_name;
 end $$;
@@ -537,6 +564,46 @@ begin
   insert into platform.knowledge_grants (user_id, base_id, group_name, group_token, created_by)
   select p_user, g.base_id, g.group_name, g.group_token, v_me from platform.knowledge_grants g where g.user_id = p_from;
   perform platform.audit(v_me, 'knowledge.copy', p_user, jsonb_build_object('from', p_from));
+end $$;
+
+-- ── Claves de poder de cada persona ───────────────────────────────────────
+-- Las que hay (para ponerlas al día o quitarlas de las bases): de una persona,
+-- de una base o todas.
+create or replace function public.platform_person_keys(p_user uuid default null, p_base uuid default null)
+returns table (user_id uuid, base_id uuid, power_key text)
+language plpgsql stable security definer set search_path = '' as $$
+#variable_conflict use_column
+begin
+  perform platform.require_view('people', 'knowledge');
+  return query
+    select k.user_id, k.base_id, d.decrypted_secret
+    from platform.person_keys k join vault.decrypted_secrets d on d.id = k.power_secret
+    where (p_user is null or k.user_id = p_user) and (p_base is null or k.base_id = p_base);
+end $$;
+
+-- Guarda la clave que se acaba de crear en la base para alguien; null, la olvida.
+create or replace function public.platform_set_person_key(p_user uuid, p_base uuid, p_power_key text) returns void
+language plpgsql security definer set search_path = '' as $$
+declare v_me uuid := platform.require_view('people', 'knowledge');
+        v_secret uuid;
+begin
+  if p_power_key is null then
+    delete from platform.person_keys where user_id = p_user and base_id = p_base;
+  else
+    if p_power_key !~ '^[\x21-\x7e]{8,200}$' or strpos(p_power_key, ',') > 0 then
+      raise exception 'Clave de poder no válida.' using errcode = '22023';
+    end if;
+    select k.power_secret into v_secret from platform.person_keys k where k.user_id = p_user and k.base_id = p_base;
+    if v_secret is null then
+      v_secret := vault.create_secret(p_power_key, 'sia-person-' || p_user::text || '-' || p_base::text, 'Clave de poder de una persona en una base de SIA');
+      insert into platform.person_keys (user_id, base_id, power_secret) values (p_user, p_base, v_secret);
+    else
+      perform vault.update_secret(v_secret, p_power_key);
+    end if;
+  end if;
+  perform platform.audit(v_me, 'person_key.' || case when p_power_key is null then 'remove' else 'set' end, p_user, jsonb_build_object('base', p_base));
+exception
+  when foreign_key_violation then raise exception 'Esa persona o esa base no existe.' using errcode = 'P0002';
 end $$;
 
 -- ── Auditoría ─────────────────────────────────────────────────────────────

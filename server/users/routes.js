@@ -7,10 +7,15 @@
 //   PUT    /:id   { name?, role?, views?, active?, password? } → { ok }   (un rol sin vistas trae las suyas)
 //   DELETE /:id   → { ok }
 // Los errores de la base o de la función llegan con su estado y su texto.
+// syncKeys(jwt, id, { drop }) pone al día sus claves de poder en las bases
+// (sus vistas) tras cambiar su rol, vistas o acceso, y las quita antes de
+// borrarla; si algo falla, se avisa en `warning`.
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export const usersRoutes = (users, auth, { json, readBody, assignKnowledge }) => async (req, res, id) => {
+const keysWarning = (problems) => (problems.length ? { warning: `Hecho, pero sin su clave de poder en alguna base: ${problems[0]}` } : {});
+
+export const usersRoutes = (users, auth, { json, readBody, assignKnowledge, syncKeys }) => async (req, res, id) => {
   const token = req.headers['x-sia-auth'];
   try {
     const ctx = await auth.context(token);
@@ -29,15 +34,18 @@ export const usersRoutes = (users, auth, { json, readBody, assignKnowledge }) =>
         if (!UUID.test(baseId) || !Array.isArray(ids) || !ids.length) continue;
         try { await assignKnowledge(jwt, user.id, baseId, ids); } catch (e) { failed.push(e.message); }
       }
-      return json(res, 200, { user, ...(failed.length ? { warning: `Creada, pero no se pudo asignar parte de su conocimiento: ${failed[0]}` } : {}) });
+      const keys = keysWarning(await syncKeys(jwt, user.id));
+      return json(res, 200, { user, ...(failed.length ? { warning: `Creada, pero no se pudo asignar parte de su conocimiento: ${failed[0]}` } : keys) });
     }
     if (id && req.method === 'PUT') {
       const { name, role, views, active, password } = await readBody(req);
       await users.update(jwt, id, { name, role, views, active, password });
       if (id === ctx.user.id) auth.refreshProfile(token); // su propio nombre: que se vea ya
-      return json(res, 200, { ok: true });
+      const access = role !== undefined || views !== undefined || active !== undefined;
+      return json(res, 200, { ok: true, ...(access ? keysWarning(await syncKeys(jwt, id)) : {}) });
     }
     if (id && req.method === 'DELETE') {
+      await syncKeys(jwt, id, { drop: true }); // sus claves fuera de las bases antes de que deje de existir
       await users.remove(jwt, id);
       return json(res, 200, { ok: true });
     }

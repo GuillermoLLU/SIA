@@ -150,9 +150,9 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast }) => 
   const openPerson = (id) => { selected = id; renderPanel(); };
   const closePerson = () => { selected = null; panel.hidden = true; renderList(); };
 
-  // Guardar algo y volver a pintar con lo que dice la base.
+  // Guardar algo y volver a pintar con lo que dice la base (con su aviso, si trae).
   const save = async (fn, okText, msgEl) => {
-    try { await fn(); closeModal(); toast(okText); await load(); return true; }
+    try { const r = await fn(); closeModal(); toast(r?.warning || okText); await load(); return true; }
     catch (e) { if (msgEl) msgEl.textContent = e.message; else toast(e.message); return false; }
   };
   const footer = (okLabel, okClass = 'primary') => `<span class="pp-msg" data-msg></span><button class="lab-btn" data-cancel>Cancelar</button><button class="lab-btn ${okClass}" data-ok>${okLabel}</button>`;

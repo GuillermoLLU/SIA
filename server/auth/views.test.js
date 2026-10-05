@@ -16,7 +16,7 @@ test('cada ruta de gestión pide su vista', () => {
   assert.deepEqual(viewsForRoute(p('db/setup'), 'POST'), ['knowledge']);
   assert.deepEqual(viewsForRoute(p('access/groups'), 'GET'), ['knowledge']);
   assert.deepEqual(viewsForRoute(p('admin/projects'), 'GET'), ['admin']);
-  assert.deepEqual(viewsForRoute(p('links'), 'POST'), ['admin']);
+  assert.deepEqual(viewsForRoute(p('links'), 'POST'), ['links']);
   assert.deepEqual(viewsForRoute(p('drafts'), 'GET'), ['lab']);
   assert.deepEqual(viewsForRoute(p('skills/x'), 'DELETE'), ['lab']);
   assert.deepEqual(viewsForRoute(p('users'), 'GET'), ['people']);
@@ -31,8 +31,8 @@ test('lo de todos solo pide sesión', () => {
 
 test('allowed: basta con una de las vistas', () => {
   assert.equal(allowed({ views: ['links'] }, p('links'), 'GET'), true);
-  assert.equal(allowed({ views: ['admin'] }, p('links'), 'GET'), true);
+  assert.equal(allowed({ views: ['links'] }, p('links'), 'PUT'), true);
+  assert.equal(allowed({ views: ['admin'] }, p('links'), 'GET'), false);
   assert.equal(allowed({ views: [] }, p('links'), 'GET'), false);
-  assert.equal(allowed({ views: ['links'] }, p('links'), 'PUT'), false);
   assert.equal(allowed({ views: [] }, p('skills'), 'GET'), true);
 });

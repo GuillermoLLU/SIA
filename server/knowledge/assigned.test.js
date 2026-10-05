@@ -8,7 +8,7 @@ const rows = [
   { base_id: 'b1', base_name: 'Soporte', url: URL_A, publishable_key: 'sb_publishable_a', group_name: 'N1', group_token: 'tok-n1' },
   { base_id: 'b1', base_name: 'Soporte', url: URL_A, publishable_key: 'sb_publishable_a', group_name: 'N2', group_token: 'tok-n2' },
   { base_id: 'b1', base_name: 'Soporte', url: URL_A, publishable_key: 'sb_publishable_a', group_name: 'N2 bis', group_token: 'tok-n2' },
-  { base_id: 'b2', base_name: 'Logística', url: URL_B, publishable_key: 'sb_publishable_b', group_name: 'L', group_token: 'tok-l' },
+  { base_id: 'b2', base_name: 'Logística', url: URL_B, publishable_key: 'sb_publishable_b', group_name: 'L', group_token: 'tok-l', power_key: 'pk-paula-b' },
   { base_id: 'b3', base_name: 'Rota', url: URL_B },
 ];
 
@@ -16,6 +16,7 @@ test('toAssignedBases: una base por base, con sus tokens sin repetir; filas inco
   const bases = toAssignedBases(rows);
   assert.equal(bases.length, 2);
   assert.deepEqual(bases[0], { id: assignedId('b1'), name: 'Soporte', url: URL_A, key: 'sb_publishable_a', tokens: ['tok-n1', 'tok-n2'], groups: ['N1', 'N2'], powerKey: '', enabled: true, managed: true });
+  assert.equal(bases[1].powerKey, 'pk-paula-b', 'con la clave de poder que le dio la instancia');
   assert.deepEqual(toAssignedBases(null), []);
 });
 

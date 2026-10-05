@@ -12,7 +12,7 @@ export const can = (user, view) => Array.isArray(user?.views) && user.views.incl
 export const viewsForRoute = ([, area, sub], method) => {
   if (['keys', 'db'].includes(area) || (area === 'access' && sub === 'groups')) return ['knowledge'];
   if (area === 'admin' && sub !== 'check') return ['admin'];
-  if (area === 'links') return method === 'GET' ? ['links', 'admin'] : ['admin'];
+  if (area === 'links') return ['links'];
   if (['drafts', 'groups'].includes(area) || (area === 'skills' && (method === 'DELETE' || sub === 'publish'))) return ['lab'];
   if (area === 'users' || area === 'knowledge') return ['people'];
   return null;
