@@ -2262,12 +2262,10 @@ const knowPane = document.querySelector('#settings-modal .settings-pane[data-pan
 // Sin la vista Conocimiento no hay esa pestaña (ver las pestañas).
 const knowReadOnly = () => !canView('knowledge');
 
-/* Varias bases de conocimiento. Sin ninguna: solo el formulario de conexión,
-   centrado, para que lo primero sea vincular una. Con bases: una tarjeta por
-   base (nombre, URL, quitar, clave de poder) con sus tokens de
-   acceso debajo, y «Añadir base», que abre el mismo formulario. La principal
-   manda en skills, Laboratorio, Administración y claves, y es la base por
-   defecto de un chat. */
+/* La base de conocimiento de la instancia: una sola, contra la que trabaja
+   todo el mundo. Sin ella: solo el formulario de conexión, centrado, para que
+   lo primero sea vincularla. Con ella: su tarjeta (nombre, URL, quitar, clave
+   de poder) y sus subvistas; no se añade otra. */
 let bases = [];
 let selectedBase = null;
 // Vistas de la pestaña Conocimiento: 'grid' (cajas de bases) | 'form' (alta)
@@ -2359,7 +2357,7 @@ const renderGrid = () => {
     knowShow('form');
     dbFormMode('choose');
   });
-  basesGrid.appendChild(add);
+  if (!bases.length) basesGrid.appendChild(add); // una sola base por instancia
   for (const b of bases) {
     const box = document.createElement('div');
     const warn = baseWarning(b);

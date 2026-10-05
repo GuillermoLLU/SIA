@@ -1,14 +1,16 @@
 -- ════════════════════════════════════════════════════════════════════════
 --  SIA · Base de la INSTANCIA (usuarios, roles y acceso al conocimiento)
 -- ════════════════════════════════════════════════════════════════════════
---  Una instancia de SIA = un cliente = un proyecto Supabase propio. Se
+--  Una instancia de SIA = un cliente = un proyecto Supabase propio, con UNA
+--  base de conocimiento contra la que trabaja todo el mundo. Se
 --  ejecuta entero en el SQL Editor de ese proyecto. Es re-ejecutable: no
 --  borra datos (salvo la estructura multicliente anterior, ver paso 0).
 --
 --  Modelo
 --    users              las personas (1:1 con auth.users de Supabase Auth), su rol y sus vistas
---    knowledge_bases    las bases de conocimiento (otros proyectos Supabase)
---    knowledge_grants   qué grupos (tokens) de qué base tiene cada usuario: el RAG que ve
+--    knowledge_bases    la base de conocimiento de la instancia (otro proyecto
+--                       Supabase): una sola, y la ven todas las personas
+--    knowledge_grants   qué grupos (tokens) de la base tiene cada usuario: el RAG que ve
 --    person_keys        la clave de poder de cada persona en cada base que ve (en
 --                       Vault), con solo los permisos de sus vistas (Laboratorio,
 --                       Administración, Enlaces). La crea en la base el bridge de
@@ -108,6 +110,8 @@ create table if not exists platform.knowledge_grants (
   unique (user_id, base_id, group_token)
 );
 create index if not exists grants_base on platform.knowledge_grants (base_id);
+-- Una sola base de conocimiento por instancia.
+create unique index if not exists knowledge_bases_single on platform.knowledge_bases ((true));
 
 create table if not exists platform.person_keys (
   user_id       uuid not null references platform.users (id) on delete cascade,
@@ -334,7 +338,8 @@ begin
 end $$;
 
 -- Mi conocimiento: bases y tokens de grupo asignados (con el token entero:
--- es lo que SIA manda a cada base) y mi clave de poder en cada una, si tengo.
+-- es lo que SIA manda a la base) y mi clave de poder en ella, si tengo. La
+-- base la ve todo el mundo: sin grupos, una fila con el grupo vacío.
 drop function if exists public.platform_my_knowledge();
 create function public.platform_my_knowledge()
 returns table (base_id uuid, base_name text, url text, publishable_key text, group_name text, group_token text, power_key text)
@@ -344,10 +349,10 @@ declare v_me uuid := platform.require_user();
 begin
   return query
     select b.id, b.name, b.url, b.publishable_key, g.group_name, g.group_token, d.decrypted_secret
-    from platform.knowledge_grants g join platform.knowledge_bases b on b.id = g.base_id
+    from platform.knowledge_bases b
+    left join platform.knowledge_grants g on g.base_id = b.id and g.user_id = v_me
     left join platform.person_keys k on k.user_id = v_me and k.base_id = b.id
     left join vault.decrypted_secrets d on d.id = k.power_secret
-    where g.user_id = v_me
     order by b.name, g.group_name;
 end $$;
 
@@ -463,6 +468,9 @@ declare v_me uuid := platform.require_view('knowledge');
         v_id uuid;
 begin
   -- la secret salta todas las políticas de la base: ni se acepta ni se guarda
+  if exists (select 1 from platform.knowledge_bases) then
+    raise exception 'La instancia ya tiene su base de conocimiento: quítala antes de poner otra.' using errcode = '23505';
+  end if;
   if v_key ~* '^sb_secret_' or v_key ~ '^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$' then
     raise exception 'Esa no es la clave publishable. SIA solo admite sb_publishable_… (Project Settings → API Keys).' using errcode = '22023';
   end if;

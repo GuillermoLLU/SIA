@@ -1,7 +1,8 @@
 // Vista «Personas» (para quien la tiene). Lista con buscador y filtros y,
 // al pulsar a alguien, su ficha: rol, contraseña y acceso (cada uno con su
-// modal), sus vistas (interruptores) y su conocimiento en cajas de base. Alta en un modal propio. La
-// gestión de las bases de la instancia no va aquí. Solo DOM: los datos van
+// modal), sus vistas (cajas que se encienden y apagan) y su conocimiento: los
+// grupos de la base de la instancia que ve (la base la ve todo el mundo). Alta
+// en un modal propio. La base se gestiona en Configuración → Conocimiento. Solo DOM: los datos van
 // por users-api.js y knowledge-api.js y las reglas las pone la base.
 import './people.css';
 import { openModal, closeModal } from './modal.js';
@@ -9,8 +10,6 @@ import { strongPassword } from './password.js';
 import { VIEWS, CHAT_ICON } from './views.js';
 
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-
-const BASE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="1"/><rect x="3" y="14" width="18" height="6" rx="1"/><path d="M7 7h.01M7 17h.01"/></svg>';
 
 const ROLE = {
   admin: { label: 'Administrador', desc: 'Empieza con todas las vistas: gestiona personas, bases y contenido.' },
@@ -32,9 +31,8 @@ const ago = (ts) => {
   const days = Math.round(min / 1440);
   return days === 1 ? 'ayer' : days < 30 ? `hace ${days} días` : new Date(ts).toLocaleDateString('es-ES');
 };
-// El conocimiento de una persona como { baseId: [ids de grupo] }.
-const knOf = (p) => Object.fromEntries((p.knowledge || []).map((k) => [k.base_id, k.groups.map((g) => g.id)]));
-const knBases = (kn) => Object.keys(kn).filter((b) => kn[b]?.length);
+// Los grupos (ids) que ve una persona de la base de la instancia.
+const knOf = (p) => (p.knowledge || []).flatMap((k) => k.groups.map((g) => g.id));
 const copyText = async (text, input, toast) => {
   try { await navigator.clipboard.writeText(text); toast('Copiado'); }
   catch { input?.select(); toast('Selecciónalo y cópialo con ⌘C'); }
@@ -76,17 +74,18 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast }) => 
     renderList();
     if (selected) renderPanel(); else panel.hidden = true;
   };
-  const baseById = (id) => bases.find((b) => b.id === id);
+  const base = () => bases[0] || null; // la de la instancia: una sola
+  const groupName = (id) => base()?.groups?.find((g) => g.id === id)?.name;
   const person = () => people.find((p) => p.id === selected);
 
   /* ── lista ── */
   const knTags = (p) => {
-    const kn = knOf(p), bs = knBases(kn);
-    return bs.length ? bs.map((b) => `<span class="pp-tag">${esc(baseById(b)?.name || 'Base')} · ${kn[b].length}</span>`).join('') : '<span class="pp-tag none">Sin conocimiento</span>';
+    const names = knOf(p).map(groupName).filter(Boolean);
+    return names.length ? names.map((n) => `<span class="pp-tag">${esc(n)}</span>`).join('') : '<span class="pp-tag none">Sin conocimiento</span>';
   };
   const renderList = () => {
     $('[data-body]').classList.toggle('open', !panel.hidden);
-    const rows = people.filter((p) => (filter === 'all' || (filter === 'off' ? !p.active : filter === 'none' ? !knBases(knOf(p)).length : p.role === filter))
+    const rows = people.filter((p) => (filter === 'all' || (filter === 'off' ? !p.active : filter === 'none' ? !knOf(p).length : p.role === filter))
       && `${p.name} ${p.email}`.toLowerCase().includes(query));
     $('[data-list]').innerHTML = `<div class="pp-row hd"><span></span><span>Persona</span><span>Rol</span><span class="pp-kn">Conocimiento</span><span>Acceso</span></div>`
       + (rows.length ? rows.map((p) => `<div class="pp-row${p.active ? '' : ' off'}${selected === p.id ? ' current' : ''}" data-id="${esc(p.id)}">
@@ -106,26 +105,24 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast }) => 
     return `<div class="pp-block">
       <div class="pp-block-head"><span class="pp-k">Vistas</span>
         <span class="pp-sum">${self ? 'Las tuyas no las puedes cambiar' : n ? `Ve el Chat y ${n} de ${VIEWS.length} vistas más` : 'Solo ve el Chat'}</span></div>
-      <div class="pp-bases pp-views">
+      <div class="pp-views">
         <div class="pp-box on fixed"><span class="b-ico">${CHAT_ICON}</span><span class="b-name">Chat</span><span class="b-meta">Siempre</span></div>
         ${VIEWS.map((v) => `<button class="pp-box ${has(v.id) ? 'on' : 'off'}" data-view="${v.id}" aria-pressed="${has(v.id)}"${self ? ' disabled' : ''}>
           <span class="b-ico">${v.icon}</span><span class="b-name">${v.label}</span><span class="b-meta">${has(v.id) ? 'La ve' : 'No la ve'}</span></button>`).join('')}
       </div>
     </div>`;
   };
-  const knowledgeBlock = (kn, { copyFrom = true } = {}) => {
-    const n = knBases(kn).length;
-    return `<div class="pp-block">
-      <div class="pp-block-head"><span class="pp-k">Conocimiento</span>
-        <span class="pp-sum${n ? '' : ' none'}">${!bases.length ? 'Aún no hay bases de conocimiento' : n ? `Ve ${n} de ${bases.length} base${bases.length === 1 ? '' : 's'}` : 'No ve ninguna base'}</span>
-        ${copyFrom && bases.length ? '<button class="pp-link" data-act="kn-copy">Igual que otra persona…</button>' : ''}</div>
-      ${bases.length ? `<div class="pp-bases">${bases.map((b) => {
-        const sel = kn[b.id] || [], on = sel.length > 0, total = b.groups?.length;
-        const meta = !on ? 'No la ve' : total === 1 ? 'La ve' : total ? `Ve ${sel.length} de ${total} grupos` : `Ve ${sel.length} grupo${sel.length === 1 ? '' : 's'}`;
-        return `<button class="pp-box ${on ? 'on' : 'off'}" data-base="${esc(b.id)}">
-          <span class="b-ico">${BASE_ICON}</span><span class="b-name">${esc(b.name)}</span><span class="b-meta">${meta}</span>
-        </button>`;
-      }).join('')}</div>` : ''}
+  // Conocimiento: los grupos de la base que ve (pulsar uno lo da o lo quita).
+  const knowledgeBlock = (sel, { copyFrom = true } = {}) => {
+    const b = base(), groups = b?.groups || [];
+    const head = (sum, none) => `<div class="pp-block-head"><span class="pp-k">Conocimiento</span><span class="pp-sum${none ? ' none' : ''}">${sum}</span>
+      ${copyFrom && groups.length ? '<button class="pp-link" data-act="kn-copy">Igual que otra persona…</button>' : ''}</div>`;
+    if (!b) return `<div class="pp-block">${head('', false)}<div class="pp-callout">Aún no hay base de conocimiento: conéctala en Configuración → Conocimiento.</div></div>`;
+    if (!b.groups) return `<div class="pp-block">${head('', false)}<div class="pp-callout">${esc(b.groupsError || 'La base aún no tiene su clave de poder, así que SIA no puede leer sus grupos.')}</div></div>`;
+    if (!groups.length) return `<div class="pp-block">${head('', false)}<div class="pp-callout">«${esc(b.name)}» aún no tiene grupos: créalos en Administración.</div></div>`;
+    const n = groups.filter((g) => sel.includes(g.id)).length;
+    return `<div class="pp-block">${head(n ? `Ve ${n} de ${groups.length} grupos de ${esc(b.name)}` : `No ve ningún grupo de ${esc(b.name)}`, !n)}
+      <div class="pp-groups">${groups.map((g) => `<button type="button" class="pp-g" data-g="${esc(g.id)}" aria-pressed="${sel.includes(g.id)}">${esc(g.name)}</button>`).join('')}</div>
     </div>`;
   };
   const renderPanel = () => {
@@ -198,33 +195,6 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast }) => 
     });
   };
 
-  // Una base: ¿la ve? y, si la ve, qué grupos. onSave(ids) guarda (o, en un alta, apunta).
-  const baseModal = (baseId, who, current, onSave) => {
-    const b = baseById(baseId);
-    let sel = [...current];
-    const m = openModal({ title: b.name, icon: BASE_ICON, lead: `Qué ve ${who} de esta base en sus chats.`, body: '<div data-b></div>', foot: footer('Guardar') });
-    const paint = () => {
-      const on = sel.length > 0, groups = b.groups || [];
-      m.querySelector('[data-b]').innerHTML = !b.groups
-        ? `<div class="pp-callout">${esc(b.groupsError || 'Esta base aún no tiene su clave de poder, así que SIA no puede leer sus grupos.')}</div>`
-        : !groups.length
-        ? '<div class="pp-callout">Esta base aún no tiene grupos: créalos en Configuración → Conocimiento → Administración.</div>'
-        : `<div class="pp-toggle"><span><b>Ve esta base</b><span>${on ? (groups.length === 1 ? 'Con todo su conocimiento.' : 'Con los grupos que marques abajo.') : 'Sus chats no la usarán.'}</span></span>
-            <button type="button" class="sw" role="switch" aria-checked="${on}" aria-label="Ve esta base" data-toggle><span class="knob"></span></button></div>
-          ${groups.length > 1 ? `<div class="pp-groups-label">Grupos${on ? ` · ${sel.length} de ${groups.length}` : ''}</div>
-            <div class="pp-groups">${groups.map((g) => `<button type="button" class="pp-g" data-g="${esc(g.id)}" aria-pressed="${sel.includes(g.id)}">${esc(g.name)}</button>`).join('')}</div>` : ''}`;
-      m.querySelector('[data-ok]').disabled = !groups.length;
-    };
-    m.querySelector('[data-b]').addEventListener('click', (e) => {
-      if (e.target.closest('[data-toggle]')) sel = sel.length ? [] : b.groups.map((g) => g.id);
-      const g = e.target.closest('[data-g]');
-      if (g) sel = sel.includes(g.dataset.g) ? sel.filter((x) => x !== g.dataset.g) : [...sel, g.dataset.g];
-      paint();
-    });
-    paint();
-    wireFoot(m, (msg) => onSave(sel, msg));
-  };
-
   // Copiar el conocimiento de otra persona: elegir (como en la lista) y revisar.
   const copyModal = (who, excludeId, onApply) => {
     const m = openModal({ title: '¿De quién copias el conocimiento?', lead: `${who} verá sus mismas bases y grupos.`, body: '<div data-c></div>',
@@ -232,7 +202,7 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast }) => 
     m.querySelector('[data-cancel]').addEventListener('click', closeModal);
     const body = m.querySelector('[data-c]');
     const pick = (q = '') => {
-      const who2 = people.filter((p) => p.id !== excludeId && knBases(knOf(p)).length && `${p.name} ${p.email}`.toLowerCase().includes(q));
+      const who2 = people.filter((p) => p.id !== excludeId && knOf(p).length && `${p.name} ${p.email}`.toLowerCase().includes(q));
       body.innerHTML = `<input class="settings-input" data-pq placeholder="Buscar persona" aria-label="Buscar persona" value="${esc(q)}" />
         <div class="pp-picks">${who2.length ? who2.map((p) => `<button type="button" class="pp-pick" data-pick="${esc(p.id)}">
           <span class="pp-av${p.active ? '' : ' off'}">${esc(initials(p.name))}</span>
@@ -245,7 +215,7 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast }) => 
     const review = (src) => {
       m.querySelector('h3').textContent = `Igual que ${src.name}`;
       body.innerHTML = `<button type="button" class="pp-back" data-back>← Elegir otra persona</button>
-        <div class="pp-review">${(src.knowledge || []).map((k) => `<div>${esc(baseById(k.base_id)?.name || 'Base')} <span>· ${k.groups.map((g) => esc(g.name)).join(', ')}</span></div>`).join('')}</div>`;
+        <div class="pp-review"><div>${esc(base()?.name || 'Base')} <span>· ${knOf(src).map((id) => esc(groupName(id) || '?')).join(', ')}</span></div></div>`;
       const foot = m.querySelector('.pp-mf');
       foot.innerHTML = '<span class="pp-msg" data-msg></span><button class="lab-btn" data-cancel>Cancelar</button><button class="lab-btn primary" data-ok>Aplicar</button>';
       wireFoot(m, (msg) => onApply(src, msg));
@@ -265,7 +235,7 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast }) => 
 
   /* ── alta: modal propio; el conocimiento se elige en él ── */
   const newModal = () => {
-    const draft = { kn: {} };
+    const draft = { kn: [] };
     const m = openModal({ title: 'Nueva persona', lead: 'Se crea activa y puede entrar en cuanto le pases sus datos.', wide: true,
       body: `<div class="pp-fields2">
           <label class="pp-field"><span>Nombre</span><input class="settings-input" data-name placeholder="Nombre y apellidos" autocomplete="off" /></label>
@@ -285,15 +255,15 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast }) => 
     const who = () => val('[data-name]') || 'la nueva persona';
     const paintKn = () => { m.querySelector('[data-kn]').innerHTML = knowledgeBlock(draft.kn); };
     m.querySelector('[data-kn]').addEventListener('click', (e) => {
-      const box = e.target.closest('[data-base]');
-      if (box) baseModal(box.dataset.base, who(), draft.kn[box.dataset.base] || [], (ids) => { draft.kn[box.dataset.base] = ids; closeModal(); paintKn(); });
+      const g = e.target.closest('[data-g]')?.dataset.g;
+      if (g) { draft.kn = draft.kn.includes(g) ? draft.kn.filter((x) => x !== g) : [...draft.kn, g]; paintKn(); }
       if (e.target.closest('[data-act="kn-copy"]')) copyModal(who(), null, (src) => { draft.kn = knOf(src); closeModal(); paintKn(); });
     });
     paintKn();
     m.querySelector('[data-name]').focus();
     wireFoot(m, async (msg) => {
       try {
-        const r = await usersApi.create({ email: val('[data-email]'), name: val('[data-name]'), role: pickedRole(m), password: pw.value, knowledge: draft.kn });
+        const r = await usersApi.create({ email: val('[data-email]'), name: val('[data-name]'), role: pickedRole(m), password: pw.value, knowledge: base() && draft.kn.length ? { [base().id]: draft.kn } : {} });
         created(m, r.user, pw.value, r.warning);
         load();
       } catch (e) { msg.textContent = e.message; }
@@ -340,10 +310,10 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast }) => 
     if (act === 'kn-copy' && p) {
       return copyModal(p.name, p.id, (src, msg) => save(() => knowledgeApi.copy(p.id, src.id), `Mismo conocimiento que ${src.name}`, msg));
     }
-    const box = e.target.closest('.pp-panel [data-base]');
-    if (box && p) {
-      return baseModal(box.dataset.base, p.name, knOf(p)[box.dataset.base] || [],
-        (ids, msg) => save(() => knowledgeApi.setGroups(p.id, box.dataset.base, ids), ids.length ? `Ve ${baseById(box.dataset.base).name}` : `Ya no ve ${baseById(box.dataset.base).name}`, msg));
+    const g = e.target.closest('.pp-panel [data-g]')?.dataset.g;
+    if (g && p) {
+      const cur = knOf(p), on = cur.includes(g);
+      return save(() => knowledgeApi.setGroups(p.id, base().id, on ? cur.filter((x) => x !== g) : [...cur, g]), on ? `${p.name} ya no ve ${groupName(g)}` : `${p.name} ya ve ${groupName(g)}`);
     }
   });
   $('[data-q]').addEventListener('input', (e) => { query = e.target.value.trim().toLowerCase(); renderList(); });

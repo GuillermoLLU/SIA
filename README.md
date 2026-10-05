@@ -36,12 +36,14 @@ conocimiento (⚙️ → Conocimiento). El rol solo pone las de partida: un
 - **Personas**: da de alta a la gente (con su rol y lo que verá, en un solo
   paso) y, en la ficha de cada uno, cambia su rol, enciende o apaga sus
   vistas, le genera una contraseña nueva, le corta el acceso o decide qué
-  bases y grupos ve (o le copia los de otra persona). Quien recibe una
+  grupos de la base ve (o le copia los de otra persona). Quien recibe una
   contraseña de otro la cambia al entrar.
-- **Bases de conocimiento** (⚙️ → Conocimiento): las bases que tienen su
-  clave de poder de Administración pasan solas a la instancia y se pueden
-  asignar en Personas; la clave se guarda cifrada y con ella SIA lee sus
-  grupos, así que nadie maneja tokens a mano. Para conectar una:
+- **Bases de conocimiento** (⚙️ → Conocimiento): la instancia tiene **una
+  sola base de conocimiento** y trabaja contra ella todo el mundo, tenga
+  grupos asignados o no. Con su clave de poder (la del dueño) pasa sola a la
+  instancia; la clave se guarda cifrada y con ella SIA lee sus grupos y da
+  a cada persona su clave, así que nadie maneja tokens a mano. Para
+  conectarla:
 
 1. **⚙️ Configuración → Conocimiento**: ponle un nombre a la base, pega el
    Project ID de tu proyecto Supabase (o su URL) y su clave *publishable*

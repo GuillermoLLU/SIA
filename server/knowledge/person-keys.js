@@ -3,8 +3,9 @@
 // La instancia decide qué ve cada uno (sus vistas); la base solo entiende de
 // claves de poder. Así que cada persona tiene, en cada base que ve, su propia
 // clave con los permisos de sus vistas que la base sabe hacer cumplir: nada
-// más (mínimo privilegio) y revocable persona a persona. Sin ninguna de esas
-// vistas, desactivada o sin ver la base: sin clave.
+// más (mínimo privilegio) y revocable persona a persona. La base de la
+// instancia la ve todo el mundo, tenga grupos o no. Sin ninguna de esas
+// vistas o desactivada: sin clave.
 
 import { cleanPerms } from '../access/perms.js';
 
@@ -16,14 +17,13 @@ export const keyPerms = (person) => (person?.active ? KEY_VIEWS.filter((v) => pe
 export const keyName = (person) => `SIA · ${person.email}`;
 
 // Qué hacer en cada base: crear, poner al día o quitar su clave.
-//   person   fila de platform_list_users (views, active, knowledge)
+//   person   fila de platform_list_users (views, active)
 //   reachable  ids de las bases cuya clave de poder tiene la instancia
 //   current    Map baseId → clave que ya tiene
 // → [{ baseId, action: 'create' | 'update' | 'remove', key?, perms }]
 export const planKeys = (person, reachable, current) => {
   const perms = keyPerms(person);
-  const sees = new Set((person?.knowledge || []).filter((k) => k.groups?.length).map((k) => k.base_id));
-  const wanted = new Set(perms.length ? [...sees].filter((b) => reachable.has(b)) : []);
+  const wanted = new Set(perms.length ? reachable : []);
   const plan = [];
   for (const baseId of wanted) {
     plan.push(current.has(baseId)

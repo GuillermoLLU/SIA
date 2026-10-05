@@ -20,6 +20,11 @@ test('toAssignedBases: una base por base, con sus tokens sin repetir; filas inco
   assert.deepEqual(toAssignedBases(null), []);
 });
 
+test('toAssignedBases: sin grupos también se conecta a la base (la ve todo el mundo)', () => {
+  const [b] = toAssignedBases([{ base_id: 'b4', base_name: 'ITX', url: URL_A, publishable_key: 'sb_publishable_a', group_name: null, group_token: null, power_key: 'pk' }]);
+  assert.deepEqual([b.name, b.tokens, b.groups, b.powerKey], ['ITX', [], [], 'pk']);
+});
+
 test('mergeBases: el agente solo usa lo asignado', () => {
   const local = [{ id: 'l1', name: 'Mía', url: 'https://cccccccccccccccccccc.supabase.co', key: 'k', tokens: ['t'], powerKey: 'pk', enabled: true }];
   assert.deepEqual(mergeBases(toAssignedBases(rows), local, { allowLocal: false }).map((b) => b.id), ['p-b1', 'p-b2']);
