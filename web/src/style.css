@@ -371,8 +371,9 @@ body { display: flex; flex-direction: column; }
   border-radius: 0; box-shadow: 0 28px 80px rgba(0, 0, 0, 0.5);
   overflow: hidden;
 }
-/* crece con el contenido; solo topa (y entonces hace scroll interno) si no cabe */
-.settings-modal { width: min(1240px, calc(100vw - 48px)); max-height: calc(100vh - 80px); }
+/* alto fijo, el de la pestaña más alta (Credenciales), para que no cambie de
+   tamaño al pasar de una a otra; si la ventana no da, el panel hace scroll */
+.settings-modal { width: min(1240px, calc(100vw - 48px)); height: min(720px, calc(100vh - 80px)); }
 /* Configuración va centrada en vertical (el resto de modales cuelgan arriba) */
 #settings-modal { align-items: center; padding-top: 0; }
 .dialog { width: min(460px, calc(100vw - 48px)); }
