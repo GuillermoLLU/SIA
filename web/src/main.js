@@ -1666,7 +1666,7 @@ const showView = (name) => {
   navLinks.classList.toggle('active', name === 'links');
   navUsers.classList.toggle('active', name === 'users');
   if (name === 'lab') labRefresh();
-  if (name === 'admin') adminRefresh();
+  if (name === 'admin') { adminProject = null; adminRefresh(); } // se entra siempre a todos los proyectos
   if (name === 'links') linksRefresh();
   if (name === 'users') usersView.refresh();
   if (name === 'chat') {
@@ -2592,7 +2592,7 @@ const renderRail = () => {
     const li = document.createElement('li');
     if (adminProject === p.id) li.classList.add('active');
     li.innerHTML = `<span>${esc(p.name)}</span><span class="rl-meta tnum">${p.entries}</span>`;
-    li.addEventListener('click', () => openProject(p.id));
+    li.addEventListener('click', () => openProject(adminProject === p.id ? null : p.id)); // otra vez: a todos
     adminRailList.appendChild(li);
   }
 };
@@ -2642,12 +2642,13 @@ const deleteProject = async (p) => {
 const renderProjectView = () => {
   const p = adminProjects.find((x) => x.id === adminProject);
   adminMain.innerHTML = `
-    <div class="admin-breadcrumb"><button id="bc-all">Proyectos</button><span>/</span><span>${esc(p.name)}</span></div>
-    <div class="admin-main-head"><h1>${esc(p.name)}</h1><span class="spacer"></span>
+    <div class="admin-main-head">
+      <button class="lab-back" id="back-all" title="Volver a todos los proyectos" aria-label="Volver a todos los proyectos"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+      <h1>${esc(p.name)}</h1><span class="spacer"></span>
       <button class="admin-ghost danger" id="del-project">Eliminar proyecto</button></div>
     <div class="admin-main-sub"><span class="tnum">${entriesLabel(p.entries)}</span></div>
     <div class="admin-block"><h3>Entradas de conocimiento</h3><div class="entry-list" id="entry-list"><div class="entry-empty">Cargando…</div></div></div>`;
-  adminMain.querySelector('#bc-all').addEventListener('click', () => openProject(null));
+  adminMain.querySelector('#back-all').addEventListener('click', () => openProject(null));
   adminMain.querySelector('#del-project').addEventListener('click', () => deleteProject(p));
   loadEntries(p.id);
 };
