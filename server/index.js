@@ -19,6 +19,9 @@ import { createUserAdmin } from './users/service.js';
 import { usersRoutes } from './users/routes.js';
 import { loadPlatformConfig } from './platform/config.js';
 import { createPlatformClient } from './platform/client.js';
+import { toAssignedBases, mergeBases, publicBase } from './knowledge/assigned.js';
+import { createKnowledge } from './knowledge/service.js';
+import { knowledgeRoutes } from './knowledge/routes.js';
 import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -399,12 +402,19 @@ const NO_DB_MSG = 'Sin base de conocimiento: conecta tu Supabase en ⚙️ Confi
    SIA_SUPABASE_URL/KEY (dev) se comportan como una única base virtual. */
 // bases en uso (las desactivadas o sin clave no entran en chats, vistas ni sincronización)
 const activeBases = () => basesList().filter(usable);
-const basesList = () => {
+// Las bases propias de la config local (o la de desarrollo por entorno).
+const localBases = () => {
   if (process.env.SIA_SUPABASE_URL && process.env.SIA_SUPABASE_KEY) {
     return [{ id: 'dev', name: 'Dev', url: process.env.SIA_SUPABASE_URL.trim(), key: process.env.SIA_SUPABASE_KEY.trim(), tokens: accessTokensLegacy(), powerKey: process.env.SIA_SUPERADMIN_KEY || '', enabled: true }];
   }
   return normalizeBases(readUserConfig().bases);
 };
+// Lo que la plataforma asigna a quien ha iniciado sesión en este bridge (el
+// último que entra) y su rol; solo en memoria, nunca en la config.
+let assigned = { role: null, bases: [] };
+// Bases en uso: lo asignado y, si administra, también sus bases propias
+// (server/knowledge/assigned.js). Un agente solo usa lo asignado.
+const basesList = () => mergeBases(assigned.bases, localBases(), { allowLocal: assigned.role === 'admin' });
 // no hay base «principal»: cada chat y cada vista eligen la suya; la primera de
 // la lista solo sirve de valor por defecto cuando algo llega sin base
 const primaryBase = () => activeBases()[0] || null;
@@ -608,6 +618,23 @@ const lockTry = (key) => {
 const platform = createPlatformClient({ ...(loadPlatformConfig(ROOT) || { url: '', key: '' }), fetch });
 const auth = createAuth({ platform, readConfig: readUserConfig, writeConfig: writeUserConfig });
 const users = createUserAdmin({ platform });
+const knowledge = createKnowledge({ platform });
+// Lo asignado a quien inicia sesión (o abre la app con la sesión guardada).
+// Si cambia, se reconecta y se resincronizan las skills.
+const loadAssigned = async (token) => {
+  try {
+    const ctx = await auth.context(token);
+    if (!ctx) return;
+    const next = { role: ctx.user.role, bases: toAssignedBases(await knowledge.mine(ctx.accessToken)) };
+    if (JSON.stringify(next) === JSON.stringify(assigned)) return;
+    assigned = next;
+    await applyDbConnection();
+  } catch (e) { console.warn(`[sia] no se pudo cargar el conocimiento asignado: ${e.message}`); }
+};
+const clearAssigned = async () => {
+  assigned = { role: null, bases: [] };
+  await applyDbConnection();
+};
 // Del inicio de sesión local anterior: fuera los usuarios y sus sesiones.
 {
   const cfg = readUserConfig();
@@ -816,8 +843,9 @@ const readBody = (req) => new Promise((resolve, reject) => {
   req.on('data', (c) => { b += c; if (b.length > 40_000_000) req.destroy(); });
   req.on('end', () => { try { resolve(b ? JSON.parse(b) : {}); } catch (e) { reject(e); } });
 });
-const authRoute = authRoutes(auth, { json, readBody });
+const authRoute = authRoutes(auth, { json, readBody, onSession: loadAssigned, onLogout: clearAssigned });
 const usersRoute = usersRoutes(users, auth, { json, readBody });
+const knowledgeRoute = knowledgeRoutes(knowledge, auth, { json, readBody, onChange: loadAssigned });
 const validId = (s) => typeof s === 'string' && /^[a-z0-9][a-z0-9_-]{1,63}$/i.test(s);
 let uploadSeq = 0;
 const validFiles = (files) => Array.isArray(files) && files.length &&
@@ -1063,6 +1091,7 @@ const apiServer = http.createServer(async (req, res) => {
     // va por su propio candado, arriba, en el cortafuegos)
     if (SCREEN_LOCKED && isLoopback(req)) return json(res, 423, { error: 'pantalla bloqueada', locked: true });
     if (parts[1] === 'users') return usersRoute(req, res, parts[2]);
+    if (parts[1] === 'knowledge') return knowledgeRoute(req, res, parts[2], parts[3]);
 
     // Sin base de conocimiento solo funciona lo que no la necesita (terminal,
     // móvil, config personal, adjuntos). Lo demás: 503 con aviso claro.
@@ -1357,42 +1386,70 @@ const apiServer = http.createServer(async (req, res) => {
 
     // ── config personal (sin gate: es de cada usuario, no de admin) ──
     // la clave del bloqueo de pantalla (derivada) no sale ni entra por aquí: va por /api/lock
-    if (parts[1] === 'config' && req.method === 'GET') { const { lock, ...cfg } = readUserConfig(); return json(res, 200, { ...cfg, version: APP_VERSION }); }
+    // La config personal por la API: solo lo que la web lee y escribe (Jira,
+    // claves de GitHub y tema). Sesiones, bases, candado… no salen ni entran
+    // por aquí: cada cosa tiene su ruta.
+    if (parts[1] === 'config' && req.method === 'GET') {
+      const { jira, github } = readUserConfig();
+      return json(res, 200, { jira, github, version: APP_VERSION });
+    }
     if (parts[1] === 'config' && req.method === 'PUT') {
       const body = await readBody(req);
-      if (body.github) body.github = cleanGithub(body.github);
-      delete body.supabase; delete body.access; // formato antiguo: las bases van por /api/bases
-      delete body.lock;
+      const patch = {};
+      if (body.jira !== undefined) patch.jira = { baseUrl: String(body.jira?.baseUrl || '').trim(), token: String(body.jira?.token || '').trim() };
+      if (body.github !== undefined) patch.github = cleanGithub(body.github);
       // el tema del escritorio: se guarda y se avisa a los móviles conectados
-      if ('theme' in body) {
-        body.theme = cleanTheme(body.theme);
-        if (!body.theme) delete body.theme; // no es un tema válido: se queda el que había
-        else if (JSON.stringify(body.theme) !== JSON.stringify(UI_THEME)) { UI_THEME = body.theme; broadcastTheme(); }
+      const theme = body.theme !== undefined ? cleanTheme(body.theme) : null;
+      if (theme) {
+        patch.theme = theme;
+        if (JSON.stringify(theme) !== JSON.stringify(UI_THEME)) { UI_THEME = theme; broadcastTheme(); }
       }
-      const basesChanged = 'bases' in body;
-      if (basesChanged) body.bases = normalizeBases(body.bases);
-      writeUserConfig({ ...readUserConfig(), ...body });
-      if (basesChanged) await applyDbConnection();
-      return json(res, 200, { ok: true, db: hasDb });
+      writeUserConfig({ ...readUserConfig(), ...patch });
+      return json(res, 200, { ok: true });
     }
     /* ── Bases de conocimiento (varias): listar, añadir, cambiar, quitar ──
        Añadir exige que la base esté lista (la UI la prueba antes; si le faltan
        tablas pasa por /db/setup, que también la añade). */
     if (parts[1] === 'bases') {
       const list = basesList();
-      if (req.method === 'GET' && !parts[2]) return json(res, 200, list);
+      const isAdmin = assigned.role === 'admin';
+      // quien no administra ve sus bases sin tokens ni claves, y no cambia nada
+      if (req.method === 'GET' && !parts[2]) return json(res, 200, isAdmin ? list : list.map(publicBase));
+      if (!isAdmin) return json(res, 403, { error: 'Tu conocimiento lo gestiona un administrador.' });
+      const local = localBases();
+      const taken = (url, exceptId) => list.find((x) => x.id !== exceptId && x.url === url);
+      const dupMsg = (x) => (x.managed ? 'esa base ya te la asigna la plataforma' : 'esa base ya está conectada');
       if (req.method === 'POST' && !parts[2]) {
         const body = await readBody(req);
         if (isSecretKey(body.key)) return json(res, 400, { error: SECRET_KEY_MSG });
-        const b = cleanBase({ ...body, id: undefined }, list.length);
+        const b = cleanBase({ ...body, id: undefined }, local.length);
         if (!b || !b.key) return json(res, 400, { error: 'hacen falta la URL https del proyecto y la clave publishable' });
-        if (list.some((x) => x.url === b.url)) return json(res, 409, { error: 'esa base ya está conectada' });
-        saveBases([...list, b]);
+        if (taken(b.url)) return json(res, 409, { error: dupMsg(taken(b.url)) });
+        saveBases([...local, b]);
         await applyDbConnection();
         return json(res, 200, b);
       }
       const target = parts[2] && list.find((b) => b.id === decodeURIComponent(parts[2]));
       if (!target) return json(res, 404, { error: 'esa base no existe' });
+      if (req.method === 'PUT' && target.managed) {
+        // De una base asignada solo se guardan, aparte y en local, la clave
+        // de poder y los tokens que se añadan a los asignados.
+        const body = await readBody(req);
+        if (['url', 'key', 'name', 'enabled'].some((k) => body[k] !== undefined)) {
+          return json(res, 403, { error: 'Esta base la asigna la plataforma: su nombre y su conexión no se cambian aquí.' });
+        }
+        const own = assigned.bases.find((a) => a.id === target.id)?.tokens || [];
+        const prev = local.find((l) => l.url === target.url);
+        const overlay = {
+          ...(prev || { id: target.id, name: target.name, url: target.url, key: target.key, tokens: [], powerKey: '', enabled: true }),
+          ...(body.tokens !== undefined ? { tokens: (Array.isArray(body.tokens) ? body.tokens : []).map((t) => String(t).trim()).filter((t) => t && !own.includes(t)) } : {}),
+          ...(body.powerKey !== undefined ? { powerKey: String(body.powerKey || '').trim() } : {}),
+        };
+        saveBases(prev ? local.map((l) => (l === prev ? overlay : l)) : [...local, overlay]);
+        if (body.powerKey !== undefined) keysInvalidate(target);
+        if (body.tokens !== undefined) await syncSkills(baseById(target.id));
+        return json(res, 200, baseById(target.id));
+      }
       if (req.method === 'PUT') {
         const body = await readBody(req);
         // cambiar la conexión (URL y/o clave) de una base ya vinculada
@@ -1401,9 +1458,9 @@ const apiServer = http.createServer(async (req, res) => {
           if (isSecretKey(body.key)) return json(res, 400, { error: SECRET_KEY_MSG });
           conn = cleanSupabase({ url: body.url ?? target.url, key: body.key ?? target.key });
           if (!conn) return json(res, 400, { error: 'hacen falta la URL https del proyecto y la clave publishable' });
-          if (list.some((x) => x.id !== target.id && x.url === conn.url)) return json(res, 409, { error: 'esa base ya está conectada' });
+          if (taken(conn.url, target.id)) return json(res, 409, { error: dupMsg(taken(conn.url, target.id)) });
         }
-        const next = list.map((b) => (b.id !== target.id ? b : {
+        const next = local.map((b) => (b.id !== target.id ? b : {
           ...b,
           ...(conn || {}),
           ...(body.name !== undefined ? { name: String(body.name).trim().slice(0, 40) || b.name } : {}),
@@ -1417,7 +1474,8 @@ const apiServer = http.createServer(async (req, res) => {
         return json(res, 200, baseById(target.id));
       }
       if (req.method === 'DELETE') {
-        saveBases(list.filter((b) => b.id !== target.id));
+        if (target.managed) return json(res, 403, { error: 'Esta base la asigna la plataforma: no se quita aquí.' });
+        saveBases(local.filter((b) => b.id !== target.id));
         await applyDbConnection();
         return json(res, 200, { ok: true, bases: basesList() });
       }
@@ -1428,6 +1486,7 @@ const apiServer = http.createServer(async (req, res) => {
        prueba (y se monta) una base antes de cambiarse a ella. */
     // El SQL lleva una clave de dueño nueva cada vez que se pide; la UI se la
     // queda y la manda a /db/setup para que, verificada, quede guardada.
+    if (parts[1] === 'db' && assigned.role !== 'admin') return json(res, 403, { error: 'Tu conocimiento lo gestiona un administrador.' });
     if (parts[1] === 'db' && parts[2] === 'schema' && req.method === 'GET') {
       return json(res, 200, schemaSqlWithOwner());
     }
@@ -1448,7 +1507,7 @@ const apiServer = http.createServer(async (req, res) => {
       if (isSecretKey(setupBody.key)) return json(res, 400, { error: SECRET_KEY_MSG });
       const conn = cleanSupabase(setupBody);
       if (!conn) return json(res, 400, { error: 'hacen falta la URL https del proyecto y la clave publishable' });
-      const list = basesList();
+      const list = localBases();
       const existing = list.find((b) => b.url === conn.url);
       const ownerKey = headerValue(setupBody.ownerKey);
       const diag = await diagnoseDb(conn, ownerKey || existing?.powerKey || '');

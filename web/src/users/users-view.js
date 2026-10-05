@@ -9,6 +9,7 @@ const ROLE_LABELS = { admin: 'Administrador', agent: 'Agente' };
 const PASSWORD_HINT = '12 o más, con minúsculas, mayúsculas, números y algún símbolo';
 
 const EDIT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
+const BOOK_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>';
 const TRASH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -41,14 +42,18 @@ const rowMarkup = (u, me) => `<li class="user-row${u.active ? '' : ' inactive'}"
   </span>
   <span class="user-role ${u.role}">${ROLE_LABELS[u.role]}</span>
   <span class="user-actions">
+    <button type="button" class="icon-btn" data-act="knowledge" title="Conocimiento" aria-label="Conocimiento">${BOOK_ICON}</button>
     <button type="button" class="icon-btn" data-act="edit" title="Editar" aria-label="Editar">${EDIT_ICON}</button>
     <button type="button" class="icon-btn danger" data-act="remove" title="Borrar" aria-label="Borrar"${u.id === me.id ? ' disabled' : ''}>${TRASH_ICON}</button>
   </span>
 </li>`;
 
-export const mountUsersView = (root, { api, me, dialog, confirm, alert }) => {
+// onBases(): las bases de la instancia; onKnowledge(user): su conocimiento
+// (web/src/knowledge/assign-dialogs.js).
+export const mountUsersView = (root, { api, me, dialog, confirm, alert, onBases, onKnowledge }) => {
   root.innerHTML = `<header class="users-head">
-      <div class="users-title"><h2>Usuarios</h2><p class="users-sub">Quién puede entrar en SIA, con qué rol y si está activo.</p></div>
+      <div class="users-title"><h2>Usuarios</h2><p class="users-sub">Quién puede entrar en SIA, con qué rol, si está activo y qué conocimiento ve.</p></div>
+      <button type="button" class="lab-btn" data-act="bases">Bases de conocimiento</button>
       <button type="button" class="lab-btn primary" data-act="new">Nuevo usuario</button>
     </header>
     <ul class="users-list"></ul>`;
@@ -113,7 +118,9 @@ export const mountUsersView = (root, { api, me, dialog, confirm, alert }) => {
     const btn = e.target.closest('[data-act]');
     if (!btn) return;
     if (btn.dataset.act === 'new') return edit();
+    if (btn.dataset.act === 'bases') return onBases();
     const user = byId.get(btn.closest('.user-row').dataset.id);
+    if (btn.dataset.act === 'knowledge') onKnowledge(user);
     if (btn.dataset.act === 'edit') edit(user);
     if (btn.dataset.act === 'remove') remove(user);
   });

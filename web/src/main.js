@@ -14,6 +14,9 @@ import { wireLogout } from './auth/logout-button.js';
 import { themeById, toggledTheme } from './theme/themes.js';
 import { createUsersApi } from './users/users-api.js';
 import { mountUsersView } from './users/users-view.js';
+import { createKnowledgeApi } from './knowledge/knowledge-api.js';
+import { openBasesDialog, openGrantsDialog } from './knowledge/assign-dialogs.js';
+import { renderAssignedView } from './knowledge/assigned-view.js';
 
 // Favicon de la pestaña (la S).
 {
@@ -2104,7 +2107,14 @@ wireLogout(document.getElementById('logout-btn'), { ...AUTH, confirm: dlgConfirm
 
 // Usuarios (barra lateral, solo administradores): web/src/users/
 const usersView = AUTH?.user.role === 'admin'
-  ? mountUsersView(viewUsers, { api: createUsersApi(API_BASE, AUTH.session), me: AUTH.user, dialog: openDialog, confirm: dlgConfirm, alert: dlgAlert })
+  ? (() => {
+    const knowledgeApi = createKnowledgeApi(API_BASE, AUTH.session);
+    return mountUsersView(viewUsers, {
+      api: createUsersApi(API_BASE, AUTH.session), me: AUTH.user, dialog: openDialog, confirm: dlgConfirm, alert: dlgAlert,
+      onBases: () => openBasesDialog({ api: knowledgeApi, dialog: openDialog }),
+      onKnowledge: (user) => openGrantsDialog(user, { api: knowledgeApi, dialog: openDialog }),
+    });
+  })()
   : null;
 navUsers.hidden = !usersView;
 navUsers.addEventListener('click', () => showView('users'));
@@ -2247,6 +2257,12 @@ const ICON_CONFIG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" 
 const ICON_POWER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/><path d="M12 2v10"/></svg>';
 const ICON_KEY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.9 12.1 21 2M15 8l3 3M18 5l3 3"/></svg>';
 const knowPane = document.querySelector('#settings-modal .settings-pane[data-pane="conocimiento"]');
+// Quien no administra ve aquí su conocimiento en solo lectura y nada más
+// (web/src/knowledge/assigned-view.js): ni añadir bases ni invitaciones.
+const knowReadOnly = () => AUTH?.user.role !== 'admin';
+const assignedPane = document.createElement('div');
+assignedPane.hidden = true;
+knowPane.appendChild(assignedPane);
 
 /* Varias bases de conocimiento. Sin ninguna: solo el formulario de conexión,
    centrado, para que lo primero sea vincular una. Con bases: una tarjeta por
@@ -2271,6 +2287,7 @@ const openBaseSettings = (baseId, view = 'access') => {
   settingsBtn.click();
 };
 const knowShow = (view) => {
+  if (knowReadOnly()) return;
   knowView = view;
   basesGrid.hidden = view !== 'grid';
   dbForm.hidden = view !== 'form';
@@ -2348,16 +2365,17 @@ const renderGrid = () => {
     const box = document.createElement('div');
     const warn = baseWarning(b);
     box.className = `base-box${b.enabled === false || warn ? ' disabled' : ''}`; box.dataset.id = b.id; box.tabIndex = 0; box.setAttribute('role', 'button');
+    // las que asigna la plataforma no se quitan ni se desactivan desde aquí
     box.innerHTML = `
-      <span class="b-actions">
+      ${b.managed ? '' : `<span class="b-actions">
         <button type="button" class="icon-btn" data-act="toggle" title="${b.enabled === false ? 'Activar esta base' : 'Desactivar temporalmente'}" aria-label="${b.enabled === false ? 'Activar' : 'Desactivar'}">${ICON_POWER}</button>
         <button type="button" class="icon-btn danger" data-act="remove" title="Quitar esta base" aria-label="Quitar esta base">${TRASH_ICON}</button>
-      </span>
-      <span class="b-ico">${BASE_ICON}</span><span class="b-name">${esc(b.name)}</span>${b.enabled === false ? '<span class="b-meta">desactivada</span>' : warn ? `<span class="b-meta">${esc(warn)}</span>` : ''}`;
+      </span>`}
+      <span class="b-ico">${BASE_ICON}</span><span class="b-name">${esc(b.name)}</span>${b.enabled === false ? '<span class="b-meta">desactivada</span>' : warn ? `<span class="b-meta">${esc(warn)}</span>` : b.managed ? '<span class="b-meta">de la plataforma</span>' : ''}`;
     const enter = () => { selectedBase = b.id; renderBaseViews(); dbWizardClose(); dbSetStatus(dbStatus, ''); knowShow('menu'); };
     box.addEventListener('click', (e) => { if (!e.target.closest('.b-actions')) enter(); });
     box.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.target.closest('.b-actions')) enter(); });
-    box.querySelector('[data-act="toggle"]').addEventListener('click', async (e) => {
+    box.querySelector('[data-act="toggle"]')?.addEventListener('click', async (e) => {
       e.stopPropagation();
       try {
         await api(`/bases/${encodeURIComponent(b.id)}`, { method: 'PUT', body: JSON.stringify({ enabled: b.enabled === false }) });
@@ -2366,7 +2384,7 @@ const renderGrid = () => {
         await refreshAdmin();
       } catch (err) { dbSetStatus(dbStatus, err.message, 'bad'); }
     });
-    box.querySelector('[data-act="remove"]').addEventListener('click', async (e) => {
+    box.querySelector('[data-act="remove"]')?.addEventListener('click', async (e) => {
       e.stopPropagation();
       removeBase(b);
     });
@@ -2419,6 +2437,10 @@ const renderBaseViews = () => {
   baseAccess.appendChild(baseCard(b, 'access'));
 };
 const basesRender = () => {
+  if (knowReadOnly()) {
+    for (const c of knowPane.children) c.hidden = c !== assignedPane;
+    return renderAssignedView(assignedPane, bases);
+  }
   knowPane.classList.toggle('centered', !bases.length);
   if (!bases.some((b) => b.id === selectedBase)) selectedBase = null;
   renderGrid();
@@ -2466,7 +2488,7 @@ const baseCard = (b, part = 'config') => {
       <label class="field-label">Proyecto de Supabase</label>
       <div class="base-conn">
         <code title="${esc(b.url)}">${esc(b.url)}</code>
-        <button class="lab-btn" data-act="edit-conn">Cambiar conexión</button>
+        ${b.managed ? '<span class="settings-hint">la asigna la plataforma</span>' : '<button class="lab-btn" data-act="edit-conn">Cambiar conexión</button>'}
       </div>
     </div>
     <div class="divider"></div>
@@ -2477,18 +2499,18 @@ const baseCard = (b, part = 'config') => {
         <button class="lab-btn primary" data-act="save-power">Guardar</button>
       </div>
       <div class="settings-status" data-power-status></div>
-      <div class="settings-row" style="margin-top:10px"><button type="button" class="lab-btn" data-act="renew-owner">Renovar clave de dueño</button></div>
+      ${b.managed ? '' : '<div class="settings-row" style="margin-top:10px"><button type="button" class="lab-btn" data-act="renew-owner">Renovar clave de dueño</button></div>'}
     </div>`;
   // el dueño ha perdido su clave (o la base la cambió): vuelve a pasar por el
   // asistente, que da un SQL con clave nueva y la guarda al verificar
-  view.querySelector('[data-act="renew-owner"]').addEventListener('click', () => {
+  view.querySelector('[data-act="renew-owner"]')?.addEventListener('click', () => {
     editingBase = b.id;
     dbNameInput.value = b.name; dbUrlInput.value = b.url; dbKeyInput.value = b.key || '';
     knowShow('form'); dbFormMode('own');
     dbWizardOpen({ missing: [], needsSchema: false, hasOwner: true, renew: true });
   });
   // cambiar conexión: el formulario de alta, relleno, en modo edición
-  view.querySelector('[data-act="edit-conn"]').addEventListener('click', () => {
+  view.querySelector('[data-act="edit-conn"]')?.addEventListener('click', () => {
     editingBase = b.id;
     dbWizardClose();
     dbNameInput.value = b.name; dbUrlInput.value = b.url; dbKeyInput.value = b.key || '';
