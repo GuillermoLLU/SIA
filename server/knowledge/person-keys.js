@@ -15,7 +15,13 @@ const KEY_VIEWS = ['lab', 'links'];
 
 export const keyPerms = (person) => (person?.active && !person.views?.includes('admin') ? KEY_VIEWS.filter((v) => person.views?.includes(v)) : []);
 
-export const keyName = (person) => `SIA · ${person.email}`;
+const KEY_PREFIX = 'SIA · ';
+export const keyName = (person) => `${KEY_PREFIX}${person.email}`;
+
+// Claves de SIA en la base que la instancia ya no conoce (de una persona
+// borrada a mano, de una sincronización que se cruzó con otra…): sobran.
+//   inBase  [{ key, name }] de power_keys      known  Set de claves de la instancia
+export const orphanKeys = (inBase, known) => inBase.filter((k) => k.name?.startsWith(KEY_PREFIX) && !known.has(k.key)).map((k) => k.key);
 
 // Lo que se responde si poner al día las claves dejó problemas: { warning } o nada.
 export const keysWarning = (problems) => (problems.length ? { warning: `Hecho, pero sin su clave de poder en la base: ${problems[0]}` } : {});

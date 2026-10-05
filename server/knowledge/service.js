@@ -8,12 +8,14 @@
 //
 // Cada persona tiene en la base su clave de poder con los permisos
 // de sus vistas (person-keys.js). syncPeople la crea, la pone al día o la
-// quita en la base con baseKeys (inyectado: create / update / remove sobre
-// power_keys, con la clave de la instancia) y la guarda en la instancia.
+// quita en la base con baseKeys (inyectado: list / create / update / remove
+// sobre power_keys, con la clave del dueño) y la guarda en la instancia. Las
+// sincronizaciones van de una en una (si se cruzaran, crearían dos claves para
+// la misma persona) y la revisión completa barre las claves huérfanas.
 
 import { PlatformError } from '../platform/client.js';
 import { toGroups, publicGroups, pickGroups } from './groups.js';
-import { planKeys, keyName } from './person-keys.js';
+import { planKeys, keyName, orphanKeys } from './person-keys.js';
 
 export const createKnowledge = ({ platform, readGroups, baseKeys }) => {
   let known = { baseId: null, groups: null }; // los proyectos leídos, con sus tokens
@@ -36,9 +38,9 @@ export const createKnowledge = ({ platform, readGroups, baseKeys }) => {
   const connections = async (jwt) => new Map((await platform.rpc(jwt, 'platform_base_access'))
     .map((a) => [a.id, { url: a.url, key: a.publishable_key, powerKey: a.power_key }]));
 
-  // Claves de unas personas (ids; null: todas) al día con sus vistas y lo que
-  // ven. drop: quitárselas todas (antes de borrarlas). → [problemas]
-  const syncPeople = async (jwt, ids, { drop = false } = {}) => {
+  // Claves de unas personas (ids; null: todas, y fuera las huérfanas) al día
+  // con sus vistas. drop: quitárselas todas (antes de borrarlas). → [problemas]
+  const sync = async (jwt, ids, { drop = false } = {}) => {
     const [people, conn, keys] = await Promise.all([
       platform.rpc(jwt, 'platform_list_users'), connections(jwt), platform.rpc(jwt, 'platform_person_keys', {})]);
     const targets = ids ? ids.map((id) => people.find((p) => p.id === id) || { id }) : people;
@@ -60,8 +62,17 @@ export const createKnowledge = ({ platform, readGroups, baseKeys }) => {
         } catch (e) { problems.push(e.message); }
       }
     }
+    if (!ids) {
+      const known = new Set((await platform.rpc(jwt, 'platform_person_keys', {})).map((k) => k.power_key));
+      for (const c of conn.values()) {
+        try { for (const key of orphanKeys(await baseKeys.list(c), known)) await baseKeys.remove(c, key); }
+        catch (e) { problems.push(e.message); }
+      }
+    }
     return problems;
   };
+  let queue = Promise.resolve();
+  const syncPeople = (...args) => (queue = queue.then(() => sync(...args), () => sync(...args)));
 
   return {
     syncPeople,

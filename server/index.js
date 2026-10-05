@@ -591,8 +591,9 @@ const readGroups = async ({ url, key, powerKey }) => {
 // la instancia en ella: solo el dueño las gestiona, así que tiene que ser la suya.
 const baseKeys = (() => {
   const keys = ({ url, key, powerKey }) => createClient(url, key, { global: { fetch, headers: siaHeaders([], powerKey) }, auth: { persistSession: false } }).from('power_keys');
-  const ok = (error) => { if (error) throw new Error(`La base no deja crear claves de poder (${error.message}): en Configuración tiene que tener la clave del dueño.`); };
+  const ok = (error) => { if (error) throw new Error(`La base no deja gestionar claves de poder (${error.message}): la instancia tiene que tener la clave del dueño.`); };
   return {
+    async list(c) { const { data, error } = await keys(c).select('key, name').eq('owner', false); ok(error); return data; },
     async create(c, { name, perms }) { const key = randomUUID(); const { error } = await keys(c).insert({ key, name, owner: false, perms }); ok(error); return key; },
     async update(c, key, { name, perms }) { const { data, error } = await keys(c).update({ name, perms }).eq('key', key).select('key'); ok(error); return data.length > 0; },
     async remove(c, key) { const { error } = await keys(c).delete().eq('key', key); ok(error); },

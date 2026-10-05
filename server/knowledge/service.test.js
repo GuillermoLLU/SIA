@@ -4,7 +4,7 @@ import { createKnowledge } from './service.js';
 import { groupId } from './groups.js';
 
 const SOP = '00000000-0000-0000-0000-0000000000b1';
-const setup = ({ people = [], personKeys = [], withBase = true, power = true } = {}) => {
+const setup = ({ people = [], personKeys = [], withBase = true, power = true, inBase = [] } = {}) => {
   const calls = [];
   const platform = {
     async rpc(jwt, fn, args) {
@@ -13,10 +13,15 @@ const setup = ({ people = [], personKeys = [], withBase = true, power = true } =
       if (fn === 'platform_base_access') return withBase && power ? [{ id: SOP, url: 'https://s.supabase.co', publishable_key: 'pk-s', power_key: 'poder-s' }] : [];
       if (fn === 'platform_list_users') return people;
       if (fn === 'platform_person_keys') return personKeys.filter((k) => !args?.p_base || k.base_id === args.p_base);
+      if (fn === 'platform_set_person_key') {
+        personKeys = personKeys.filter((k) => !(k.user_id === args.p_user && k.base_id === args.p_base));
+        if (args.p_power_key) personKeys.push({ user_id: args.p_user, base_id: args.p_base, power_key: args.p_power_key });
+      }
       return null;
     },
   };
   const baseKeys = {
+    async list() { calls.push(['base.list']); return inBase; },
     async create(c, f) { calls.push(['base.create', c.powerKey, f]); return 'nueva-clave'; },
     async update(c, key, f) { calls.push(['base.update', key, f]); return key !== 'borrada-a-mano'; },
     async remove(c, key) { calls.push(['base.remove', key]); },
@@ -72,4 +77,17 @@ test('syncPeople drop / sin vistas: la quita de la base y de la instancia', asyn
     assert.deepEqual(calls.filter((c) => c[0].startsWith('base.') || c[0] === 'platform_set_person_key'), [
       ['base.remove', 'k1'], ['platform_set_person_key', { p_user: 'u1', p_base: SOP, p_power_key: null }]]);
   }
+});
+
+test('syncPeople de todas: barre de la base las claves de SIA que la instancia no conoce', async () => {
+  const { calls, knowledge } = setup({ personKeys: [{ user_id: 'u1', base_id: SOP, power_key: 'k1' }],
+    inBase: [{ key: 'k1', name: 'SIA · paula@x.com' }, { key: 'huerfana', name: 'SIA · borrada@x.com' }, { key: 'k9', name: 'Editores' }] });
+  await knowledge.syncPeople('jwt', null);
+  assert.deepEqual(calls.filter((c) => c[0] === 'base.remove').map((c) => c[1]), ['huerfana']);
+});
+
+test('syncPeople: de una en una; si llegan a la vez, la segunda ve la clave de la primera', async () => {
+  const { calls, knowledge } = setup({ people: [paula(['links'])] });
+  await Promise.all([knowledge.syncPeople('jwt', ['u1']), knowledge.syncPeople('jwt', ['u1'])]);
+  assert.deepEqual(calls.filter((c) => c[0].startsWith('base.')).map((c) => c[0]), ['base.create', 'base.update']);
 });

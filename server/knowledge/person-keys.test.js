@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { keyPerms, planKeys, keyName, keysWarning } from './person-keys.js';
+import { keyPerms, planKeys, keyName, keysWarning, orphanKeys } from './person-keys.js';
 
 const person = (views, active = true) => ({ email: 'paula@x.com', active, views });
 const none = { lab: false, admin: false, links: false };
@@ -38,4 +38,9 @@ test('sin la clave de la instancia en esa base no se puede crear', () => {
 test('keysWarning: aviso solo si hubo problemas', () => {
   assert.deepEqual(keysWarning([]), {});
   assert.match(keysWarning(['la base no responde']).warning, /la base no responde/);
+});
+
+test('orphanKeys: solo las de SIA que la instancia no conoce', () => {
+  const inBase = [{ key: 'k1', name: 'SIA · ana@x.com' }, { key: 'k2', name: 'SIA · borrada@x.com' }, { key: 'k3', name: 'Owner' }, { key: 'k4', name: 'Editores' }];
+  assert.deepEqual(orphanKeys(inBase, new Set(['k1'])), ['k2']);
 });
