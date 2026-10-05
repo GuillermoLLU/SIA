@@ -9,16 +9,9 @@
 }
 
 /* cabecera */
-.pp-head { display: flex; align-items: flex-end; gap: 24px; padding: 22px 28px 0; flex-wrap: wrap; }
+.pp-head { padding: 22px 28px 14px; }
 .pp-head h2 { margin: 0; font-size: 20px; font-weight: 650; color: var(--text); }
-.pp-stats { display: flex; gap: 18px; margin-top: 2px; color: var(--text-low); font-size: 12.5px; font-variant-numeric: tabular-nums; flex-wrap: wrap; }
-.pp-stats b { color: var(--text); font-weight: 600; }
-.pp-tabs { display: flex; gap: 2px; margin-left: auto; }
-.pp-tab { padding: 8px 14px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--text-low); font: 600 13px var(--font-ui); cursor: pointer; }
-.pp-tab.on { color: var(--text); border-bottom-color: var(--accent); }
 .pp-rule { height: 1px; margin: 0 28px; background: var(--border); }
-.pp-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.pp-pane[hidden] { display: none; }
 
 /* herramientas */
 .pp-tools { display: flex; gap: 10px; align-items: center; padding: 14px 28px; flex-wrap: wrap; }
@@ -27,7 +20,6 @@
 .pp-chip:hover { border-color: var(--text-low); }
 .pp-chip.on { color: var(--bg); background: var(--accent); border-color: var(--accent); font-weight: 600; }
 .pp-tools .lab-btn.primary { margin-left: auto; height: 34px; padding: 0 16px; font-size: 13px; }
-.pp-note { font-size: 13px; color: var(--text-low); }
 
 /* cuerpo: lista + ficha */
 .pp-body { flex: 1; min-height: 0; display: flex; gap: 16px; padding: 0 28px 24px; }
@@ -98,7 +90,6 @@
 .pp-box.off { border-style: dashed; opacity: 0.6; }
 .pp-box.off .b-ico { color: var(--text-low); }
 .pp-box.off:hover { opacity: 0.9; }
-.pp-hint { font-size: 12.5px; color: var(--text-low); }
 
 /* tarjetas de rol */
 .pp-roles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
@@ -159,16 +150,6 @@
 .pp-review { display: flex; flex-direction: column; gap: 6px; }
 .pp-review div { padding: 10px 12px; border: 1px solid var(--border); background: var(--bg); font-size: 13px; }
 .pp-review div span { color: var(--text-low); }
-
-/* pestaña de bases */
-.pp-bgrid { flex: 1; overflow: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; align-content: start; }
-.pp-bcard { display: flex; flex-direction: column; gap: 10px; padding: 16px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
-.pp-bcard:hover { border-color: var(--accent); }
-.pp-bcard h4 { margin: 0; font-size: 15px; }
-.pp-bcard code { font-family: ui-monospace, monospace; font-size: 11.5px; color: var(--text-low); overflow-wrap: anywhere; }
-.pp-bcard .meta { display: flex; gap: 14px; font-size: 12px; color: var(--text-low); font-variant-numeric: tabular-nums; }
-.pp-bcard .meta b { color: var(--text); }
-.pp-bcard.add { min-height: 150px; align-items: center; justify-content: center; border-style: dashed; color: var(--text-low); }
 
 @media (prefers-reduced-motion: reduce) { .pp-panel, .pp-scrim { animation: none; } }
 @media (max-width: 1100px) {

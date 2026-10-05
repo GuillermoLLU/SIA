@@ -1,13 +1,15 @@
 // Vista «Personas» (solo administradores). Lista con buscador y filtros y,
 // al pulsar a alguien, su ficha: rol, contraseña y acceso (cada uno con su
 // modal) y su conocimiento en cajas de base. Alta en un modal propio. La
-// pestaña «Bases de conocimiento» va en bases-tab.js. Solo DOM: los datos van
+// gestión de las bases de la instancia no va aquí. Solo DOM: los datos van
 // por users-api.js y knowledge-api.js y las reglas las pone la base.
 import './people.css';
 import { openModal, closeModal } from './modal.js';
 import { strongPassword } from './password.js';
-import { mountBasesTab } from './bases-tab.js';
-import { esc, BASE_ICON } from './ui.js';
+
+const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+const BASE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="1"/><rect x="3" y="14" width="18" height="6" rx="1"/><path d="M7 7h.01M7 17h.01"/></svg>';
 
 const ROLE = {
   admin: { label: 'Administrador', desc: 'Gestiona personas, bases de conocimiento y lo que ve cada uno.' },
@@ -48,52 +50,35 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast }) => 
   let people = [], bases = [], filter = 'all', query = '', selected = null;
 
   root.innerHTML = `
-    <header class="pp-head">
-      <div><h2>Personas</h2><div class="pp-stats" data-stats></div></div>
-      <div class="pp-tabs" role="tablist">
-        <button class="pp-tab on" data-tab="people" role="tab">Personas</button>
-        <button class="pp-tab" data-tab="bases" role="tab">Bases de conocimiento</button>
-      </div>
-    </header>
+    <header class="pp-head"><h2>Personas</h2></header>
     <div class="pp-rule"></div>
-    <section class="pp-pane" data-pane="people">
-      <div class="pp-tools">
-        <input class="settings-input" data-q placeholder="Buscar por nombre o email" aria-label="Buscar persona" />
-        <button class="pp-chip on" data-f="all">Todas</button>
-        <button class="pp-chip" data-f="admin">Administradores</button>
-        <button class="pp-chip" data-f="agent">Agentes</button>
-        <button class="pp-chip" data-f="none">Sin conocimiento</button>
-        <button class="pp-chip" data-f="off">Desactivadas</button>
-        <button class="lab-btn primary" data-act="new">+ Nueva persona</button>
-      </div>
-      <div class="pp-body" data-body>
-        <div class="pp-list" data-list></div>
-        <aside class="pp-panel" data-panel hidden></aside>
-      </div>
-    </section>
-    <section class="pp-pane" data-pane="bases" hidden></section>`;
+    <div class="pp-tools">
+      <input class="settings-input" data-q placeholder="Buscar por nombre o email" aria-label="Buscar persona" />
+      <button class="pp-chip on" data-f="all">Todas</button>
+      <button class="pp-chip" data-f="admin">Administradores</button>
+      <button class="pp-chip" data-f="agent">Agentes</button>
+      <button class="pp-chip" data-f="none">Sin conocimiento</button>
+      <button class="pp-chip" data-f="off">Desactivadas</button>
+      <button class="lab-btn primary" data-act="new">+ Nueva persona</button>
+    </div>
+    <div class="pp-body" data-body>
+      <div class="pp-list" data-list></div>
+      <aside class="pp-panel" data-panel hidden></aside>
+    </div>`;
   const $ = (s) => root.querySelector(s);
   const panel = $('[data-panel]');
-  const basesTab = mountBasesTab($('[data-pane="bases"]'), { knowledgeApi, getBases: () => bases, reload: () => load(), toast });
 
   const load = async () => {
     try { [people, bases] = await Promise.all([usersApi.list(), knowledgeApi.bases()]); }
     catch (e) { $('[data-list]').innerHTML = `<div class="pp-empty">No se pudo cargar: ${esc(e.message)}</div>`; return; }
     if (selected && !people.some((p) => p.id === selected)) selected = null;
-    renderStats(); renderList(); basesTab.render();
+    renderList();
     if (selected) renderPanel(); else panel.hidden = true;
   };
   const baseById = (id) => bases.find((b) => b.id === id);
   const person = () => people.find((p) => p.id === selected);
 
   /* ── lista ── */
-  const renderStats = () => {
-    const a = people.filter((p) => p.role === 'admin').length, off = people.filter((p) => !p.active).length;
-    const none = people.filter((p) => !knBases(knOf(p)).length).length;
-    const n = (count, one, many) => `<span><b>${count}</b> ${count === 1 ? one : many}</span>`;
-    $('[data-stats]').innerHTML = n(people.length, 'persona', 'personas') + n(a, 'administrador', 'administradores')
-      + n(people.length - a, 'agente', 'agentes') + n(none, 'sin conocimiento', 'sin conocimiento') + n(off, 'desactivada', 'desactivadas');
-  };
   const knTags = (p) => {
     const kn = knOf(p), bs = knBases(kn);
     return bs.length ? bs.map((b) => `<span class="pp-tag">${esc(baseById(b)?.name || 'Base')} · ${kn[b].length}</span>`).join('') : '<span class="pp-tag none">Sin conocimiento</span>';
@@ -125,7 +110,7 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast }) => 
         return `<button class="pp-box ${on ? 'on' : 'off'}" data-base="${esc(b.id)}">
           <span class="b-ico">${BASE_ICON}</span><span class="b-name">${esc(b.name)}</span><span class="b-meta">${meta}</span>
         </button>`;
-      }).join('')}</div>` : '<p class="pp-hint">Añádelas en la pestaña «Bases de conocimiento».</p>'}
+      }).join('')}</div>` : ''}
     </div>`;
   };
   const renderPanel = () => {
@@ -205,7 +190,7 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast }) => 
     const paint = () => {
       const on = sel.length > 0, groups = b.groups || [];
       m.querySelector('[data-b]').innerHTML = !b.groups
-        ? `<div class="pp-callout">${esc(b.groupsError || 'Esta base aún no tiene su clave de poder, así que SIA no puede leer sus grupos.')} Ponla en la pestaña «Bases de conocimiento».</div>`
+        ? `<div class="pp-callout">${esc(b.groupsError || 'Esta base aún no tiene su clave de poder, así que SIA no puede leer sus grupos.')}</div>`
         : `<div class="pp-toggle"><span><b>Ve esta base</b><span>${on ? (groups.length === 1 ? 'Con todo su conocimiento.' : 'Con los grupos que marques abajo.') : 'Sus chats no la usarán.'}</span></span>
             <button type="button" class="sw" role="switch" aria-checked="${on}" aria-label="Ve esta base" data-toggle><span class="knob"></span></button></div>
           ${groups.length > 1 ? `<div class="pp-groups-label">Grupos${on ? ` · ${sel.length} de ${groups.length}` : ''}</div>
@@ -316,12 +301,6 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast }) => 
 
   /* ── interacción de la vista ── */
   root.addEventListener('click', (e) => {
-    const tab = e.target.closest('.pp-tab');
-    if (tab) {
-      root.querySelectorAll('.pp-tab').forEach((t) => t.classList.toggle('on', t === tab));
-      root.querySelectorAll('.pp-pane').forEach((p) => { p.hidden = p.dataset.pane !== tab.dataset.tab; });
-      return;
-    }
     const chip = e.target.closest('.pp-chip');
     if (chip) { filter = chip.dataset.f; root.querySelectorAll('.pp-chip').forEach((c) => c.classList.toggle('on', c === chip)); return renderList(); }
     const row = e.target.closest('.pp-row:not(.hd)');
