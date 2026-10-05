@@ -13,16 +13,16 @@
 --     abiertas: con la clave publishable a secas no se lee ni se escribe nada.
 --   * Las políticas leen esas cabeceras: los tokens dan los proyectos que
 --     conceden (access_grants); la clave de poder da permisos (power_keys).
---   * La clave del dueño la genera SIA al copiar este SQL desde el
---     asistente (⚙️ Configuración → Conocimiento) y la guarda en tu equipo al
---     verificar. Ejecutarlo de nuevo desde el asistente genera otra, que es
---     la forma de recuperar una clave perdida.
+--   * La clave del dueño se pone al generar este SQL
+--     (node server/base/schema-sql.js <clave>) y se le da a la instancia con
+--     platform.set_knowledge_base. Generarlo de nuevo con otra clave es la
+--     forma de cambiarla.
 
 -- ── Guarda: este fichero no se ejecuta tal cual ──────────────────
 -- La clave del dueño es un marcador que SIA sustituye al generar el SQL.
 do $$ begin
   if '__SIA_OWNER_KEY__' like '\_\_SIA\_%' then
-    raise exception 'SIA: copia el SQL desde el asistente de la app (ahí se genera la clave del dueño).';
+    raise exception 'SIA: genera el SQL con node server/base/schema-sql.js <clave-del-dueño>.';
   end if;
 end $$;
 

@@ -29,36 +29,19 @@ cuenta de la instancia (las da un administrador; ver «La base de la
 instancia»). Con «Mantener la sesión» se entra solo la próxima vez.
 
 Cada persona ve las **vistas** que se le den: el Chat siempre y, además,
-Enlaces rápidos, Laboratorio, Administración, Personas y Bases de
-conocimiento (⚙️ → Conocimiento). El rol solo pone las de partida: un
-**agente** empieza con Chat y Enlaces; un **administrador**, con todas.
+Enlaces rápidos, Laboratorio, Administración y Personas. El rol solo pone las
+de partida: un **agente** empieza con Chat y Enlaces; un **administrador**,
+con todas.
 
 - **Personas**: da de alta a la gente (con su rol y lo que verá, en un solo
   paso) y, en la ficha de cada uno, cambia su rol, enciende o apaga sus
   vistas, le genera una contraseña nueva, le corta el acceso o decide qué
   grupos de la base ve (o le copia los de otra persona). Quien recibe una
   contraseña de otro la cambia al entrar.
-- **Bases de conocimiento** (⚙️ → Conocimiento): la instancia tiene **una
-  sola base de conocimiento** y trabaja contra ella todo el mundo, tenga
-  grupos asignados o no. Con su clave de poder (la del dueño) pasa sola a la
-  instancia; la clave se guarda cifrada y con ella SIA lee sus grupos y da
-  a cada persona su clave, así que nadie maneja tokens a mano. Para
-  conectarla:
-
-1. **⚙️ Configuración → Conocimiento**: ponle un nombre a la base, pega el
-   Project ID de tu proyecto Supabase (o su URL) y su clave *publishable*
-   (`sb_publishable_…`) y pulsa **Conectar**. Si al proyecto le faltan las
-   tablas, el asistente te guía en tres pasos (copiar el SQL, ejecutarlo en
-   el SQL Editor de Supabase, verificar) y te deja como owner de esa base.
-   La clave *secret* del proyecto no se pide nunca (SIA la rechaza): ver
-   «Quién ve qué».
-   Puedes conectar **varias bases** (la tuya y la de otro equipo, cada una con
-   sus tokens de grupo y su clave de poder). Cada chat trabaja contra una sola
-   base, que se elige al crearlo si hay más de una, y usa el conocimiento y las
-   skills de esa base. Laboratorio, Administración y Enlaces también actúan
-   sobre una base: si varias te la abren, la eliges al entrar.
-2. Pulsa **+** para abrir un chat: **Claude**, **Copilot** o
-   **Codex**, ya conectados al conocimiento.
+- La instancia tiene **una sola base de conocimiento** y trabaja contra ella
+  todo el mundo, tenga grupos asignados o no: no se conecta nada a mano.
+  Pulsa **+** para abrir un chat: **Claude**, **Copilot** o **Codex**, ya
+  conectados al conocimiento.
 
 Sin conocimiento asignado los chats funcionan igual, pero sin la base del equipo ni sus skills.
 
@@ -78,21 +61,25 @@ Se monta una vez:
    secreto de la función `SIA_SECRET_KEY` junto a `SIA_PUBLISHABLE_KEY`).
 3. Crear la primera persona en Authentication → Users y nombrarla admin en el
    SQL Editor: `select platform.grant_admin('email');`.
-4. Comprobar con **`scripts/platform-tests/verify.sql`** (todo en OK).
+4. Montar la base de conocimiento (otro proyecto Supabase): ejecutar en su
+   SQL Editor el esquema con una clave de dueño nueva
+   (`node server/base/schema-sql.js <clave>` lo imprime, con las skills
+   comunes) y, en el SQL Editor de la instancia,
+   `select platform.set_knowledge_base('Nombre', 'https://<ref>.supabase.co', 'sb_publishable_…', '<clave>');`.
+5. Comprobar con **`scripts/platform-tests/verify.sql`** (todo en OK).
 
 Endurecimiento recomendado en el panel: registro público cerrado, contraseñas
 de 6 caracteres o más, SSL obligatorio y claves legacy
 desactivadas. Las pruebas del SQL: `npm run test:platform` (Docker).
 
-Vistas por persona (`platform.users.views`: links, lab, admin, people,
-knowledge); el rol (**admin** / **agent**) solo pone las de partida. Una
-base de conocimiento solo entiende de claves de poder, así que cada persona
-tiene en cada base que ve su propia clave («SIA · email», en
-`platform.person_keys` y Vault) con solo los permisos de sus vistas
-(Laboratorio, Administración, Enlaces). La crea, la ajusta y la quita el
-bridge de quien gestiona Personas (con la clave del dueño de la base, que
-tiene la instancia), y el bridge de la persona la recibe al iniciar sesión:
-nadie reparte claves a mano. Nadie
+Vistas por persona (`platform.users.views`: links, lab, admin, people); el
+rol (**admin** / **agent**) solo pone las de partida. La base de
+conocimiento solo entiende de claves de poder, así que cada persona tiene en
+ella su propia clave («SIA · email», en `platform.person_keys` y Vault) con
+solo los permisos de sus vistas (Laboratorio, Enlaces); quien tiene
+Administración usa la del dueño (skills comunes incluidas). La crea, la
+ajusta y la quita el bridge de quien gestiona Personas, y el bridge de la
+persona la recibe al iniciar sesión: nadie reparte claves a mano. Nadie
 cambia su propio rol ni sus vistas ni se desactiva, así que siempre queda
 alguien con Personas. Todo pasa por funciones de la base que comprueban
 quién llama y sus vistas; las tablas no se pueden leer ni con la publishable.
@@ -118,48 +105,18 @@ reglas. La clave *secret* del proyecto no entra en SIA (se rechaza al
 pegarla y se descarta de las configuraciones antiguas): es la única que salta
 las políticas y solo debe tenerla quien administra el proyecto en Supabase.
 
-Para dar acceso a alguien: ⚙️ → esa base → Conocimiento → **Invitar…**, marcar
-uno o varios grupos y copiar. Es un texto `sia-invite:…` con el proyecto,
-su clave publishable y los tokens de esos grupos; quien lo recibe lo pega en
-⚙️ → Conocimiento → Añadir base y queda conectado con ellos (si ya tenía la
-base, se le añaden los grupos que le faltaban). Invita el owner, que elige
-entre todos los grupos, o una clave de poder con el permiso **Invitar**, que
-solo puede compartir los grupos a los que ella misma tiene token. En esa
-misma vista, el owner y las claves con Administración ven todos los grupos de
-la base con un interruptor para activar los que quieren usar en sus chats.
+Los grupos de cada persona se eligen en su ficha de Personas; las claves de
+poder, las pone SIA según sus vistas (ver «La base de la instancia»).
 
-## Quién manda en una base
-
-Las claves de poder viven **en cada base** (tabla `power_keys`), no en el
-programa, y se guardan por base en ⚙️ → Conocimiento → tarjeta de la base →
-**Clave de poder**. Quien monta una base es su **owner**: el SQL que copia
-del asistente lleva su clave de dueño recién generada, y al verificar queda
-guardada en su equipo (volver a ejecutar el SQL desde el asistente genera
-otra: así se recupera si se pierde). Su clave lo abre todo y ve en ⚙️ la
-pestaña **Claves**, donde crea claves nuevas (nombre + vistas que abre) y las
-borra; los cambios aplican al momento. Quien conecta a la base de otro
-necesita los tokens de grupo de esa base y, para las vistas de gestión, una
-clave que le dé el owner. Con varias bases, una vista (Laboratorio,
-Administración, Enlaces) aparece si alguna base la abre: si solo una, se entra
-directo; si varias, se elige base al entrar, como al crear un chat. Las claves
-de cada base se gestionan en ⚙️ → Conocimiento → esa base → Claves (solo el
-owner).
-
-Permisos que puede llevar una clave:
+Permisos que puede llevar una clave (`power_keys`):
 
 - **Laboratorio**: crear y editar skills de los grupos a los que se tiene token.
 - **Administración**: grupos, proyectos de conocimiento, accesos y enlaces.
 - **Editar enlaces**: añadir y quitar enlaces rápidos.
-- **Invitar**: generar invitaciones a los grupos a los que se tiene token.
 
 Las skills **comunes** (las que ven todos los grupos) solo las crea, edita o
-borra el owner de la base.
-
-Una base montada con un esquema anterior (SIA 0.1, conectada con la
-clave secret) no deja ver nada con la publishable hasta que su dueño vuelve a
-ejecutar el SQL: ⚙️ → esa base → Configuración → Cambiar conexión → Conectar
-abre el asistente. El conocimiento, las skills, los grupos y las claves de
-poder que ya había se conservan; solo la clave del dueño se renueva.
+borra el dueño de la base. Una base con un esquema anterior no deja ver nada
+hasta que se vuelve a ejecutar su SQL (`node server/base/schema-sql.js`).
 
 ## Piezas
 
@@ -167,8 +124,9 @@ poder que ya había se conservan; solo la clave del dueño se renueva.
   Laboratorio de skills, Administración, enlaces rápidos. Puerto **5220**.
 - `server/` — bridge local: un PTY por sesión expuesto por WebSocket y la API
   HTTP. Por funcionalidad: `platform/` (cliente de la base de la instancia),
-  `auth/` (sesión), `users/` (personas), `knowledge/` (conocimiento asignado),
-  `access/` y `base/` (bases de conocimiento). A cada CLI se le pasa el MCP de la sesión a su manera: Claude con
+  `auth/` (sesión y vistas), `users/` (personas), `knowledge/` (conocimiento
+  asignado y claves de cada persona), `access/` y `base/` (cabeceras,
+  permisos y esquema de la base de conocimiento). A cada CLI se le pasa el MCP de la sesión a su manera: Claude con
   `--mcp-config`, Copilot con `--additional-mcp-config` y Codex con un
   perfil temporal (`-p`) que se borra al cerrar la sesión. Los puertos se eligen solos (pares 57413/57414 → 58527/58528 →
   59641/59642; `SIA_PORT` fuerza uno). Acceso desde el móvil por QR+PIN, en
@@ -179,23 +137,22 @@ poder que ya había se conservan; solo la clave del dueño se renueva.
   multilingual-e5-small, 384 dims) + búsqueda `match_chunks` en la base
   conectada. La conexión le llega del bridge por entorno en cada chat.
 - `workspace/` — directorio de trabajo de las sesiones (en la app, dentro de
-  su carpeta de datos; en dev, `~/.sia/workspace`). Cada base tiene su rincón
+  su carpeta de datos; en dev, `~/.sia/workspace`). La base tiene su rincón
   en `bases/<id>/` (sus skills sincronizadas y los directorios de modo con
   `CLAUDE.md`/`AGENTS.md`, que instruyen consultar el conocimiento antes de
-  responder), así cada chat ve las skills de su base.
-- `supabase-schema.sql` — esquema completo de la base (idempotente). El
-  asistente de montaje sirve ese fichero con la clave de dueño puesta y, al
-  final, las **skills comunes** de `skills/common/` (`server/base/schema-sql.js`):
-  una base recién montada arranca con ellas y cada ejecución las deja al día.
+  responder).
+- `supabase-schema.sql` — esquema completo de la base de conocimiento
+  (idempotente). `node server/base/schema-sql.js <clave>` lo imprime con la
+  clave de dueño puesta y, al final, las **skills comunes** de
+  `skills/common/`: una base recién montada arranca con ellas y cada
+  ejecución las deja al día.
 - `supabase-platform.sql`, `supabase/functions/sia-users/` y
   `scripts/platform-tests/` — la base de la instancia, su Edge Function y sus
   pruebas y verificación.
-- Configuración personal (bases propias de un admin con sus tokens de grupo,
-  Jira, GitHub, sesión guardada): `~/.sia/config.json`, solo en esta máquina.
+- Configuración personal (Jira, GitHub, tema, sesión guardada):
+  `~/.sia/config.json`, solo en esta máquina.
 
-Variables de entorno solo para desarrollo: `SIA_SUPABASE_URL` /
-`SIA_SUPABASE_KEY` (conexión sin pasar por Ajustes), `SIA_ADMIN_KEY` /
-`SIA_SUPERADMIN_KEY` (claves de poder sin pasar por la base), `SIA_WORKSPACE`.
+Variable de entorno solo para desarrollo: `SIA_WORKSPACE`.
 Los scripts de mantenimiento (`scripts/copy-knowledge.mjs`,
 `mcp/seed-skills.mjs`) escriben saltándose las políticas: se les pasa la
 clave secret por entorno en el momento, nunca se guarda.

@@ -2,7 +2,7 @@
 // al pulsar a alguien, su ficha: rol, contraseña y acceso (cada uno con su
 // modal), sus vistas (cajas que se encienden y apagan) y su conocimiento: los
 // grupos de la base de la instancia que ve (la base la ve todo el mundo). Alta
-// en un modal propio. La base se gestiona en Configuración → Conocimiento. Solo DOM: los datos van
+// en un modal propio. La base la fija la instancia. Solo DOM: los datos van
 // por users-api.js y knowledge-api.js y las reglas las pone la base.
 import './people.css';
 import { openModal, closeModal } from './modal.js';
@@ -117,7 +117,7 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast }) => 
     const b = base(), groups = b?.groups || [];
     const head = (sum, none) => `<div class="pp-block-head"><span class="pp-k">Conocimiento</span><span class="pp-sum${none ? ' none' : ''}">${sum}</span>
       ${copyFrom && groups.length ? '<button class="pp-link" data-act="kn-copy">Igual que otra persona…</button>' : ''}</div>`;
-    if (!b) return `<div class="pp-block">${head('', false)}<div class="pp-callout">Aún no hay base de conocimiento: conéctala en Configuración → Conocimiento.</div></div>`;
+    if (!b) return `<div class="pp-block">${head('', false)}<div class="pp-callout">La instancia aún no tiene base de conocimiento.</div></div>`;
     if (!b.groups) return `<div class="pp-block">${head('', false)}<div class="pp-callout">${esc(b.groupsError || 'La base aún no tiene su clave de poder, así que SIA no puede leer sus grupos.')}</div></div>`;
     if (!groups.length) return `<div class="pp-block">${head('', false)}<div class="pp-callout">«${esc(b.name)}» aún no tiene grupos: créalos en Administración.</div></div>`;
     const n = groups.filter((g) => sel.includes(g.id)).length;

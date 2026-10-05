@@ -1,7 +1,7 @@
 // SQL de montaje de una base: supabase-schema.sql con la clave de dueño puesta
 // y, al final, las skills comunes que vienen con la app (skills/common/), para
-// que una base recién montada arranque con ellas. Lo usa el bridge (asistente
-// de ⚙️ → Conocimiento) y las pruebas (scripts/rls-tests/run.sh).
+// que una base recién montada arranque con ellas. Para montar la base de la
+// instancia y para las pruebas (scripts/rls-tests/run.sh).
 //
 //   node server/base/schema-sql.js <clave-de-dueño>   → imprime el SQL completo
 import fs from 'node:fs';

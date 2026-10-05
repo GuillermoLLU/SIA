@@ -77,7 +77,7 @@
 .pp-danger { color: var(--pp-bad) !important; }
 .lab-btn.pp-danger-solid { background: var(--pp-bad); border-color: var(--pp-bad); color: #fff; font-weight: 600; }
 
-/* cajas de vista (como las de Configuración → Conocimiento) */
+/* cajas de vista */
 .pp-box { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 132px; padding: 16px 12px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; text-align: center; cursor: pointer; transition: border-color .12s, background .12s; }
 .pp-box:hover { border-color: var(--accent); }
 .pp-box .b-ico { color: var(--accent); }

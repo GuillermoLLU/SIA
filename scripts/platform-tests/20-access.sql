@@ -71,17 +71,17 @@ select public.platform_update_user(:U2, null, 'agent');
 select assert_eq((select views from public.platform_list_users() where id = :U2), array['links'], 'volver a agente: sus vistas');
 
 -- vistas: el rol es el punto de partida; después, una a una
-select assert_eq((select (public.platform_whoami() -> 'views') ?& array['links', 'lab', 'admin', 'people', 'knowledge']), true, 'el admin, todas');
+select assert_eq((select (public.platform_whoami() -> 'views') ?& array['links', 'lab', 'admin', 'people']), true, 'el admin, todas');
 select public.platform_update_user(:U1, null, null, null, array['people', 'links', 'people']);
 select assert_eq((select views from public.platform_list_users() where id = :U1), array['links', 'people'], 'vistas a mano, sin repetir');
 select expect_error($$select public.platform_update_user('00000000-0000-0000-0000-0000000000a2', null, null, null, array['root'])$$, 'vista desconocida');
+select expect_error($$select public.platform_update_user('00000000-0000-0000-0000-0000000000a2', null, null, null, array['knowledge'])$$, 'la vista «knowledge» ya no existe');
 select expect_error($$select public.platform_update_user('00000000-0000-0000-0000-0000000000a1', null, null, null, array['links'])$$, 'nadie cambia sus propias vistas');
 select t_as(:U1);
 select assert_eq((select count(*) from public.platform_list_users()), 3::bigint, 'con Personas ve a todos aunque sea agente');
 select assert_eq(public.platform_can_manage_users(), true, 'y da de alta');
 select assert_eq((select count(*) from public.platform_list_bases()), 0::bigint, 've las bases para asignarlas');
-select expect_error($$select public.platform_add_base('X', 'https://abcdefghijklmnopqrsw.supabase.co', 'sb_publishable_abcdefghijklmnopqrstuvwxyz')$$, 'sin Conocimiento no añade bases');
-select expect_error($$select public.platform_update_user('00000000-0000-0000-0000-0000000000a2', null, null, null, array['links', 'people', 'knowledge'])$$, 'ni se da vistas a sí mismo');
+select expect_error($$select public.platform_update_user('00000000-0000-0000-0000-0000000000a2', null, null, null, array['links', 'people', 'lab'])$$, 'ni se da vistas a sí mismo');
 select t_as(:AD);
 select public.platform_update_user(:U1, null, null, null, array[]::text[]);
 select t_as(:U1);
@@ -115,25 +115,22 @@ select expect_error($$select public.platform_record_user_event('user.delete', '0
 select t_as(:AD);
 
 -- ── 4. bases y su clave de poder (Vault) ──
-select expect_error($$select public.platform_add_base('Mala', 'https://abcdefghijklmnopqrst.supabase.co', 'sb_secret_abcdefghijklmnopqrstuvwxyz')$$, 'rechaza la clave secret');
-select expect_error($$select public.platform_add_base('Mala', 'https://abcdefghijklmnopqrst.supabase.co', 'eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.abc')$$, 'rechaza un JWT');
-select expect_error($$select public.platform_add_base('Mala', 'https://evil.com', 'sb_publishable_abcdefghijklmnopqrstuvwxyz')$$, 'rechaza URLs que no son de Supabase');
-select expect_error($$select public.platform_add_base('Mala', 'https://abcdefghijklmnopqrsx.supabase.co', 'sb_publishable_abcdefghijklmnopqrstuvwxyz', 'con,coma')$$, 'clave de poder con coma');
-select public.platform_add_base('Soporte', 'https://ABCDEFGHIJKLMNOPQRST.supabase.co/', 'sb_publishable_abcdefghijklmnopqrstuvwxyz', 'pk-admin-soporte-123');
-select expect_error($$select public.platform_add_base('Logística', 'https://abcdefghijklmnopqrsu.supabase.co', 'sb_publishable_abcdefghijklmnopqrstuvwxyz')$$, 'una sola base por instancia');
+-- la base de la instancia se fija desde el SQL Editor, no desde la API
+select expect_error($$select platform.set_knowledge_base('Soporte', 'https://abcdefghijklmnopqrst.supabase.co', 'sb_publishable_abcdefghijklmnopqrstuvwxyz', 'pk-admin-soporte-123')$$, 'desde la API no se fija la base');
+reset role;
+select expect_error($$select platform.set_knowledge_base('Mala', 'https://abcdefghijklmnopqrst.supabase.co', 'sb_secret_abcdefghijklmnopqrstuvwxyz', 'pk-owner-123')$$, 'rechaza la clave secret');
+select expect_error($$select platform.set_knowledge_base('Mala', 'https://abcdefghijklmnopqrst.supabase.co', 'eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.abc', 'pk-owner-123')$$, 'rechaza un JWT');
+select expect_error($$select platform.set_knowledge_base('Mala', 'https://evil.com', 'sb_publishable_abcdefghijklmnopqrstuvwxyz', 'pk-owner-123')$$, 'rechaza URLs que no son de Supabase');
+select expect_error($$select platform.set_knowledge_base('Mala', 'https://abcdefghijklmnopqrst.supabase.co', 'sb_publishable_abcdefghijklmnopqrstuvwxyz', 'con,coma')$$, 'clave de poder con coma');
+select platform.set_knowledge_base('Soporte', 'https://ABCDEFGHIJKLMNOPQRST.supabase.co/', 'sb_publishable_abcdefghijklmnopqrstuvwxyz', 'pk-admin-soporte-123');
+select platform.set_knowledge_base('Soporte', 'https://abcdefghijklmnopqrst.supabase.co', 'sb_publishable_abcdefghijklmnopqrstuvwxyz', 'pk-admin-soporte-456');
+select assert_eq((select count(*) from platform.knowledge_bases), 1::bigint, 'volver a fijarla no la duplica');
+select assert_eq((select count(*) from vault.secrets where name like 'sia-base-%'), 1::bigint, 'ni su clave en Vault');
+set role authenticated;
+select t_as(:AD);
 select assert_eq((select url from public.platform_list_bases()), 'https://abcdefghijklmnopqrst.supabase.co', 'URL normalizada');
 select assert_eq((select has_power_key from public.platform_list_bases()), true, 'con su clave de poder');
-select assert_eq((select power_key from public.platform_base_access()), 'pk-admin-soporte-123', 'el admin recibe la clave descifrada');
-select public.platform_set_base_power((select id from public.platform_list_bases()), 'pk-admin-soporte-456');
-select assert_eq((select power_key from public.platform_base_access()), 'pk-admin-soporte-456', 'cambiar la clave');
-select public.platform_rename_base((select id from public.platform_list_bases()), 'Soporte España');
-select assert_eq((select name from public.platform_list_bases()), 'Soporte España', 'renombrar la base');
-select expect_error($$select public.platform_rename_base((select id from public.platform_list_bases()), '')$$, 'nombre vacío');
-select public.platform_rename_base((select id from public.platform_list_bases()), 'Soporte');
-reset role;
-select assert_eq((select count(*) from vault.secrets where name like 'sia-base-%'), 1::bigint, 'su clave en Vault, sin duplicar al cambiarla');
-select assert_eq((select count(*) from platform.knowledge_bases where power_secret is not null), 1::bigint, 'y la base apunta a ella (no guarda la clave)');
-set role authenticated;
+select assert_eq((select power_key from public.platform_base_access()), 'pk-admin-soporte-456', 'quien gestiona Personas recibe la clave cambiada');
 
 -- ── 5. conocimiento: fijar grupos de una base y copiar de otra persona ──
 select public.platform_set_knowledge(:U1, (select id from public.platform_list_bases() where name = 'Soporte'),
@@ -175,24 +172,23 @@ select expect_error($$select public.platform_set_person_key('00000000-0000-0000-
 select expect_error('select count(*) from public.platform_base_access()', 'el agente no recibe claves de poder');
 select expect_error($$select public.platform_set_knowledge('00000000-0000-0000-0000-0000000000a2', gen_random_uuid(), '[]')$$, 'el agente no asigna');
 select expect_error($$select public.platform_copy_knowledge('00000000-0000-0000-0000-0000000000a2', '00000000-0000-0000-0000-0000000000a1')$$, 'el agente no copia');
-select expect_error($$select public.platform_add_base('X', 'https://abcdefghijklmnopqrsv.supabase.co', 'sb_publishable_abcdefghijklmnopqrstuvwxyz')$$, 'el agente no añade bases');
-select expect_error($$select public.platform_rename_base(gen_random_uuid(), 'X')$$, 'el agente no renombra bases');
 select t_as(:U2);
 select assert_eq((select count(*) from public.platform_my_knowledge()), 1::bigint, 'todos ven la base de la instancia');
 select assert_eq((select count(*) from public.platform_my_knowledge() where group_token is not null), 0::bigint, 'pero ningún grupo ajeno');
-
--- ── 6b. quitar una base y desactivar ──
 select t_as(:AD);
-select public.platform_remove_base((select id from public.platform_list_bases() where name = 'Soporte'));
+select assert_eq((select power_key from public.platform_my_knowledge()), 'pk-admin-soporte-456', 'con Administración, la clave del dueño');
+
+-- ── 6b. cambiar de base y desactivar ──
 reset role;
-select assert_eq((select count(*) from vault.secrets where name like 'sia-base-%'), 0::bigint, 'quitar la base borra su clave de Vault');
+select platform.set_knowledge_base('Logística', 'https://abcdefghijklmnopqrsu.supabase.co', 'sb_publishable_abcdefghijklmnopqrstuvwxyz', 'pk-admin-logistica-1');
+select assert_eq((select string_agg(name, ',') from platform.knowledge_bases), 'Logística', 'otra URL: otra base');
+select assert_eq((select count(*) from vault.secrets where name like 'sia-base-%'), 1::bigint, 'la clave de la anterior sale de Vault');
 select assert_eq((select count(*) from vault.secrets where name like 'sia-person-%'), 0::bigint, 'y las de las personas en ella');
 insert into auth.sessions (user_id) values ('00000000-0000-0000-0000-0000000000a2');
 set role authenticated;
 select t_as(:U1);
-select assert_eq((select count(*) from public.platform_my_knowledge()), 0::bigint, 'quitada la base: ya no la ve');
+select assert_eq((select count(*) from public.platform_my_knowledge() where group_token is not null), 0::bigint, 'lo asignado de la anterior se fue con ella');
 select t_as(:AD);
-select public.platform_add_base('Logística', 'https://abcdefghijklmnopqrsu.supabase.co', 'sb_publishable_abcdefghijklmnopqrstuvwxyz', 'pk-admin-logistica-1');
 select public.platform_update_user(:U1, null, null, false);
 reset role;
 select assert_eq((select count(*) from auth.sessions where user_id = '00000000-0000-0000-0000-0000000000a2'), 0::bigint, 'desactivar cierra sus sesiones');

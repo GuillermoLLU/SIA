@@ -5,14 +5,15 @@
 // clave con los permisos de sus vistas que la base sabe hacer cumplir: nada
 // más (mínimo privilegio) y revocable persona a persona. La base de la
 // instancia la ve todo el mundo, tenga grupos o no. Sin ninguna de esas
-// vistas o desactivada: sin clave.
+// vistas o desactivada: sin clave. Con Administración tampoco: usa la del
+// dueño de la base (la instancia se la da; platform_my_knowledge).
 
 import { cleanPerms } from '../access/perms.js';
 
 // Vistas de SIA que son un permiso en la base (mismo nombre).
-export const KEY_VIEWS = ['lab', 'admin', 'links'];
+export const KEY_VIEWS = ['lab', 'links'];
 
-export const keyPerms = (person) => (person?.active ? KEY_VIEWS.filter((v) => person.views?.includes(v)) : []);
+export const keyPerms = (person) => (person?.active && !person.views?.includes('admin') ? KEY_VIEWS.filter((v) => person.views?.includes(v)) : []);
 
 export const keyName = (person) => `SIA · ${person.email}`;
 

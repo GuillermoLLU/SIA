@@ -9,12 +9,14 @@
 --  Modelo
 --    users              las personas (1:1 con auth.users de Supabase Auth), su rol y sus vistas
 --    knowledge_bases    la base de conocimiento de la instancia (otro proyecto
---                       Supabase): una sola, y la ven todas las personas
+--                       Supabase): una sola, y la ven todas las personas. Se
+--                       fija desde el SQL Editor (platform.set_knowledge_base)
 --    knowledge_grants   qué grupos (tokens) de la base tiene cada usuario: el RAG que ve
---    person_keys        la clave de poder de cada persona en cada base que ve (en
---                       Vault), con solo los permisos de sus vistas (Laboratorio,
---                       Administración, Enlaces). La crea en la base el bridge de
---                       quien gestiona Personas; el de la persona la usa.
+--    person_keys        la clave de poder de cada persona en la base (en Vault),
+--                       con solo los permisos de sus vistas (Laboratorio,
+--                       Enlaces). La crea en la base el bridge de quien gestiona
+--                       Personas; el de la persona la usa. Quien tiene
+--                       Administración usa la del dueño de la base.
 --    audit_log          registro de todo cambio (solo se añade, nunca se edita)
 --
 --  Vistas: lo que cada persona puede ver y hacer en SIA (el Chat, siempre)
@@ -22,7 +24,6 @@
 --    lab        Laboratorio de skills
 --    admin      Administración del contenido de las bases (grupos, proyectos, enlaces)
 --    people     Personas: altas, bajas, vistas y conocimiento de cada una
---    knowledge  Configuración → Conocimiento: las bases de la instancia
 --  Roles: punto de partida de las vistas. Al poner un rol se le dan las
 --  suyas; después se ajustan una a una.
 --    admin   todas. El primero se nombra desde el SQL Editor (platform.grant_admin).
@@ -41,8 +42,9 @@
 --    · Un usuario desactivado no pasa ninguna comprobación.
 --    · Los tokens de grupo solo se devuelven enteros a su titular; a los
 --      admins, como huella (sha256). Las claves secret de Supabase se rechazan.
---    · La clave de poder de cada base (para leer sus grupos) se guarda cifrada
---      en Supabase Vault y solo la recibe el bridge de quien gestiona bases o personas.
+--    · La clave del dueño de la base (para leer sus grupos y dar claves) se
+--      guarda cifrada en Supabase Vault y solo la recibe el bridge de quien
+--      gestiona Personas o tiene Administración.
 --    · Desactivar a alguien o ponerle contraseña nueva cierra sus sesiones; una
 --      contraseña puesta por otro hay que cambiarla al entrar.
 --    · El alta, la baja y el cambio de contraseña de personas en Supabase Auth
@@ -140,7 +142,7 @@ alter table platform.knowledge_bases add column if not exists power_secret uuid;
 -- Vistas de cada rol (punto de partida) y de cada persona.
 create or replace function platform.role_views(p_role text) returns text[]
 language sql immutable set search_path = '' as $$
-  select case p_role when 'admin' then array['links', 'lab', 'admin', 'people', 'knowledge'] else array['links'] end
+  select case p_role when 'admin' then array['links', 'lab', 'admin', 'people'] else array['links'] end
 $$;
 do $$
 begin
@@ -149,10 +151,13 @@ begin
     update platform.users set views = platform.role_views(role);
     alter table platform.users alter column views set not null;
     alter table platform.users alter column views set default array['links'];
-    alter table platform.users add constraint users_views_known
-      check (views <@ array['links', 'lab', 'admin', 'people', 'knowledge']);
   end if;
 end $$;
+-- La vista «knowledge» (Configuración → Conocimiento) ya no existe: la base es
+-- una y se fija desde aquí.
+update platform.users set views = array_remove(views, 'knowledge') where 'knowledge' = any (views);
+alter table platform.users drop constraint if exists users_views_known;
+alter table platform.users add constraint users_views_known check (views <@ array['links', 'lab', 'admin', 'people']);
 
 -- RLS activado y sin políticas en todas: nadie fuera de las funciones.
 alter table platform.users            enable row level security;
@@ -303,6 +308,42 @@ begin
   perform platform.audit(null, 'admin.grant', v_id);
 end $$;
 
+-- La base de conocimiento de la instancia: SOLO desde el SQL Editor. Con la
+-- clave publishable del proyecto y la clave del dueño (la que va en su SQL).
+-- Otra URL es otra base: la anterior se va con lo asignado y las claves.
+create or replace function platform.set_knowledge_base(p_name text, p_url text, p_publishable_key text, p_owner_key text) returns uuid
+language plpgsql set search_path = '' as $$
+declare v_key text := btrim(p_publishable_key);
+        v_url text := rtrim(lower(btrim(p_url)), '/');
+        v_id uuid;
+begin
+  -- la secret salta todas las políticas de la base: ni se acepta ni se guarda
+  if v_key ~* '^sb_secret_' or v_key ~ '^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$' then
+    raise exception 'Esa no es la clave publishable. SIA solo admite sb_publishable_… (Project Settings → API Keys).' using errcode = '22023';
+  end if;
+  delete from platform.knowledge_bases where url <> v_url; -- su clave sale de Vault con ella
+  insert into platform.knowledge_bases (name, url, publishable_key)
+  values (btrim(p_name), v_url, v_key)
+  on conflict (url) do update set name = excluded.name, publishable_key = excluded.publishable_key
+  returning id into v_id;
+  perform platform.store_power(v_id, btrim(p_owner_key));
+  perform platform.audit(null, 'base.set', null, jsonb_build_object('base', v_id, 'name', btrim(p_name), 'url', v_url));
+  return v_id;
+exception
+  when check_violation then raise exception 'Datos no válidos: nombre (1-60), URL https://<ref>.supabase.co y clave sb_publishable_….' using errcode = '23514';
+end $$;
+
+-- La clave de una base sale de Vault con ella.
+create or replace function platform.base_forget() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  delete from vault.secrets where id = old.power_secret;
+  return old;
+end $$;
+drop trigger if exists base_forget on platform.knowledge_bases;
+create trigger base_forget after delete on platform.knowledge_bases
+  for each row execute function platform.base_forget();
+
 revoke all on all functions in schema platform from public, anon, authenticated;
 
 -- ════════════════════════════════════════════════════════════════════════
@@ -314,6 +355,10 @@ drop function if exists public.platform_list_grants(uuid);
 drop function if exists public.platform_grant_knowledge(uuid, uuid, text, text);
 drop function if exists public.platform_revoke_knowledge(uuid);
 drop function if exists public.platform_add_base(text, text, text);
+drop function if exists public.platform_add_base(text, text, text, text);
+drop function if exists public.platform_rename_base(uuid, text);
+drop function if exists public.platform_set_base_power(uuid, text);
+drop function if exists public.platform_remove_base(uuid);
 drop function if exists platform.mask(text);
 drop function if exists platform.require_admin();
 drop function if exists platform.is_admin(uuid);
@@ -338,8 +383,9 @@ begin
 end $$;
 
 -- Mi conocimiento: bases y tokens de grupo asignados (con el token entero:
--- es lo que SIA manda a la base) y mi clave de poder en ella, si tengo. La
--- base la ve todo el mundo: sin grupos, una fila con el grupo vacío.
+-- es lo que SIA manda a la base) y mi clave de poder en ella: con
+-- Administración, la del dueño; si no, la mía (si tengo). La base la ve todo
+-- el mundo: sin grupos, una fila con el grupo vacío.
 drop function if exists public.platform_my_knowledge();
 create function public.platform_my_knowledge()
 returns table (base_id uuid, base_name text, url text, publishable_key text, group_name text, group_token text, power_key text)
@@ -348,11 +394,13 @@ language plpgsql stable security definer set search_path = '' as $$
 declare v_me uuid := platform.require_user();
 begin
   return query
-    select b.id, b.name, b.url, b.publishable_key, g.group_name, g.group_token, d.decrypted_secret
+    select b.id, b.name, b.url, b.publishable_key, g.group_name, g.group_token,
+           case when platform.can(v_me, array['admin']) then o.decrypted_secret else d.decrypted_secret end
     from platform.knowledge_bases b
     left join platform.knowledge_grants g on g.base_id = b.id and g.user_id = v_me
     left join platform.person_keys k on k.user_id = v_me and k.base_id = b.id
     left join vault.decrypted_secrets d on d.id = k.power_secret
+    left join vault.decrypted_secrets o on o.id = b.power_secret
     order by b.name, g.group_name;
 end $$;
 
@@ -408,7 +456,7 @@ begin
   if p_role is not null and p_role not in ('admin', 'agent') then
     raise exception 'Rol desconocido.' using errcode = '22023';
   end if;
-  if v_views is not null and not (v_views <@ array['links', 'lab', 'admin', 'people', 'knowledge']) then
+  if v_views is not null and not (v_views <@ array['links', 'lab', 'admin', 'people']) then
     raise exception 'Vista desconocida.' using errcode = '22023';
   end if;
   update platform.users
@@ -453,82 +501,21 @@ returns table (id uuid, name text, url text, publishable_key text, has_power_key
 language plpgsql stable security definer set search_path = '' as $$
 #variable_conflict use_column
 begin
-  perform platform.require_view('people', 'knowledge');
+  perform platform.require_view('people');
   return query
     select b.id, b.name, b.url, b.publishable_key, b.power_secret is not null,
            (select count(distinct g.user_id) from platform.knowledge_grants g where g.base_id = b.id), b.created_at
     from platform.knowledge_bases b order by b.name;
 end $$;
 
-create or replace function public.platform_add_base(p_name text, p_url text, p_publishable_key text, p_power_key text default null) returns uuid
-language plpgsql security definer set search_path = '' as $$
-declare v_me uuid := platform.require_view('knowledge');
-        v_key text := btrim(p_publishable_key);
-        v_url text := rtrim(lower(btrim(p_url)), '/');
-        v_id uuid;
-begin
-  -- la secret salta todas las políticas de la base: ni se acepta ni se guarda
-  if exists (select 1 from platform.knowledge_bases) then
-    raise exception 'La instancia ya tiene su base de conocimiento: quítala antes de poner otra.' using errcode = '23505';
-  end if;
-  if v_key ~* '^sb_secret_' or v_key ~ '^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$' then
-    raise exception 'Esa no es la clave publishable. SIA solo admite sb_publishable_… (Project Settings → API Keys).' using errcode = '22023';
-  end if;
-  insert into platform.knowledge_bases (name, url, publishable_key, created_by)
-  values (btrim(p_name), v_url, v_key, v_me)
-  returning id into v_id;
-  if nullif(btrim(p_power_key), '') is not null then perform platform.store_power(v_id, btrim(p_power_key)); end if;
-  perform platform.audit(v_me, 'base.add', null, jsonb_build_object('base', v_id, 'name', btrim(p_name), 'url', v_url));
-  return v_id;
-exception
-  when unique_violation then raise exception 'Esa base ya está dada de alta.' using errcode = '23505';
-  when check_violation then raise exception 'Datos no válidos: nombre (1-60), URL https://<ref>.supabase.co y clave sb_publishable_….' using errcode = '23514';
-end $$;
-
--- Renombra una base (la mantiene en sintonía con Configuración → Conocimiento).
-create or replace function public.platform_rename_base(p_base uuid, p_name text) returns void
-language plpgsql security definer set search_path = '' as $$
-declare v_me uuid := platform.require_view('knowledge');
-begin
-  update platform.knowledge_bases set name = btrim(p_name) where id = p_base;
-  if not found then raise exception 'Esa base no existe.' using errcode = 'P0002'; end if;
-  perform platform.audit(v_me, 'base.rename', null, jsonb_build_object('base', p_base, 'name', btrim(p_name)));
-exception
-  when check_violation then raise exception 'Nombre no válido (1-60 caracteres).' using errcode = '23514';
-end $$;
-
--- Pone o cambia la clave de poder de una base (en Vault).
-create or replace function public.platform_set_base_power(p_base uuid, p_power_key text) returns void
-language plpgsql security definer set search_path = '' as $$
-declare v_me uuid := platform.require_view('knowledge');
-begin
-  if not exists (select 1 from platform.knowledge_bases b where b.id = p_base) then
-    raise exception 'Esa base no existe.' using errcode = 'P0002';
-  end if;
-  perform platform.store_power(p_base, btrim(p_power_key));
-  perform platform.audit(v_me, 'base.power_key', null, jsonb_build_object('base', p_base));
-end $$;
-
--- Quitar una base se lleva lo asignado de ella y su clave de Vault.
-create or replace function public.platform_remove_base(p_base uuid) returns void
-language plpgsql security definer set search_path = '' as $$
-declare v_me uuid := platform.require_view('knowledge');
-        v_secret uuid;
-begin
-  delete from platform.knowledge_bases where id = p_base returning power_secret into v_secret;
-  if not found then raise exception 'Esa base no existe.' using errcode = 'P0002'; end if;
-  if v_secret is not null then delete from vault.secrets where id = v_secret; end if;
-  perform platform.audit(v_me, 'base.remove', null, jsonb_build_object('base', p_base));
-end $$;
-
--- Para el bridge de quien gestiona bases o personas: con qué leer los grupos de cada base (su
--- clave de poder, descifrada). Nunca llega a la web.
+-- Para el bridge de quien gestiona Personas: con qué leer los grupos de la
+-- base y dar claves (la del dueño, descifrada). Nunca llega a la web.
 create or replace function public.platform_base_access()
 returns table (id uuid, url text, publishable_key text, power_key text)
 language plpgsql stable security definer set search_path = '' as $$
 #variable_conflict use_column
 begin
-  perform platform.require_view('people', 'knowledge');
+  perform platform.require_view('people');
   return query
     select b.id, b.url, b.publishable_key, d.decrypted_secret
     from platform.knowledge_bases b join vault.decrypted_secrets d on d.id = b.power_secret;
@@ -582,7 +569,7 @@ returns table (user_id uuid, base_id uuid, power_key text)
 language plpgsql stable security definer set search_path = '' as $$
 #variable_conflict use_column
 begin
-  perform platform.require_view('people', 'knowledge');
+  perform platform.require_view('people');
   return query
     select k.user_id, k.base_id, d.decrypted_secret
     from platform.person_keys k join vault.decrypted_secrets d on d.id = k.power_secret
@@ -592,7 +579,7 @@ end $$;
 -- Guarda la clave que se acaba de crear en la base para alguien; null, la olvida.
 create or replace function public.platform_set_person_key(p_user uuid, p_base uuid, p_power_key text) returns void
 language plpgsql security definer set search_path = '' as $$
-declare v_me uuid := platform.require_view('people', 'knowledge');
+declare v_me uuid := platform.require_view('people');
         v_secret uuid;
 begin
   if p_power_key is null then
@@ -648,6 +635,11 @@ end $$;
 commit;
 
 -- ════════════════════════════════════════════════════════════════════════
+--  Base de conocimiento (una sola vez, o para cambiarla), con el SQL de SIA ya
+--  ejecutado en ese otro proyecto:
+--       select platform.set_knowledge_base('Nombre', 'https://<ref>.supabase.co',
+--                                          'sb_publishable_…', '<clave del dueño>');
+--
 --  Primer administrador (una sola vez):
 --    1. Si aún no existe: Authentication → Users → Add user → email +
 --       contraseña robusta, marcando «Auto Confirm User».

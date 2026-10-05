@@ -10,7 +10,7 @@ api as (
 expected (proname) as (values
   ('platform_whoami'), ('platform_password_changed'), ('platform_my_knowledge'),
   ('platform_list_users'), ('platform_can_manage_users'), ('platform_update_user'), ('platform_record_user_event'),
-  ('platform_list_bases'), ('platform_add_base'), ('platform_rename_base'), ('platform_set_base_power'), ('platform_remove_base'), ('platform_base_access'),
+  ('platform_list_bases'), ('platform_base_access'),
   ('platform_set_knowledge'), ('platform_copy_knowledge'), ('platform_person_keys'), ('platform_set_person_key'),
   ('platform_list_audit')
 ),
@@ -41,9 +41,9 @@ checks (orden, comprobacion, ok, detalle) as (
     not has_schema_privilege('anon', 'platform', 'usage') and not has_schema_privilege('authenticated', 'platform', 'usage'),
     'usage: anon=' || has_schema_privilege('anon', 'platform', 'usage') || ', authenticated=' || has_schema_privilege('authenticated', 'platform', 'usage')
   union all
-  select 6, 'Las 18 funciones de la API existen',
-    (select count(*) from api where proname in (select proname from expected)) = 18,
-    coalesce((select 'faltan: ' || string_agg(e.proname, ', ') from expected e where e.proname not in (select proname from api)), '18 de 18')
+  select 6, 'Las 14 funciones de la API existen',
+    (select count(*) from api where proname in (select proname from expected)) = 14,
+    coalesce((select 'faltan: ' || string_agg(e.proname, ', ') from expected e where e.proname not in (select proname from api)), '14 de 14')
   union all
   select 7, 'Todas son SECURITY DEFINER',
     not exists (select 1 from api where not prosecdef),
@@ -61,10 +61,11 @@ checks (orden, comprobacion, ok, detalle) as (
     not exists (select 1 from api where not has_function_privilege('authenticated', oid, 'execute')),
     coalesce((select string_agg(proname, ', ') from api where not has_function_privilege('authenticated', oid, 'execute')), 'todas')
   union all
-  select 11, 'Nadie desde la API puede hacerse admin',
+  select 11, 'Nadie desde la API puede hacerse admin ni cambiar la base',
     not has_function_privilege('authenticated', 'platform.grant_admin(text)', 'execute')
-      and not has_function_privilege('anon', 'platform.grant_admin(text)', 'execute'),
-    'grant_admin solo desde el SQL Editor'
+      and not has_function_privilege('anon', 'platform.grant_admin(text)', 'execute')
+      and not has_function_privilege('authenticated', 'platform.set_knowledge_base(text, text, text, text)', 'execute'),
+    'grant_admin y set_knowledge_base solo desde el SQL Editor'
   union all
   select 12, 'Disparadores de alta y cambio de email en auth.users',
     (select count(*) from pg_trigger where tgrelid = 'auth.users'::regclass and tgname in ('sia_on_auth_user_created', 'sia_on_auth_user_email')) = 2,

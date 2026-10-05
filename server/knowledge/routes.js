@@ -1,6 +1,5 @@
 // /api/knowledge/*: conocimiento de cada persona (sesión en X-SIA-Auth; la
-// vista Personas la exige el bridge). La base vuelve a comprobarlo todo con su JWT. Las
-// bases de la instancia se gestionan en Configuración → Conocimiento.
+// vista Personas la exige el bridge). La base vuelve a comprobarlo todo con su JWT.
 //   GET    /bases                          → { bases }  (con sus grupos: { id, name })
 //   PUT    /people/:userId/bases/:baseId   { groups: [ids] } → { ok }   (vacío: no la ve)
 //   POST   /people/:userId/copy            { from } → { ok }

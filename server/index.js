@@ -7,11 +7,9 @@ import { WebSocketServer, WebSocket as WSClient } from 'ws';
 import * as pty from 'node-pty';
 import { createClient } from '@supabase/supabase-js';
 import { fetch as undiciFetch, Agent as UndiciAgent } from 'undici';
-import { isSecretKey, SECRET_KEY_MSG, headerValue, siaHeaders } from './access/credentials.js';
-import { ALL_PERMS, cleanPerms, permsFromRow } from './access/perms.js';
-import { cleanSupabase, baseRef, cleanBase, normalizeBases, usable } from './base/bases.js';
-import { makeDiagnose, schemaOk } from './base/diagnose.js';
-import { buildSchemaSql } from './base/schema-sql.js';
+import { headerValue, siaHeaders } from './access/credentials.js';
+import { permsFromRow } from './access/perms.js';
+import { schemaOk } from './base/diagnose.js';
 import { createAuth } from './auth/service.js';
 import { authRoutes } from './auth/routes.js';
 import { liveSessions } from './auth/sessions.js';
@@ -20,7 +18,7 @@ import { createUserAdmin } from './users/service.js';
 import { usersRoutes } from './users/routes.js';
 import { loadPlatformConfig } from './platform/config.js';
 import { createPlatformClient } from './platform/client.js';
-import { toAssignedBases, mergeBases, publicBase } from './knowledge/assigned.js';
+import { toAssignedBases } from './knowledge/assigned.js';
 import { createKnowledge } from './knowledge/service.js';
 import { knowledgeRoutes } from './knowledge/routes.js';
 import os from 'node:os';
@@ -232,7 +230,7 @@ const modeDirFor = (mode, base) => {
 // la app empaquetada puede ser de solo lectura.
 const MCP_SERVER = path.join(ROOT, 'mcp', 'index.js');
 // rutas de la API que no tocan la base de conocimiento
-const DB_FREE_ROUTES = new Set(['ping', 'version', 'lan', 'lock', 'config', 'upload', 'uploads', 'db', 'bases']);
+const DB_FREE_ROUTES = new Set(['ping', 'version', 'lan', 'lock', 'config', 'upload', 'uploads']);
 // La config MCP se escribe POR SESIÓN con los proyectos elegidos para ese chat
 // (SIA_ALLOWED_PROJECTS: la selección del usuario dentro de su techo). La
 // conexión viaja al MCP por entorno (nunca por la conversación): la clave
@@ -376,12 +374,10 @@ if (typeof globalThis.WebSocket === 'undefined') globalThis.WebSocket = WSClient
 const insecureAgent = new UndiciAgent({ connect: { rejectUnauthorized: false } });
 const supaFetch = (url, opts = {}) => undiciFetch(url, { ...opts, dispatcher: insecureAgent });
 
-/* ── La base de conocimiento es DEL USUARIO ─────────────────────────
-   No hay base por defecto: cada uno conecta su propio Supabase (URL + clave
-   publishable) en ⚙️ Configuración → Conocimiento, y ahí viven su RAG, sus
-   skills, sus grupos y sus enlaces. Quien quiera usar la base de otro pone
-   la conexión de ese otro (y sus tokens de grupo). SIA_SUPABASE_URL/KEY
-   siguen valiendo para dev; nunca hay valores escritos en el código.
+/* ── La base de conocimiento es DE LA INSTANCIA ─────────────────────
+   Una sola, la misma para todo el mundo, y la fija la instancia
+   (platform.set_knowledge_base): ahí viven el RAG, las skills, los grupos y
+   los enlaces. Nada de conexiones en la config ni valores en el código.
 
    QUIÉN VE QUÉ lo decide la base, no este bridge: todas sus tablas están
    cerradas con Row Level Security y las políticas leen dos cabeceras que
@@ -389,40 +385,22 @@ const supaFetch = (url, opts = {}) => undiciFetch(url, { ...opts, dispatcher: in
    x-sia-power (clave de poder). Con la clave publishable a secas no se ve
    nada. Las comprobaciones que quedan aquí (techo de proyectos, permisos de
    cada vista) son para dar mensajes claros, no la barrera. La clave secret
-   del proyecto nunca entra en SIA: se rechaza al pegarla. */
-const NO_DB_MSG = 'Sin base de conocimiento: conecta tu Supabase en ⚙️ Configuración → Conocimiento';
+   del proyecto nunca entra en SIA. */
+const NO_DB_MSG = 'Sin base de conocimiento: la instancia aún no tiene la suya o no has iniciado sesión.';
 
-/* ── Varias bases a la vez ──────────────────────────────────────────
-   La config guarda una LISTA de bases: { id, name, url, key, tokens[], powerKey }.
-   Cada base lleva sus propios tokens de acceso y su clave de poder; no hay base
-   «principal»: cada chat ataca UNA base (se elige al crearlo si hay más de una)
-   y trabaja con sus skills, y cada vista de gestión actúa sobre la base elegida.
-   Así el MCP no cambia: recibe la conexión y los proyectos de esa base.
-   SIA_SUPABASE_URL/KEY (dev) se comportan como una única base virtual. */
-// bases en uso (las desactivadas o sin clave no entran en chats, vistas ni sincronización)
-const activeBases = () => basesList().filter(usable);
-// Las bases propias de la config local (o la de desarrollo por entorno).
-const localBases = () => {
-  if (process.env.SIA_SUPABASE_URL && process.env.SIA_SUPABASE_KEY) {
-    return [{ id: 'dev', name: 'Dev', url: process.env.SIA_SUPABASE_URL.trim(), key: process.env.SIA_SUPABASE_KEY.trim(), tokens: accessTokensLegacy(), powerKey: process.env.SIA_SUPERADMIN_KEY || '', enabled: true }];
-  }
-  return normalizeBases(readUserConfig().bases);
-};
-// Lo que la plataforma asigna a quien ha iniciado sesión en este bridge (el
-// último que entra) y si gestiona bases (vista Conocimiento); solo en
-// memoria, nunca en la config.
-let assigned = { configures: false, bases: [] };
+/* ── La base de conocimiento ──────────────────────────────────────
+   Una por instancia y la misma para todo el mundo: la asigna la plataforma a
+   quien inicia sesión en este bridge (el último que entra), con sus tokens de
+   grupo y su clave de poder ({ id, name, url, key, tokens, powerKey }). Solo
+   en memoria, nunca en la config. El MCP recibe la conexión y los proyectos. */
+let assigned = { bases: [] };
 // Lo que puede el móvil emparejado (entra sin sesión, con su llave).
 const PHONE_USER = { views: ['links'] };
-// Bases en uso: lo asignado y, si gestiona bases, también las de su
-// Configuración (server/knowledge/assigned.js). Si no, solo lo asignado.
-const basesList = () => mergeBases(assigned.bases, localBases(), { allowLocal: assigned.configures });
+const activeBases = () => assigned.bases;
 // no hay base «principal»: cada chat y cada vista eligen la suya; la primera de
 // la lista solo sirve de valor por defecto cuando algo llega sin base
 const primaryBase = () => activeBases()[0] || null;
-const baseById = (id) => (id ? basesList().find((b) => b.id === id) : null) || null;
-const activeById = (id) => { const b = baseById(id); return usable(b) ? b : null; };
-const saveBases = (list) => writeUserConfig({ ...readUserConfig(), bases: normalizeBases(list) });
+const activeById = (id) => (id ? activeBases().find((b) => b.id === id) : null) || null;
 // Un cliente por base (se reutiliza mientras no cambien conexión, tokens ni
 // clave de poder): lleva en cada petición las cabeceras con las que la base
 // decide qué dejar ver. `powerKey` fuerza otra clave de poder (dev/pruebas).
@@ -451,7 +429,7 @@ const connectSupabase = () => {
   const b = primaryBase();
   hasDb = !!b;
   supabase = b ? clientFor(b) : noDbClient;
-  keysInvalidate(); // otra base, otras claves de poder
+  statusCache.clear(); // otra base, otras claves de poder
   const n = activeBases().length;
   console.log(hasDb ? `[sia] ${n} base${n === 1 ? '' : 's'} de conocimiento en uso: ${activeBases().map((x) => x.name).join(', ')}` : '[sia] sin base de conocimiento en uso');
 };
@@ -481,7 +459,7 @@ const syncSkills = async (base) => {
   const dir = skillsDirFor(base);
   try {
     // sin el esquema blindado la base no se usa (ni para skills): aviso y fuera
-    if (await needsSchema(base)) { console.warn(`[sia] «${base.name}» necesita el SQL del esquema nuevo (⚙️ → Conocimiento): no se usa hasta entonces`); lastSyncByBase.set(base.id, Date.now()); return; }
+    if (await needsSchema(base)) { console.warn(`[sia] «${base.name}» necesita el SQL del esquema nuevo: no se usa hasta entonces`); lastSyncByBase.set(base.id, Date.now()); return; }
     const db = clientFor(base);
     const { data: metas, error: e1 } = await db.from('skills').select('id, scope').eq('enabled', true);
     if (e1) throw new Error(e1.message);
@@ -512,7 +490,7 @@ const syncSkills = async (base) => {
 const lastSyncByBase = new Map();
 const syncAllSkills = async () => {
   // bases quitadas: fuera su rincón del workspace
-  const ids = new Set(basesList().map((b) => b.id));
+  const ids = new Set(activeBases().map((b) => b.id));
   try { for (const d of fs.readdirSync(BASES_DIR)) if (!ids.has(d)) fs.rmSync(path.join(BASES_DIR, d), { recursive: true, force: true }); } catch {}
   await Promise.all(activeBases().map((b) => syncSkills(b)));
 };
@@ -525,18 +503,6 @@ const applyDbConnection = async () => {
   connectSupabase();
   lastSyncByBase.clear();
   await syncAllSkills();
-};
-
-/* ── Diagnóstico y montaje de una base (server/base/) ── */
-const diagnoseDb = makeDiagnose(
-  (url, key, headers) => createClient(url, key, { global: { fetch: supaFetch, headers } }),
-  (msg) => console.warn(`[sia] ${msg}`),
-);
-// SQL de montaje con una clave de dueño recién generada y las skills comunes
-// de la app (server/schema-sql.js); el fichero tal cual se niega a ejecutarse
-const schemaSqlWithOwner = () => {
-  const ownerKey = randomUUID();
-  return { ownerKey, sql: buildSchemaSql(ownerKey) };
 };
 
 /* ── Per-user config (~/.sia/config.json) ─────────────────────────
@@ -650,11 +616,6 @@ const loadAssigned = async (token) => {
   try {
     const ctx = await auth.context(token);
     if (!ctx) return;
-    const configures = can(ctx.user, 'knowledge');
-    if (configures) {
-      const problems = await knowledge.syncFromConfig(ctx.accessToken, localBases());
-      for (const p of problems) console.warn(`[sia] no se pudo llevar a la instancia ${p}`);
-    }
     // quien gestiona Personas deja al día las claves de todos (por si algo
     // cambió fuera de SIA o quedó a medias); sin esperar
     if (can(ctx.user, 'people')) {
@@ -662,14 +623,14 @@ const loadAssigned = async (token) => {
         .then((problems) => problems.forEach((p) => console.warn(`[sia] clave de poder de una persona: ${p}`)))
         .catch((e) => console.warn(`[sia] no se pudieron revisar las claves de las personas: ${e.message}`));
     }
-    const next = { configures, bases: toAssignedBases(await knowledge.mine(ctx.accessToken)) };
+    const next = { bases: toAssignedBases(await knowledge.mine(ctx.accessToken)) };
     if (JSON.stringify(next) === JSON.stringify(assigned)) return;
     assigned = next;
     await applyDbConnection();
   } catch (e) { console.warn(`[sia] no se pudo cargar el conocimiento asignado: ${e.message}`); }
 };
 const clearAssigned = async () => {
-  assigned = { configures: false, bases: [] };
+  assigned = { bases: [] };
   await applyDbConnection();
 };
 // Del inicio de sesión local anterior: fuera los usuarios y sus sesiones.
@@ -697,11 +658,6 @@ const clearAssigned = async () => {
     console.log('[sia] clave de GitHub migrada a la lista de claves («Principal»)');
   }
 }
-// tokens del formato antiguo (access.tokens), solo para la migración y el modo dev
-const accessTokensLegacy = () => {
-  const a = readUserConfig().access;
-  return Array.isArray(a?.tokens) ? a.tokens.filter(Boolean) : [];
-};
 const activeGithubToken = () => {
   const g = readUserConfig().github || {};
   const keys = Array.isArray(g.keys) ? g.keys : [];
@@ -720,30 +676,6 @@ const cleanGithub = (g) => {
     }));
   return { keys, activeId: keys.some((k) => k.id === g?.activeId) ? g.activeId : null };
 };
-
-/* Formato antiguo (una conexión en supabase.{url,key} y tokens en access.tokens)
-   → lista de bases con una principal. Se migra una vez y se quitan los campos. */
-{
-  const cfg = readUserConfig();
-  if (cfg.supabase && !Array.isArray(cfg.bases)) {
-    const conn = cleanSupabase(cfg.supabase);
-    const bases = conn ? [{ id: 'b1', name: baseRef(conn.url), url: conn.url, key: isSecretKey(conn.key) ? '' : conn.key, tokens: accessTokensLegacy() }] : [];
-    delete cfg.supabase; delete cfg.access;
-    writeUserConfig({ ...cfg, bases });
-    console.log(`[sia] conexión migrada a la lista de bases (${bases.length ? bases[0].name : 'ninguna'})`);
-  }
-}
-/* Bases conectadas con la clave secret (SIA 0.1): se descarta la clave al
-   arrancar (cleanBase la deja vacía) y se guarda la config sin ella, para que
-   no quede ni en disco. La base sigue en la lista; la UI pide la publishable. */
-{
-  const cfg = readUserConfig();
-  if (Array.isArray(cfg.bases) && cfg.bases.some((b) => isSecretKey(b?.key))) {
-    const bases = normalizeBases(cfg.bases);
-    writeUserConfig({ ...cfg, bases });
-    console.log(`[sia] clave secret descartada de: ${bases.filter((b) => !b.key).map((b) => b.name).join(', ')} — hace falta la clave publishable (⚙️ → Conocimiento)`);
-  }
-}
 
 const userEnv = () => {
   const env = {};
@@ -765,7 +697,7 @@ const cleanEnv = (env) => {
   return e;
 };
 
-// Acceso al conocimiento: los tokens de grupo del usuario (⚙️) → proyectos
+// Acceso al conocimiento: los tokens de grupo de la persona → proyectos
 // permitidos (unión de lo que concede cada token). Default-deny: sin tokens
 // válidos, no se ve nada. La base aplica la misma regla por su cuenta (los
 // tokens van en la cabecera): esta lectura solo devuelve lo que ella deja ver.
@@ -786,31 +718,12 @@ const accessibleProjects = async (base = primaryBase()) => {
 };
 
 /* ── Lab HTTP API (skills editor) ───────────────────────────────────
-   Gate: los endpoints del LAB (publicar/borrar skills, borradores) y el
-   panel de administración exigen la cabecera X-SIA-Admin con una clave
-   de poder. Config personal y lecturas del catálogo quedan abiertas. */
-// Claves de poder (⚙️ → Power user). Viven EN LA BASE (tabla power_keys):
-// ser admin depende de a qué Supabase te conectas, no del programa. Cada
-// clave abre las vistas que diga su perms; la fila owner=true es el dueño
-// (todo, no se puede revocar ni recortar). Es la base quien la comprueba:
-// viaja en la cabecera x-sia-power y sia_status() dice qué abre; las
-// tablas solo dejan escribir lo que esa clave permite. SIA_ADMIN_KEY /
-// SIA_SUPERADMIN_KEY solo para dev.
-// permisos: server/access/perms.js
-/* Las claves de poder son POR BASE: cada base tiene las suyas (tabla power_keys
-   de esa base) y el usuario guarda en la config la clave que le dieron para
-   cada una (bases[].powerKey). Una vista se abre en la base cuya clave la
-   permita; con varias, la UI pide elegir base (como en los chats). */
+   Claves de poder: viven EN LA BASE (tabla power_keys) y es la base quien las
+   comprueba (cabecera x-sia-power; sia_status() dice qué abre). La de cada
+   persona se la da la instancia según sus vistas (server/knowledge/
+   person-keys.js; con Administración, la del dueño). permisos:
+   server/access/perms.js */
 const statusCache = new Map(); // `${baseId}|${powerKey}` → { at, status }
-const keysInvalidate = (base) => { if (!base) statusCache.clear(); else for (const k of statusCache.keys()) if (k.startsWith(`${base.id}|`)) statusCache.delete(k); };
-const devPowerKeys = () => {
-  const env = { admin: process.env.SIA_ADMIN_KEY || '', superadmin: process.env.SIA_SUPERADMIN_KEY || '' };
-  if (!env.admin && !env.superadmin) return null;
-  return [
-    env.superadmin && { key: env.superadmin, name: 'Owner (dev)', owner: true, perms: ALL_PERMS },
-    env.admin && { key: env.admin, name: 'Admin (dev)', owner: false, perms: { lab: true } },
-  ].filter(Boolean);
-};
 // sia_status() de una base con una clave de poder dada: { version, owner,
 // me: {name, owner, perms} | null, projects } o null si la base no responde
 // o no tiene el esquema blindado (needsSchema). Cacheado 15 s.
@@ -826,23 +739,9 @@ const baseStatus = async (base, powerKey = base?.powerKey) => {
 };
 // ¿la base aún no tiene el esquema blindado? (sin sia_status o versión vieja)
 const needsSchema = async (base) => !schemaOk(await baseStatus(base));
-// lista de claves de poder (solo la ve el dueño: la base no se las da a nadie más)
-const powerKeys = async (base) => {
-  const dev = devPowerKeys();
-  if (dev) return dev;
-  if (!base) return [];
-  const { data, error } = await clientFor(base).from('power_keys').select('key, name, owner, perms, created_at').order('created_at');
-  if (error) throw new Error(error.message);
-  return data || [];
-};
-// permisos en UNA base: { name, owner, lab, admin, links } o null. La
-// clave es la guardada para esa base; X-SIA-Admin puede forzar otra (dev/pruebas).
-const permsFor = async (base, keyOverride) => {
-  const k = keyOverride || base?.powerKey;
-  if (!base || !k) return null;
-  const dev = devPowerKeys();
-  return permsFromRow(dev ? dev.find((r) => r.key === k) : (await baseStatus(base, k))?.me);
-};
+// permisos en UNA base: { name, owner, lab, admin, links } o null, según la
+// clave de poder que la instancia dio a quien ha iniciado sesión.
+const permsFor = async (base) => (base?.powerKey ? permsFromRow((await baseStatus(base))?.me) : null);
 // Validación de un enlace rápido. La imagen viaja como data URI para que viva
 // en la base y no dependa de un servidor ajeno; se acota el tamaño porque es
 // una miniatura, no una foto.
@@ -1019,7 +918,7 @@ setInterval(() => {
 
 const apiServer = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-SIA-Admin, X-SIA-Base, X-SIA-LAN, X-SIA-Auth');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-SIA-Base, X-SIA-LAN, X-SIA-Auth');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
 
@@ -1029,7 +928,7 @@ const apiServer = http.createServer(async (req, res) => {
   // enlaces): cabecera X-SIA-Base o ?base=; si no, la principal.
   const viewBase = activeById(req.headers['x-sia-base'] || url.searchParams.get('base')) || primaryBase();
   const db = viewBase ? clientFor(viewBase) : noDbClient;
-  const perms = await permsFor(viewBase, req.headers['x-sia-admin']); // permisos en esa base, o null
+  const perms = await permsFor(viewBase); // permisos en esa base, o null
   const role = perms ? (perms.owner ? 'superadmin' : 'admin') : null; // resumen para la UI
 
   // ── Cortafuegos: solo localhost entra sin llave ──
@@ -1141,8 +1040,7 @@ const apiServer = http.createServer(async (req, res) => {
       // contraseña puesta por un admin: nada más hasta que elija la suya
       if (who.user.must_change_password) return json(res, 401, { error: 'Elige tu contraseña para seguir.', auth: true });
     }
-    // Cada vista (Laboratorio, Administración, Personas, Conocimiento,
-    // Enlaces) solo para quien la tiene, aunque una clave de poder lo abriera:
+    // Cada vista (Laboratorio, Administración, Personas, Enlaces) solo para quien la tiene, aunque una clave de poder lo abriera:
     // segunda capa, además de la de la base (server/auth/views.js). El móvil
     // emparejado no inicia sesión: ve los Enlaces y nada de gestión.
     if (!allowed(who?.user ?? PHONE_USER, parts, req.method)) return json(res, 403, { error: 'No tienes acceso a esto.' });
@@ -1297,59 +1195,12 @@ const apiServer = http.createServer(async (req, res) => {
     if (parts[1] === 'admin' && parts[2] === 'check') {
       // por base: qué abre su clave de poder y si le falta el esquema blindado
       // (needsSchema: hay que volver a ejecutar el SQL; hasta entonces la base
-      // no deja ver nada). Las bases sin clave publishable van aparte (noKey).
+      // no deja ver nada).
       const bases = [];
       for (const b of activeBases()) bases.push({ id: b.id, name: b.name, hasTokens: b.tokens.length > 0, perms: await permsFor(b), needsSchema: await needsSchema(b) });
-      const noKey = basesList().filter((b) => b.enabled && !b.key).map((b) => ({ id: b.id, name: b.name }));
-      return json(res, 200, { gated: true, role, perms, base: viewBase?.id || null, bases, noKey });
+      return json(res, 200, { gated: true, role, perms, base: viewBase?.id || null, bases });
     }
 
-    /* ── Claves de poder (solo el DUEÑO): listar, crear, editar y revocar ──
-       La base solo enseña y deja tocar power_keys a la clave del dueño; el
-       gate de aquí es para responder claro. */
-    if (parts[1] === 'keys') {
-      if (!perms?.owner) return json(res, 403, { error: 'Solo el dueño de la base gestiona las claves de poder.' });
-      let list;
-      try { list = await powerKeys(viewBase); } catch (e) { return json(res, 500, { error: e.message }); }
-      if (req.method === 'GET' && !parts[2]) {
-        return json(res, 200, { keys: list.map((r) => ({ ...r, perms: r.owner ? ALL_PERMS : cleanPerms(r.perms) })), base: viewBase.id });
-      }
-      if (req.method === 'POST' && !parts[2]) {
-        const body = await readBody(req);
-        const name = String(body.name || '').trim().slice(0, 60);
-        if (!name) return json(res, 400, { error: 'ponle un nombre a la clave' });
-        const row = { key: randomUUID(), name, owner: false, perms: cleanPerms(body.perms) };
-        const { error } = await db.from('power_keys').insert(row);
-        if (error) return json(res, 500, { error: error.message });
-        keysInvalidate(viewBase);
-        return json(res, 200, row);
-      }
-      const target = parts[2] && list.find((r) => r.key === decodeURIComponent(parts[2]));
-      if (parts[2] && !target) return json(res, 404, { error: 'esa clave no existe' });
-      if (target?.owner) return json(res, 403, { error: 'La clave del dueño no se puede cambiar ni revocar.' });
-      if (req.method === 'PUT' && target) {
-        const body = await readBody(req);
-        const patch = {};
-        if (body.name !== undefined) {
-          patch.name = String(body.name || '').trim().slice(0, 60);
-          if (!patch.name) return json(res, 400, { error: 'el nombre no puede quedar vacío' });
-        }
-        if (body.perms !== undefined) patch.perms = cleanPerms(body.perms);
-        const { error } = await db.from('power_keys').update(patch).eq('key', target.key);
-        if (error) return json(res, 500, { error: error.message });
-        keysInvalidate(viewBase);
-        return json(res, 200, { ...target, ...patch });
-      }
-      if (req.method === 'DELETE' && target) {
-        const { error } = await db.from('power_keys').delete().eq('key', target.key);
-        if (error) return json(res, 500, { error: error.message });
-        keysInvalidate(viewBase);
-        return json(res, 200, { ok: true });
-      }
-      return json(res, 404, { error: 'no encontrado' });
-    }
-
-    /* ── Panel de administración (permiso «admin»): grupos, proyectos, accesos ── */
     if (parts[1] === 'admin' && parts[2] && parts[2] !== 'check') {
       if (!perms?.admin) return json(res, 403, { error: 'Tu clave de poder no abre la Administración.' });
       // foto completa
@@ -1463,139 +1314,6 @@ const apiServer = http.createServer(async (req, res) => {
       writeUserConfig({ ...readUserConfig(), ...patch });
       return json(res, 200, { ok: true });
     }
-    /* ── Bases de conocimiento (varias): listar, añadir, cambiar, quitar ──
-       Añadir exige que la base esté lista (la UI la prueba antes; si le faltan
-       tablas pasa por /db/setup, que también la añade). */
-    if (parts[1] === 'bases') {
-      const list = basesList();
-      const configures = can(who?.user, 'knowledge');
-      // quien no gestiona bases ve las suyas sin tokens ni claves, y no cambia nada
-      if (req.method === 'GET' && !parts[2]) return json(res, 200, configures ? list : list.map(publicBase));
-      if (!configures) return json(res, 403, { error: 'Tu conocimiento lo gestiona otra persona.' });
-      const local = localBases();
-      const taken = (url, exceptId) => list.find((x) => x.id !== exceptId && x.url === url);
-      // Configuración manda: lo que cambia aquí se lleva a la instancia (lo que
-      // se asigna en Personas). Si una base no se puede, se avisa del motivo.
-      const syncInstance = async (opts) => {
-        const problems = await knowledge.syncFromConfig(who.accessToken, localBases(), opts).catch((e) => [e.message]);
-        await loadAssigned(req.headers['x-sia-auth']);
-        return problems.length ? { instanceWarning: `No se pudo hacer asignable a personas: ${problems.join(' ')}` } : {};
-      };
-      const dupMsg = (x) => (x.managed ? 'esa base ya te la asigna la plataforma' : 'esa base ya está conectada');
-      if (req.method === 'POST' && !parts[2]) {
-        const body = await readBody(req);
-        if (isSecretKey(body.key)) return json(res, 400, { error: SECRET_KEY_MSG });
-        const b = cleanBase({ ...body, id: undefined }, local.length);
-        if (!b || !b.key) return json(res, 400, { error: 'hacen falta la URL https del proyecto y la clave publishable' });
-        if (taken(b.url)) return json(res, 409, { error: dupMsg(taken(b.url)) });
-        saveBases([...local, b]);
-        await applyDbConnection();
-        return json(res, 200, { ...b, ...(await syncInstance()) });
-      }
-      const target = parts[2] && list.find((b) => b.id === decodeURIComponent(parts[2]));
-      if (!target) return json(res, 404, { error: 'esa base no existe' });
-      if (req.method === 'PUT' && target.managed) {
-        // De una base asignada solo se guardan, aparte y en local, la clave
-        // de poder y los tokens que se añadan a los asignados.
-        const body = await readBody(req);
-        if (['url', 'key', 'name', 'enabled'].some((k) => body[k] !== undefined)) {
-          return json(res, 403, { error: 'Esta base la asigna la plataforma: su nombre y su conexión no se cambian aquí.' });
-        }
-        const own = assigned.bases.find((a) => a.id === target.id)?.tokens || [];
-        const prev = local.find((l) => l.url === target.url);
-        const overlay = {
-          ...(prev || { id: target.id, name: target.name, url: target.url, key: target.key, tokens: [], powerKey: '', enabled: true }),
-          ...(body.tokens !== undefined ? { tokens: (Array.isArray(body.tokens) ? body.tokens : []).map((t) => String(t).trim()).filter((t) => t && !own.includes(t)) } : {}),
-          ...(body.powerKey !== undefined ? { powerKey: String(body.powerKey || '').trim() } : {}),
-        };
-        saveBases(prev ? local.map((l) => (l === prev ? overlay : l)) : [...local, overlay]);
-        if (body.powerKey !== undefined) keysInvalidate(target);
-        if (body.tokens !== undefined) await syncSkills(baseById(target.id));
-        const warn = body.powerKey !== undefined ? await syncInstance({ changedPowerKey: target.url }) : {};
-        return json(res, 200, { ...baseById(target.id), ...warn });
-      }
-      if (req.method === 'PUT') {
-        const body = await readBody(req);
-        // cambiar la conexión (URL y/o clave) de una base ya vinculada
-        let conn = null;
-        if (body.url !== undefined || body.key !== undefined) {
-          if (isSecretKey(body.key)) return json(res, 400, { error: SECRET_KEY_MSG });
-          conn = cleanSupabase({ url: body.url ?? target.url, key: body.key ?? target.key });
-          if (!conn) return json(res, 400, { error: 'hacen falta la URL https del proyecto y la clave publishable' });
-          if (taken(conn.url, target.id)) return json(res, 409, { error: dupMsg(taken(conn.url, target.id)) });
-        }
-        const next = local.map((b) => (b.id !== target.id ? b : {
-          ...b,
-          ...(conn || {}),
-          ...(body.name !== undefined ? { name: String(body.name).trim().slice(0, 40) || b.name } : {}),
-          ...(body.tokens !== undefined ? { tokens: (Array.isArray(body.tokens) ? body.tokens : []).map((t) => String(t).trim()).filter(Boolean) } : {}),
-          ...(body.powerKey !== undefined ? { powerKey: String(body.powerKey || '').trim() } : {}),
-          ...(body.enabled !== undefined ? { enabled: !!body.enabled } : {}),
-        }));
-        saveBases(next);
-        if (conn || body.enabled !== undefined) { keysInvalidate(target); await applyDbConnection(); } // otra conexión o activar/desactivar: reconectar y resincronizar
-        else if (body.tokens !== undefined) await syncSkills(baseById(target.id)); // otros tokens, otras skills visibles
-        if (conn && conn.url !== target.url) await knowledge.removeByUrl(who.accessToken, target.url); // otro proyecto: el anterior sale de la instancia
-        const warn = conn || body.name !== undefined || body.powerKey !== undefined
-          ? await syncInstance({ changedPowerKey: conn || body.powerKey !== undefined ? (conn?.url || target.url) : null }) : {};
-        return json(res, 200, { ...baseById(target.id), ...warn });
-      }
-      if (req.method === 'DELETE') {
-        // quitarla aquí la quita de la instancia: nadie más la ve
-        saveBases(local.filter((b) => b.url !== target.url));
-        await knowledge.removeByUrl(who.accessToken, target.url);
-        await loadAssigned(req.headers['x-sia-auth']);
-        await applyDbConnection();
-        return json(res, 200, { ok: true, bases: basesList() });
-      }
-      return json(res, 404, { error: 'no encontrado' });
-    }
-    /* ── Base de conocimiento: probar, esquema y montaje ──
-       Siempre con la conexión que manda la UI, no con la guardada: así se
-       prueba (y se monta) una base antes de cambiarse a ella. */
-    // El SQL lleva una clave de dueño nueva cada vez que se pide; la UI se la
-    // queda y la manda a /db/setup para que, verificada, quede guardada.
-    if (parts[1] === 'db' && parts[2] === 'schema' && req.method === 'GET') {
-      return json(res, 200, schemaSqlWithOwner());
-    }
-    if (parts[1] === 'db' && parts[2] === 'test' && req.method === 'POST') {
-      const body = await readBody(req);
-      if (isSecretKey(body.key)) return json(res, 400, { error: SECRET_KEY_MSG });
-      const conn = cleanSupabase(body);
-      if (!conn) return json(res, 400, { error: 'hacen falta la URL https del proyecto y la clave publishable' });
-      return json(res, 200, await diagnoseDb(conn));
-    }
-    /* Montaje: la base tiene que responder con el esquema blindado y con
-       dueño (lo ha hecho el SQL ejecutado en Supabase). Si la UI trae la clave
-       de dueño que iba en ese SQL y la base confirma que es la del dueño, se
-       guarda como clave de poder de esta base; si no (SQL de otra vez, o lo
-       ejecutó otro), se conserva la que hubiera. Nada se escribe en la base. */
-    if (parts[1] === 'db' && parts[2] === 'setup' && req.method === 'POST') {
-      const setupBody = await readBody(req);
-      if (isSecretKey(setupBody.key)) return json(res, 400, { error: SECRET_KEY_MSG });
-      const conn = cleanSupabase(setupBody);
-      if (!conn) return json(res, 400, { error: 'hacen falta la URL https del proyecto y la clave publishable' });
-      const list = localBases();
-      const existing = list.find((b) => b.url === conn.url);
-      const ownerKey = headerValue(setupBody.ownerKey);
-      const diag = await diagnoseDb(conn, ownerKey || existing?.powerKey || '');
-      const baseName = String(setupBody.name || '').trim().slice(0, 40);
-      if (!diag.reachable || !diag.authOk) return json(res, 400, { error: 'no se puede conectar con esa base', diag });
-      if (diag.needsSchema) return json(res, 400, { error: 'a la base aún le faltan tablas o políticas: ejecuta TODO el SQL y vuelve a verificar', diag });
-      if (!diag.hasOwner) return json(res, 400, { error: 'la base no tiene dueño: ejecuta el SQL copiado desde este asistente (lleva tu clave de dueño) y vuelve a verificar', diag });
-      const owned = !!diag.me?.owner;
-      const powerKey = owned ? (ownerKey || existing?.powerKey || '') : (existing?.powerKey || '');
-      // la base montada entra en la lista (o se actualiza si ya estaba, por URL)
-      const base = existing
-        ? { ...existing, key: conn.key, name: baseName || existing.name, powerKey }
-        : cleanBase({ ...conn, name: baseName, powerKey }, list.length);
-      saveBases(existing ? list.map((b) => (b.id === base.id ? base : b)) : [...list, base]);
-      keysInvalidate();
-      await applyDbConnection();
-      const problems = await knowledge.syncFromConfig(who.accessToken, localBases(), { changedPowerKey: base.url }).catch((e) => [e.message]);
-      await loadAssigned(req.headers['x-sia-auth']);
-      return json(res, 200, { ok: true, owned, base: baseById(base.id), ...(problems.length ? { instanceWarning: `No se pudo hacer asignable a personas: ${problems.join(' ')}` } : {}) });
-    }
     // proyectos accesibles para los tokens del usuario (selector de fuentes,
     // siempre fresco — no depende del WS)
     if (parts[1] === 'access' && parts[2] === 'projects' && req.method === 'GET') {
@@ -1603,34 +1321,6 @@ const apiServer = http.createServer(async (req, res) => {
       const base = activeById(url.searchParams.get('base')) || viewBase;
       return json(res, 200, await accessibleProjects(base));
     }
-    // todos los grupos de la base (para que owner/admin elijan cuáles activar
-    // en ⚙️ → Conocimiento). La base solo se los da a la clave con «admin».
-    if (parts[1] === 'access' && parts[2] === 'groups' && req.method === 'GET') {
-      const base = activeById(url.searchParams.get('base')) || viewBase;
-      const p = base === viewBase ? perms : await permsFor(base);
-      if (!p?.admin) return json(res, 403, { error: 'Tu clave de poder no abre la lista de grupos.' });
-      const { data, error } = await clientFor(base).from('access_groups').select('token, name').order('name');
-      if (error) return json(res, 500, { error: error.message });
-      return json(res, 200, data || []);
-    }
-    // resolver tokens de acceso → nombre de grupo + proyectos (para la UI de ⚙️)
-    if (parts[1] === 'access' && parts[2] === 'info' && req.method === 'POST') {
-      const { tokens, base: baseId } = await readBody(req);
-      const list = Array.isArray(tokens) ? tokens.filter(Boolean) : [];
-      const base = activeById(baseId) || viewBase;
-      if (!list.length || !base) return json(res, 200, []);
-      const { data, error } = await clientFor(base)
-        .from('access_groups')
-        .select('token, name, access_grants(projects(name))')
-        .in('token', list);
-      if (error) return json(res, 200, list.map((t) => ({ token: t, name: null, projects: [] })));
-      const byToken = new Map((data || []).map((g) => [g.token, g]));
-      return json(res, 200, list.map((t) => {
-        const g = byToken.get(t);
-        return { token: t, valid: !!g, name: g?.name || null, projects: (g?.access_grants || []).map((x) => x.projects?.name).filter(Boolean) };
-      }));
-    }
-
     /* ── Enlaces rápidos por proyecto ────────────────────────────────
        Compartidos con todo el equipo. LEER puede cualquiera, acotado a los
        proyectos que dan sus tokens (mismo techo que el conocimiento, y misma

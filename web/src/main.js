@@ -5,8 +5,6 @@ import QRCode from 'qrcode';
 import '@xterm/xterm/css/xterm.css';
 import './style.css';
 import logoUrl from './logo.png';
-import { inviteDecode } from './access/invite.js';
-import { accessMarkup, wireAccess } from './access/access-view.js';
 import { installAutoLock } from './mobile/auto-lock.js';
 import { createAuthSession } from './auth/session.js';
 import { ensureLogin } from './auth/login-view.js';
@@ -1603,7 +1601,6 @@ const VIEW_ALLOWS = {
   lab: (b) => !!b.perms?.lab,
   admin: (b) => !!b.perms?.admin,
   links: () => true,
-  keys: (b) => !!b.perms?.owner,
 };
 const basesFor = (view) => basesPerms.filter(VIEW_ALLOWS[view]);
 const viewBasePick = document.getElementById('view-base-pick');
@@ -1787,18 +1784,8 @@ const refreshAdmin = async ({ quiet = false } = {}) => {
   }
 };
 
-// Algo de Configuración ha cambiado lo que abre o ve este equipo (claves de
-// poder, tokens, bases): permisos, iconos de la barra, cajas de bases y la
-// vista abierta se ponen al día sin cerrar y abrir Configuración.
-const settingsChanged = async () => {
-  await refreshAdmin();
-  if (!settingsModal.hidden) { renderMenu(); renderGrid(); }
-  if (!viewLab.hidden) labRefresh({ background: true });
-  if (!viewAdmin.hidden) adminRefresh();
-};
-
-/* Los permisos pueden cambiar sin que este SIA se entere: el owner edita una
-   clave de poder (misma clave, otras vistas) o la borra. Se vuelven a
+/* Los permisos pueden cambiar sin que este SIA se entere: en Personas le
+   cambian a alguien sus vistas (y con ellas su clave de poder). Se vuelven a
    comprobar al recuperar el foco la ventana y cada dos minutos, para que un
    icono nuevo aparezca —o uno retirado desaparezca— sin reiniciar la app.
    En el móvil no aplica (no hay barra lateral) y con la pantalla bloqueada
@@ -1827,7 +1814,6 @@ settingsBtn.addEventListener('click', async () => {
   try {
     const cfg = await api('/config');
     if (cfg.version) settingsVersion.textContent = `SIA v${cfg.version}`;
-    await basesLoad();
     jiraUrlInput.value = cfg.jira?.baseUrl || '';
     jiraTokenInput.value = cfg.jira?.token || '';
     ghKeys = Array.isArray(cfg.github?.keys) ? cfg.github.keys : [];
@@ -2091,23 +2077,9 @@ jiraSave.addEventListener('click', async () => {
     for (const p of panes) p.hidden = p.dataset.pane !== name;
   };
   for (const t of tabs) t.addEventListener('click', () => showPane(t.dataset.pane));
-  // sin la vista Conocimiento no gestiona bases: sin esa pestaña
-  if (!canView('knowledge')) {
-    tabs.find((t) => t.dataset.pane === 'conocimiento').hidden = true;
-    showPane('credenciales');
-  }
 }
 
-// Al cerrar Configuración, Enlaces se vuelve a cargar si está a la vista: lo que
-// enseña depende de los tokens de acceso, que se acaban de poder cambiar.
-// La pestaña Conocimiento vuelve a la rejilla de bases: la próxima vez se
-// navega desde el principio (los avisos que abren una subvista concreta
-// fijan la suya justo antes de abrir, así que no les afecta).
-const closeSettings = () => {
-  settingsModal.hidden = true;
-  if (!viewLinks.hidden) linksRefresh();
-  knowView = 'grid'; selectedBase = null; editingBase = null;
-};
+const closeSettings = () => { settingsModal.hidden = true; };
 settingsClose.addEventListener('click', closeSettings);
 settingsModal.addEventListener('mousedown', (e) => { if (e.target === settingsModal) closeSettings(); });
 
@@ -2203,7 +2175,7 @@ document.getElementById('lock-fab').addEventListener('click', async () => {
 for (const i of [lockCurInput, lockNewInput, lockNew2Input]) digitsOnly(i);
 const lockSectionRefresh = async () => {
   lockCurInput.value = ''; lockNewInput.value = ''; lockNew2Input.value = '';
-  dbSetStatus(lockStatus, '');
+  setStatus(lockStatus, '');
   try {
     const st = await api('/lock');
     lockCurInput.hidden = !st.hasKey; // cambiarlo exige el actual
@@ -2214,372 +2186,15 @@ const lockSectionRefresh = async () => {
 settingsBtn.addEventListener('click', lockSectionRefresh);
 const lockSavePin = async () => {
   const problem = lockPinProblem(lockNewInput.value, lockNew2Input.value);
-  if (problem) return dbSetStatus(lockStatus, problem, 'bad');
+  if (problem) return setStatus(lockStatus, problem, 'bad');
   try {
     await api('/lock/key', { method: 'PUT', body: JSON.stringify({ key: lockNewInput.value, current: lockCurInput.value }) });
     await lockSectionRefresh();
     toast('PIN de bloqueo guardado');
-  } catch (err) { dbSetStatus(lockStatus, err.message, 'bad'); }
+  } catch (err) { setStatus(lockStatus, err.message, 'bad'); }
 };
 lockSaveBtn.addEventListener('click', lockSavePin);
 for (const i of [lockCurInput, lockNewInput, lockNew2Input]) i.addEventListener('keydown', (e) => { if (e.key === 'Enter') lockSavePin(); });
-/* ── Base de conocimiento (Supabase del usuario) ──────────────────
-   Probar → diagnóstico de la conexión escrita (sin guardarla). Si la base
-   está lista, Guardar. Si le faltan tablas o dueño, se abre el asistente:
-   SQL para pegar en Supabase + Verificar, que genera las claves de poder
-   y deja al que la monta como superadmin de su base. */
-const dbUrlInput = document.getElementById('db-url-input');
-const dbKeyInput = document.getElementById('db-key-input');
-const dbConnect = document.getElementById('db-connect');
-const dbStatus = document.getElementById('db-status');
-const dbWizard = document.getElementById('db-wizard');
-const dbWizardBadge = document.getElementById('db-wizard-badge');
-const dbWizardTitle = document.getElementById('db-wizard-title');
-const dbWizardText = document.getElementById('db-wizard-text');
-const dbWizardBack = document.getElementById('db-wizard-back');
-const wzCopy = document.getElementById('wz-copy');
-const wzRun = document.getElementById('wz-run');
-const wzVerify = document.getElementById('wz-verify');
-const dbSqlLink = document.getElementById('db-sql-link');
-const dbSqlCopy = document.getElementById('db-sql-copy');
-const dbSetup = document.getElementById('db-setup');
-const dbWizardStatus = document.getElementById('db-wizard-status');
-let dbSqlText = ''; // el SQL del esquema, cargado del bridge al abrir el asistente
-const dbForm = document.getElementById('db-form');
-const dbBack = document.getElementById('db-back');
-const dbNameInput = document.getElementById('db-name-input');
-const dbTitle = document.getElementById('db-title');
-const basesGrid = document.getElementById('bases-grid');
-const baseMenu = document.getElementById('base-menu');
-const baseConfig = document.getElementById('base-config');
-const baseAccess = document.getElementById('base-access');
-const baseKeys = document.getElementById('base-keys');
-const dbCrumbs = document.getElementById('db-crumbs');
-const ICON_CONFIG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>';
-const ICON_POWER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/><path d="M12 2v10"/></svg>';
-const ICON_KEY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.9 12.1 21 2M15 8l3 3M18 5l3 3"/></svg>';
-const knowPane = document.querySelector('#settings-modal .settings-pane[data-pane="conocimiento"]');
-// Sin la vista Conocimiento no hay esa pestaña (ver las pestañas).
-const knowReadOnly = () => !canView('knowledge');
-
-/* La base de conocimiento de la instancia: una sola, contra la que trabaja
-   todo el mundo. Sin ella: solo el formulario de conexión, centrado, para que
-   lo primero sea vincularla. Con ella: su tarjeta (nombre, URL, quitar, clave
-   de poder) y sus subvistas; no se añade otra. */
-let bases = [];
-let selectedBase = null;
-// Vistas de la pestaña Conocimiento: 'grid' (cajas de bases) | 'form' (alta)
-// | 'menu' (tres cajas de una base) | 'config' | 'access' | 'keys'
-let knowView = 'grid';
-let editingBase = null; // id de la base cuya conexión se está cambiando en el formulario
-const curBase = () => bases.find((b) => b.id === selectedBase) || null;
-// Abrir Configuración directamente en una subvista de una base ('access': sus
-// tokens de acceso · 'config': conexión y clave de poder), para los avisos que
-// antes mandaban a buscarla a mano. Al abrir, basesLoad() repinta respetando
-// knowView y selectedBase; sin base conocida cae en la rejilla de bases.
-const openBaseSettings = (baseId, view = 'access') => {
-  if (knowReadOnly()) return;
-  if (baseId) { selectedBase = baseId; knowView = view; }
-  document.querySelector('#settings-tabs [data-pane="conocimiento"]').click();
-  settingsBtn.click();
-};
-const knowShow = (view) => {
-  if (knowReadOnly()) return;
-  knowView = view;
-  basesGrid.hidden = view !== 'grid';
-  dbForm.hidden = view !== 'form';
-  baseMenu.hidden = view !== 'menu';
-  baseConfig.hidden = view !== 'config';
-  baseAccess.hidden = view !== 'access';
-  baseKeys.hidden = view !== 'keys';
-  const b = curBase();
-  dbBack.hidden = !bases.length; // sin bases no hay a dónde volver
-  dbTitle.hidden = bases.length > 0; // el título solo en la primera conexión
-  // migas de pan: Bases › <base> › <subvista>; cada tramo anterior es un enlace
-  const SUB = { config: 'Configuración', access: 'Conocimiento', keys: 'Claves' };
-  const crumbs = [];
-  if (bases.length && view !== 'grid') {
-    crumbs.push({ label: 'Bases', go: () => knowShow('grid') });
-    if (view === 'form' && !editingBase) {
-      // Bases › Nueva base › Con invitación / Base propia: «Nueva base» vuelve a elegir
-      const mode = dbForm.dataset.mode;
-      if (mode === 'invite' || mode === 'own') {
-        crumbs.push({ label: 'Nueva base', go: () => { dbWizardClose(); dbSetStatus(dbStatus, ''); dbFormMode('choose'); } });
-        crumbs.push({ label: mode === 'invite' ? 'Con invitación' : 'Base propia' });
-      } else crumbs.push({ label: 'Nueva base' });
-    }
-    if (b && (view !== 'form' || editingBase)) {
-      crumbs.push({ label: b.name, go: view === 'menu' ? null : () => knowShow('menu') });
-      if (view === 'form') { crumbs.push({ label: 'Configuración', go: () => { dbWizardClose(); knowShow('config'); } }); crumbs.push({ label: 'Conexión' }); }
-      else if (SUB[view]) crumbs.push({ label: SUB[view] });
-    }
-  }
-  dbCrumbs.hidden = !crumbs.length;
-  dbCrumbs.innerHTML = '';
-  crumbs.forEach((c, i) => {
-    if (i) { const sep = document.createElement('span'); sep.className = 'sep'; sep.textContent = '›'; dbCrumbs.appendChild(sep); }
-    const el = document.createElement(c.go ? 'button' : 'span');
-    el.textContent = c.label;
-    if (c.go) { el.type = 'button'; el.addEventListener('click', c.go); } else el.className = 'here';
-    dbCrumbs.appendChild(el);
-  });
-  // en Conocimiento, «Generar invitación» va a la derecha de las migas (el
-  // nodo se mueve con sus eventos; la vista lo esconde mientras hay invitación)
-  const inviteOpen = baseAccess.querySelector('.invite-open');
-  if (view === 'access' && inviteOpen) dbCrumbs.appendChild(inviteOpen);
-  if (view === 'keys') keysRefresh();
-};
-const dbFormShow = (show) => knowShow(show ? 'form' : (bases.length ? 'grid' : 'form'));
-/* El formulario de alta tiene tres modos: 'choose' (dos cajas: con invitación
-   o base propia), 'invite' (solo el campo de pegar) y 'own' (nombre, proyecto
-   y clave; también para cambiar la conexión de una base). */
-const dbChoose = document.getElementById('db-choose');
-const dbFormMode = (mode) => {
-  dbForm.dataset.mode = mode;
-  dbChoose.hidden = mode !== 'choose';
-  for (const el of dbForm.querySelectorAll('[data-mode]')) el.hidden = el.dataset.mode !== mode;
-  dbBack.hidden = mode === 'choose'; // en elegir no hay Cancelar: las migas (o la ×) ya sacan de ahí
-  document.getElementById('db-own-title').textContent = editingBase ? 'Conexión' : 'Base propia';
-  if (knowView === 'form') knowShow('form'); // las migas enseñan el modo elegido
-};
-document.getElementById('db-opt-invite').addEventListener('click', () => { dbFormMode('invite'); dbInviteInput.focus(); });
-document.getElementById('db-opt-own').addEventListener('click', () => { dbFormMode('own'); dbNameInput.focus(); });
-const renderGrid = () => {
-  basesGrid.innerHTML = '';
-  const add = document.createElement('button');
-  add.type = 'button'; add.className = 'base-box add'; add.title = 'Añadir base';
-  add.innerHTML = '<span class="plus">+</span><span>Añadir base</span>';
-  add.addEventListener('click', () => {
-    editingBase = null; pendingInviteTokens = [];
-    dbWizardClose();
-    dbNameInput.value = ''; dbUrlInput.value = ''; dbKeyInput.value = ''; dbInviteInput.value = '';
-    dbSetStatus(dbStatus, '');
-    knowShow('form');
-    dbFormMode('choose');
-  });
-  if (!bases.length) basesGrid.appendChild(add); // una sola base por instancia
-  for (const b of bases) {
-    const box = document.createElement('div');
-    const warn = baseWarning(b);
-    box.className = `base-box${b.enabled === false || warn ? ' disabled' : ''}`; box.dataset.id = b.id; box.tabIndex = 0; box.setAttribute('role', 'button');
-    // las que asigna la plataforma no se quitan ni se desactivan desde aquí
-    box.innerHTML = `
-      ${b.managed ? '' : `<span class="b-actions">
-        <button type="button" class="icon-btn" data-act="toggle" title="${b.enabled === false ? 'Activar esta base' : 'Desactivar temporalmente'}" aria-label="${b.enabled === false ? 'Activar' : 'Desactivar'}">${ICON_POWER}</button>
-        <button type="button" class="icon-btn danger" data-act="remove" title="Quitar esta base" aria-label="Quitar esta base">${TRASH_ICON}</button>
-      </span>`}
-      <span class="b-ico">${BASE_ICON}</span><span class="b-name">${esc(b.name)}</span>${b.enabled === false ? '<span class="b-meta">desactivada</span>' : warn ? `<span class="b-meta">${esc(warn)}</span>` : b.managed ? '<span class="b-meta">de la plataforma</span>' : `<span class="b-meta">${b.powerKey ? 'asignable a personas' : 'sin clave de poder: no asignable'}</span>`}`;
-    const enter = () => { selectedBase = b.id; renderBaseViews(); dbWizardClose(); dbSetStatus(dbStatus, ''); knowShow('menu'); };
-    box.addEventListener('click', (e) => { if (!e.target.closest('.b-actions')) enter(); });
-    box.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.target.closest('.b-actions')) enter(); });
-    box.querySelector('[data-act="toggle"]')?.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      try {
-        await api(`/bases/${encodeURIComponent(b.id)}`, { method: 'PUT', body: JSON.stringify({ enabled: b.enabled === false }) });
-        toast(b.enabled === false ? `Base «${b.name}» activada` : `Base «${b.name}» desactivada`);
-        await basesLoad();
-        await refreshAdmin();
-      } catch (err) { dbSetStatus(dbStatus, err.message, 'bad'); }
-    });
-    box.querySelector('[data-act="remove"]')?.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      removeBase(b);
-    });
-    basesGrid.appendChild(box);
-  }
-};
-// Una base que no se puede usar aún: sin clave publishable (venía conectada
-// con la secret, que SIA ya no admite) o con el esquema anterior (hay que
-// volver a ejecutar el SQL). Texto corto para las cajas; null si está bien.
-const baseWarning = (b) => {
-  if (!b.key) return 'falta la clave publishable';
-  if (basesPerms.find((x) => x.id === b.id)?.needsSchema) return 'falta actualizar la base';
-  return null;
-};
-// menú de una base: Configuración, Conocimiento y (solo owner) Claves
-const renderMenu = () => {
-  baseMenu.innerHTML = '';
-  const b = curBase();
-  if (!b) return;
-  const p = permsOfBase(b.id);
-  const items = [
-    { view: 'config', ico: ICON_CONFIG, name: 'Configuración', meta: baseWarning(b) || (p ? `clave «${p.name}»` : 'sin clave de poder') },
-    { view: 'access', ico: SOURCE_ICON, name: 'Conocimiento', meta: `${b.tokens.length} token${b.tokens.length === 1 ? '' : 's'} de acceso` },
-    ...(p?.owner ? [{ view: 'keys', ico: ICON_KEY, name: 'Claves', meta: 'claves de poder de esta base' }] : []),
-  ];
-  for (const it of items) {
-    const box = document.createElement('button');
-    box.type = 'button'; box.className = 'base-box'; box.dataset.view = it.view;
-    box.innerHTML = `<span class="b-ico">${it.ico}</span><span class="b-name">${it.name}</span><span class="b-meta">${esc(it.meta)}</span>`;
-    box.addEventListener('click', () => knowShow(it.view));
-    baseMenu.appendChild(box);
-  }
-};
-// Configuración manda sobre lo que se asigna en Personas: si una base no se
-// pudo llevar a la instancia, el bridge lo dice en instanceWarning.
-const instanceWarn = (r) => { if (r?.instanceWarning) dlgAlert('No asignable a personas', esc(r.instanceWarning)); };
-const removeBase = async (b) => {
-  if (!(await dlgConfirm('Quitar base', `Se quita <strong>${esc(b.name)}</strong> de SIA y <strong>deja de verla toda persona que la tuviera asignada</strong>. La base y su contenido no se tocan.`, 'Quitar'))) return;
-  try {
-    await api(`/bases/${encodeURIComponent(b.id)}`, { method: 'DELETE' });
-    toast(`Base «${b.name}» quitada`);
-    knowView = 'grid';
-    await basesLoad();
-    await refreshAdmin();
-  } catch (e) { dbSetStatus(dbStatus, e.message, 'bad'); }
-};
-const renderBaseViews = () => {
-  renderMenu();
-  baseConfig.innerHTML = ''; baseAccess.innerHTML = '';
-  const b = curBase();
-  if (!b) return;
-  baseConfig.appendChild(baseCard(b, 'config'));
-  baseAccess.appendChild(baseCard(b, 'access'));
-};
-const basesRender = () => {
-  if (knowReadOnly()) return;
-  knowPane.classList.toggle('centered', !bases.length);
-  if (!bases.some((b) => b.id === selectedBase)) selectedBase = null;
-  renderGrid();
-  renderBaseViews();
-  if (!bases.length) { knowShow('form'); dbFormMode('choose'); }
-  else if (['menu', 'config', 'access', 'keys'].includes(knowView) && selectedBase) knowShow(knowView);
-  else knowShow('grid');
-};
-const basesLoad = async () => {
-  try { bases = await api('/bases'); } catch { bases = []; }
-  knownBases = bases.filter((b) => b.enabled !== false && b.key).map((b) => ({ id: b.id, name: b.name }));
-  if (knowView === 'form') knowView = 'grid';
-  dbNameInput.value = ''; dbUrlInput.value = ''; dbKeyInput.value = '';
-  dbWizardClose();
-  dbSetStatus(dbStatus, '');
-  basesRender();
-};
-const baseCard = (b, part = 'config') => {
-  const view = document.createElement('div');
-  view.className = 'base-view';
-  if (part === 'access') {
-    // grupos y invitaciones: web/src/access/
-    const p = permsOfBase(b.id);
-    view.innerHTML = accessMarkup(p);
-    wireAccess(view, b, p, {
-      api, esc, toast, setStatus: dbSetStatus, copyWithFeedback, COPY_ICON,
-      onTokensChanged: async (tokens) => {
-        const r = await api(`/bases/${encodeURIComponent(b.id)}`, { method: 'PUT', body: JSON.stringify({ tokens }) });
-        b.tokens = r.tokens;
-        settingsChanged(); // otros grupos = otras skills, otros enlaces, otros proyectos
-        return r.tokens;
-      },
-    });
-    return view;
-  }
-  const warn = baseWarning(b);
-  const notice = !warn ? '' : !b.key
-    ? `<div class="keys-schema"><strong>Falta la clave publishable</strong>
-         <p class="settings-hint">SIA ya no usa la clave secret: ponla en «Cambiar conexión».</p></div>`
-    : `<div class="keys-schema"><strong>Falta actualizar la base</strong>
-         <p class="settings-hint">Su dueño tiene que volver a ejecutar el SQL: «Cambiar conexión» → Conectar.</p></div>`;
-  view.innerHTML = `
-    ${notice}
-    <div class="field">
-      <label class="field-label">Proyecto de Supabase</label>
-      <div class="base-conn">
-        <code title="${esc(b.url)}">${esc(b.url)}</code>
-        ${b.managed ? '<span class="settings-hint">la asigna la plataforma</span>' : '<button class="lab-btn" data-act="edit-conn">Cambiar conexión</button>'}
-      </div>
-    </div>
-    <div class="divider"></div>
-    <div class="field base-power">
-      <label class="field-label">Clave de poder</label>
-      <div class="settings-row">
-        <input class="settings-input" type="password" placeholder="clave de poder…" autocomplete="off" value="${esc(b.powerKey || '')}" />
-        <button class="lab-btn primary" data-act="save-power">Guardar</button>
-      </div>
-      <div class="settings-status" data-power-status></div>
-      ${b.managed ? '' : '<div class="settings-row" style="margin-top:10px"><button type="button" class="lab-btn" data-act="renew-owner">Renovar clave de dueño</button></div>'}
-    </div>`;
-  // el dueño ha perdido su clave (o la base la cambió): vuelve a pasar por el
-  // asistente, que da un SQL con clave nueva y la guarda al verificar
-  view.querySelector('[data-act="renew-owner"]')?.addEventListener('click', () => {
-    editingBase = b.id;
-    dbNameInput.value = b.name; dbUrlInput.value = b.url; dbKeyInput.value = b.key || '';
-    knowShow('form'); dbFormMode('own');
-    dbWizardOpen({ missing: [], needsSchema: false, hasOwner: true, renew: true });
-  });
-  // cambiar conexión: el formulario de alta, relleno, en modo edición
-  view.querySelector('[data-act="edit-conn"]')?.addEventListener('click', () => {
-    editingBase = b.id;
-    dbWizardClose();
-    dbNameInput.value = b.name; dbUrlInput.value = b.url; dbKeyInput.value = b.key || '';
-    dbSetStatus(dbStatus, '');
-    knowShow('form'); dbFormMode('own');
-    dbUrlInput.focus();
-  });
-  // clave de poder de esta base
-  const powerInput = view.querySelector('.base-power input');
-  const powerStatus = view.querySelector('[data-power-status]');
-  const paintPower = () => {
-    const p = permsOfBase(b.id);
-    if (!b.powerKey) return dbSetStatus(powerStatus, '');
-    dbSetStatus(powerStatus, p ? `clave «${p.name}» ✓ — abre: ${permsSummary(p)}` : 'esta clave no abre nada en esta base', p ? 'ok' : 'bad');
-  };
-  paintPower();
-  view.querySelector('[data-act="save-power"]').addEventListener('click', async () => {
-    try {
-      const r = await api(`/bases/${encodeURIComponent(b.id)}`, { method: 'PUT', body: JSON.stringify({ powerKey: powerInput.value.trim() }) });
-      b.powerKey = r.powerKey;
-      instanceWarn(r);
-      await refreshAdmin();
-      paintPower();
-      renderMenu(); renderGrid(); // la caja «Claves» del menú depende de la clave
-    } catch (e) { dbSetStatus(powerStatus, e.message, 'bad'); }
-  });
-  powerInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') view.querySelector('[data-act="save-power"]').click(); });
-  return view;
-};
-/* botones "?" de los campos de conexión: abren una captura de Supabase
-   señalando dónde está cada dato */
-{
-  const helpModal = document.getElementById('help-modal');
-  const helpTitle = document.getElementById('help-title');
-  const helpText = document.getElementById('help-text');
-  const helpImgs = [...helpModal.querySelectorAll('.help-img')];
-  const HELP = {
-    'project-id': {
-      title: '¿Dónde está el Project ID?',
-      text: 'En Supabase, entra en tu proyecto → Project Settings (⚙️ abajo a la izquierda) → General. Copia el valor de «Project ID» y pégalo tal cual: SIA monta la URL.',
-    },
-    'publishable-key': {
-      title: '¿Dónde está la clave publishable?',
-      text: 'En Supabase, Project Settings → API Keys → «Publishable key» (la de arriba, empieza por sb_publishable_). Es la clave pensada para repartirse: por sí sola no abre nada, la base solo enseña lo que permiten tus tokens. La secret (abajo) no la pidas ni la pegues: SIA la rechaza.',
-    },
-  };
-  for (const btn of document.querySelectorAll('.help-btn[data-help]')) {
-    btn.addEventListener('click', () => {
-      const h = HELP[btn.dataset.help];
-      helpTitle.textContent = h.title;
-      helpText.textContent = h.text;
-      for (const img of helpImgs) img.hidden = img.dataset.help !== btn.dataset.help;
-      helpModal.hidden = false;
-    });
-  }
-  const close = () => { helpModal.hidden = true; };
-  document.getElementById('help-close').addEventListener('click', close);
-  helpModal.addEventListener('mousedown', (e) => { if (e.target === helpModal) close(); });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !helpModal.hidden) close(); });
-}
-
-dbBack.addEventListener('click', () => {
-  // descarta lo escrito: a la configuración de la base si se editaba; si no,
-  // a elegir cómo (y desde ahí, a las cajas)
-  dbWizardClose();
-  dbSetStatus(dbStatus, '');
-  if (!editingBase && dbForm.dataset.mode !== 'choose') { dbFormMode('choose'); return; }
-  const back = editingBase ? 'config' : 'grid';
-  editingBase = null;
-  knowShow(back);
-});
-
 // aviso temporal abajo a la derecha (éxitos breves)
 const toastEl = document.getElementById('toast');
 let toastTimer = null;
@@ -2589,195 +2204,7 @@ const toast = (text, ms = 3500) => {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { toastEl.hidden = true; }, ms);
 };
-const dbSetStatus = (el, text, cls = '') => { el.textContent = text; el.className = `settings-status${cls ? ` ${cls}` : ''}`; };
-// Vale el ID del proyecto pelado, la URL del proyecto o la del dashboard:
-// se normaliza a https://<ref>.supabase.co (el bridge hace lo mismo)
-const dbUrlFrom = (raw) => {
-  const v = raw.trim().replace(/\/+$/, '');
-  if (/^[a-z0-9]{15,}$/i.test(v)) return `https://${v.toLowerCase()}.supabase.co`;
-  const dash = v.match(/supabase\.com\/dashboard\/project\/([a-z0-9]+)/i);
-  if (dash) return `https://${dash[1].toLowerCase()}.supabase.co`;
-  return v;
-};
-const dbConn = () => ({ url: dbUrlFrom(dbUrlInput.value), key: dbKeyInput.value.trim() });
-// ref del proyecto (xxxx en https://xxxx.supabase.co) → enlace directo al SQL Editor
-const dbProjectRef = (url) => (url.match(/^https:\/\/([a-z0-9-]+)\.supabase\.(co|in)/i) || [])[1];
-// lista para usarse: esquema blindado completo y con dueño
-const dbReady = (d) => !d.needsSchema && d.hasOwner;
-
-/* Asistente de montaje: ocupa el sitio de los campos. Paso 1 copiar el SQL,
-   paso 2 ejecutarlo en Supabase, paso 3 verificar. Los pasos se van
-   destapando: el 2 y el 3 aparecen al copiar. El SQL lleva una clave de
-   dueño nueva (la genera el bridge al pedirlo), por eso siempre se empieza
-   por copiarlo: al verificar, esa clave queda guardada como tuya. Sirve
-   igual para una base nueva, para una del esquema anterior (hay que
-   actualizarla: lo que tiene no se toca) y para recuperar la clave de dueño. */
-const wzSet = (li, state) => { li.dataset.state = state; li.classList.remove('keep'); };
-let dbOwnerKey = ''; // la clave de dueño que va dentro del SQL copiado
-const dbWizardOpen = (d) => {
-  dbForm.classList.add('wizard-open');
-  dbWizard.hidden = false;
-  dbSetup.disabled = false;
-  dbSetStatus(dbStatus, '');
-  dbSetStatus(dbWizardStatus, '');
-  const ref = dbProjectRef(dbConn().url);
-  dbSqlLink.href = ref ? `https://supabase.com/dashboard/project/${ref}/sql/new` : 'https://supabase.com/dashboard';
-  dbWizardBadge.className = 'wizard-badge';
-  if (d.missing.includes('projects')) {
-    dbWizardBadge.textContent = 'Falta la estructura';
-    dbWizardTitle.textContent = 'Tu proyecto responde, pero aún no tiene las tablas de SIA';
-    dbWizardText.textContent = 'Se montan en tres pasos. Supabase no permite crear tablas desde una app, por eso el SQL se ejecuta a mano en su editor.';
-  } else if (d.needsSchema) {
-    dbWizardBadge.textContent = 'Falta actualizar la base';
-    dbWizardTitle.textContent = 'Esta base se montó con un esquema anterior';
-    dbWizardText.textContent = 'El SQL nuevo cierra las tablas con políticas de acceso (la clave publishable sola ya no ve nada) y genera tu clave de dueño. El conocimiento, las skills y los grupos no se tocan. Solo puede ejecutarlo quien entra en el proyecto de Supabase.';
-  } else if (d.renew) {
-    dbWizardBadge.textContent = 'Renovar la clave de dueño';
-    dbWizardTitle.textContent = 'Vuelve a ejecutar el SQL: lleva una clave de dueño nueva';
-    dbWizardText.textContent = 'La clave anterior deja de valer. El contenido de la base y las demás claves de poder se conservan. Solo puede hacerlo quien entra en el proyecto de Supabase.';
-  } else {
-    dbWizardBadge.textContent = 'Falta el dueño';
-    dbWizardTitle.textContent = 'Las tablas ya están, pero la base no tiene dueño';
-    dbWizardText.textContent = 'Vuelve a ejecutar el SQL: lleva tu clave de dueño y no toca lo que ya hay.';
-  }
-  wzSet(wzCopy, 'active'); wzSet(wzRun, 'pending'); wzSet(wzVerify, 'pending');
-  // SQL fresco cada vez: cada copia lleva su propia clave de dueño
-  dbSqlText = ''; dbOwnerKey = '';
-  dbSqlCopy.disabled = true;
-  api('/db/schema').then((r) => { dbSqlText = r.sql; dbOwnerKey = r.ownerKey || ''; dbSqlCopy.disabled = false; })
-    .catch(() => dbSetStatus(dbWizardStatus, 'no se pudo cargar el SQL del bridge', 'bad'));
-};
-const dbWizardClose = () => {
-  dbForm.classList.remove('wizard-open');
-  dbWizard.hidden = true;
-};
-
-// Se ha conectado (o montado) una base: la app deja de estar "solo terminal"
-const dbConnected = async () => {
-  localStorage.removeItem('sia-lab-cache'); // otra base, otro catálogo
-  await refreshAdmin();
-  basesRender(); // las tarjetas se pintaron antes de saber qué abre la clave: repintar con los permisos
-};
-
-dbConnect.addEventListener('click', async () => {
-  const conn = dbConn();
-  if (conn.url) dbUrlInput.value = conn.url;
-  if (!conn.url || !conn.key) return dbSetStatus(dbStatus, 'faltan el ID (o URL) del proyecto y la clave', 'bad');
-  dbSetStatus(dbStatus, 'conectando…');
-  dbConnect.disabled = true; dbWizardClose();
-  try {
-    const d = await api('/db/test', { method: 'POST', body: JSON.stringify(conn) });
-    if (!d.reachable) return dbSetStatus(dbStatus, 'no se llega a ese proyecto: pega su Project ID o su URL (https://xxxx.supabase.co)', 'bad');
-    if (!d.authOk) return dbSetStatus(dbStatus, 'la clave no vale para ese proyecto: usa la clave publishable (Project Settings → API Keys, sb_publishable_…)', 'bad');
-    if (!dbReady(d)) return dbWizardOpen(d); // faltan tablas, políticas o dueño: montar / actualizar
-    if (editingBase) {
-      // base ya vinculada: se cambia su conexión (y su nombre)
-      instanceWarn(await api(`/bases/${encodeURIComponent(editingBase)}`, { method: 'PUT', body: JSON.stringify({ ...conn, name: dbNameInput.value.trim() }) }));
-      selectedBase = editingBase; editingBase = null; knowView = 'config';
-      await basesLoad();
-      toast('Conexión actualizada');
-      await dbConnected();
-      return;
-    }
-    // base lista: entra en la lista de bases (con el token de la invitación, si venía de una)
-    const nb = await api('/bases', { method: 'POST', body: JSON.stringify({ ...conn, name: dbNameInput.value.trim() }) });
-    instanceWarn(nb);
-    await applyInviteToken(nb.id);
-    selectedBase = nb.id; knowView = 'menu';
-    await basesLoad();
-    toast('Base de datos vinculada con éxito');
-    await dbConnected();
-  } catch (err) { dbSetStatus(dbStatus, `no se pudo conectar: ${err.message}`, 'bad'); }
-  finally { dbConnect.disabled = false; }
-});
-
-/* ── Pegar una invitación (web/src/access/invite.js) ──
-   Si la base es nueva se rellenan los campos y, al conectar, los tokens
-   quedan puestos; si ya la tenía, se le añaden los grupos que falten. */
-const dbInviteInput = document.getElementById('db-invite-input');
-let pendingInviteTokens = []; // tokens que llegan con la invitación pegada: se ponen al conectar
-const applyInviteToken = async (baseId) => {
-  if (!pendingInviteTokens.length || !baseId) return;
-  try { await api(`/bases/${encodeURIComponent(baseId)}`, { method: 'PUT', body: JSON.stringify({ tokens: pendingInviteTokens }) }); }
-  catch (e) { toast(`Base vinculada, pero los grupos de la invitación no se pudieron guardar: ${e.message}`, 6000); }
-  pendingInviteTokens = [];
-};
-dbInviteInput.addEventListener('input', async () => {
-  const inv = inviteDecode(dbInviteInput.value);
-  if (!inv) { if (dbInviteInput.value.trim()) dbSetStatus(dbStatus, 'eso no es una invitación de SIA', 'bad'); return; }
-  dbInviteInput.value = '';
-  // la base ya está conectada: la invitación solo trae grupos → se añaden
-  // los que falten y se enseña su Conocimiento
-  const already = bases.find((b) => dbUrlFrom(b.url) === dbUrlFrom(inv.url));
-  if (already) {
-    try {
-      const missing = inv.tokens.filter((t) => !already.tokens.includes(t));
-      if (missing.length) {
-        await api(`/bases/${encodeURIComponent(already.id)}`, { method: 'PUT', body: JSON.stringify({ tokens: [...already.tokens, ...missing] }) });
-        toast(`${missing.length === 1 ? 'Grupo añadido' : `${missing.length} grupos añadidos`} a «${already.name}» — aplica a los chats que abras a partir de ahora`, 4000);
-      } else toast(`Ya tenías acceso a esos grupos en «${already.name}»`);
-      selectedBase = already.id; knowView = 'access'; editingBase = null;
-      await basesLoad();
-      await refreshAdmin();
-    } catch (e) { dbSetStatus(dbStatus, e.message, 'bad'); }
-    return;
-  }
-  dbNameInput.value = inv.name; dbUrlInput.value = inv.url; dbKeyInput.value = inv.key;
-  pendingInviteTokens = inv.tokens;
-  dbConnect.click(); // con la invitación no hay nada más que escribir
-});
-
-dbSqlCopy.addEventListener('click', async () => {
-  try {
-    await navigator.clipboard.writeText(dbSqlText);
-    dbSqlCopy.textContent = 'Copiado ✓';
-    setTimeout(() => {
-      dbSqlCopy.textContent = 'Copiar SQL';
-      wzSet(wzCopy, 'done'); wzSet(wzRun, 'active'); wzSet(wzVerify, 'active');
-    }, 700);
-  } catch { dbSetStatus(dbWizardStatus, 'no se pudo copiar al portapapeles', 'bad'); }
-});
-
-// abrir el SQL Editor da el paso 2 por hecho, pero deja el enlace por si cierran la pestaña
-dbSqlLink.addEventListener('click', () => {
-  if (wzRun.dataset.state === 'pending') return;
-  wzSet(wzRun, 'done');
-  wzRun.classList.add('keep');
-});
-
-// Volver: a los campos sin tocar nada
-dbWizardBack.addEventListener('click', dbWizardClose);
-
-dbSetup.addEventListener('click', async () => {
-  dbSetStatus(dbWizardStatus, 'verificando…');
-  dbSetup.disabled = true;
-  try {
-    const r = await api('/db/setup', { method: 'POST', body: JSON.stringify({ ...dbConn(), name: dbNameInput.value.trim(), ownerKey: dbOwnerKey }) });
-    // si la base confirma que la clave que iba en el SQL es la del dueño, el
-    // bridge ya la ha guardado como clave de poder de esta base
-    instanceWarn(r);
-    if (r.base?.id) { await applyInviteToken(editingBase ? '' : r.base.id); selectedBase = r.base.id; knowView = editingBase ? 'config' : 'menu'; editingBase = null; }
-    await basesLoad();
-    toast(r.owned ? 'Base lista: eres su dueño' : 'Base de datos vinculada con éxito');
-    await dbConnected();
-  } catch (err) {
-    dbSetStatus(dbWizardStatus, err.message || 'no se pudo verificar', 'bad');
-  } finally { dbSetup.disabled = false; }
-});
-
-// La clave de poder vivía en localStorage (una sola). Ahora va por base: la
-// que hubiera pasa a la base principal si esta no tiene ninguna, una vez.
-(async () => {
-  const legacy = localStorage.getItem('sia-admin-key');
-  if (!legacy) return;
-  try {
-    const list = await api('/bases');
-    const first = list[0];
-    if (first && !first.powerKey) await api(`/bases/${encodeURIComponent(first.id)}`, { method: 'PUT', body: JSON.stringify({ powerKey: legacy }) });
-    localStorage.removeItem('sia-admin-key');
-    refreshAdmin();
-  } catch { /* sin bridge: se reintenta en la próxima carga */ }
-})();
+const setStatus = (el, text, cls = '') => { el.textContent = text; el.className = `settings-status${cls ? ` ${cls}` : ''}`; };
 refreshAdmin();
 
 /* ── Laboratorio de skills ────────────────────────────────────── */
@@ -2921,23 +2348,19 @@ const renderLabCards = (skills, drafts) => {
   }
 };
 
-// La clave de power user dejó de valer (o nunca la hubo): estado explicativo.
+// Sin permiso de Laboratorio en la base (le quitaron la vista): estado explicativo.
 // Sin permisos no tiene sentido el botón de actualizar.
 const renderLabLocked = () => {
   labRefreshBtn.hidden = true;
   labCards.innerHTML = `
     <div class="lab-locked">
       <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-      <h3>Necesitas una clave de poder</h3>
+      <h3>Sin acceso al Laboratorio</h3>
       <p>
         El Laboratorio permite crear, editar y publicar skills para todo el
-        equipo, por eso está restringido. Si no tienes una clave de esta base,
-        pídesela a su owner.
+        equipo. Pide a quien gestiona Personas que te dé esa vista.
       </p>
-      <button class="lab-btn primary" id="lab-locked-cfg">Poner la clave</button>
     </div>`;
-  // directo a la clave de poder de la base de la vista
-  document.getElementById('lab-locked-cfg').addEventListener('click', () => openBaseSettings(viewBase, 'config'));
 };
 
 // stale-while-revalidate: pinta al instante la última copia conocida y
@@ -3147,28 +2570,6 @@ const adminGroupSearch = document.getElementById('admin-group-search');
 let adminData = { groups: [], projects: [] };
 let adminSel = { view: 'group', group: null, project: null }; // group token / project id
 
-const labFlash = (el, text) => { const prev = el.textContent; el.textContent = text; setTimeout(() => { el.textContent = prev; }, 1000); };
-const CHECK_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>';
-// Copia al portapapeles con respuesta visible: el botón pasa a un check verde
-// («Copiado») un momento; si el portapapeles no está disponible, lo intenta
-// con un campo temporal y, si tampoco, avisa en rojo.
-const copyWithFeedback = async (btn, text) => {
-  let ok = false;
-  try { await navigator.clipboard.writeText(text); ok = true; }
-  catch {
-    try {
-      const ta = document.createElement('textarea');
-      ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
-      document.body.appendChild(ta); ta.select(); ok = document.execCommand('copy'); ta.remove();
-    } catch { ok = false; }
-  }
-  const prev = btn.innerHTML;
-  btn.classList.add(ok ? 'copied' : 'copy-failed');
-  btn.innerHTML = ok ? CHECK_ICON : '✕';
-  btn.title = ok ? 'Copiado' : 'No se pudo copiar';
-  setTimeout(() => { btn.classList.remove('copied', 'copy-failed'); btn.innerHTML = prev; btn.title = 'Copiar'; }, 1600);
-  return ok;
-};
 const COPY_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
 
 const projectsOfGroup = (token) => { const g = adminData.groups.find((x) => x.token === token); return g ? adminData.projects.filter((p) => g.projectIds.includes(p.id)) : []; };
@@ -3202,6 +2603,8 @@ const renderMain = () => {
 };
 
 /* ── Vista de un grupo: rejilla de proyectos ── */
+const MOVE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v2"/><path d="M3 7v10a2 2 0 0 0 2 2h6"/><path d="M14 16h7"/><path d="m18 13 3 3-3 3"/></svg>';
+const TRASH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
 const renderGroupView = () => {
   const g = adminData.groups.find((x) => x.token === adminSel.group);
   if (!g) { adminMain.innerHTML = '<div class="admin-empty"><span class="big">No hay grupos</span><span>Crea uno desde la barra de la izquierda.</span></div>'; return; }
@@ -3438,13 +2841,8 @@ const renderLinks = () => {
   linksGrid.innerHTML = '';
 
   if (!linksProjects.length) {
-    // sin tokens de acceso en esta base: en vez de explicar dónde se ponen,
-    // un botón que abre Configuración justo ahí
-    const go = document.createElement('button');
-    go.className = 'lab-btn primary';
-    go.textContent = 'Configurar acceso';
-    go.addEventListener('click', () => openBaseSettings(viewBase, 'access'));
-    linksGrid.appendChild(emptyState('links', 'No tienes acceso a ningún conocimiento en esta base.', go));
+    // sin grupos en la base: los da quien gestiona Personas
+    linksGrid.appendChild(emptyState('links', 'Aún no tienes ningún grupo de conocimiento: pídeselo a quien gestiona Personas.'));
     return;
   }
   if (!list.length) {
@@ -3649,152 +3047,3 @@ linksRefreshBtn.addEventListener('click', async () => {
   finally { linksRefreshBtn.disabled = false; linksRefreshBtn.classList.remove('loading'); }
 });
 navLinks.addEventListener('click', () => enterView('links'));
-
-/* ══ Claves de poder (⚙️ → Claves; solo el owner) ═══════════════════
-   Una línea por clave: nombre, vistas que abre, la clave tapada, copiar,
-   editar (nombre y vistas) y borrar. La del owner lleva etiqueta y ni se
-   edita ni se borra (cambia solo volviendo a ejecutar el SQL desde el
-   asistente). Crear = nombre + selector de vistas. */
-const PERM_DEFS = [
-  { id: 'lab', label: 'Laboratorio' },
-  { id: 'admin', label: 'Administración' },
-  { id: 'links', label: 'Editar enlaces' },
-  { id: 'invite', label: 'Invitar' }, // compartir los grupos a los que uno tiene token
-];
-const permsSummary = (p) => p.owner ? 'todo (owner)' : (PERM_DEFS.filter((d) => p[d.id]).map((d) => d.label).join(', ') || 'nada');
-const MOVE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v2"/><path d="M3 7v10a2 2 0 0 0 2 2h6"/><path d="M14 16h7"/><path d="m18 13 3 3-3 3"/></svg>';
-const TRASH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
-
-const keysList = document.getElementById('keys-list');
-const keysStatus = document.getElementById('keys-status');
-const keysNewName = document.getElementById('keys-new-name');
-const keysNewPerms = document.getElementById('keys-new-perms');
-const keysNewCreate = document.getElementById('keys-new-create');
-const keysNewStatus = document.getElementById('keys-new-status');
-
-// selector de vistas: pastillas que se marcan y desmarcan
-for (const d of PERM_DEFS) {
-  const b = document.createElement('button');
-  b.type = 'button'; b.className = 'pill'; b.dataset.perm = d.id; b.textContent = d.label;
-  b.setAttribute('aria-pressed', 'false');
-  b.addEventListener('click', () => b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') === 'true' ? 'false' : 'true'));
-  keysNewPerms.appendChild(b);
-}
-const pickedPerms = () => Object.fromEntries([...keysNewPerms.querySelectorAll('.pill')].map((b) => [b.dataset.perm, b.getAttribute('aria-pressed') === 'true']));
-const resetPicked = () => { for (const b of keysNewPerms.querySelectorAll('.pill')) b.setAttribute('aria-pressed', 'false'); };
-
-const EDIT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
-
-/* Editar una clave: nombre y vistas que abre, SIN cambiar la clave en sí, así
-   quien ya la tiene no necesita una nueva. Va detrás de un lápiz y de un
-   Guardar explícito, para no dar ni quitar poderes con un clic suelto. La fila
-   se convierte en el formulario; solo una a la vez. La del owner no se edita. */
-let keyEditCancel = null; // cierra la edición abierta, si la hay
-const keyEditor = (k, li) => {
-  keyEditCancel?.();
-  li.classList.add('editing');
-  li.innerHTML = `
-    <div class="key-main">
-      <input class="settings-input key-edit-name" type="text" maxlength="60" placeholder="Nombre de la clave" autocomplete="off" />
-      <div class="pill-select key-edit-perms" role="group" aria-label="Vistas que abre"></div>
-      <div class="settings-status" data-role="status"></div>
-    </div>
-    <div class="key-edit-actions">
-      <button class="lab-btn" data-act="cancel">Cancelar</button>
-      <button class="lab-btn primary" data-act="save">Guardar</button>
-    </div>`;
-  const nameInput = li.querySelector('.key-edit-name');
-  const permsBox = li.querySelector('.key-edit-perms');
-  const status = li.querySelector('[data-role="status"]'); // por atributo: dbSetStatus reescribe las clases
-  const save = li.querySelector('[data-act="save"]');
-  nameInput.value = k.name;
-  for (const d of PERM_DEFS) {
-    const b = document.createElement('button');
-    b.type = 'button'; b.className = 'pill'; b.dataset.perm = d.id; b.textContent = d.label;
-    b.setAttribute('aria-pressed', k.perms[d.id] ? 'true' : 'false');
-    b.addEventListener('click', () => b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') === 'true' ? 'false' : 'true'));
-    permsBox.appendChild(b);
-  }
-  const cancel = () => { keyEditCancel = null; li.replaceWith(keyItem(k)); };
-  keyEditCancel = cancel;
-  const submit = async () => {
-    const name = nameInput.value.trim();
-    const perms = Object.fromEntries([...permsBox.querySelectorAll('.pill')].map((b) => [b.dataset.perm, b.getAttribute('aria-pressed') === 'true']));
-    if (!name) return dbSetStatus(status, 'ponle un nombre a la clave', 'bad');
-    if (!Object.values(perms).some(Boolean)) return dbSetStatus(status, 'elige al menos una vista', 'bad');
-    const same = name === k.name && PERM_DEFS.every((d) => !!perms[d.id] === !!k.perms[d.id]);
-    if (same) return cancel();
-    save.disabled = true;
-    try {
-      await api(`/keys/${encodeURIComponent(k.key)}`, { method: 'PUT', body: JSON.stringify({ name, perms }), headers: { 'X-SIA-Base': keysBase } });
-      keyEditCancel = null;
-      toast(`Clave «${name}» actualizada`);
-      keysRefresh(); settingsChanged();
-    } catch (e) { dbSetStatus(status, e.message, 'bad'); save.disabled = false; }
-  };
-  save.addEventListener('click', submit);
-  li.querySelector('[data-act="cancel"]').addEventListener('click', cancel);
-  nameInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') submit();
-    else if (e.key === 'Escape') { e.stopPropagation(); cancel(); }
-  });
-  nameInput.focus(); nameInput.select();
-};
-
-const keyItem = (k) => {
-  const li = document.createElement('li');
-  li.className = 'key-item';
-  const pills = k.owner
-    ? '<span class="pill">Todas las vistas</span>'
-    : PERM_DEFS.filter((d) => k.perms[d.id]).map((d) => `<span class="pill">${d.label}</span>`).join('') || '<span class="pill">Sin vistas</span>';
-  li.innerHTML = `
-    <div class="key-main">
-      <div class="key-title">${esc(k.name)}${k.owner ? '<span class="key-badge">OWNER</span>' : ''}</div>
-      <div class="key-perms">${pills}</div>
-    </div>
-    <code class="key-secret">••••••••••••</code>
-    <div class="key-actions">
-      <button class="icon-btn" data-act="copy" title="Copiar clave" aria-label="Copiar clave">${COPY_ICON}</button>
-      ${k.owner ? '' : `<button class="icon-btn" data-act="edit" title="Editar nombre y vistas" aria-label="Editar clave">${EDIT_ICON}</button>
-      <button class="icon-btn danger" data-act="del" title="Borrar clave" aria-label="Borrar clave">${TRASH_ICON}</button>`}
-    </div>`;
-  const copy = li.querySelector('[data-act="copy"]');
-  copy.addEventListener('click', async () => { if (await copyWithFeedback(copy, k.key)) toast(`Clave «${k.name}» copiada`, 1800); else dbSetStatus(keysStatus, 'no se pudo copiar: selecciona la clave y cópiala a mano', 'bad'); });
-  li.querySelector('[data-act="edit"]')?.addEventListener('click', () => keyEditor(k, li));
-  li.querySelector('[data-act="del"]')?.addEventListener('click', async () => {
-    if (!(await dlgConfirm('Borrar clave', `Quien tenga la clave <strong>${esc(k.name)}</strong> dejará de abrir sus vistas al momento.`, 'Borrar'))) return;
-    try { await api(`/keys/${encodeURIComponent(k.key)}`, { method: 'DELETE', headers: { 'X-SIA-Base': keysBase } }); toast(`Clave «${k.name}» borrada`); keysRefresh(); settingsChanged(); }
-    catch (e) { dbSetStatus(keysStatus, e.message, 'bad'); }
-  });
-  return li;
-};
-
-// las claves se gestionan dentro de la base elegida en Conocimiento (solo owner)
-let keysBase = null;
-const keysRefresh = async () => {
-  dbSetStatus(keysStatus, '');
-  keysBase = selectedBase;
-  if (!keysBase || !permsOfBase(keysBase)?.owner) { keysList.innerHTML = ''; return; }
-  try {
-    const { keys } = await api('/keys', { headers: { 'X-SIA-Base': keysBase } });
-    keyEditCancel = null;
-    keysList.innerHTML = '';
-    for (const k of keys) keysList.appendChild(keyItem(k));
-  } catch (e) { dbSetStatus(keysStatus, e.message, 'bad'); }
-};
-keysNewCreate.addEventListener('click', async () => {
-  const name = keysNewName.value.trim();
-  const perms = pickedPerms();
-  if (!name) return dbSetStatus(keysNewStatus, 'ponle un nombre a la clave', 'bad');
-  if (!Object.values(perms).some(Boolean)) return dbSetStatus(keysNewStatus, 'elige al menos una vista', 'bad');
-  keysNewCreate.disabled = true;
-  try {
-    await api('/keys', { method: 'POST', body: JSON.stringify({ name, perms }), headers: { 'X-SIA-Base': keysBase } });
-    keysNewName.value = ''; resetPicked();
-    dbSetStatus(keysNewStatus, '');
-    toast(`Clave «${name}» creada`);
-    keysRefresh(); settingsChanged();
-  } catch (e) { dbSetStatus(keysNewStatus, e.message, 'bad'); }
-  finally { keysNewCreate.disabled = false; }
-});
-keysNewName.addEventListener('keydown', (e) => { if (e.key === 'Enter') keysNewCreate.click(); });

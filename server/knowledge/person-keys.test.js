@@ -7,7 +7,8 @@ const none = { lab: false, admin: false, links: false, invite: false };
 
 test('keyPerms: solo las vistas que son permiso en la base', () => {
   assert.deepEqual(keyPerms(person(['links', 'people', 'lab'])), ['lab', 'links']);
-  assert.deepEqual(keyPerms(person(['people', 'knowledge'])), []);
+  assert.deepEqual(keyPerms(person(['people'])), []);
+  assert.deepEqual(keyPerms(person(['admin', 'lab'])), [], 'con Administración, la del dueño');
   assert.deepEqual(keyPerms(person(['links'], false)), [], 'desactivada: nada');
 });
 
@@ -18,8 +19,8 @@ test('crea la clave en la base, con sus permisos (aunque no tenga grupos)', () =
 });
 
 test('pone al día la que ya tiene', () => {
-  const plan = planKeys(person(['admin']), new Set(['b1']), new Map([['b1', 'k1']]));
-  assert.deepEqual(plan, [{ baseId: 'b1', action: 'update', key: 'k1', perms: { ...none, admin: true } }]);
+  const plan = planKeys(person(['links']), new Set(['b1']), new Map([['b1', 'k1']]));
+  assert.deepEqual(plan, [{ baseId: 'b1', action: 'update', key: 'k1', perms: { ...none, links: true } }]);
 });
 
 test('la quita si pierde las vistas, si se desactiva o si la base ya no está', () => {
