@@ -1090,6 +1090,26 @@ const apiServer = http.createServer(async (req, res) => {
     // con el candado echado, esta máquina no ve nada más (el móvil emparejado
     // va por su propio candado, arriba, en el cortafuegos)
     if (SCREEN_LOCKED && isLoopback(req)) return json(res, 423, { error: 'pantalla bloqueada', locked: true });
+
+    // ── Sesión: desde esta máquina, toda la API exige haber iniciado sesión
+    // (el móvil entra con su llave de emparejamiento: cortafuegos de arriba).
+    // Quedan fuera solo ping, versión, inicio de sesión y candado (van antes)
+    // y ver un adjunto (un <img> no lleva cabeceras; es un fichero de aquí).
+    let who = null;
+    if (isLoopback(req) && !(parts[1] === 'uploads' && req.method === 'GET') && parts[1] !== 'version') {
+      try { who = await auth.context(req.headers['x-sia-auth']); }
+      catch (e) { return json(res, 503, { error: e.message }); }
+      if (!who) return json(res, 401, { error: 'Inicia sesión.', auth: true });
+    }
+    // Lo de gestión (Laboratorio, Administración, claves de poder, grupos,
+    // montar bases, editar enlaces) es solo de admins, aunque una clave de
+    // poder lo abriera: segunda capa por rol, además de la de la base.
+    const adminOnly = ['keys', 'drafts', 'groups', 'db'].includes(parts[1])
+      || (parts[1] === 'admin' && parts[2] !== 'check')
+      || (parts[1] === 'skills' && (req.method === 'DELETE' || parts[2] === 'publish'))
+      || (parts[1] === 'links' && req.method !== 'GET')
+      || (parts[1] === 'access' && parts[2] === 'groups');
+    if (adminOnly && who?.user.role !== 'admin') return json(res, 403, { error: 'Solo para administradores.' });
     if (parts[1] === 'users') return usersRoute(req, res, parts[2]);
     if (parts[1] === 'knowledge') return knowledgeRoute(req, res, parts[2], parts[3]);
 
@@ -1412,7 +1432,7 @@ const apiServer = http.createServer(async (req, res) => {
        tablas pasa por /db/setup, que también la añade). */
     if (parts[1] === 'bases') {
       const list = basesList();
-      const isAdmin = assigned.role === 'admin';
+      const isAdmin = who?.user.role === 'admin';
       // quien no administra ve sus bases sin tokens ni claves, y no cambia nada
       if (req.method === 'GET' && !parts[2]) return json(res, 200, isAdmin ? list : list.map(publicBase));
       if (!isAdmin) return json(res, 403, { error: 'Tu conocimiento lo gestiona un administrador.' });
@@ -1486,7 +1506,6 @@ const apiServer = http.createServer(async (req, res) => {
        prueba (y se monta) una base antes de cambiarse a ella. */
     // El SQL lleva una clave de dueño nueva cada vez que se pide; la UI se la
     // queda y la manda a /db/setup para que, verificada, quede guardada.
-    if (parts[1] === 'db' && assigned.role !== 'admin') return json(res, 403, { error: 'Tu conocimiento lo gestiona un administrador.' });
     if (parts[1] === 'db' && parts[2] === 'schema' && req.method === 'GET') {
       return json(res, 200, schemaSqlWithOwner());
     }
@@ -1797,7 +1816,15 @@ await syncAllSkills();
 // solo sale un hostname por el 443, así que la web, la API y el WebSocket del
 // móvil tienen que viajar por el mismo origen. De paso, el móvil en la LAN
 // también la usa y deja de depender de un segundo puerto.
-const wss = new WebSocketServer({ port: PORT });
+// Un socket nuevo desde esta máquina exige sesión iniciada (?a=<token>); se
+// comprueba al aceptar la conexión, antes de que llegue ningún mensaje. El
+// del móvil va con su llave de emparejamiento (handleConnection).
+const wsSessionOk = async (req) => {
+  if (!isLoopback(req)) return true;
+  const a = new URL(req.url, 'http://localhost').searchParams.get('a');
+  return !!(await auth.context(a).catch(() => null));
+};
+const wss = new WebSocketServer({ port: PORT, verifyClient: (info, cb) => { wsSessionOk(info.req).then((ok) => cb(ok, 401, 'Inicia sesión.')); } });
 wss.on('error', (err) => {
   if (err.code === 'EADDRINUSE') console.warn(`[sia] puerto ${PORT} en uso — usando la instancia existente`);
   else throw err;
@@ -1806,7 +1833,10 @@ const wssPath = new WebSocketServer({ noServer: true });
 apiServer.on('upgrade', (req, socket, head) => {
   const { pathname } = new URL(req.url, 'http://localhost');
   if (pathname !== '/ws') { socket.destroy(); return; }
-  wssPath.handleUpgrade(req, socket, head, (ws) => wssPath.emit('connection', ws, req));
+  wsSessionOk(req).then((ok) => {
+    if (!ok) { socket.end('HTTP/1.1 401 Unauthorized\r\n\r\n'); return; }
+    wssPath.handleUpgrade(req, socket, head, (ws) => wssPath.emit('connection', ws, req));
+  });
 });
 const allWsClients = () => [...wss.clients, ...wssPath.clients];
 console.log(`[sia] terminal bridge listening on ws://localhost:${PORT} (y /ws en la API)`);

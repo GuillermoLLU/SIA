@@ -273,6 +273,8 @@ const lockGate = ({ remote = false } = {}) => {
 // Sesión de usuario (web/src/auth/): se abre al arrancar en el escritorio; el
 // móvil entra por su emparejamiento y se queda sin ella.
 let AUTH = null; // { session, user }
+// URL del socket: en el escritorio, con la sesión (?a=); el móvil ya lleva su llave (?t=)
+const wsUrl = () => (AUTH ? `${WS_URL}${WS_URL.includes('?') ? '&' : '?'}a=${encodeURIComponent(AUTH.session.headers()['X-SIA-Auth'])}` : WS_URL);
 
 {
   const q = new URLSearchParams(location.search);
@@ -809,7 +811,7 @@ const createSession = (opts) => {
 /* Abre el socket de una sesión y cablea el protocolo. Se usa al crear la
    pestaña y también al reclamar un chat que tenía otro dispositivo. */
 const connectSession = (s, attach) => {
-  const ws = new WebSocket(WS_URL);
+  const ws = new WebSocket(wsUrl());
   s.ws = ws;
 
   // re-enganche: montar la terminal en cuanto abra el socket y pedir attach
@@ -1033,7 +1035,7 @@ const reconcileSessions = (list) => {
    También lleva la X de las pestañas pasivas (kill por sessionId). */
 let controlWS = null;
 const connectControl = () => {
-  controlWS = new WebSocket(WS_URL);
+  controlWS = new WebSocket(wsUrl());
   controlWS.onmessage = (e) => {
     let m;
     try { m = JSON.parse(e.data); } catch { return; }
@@ -1515,7 +1517,7 @@ const applyTheme = (id) => {
   // El tema del ordenador es también el de los móviles emparejados: se le deja
   // al bridge, que se lo da a ellos. (Con fetch: `api` aún no existe al arrancar.)
   if (!LAN_TOKEN && API_BASE) {
-    fetch(`${API_BASE}/config`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ theme: { id: t.id, ui: t.ui } }) }).catch(() => {});
+    fetch(`${API_BASE}/config`, { method: 'PUT', headers: { 'Content-Type': 'application/json', ...(AUTH ? AUTH.session.headers() : {}) }, body: JSON.stringify({ theme: { id: t.id, ui: t.ui } }) }).catch(() => {});
   }
   themeSwitch.setAttribute('aria-checked', String(!!t.dark));
 };
@@ -1571,9 +1573,10 @@ let viewBase = null;
 const api = async (path, opts = {}) => {
   const r = await fetch(`${API_BASE}${path}`, {
     ...opts,
-    headers: { 'Content-Type': 'application/json', ...(viewBase ? { 'X-SIA-Base': viewBase } : {}), ...(LAN_TOKEN ? { 'X-SIA-LAN': LAN_TOKEN } : {}), ...(opts.headers || {}) },
+    headers: { 'Content-Type': 'application/json', ...(viewBase ? { 'X-SIA-Base': viewBase } : {}), ...(LAN_TOKEN ? { 'X-SIA-LAN': LAN_TOKEN } : {}), ...(AUTH ? AUTH.session.headers() : {}), ...(opts.headers || {}) },
   });
   const data = await r.json().catch(() => ({}));
+  if (r.status === 401 && data.auth) location.reload(); // la sesión ya no vale: de vuelta al inicio de sesión
   if (!r.ok) {
     if (r.status === 423 && (LAN_TOKEN || data.locked)) lockedGate(); // el bridge echó el candado
     const err = new Error(data.error || `HTTP ${r.status}`);
@@ -1754,8 +1757,10 @@ const refreshAdmin = async ({ quiet = false } = {}) => {
     basesPerms = bases || [];
     const changed = JSON.stringify(basesPerms) !== before;
     if (viewBase && !basesPerms.some((b) => b.id === viewBase)) viewBase = null;
-    navLab.hidden = !basesFor('lab').length;
-    navAdmin.hidden = !basesFor('admin').length;
+    // Laboratorio y Administración: solo admins (el bridge también lo exige)
+    const isAdmin = AUTH?.user.role === 'admin';
+    navLab.hidden = !isAdmin || !basesFor('lab').length;
+    navAdmin.hidden = !isAdmin || !basesFor('admin').length;
     navLinks.hidden = !basesFor('links').length;
     if (navLab.hidden && !viewLab.hidden) showView('chat');
     if (navAdmin.hidden && !viewAdmin.hidden) showView('chat');
