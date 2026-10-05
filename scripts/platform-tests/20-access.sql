@@ -69,6 +69,13 @@ select assert_eq((select count(*) from public.platform_list_users()), 3::bigint,
 select t_as(:AD);
 select public.platform_update_user(:U2, null, 'agent');
 
+select public.platform_record_user_event('user.create', :U2, 'Agente.Dos@empresa.com');
+select assert_eq((select details ->> 'email' from public.platform_list_audit() where action = 'user.create'), 'agente.dos@empresa.com', 'el alta queda apuntada');
+select expect_error($$select public.platform_record_user_event('user.hack', '00000000-0000-0000-0000-0000000000a3', 'x@y.z')$$, 'evento desconocido');
+select t_as(:U1);
+select expect_error($$select public.platform_record_user_event('user.delete', '00000000-0000-0000-0000-0000000000a3', 'x@y.z')$$, 'un agente no apunta eventos');
+select t_as(:AD);
+
 -- ── 4. bases y conocimiento ──
 select expect_error($$select public.platform_add_base('Mala', 'https://abcdefghijklmnopqrst.supabase.co', 'sb_secret_abcdefghijklmnopqrstuvwxyz')$$, 'rechaza la clave secret');
 select expect_error($$select public.platform_add_base('Mala', 'https://abcdefghijklmnopqrst.supabase.co', 'eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.abc')$$, 'rechaza un JWT');

@@ -28,9 +28,10 @@
 --    · Un usuario desactivado no pasa ninguna comprobación.
 --    · Los tokens de grupo solo se devuelven enteros a su titular; a los
 --      admins, enmascarados. Las claves secret de Supabase se rechazan.
---    · El alta y la baja de personas en Supabase Auth NO se hacen aquí: las
---      hace una Edge Function (necesita la clave secret, que SIA no tiene
---      nunca), que antes pregunta a platform_can_manage_users.
+--    · El alta, la baja y el cambio de contraseña de personas en Supabase Auth
+--      NO se hacen aquí: los hace la Edge Function sia-users (necesita la
+--      clave secret, que SIA no tiene nunca), que antes pregunta a
+--      platform_can_manage_users y después lo apunta con platform_record_user_event.
 -- ════════════════════════════════════════════════════════════════════════
 
 begin;
@@ -292,6 +293,19 @@ begin
     jsonb_strip_nulls(jsonb_build_object('name', nullif(btrim(p_name), ''), 'role', p_role, 'active', p_active)));
 exception
   when check_violation then raise exception 'Nombre no válido (1-80 caracteres).' using errcode = '23514';
+end $$;
+
+-- Altas, bajas y cambios de contraseña los hace la Edge Function sia-users
+-- (con la clave secret, en Supabase Auth); aquí queda constancia en la
+-- auditoría, a nombre del admin que los pidió.
+create or replace function public.platform_record_user_event(p_action text, p_user uuid, p_email text) returns void
+language plpgsql security definer set search_path = '' as $$
+declare v_me uuid := platform.require_admin();
+begin
+  if p_action not in ('user.create', 'user.delete', 'user.password') then
+    raise exception 'Evento desconocido.' using errcode = '22023';
+  end if;
+  perform platform.audit(v_me, p_action, p_user, jsonb_build_object('email', lower(btrim(p_email))));
 end $$;
 
 -- ── Bases de conocimiento ─────────────────────────────────────────────────
