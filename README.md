@@ -5,9 +5,12 @@ conduce sesiones reales de CLI (Claude, Copilot, Codex, shell…) y las nutre co
 el **conocimiento del equipo** (RAG vectorial en Supabase) vía MCP, más un
 catálogo de skills compartido.
 
-**La base de conocimiento es de cada equipo**: no hay ninguna conexión escrita
-en el código; cada instalación conecta sus propios proyectos de Supabase desde
-Configuración, y puede tener varios a la vez.
+**Una instancia por cliente.** Cada cliente tiene su propia instancia de SIA
+con su propia **base de la instancia** (un proyecto Supabase: personas, roles y
+qué conocimiento ve cada una), indicada en `sia-instance.json`. Otro cliente es
+otra instancia del mismo código. Las **bases de conocimiento** (el RAG, las
+skills, los grupos) son otros proyectos Supabase; un administrador decide qué
+grupos de cuáles ve cada persona.
 
 ## Empezar
 
@@ -21,9 +24,17 @@ node dev.mjs
 ```
 
 Instala dependencias si faltan y levanta las dos piezas. Abre
-<http://localhost:5220> y:
+<http://localhost:5220> e **inicia sesión** con el email y la contraseña de tu
+cuenta de la instancia (las da un administrador; ver «La base de la
+instancia»). Con «Mantener la sesión» se entra solo la próxima vez.
 
-1. **⚙️ Configuración → Conocimiento**: ponle un nombre a la base, pega el
+- **Agente**: su conocimiento ya viene asignado; pulsa **+** para abrir un
+  chat. En ⚙️ → Conocimiento lo ve en solo lectura.
+- **Administrador**: en **Usuarios** da de alta a las personas, las bases de
+  conocimiento de la instancia (**Bases de conocimiento**) y, en cada persona,
+  sus grupos (**Conocimiento**). Además puede conectar bases propias:
+
+1. **⚙️ Configuración → Conocimiento** (solo administradores): ponle un nombre a la base, pega el
    Project ID de tu proyecto Supabase (o su URL) y su clave *publishable*
    (`sb_publishable_…`) y pulsa **Conectar**. Si al proyecto le faltan las
    tablas, el asistente te guía en tres pasos (copiar el SQL, ejecutarlo en
@@ -38,10 +49,41 @@ Instala dependencias si faltan y levanta las dos piezas. Abre
 2. Pulsa **+** para abrir un chat: **Libre** (shell), **Claude**, **Copilot** o
    **Codex**, ya conectados al conocimiento.
 
-Sin base conectada SIA funciona como terminal, sin conocimiento ni skills.
+Sin conocimiento asignado SIA funciona como terminal, sin conocimiento ni skills.
 
 > La primera búsqueda de conocimiento descarga el modelo de embeddings
 > (~120 MB) una única vez; las siguientes son inmediatas.
+
+## La base de la instancia
+
+Quién entra, con qué rol y qué conocimiento ve vive en un proyecto Supabase
+propio de la instancia (`sia-instance.json`: su URL y su clave publishable).
+Se monta una vez:
+
+1. SQL Editor del proyecto: ejecutar **`supabase-platform.sql`** entero
+   (re-ejecutable, no borra datos).
+2. Desplegar la Edge Function **`supabase/functions/sia-users`** (altas, bajas
+   y contraseñas; es lo único que usa la clave secret, que se le pone como
+   secreto de la función `SIA_SECRET_KEY` junto a `SIA_PUBLISHABLE_KEY`).
+3. Crear la primera persona en Authentication → Users y nombrarla admin en el
+   SQL Editor: `select platform.grant_admin('email');`.
+4. Comprobar con **`scripts/platform-tests/verify.sql`** (todo en OK).
+
+Endurecimiento recomendado en el panel: registro público cerrado, contraseñas
+de 12+ con los cuatro tipos de carácter, SSL obligatorio y claves legacy
+desactivadas. Las pruebas del SQL: `npm run test:platform` (Docker).
+
+Roles: **admin** (gestiona personas, bases y lo que ve cada una) y **agent**
+(usa lo asignado). Nadie cambia su propio rol ni se desactiva, así que
+siempre queda un admin. Todo pasa por funciones de la base que comprueban
+quién llama; las tablas no se pueden leer ni con la publishable.
+
+En SIA, el bridge guarda la sesión de Supabase (el JWT solo en memoria; el
+refresh token, en `~/.sia/config.json` si se marcó «Mantener la sesión») y da
+a la web un token propio. Toda la API y el terminal exigen sesión, y lo de
+gestión (Laboratorio, Administración, claves, montar bases, editar enlaces)
+es solo de admins. Lo asignado a cada persona se carga al iniciar sesión y
+solo vive en memoria; un agente no recibe tokens ni claves en la web.
 
 ## Quién ve qué
 
@@ -105,7 +147,9 @@ poder que ya había se conservan; solo la clave del dueño se renueva.
 - `web/` — UI (Vite + xterm.js): pestañas multi-sesión, temas, lanzador,
   Laboratorio de skills, Administración, enlaces rápidos. Puerto **5220**.
 - `server/` — bridge local: un PTY por sesión expuesto por WebSocket y la API
-  HTTP. A cada CLI se le pasa el MCP de la sesión a su manera: Claude con
+  HTTP. Por funcionalidad: `platform/` (cliente de la base de la instancia),
+  `auth/` (sesión), `users/` (personas), `knowledge/` (conocimiento asignado),
+  `access/` y `base/` (bases de conocimiento). A cada CLI se le pasa el MCP de la sesión a su manera: Claude con
   `--mcp-config`, Copilot con `--additional-mcp-config` y Codex con un
   perfil temporal (`-p`) que se borra al cerrar la sesión. Los puertos se eligen solos (pares 57413/57414 → 58527/58528 →
   59641/59642; `SIA_PORT` fuerza uno). Acceso desde el móvil por QR+PIN, en
@@ -124,8 +168,11 @@ poder que ya había se conservan; solo la clave del dueño se renueva.
   asistente de montaje sirve ese fichero con la clave de dueño puesta y, al
   final, las **skills comunes** de `skills/common/` (`server/base/schema-sql.js`):
   una base recién montada arranca con ellas y cada ejecución las deja al día.
-- Configuración personal (lista de bases con sus tokens de grupo, Jira,
-  GitHub): `~/.sia/config.json`, solo en esta máquina.
+- `supabase-platform.sql`, `supabase/functions/sia-users/` y
+  `scripts/platform-tests/` — la base de la instancia, su Edge Function y sus
+  pruebas y verificación.
+- Configuración personal (bases propias de un admin con sus tokens de grupo,
+  Jira, GitHub, sesión guardada): `~/.sia/config.json`, solo en esta máquina.
 
 Variables de entorno solo para desarrollo: `SIA_SUPABASE_URL` /
 `SIA_SUPABASE_KEY` (conexión sin pasar por Ajustes), `SIA_ADMIN_KEY` /
