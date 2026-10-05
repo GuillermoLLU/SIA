@@ -2,8 +2,8 @@
 // cada uno con una miniatura de la app en sus colores. Pulsar uno lo aplica
 // (onPick); mark(id) señala el que está puesto. Solo DOM.
 import { THEMES } from './themes.js';
+import { esc } from '../ui/html.js';
 
-const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 
 // Miniatura: barra lateral, una tarjeta con dos líneas de texto y un botón de acento.
 const preview = ({ ui }) => `

@@ -65,25 +65,6 @@
 
 begin;
 
--- ── 0. Estructura multicliente anterior (clients/memberships) ─────────────
--- Si está, se retira entera (su esquema, sus funciones y sus disparadores).
--- Las personas de Authentication no se tocan. En una base nueva o ya
--- migrada no hace nada.
-do $$
-declare f record;
-begin
-  if to_regclass('platform.clients') is not null then
-    drop schema platform cascade;
-    for f in
-      select p.oid::regprocedure as sig from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-      where n.nspname = 'public' and p.proname like 'platform\_%'
-    loop
-      execute format('drop function %s', f.sig);
-    end loop;
-    raise notice 'Estructura multicliente retirada.';
-  end if;
-end $$;
-
 -- ── Esquema privado ───────────────────────────────────────────────────────
 create schema if not exists platform;
 revoke all on schema platform from public, anon, authenticated;
@@ -99,15 +80,11 @@ $$;
 create table if not exists platform.roles (
   id          uuid primary key default gen_random_uuid(),
   name        text not null check (char_length(btrim(name)) between 1 and 40),
-  views       text[] not null default '{}',
+  views       text[] not null default '{}' constraint roles_views_known check (views <@ platform.known_views()),
   builtin     text unique check (builtin in ('admin', 'agent')),  -- los de serie
   created_at  timestamptz not null default now()
 );
 create unique index if not exists roles_name on platform.roles (lower(name));
--- (antes de dar de alta los de serie: una base anterior traía otra lista de vistas)
-alter table platform.roles drop constraint if exists roles_views_check;
-alter table platform.roles drop constraint if exists roles_views_known;
-alter table platform.roles add constraint roles_views_known check (views <@ platform.known_views());
 insert into platform.roles (name, views, builtin) values
   ('Administrador', platform.known_views(), 'admin'),
   ('Agente', array['links'], 'agent')
@@ -118,8 +95,9 @@ create table if not exists platform.users (
   email       text not null check (email = lower(email) and email ~ '^[^@\s]+@[^@\s]+$'),
   name        text not null check (char_length(btrim(name)) between 1 and 80),
   role_id     uuid references platform.roles (id) on delete set null,  -- null: vistas personalizadas
-  views       text[] not null default array['links'],
+  views       text[] not null default array['links'] constraint users_views_known check (views <@ platform.known_views()),
   active      boolean not null default true,
+  must_change_password boolean not null default false,  -- la puso otra persona: cambiarla al entrar
   created_at  timestamptz not null default now()
 );
 create unique index if not exists users_email on platform.users (email);
@@ -131,8 +109,8 @@ create table if not exists platform.knowledge_bases (
   url              text not null unique check (url ~ '^https://[a-z]{20}\.supabase\.co$'),
   -- solo la clave publishable; la secret (sb_secret_…, service_role) nunca
   publishable_key  text not null check (publishable_key ~ '^sb_publishable_[A-Za-z0-9_-]{16,200}$'),
-  created_at       timestamptz not null default now(),
-  created_by       uuid references auth.users (id) on delete set null
+  power_secret     uuid,  -- la clave del dueño, en Supabase Vault
+  created_at       timestamptz not null default now()
 );
 
 create table if not exists platform.knowledge_grants (
@@ -167,38 +145,7 @@ create table if not exists platform.audit_log (
 );
 create index if not exists audit_happened on platform.audit_log (happened_at desc);
 
--- Añadidos (se aplican también a bases ya montadas):
---   must_change_password  la contraseña la puso un admin: cambiarla al entrar
---   power_secret          la clave de poder (Administración) de la base, en
---                         Supabase Vault: con ella SIA lee los grupos de la base
-alter table platform.users add column if not exists must_change_password boolean not null default false;
-alter table platform.knowledge_bases add column if not exists power_secret uuid;
-
--- Versiones con el rol como texto (admin | agent) y, antes, sin vistas: a
--- role_id. Quien tenía justo las vistas de su rol, con ese rol; si no, vistas
--- personalizadas.
-alter table platform.users add column if not exists role_id uuid references platform.roles (id) on delete set null;
-do $$
-begin
-  if exists (select 1 from information_schema.columns where table_schema = 'platform' and table_name = 'users' and column_name = 'role') then
-    if not exists (select 1 from information_schema.columns where table_schema = 'platform' and table_name = 'users' and column_name = 'views') then
-      alter table platform.users add column views text[];
-      update platform.users u set views = (select r.views from platform.roles r where r.builtin = u.role);
-      alter table platform.users alter column views set not null;
-      alter table platform.users alter column views set default array['links'];
-    end if;
-    update platform.users u set role_id = r.id from platform.roles r
-     where r.builtin = u.role and u.views @> r.views and u.views <@ r.views;
-    alter table platform.users drop column role;
-  end if;
-end $$;
-drop function if exists platform.role_views(text);
--- La vista «knowledge» (Configuración → Conocimiento) ya no existe: la base es
--- una y se fija desde aquí.
-update platform.users set views = array_remove(views, 'knowledge') where 'knowledge' = any (views);
-alter table platform.users drop constraint if exists users_views_known;
-alter table platform.users add constraint users_views_known check (views <@ platform.known_views());
--- Administrador, con todas las que haya (también las que se añadan)
+-- Administrador, con todas las vistas que haya (también las que se añadan)
 update platform.roles set views = platform.known_views() where builtin = 'admin' and views is distinct from platform.known_views();
 update platform.users u set views = r.views from platform.roles r where r.builtin = 'admin' and u.role_id = r.id and u.views is distinct from r.views;
 
@@ -398,20 +345,6 @@ revoke all on all functions in schema platform from public, anon, authenticated;
 --  API para la app (RPC). Todas exigen sesión; anon no puede llamarlas.
 -- ════════════════════════════════════════════════════════════════════════
 
--- Funciones retiradas (la asignación token a token la sustituye platform_set_knowledge).
-drop function if exists public.platform_list_grants(uuid);
-drop function if exists public.platform_grant_knowledge(uuid, uuid, text, text);
-drop function if exists public.platform_revoke_knowledge(uuid);
-drop function if exists public.platform_add_base(text, text, text);
-drop function if exists public.platform_add_base(text, text, text, text);
-drop function if exists public.platform_rename_base(uuid, text);
-drop function if exists public.platform_set_base_power(uuid, text);
-drop function if exists public.platform_remove_base(uuid);
-drop function if exists platform.mask(text);
-drop function if exists platform.require_admin();
-drop function if exists platform.is_admin(uuid);
-drop function if exists public.platform_update_user(uuid, text, text, boolean);
-
 -- Quién soy (y si tengo que cambiar la contraseña antes de seguir).
 create or replace function public.platform_whoami() returns jsonb
 language plpgsql stable security definer set search_path = '' as $$
@@ -486,7 +419,6 @@ end $$;
 -- (siempre queda alguien con Personas). Un rol pone sus vistas; unas vistas
 -- sueltas dejan a la persona sin rol (personalizado). Desactivar cierra sus
 -- sesiones.
-drop function if exists public.platform_update_user(uuid, text, text, boolean, text[]);
 create or replace function public.platform_update_user(p_user uuid, p_name text default null, p_role uuid default null,
                                                        p_active boolean default null, p_views text[] default null) returns void
 language plpgsql security definer set search_path = '' as $$
@@ -601,20 +533,17 @@ begin
   perform platform.audit(v_me, p_action, p_user, jsonb_build_object('email', lower(btrim(p_email))));
 end $$;
 
--- ── Bases de conocimiento ─────────────────────────────────────────────────
--- Con si tienen clave de poder (sin ella no se leen sus grupos) y cuántas
--- personas ven cada una.
+-- ── Base de conocimiento ──────────────────────────────────────────────────
+-- La de la instancia (una sola; ninguna si aún no se ha fijado).
 drop function if exists public.platform_list_bases();
 create function public.platform_list_bases()
-returns table (id uuid, name text, url text, publishable_key text, has_power_key boolean, people bigint, created_at timestamptz)
+returns table (id uuid, name text)
 language plpgsql stable security definer set search_path = '' as $$
 #variable_conflict use_column
 begin
   perform platform.require_view('people');
   return query
-    select b.id, b.name, b.url, b.publishable_key, b.power_secret is not null,
-           (select count(distinct g.user_id) from platform.knowledge_grants g where g.base_id = b.id), b.created_at
-    from platform.knowledge_bases b order by b.name;
+    select b.id, b.name from platform.knowledge_bases b;
 end $$;
 
 -- Para el bridge de quien gestiona Personas: con qué leer los grupos de la

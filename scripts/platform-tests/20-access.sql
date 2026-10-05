@@ -157,8 +157,12 @@ select assert_eq((select count(*) from platform.knowledge_bases), 1::bigint, 'vo
 select assert_eq((select count(*) from vault.secrets where name like 'sia-base-%'), 1::bigint, 'ni su clave en Vault');
 set role authenticated;
 select t_as(:AD);
-select assert_eq((select url from public.platform_list_bases()), 'https://abcdefghijklmnopqrst.supabase.co', 'URL normalizada');
-select assert_eq((select has_power_key from public.platform_list_bases()), true, 'con su clave de poder');
+select assert_eq((select name from public.platform_list_bases()), 'Soporte', 'quien gestiona Personas ve la base');
+reset role;
+select assert_eq((select url from platform.knowledge_bases), 'https://abcdefghijklmnopqrst.supabase.co', 'URL normalizada');
+select assert_eq((select power_secret is not null from platform.knowledge_bases), true, 'con la clave del dueño en Vault');
+set role authenticated;
+select t_as(:AD);
 select assert_eq((select power_key from public.platform_base_access()), 'pk-admin-soporte-456', 'quien gestiona Personas recibe la clave cambiada');
 
 -- ── 5. conocimiento: fijar grupos de una base y copiar de otra persona ──

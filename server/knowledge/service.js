@@ -3,8 +3,8 @@
 // el cliente de la plataforma y readGroups({ url, key, powerKey }), que lee
 // los grupos (access_groups) de la base de conocimiento con la clave del dueño.
 //
-// Los grupos de cada base se guardan en memoria (con sus tokens) al listar
-// las bases; la web solo recibe { id, name } y, al asignar, manda ids.
+// Los proyectos (un grupo de acceso por proyecto, con su token) se guardan en
+// memoria al leer la base; la web solo recibe { id, name } y, al asignar, ids.
 //
 // Cada persona tiene en la base su clave de poder con los permisos
 // de sus vistas (person-keys.js). syncPeople la crea, la pone al día o la
@@ -16,24 +16,23 @@ import { toGroups, publicGroups, pickGroups } from './groups.js';
 import { planKeys, keyName } from './person-keys.js';
 
 export const createKnowledge = ({ platform, readGroups, baseKeys }) => {
-  const groupsByBase = new Map(); // baseId → [{ id, name, token }]
+  let known = { baseId: null, groups: null }; // los proyectos leídos, con sus tokens
 
-  // La base de la instancia con sus grupos de acceso, uno por proyecto (server/projects/).
-  const bases = async (jwt) => {
-    const [list, access] = await Promise.all([platform.rpc(jwt, 'platform_list_bases'), platform.rpc(jwt, 'platform_base_access')]);
-    const accessById = new Map(access.map((a) => [a.id, a]));
-    return Promise.all(list.map(async (b) => {
-      const a = accessById.get(b.id);
-      let groups = null, groupsError = null;
-      if (a) {
-        try { groups = toGroups(await readGroups({ url: a.url, key: a.publishable_key, powerKey: a.power_key })); groupsByBase.set(b.id, groups); }
-        catch { groupsError = 'No se pudieron leer sus proyectos: revisa la clave del dueño en la instancia.'; }
-      }
-      return { id: b.id, name: b.name, url: b.url, hasPowerKey: b.has_power_key, people: Number(b.people), groups: groups && publicGroups(groups), groupsError };
-    }));
+  // La base de la instancia y sus proyectos: { id, name, groups: [{ id, name }]
+  // | null, groupsError }, o null si la instancia aún no tiene base.
+  const base = async (jwt) => {
+    const [[b], access] = await Promise.all([platform.rpc(jwt, 'platform_list_bases'), platform.rpc(jwt, 'platform_base_access')]);
+    if (!b) return null;
+    const a = access.find((x) => x.id === b.id);
+    let groups = null, groupsError = null;
+    if (a) {
+      try { groups = toGroups(await readGroups({ url: a.url, key: a.publishable_key, powerKey: a.power_key })); known = { baseId: b.id, groups }; }
+      catch { groupsError = 'No se pudieron leer sus proyectos: revisa la clave del dueño en la instancia.'; }
+    }
+    return { id: b.id, name: b.name, groups: groups && publicGroups(groups), groupsError };
   };
 
-  // Conexión a cada base con la clave de la instancia: baseId → { url, key, powerKey }.
+  // Conexión a la base con la clave de la instancia: baseId → { url, key, powerKey }.
   const connections = async (jwt) => new Map((await platform.rpc(jwt, 'platform_base_access'))
     .map((a) => [a.id, { url: a.url, key: a.publishable_key, powerKey: a.power_key }]));
 
@@ -68,16 +67,15 @@ export const createKnowledge = ({ platform, readGroups, baseKeys }) => {
     syncPeople,
     // lo asignado a quien llama (filas de platform_my_knowledge)
     mine: (jwt) => platform.rpc(jwt, 'platform_my_knowledge'),
-    bases,
+    base,
 
-    // Qué grupos de una base ve alguien (ids de la web; vacío: no la ve).
-    async setGroups(jwt, userId, baseId, ids) {
-      if (!groupsByBase.has(baseId)) await bases(jwt);
-      const groups = groupsByBase.get(baseId);
-      if (!groups) throw new PlatformError(400, 'No se pueden leer los grupos de la base: revisa su clave del dueño en la instancia.');
-      const picked = pickGroups(groups, ids);
+    // Qué proyectos ve alguien (ids de la web; vacío: ninguno).
+    async setProjects(jwt, userId, ids) {
+      if (!known.groups) await base(jwt);
+      if (!known.groups) throw new PlatformError(400, 'No se pueden leer los proyectos de la base: revisa la clave del dueño en la instancia.');
+      const picked = pickGroups(known.groups, ids);
       if (picked.error) throw new PlatformError(409, picked.error);
-      await platform.rpc(jwt, 'platform_set_knowledge', { p_user: userId, p_base: baseId, p_groups: picked.groups });
+      await platform.rpc(jwt, 'platform_set_knowledge', { p_user: userId, p_base: known.baseId, p_groups: picked.groups });
     },
     copy: (jwt, userId, fromId) => platform.rpc(jwt, 'platform_copy_knowledge', { p_user: userId, p_from: fromId }),
   };

@@ -25,10 +25,9 @@ checks (orden, comprobacion, ok, detalle) as (
     (select count(*) from tables where relname in ('roles', 'users', 'knowledge_bases', 'knowledge_grants', 'person_keys', 'audit_log')) = 6,
     (select string_agg(relname, ', ' order by relname) from tables)
   union all
-  select 2, 'No queda nada de la estructura multicliente',
-    not exists (select 1 from tables where relname in ('clients', 'memberships'))
-      and not exists (select 1 from api where proname not in (select proname from expected)),
-    coalesce((select string_agg(proname, ', ') from api where proname not in (select proname from expected)), 'limpio')
+  select 2, 'No hay funciones platform_* fuera de la API',
+    not exists (select 1 from api where proname not in (select proname from expected)),
+    coalesce((select string_agg(proname, ', ') from api where proname not in (select proname from expected)), 'ninguna')
   union all
   select 3, 'RLS activado en todas las tablas',
     not exists (select 1 from tables where not relrowsecurity),

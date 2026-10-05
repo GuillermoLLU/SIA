@@ -18,7 +18,7 @@ import { createUserAdmin } from './users/service.js';
 import { usersRoutes } from './users/routes.js';
 import { loadPlatformConfig } from './platform/config.js';
 import { createPlatformClient } from './platform/client.js';
-import { toAssignedBases } from './knowledge/assigned.js';
+import { toAssignedBase } from './knowledge/assigned.js';
 import { createProjects } from './projects/service.js';
 import { createKnowledge } from './knowledge/service.js';
 import { knowledgeRoutes } from './knowledge/routes.js';
@@ -170,11 +170,10 @@ const UPLOADS_DIR = path.join(WORKSPACE, 'uploads');
 fs.rmSync(UPLOADS_DIR, { recursive: true, force: true });
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
-/* Cada BASE tiene su propio rincón del workspace: workspace/bases/<id>/skills
+/* La base de conocimiento tiene su rincón del workspace: workspace/bases/<id>/skills
    (sus skills sincronizadas) y workspace/bases/<id>/modes/{auto,demand} (el cwd
-   de los chats contra esa base, con CLAUDE.md/AGENTS.md y un symlink skills →
-   las skills de esa base). Así la paleta de un chat enseña las skills de SU
-   base. Sin base (chat sin conocimiento) se usa workspace/modes/<modo>. */
+   de los chats, con CLAUDE.md/AGENTS.md y un symlink skills → esas skills).
+   Sin base (sin sesión) se usa workspace/modes/<modo>. */
 const BASES_DIR = path.join(WORKSPACE, 'bases');
 // Nombre con el que cada CLI ve el servidor MCP de conocimiento: es el que sale
 // en pantalla cada vez que un chat busca o guarda («knowledge - search_knowledge»).
@@ -235,7 +234,7 @@ const DB_FREE_ROUTES = new Set(['ping', 'version', 'lan', 'lock', 'config', 'upl
 // La config MCP se escribe POR SESIÓN con los proyectos elegidos para ese chat
 // (SIA_ALLOWED_PROJECTS: la selección del usuario dentro de su techo). La
 // conexión viaja al MCP por entorno (nunca por la conversación): la clave
-// publishable de la base y los tokens de grupo, que son lo que la base exige
+// publishable de la base y los tokens de los proyectos, que es lo que la base exige
 // para dejar ver algo (ver supabase-schema.sql). Sin base configurada no se
 // registra el MCP: el chat arranca igual, solo que sin conocimiento.
 const sessionMcpEnv = (allowedProjects, base) => ({
@@ -359,8 +358,6 @@ const skillList = (base = null) => {
     return [];
   }
 };
-// catálogo de cada base, para que la paleta de cada chat enseñe las de su base
-const skillsByBase = () => Object.fromEntries(activeBases().map((b) => [b.id, skillList(b)]));
 
 /* ── Central skills: Supabase is the source of truth ───────────────
    The bridge pulls enabled skills and rebuilds workspace/skills/ (local
@@ -377,12 +374,12 @@ const supaFetch = (url, opts = {}) => undiciFetch(url, { ...opts, dispatcher: in
 
 /* ── La base de conocimiento es DE LA INSTANCIA ─────────────────────
    Una sola, la misma para todo el mundo, y la fija la instancia
-   (platform.set_knowledge_base): ahí viven el RAG, las skills, los grupos y
-   los enlaces. Nada de conexiones en la config ni valores en el código.
+   (platform.set_knowledge_base): ahí viven el RAG, las skills, los proyectos
+   y los enlaces. Nada de conexiones en la config ni valores en el código.
 
    QUIÉN VE QUÉ lo decide la base, no este bridge: todas sus tablas están
    cerradas con Row Level Security y las políticas leen dos cabeceras que
-   SIA manda en cada petición — x-sia-tokens (tokens de grupo) y
+   SIA manda en cada petición — x-sia-tokens (los tokens de sus proyectos) y
    x-sia-power (clave de poder). Con la clave publishable a secas no se ve
    nada. Las comprobaciones que quedan aquí (techo de proyectos, permisos de
    cada vista) son para dar mensajes claros, no la barrera. La clave secret
@@ -394,14 +391,10 @@ const NO_DB_MSG = 'Sin base de conocimiento: la instancia aún no tiene la suya 
    quien inicia sesión en este bridge (el último que entra), con sus tokens de
    grupo y su clave de poder ({ id, name, url, key, tokens, powerKey }). Solo
    en memoria, nunca en la config. El MCP recibe la conexión y los proyectos. */
-let assigned = { bases: [] };
+let assigned = { base: null };
 // Lo que puede el móvil emparejado (entra sin sesión, con su llave).
 const PHONE_USER = { views: ['links'] };
-const activeBases = () => assigned.bases;
-// no hay base «principal»: cada chat y cada vista eligen la suya; la primera de
-// la lista solo sirve de valor por defecto cuando algo llega sin base
-const primaryBase = () => activeBases()[0] || null;
-const activeById = (id) => (id ? activeBases().find((b) => b.id === id) : null) || null;
+const currentBase = () => assigned.base;
 // Un cliente por base (se reutiliza mientras no cambien conexión, tokens ni
 // clave de poder): lleva en cada petición las cabeceras con las que la base
 // decide qué dejar ver. `powerKey` fuerza otra clave de poder (dev/pruebas).
@@ -424,16 +417,6 @@ const noDbClient = (() => {
   });
   return chain;
 })();
-let supabase = noDbClient;
-let hasDb = false;
-const connectSupabase = () => {
-  const b = primaryBase();
-  hasDb = !!b;
-  supabase = b ? clientFor(b) : noDbClient;
-  statusCache.clear(); // otra base, otras claves de poder
-  const n = activeBases().length;
-  console.log(hasDb ? `[sia] ${n} base${n === 1 ? '' : 's'} de conocimiento en uso: ${activeBases().map((x) => x.name).join(', ')}` : '[sia] sin base de conocimiento en uso');
-};
 
 const safeRelPath = (p) => {
   const n = path.normalize(p);
@@ -469,8 +452,8 @@ const syncSkills = async (base) => {
     if (!metas?.length) { console.warn(`[sia] sync ${base.name}: 0 skills en Supabase — conservo la copia local`); lastSyncByBase.set(base.id, Date.now()); return; }
     const { data: files, error: e2 } = await fetchAll(() => db.from('skill_files').select('skill_id, path, content').order('skill_id').order('path'));
     if (e2) throw new Error(e2.message);
-    // visibilidad: comunes (scope vacío) + las de los grupos a los que el usuario
-    // tiene token EN ESA BASE (mismos tokens que el acceso al conocimiento).
+    // visibilidad: comunes (scope vacío) + las de los proyectos cuyo token tiene
+    // la persona (los mismos tokens que el acceso al conocimiento).
     const myTokens = new Set(accessTokens(base));
     const enabled = new Set(metas.filter((m) => !m.scope || myTokens.has(m.scope)).map((m) => m.id));
     fs.rmSync(dir, { recursive: true, force: true });
@@ -492,19 +475,22 @@ const syncSkills = async (base) => {
 };
 const lastSyncByBase = new Map();
 const syncAllSkills = async () => {
-  // bases quitadas: fuera su rincón del workspace
-  const ids = new Set(activeBases().map((b) => b.id));
-  try { for (const d of fs.readdirSync(BASES_DIR)) if (!ids.has(d)) fs.rmSync(path.join(BASES_DIR, d), { recursive: true, force: true }); } catch {}
-  await Promise.all(activeBases().map((b) => syncSkills(b)));
+  // otra base (o ninguna): fuera el rincón del workspace de la anterior
+  const b = currentBase();
+  try { for (const d of fs.readdirSync(BASES_DIR)) if (d !== b?.id) fs.rmSync(path.join(BASES_DIR, d), { recursive: true, force: true }); } catch {}
+  await syncSkills(b);
 };
 const maybeSyncSkills = () => {
-  for (const b of activeBases()) if (Date.now() - (lastSyncByBase.get(b.id) || 0) > 60_000) syncSkills(b);
+  const b = currentBase();
+  if (b && Date.now() - (lastSyncByBase.get(b.id) || 0) > 60_000) syncSkills(b);
 };
-// Cambiar de base (o quitarla): reconectar y, como otra base son otras skills,
-// vaciar la copia local y volver a traerlas.
-const applyDbConnection = async () => {
-  connectSupabase();
+// Otra base asignada (o ninguna, al salir): fuera los permisos cacheados de la
+// anterior y, como son otras skills, vaciar la copia local y volver a traerlas.
+const applyBase = async () => {
+  const b = currentBase();
+  statusCache.clear();
   lastSyncByBase.clear();
+  console.log(b ? `[sia] base de conocimiento en uso: ${b.name}` : '[sia] sin base de conocimiento en uso');
   await syncAllSkills();
 };
 
@@ -589,10 +575,10 @@ const lockTry = (key) => {
 const platform = createPlatformClient({ ...(loadPlatformConfig(ROOT) || { url: '', key: '' }), fetch });
 const auth = createAuth({ platform, readConfig: readUserConfig, writeConfig: writeUserConfig });
 const users = createUserAdmin({ platform });
-// Grupos de una base de conocimiento (access_groups) con su clave de poder;
-// fetch de Node, con TLS verificado (viaja una clave de poder). Antes, la
-// base dice qué abre esa clave (sia_status): tiene que ser de esa base y abrir
-// la Administración. Si no, la base no da error, solo una lista vacía.
+// Los grupos de acceso de la base (access_groups: uno por proyecto) con la
+// clave del dueño; fetch de Node, con TLS verificado (viaja una clave de
+// poder). Antes, la base dice qué abre esa clave (sia_status): tiene que
+// abrir la Administración. Si no, la base no da error, solo una lista vacía.
 const readGroups = async ({ url, key, powerKey }) => {
   const db = createClient(url, key, { global: { fetch, headers: siaHeaders([], powerKey) }, auth: { persistSession: false } });
   const { data: status, error: e1 } = await db.rpc('sia_status');
@@ -626,15 +612,15 @@ const loadAssigned = async (token) => {
         .then((problems) => problems.forEach((p) => console.warn(`[sia] clave de poder de una persona: ${p}`)))
         .catch((e) => console.warn(`[sia] no se pudieron revisar las claves de las personas: ${e.message}`));
     }
-    const next = { bases: toAssignedBases(await knowledge.mine(ctx.accessToken)) };
+    const next = { base: toAssignedBase(await knowledge.mine(ctx.accessToken)) };
     if (JSON.stringify(next) === JSON.stringify(assigned)) return;
     assigned = next;
-    await applyDbConnection();
+    await applyBase();
   } catch (e) { console.warn(`[sia] no se pudo cargar el conocimiento asignado: ${e.message}`); }
 };
 const clearAssigned = async () => {
-  assigned = { bases: [] };
-  await applyDbConnection();
+  assigned = { base: null };
+  await applyBase();
 };
 // Del inicio de sesión local anterior: fuera los usuarios y sus sesiones.
 {
@@ -700,12 +686,12 @@ const cleanEnv = (env) => {
   return e;
 };
 
-// Acceso al conocimiento: los tokens de grupo de la persona → proyectos
+// Acceso al conocimiento: los tokens de la persona → proyectos
 // permitidos (unión de lo que concede cada token). Default-deny: sin tokens
 // válidos, no se ve nada. La base aplica la misma regla por su cuenta (los
 // tokens van en la cabecera): esta lectura solo devuelve lo que ella deja ver.
-const accessTokens = (base = primaryBase()) => (base ? base.tokens : []);
-const accessibleProjects = async (base = primaryBase()) => {
+const accessTokens = (base = currentBase()) => (base ? base.tokens : []);
+const accessibleProjects = async (base = currentBase()) => {
   const tokens = accessTokens(base);
   if (!base || !base.key || !tokens.length) return [];
   // base sin el esquema blindado: no se usa hasta que su dueño ejecute el SQL
@@ -784,7 +770,7 @@ const readBody = (req) => new Promise((resolve, reject) => {
 });
 const authRoute = authRoutes(auth, { json, readBody, onSession: loadAssigned, onLogout: clearAssigned, platform });
 const syncKeys = (jwt, userId, opts) => knowledge.syncPeople(jwt, userId ? [userId] : null, opts);
-const usersRoute = usersRoutes(users, auth, { json, readBody, syncKeys, assignKnowledge: (jwt, userId, baseId, ids) => knowledge.setGroups(jwt, userId, baseId, ids) });
+const usersRoute = usersRoutes(users, auth, { json, readBody, syncKeys, assignKnowledge: (jwt, userId, ids) => knowledge.setProjects(jwt, userId, ids) });
 const knowledgeRoute = knowledgeRoutes(knowledge, auth, { json, readBody, syncKeys, onChange: loadAssigned });
 const validId = (s) => typeof s === 'string' && /^[a-z0-9][a-z0-9_-]{1,63}$/i.test(s);
 let uploadSeq = 0;
@@ -921,18 +907,17 @@ setInterval(() => {
 
 const apiServer = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-SIA-Base, X-SIA-LAN, X-SIA-Auth');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-SIA-LAN, X-SIA-Auth');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
 
   const url = new URL(req.url, 'http://localhost');
   const parts = url.pathname.split('/').filter(Boolean);
-  // Base sobre la que actúa esta petición (Laboratorio, Administración, claves,
-  // enlaces): cabecera X-SIA-Base o ?base=; si no, la principal.
-  const viewBase = activeById(req.headers['x-sia-base'] || url.searchParams.get('base')) || primaryBase();
-  const db = viewBase ? clientFor(viewBase) : noDbClient;
-  const perms = await permsFor(viewBase); // permisos en esa base, o null
-  const role = perms ? (perms.owner ? 'superadmin' : 'admin') : null; // resumen para la UI
+  // la base de conocimiento (la de la instancia) y lo que abre en ella la
+  // clave de poder de quien ha iniciado sesión
+  const knowledgeBase = currentBase();
+  const db = knowledgeBase ? clientFor(knowledgeBase) : noDbClient;
+  const perms = await permsFor(knowledgeBase);
 
   // ── Cortafuegos: solo localhost entra sin llave ──
   if (!isLoopback(req)) {
@@ -1052,12 +1037,12 @@ const apiServer = http.createServer(async (req, res) => {
 
     // Sin base de conocimiento solo funciona lo que no la necesita (terminal,
     // móvil, config personal, adjuntos). Lo demás: 503 con aviso claro.
-    if (!viewBase && !DB_FREE_ROUTES.has(parts[1])) return json(res, 503, { error: NO_DB_MSG, noDb: true });
+    if (!knowledgeBase && !DB_FREE_ROUTES.has(parts[1])) return json(res, 503, { error: NO_DB_MSG, noDb: true });
     // versión instalada vs. última publicada (para avisar de actualizaciones)
     if (parts[1] === 'version' && req.method === 'GET') {
       let latest = null;
       try {
-        const { data } = await supabase.from('app_version').select('version, url, notes').eq('id', 1).single();
+        const { data } = await db.from('app_version').select('version, url, notes').eq('id', 1).single();
         if (data) latest = data;
       } catch { /* tabla ausente / sin red: sin aviso */ }
       const newer = latest && isNewer(latest.version, APP_VERSION);
@@ -1196,12 +1181,8 @@ const apiServer = http.createServer(async (req, res) => {
       return json(res, 404, { error: 'no encontrado' });
     }
     if (parts[1] === 'admin' && parts[2] === 'check') {
-      // por base: qué abre su clave de poder y si le falta el esquema blindado
-      // (needsSchema: hay que volver a ejecutar el SQL; hasta entonces la base
-      // no deja ver nada).
-      const bases = [];
-      for (const b of activeBases()) bases.push({ id: b.id, name: b.name, hasTokens: b.tokens.length > 0, perms: await permsFor(b), needsSchema: await needsSchema(b) });
-      return json(res, 200, { gated: true, role, perms, base: viewBase?.id || null, bases });
+      // qué abre en la base la clave de poder de quien ha iniciado sesión
+      return json(res, 200, { base: { perms } });
     }
 
     if (parts[1] === 'admin' && parts[2] && parts[2] !== 'check') {
@@ -1213,7 +1194,7 @@ const apiServer = http.createServer(async (req, res) => {
           if (!parts[3] && req.method === 'POST') return json(res, 200, await projects.create(db, (await readBody(req)).name));
           if (parts[3] && req.method === 'DELETE') {
             await projects.remove(db, Number(parts[3]));
-            await syncSkills(viewBase); // las skills de su token se van con él: fuera de la copia local
+            await syncSkills(knowledgeBase); // las skills de su token se van con él: fuera de la copia local
             return json(res, 200, { ok: true });
           }
         } catch (e) { return json(res, e.status || 500, { error: e.message }); }
@@ -1264,9 +1245,7 @@ const apiServer = http.createServer(async (req, res) => {
     // proyectos accesibles para los tokens del usuario (selector de fuentes,
     // siempre fresco — no depende del WS)
     if (parts[1] === 'access' && parts[2] === 'projects' && req.method === 'GET') {
-      // base explícita (?base=) o la de la vista (X-SIA-Base); si no, la primera activa
-      const base = activeById(url.searchParams.get('base')) || viewBase;
-      return json(res, 200, await accessibleProjects(base));
+      return json(res, 200, await accessibleProjects(knowledgeBase));
     }
     /* ── Enlaces rápidos por proyecto ────────────────────────────────
        Compartidos con todo el equipo. LEER puede cualquiera, acotado a los
@@ -1274,7 +1253,7 @@ const apiServer = http.createServer(async (req, res) => {
        regla de default-deny). CREAR / EDITAR / BORRAR exige rol admin — el
        mismo gate que publicar skills. */
     if (parts[1] === 'links') {
-      const allowed = (await accessibleProjects(viewBase)).map((p) => p.id);
+      const allowed = (await accessibleProjects(knowledgeBase)).map((p) => p.id);
 
       if (req.method === 'GET' && !parts[2]) {
         if (!allowed.length) return json(res, 200, []);
@@ -1363,18 +1342,17 @@ const apiServer = http.createServer(async (req, res) => {
       return res.end(fs.readFileSync(fp));
     }
 
-    // gate del Laboratorio: permiso «lab» (el owner lo tiene)
+    // gate del Laboratorio: permiso «lab» en la base (el dueño lo tiene)
     const labOp = parts[1] === 'drafts' || parts[1] === 'groups'
       || (parts[1] === 'skills' && (req.method === 'DELETE' || parts[2] === 'publish'));
-    if (labOp && !perms?.lab) return json(res, 401, { error: 'tu clave de poder no abre el Laboratorio' });
+    if (labOp && !perms?.lab) return json(res, 403, { error: 'Sin acceso al Laboratorio.' });
 
-    // grupos de acceso (para el selector de visibilidad del Lab)
+    // proyectos para el selector de visibilidad del Laboratorio: solo los que
+    // la persona ve (una skill de proyecto solo se publica donde uno tiene acceso)
     if (parts[1] === 'groups' && req.method === 'GET') {
-      // solo los grupos a los que el usuario tiene token en esta base: una skill
-      // de grupo solo se publica donde uno tiene acceso
       const { data, error } = await db.from('access_groups').select('token, name').order('name');
       if (error) return json(res, 500, { error: error.message });
-      const mine = new Set(accessTokens(viewBase));
+      const mine = new Set(accessTokens(knowledgeBase));
       return json(res, 200, (data || []).filter((g) => mine.has(g.token)));
     }
 
@@ -1382,20 +1360,20 @@ const apiServer = http.createServer(async (req, res) => {
     if (parts[1] === 'skills' && req.method === 'GET' && !parts[2]) {
       const { data, error } = await db.from('skills').select('*').order('id');
       if (error) return json(res, 500, { error: error.message });
-      // el owner: todas. Los demás: solo las de SUS grupos (no comunes, no de otros).
+      // el dueño: todas. Los demás: solo las de SUS proyectos (no comunes, no de otros).
       const list = perms?.owner
         ? data
-        : data.filter((s) => s.scope && accessTokens(viewBase).includes(s.scope));
-      // nombre del grupo de cada skill: el owner ve skills de grupos de los que
-      // no tiene token, y sin el nombre la UI solo podría pintar el token (que
-      // es una credencial de acceso, no algo que enseñar en una tarjeta)
+        : data.filter((s) => s.scope && accessTokens(knowledgeBase).includes(s.scope));
+      // nombre del proyecto de cada skill: el dueño ve skills de proyectos de
+      // los que no tiene token, y sin el nombre la UI solo podría pintar el
+      // token (una credencial de acceso, no algo que enseñar en una tarjeta)
       const { data: grps } = await db.from('access_groups').select('token, name');
       const names = new Map((grps || []).map((g) => [g.token, g.name]));
       return json(res, 200, list.map((s) => ({ ...s, scopeName: s.scope ? names.get(s.scope) || null : null })));
     }
     if (parts[1] === 'skills' && req.method === 'POST' && parts[2] === 'refresh') {
-      await syncSkills(viewBase); // Supa → workspace/bases/<id>/skills (la paleta lo ve al momento)
-      return json(res, 200, { ok: true, skills: skillList(viewBase), base: viewBase.id });
+      await syncSkills(knowledgeBase); // Supa → workspace/bases/<id>/skills (la paleta lo ve al momento)
+      return json(res, 200, { ok: true, skills: skillList(knowledgeBase) });
     }
     if (parts[1] === 'skills' && req.method === 'POST' && parts[2] === 'publish') {
       const { id, files, scope } = await readBody(req);
@@ -1406,7 +1384,7 @@ const apiServer = http.createServer(async (req, res) => {
       const { data: existing } = await db.from('skills').select('scope').eq('id', id).maybeSingle();
       const touchesCommon = !newScope || (existing && !existing.scope);
       if (touchesCommon && !perms?.owner) {
-        return json(res, 403, { error: 'Solo el owner de la base crea o edita skills comunes. Elige un grupo en «Visibilidad».' });
+        return json(res, 403, { error: 'Las skills comunes solo las crea o edita quien tiene Administración. Elige un proyecto en «Visibilidad».' });
       }
       const skillMd = files.find((f) => f.path === 'SKILL.md');
       if (!skillMd) return json(res, 400, { error: 'falta SKILL.md' });
@@ -1426,7 +1404,7 @@ const apiServer = http.createServer(async (req, res) => {
       if (e2) return json(res, 500, { error: e2.message });
       const { error: e3 } = await db.from('skill_files').insert(files.map((f) => ({ skill_id: id, path: safeRelPath(f.path), content: f.content })));
       if (e3) return json(res, 500, { error: e3.message });
-      await syncSkills(viewBase);
+      await syncSkills(knowledgeBase);
       return json(res, 200, { ok: true, id, files: files.length });
     }
     if (parts[1] === 'skills' && req.method === 'DELETE' && parts[2]) {
@@ -1434,12 +1412,12 @@ const apiServer = http.createServer(async (req, res) => {
       if (!validId(id)) return json(res, 400, { error: 'id inválido' });
       const { data: existing } = await db.from('skills').select('scope').eq('id', id).maybeSingle();
       if (existing && !existing.scope && !perms?.owner) {
-        return json(res, 403, { error: 'Solo el owner de la base borra skills comunes.' });
+        return json(res, 403, { error: 'Las skills comunes solo las borra quien tiene Administración.' });
       }
       const { error } = await db.from('skills').delete().eq('id', id); // skill_files cae por cascade
       if (error) return json(res, 500, { error: error.message });
-      fs.rmSync(path.join(skillsDirFor(viewBase), id), { recursive: true, force: true });
-      await syncSkills(viewBase);
+      fs.rmSync(path.join(skillsDirFor(knowledgeBase), id), { recursive: true, force: true });
+      await syncSkills(knowledgeBase);
       return json(res, 200, { ok: true, deleted: id });
     }
     if (parts[1] === 'skills' && req.method === 'GET' && parts[2]) {
@@ -1496,8 +1474,7 @@ apiServer.on('error', (err) => {
 });
 apiServer.listen(API_PORT, () => console.log(`[sia] lab API en http://localhost:${API_PORT}`));
 
-connectSupabase(); // las bases del usuario (config personal); sin ninguna, modo "solo terminal"
-await syncAllSkills();
+await applyBase(); // sin sesión aún: sin base (llega al iniciar sesión)
 
 // Dos puertas al MISMO bridge: el puerto dedicado (escritorio, dev) y la ruta
 // /ws colgada del servidor HTTP. La segunda existe por el túnel: por Cloudflare
@@ -1576,7 +1553,7 @@ const handleConnection = (ws, req) => {
   maybeSyncSkills(); // refresh the catalog in the background (next chat sees it)
 
   accessibleProjects().then((projects) =>
-    send(ws, { type: 'launchers', list: launcherList(), skills: skillList(primaryBase()), skillsByBase: skillsByBase(), sessions: sessionList(), accessProjects: projects, bases: activeBases().map((b) => ({ id: b.id, name: b.name })) }));
+    send(ws, { type: 'launchers', list: launcherList(), skills: skillList(currentBase()), sessions: sessionList(), accessProjects: projects }));
 
   const bind = (s) => {
     // Un socket por sesión. 4409 = "otro dispositivo tomó los chats": el cliente
@@ -1589,7 +1566,7 @@ const handleConnection = (ws, req) => {
   };
 
   let starting = false;
-  const start = async (launcherId, knowledge, projects, cols, rows, baseId) => {
+  const start = async (launcherId, knowledge, projects, cols, rows) => {
     if (sess || starting) return;
     starting = true;
     try {
@@ -1606,7 +1583,7 @@ const handleConnection = (ws, req) => {
       let allowedProjects = [];
       let base = null;
       if (def.modes) {
-        base = activeById(baseId) || primaryBase();
+        base = currentBase();
         const ceiling = (await accessibleProjects(base)).map((p) => p.id);
         const picked = Array.isArray(projects) && projects.length
           ? ceiling.filter((id) => projects.includes(id))
@@ -1660,8 +1637,7 @@ const handleConnection = (ws, req) => {
         id: sessionId,
         term,
         buffer: '',
-        // con varias bases, la pestaña lleva el nombre de la base como pista
-        meta: { launcher: def.id, knowledge: def.modes ? mode : null, label: base && activeBases().length > 1 ? `${def.label} · ${base.name}` : def.label, color: null, base: base?.id || null, baseName: base?.name || null },
+        meta: { launcher: def.id, knowledge: def.modes ? mode : null, label: def.label, color: null },
         assets: [], // adjuntos compartidos en esta sesión (persisten con ella)
         ws: null,
       };
@@ -1697,7 +1673,7 @@ const handleConnection = (ws, req) => {
       if (s) s.lastSeen = Date.now();
     }
     if (msg.type === 'start') {
-      start(msg.launcher, msg.knowledge, msg.projects, msg.cols, msg.rows, msg.base);
+      start(msg.launcher, msg.knowledge, msg.projects, msg.cols, msg.rows);
     } else if (msg.type === 'attach') {
       const s = SESSIONS.get(msg.sessionId);
       if (!s) { send(ws, { type: 'gone' }); return; }

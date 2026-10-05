@@ -2,8 +2,8 @@
 // la exige el bridge antes de llegar aquí). La base vuelve a comprobarlo todo
 // con el JWT de quien llama.
 //   GET    /      → { users }
-//   POST   /      { email, name, password, role, knowledge? } → { user, warning? }
-//                 knowledge = { baseId: [ids de grupo] }: lo que verá desde el alta
+//   POST   /      { email, name, password, role, projects? } → { user, warning? }
+//                 projects = [ids]: los proyectos que verá desde el alta
 //   PUT    /:id   { name?, role?, views?, active?, password? } → { ok }
 //                 role: id de rol (pone sus vistas); views sueltas: personalizado
 //   DELETE /:id   → { ok }
@@ -16,9 +16,8 @@
 // un rol (null: de todos), y las quita antes de borrar a alguien; si algo
 // falla, se avisa en `warning`.
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-const keysWarning = (problems) => (problems.length ? { warning: `Hecho, pero sin su clave de poder en alguna base: ${problems[0]}` } : {});
+import { isUuid } from '../shared/ids.js';
+import { keysWarning } from '../knowledge/person-keys.js';
 
 export const usersRoutes = (users, auth, { json, readBody, assignKnowledge, syncKeys }) => async (req, res, [id, sub]) => {
   const token = req.headers['x-sia-auth'];
@@ -27,7 +26,7 @@ export const usersRoutes = (users, auth, { json, readBody, assignKnowledge, sync
     if (!ctx) return json(res, 401, { error: 'Inicia sesión.' });
     const jwt = ctx.accessToken;
     if (id === 'roles') {
-      if (sub && !UUID.test(sub)) return json(res, 404, { error: 'Ese rol no existe.' });
+      if (sub && !isUuid(sub)) return json(res, 404, { error: 'Ese rol no existe.' });
       if (!sub && req.method === 'GET') return json(res, 200, { roles: await users.roles(jwt) });
       if (!sub && req.method === 'POST') { const { name, views } = await readBody(req); return json(res, 200, { id: await users.saveRole(jwt, null, { name, views }) }); }
       if (sub && req.method === 'PUT') {
@@ -38,21 +37,20 @@ export const usersRoutes = (users, auth, { json, readBody, assignKnowledge, sync
       if (sub && req.method === 'DELETE') { await users.removeRole(jwt, sub); return json(res, 200, { ok: true }); }
       return json(res, 404, { error: 'no encontrado' });
     }
-    if (id && !UUID.test(id)) return json(res, 404, { error: 'Ese usuario no existe.' });
+    if (id && !isUuid(id)) return json(res, 404, { error: 'Ese usuario no existe.' });
 
     if (!id && req.method === 'GET') return json(res, 200, { users: await users.list(jwt) });
     if (!id && req.method === 'POST') {
-      const { email, name, password, role, knowledge } = await readBody(req);
+      const { email, name, password, role, projects } = await readBody(req);
       const user = await users.create(jwt, { email, name, password, role });
-      // el conocimiento elegido en el alta, base a base; la persona ya existe:
-      // si algo falla se avisa, no se deshace el alta
-      const failed = [];
-      for (const [baseId, ids] of Object.entries(knowledge || {})) {
-        if (!UUID.test(baseId) || !Array.isArray(ids) || !ids.length) continue;
-        try { await assignKnowledge(jwt, user.id, baseId, ids); } catch (e) { failed.push(e.message); }
+      // los proyectos elegidos en el alta; la persona ya existe: si algo
+      // falla se avisa, no se deshace el alta
+      let failed = null;
+      if (Array.isArray(projects) && projects.length) {
+        try { await assignKnowledge(jwt, user.id, projects); } catch (e) { failed = e.message; }
       }
       const keys = keysWarning(await syncKeys(jwt, user.id));
-      return json(res, 200, { user, ...(failed.length ? { warning: `Creada, pero no se pudo asignar parte de su conocimiento: ${failed[0]}` } : keys) });
+      return json(res, 200, { user, ...(failed ? { warning: `Creada, pero no se pudo asignar su conocimiento: ${failed}` } : keys) });
     }
     if (id && req.method === 'PUT') {
       const { name, role, views, active, password } = await readBody(req);

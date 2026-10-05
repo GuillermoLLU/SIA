@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { keyPerms, planKeys, keyName } from './person-keys.js';
+import { keyPerms, planKeys, keyName, keysWarning } from './person-keys.js';
 
 const person = (views, active = true) => ({ email: 'paula@x.com', active, views });
-const none = { lab: false, admin: false, links: false, invite: false };
+const none = { lab: false, admin: false, links: false };
 
 test('keyPerms: solo las vistas que son permiso en la base', () => {
   assert.deepEqual(keyPerms(person(['links', 'people', 'lab'])), ['lab', 'links']);
@@ -33,4 +33,9 @@ test('la quita si pierde las vistas, si se desactiva o si la base ya no está', 
 
 test('sin la clave de la instancia en esa base no se puede crear', () => {
   assert.deepEqual(planKeys(person(['links']), new Set(), new Map()), []);
+});
+
+test('keysWarning: aviso solo si hubo problemas', () => {
+  assert.deepEqual(keysWarning([]), {});
+  assert.match(keysWarning(['la base no responde']).warning, /la base no responde/);
 });

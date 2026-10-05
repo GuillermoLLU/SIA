@@ -137,8 +137,8 @@ body { display: flex; flex-direction: column; }
   border: 1px solid var(--border); color: var(--text-low);
   white-space: nowrap;
 }
-/* la del grupo es la única de largo libre: es la que cede, con «…» */
-.lab-card .badge.scope { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* la del proyecto es la única de largo libre: es la que cede, con «…» */
+.lab-card .badge.scope { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--accent); border-color: var(--accent); }
 .lab-card .badge.draft { color: #e0af68; border-color: #e0af68; }
 .lab-card .badge.off { color: #f25f5c; border-color: #f25f5c; }
 .lab-card-desc {
@@ -189,7 +189,6 @@ body { display: flex; flex-direction: column; }
   background: var(--bg); color: var(--text); font-size: 12.5px; cursor: pointer;
 }
 .lab-scope:focus { outline: none; border-color: var(--accent); }
-.lab-card .badge.scope { color: var(--accent); border-color: var(--accent); }
 
 .lab-btn.danger { color: #f25f5c; display: inline-flex; align-items: center; }
 .lab-btn.danger:hover { background: color-mix(in srgb, #f25f5c 14%, transparent); border-color: #f25f5c; }
@@ -227,7 +226,7 @@ body { display: flex; flex-direction: column; }
 .view.admin-view { flex-direction: row; height: 100%; align-items: stretch; }
 .tnum { font-variant-numeric: tabular-nums; }
 
-/* Barra lateral de secciones (grupos) — a todo el alto */
+/* Barra lateral de Administración (proyectos) — a todo el alto */
 .admin-rail {
   width: 270px; flex-shrink: 0; height: 100%;
   display: flex; flex-direction: column;
@@ -286,6 +285,7 @@ body { display: flex; flex-direction: column; }
 /* Rejilla de tarjetas (proyectos / contextos) que LLENA el ancho */
 .admin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
 .admin-card {
+  position: relative;
   border: 1px solid var(--border); border-radius: 0; background: var(--surface);
   padding: 16px 18px; cursor: pointer; display: flex; flex-direction: column; gap: 10px; min-height: 120px;
   transition: border-color 0.15s ease, transform 0.08s ease, background 0.15s ease;
@@ -297,6 +297,9 @@ body { display: flex; flex-direction: column; }
 .admin-card.new { align-items: center; justify-content: center; border-style: dashed; background: transparent; color: var(--text-low); font-size: 14px; gap: 8px; }
 .admin-card.new:hover { border-color: var(--accent); color: var(--accent); background: transparent; }
 .admin-card.new .plus { font-size: 24px; }
+/* acciones de la card al pasar el ratón (papelera) */
+.admin-card .ac-actions { position: absolute; top: 6px; right: 6px; display: flex; gap: 2px; opacity: 0; transition: opacity .12s ease; }
+.admin-card:hover .ac-actions, .admin-card:focus-within .ac-actions { opacity: 1; }
 
 /* bloques en la vista de proyecto */
 .admin-block { margin-top: 30px; }
@@ -485,14 +488,12 @@ body { display: flex; flex-direction: column; }
 .theme-toggle svg { width: 15px; height: 15px; }
 .settings-pane[hidden] { display: none; }
 /* cada pestaña de Configuración llena el alto del modal */
-.settings-main { display: flex; flex-direction: column; }
 .settings-pane { flex: 1; }
 
-#view-base-pick .launcher { padding: 24px; }
 
-/* ── Configuración: layout en dos columnas ─────────────────── */
+/* ── Configuración: el cuerpo, con scroll, bajo las pestañas ─────── */
 .settings-layout { flex: 1; display: flex; min-height: 0; }
-.settings-main { flex: 1; min-width: 0; padding: 20px; overflow-y: auto; }
+.settings-main { flex: 1; min-width: 0; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; }
 .settings-foot {
   flex-shrink: 0; padding: 9px 20px;
   border-top: 1px solid var(--border);
@@ -1177,10 +1178,6 @@ body.phone #nav-links, body.phone #view-links { display: none; }
 .lab-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .lab-btn.primary:disabled { opacity: 0.45; }
 
-/* cards de proyecto: acciones al pasar el ratón (mover, papelera); «mover» despliega un menú con los otros grupos pegado a la card */
-.admin-card { position: relative; }
-.admin-card .ac-actions { position: absolute; top: 6px; right: 6px; display: flex; gap: 2px; opacity: 0; transition: opacity .12s ease; }
-.admin-card:hover .ac-actions, .admin-card:focus-within .ac-actions { opacity: 1; }
 /* texto de entrada de un diálogo */
 .dlg-lead { margin: 0 0 12px; font-size: 13px; color: var(--text-low); line-height: 1.5; }
 .dlg-lead strong { color: var(--text); }

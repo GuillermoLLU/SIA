@@ -9,8 +9,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.dirname(path.dirname(path.dirname(fileURLToPath(import.meta.url))));
-export const SCHEMA_SQL = path.join(ROOT, 'supabase-schema.sql');
-export const COMMON_SKILLS_DIR = path.join(ROOT, 'skills', 'common');
+const SCHEMA_SQL = path.join(ROOT, 'supabase-schema.sql');
+const COMMON_SKILLS_DIR = path.join(ROOT, 'skills', 'common');
 export const OWNER_KEY_PLACEHOLDER = '__SIA_OWNER_KEY__';
 
 const parseFrontmatter = (src) => {
@@ -43,8 +43,8 @@ const lit = (s) => {
 export const commonSkillsSql = (dir = COMMON_SKILLS_DIR) => {
   if (!fs.existsSync(dir)) return '';
   const out = ['', '-- ── Skills comunes de SIA ──────────────────────────────────────',
-    '-- Vienen con la app (skills/common/). Comunes = scope nulo: las ven todos los',
-    '-- grupos. Se actualizan en cada ejecución; las demás skills no se tocan.'];
+    '-- Vienen con la app (skills/common/). Comunes = scope nulo: las ve todo el',
+    '-- mundo. Se actualizan en cada ejecución; las demás skills no se tocan.'];
   for (const id of fs.readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name).sort()) {
     const files = walk(path.join(dir, id));
     const skillMd = files.find((f) => f.path === 'SKILL.md');

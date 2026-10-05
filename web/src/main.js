@@ -15,6 +15,8 @@ import { VIEWS } from './users/views.js';
 import { mountIssuesView } from './issues/issues-view.js';
 import { mountWorkView } from './work/work-view.js';
 import { mountMetricsView } from './metrics/metrics-view.js';
+import { mountProjectsView } from './projects/projects-view.js';
+import { esc, fold } from './ui/html.js';
 import { createUsersApi } from './users/users-api.js';
 import { mountPeopleView } from './users/people-view.js';
 import { createKnowledgeApi } from './knowledge/knowledge-api.js';
@@ -477,9 +479,7 @@ const KNOWLEDGE_MODES = [
   },
 ];
 
-let accessProjects = []; // proyectos a los que dan acceso tus tokens en la base principal (del bridge)
-let knownBases = [];     // bases configuradas [{id, name}] (del bridge)
-const BASE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="1"/><rect x="3" y="14" width="18" height="6" rx="1"/><path d="M7 7h.01M7 17h.01"/></svg>';
+let accessProjects = []; // proyectos que ves en la base de conocimiento (del bridge)
 const SOURCE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>';
 
 const renderChooser = (s, launchers) => {
@@ -523,10 +523,7 @@ const renderKnowledgeStep = async (s, launcher) => {
     const btn = document.createElement('button');
     btn.className = 'launcher-btn wide';
     btn.innerHTML = `<span class="launcher-ico">${m.icon}</span><span class="launcher-name">${m.label}</span><span class="launcher-desc">${m.desc}</span>`;
-    // con varias bases, elegir contra cuál; si no, directo a las fuentes de la principal
-    btn.addEventListener('click', () => (knownBases.length > 1
-      ? renderBaseStep(s, launcher, m.id)
-      : proceedSources(s, launcher, m.id, knownBases[0]?.id || null, accessProjects)));
+    btn.addEventListener('click', () => proceedSources(s, launcher, m.id, accessProjects));
     grid.appendChild(btn);
   });
 
@@ -538,41 +535,13 @@ const renderKnowledgeStep = async (s, launcher) => {
   s.chooser.append(title, grid, back);
 };
 
-// si la base da acceso a >1 proyecto, pasar por el selector de fuentes; si no, lanzar
-const proceedSources = (s, launcher, mode, baseId, projects) => (projects.length > 1
-  ? renderSourcesStep(s, launcher, mode, baseId, projects)
-  : launchSession(s, launcher, mode, projects.map((p) => p.id), baseId));
+// con más de un proyecto, pasar por el selector de fuentes; si no, lanzar
+const proceedSources = (s, launcher, mode, projects) => (projects.length > 1
+  ? renderSourcesStep(s, launcher, mode, projects)
+  : launchSession(s, launcher, mode, projects.map((p) => p.id)));
 
-// Paso 3 (solo con varias bases): ¿contra qué base trabaja este chat? Cada
-// chat ataca una sola base; la principal va primero y preseleccionada.
-const renderBaseStep = (s, launcher, mode) => {
-  s.chooser.innerHTML = '';
-  const title = document.createElement('div');
-  title.className = 'launcher-title';
-  title.textContent = '¿Contra qué base de conocimiento?';
-  const grid = document.createElement('div');
-  grid.className = 'launcher-grid';
-  knownBases.forEach((b) => {
-    const btn = document.createElement('button');
-    btn.className = 'launcher-btn wide';
-    btn.innerHTML = `<span class="launcher-ico">${BASE_ICON}</span><span class="launcher-name">${esc(b.name)}</span><span class="launcher-desc">conocimiento y skills de esta base</span>`;
-    btn.addEventListener('click', async () => {
-      btn.disabled = true;
-      let projects = [];
-      try { projects = await api(`/access/projects?base=${encodeURIComponent(b.id)}`); } catch {}
-      proceedSources(s, launcher, mode, b.id, projects);
-    });
-    grid.appendChild(btn);
-  });
-  const back = document.createElement('button');
-  back.className = 'launcher-back';
-  back.textContent = '← volver';
-  back.addEventListener('click', () => renderKnowledgeStep(s, launcher));
-  s.chooser.append(title, grid, back);
-};
-
-// Paso 4 (solo si hay acceso a varios proyectos): elegir las fuentes del chat.
-const renderSourcesStep = (s, launcher, mode, baseId, projects) => {
+// Paso 3 (solo con varios proyectos): elegir las fuentes del chat.
+const renderSourcesStep = (s, launcher, mode, projects) => {
   s.chooser.innerHTML = '';
   const title = document.createElement('div');
   title.className = 'launcher-title';
@@ -600,12 +569,12 @@ const renderSourcesStep = (s, launcher, mode, baseId, projects) => {
   const go = document.createElement('button');
   go.className = 'lab-btn primary';
   go.textContent = 'Abrir chat';
-  go.addEventListener('click', () => launchSession(s, launcher, mode, [...selected], baseId));
+  go.addEventListener('click', () => launchSession(s, launcher, mode, [...selected]));
 
   const back = document.createElement('button');
   back.className = 'launcher-back';
   back.textContent = '← volver';
-  back.addEventListener('click', () => (knownBases.length > 1 ? renderBaseStep(s, launcher, mode) : renderKnowledgeStep(s, launcher)));
+  back.addEventListener('click', () => renderKnowledgeStep(s, launcher));
 
   s.chooser.append(title, grid, go, back);
 };
@@ -719,10 +688,9 @@ const sendMeta = (s) => {
 };
 
 /* Actually open the chosen launcher: create the terminal + start the pty. */
-const launchSession = (s, launcher, knowledge = null, projects = null, base = null) => {
+const launchSession = (s, launcher, knowledge = null, projects = null) => {
   if (s.launched) return;
   s.launcher = launcher.id;
-  s.base = base;
 
   // name the tab after the launcher (user can still rename)
   if (!s.renamed) {
@@ -737,7 +705,7 @@ const launchSession = (s, launcher, knowledge = null, projects = null, base = nu
   requestAnimationFrame(() => requestAnimationFrame(() => {
     try { s.fit.fit(); } catch {}
     s.ws.send(JSON.stringify({
-      type: 'start', launcher: launcher.id, knowledge, projects, base,
+      type: 'start', launcher: launcher.id, knowledge, projects,
       cols: s.term.cols, rows: s.term.rows,
     }));
   }));
@@ -767,7 +735,6 @@ const createSession = (opts) => {
 
   const s = {
     id, label, pane, chooser, termHost,
-    base: opts?.attach?.base || null, // base de conocimiento del chat (para la paleta)
     term: null, fit: null, ws: null, passive,
     tab: null, dot: null, status: 'idle',
     launched: false, renamed: !!attach?.label, launcher: attach?.launcher || null,
@@ -833,9 +800,8 @@ const connectSession = (s, attach) => {
     try { m = JSON.parse(e.data); } catch { return; }
     switch (m.type) {
       case 'launchers':
-        skillsByBase = m.skillsByBase || {};
+        paletteSkills = m.skills || [];
         accessProjects = m.accessProjects || [];
-        knownBases = m.bases || [];
         if (!s.launched && !attach) renderChooser(s, m.list);
         if (!bootstrapped) {
           bootstrapped = true;
@@ -1335,13 +1301,8 @@ document.addEventListener('mousedown', (e) => {
 });
 
 /* ── Skills command palette (⌘K) ──────────────────────────────── */
-// catálogo de skills por base; la paleta enseña las de la base del chat activo
-let skillsByBase = {};
-const currentSkills = () => {
-  const s = activeId ? sessions.get(activeId) : null;
-  const base = s?.base || knownBases[0]?.id || null;
-  return (base && skillsByBase[base]) || [];
-};
+// las skills de la base de conocimiento, las que enseña la paleta
+let paletteSkills = [];
 const skillsBtn = document.getElementById('skills-btn');
 const palette = document.getElementById('skills-palette');
 const paletteInput = document.getElementById('palette-input');
@@ -1351,7 +1312,6 @@ let paletteItems = []; // filtered skills currently shown
 let paletteIndex = 0;
 
 // diacritics/case-insensitive matching ("nutricion" finds "Nutrición")
-const fold = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 const applySkill = (sk) => {
   const active = activeId ? sessions.get(activeId) : null;
@@ -1384,8 +1344,8 @@ const applyFinder = (desc) => {
 const renderPalette = () => {
   const q = fold(paletteInput.value.trim());
   paletteItems = q
-    ? currentSkills().filter((sk) => fold(`${sk.label} ${sk.description} ${sk.id} ${sk.category}`).includes(q))
-    : currentSkills();
+    ? paletteSkills.filter((sk) => fold(`${sk.label} ${sk.description} ${sk.id} ${sk.category}`).includes(q))
+    : paletteSkills;
   paletteIndex = Math.min(paletteIndex, Math.max(0, paletteItems.length - 1));
 
   paletteList.innerHTML = '';
@@ -1394,7 +1354,7 @@ const renderPalette = () => {
     paletteList.innerHTML = '<li class="palette-empty">Abre un chat primero para poder aplicar una skill.</li>';
     return;
   }
-  if (!currentSkills().length) {
+  if (!paletteSkills.length) {
     paletteList.innerHTML = '<li class="palette-empty">No hay skills en workspace/skills/</li>';
     return;
   }
@@ -1574,14 +1534,10 @@ const navLab = document.getElementById('nav-lab');
 const viewChat = document.getElementById('view-chat');
 const viewLab = document.getElementById('view-lab');
 
-// Base sobre la que actúan las vistas de gestión (Laboratorio, Administración,
-// Enlaces) y la pestaña Claves: viaja al bridge en X-SIA-Base. La clave de
-// poder ya no viaja: el bridge usa la guardada para esa base.
-let viewBase = null;
 const api = async (path, opts = {}) => {
   const r = await fetch(`${API_BASE}${path}`, {
     ...opts,
-    headers: { 'Content-Type': 'application/json', ...(viewBase ? { 'X-SIA-Base': viewBase } : {}), ...(LAN_TOKEN ? { 'X-SIA-LAN': LAN_TOKEN } : {}), ...(AUTH ? AUTH.session.headers() : {}), ...(opts.headers || {}) },
+    headers: { 'Content-Type': 'application/json', ...(LAN_TOKEN ? { 'X-SIA-LAN': LAN_TOKEN } : {}), ...(AUTH ? AUTH.session.headers() : {}), ...(opts.headers || {}) },
   });
   const data = await r.json().catch(() => ({}));
   if (r.status === 401 && data.auth) location.reload(); // la sesión ya no vale: de vuelta al inicio de sesión
@@ -1610,82 +1566,20 @@ const PANELS = [
 const linksGrid = document.getElementById('links-grid');
 const linksFilters = document.getElementById('links-filters');
 
-/* Vistas con base: Laboratorio (lab), Administración (admin) y
-   Enlaces (cualquier base). Si solo una base la abre, se entra directo; si
-   varias, se elige (como al crear un chat) y queda una barra «Base: X ·
-   cambiar» arriba. Si la base elegida sigue valiendo, no se vuelve a preguntar. */
-const VIEW_ALLOWS = {
-  lab: (b) => !!b.perms?.lab,
-  admin: (b) => !!b.perms?.admin,
-  links: () => true,
-};
-const basesFor = (view) => basesPerms.filter(VIEW_ALLOWS[view]);
-const viewBasePick = document.getElementById('view-base-pick');
-const basePickBody = document.getElementById('base-pick-body');
-const VIEW_TITLES = { lab: 'Laboratorio', admin: 'Administración', links: 'Enlaces rápidos' };
-// Con más de una base configurada, entrar en una vista pide SIEMPRE la base
-// (como al crear un chat); las que no la abren salen deshabilitadas.
-const renderBasePick = (view) => {
-  basePickBody.innerHTML = '';
-  const title = document.createElement('div');
-  title.className = 'launcher-title';
-  title.textContent = `${VIEW_TITLES[view]}: ¿de qué base de conocimiento?`;
-  const grid = document.createElement('div');
-  grid.className = 'launcher-grid';
-  for (const b of basesPerms) {
-    const ok = VIEW_ALLOWS[view](b);
-    const btn = document.createElement('button');
-    btn.className = 'launcher-btn wide';
-    btn.disabled = !ok;
-    btn.innerHTML = `<span class="launcher-ico">${BASE_ICON}</span><span class="launcher-name">${esc(b.name)}</span><span class="launcher-desc">${ok ? (b.perms ? `clave «${esc(b.perms.name)}»` : '') : 'sin acceso con tu clave'}</span>`;
-    if (ok) btn.addEventListener('click', () => { viewBase = b.id; showView(view); });
-    grid.appendChild(btn);
-  }
-  basePickBody.append(title, grid);
-  viewChat.hidden = true; viewLab.hidden = true; viewAdmin.hidden = true; viewLinks.hidden = true; viewUsers.hidden = true;
-  for (const p of PANELS) { p.view.hidden = true; p.nav.classList.remove('active'); }
-  viewBasePick.hidden = false;
-  navChat.classList.remove('active');
-  navLab.classList.toggle('active', view === 'lab');
-  navAdmin.classList.toggle('active', view === 'admin');
-  navLinks.classList.toggle('active', view === 'links');
-  navUsers.classList.remove('active');
-};
-// Dentro de una vista, con varias bases, el título recuerda la base en uso
-// («Laboratorio de skills · Soporte»). Para cambiar de base se vuelve a pulsar
-// el icono de la vista, que pregunta otra vez.
-const VIEW_TITLE_EL = { lab: () => viewLab.querySelector('h2'), links: () => viewLinks.querySelector('h2'), admin: () => viewAdmin.querySelector('.admin-rail-head') };
-const paintViewTitle = (view) => {
-  const el = VIEW_TITLE_EL[view]?.();
-  if (!el) return;
-  if (!el.dataset.base) el.dataset.base = el.textContent;
-  const b = basesPerms.find((x) => x.id === viewBase);
-  el.textContent = basesPerms.length > 1 && b ? `${el.dataset.base} · ${b.name}` : el.dataset.base;
-};
-const enterView = (name) => {
-  if (name === 'chat') return showView('chat');
-  const cands = basesFor(name);
-  if (!cands.length) return showView('chat');
-  // una sola base en total: directo; varias: elegir siempre al entrar
-  if (basesPerms.length === 1) { viewBase = cands[0].id; return showView(name); }
-  renderBasePick(name);
-};
 const showView = (name) => {
-  viewBasePick.hidden = true;
   viewChat.hidden = name !== 'chat';
   viewLab.hidden = name !== 'lab';
   viewAdmin.hidden = name !== 'admin';
   viewLinks.hidden = name !== 'links';
   viewUsers.hidden = name !== 'users';
   for (const p of PANELS) { p.view.hidden = name !== p.name; p.nav.classList.toggle('active', name === p.name); }
-  if (VIEW_TITLE_EL[name]) paintViewTitle(name);
   navChat.classList.toggle('active', name === 'chat');
   navLab.classList.toggle('active', name === 'lab');
   navAdmin.classList.toggle('active', name === 'admin');
   navLinks.classList.toggle('active', name === 'links');
   navUsers.classList.toggle('active', name === 'users');
   if (name === 'lab') labRefresh();
-  if (name === 'admin') { adminProject = null; adminRefresh(); } // se entra siempre a todos los proyectos
+  if (name === 'admin') projectsView.show();
   if (name === 'links') linksRefresh();
   if (name === 'users') usersView.refresh();
   if (name === 'chat') {
@@ -1700,8 +1594,8 @@ for (const p of PANELS) {
   p.nav.addEventListener('click', () => showView(p.name));
   p.mount(p.view);
 }
-navLab.addEventListener('click', () => enterView('lab'));
-navAdmin.addEventListener('click', () => enterView('admin'));
+navLab.addEventListener('click', () => showView('lab'));
+navAdmin.addEventListener('click', () => showView('admin'));
 
 /* ── Diálogos propios (nada de alert/prompt/confirm nativos) ──── */
 const dlgOverlay = document.getElementById('dialog-overlay');
@@ -1753,59 +1647,52 @@ const openDialog = ({ title, bodyHTML = '', input = null, okLabel = 'Aceptar', c
 const dlgPrompt = (title, placeholder, bodyHTML = '') => openDialog({ title, bodyHTML, input: { placeholder } });
 const dlgConfirm = (title, bodyHTML = '', okLabel = 'Confirmar') => openDialog({ title, bodyHTML, okLabel });
 const dlgAlert = (title, bodyHTML = '') => openDialog({ title, bodyHTML, alertOnly: true, okLabel: 'Entendido' });
-const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-/* ── Configuración (modal): power user ────────────────────────── */
+/* ── Configuración (modal) ────────────────────────────────────── */
 const settingsBtn = document.getElementById('settings-btn');
 const settingsModal = document.getElementById('settings-modal');
 const settingsClose = document.getElementById('settings-close');
 const settingsVersion = document.getElementById('settings-version');
 
-/* Permisos POR BASE: basesPerms = [{ id, name, hasTokens, perms }],
-   donde perms es lo que abre en esa base la clave de poder guardada para
-   ella ({ name, owner, lab, admin, links } o null). Un icono de vista
-   aparece si alguna base la abre; la pestaña Claves, si eres owner en alguna. */
-let basesPerms = [];
-const permsOfBase = (id) => basesPerms.find((b) => b.id === id)?.perms || null;
-const curPerms = () => permsOfBase(viewBase);
-// Relee qué abre cada base con la clave de poder guardada y ajusta la barra
+/* Lo que abre en la base de conocimiento la clave de poder de quien ha
+   iniciado sesión: kbAccess = { perms: { name, owner, lab, admin, links } | null }
+   o null sin base. Decide los iconos de Laboratorio, Administración y
+   Enlaces (además de las vistas de la persona). */
+let kbAccess = null;
+const curPerms = () => kbAccess?.perms || null;
+// Relee qué abre la clave de poder en la base y ajusta la barra
 // lateral. `quiet` es la revisión automática (al volver el foco y cada poco):
 // solo repinta la vista abierta si los permisos han cambiado de verdad, y un
 // fallo pasajero (sin red, pantalla bloqueada) no toca nada.
 const refreshAdmin = async ({ quiet = false } = {}) => {
-  const before = JSON.stringify(basesPerms);
+  const before = JSON.stringify(kbAccess);
   try {
-    const { bases } = await api('/admin/check');
-    basesPerms = bases || [];
-    const changed = JSON.stringify(basesPerms) !== before;
-    if (viewBase && !basesPerms.some((b) => b.id === viewBase)) viewBase = null;
-    // cada vista, si la tiene (el bridge también lo exige) y si alguna base la abre
-    navLab.hidden = !canView('lab') || !basesFor('lab').length;
-    navAdmin.hidden = !canView('admin') || !basesFor('admin').length;
-    navLinks.hidden = !canView('links') || !basesFor('links').length;
+    kbAccess = (await api('/admin/check')).base;
+    const changed = JSON.stringify(kbAccess) !== before;
+    // cada vista, si la persona la tiene (el bridge también lo exige) y la base la abre
+    navLab.hidden = !canView('lab') || !curPerms()?.lab;
+    navAdmin.hidden = !canView('admin') || !curPerms()?.admin;
+    navLinks.hidden = !canView('links') || !kbAccess;
     if (navLab.hidden && !viewLab.hidden) showView('chat');
     if (navAdmin.hidden && !viewAdmin.hidden) showView('chat');
     if (navLinks.hidden && !viewLinks.hidden) showView('chat');
-    // la vista abierta depende de los permisos en su base (añadir enlaces,
+    // la vista abierta depende de esos permisos (añadir enlaces,
     // catálogo completo del Laboratorio…): se repinta si han cambiado
     if (!quiet || changed) {
       if (!viewLinks.hidden) linksRefresh();
       if (quiet && !viewLab.hidden) labRefresh({ background: true });
-      if (quiet && !viewAdmin.hidden) adminRefresh();
+      if (quiet && !viewAdmin.hidden) projectsView.refresh();
     }
-    return { bases: basesPerms };
   } catch (err) {
     // en la revisión automática, solo «sin base» (503) es un cambio real; lo
     // demás es pasajero y no debe esconder iconos que estaban bien
-    if (quiet && err.status !== 503) return null;
-    // sin ninguna base (o bridge caído) no hay vista que abrir: fuera los tres
-    // iconos. Enlaces se quedaba a la vista y pulsarlo no hacía nada.
-    basesPerms = [];
+    if (quiet && err.status !== 503) return;
+    // sin base (o bridge caído) no hay vista que abrir: fuera los tres iconos
+    kbAccess = null;
     navLab.hidden = true;
     navAdmin.hidden = true;
     navLinks.hidden = true;
     if (!viewLab.hidden || !viewAdmin.hidden || !viewLinks.hidden) showView('chat');
-    return null;
   }
 };
 
@@ -2311,7 +2198,7 @@ const fillScopeSelect = (scope) => {
   labScopeSel.innerHTML = '';
   const common = document.createElement('option');
   common.value = ''; common.textContent = 'Común (todos)';
-  common.disabled = !curPerms()?.owner; // las comunes son cosa del owner
+  common.disabled = !curPerms()?.owner; // las comunes son cosa del dueño (quien tiene Administración)
   labScopeSel.appendChild(common);
   for (const g of groups) {
     const o = document.createElement('option');
@@ -2364,7 +2251,7 @@ const renderLabCards = (skills, drafts) => {
     const tags = [];
     if (!sk.enabled) tags.push({ text: 'off', cls: 'off' });
     if (sk.category) tags.push({ text: sk.category });
-    // scopeName lo resuelve el bridge; null = el grupo de esa skill ya no existe
+    // scopeName lo resuelve el bridge; null = el proyecto de esa skill ya no existe
     tags.push({ text: sk.scope ? groupName(sk.scope, sk.scopeName === null ? 'proyecto eliminado' : sk.scopeName) : 'Común', cls: 'scope' });
     labCards.appendChild(card({
       title: sk.label, tags,
@@ -2405,7 +2292,7 @@ const labRefresh = async ({ background = false } = {}) => {
     labStatus('');
   } catch (err) {
     labStatus('');
-    if (err.status === 401) { renderLabLocked(); return; }
+    if (err.status === 403) { renderLabLocked(); return; }
     if (cached) labStatus('sin conexión — mostrando la última copia');
     else labCards.innerHTML = `<div class="lab-card-desc">Error cargando el catálogo: ${esc(err.message)}</div>`;
   }
@@ -2419,13 +2306,13 @@ labRefreshBtn.addEventListener('click', async () => {
   labStatus('actualizando skills…');
   try {
     const out = await api('/skills/refresh', { method: 'POST' });
-    if (out.skills && out.base) skillsByBase[out.base] = out.skills; // la paleta, al día sin reabrir chats
+    if (out.skills) paletteSkills = out.skills; // la paleta, al día sin reabrir chats
     await labRefresh({ background: true });
     labStatus('catálogo actualizado ✓');
     setTimeout(() => { if (labStatusEl.textContent === 'catálogo actualizado ✓') labStatus(''); }, 2500);
   } catch (err) {
     labStatus('');
-    if (err.status === 401) renderLabLocked();
+    if (err.status === 403) renderLabLocked();
     else labStatus(`error: ${err.message}`);
   } finally {
     labRefreshBtn.disabled = false;
@@ -2438,13 +2325,13 @@ const openFiles = (id, files, { isDraft, scope = null }) => {
   if (!cur.files.has('SKILL.md')) cur.active = files[0]?.path;
   labSkillId.textContent = id;
   fillScopeSelect(scope);
-  // solo el owner edita/publica/borra una skill COMÚN ya publicada
+  // solo el dueño edita/publica/borra una skill COMÚN ya publicada
   cur.readOnly = !isDraft && !scope && !curPerms()?.owner;
   labScopeSel.disabled = cur.readOnly;
   labPublish.disabled = cur.readOnly;
   labDelete.disabled = cur.readOnly;
   labTextarea.readOnly = cur.readOnly;
-  setLabState(cur.readOnly ? 'común · solo lectura (requiere superadmin)' : (isDraft ? 'borrador' : 'publicada'));
+  setLabState(cur.readOnly ? 'común · solo lectura (la edita quien tiene Administración)' : (isDraft ? 'borrador' : 'publicada'));
   showEditor();
   renderFileTabs();
   labTextarea.value = cur.files.get(cur.active) ?? '';
@@ -2586,124 +2473,8 @@ labPublish.addEventListener('click', async () => {
   } catch (err) { dlgAlert('No se pudo publicar', esc(err.message)); }
 });
 
-/* ════════════════════════════════════════════════════════════════
-   Administración: los proyectos de la base. Es lo único que se gestiona
-   (crear, ver sus entradas y borrar); a quién se habilita cada uno se decide
-   en Personas. Sin grupos a la vista: por dentro cada proyecto lleva su
-   propio token (server/projects/).
-   ════════════════════════════════════════════════════════════════ */
-const adminRailList = document.getElementById('admin-rail-list');
-const adminMain = document.getElementById('admin-main');
-const adminSearch = document.getElementById('admin-search');
-const TRASH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
-
-let adminProjects = []; // [{ id, name, entries }]
-let adminProject = null; // id del proyecto abierto; null = la rejilla
-const entriesLabel = (n) => `${n} ${n === 1 ? 'entrada' : 'entradas'}`;
-
-const adminRefresh = async () => {
-  try {
-    adminProjects = await api('/admin/projects');
-    if (!adminProjects.some((p) => p.id === adminProject)) adminProject = null;
-    renderRail(); renderMain();
-  } catch (err) { adminMain.innerHTML = `<div class="admin-empty"><span class="big">Error</span><span>${esc(err.message)}</span></div>`; }
-};
-const openProject = (id) => { adminProject = id; renderRail(); renderMain(); };
-
-const renderRail = () => {
-  const q = fold(adminSearch.value.trim());
-  adminRailList.innerHTML = '';
-  for (const p of adminProjects.filter((x) => !q || fold(x.name).includes(q))) {
-    const li = document.createElement('li');
-    if (adminProject === p.id) li.classList.add('active');
-    li.innerHTML = `<span>${esc(p.name)}</span><span class="rl-meta tnum">${p.entries}</span>`;
-    li.addEventListener('click', () => openProject(adminProject === p.id ? null : p.id)); // otra vez: a todos
-    adminRailList.appendChild(li);
-  }
-};
-const renderMain = () => (adminProject ? renderProjectView() : renderProjectsGrid());
-
-/* ── Todos los proyectos: rejilla de cards ── */
-const renderProjectsGrid = () => {
-  adminMain.innerHTML = `
-    <div class="admin-main-head"><h1>Proyectos</h1><span class="spacer"></span>
-      <button class="admin-primary" id="new-project">+ Nuevo proyecto</button></div>
-    <div class="admin-main-sub"><span class="tnum">${adminProjects.length} ${adminProjects.length === 1 ? 'proyecto' : 'proyectos'}</span></div>
-    <div class="admin-grid" id="proj-grid"></div>`;
-  const grid = adminMain.querySelector('#proj-grid');
-  // la card de crear va la primera, como en skills y enlaces
-  const add = document.createElement('div');
-  add.className = 'admin-card new';
-  add.innerHTML = '<span class="plus">+</span><span>Nuevo proyecto</span>';
-  add.addEventListener('click', newProject);
-  grid.appendChild(add);
-  for (const p of adminProjects) {
-    const card = document.createElement('div');
-    card.className = 'admin-card';
-    card.innerHTML = `
-      <span class="ac-actions"><button type="button" class="icon-btn danger" data-act="remove" title="Eliminar proyecto" aria-label="Eliminar proyecto">${TRASH_ICON}</button></span>
-      <div class="ac-title">${esc(p.name)}</div>
-      <div class="ac-meta tnum">${entriesLabel(p.entries)}</div>`;
-    card.addEventListener('click', (e) => { if (!e.target.closest('.ac-actions')) openProject(p.id); });
-    card.querySelector('[data-act="remove"]').addEventListener('click', (e) => { e.stopPropagation(); deleteProject(p); });
-    grid.appendChild(card);
-  }
-  adminMain.querySelector('#new-project').addEventListener('click', newProject);
-};
-
-const newProject = async () => {
-  const name = await dlgPrompt('Nuevo proyecto', 'SGA', 'Nombre del proyecto:');
-  if (!name) return;
-  try { const p = await api('/admin/projects', { method: 'POST', body: JSON.stringify({ name }) }); adminProject = p.id; await adminRefresh(); toast(`Proyecto «${p.name}» creado`); }
-  catch (e) { dlgAlert('No se pudo crear', esc(e.message)); }
-};
-const deleteProject = async (p) => {
-  if (!await dlgConfirm('Eliminar proyecto', `Se eliminará <strong>${esc(p.name)}</strong> con sus ${entriesLabel(p.entries)}, sus enlaces y sus skills, y nadie podrá verlo. Irreversible.`, 'Eliminar')) return;
-  try { await api(`/admin/projects/${p.id}`, { method: 'DELETE' }); adminProject = null; adminRefresh(); }
-  catch (e) { dlgAlert('No se pudo eliminar', esc(e.message)); }
-};
-
-/* ── Un proyecto: sus entradas de conocimiento ── */
-const renderProjectView = () => {
-  const p = adminProjects.find((x) => x.id === adminProject);
-  adminMain.innerHTML = `
-    <div class="admin-main-head">
-      <button class="lab-back" id="back-all" title="Volver a todos los proyectos" aria-label="Volver a todos los proyectos"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
-      <h1>${esc(p.name)}</h1><span class="spacer"></span>
-      <button class="admin-ghost danger" id="del-project">Eliminar proyecto</button></div>
-    <div class="admin-main-sub"><span class="tnum">${entriesLabel(p.entries)}</span></div>
-    <div class="admin-block"><h3>Entradas de conocimiento</h3><div class="entry-list" id="entry-list"><div class="entry-empty">Cargando…</div></div></div>`;
-  adminMain.querySelector('#back-all').addEventListener('click', () => openProject(null));
-  adminMain.querySelector('#del-project').addEventListener('click', () => deleteProject(p));
-  loadEntries(p.id);
-};
-
-// cargar y pintar las entradas de un proyecto (capa de contextos oculta)
-const loadEntries = async (projectId) => {
-  const list = adminMain.querySelector('#entry-list');
-  if (!list) return;
-  let entries;
-  try { entries = await api(`/admin/entries?project=${projectId}`); }
-  catch (e) { list.innerHTML = `<div class="entry-empty">Error: ${esc(e.message)}</div>`; return; }
-  if (adminProject !== projectId || !adminMain.contains(list)) return; // cambió de vista
-  list.innerHTML = '';
-  if (!entries.length) { list.innerHTML = '<div class="entry-empty">Aún no hay entradas. Se nutren desde el chat con la skill «Nutrir conocimiento».</div>'; return; }
-  entries.forEach((en, i) => {
-    const item = document.createElement('div');
-    item.className = 'entry-item';
-    item.innerHTML = `<div class="entry-head"><span class="entry-num tnum">${i + 1}</span><div class="entry-text clamp">${esc(en.content)}</div><button class="admin-icon-btn entry-del" title="Eliminar entrada">✕</button></div>`;
-    const text = item.querySelector('.entry-text');
-    item.querySelector('.entry-head').addEventListener('click', (e) => { if (!e.target.closest('.entry-del')) text.classList.toggle('clamp'); });
-    item.querySelector('.entry-del').addEventListener('click', async (e) => {
-      e.stopPropagation();
-      if (!await dlgConfirm('Eliminar entrada', `Se eliminará esta entrada del conocimiento:<pre>${esc(en.content.slice(0, 200))}${en.content.length > 200 ? '…' : ''}</pre>`, 'Eliminar')) return;
-      try { await api(`/admin/entries/${en.id}`, { method: 'DELETE' }); loadEntries(projectId); adminRefresh(); } catch (err) { dlgAlert('No se pudo eliminar', esc(err.message)); }
-    });
-    list.appendChild(item);
-  });
-};
-
-adminSearch.addEventListener('input', renderRail);
+// Administración (proyectos de la base): web/src/projects/projects-view.js
+const projectsView = mountProjectsView(viewAdmin, { api, dialogs: { prompt: dlgPrompt, confirm: dlgConfirm, alert: dlgAlert }, toast });
 
 /* ══ Enlaces rápidos ═══════════════════════════════════════════════
    Accesos del equipo agrupados por conocimiento. Verlos puede cualquiera
@@ -2973,4 +2744,4 @@ linksRefreshBtn.addEventListener('click', async () => {
   try { await linksRefresh(); }
   finally { linksRefreshBtn.disabled = false; linksRefreshBtn.classList.remove('loading'); }
 });
-navLinks.addEventListener('click', () => enterView('links'));
+navLinks.addEventListener('click', () => showView('links'));

@@ -4,17 +4,13 @@ import { createKnowledge } from './service.js';
 import { groupId } from './groups.js';
 
 const SOP = '00000000-0000-0000-0000-0000000000b1';
-const LOG = '00000000-0000-0000-0000-0000000000b2';
-const setup = ({ people = [], personKeys = [] } = {}) => {
+const setup = ({ people = [], personKeys = [], withBase = true, power = true } = {}) => {
   const calls = [];
   const platform = {
     async rpc(jwt, fn, args) {
       calls.push([fn, args]);
-      if (fn === 'platform_list_bases') return [
-        { id: SOP, name: 'Soporte', url: 'https://s.supabase.co', publishable_key: 'pk-s', has_power_key: true, people: '2' },
-        { id: LOG, name: 'Logística', url: 'https://l.supabase.co', publishable_key: 'pk-l', has_power_key: false, people: '0' },
-      ];
-      if (fn === 'platform_base_access') return [{ id: SOP, url: 'https://s.supabase.co', publishable_key: 'pk-s', power_key: 'poder-s' }];
+      if (fn === 'platform_list_bases') return withBase ? [{ id: SOP, name: 'Soporte' }] : [];
+      if (fn === 'platform_base_access') return withBase && power ? [{ id: SOP, url: 'https://s.supabase.co', publishable_key: 'pk-s', power_key: 'poder-s' }] : [];
       if (fn === 'platform_list_users') return people;
       if (fn === 'platform_person_keys') return personKeys.filter((k) => !args?.p_base || k.base_id === args.p_base);
       return null;
@@ -31,23 +27,25 @@ const setup = ({ people = [], personKeys = [] } = {}) => {
   return { calls, knowledge: createKnowledge({ platform, readGroups, baseKeys }) };
 };
 
-test('bases: con sus grupos { id, name } y sin un solo token', async () => {
+test('base: con sus proyectos { id, name } y sin un solo token', async () => {
   const { knowledge } = setup();
-  const bases = await knowledge.bases('jwt');
-  assert.deepEqual(bases.map((b) => [b.name, b.people, b.groups && b.groups.map((g) => g.name)]), [['Soporte', 2, ['Nivel 1', 'Nivel 2']], ['Logística', 0, null]]);
-  assert.ok(!JSON.stringify(bases).includes('tok-') && !JSON.stringify(bases).includes('poder-s'));
+  const base = await knowledge.base('jwt');
+  assert.deepEqual([base.name, base.groups.map((g) => g.name)], ['Soporte', ['Nivel 1', 'Nivel 2']]);
+  assert.ok(!JSON.stringify(base).includes('tok-') && !JSON.stringify(base).includes('poder-s'));
+  assert.equal(await setup({ withBase: false }).knowledge.base('jwt'), null, 'sin base: null');
+  assert.equal((await setup({ power: false }).knowledge.base('jwt')).groups, null, 'sin su clave: sin proyectos');
 });
 
-test('setGroups: de ids a nombre y token; a la base solo lo marcado', async () => {
+test('setProjects: de ids a nombre y token; a la base solo lo marcado', async () => {
   const { calls, knowledge } = setup();
-  await knowledge.setGroups('jwt', 'u1', SOP, [groupId('tok-n1')]);
+  await knowledge.setProjects('jwt', 'u1', [groupId('tok-n1')]);
   assert.deepEqual(calls.at(-1), ['platform_set_knowledge', { p_user: 'u1', p_base: SOP, p_groups: [{ name: 'Nivel 1', token: 'tok-n1' }] }]);
-  await assert.rejects(knowledge.setGroups('jwt', 'u1', SOP, ['otro']), { status: 409 });
-  await assert.rejects(knowledge.setGroups('jwt', 'u1', LOG, []), { status: 400 }, 'sin clave de poder no se asigna');
+  await assert.rejects(knowledge.setProjects('jwt', 'u1', ['otro']), { status: 409 });
+  await assert.rejects(setup({ power: false }).knowledge.setProjects('jwt', 'u1', []), { status: 400 }, 'sin la clave del dueño no se asigna');
 });
 
 const paula = (views, extra = {}) => ({ id: 'u1', email: 'paula@x.com', active: true, views, knowledge: [{ base_id: SOP, groups: [{ id: 'g' }] }], ...extra });
-const perms = (on) => ({ lab: on.includes('lab'), admin: on.includes('admin'), links: on.includes('links'), invite: false });
+const perms = (on) => ({ lab: on.includes('lab'), admin: on.includes('admin'), links: on.includes('links') });
 
 test('syncPeople: crea en la base la clave de sus vistas y la guarda en la instancia', async () => {
   const { calls, knowledge } = setup({ people: [paula(['links', 'lab', 'people'])] });

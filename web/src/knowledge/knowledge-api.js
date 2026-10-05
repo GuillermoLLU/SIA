@@ -1,6 +1,5 @@
-// Cliente de /api/knowledge (solo administradores): las bases de la
-// instancia (con sus grupos { id, name }, sin tokens) y el conocimiento de
-// cada persona.
+// Cliente de /api/knowledge (vista Personas): la base de la instancia con sus
+// proyectos ({ id, name }, sin tokens) y el conocimiento de cada persona.
 // Errores con el texto del bridge.
 
 export const createKnowledgeApi = (apiBase, session) => {
@@ -16,8 +15,8 @@ export const createKnowledgeApi = (apiBase, session) => {
   };
   const id = (x) => encodeURIComponent(x);
   return {
-    bases: async () => (await call('/bases')).bases,
-    setGroups: (userId, baseId, groups) => call(`/people/${id(userId)}/bases/${id(baseId)}`, 'PUT', { groups }),
+    base: async () => (await call('/base')).base,
+    setProjects: (userId, projects) => call(`/people/${id(userId)}/projects`, 'PUT', { projects }),
     copy: (userId, fromId) => call(`/people/${id(userId)}/copy`, 'POST', { from: fromId }),
   };
 };

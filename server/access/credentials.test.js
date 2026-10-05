@@ -1,23 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isSecretKey, headerValue, siaHeaders } from './credentials.js';
+import { headerValue, siaHeaders } from './credentials.js';
 
-const jwt = (payload) => `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify(payload)).toString('base64url')}.firma`;
-
-test('la clave secret se reconoce en sus dos formas', () => {
-  assert.equal(isSecretKey('sb_secret_abc123'), true);
-  assert.equal(isSecretKey('  SB_SECRET_x '), true);
-  assert.equal(isSecretKey(jwt({ role: 'service_role' })), true);
-});
-
-test('la publishable y el JWT anon no son secret', () => {
-  assert.equal(isSecretKey('sb_publishable_abc123'), false);
-  assert.equal(isSecretKey(jwt({ role: 'anon' })), false);
-  assert.equal(isSecretKey(''), false);
-  assert.equal(isSecretKey(null), false);
-  assert.equal(isSecretKey('a.b'), false);
-  assert.equal(isSecretKey('a.no-es-json.c'), false);
-});
 
 test('headerValue: solo ASCII visible, sin comas, unidos por coma', () => {
   assert.equal(headerValue(['tokA', ' tokB ', '', null]), 'tokA,tokB');

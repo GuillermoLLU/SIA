@@ -1,25 +1,20 @@
 // Conocimiento asignado por la plataforma (dominio, sin E/S).
 //
-// La base de la instancia dice cuál es su base de conocimiento (la ve todo
-// el mundo) y qué grupos (tokens) tiene en ella cada persona
-// (platform_my_knowledge; sin grupos, una fila sin token). Aquí se convierte
-// eso en la base que usa el bridge ({ id, name, url, key, tokens, groups,
-// powerKey, enabled }); su id es «p-<id en la plataforma>».
+// La instancia tiene UNA base de conocimiento, que ve todo el mundo, y dice
+// qué tokens (uno por proyecto) tiene en ella cada persona y su clave de
+// poder (platform_my_knowledge: una fila por token; sin proyectos, una fila
+// sin token). Aquí se convierte en la base que usa el bridge
+// ({ id, name, url, key, tokens, powerKey }); su id es «p-<id en la instancia>».
 
 export const assignedId = (baseId) => `p-${baseId}`;
 
-// Filas de platform_my_knowledge → una base por base, con todos sus tokens y
-// la clave de poder que la instancia le dio en ella (la de sus vistas).
-export const toAssignedBases = (rows) => {
-  const byId = new Map();
+// Filas de platform_my_knowledge → la base con todos sus tokens, o null.
+export const toAssignedBase = (rows) => {
+  let base = null;
   for (const r of Array.isArray(rows) ? rows : []) {
     if (!r?.base_id || !r.url || !r.publishable_key) continue;
-    const b = byId.get(r.base_id) || {
-      id: assignedId(r.base_id), name: r.base_name, url: r.url, key: r.publishable_key,
-      tokens: [], groups: [], powerKey: r.power_key || '', enabled: true,
-    };
-    if (r.group_token && !b.tokens.includes(r.group_token)) { b.tokens.push(r.group_token); b.groups.push(r.group_name); }
-    byId.set(r.base_id, b);
+    base ||= { id: assignedId(r.base_id), name: r.base_name, url: r.url, key: r.publishable_key, tokens: [], powerKey: r.power_key || '' };
+    if (r.group_token && !base.tokens.includes(r.group_token)) base.tokens.push(r.group_token);
   }
-  return [...byId.values()];
+  return base;
 };

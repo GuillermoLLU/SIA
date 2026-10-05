@@ -1,25 +1,28 @@
-// Clave de poder de cada persona en cada base (dominio, sin E/S).
+// Clave de poder de cada persona en la base de conocimiento (dominio, sin E/S).
 //
 // La instancia decide qué ve cada uno (sus vistas); la base solo entiende de
-// claves de poder. Así que cada persona tiene, en cada base que ve, su propia
-// clave con los permisos de sus vistas que la base sabe hacer cumplir: nada
-// más (mínimo privilegio) y revocable persona a persona. La base de la
-// instancia la ve todo el mundo, tenga grupos o no. Sin ninguna de esas
+// claves de poder. Así que cada persona tiene en la base su propia clave con
+// los permisos de sus vistas que la base sabe hacer cumplir: nada más (mínimo
+// privilegio) y revocable persona a persona. La base la ve todo el mundo,
+// tenga proyectos o no. Sin ninguna de esas
 // vistas o desactivada: sin clave. Con Administración tampoco: usa la del
 // dueño de la base (la instancia se la da; platform_my_knowledge).
 
 import { cleanPerms } from '../access/perms.js';
 
 // Vistas de SIA que son un permiso en la base (mismo nombre).
-export const KEY_VIEWS = ['lab', 'links'];
+const KEY_VIEWS = ['lab', 'links'];
 
 export const keyPerms = (person) => (person?.active && !person.views?.includes('admin') ? KEY_VIEWS.filter((v) => person.views?.includes(v)) : []);
 
 export const keyName = (person) => `SIA · ${person.email}`;
 
-// Qué hacer en cada base: crear, poner al día o quitar su clave.
+// Lo que se responde si poner al día las claves dejó problemas: { warning } o nada.
+export const keysWarning = (problems) => (problems.length ? { warning: `Hecho, pero sin su clave de poder en la base: ${problems[0]}` } : {});
+
+// Qué hacer en la base: crear, poner al día o quitar su clave.
 //   person   fila de platform_list_users (views, active)
-//   reachable  ids de las bases cuya clave de poder tiene la instancia
+//   reachable  ids de las bases cuya clave del dueño tiene la instancia (la suya)
 //   current    Map baseId → clave que ya tiene
 // → [{ baseId, action: 'create' | 'update' | 'remove', key?, perms }]
 export const planKeys = (person, reachable, current) => {

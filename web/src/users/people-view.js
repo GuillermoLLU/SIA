@@ -9,8 +9,8 @@ import './people.css';
 import { openModal, closeModal } from './modal.js';
 import { strongPassword } from './password.js';
 import { VIEWS, CHAT_ICON } from './views.js';
+import { esc, TRASH_ICON } from '../ui/html.js';
 
-const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 // Iconos de rol: los de serie, uno común para los creados y el de personalizado.
 const ROLE_ICON = {
@@ -25,7 +25,6 @@ const viewsText = (views) => {
   const names = ['Chat', ...VIEWS.filter((v) => views.includes(v.id)).map((v) => v.label)];
   return names.length === 1 ? 'Solo el Chat' : `${names.slice(0, -1).join(', ')} y ${names.at(-1)}`;
 };
-const TRASH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
 
 const initials = (n) => String(n).split(/\s+/).filter(Boolean).map((w) => w[0]).slice(0, 2).join('').toUpperCase() || '?';
 const ago = (ts) => {
@@ -52,7 +51,7 @@ const wireRoleCards = (el) => el.addEventListener('click', (e) => {
 const pickedRole = (el) => el.querySelector('[data-role][aria-checked="true"]')?.dataset.role || null;
 
 export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast }) => {
-  let people = [], bases = [], roles = [], filter = 'all', query = '', selected = null;
+  let people = [], kbase = null, roles = [], filter = 'all', query = '', selected = null;
 
   root.innerHTML = `
     <header class="pp-head"><h2>Personas</h2></header>
@@ -71,7 +70,7 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast }) => 
   const panel = $('[data-panel]');
 
   const load = async () => {
-    try { [people, bases, roles] = await Promise.all([usersApi.list(), knowledgeApi.bases(), usersApi.roles()]); }
+    try { [people, kbase, roles] = await Promise.all([usersApi.list(), knowledgeApi.base(), usersApi.roles()]); }
     catch (e) { $('[data-list]').innerHTML = `<div class="pp-empty">No se pudo cargar: ${esc(e.message)}</div>`; return; }
     if (selected && !people.some((p) => p.id === selected)) selected = null;
     if (!['all', 'custom', 'none', 'off'].includes(filter) && !roles.some((r) => r.id === filter)) filter = 'all';
@@ -79,8 +78,7 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast }) => 
     renderList();
     if (selected) renderPanel(); else panel.hidden = true;
   };
-  const base = () => bases[0] || null; // la de la instancia: una sola
-  const groupName = (id) => base()?.groups?.find((g) => g.id === id)?.name;
+  const groupName = (id) => kbase?.groups?.find((g) => g.id === id)?.name;
   const person = () => people.find((p) => p.id === selected);
 
   const roleById = (id) => roles.find((r) => r.id === id) || null;
@@ -127,7 +125,7 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast }) => 
   };
   // Conocimiento: los proyectos que ve (pulsar uno lo da o lo quita).
   const knowledgeBlock = (sel, { copyFrom = true } = {}) => {
-    const b = base(), groups = b?.groups || [];
+    const b = kbase, groups = b?.groups || [];
     const head = (sum, none) => `<div class="pp-block-head"><span class="pp-k">Conocimiento</span><span class="pp-sum${none ? ' none' : ''}">${sum}</span>
       ${copyFrom && groups.length ? '<button class="pp-link" data-act="kn-copy">Igual que otra persona…</button>' : ''}</div>`;
     if (!b) return `<div class="pp-block">${head('', false)}<div class="pp-callout">La instancia aún no tiene base de conocimiento.</div></div>`;
@@ -228,7 +226,7 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast }) => 
     const review = (src) => {
       m.querySelector('h3').textContent = `Igual que ${src.name}`;
       body.innerHTML = `<button type="button" class="pp-back" data-back>← Elegir otra persona</button>
-        <div class="pp-review"><div>${esc(base()?.name || 'Base')} <span>· ${knOf(src).map((id) => esc(groupName(id) || '?')).join(', ')}</span></div></div>`;
+        <div class="pp-review"><div>${esc(kbase?.name || 'Base')} <span>· ${knOf(src).map((id) => esc(groupName(id) || '?')).join(', ')}</span></div></div>`;
       const foot = m.querySelector('.pp-mf');
       foot.innerHTML = '<span class="pp-msg" data-msg></span><button class="lab-btn" data-cancel>Cancelar</button><button class="lab-btn primary" data-ok>Aplicar</button>';
       wireFoot(m, (msg) => onApply(src, msg));
@@ -334,7 +332,7 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast }) => 
     m.querySelector('[data-name]').focus();
     wireFoot(m, async (msg) => {
       try {
-        const r = await usersApi.create({ email: val('[data-email]'), name: val('[data-name]'), role: pickedRole(m), password: pw.value, knowledge: base() && draft.kn.length ? { [base().id]: draft.kn } : {} });
+        const r = await usersApi.create({ email: val('[data-email]'), name: val('[data-name]'), role: pickedRole(m), password: pw.value, projects: draft.kn });
         created(m, r.user, pw.value, r.warning);
         load();
       } catch (e) { msg.textContent = e.message; }
@@ -386,7 +384,7 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast }) => 
     const g = e.target.closest('.pp-panel [data-g]')?.dataset.g;
     if (g && p) {
       const cur = knOf(p), on = cur.includes(g);
-      return save(() => knowledgeApi.setGroups(p.id, base().id, on ? cur.filter((x) => x !== g) : [...cur, g]), on ? `${p.name} ya no ve ${groupName(g)}` : `${p.name} ya ve ${groupName(g)}`);
+      return save(() => knowledgeApi.setProjects(p.id, on ? cur.filter((x) => x !== g) : [...cur, g]), on ? `${p.name} ya no ve ${groupName(g)}` : `${p.name} ya ve ${groupName(g)}`);
     }
   });
   $('[data-q]').addEventListener('input', (e) => { query = e.target.value.trim().toLowerCase(); renderList(); });

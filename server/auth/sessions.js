@@ -11,7 +11,7 @@ import { randomBytes, createHash } from 'node:crypto';
 export const REMEMBER_MS = 30 * 24 * 60 * 60 * 1000;
 export const SESSION_MS = 12 * 60 * 60 * 1000;
 
-export const tokenHash = (token) => createHash('sha256').update(String(token)).digest('hex');
+const tokenHash = (token) => createHash('sha256').update(String(token)).digest('hex');
 
 // Nueva sesión. → { token (para la web), session (lo que se guarda) }
 export const newSession = ({ userId, refreshToken, remember }, now = Date.now()) => {

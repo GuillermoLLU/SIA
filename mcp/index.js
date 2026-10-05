@@ -9,7 +9,7 @@
 // defecto: sin conexión, las tools lo dicen y no hacen nada.
 //
 // Acceso: la clave es la publishable del proyecto (no abre nada por sí sola)
-// y los tokens de grupo del usuario viajan en la cabecera x-sia-tokens de
+// y los tokens de los proyectos de la persona viajan en la cabecera x-sia-tokens de
 // cada petición; la base (RLS, ver supabase-schema.sql) solo deja ver y
 // escribir el conocimiento de los proyectos que esos tokens conceden.
 // SIA_ALLOWED_PROJECTS es la selección del chat dentro de ese techo.
