@@ -7,10 +7,10 @@ import './login.css';
 
 const escAttr = (s) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 
-const markup = (logoHtml, lastName) => `<div class="login-stage">
+const markup = (logoHtml, lastEmail) => `<div class="login-stage">
 <button class="login-open" type="button" aria-label="Iniciar sesión">${logoHtml}</button>
 <form class="lock-card login-card" novalidate inert>
-  <input class="settings-input login-input" name="username" placeholder="Usuario" autocomplete="username" autocapitalize="off" spellcheck="false" value="${escAttr(lastName)}" />
+  <input class="settings-input login-input" name="email" type="email" placeholder="Email" autocomplete="username" autocapitalize="off" spellcheck="false" value="${escAttr(lastEmail)}" />
   <input class="settings-input login-input" name="password" type="password" placeholder="Contraseña" autocomplete="current-password" />
   <button class="lab-btn primary login-go" type="submit">Iniciar sesión</button>
   <div class="login-remember">
@@ -28,13 +28,13 @@ const loginGate = (session, logoHtml) => new Promise((resolve) => {
   appEl.inert = true;
   const el = document.createElement('div');
   el.className = 'lock-gate';
-  el.innerHTML = markup(logoHtml, session.lastName());
+  el.innerHTML = markup(logoHtml, session.lastEmail());
   document.body.appendChild(el);
 
   const stage = el.querySelector('.login-stage');
   const opener = stage.querySelector('.login-open');
   const form = stage.querySelector('form');
-  const { username, password } = form.elements;
+  const { email, password } = form.elements;
   const remember = form.querySelector('.login-remember .sw');
   const go = form.querySelector('.login-go');
   const msg = form.querySelector('.lock-msg');
@@ -54,11 +54,11 @@ const loginGate = (session, logoHtml) => new Promise((resolve) => {
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const name = username.value.trim();
-    if (!name || !password.value) return fail('Escribe usuario y contraseña.');
+    const address = email.value.trim();
+    if (!address || !password.value) return fail('Escribe email y contraseña.');
     msg.textContent = ''; go.disabled = true;
     try {
-      const r = await session.login(name, password.value, remember.getAttribute('aria-checked') === 'true');
+      const r = await session.login(address, password.value, remember.getAttribute('aria-checked') === 'true');
       if (r.user) return leave(r.user);
       password.value = ''; password.focus();
       fail(r.error);
@@ -74,7 +74,7 @@ const loginGate = (session, logoHtml) => new Promise((resolve) => {
     stage.classList.toggle('open', open);
     opener.inert = open;
     form.inert = !open;
-    if (open) return (username.value ? password : username).focus({ preventScroll: true });
+    if (open) return (email.value ? password : email).focus({ preventScroll: true });
     password.value = ''; msg.textContent = '';
     opener.focus({ preventScroll: true });
   };

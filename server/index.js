@@ -14,8 +14,11 @@ import { makeDiagnose, schemaOk } from './base/diagnose.js';
 import { buildSchemaSql } from './base/schema-sql.js';
 import { createAuth } from './auth/service.js';
 import { authRoutes } from './auth/routes.js';
+import { liveSessions } from './auth/sessions.js';
 import { createUserAdmin } from './users/service.js';
 import { usersRoutes } from './users/routes.js';
+import { loadPlatformConfig } from './platform/config.js';
+import { createPlatformClient } from './platform/client.js';
 import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -599,10 +602,22 @@ const lockTry = (key) => {
   return { ok: false };
 };
 
-/* ── Usuarios (server/users/) e inicio de sesión (server/auth/) ── */
-const users = createUserAdmin({ readConfig: readUserConfig, writeConfig: writeUserConfig });
-if (users.ensureSeed()) console.log('[sia] creado el usuario administrador inicial');
-const auth = createAuth({ readConfig: readUserConfig, writeConfig: writeUserConfig, users: users.all });
+/* ── Base de la instancia (server/platform/), inicio de sesión (server/auth/)
+   y usuarios (server/users/). Se entra con la cuenta de Supabase Auth de la
+   instancia; el fetch de Node verifica TLS (a diferencia de supaFetch). ── */
+const platform = createPlatformClient({ ...(loadPlatformConfig(ROOT) || { url: '', key: '' }), fetch });
+const auth = createAuth({ platform, readConfig: readUserConfig, writeConfig: writeUserConfig });
+const users = createUserAdmin({ platform });
+// Del inicio de sesión local anterior: fuera los usuarios y sus sesiones.
+{
+  const cfg = readUserConfig();
+  if (cfg.users || (cfg.sessions || []).some((s) => !s?.refreshToken)) {
+    delete cfg.users;
+    cfg.sessions = liveSessions(cfg.sessions);
+    writeUserConfig(cfg);
+    console.log('[sia] usuarios locales retirados: se entra con la cuenta de la instancia');
+  }
+}
 
 /* Claves de GitHub: se guardan varias (trabajo, personal…) y solo UNA está
    activa; es la que viaja a los chats que se abran a partir de ese momento.
@@ -802,7 +817,7 @@ const readBody = (req) => new Promise((resolve, reject) => {
   req.on('end', () => { try { resolve(b ? JSON.parse(b) : {}); } catch (e) { reject(e); } });
 });
 const authRoute = authRoutes(auth, { json, readBody });
-const usersRoute = usersRoutes(users, { json, readBody, currentUser: (req) => auth.userOf(req.headers['x-sia-auth']) });
+const usersRoute = usersRoutes(users, auth, { json, readBody });
 const validId = (s) => typeof s === 'string' && /^[a-z0-9][a-z0-9_-]{1,63}$/i.test(s);
 let uploadSeq = 0;
 const validFiles = (files) => Array.isArray(files) && files.length &&

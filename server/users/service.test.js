@@ -1,32 +1,45 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createUserAdmin } from './service.js';
-import { SEED_ADMIN } from './users.js';
 
-const setup = () => {
-  let cfg = {};
-  const users = createUserAdmin({ readConfig: () => cfg, writeConfig: (c) => { cfg = c; } });
-  return { users, cfg: () => cfg };
+// Plataforma de mentira que apunta qué se le pide.
+const recorder = () => {
+  const log = [];
+  return {
+    log,
+    platform: {
+      rpc: async (jwt, fn, args) => { log.push(['rpc', jwt, fn, args]); return fn === 'platform_list_users' ? [{ id: 'u1' }] : null; },
+      users: async (jwt, body) => { log.push(['fn', jwt, body]); return body.action === 'create' ? { user: { id: 'u2', email: body.email } } : { ok: true }; },
+    },
+  };
 };
 
-test('ensureSeed guarda el administrador inicial una sola vez', () => {
-  const { users, cfg } = setup();
-  assert.equal(users.ensureSeed(), true);
-  assert.equal(cfg().users[0].name, SEED_ADMIN.name);
-  assert.equal(users.ensureSeed(), false);
+test('listar y dar de alta van con el JWT de quien lo pide', async () => {
+  const { log, platform } = recorder();
+  const users = createUserAdmin({ platform });
+  assert.deepEqual(await users.list('jwt-a'), [{ id: 'u1' }]);
+  assert.deepEqual(await users.create('jwt-a', { email: 'ana@x.com', name: 'Ana', password: 'p', role: 'agent' }), { id: 'u2', email: 'ana@x.com' });
+  assert.deepEqual(log, [
+    ['rpc', 'jwt-a', 'platform_list_users', undefined],
+    ['fn', 'jwt-a', { action: 'create', email: 'ana@x.com', name: 'Ana', password: 'p', role: 'agent' }],
+  ]);
 });
 
-test('alta, edición y baja quedan guardadas; un error no toca la config', () => {
-  const { users, cfg } = setup();
-  users.ensureSeed();
-  const [g] = users.all();
-  const { user } = users.create({ name: 'Ana', password: '1234' });
-  assert.deepEqual(cfg().users.map((u) => u.name), ['Guille', 'Ana']);
-  users.update(user.id, { role: 'admin' });
-  assert.equal(cfg().users[1].role, 'admin');
-  const before = cfg();
-  assert.ok(users.create({ name: 'ana', password: '1234' }).error);
-  assert.equal(cfg(), before);
-  users.remove(user.id, g.id);
-  assert.deepEqual(cfg().users.map((u) => u.name), ['Guille']);
+test('editar manda a la base solo lo que cambia, y la contraseña a la función', async () => {
+  const { log, platform } = recorder();
+  const users = createUserAdmin({ platform });
+  await users.update('jwt', 'u1', { active: false });
+  await users.update('jwt', 'u1', { password: 'Nueva-2026!xx' });
+  await users.update('jwt', 'u1', { name: 'Ana', role: 'admin', password: '' });
+  assert.deepEqual(log, [
+    ['rpc', 'jwt', 'platform_update_user', { p_user: 'u1', p_active: false }],
+    ['fn', 'jwt', { action: 'set_password', id: 'u1', password: 'Nueva-2026!xx' }],
+    ['rpc', 'jwt', 'platform_update_user', { p_user: 'u1', p_name: 'Ana', p_role: 'admin' }],
+  ]);
+});
+
+test('borrar va por la función', async () => {
+  const { log, platform } = recorder();
+  await createUserAdmin({ platform }).remove('jwt', 'u1');
+  assert.deepEqual(log, [['fn', 'jwt', { action: 'delete', id: 'u1' }]]);
 });

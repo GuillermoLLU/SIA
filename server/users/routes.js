@@ -1,24 +1,40 @@
 // /api/users/*: gestión de usuarios, solo para administradores (sesión en
-// X-SIA-Auth).
-//   GET    /             → { users }
-//   POST   /             { name, password, role } → { user }
-//   PUT    /:id          { name?, password?, role? } → { user }
-//   DELETE /:id          → { ok }
-// Errores de reglas (nombre repetido, último admin…): 400 con { error }.
+// X-SIA-Auth). La base vuelve a comprobarlo todo con el JWT de quien llama.
+//   GET    /      → { users }
+//   POST   /      { email, name, password, role } → { user }
+//   PUT    /:id   { name?, role?, active?, password? } → { ok }
+//   DELETE /:id   → { ok }
+// Los errores de la base o de la función llegan con su estado y su texto.
 
-import { publicUser } from './users.js';
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const pick = ({ name, password, role }) => ({ name, password, role });
+export const usersRoutes = (users, auth, { json, readBody }) => async (req, res, id) => {
+  const token = req.headers['x-sia-auth'];
+  try {
+    const ctx = await auth.context(token);
+    if (!ctx) return json(res, 401, { error: 'Inicia sesión.' });
+    if (ctx.user.role !== 'admin') return json(res, 403, { error: 'Solo para administradores.' });
+    if (id && !UUID.test(id)) return json(res, 404, { error: 'Ese usuario no existe.' });
+    const jwt = ctx.accessToken;
 
-export const usersRoutes = (users, { json, readBody, currentUser }) => async (req, res, id) => {
-  const actor = currentUser(req);
-  if (!actor) return json(res, 401, { error: 'Inicia sesión.' });
-  if (actor.role !== 'admin') return json(res, 403, { error: 'Solo para administradores.' });
-  const reply = (r, extra) => (r.error ? json(res, 400, { error: r.error }) : json(res, 200, extra(r)));
-
-  if (!id && req.method === 'GET') return json(res, 200, { users: users.all().map(publicUser) });
-  if (!id && req.method === 'POST') return reply(users.create(pick(await readBody(req))), (r) => ({ user: publicUser(r.user) }));
-  if (id && req.method === 'PUT') return reply(users.update(id, pick(await readBody(req))), (r) => ({ user: publicUser(r.user) }));
-  if (id && req.method === 'DELETE') return reply(users.remove(id, actor.id), () => ({ ok: true }));
-  return json(res, 404, { error: 'no encontrado' });
+    if (!id && req.method === 'GET') return json(res, 200, { users: await users.list(jwt) });
+    if (!id && req.method === 'POST') {
+      const { email, name, password, role } = await readBody(req);
+      return json(res, 200, { user: await users.create(jwt, { email, name, password, role }) });
+    }
+    if (id && req.method === 'PUT') {
+      const { name, role, active, password } = await readBody(req);
+      await users.update(jwt, id, { name, role, active, password });
+      if (id === ctx.user.id) auth.refreshProfile(token); // su propio nombre: que se vea ya
+      return json(res, 200, { ok: true });
+    }
+    if (id && req.method === 'DELETE') {
+      await users.remove(jwt, id);
+      return json(res, 200, { ok: true });
+    }
+    return json(res, 404, { error: 'no encontrado' });
+  } catch (e) {
+    if (!e.status) return json(res, 500, { error: 'Error interno.' });
+    return json(res, e.status >= 500 ? 503 : e.status, { error: e.message });
+  }
 };

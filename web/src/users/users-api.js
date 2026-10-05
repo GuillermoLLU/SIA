@@ -15,7 +15,7 @@ export const createUsersApi = (apiBase, session) => {
   return {
     list: async () => (await call('')).users,
     create: async (user) => (await call('', 'POST', user)).user,
-    update: async (id, patch) => (await call(`/${encodeURIComponent(id)}`, 'PUT', patch)).user,
+    update: (id, patch) => call(`/${encodeURIComponent(id)}`, 'PUT', patch),
     remove: (id) => call(`/${encodeURIComponent(id)}`, 'DELETE'),
   };
 };

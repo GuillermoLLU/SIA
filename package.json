@@ -45,6 +45,7 @@
       "mcp/**",
       "web/dist/**",
       "supabase-schema.sql",
+      "sia-instance.json",
       "skills/common/**",
       "workspace/modes/auto/CLAUDE.md",
       "workspace/modes/auto/AGENTS.md",
