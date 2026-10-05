@@ -614,6 +614,10 @@ body { display: flex; flex-direction: column; }
 .settings-tab:hover { color: var(--text); }
 .settings-tab.active { color: var(--text); border-bottom-color: var(--accent); }
 .settings-tab[hidden] { display: none; }
+/* Claro / Oscuro, al final de la fila de pestañas: sol, interruptor (.sw) y luna */
+.theme-toggle { margin-left: auto; display: flex; align-items: center; gap: 8px; color: var(--text-low); cursor: pointer; }
+.theme-toggle:hover { color: var(--text); }
+.theme-toggle svg { width: 15px; height: 15px; }
 .settings-pane[hidden] { display: none; }
 /* sin base conectada, la pestaña Conocimiento solo trae el bloque de conexión, centrado */
 .settings-main { display: flex; flex-direction: column; }
@@ -731,37 +735,6 @@ body { display: flex; flex-direction: column; }
   display: flex; justify-content: flex-end;
 }
 .settings-version { font-size: 11px; color: var(--text-low); font-family: ui-monospace, monospace; }
-.settings-aside {
-  width: 248px; flex-shrink: 0;
-  padding: 20px 16px;
-  border-left: 1px solid var(--border);
-  overflow-y: auto;
-}
-.settings-aside h3 {
-  margin: 0 0 12px; font-size: 13px; font-weight: 650; color: var(--text);
-  text-transform: uppercase; letter-spacing: 0.05em;
-}
-
-/* columna de temas */
-.theme-col { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.theme-col li {
-  display: flex; align-items: center; gap: 10px;
-  padding: 8px 10px;
-  border: 1px solid transparent; border-radius: 0;
-  font-size: 13px; color: var(--text); cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
-}
-.theme-col li:hover { background: var(--border); }
-.theme-col li.active {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-}
-.theme-col li .swatch {
-  width: 20px; height: 20px; border-radius: 0; flex-shrink: 0;
-  border: 1px solid rgba(127, 127, 127, 0.3);
-}
-.theme-col li .check { margin-left: auto; opacity: 0; color: var(--accent); }
-.theme-col li.active .check { opacity: 1; }
 
 /* ── Skills command palette ────────────────────────────────── */
 .palette-overlay {

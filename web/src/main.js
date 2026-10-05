@@ -11,7 +11,7 @@ import { installAutoLock } from './mobile/auto-lock.js';
 import { createAuthSession } from './auth/session.js';
 import { ensureLogin } from './auth/login-view.js';
 import { wireLogout } from './auth/logout-button.js';
-import { THEMES, themeById } from './theme/themes.js';
+import { themeById, toggledTheme } from './theme/themes.js';
 
 // Favicon de la pestaña (la K).
 {
@@ -398,7 +398,8 @@ const root = document.documentElement;
 const tabsEl = document.getElementById('tabs');
 const addBtn = document.getElementById('tab-add');
 const stackEl = document.getElementById('term-stack');
-const list = document.getElementById('theme-list');
+const themeToggle = document.getElementById('theme-toggle');
+const themeSwitch = themeToggle.querySelector('.sw');
 const editor = document.getElementById('tab-editor');
 const nameInput = document.getElementById('tab-name-input');
 const colorsEl = document.getElementById('tab-colors');
@@ -1511,18 +1512,10 @@ const applyTheme = (id) => {
   if (!LAN_TOKEN && API_BASE) {
     fetch(`${API_BASE}/config`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ theme: { id: t.id, ui: t.ui } }) }).catch(() => {});
   }
-  list.querySelectorAll('li').forEach((li) => li.classList.toggle('active', li.dataset.id === t.id));
+  themeSwitch.setAttribute('aria-checked', String(!!t.dark));
 };
 
-const CHECK = '<svg class="check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
-THEMES.forEach((t) => {
-  const li = document.createElement('li');
-  li.dataset.id = t.id;
-  if (t.id === currentThemeId) li.classList.add('active');
-  li.innerHTML = `<span class="swatch" style="background:${t.ui.bg};box-shadow:inset 0 0 0 3px ${t.ui.accent}"></span><span>${t.label}</span>${CHECK}`;
-  li.addEventListener('click', () => applyTheme(t.id));
-  list.appendChild(li);
-});
+themeToggle.addEventListener('click', () => applyTheme(toggledTheme(currentThemeId).id));
 
 applyTheme(currentThemeId);
 

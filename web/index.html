@@ -260,6 +260,12 @@
             <button class="settings-tab" data-pane="credenciales" role="tab">Credenciales</button>
             <!-- Acceso desde el móvil: QR + PIN, en red local o por túnel público -->
             <button class="settings-tab" data-pane="movil" role="tab">Móvil</button>
+            <!-- Claro / Oscuro: el interruptor de la app; los iconos también lo cambian -->
+            <div class="theme-toggle" id="theme-toggle" title="Claro / Oscuro">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+              <button type="button" class="sw" role="switch" aria-checked="false" aria-label="Modo oscuro"><span class="knob"></span></button>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            </div>
           </nav>
           <div class="settings-layout">
             <div class="settings-main">
@@ -508,10 +514,6 @@
               </section>
               </div>
             </div>
-            <aside class="settings-aside">
-              <h3>Tema</h3>
-              <ul class="theme-col" id="theme-list"></ul>
-            </aside>
           </div>
           <footer class="settings-foot">
             <span class="settings-version" id="settings-version">SIA</span>
