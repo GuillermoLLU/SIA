@@ -75,7 +75,7 @@ Se monta una vez:
 4. Comprobar con **`scripts/platform-tests/verify.sql`** (todo en OK).
 
 Endurecimiento recomendado en el panel: registro público cerrado, contraseñas
-de 12+ con los cuatro tipos de carácter, SSL obligatorio y claves legacy
+de 6 caracteres o más, SSL obligatorio y claves legacy
 desactivadas. Las pruebas del SQL: `npm run test:platform` (Docker).
 
 Roles: **admin** (gestiona personas, bases y lo que ve cada una) y **agent**

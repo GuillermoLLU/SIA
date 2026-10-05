@@ -99,7 +99,7 @@ const passwordGate = (session, logoHtml) => new Promise((resolve) => {
     <p class="login-lead">Elige tu contraseña: la que tienes te la dio un administrador.</p>
     <input class="settings-input login-input" name="password" type="password" placeholder="Contraseña nueva" autocomplete="new-password" />
     <input class="settings-input login-input" name="repeat" type="password" placeholder="Repítela" autocomplete="new-password" />
-    <p class="login-hint">12 o más caracteres, con minúsculas, mayúsculas, números y algún símbolo.</p>
+    <p class="login-hint">Mínimo 6 caracteres.</p>
     <button class="lab-btn primary login-go" type="submit">Guardar y entrar</button>
     <div class="lock-msg" role="alert"></div>
   </form>`;

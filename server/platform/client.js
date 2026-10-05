@@ -18,7 +18,7 @@ const AUTH_MESSAGES = {
   refresh_token_already_used: 'La sesión ha caducado.',
   session_not_found: 'La sesión ha caducado.',
   same_password: 'La contraseña nueva tiene que ser distinta de la actual.',
-  weak_password: 'La contraseña no cumple la política: 12 o más, con minúsculas, mayúsculas, números y algún símbolo.',
+  weak_password: 'La contraseña necesita 6 caracteres o más.',
 };
 // PostgREST manda 42501 (sin permiso) como 401/403: aquí siempre 403.
 const statusOf = (r, data) => (data?.code === '42501' ? 403 : r.status >= 500 ? 502 : r.status);
