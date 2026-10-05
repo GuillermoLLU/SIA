@@ -1,10 +1,7 @@
-// /api/knowledge/*: bases de la instancia y conocimiento de cada persona,
-// solo para administradores (sesión en X-SIA-Auth). La base vuelve a
-// comprobarlo todo con su JWT.
+// /api/knowledge/*: conocimiento de cada persona, solo para administradores
+// (sesión en X-SIA-Auth). La base vuelve a comprobarlo todo con su JWT. Las
+// bases de la instancia se gestionan en Configuración → Conocimiento.
 //   GET    /bases                          → { bases }  (con sus grupos: { id, name })
-//   POST   /bases                          { name, url, key, powerKey? } → { id }
-//   PUT    /bases/:id                      { powerKey } → { ok }
-//   DELETE /bases/:id                      → { ok }
 //   PUT    /people/:userId/bases/:baseId   { groups: [ids] } → { ok }   (vacío: no la ve)
 //   POST   /people/:userId/copy            { from } → { ok }
 // Tras cada cambio, onChange(token): lo asignado a uno mismo puede haber cambiado.
@@ -23,16 +20,6 @@ export const knowledgeRoutes = (knowledge, auth, { json, readBody, onChange }) =
     const changed = async (body) => { await onChange(token); return json(res, 200, body); };
 
     if (kind === 'bases' && !id && req.method === 'GET') return json(res, 200, { bases: await knowledge.bases(jwt) });
-    if (kind === 'bases' && !id && req.method === 'POST') {
-      const { name, url, key, powerKey } = await readBody(req);
-      return changed({ id: await knowledge.addBase(jwt, { name, url, key, powerKey }) });
-    }
-    if (kind === 'bases' && id && req.method === 'PUT') {
-      const { powerKey } = await readBody(req);
-      await knowledge.setPowerKey(jwt, id, powerKey);
-      return changed({ ok: true });
-    }
-    if (kind === 'bases' && id && req.method === 'DELETE') { await knowledge.removeBase(jwt, id); return changed({ ok: true }); }
     if (kind === 'people' && id && sub === 'bases' && subId && req.method === 'PUT') {
       const { groups } = await readBody(req);
       await knowledge.setGroups(jwt, id, subId, groups);

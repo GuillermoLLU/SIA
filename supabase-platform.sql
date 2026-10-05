@@ -415,6 +415,18 @@ exception
   when check_violation then raise exception 'Datos no válidos: nombre (1-60), URL https://<ref>.supabase.co y clave sb_publishable_….' using errcode = '23514';
 end $$;
 
+-- Renombra una base (la mantiene en sintonía con Configuración → Conocimiento).
+create or replace function public.platform_rename_base(p_base uuid, p_name text) returns void
+language plpgsql security definer set search_path = '' as $$
+declare v_me uuid := platform.require_admin();
+begin
+  update platform.knowledge_bases set name = btrim(p_name) where id = p_base;
+  if not found then raise exception 'Esa base no existe.' using errcode = 'P0002'; end if;
+  perform platform.audit(v_me, 'base.rename', null, jsonb_build_object('base', p_base, 'name', btrim(p_name)));
+exception
+  when check_violation then raise exception 'Nombre no válido (1-60 caracteres).' using errcode = '23514';
+end $$;
+
 -- Pone o cambia la clave de poder de una base (en Vault).
 create or replace function public.platform_set_base_power(p_base uuid, p_power_key text) returns void
 language plpgsql security definer set search_path = '' as $$

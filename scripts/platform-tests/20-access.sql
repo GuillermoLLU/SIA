@@ -108,6 +108,10 @@ select assert_eq((select count(*) from public.platform_base_access()), 1::bigint
 select public.platform_set_base_power((select id from public.platform_list_bases() where name = 'Logística'), 'pk-admin-logistica-1');
 select public.platform_set_base_power((select id from public.platform_list_bases() where name = 'Soporte'), 'pk-admin-soporte-456');
 select assert_eq((select string_agg(power_key, ',' order by power_key) from public.platform_base_access()), 'pk-admin-logistica-1,pk-admin-soporte-456', 'poner y cambiar la clave');
+select public.platform_rename_base((select id from public.platform_list_bases() where name = 'Logística'), 'Logística España');
+select assert_eq((select count(*) from public.platform_list_bases() where name = 'Logística España'), 1::bigint, 'renombrar una base');
+select expect_error($$select public.platform_rename_base((select id from public.platform_list_bases() where name = 'Logística España'), '')$$, 'nombre vacío');
+select public.platform_rename_base((select id from public.platform_list_bases() where name = 'Logística España'), 'Logística');
 reset role;
 select assert_eq((select count(*) from vault.secrets where name like 'sia-base-%'), 2::bigint, 'una clave por base en Vault, sin duplicar al cambiarla');
 select assert_eq((select count(*) from platform.knowledge_bases where power_secret is not null), 2::bigint, 'y la base apunta a ella (no guarda la clave)');
@@ -139,6 +143,7 @@ select expect_error('select count(*) from public.platform_base_access()', 'el ag
 select expect_error($$select public.platform_set_knowledge('00000000-0000-0000-0000-0000000000a2', gen_random_uuid(), '[]')$$, 'el agente no asigna');
 select expect_error($$select public.platform_copy_knowledge('00000000-0000-0000-0000-0000000000a2', '00000000-0000-0000-0000-0000000000a1')$$, 'el agente no copia');
 select expect_error($$select public.platform_add_base('X', 'https://abcdefghijklmnopqrsv.supabase.co', 'sb_publishable_abcdefghijklmnopqrstuvwxyz')$$, 'el agente no añade bases');
+select expect_error($$select public.platform_rename_base(gen_random_uuid(), 'X')$$, 'el agente no renombra bases');
 select t_as(:U2);
 select assert_eq((select count(*) from public.platform_my_knowledge()), 0::bigint, 'otro agente no ve lo ajeno');
 

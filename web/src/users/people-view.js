@@ -191,11 +191,13 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast }) => 
       const on = sel.length > 0, groups = b.groups || [];
       m.querySelector('[data-b]').innerHTML = !b.groups
         ? `<div class="pp-callout">${esc(b.groupsError || 'Esta base aún no tiene su clave de poder, así que SIA no puede leer sus grupos.')}</div>`
+        : !groups.length
+        ? '<div class="pp-callout">Esta base aún no tiene grupos: créalos en Configuración → Conocimiento → Administración.</div>'
         : `<div class="pp-toggle"><span><b>Ve esta base</b><span>${on ? (groups.length === 1 ? 'Con todo su conocimiento.' : 'Con los grupos que marques abajo.') : 'Sus chats no la usarán.'}</span></span>
             <button type="button" class="sw" role="switch" aria-checked="${on}" aria-label="Ve esta base" data-toggle><span class="knob"></span></button></div>
           ${groups.length > 1 ? `<div class="pp-groups-label">Grupos${on ? ` · ${sel.length} de ${groups.length}` : ''}</div>
             <div class="pp-groups">${groups.map((g) => `<button type="button" class="pp-g" data-g="${esc(g.id)}" aria-pressed="${sel.includes(g.id)}">${esc(g.name)}</button>`).join('')}</div>` : ''}`;
-      m.querySelector('[data-ok]').disabled = !b.groups;
+      m.querySelector('[data-ok]').disabled = !groups.length;
     };
     m.querySelector('[data-b]').addEventListener('click', (e) => {
       if (e.target.closest('[data-toggle]')) sel = sel.length ? [] : b.groups.map((g) => g.id);

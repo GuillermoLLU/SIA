@@ -2367,7 +2367,7 @@ const renderGrid = () => {
         <button type="button" class="icon-btn" data-act="toggle" title="${b.enabled === false ? 'Activar esta base' : 'Desactivar temporalmente'}" aria-label="${b.enabled === false ? 'Activar' : 'Desactivar'}">${ICON_POWER}</button>
         <button type="button" class="icon-btn danger" data-act="remove" title="Quitar esta base" aria-label="Quitar esta base">${TRASH_ICON}</button>
       </span>`}
-      <span class="b-ico">${BASE_ICON}</span><span class="b-name">${esc(b.name)}</span>${b.enabled === false ? '<span class="b-meta">desactivada</span>' : warn ? `<span class="b-meta">${esc(warn)}</span>` : b.managed ? '<span class="b-meta">de la plataforma</span>' : ''}`;
+      <span class="b-ico">${BASE_ICON}</span><span class="b-name">${esc(b.name)}</span>${b.enabled === false ? '<span class="b-meta">desactivada</span>' : warn ? `<span class="b-meta">${esc(warn)}</span>` : b.managed ? '<span class="b-meta">de la plataforma</span>' : `<span class="b-meta">${b.powerKey ? 'asignable a personas' : 'sin clave de poder: no asignable'}</span>`}`;
     const enter = () => { selectedBase = b.id; renderBaseViews(); dbWizardClose(); dbSetStatus(dbStatus, ''); knowShow('menu'); };
     box.addEventListener('click', (e) => { if (!e.target.closest('.b-actions')) enter(); });
     box.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.target.closest('.b-actions')) enter(); });
@@ -2414,8 +2414,11 @@ const renderMenu = () => {
     baseMenu.appendChild(box);
   }
 };
+// Configuración manda sobre lo que se asigna en Personas: si una base no se
+// pudo llevar a la instancia, el bridge lo dice en instanceWarning.
+const instanceWarn = (r) => { if (r?.instanceWarning) dlgAlert('No asignable a personas', esc(r.instanceWarning)); };
 const removeBase = async (b) => {
-  if (!(await dlgConfirm('Quitar base', `Se quita <strong>${esc(b.name)}</strong> de este equipo (la base y su contenido no se tocan). Los chats abiertos siguen como están.`, 'Quitar'))) return;
+  if (!(await dlgConfirm('Quitar base', `Se quita <strong>${esc(b.name)}</strong> de SIA y <strong>deja de verla toda persona que la tuviera asignada</strong>. La base y su contenido no se tocan.`, 'Quitar'))) return;
   try {
     await api(`/bases/${encodeURIComponent(b.id)}`, { method: 'DELETE' });
     toast(`Base «${b.name}» quitada`);
@@ -2527,6 +2530,7 @@ const baseCard = (b, part = 'config') => {
     try {
       const r = await api(`/bases/${encodeURIComponent(b.id)}`, { method: 'PUT', body: JSON.stringify({ powerKey: powerInput.value.trim() }) });
       b.powerKey = r.powerKey;
+      instanceWarn(r);
       await refreshAdmin();
       paintPower();
       renderMenu(); renderGrid(); // la caja «Claves» del menú depende de la clave
@@ -2670,7 +2674,7 @@ dbConnect.addEventListener('click', async () => {
     if (!dbReady(d)) return dbWizardOpen(d); // faltan tablas, políticas o dueño: montar / actualizar
     if (editingBase) {
       // base ya vinculada: se cambia su conexión (y su nombre)
-      await api(`/bases/${encodeURIComponent(editingBase)}`, { method: 'PUT', body: JSON.stringify({ ...conn, name: dbNameInput.value.trim() }) });
+      instanceWarn(await api(`/bases/${encodeURIComponent(editingBase)}`, { method: 'PUT', body: JSON.stringify({ ...conn, name: dbNameInput.value.trim() }) }));
       selectedBase = editingBase; editingBase = null; knowView = 'config';
       await basesLoad();
       toast('Conexión actualizada');
@@ -2679,6 +2683,7 @@ dbConnect.addEventListener('click', async () => {
     }
     // base lista: entra en la lista de bases (con el token de la invitación, si venía de una)
     const nb = await api('/bases', { method: 'POST', body: JSON.stringify({ ...conn, name: dbNameInput.value.trim() }) });
+    instanceWarn(nb);
     await applyInviteToken(nb.id);
     selectedBase = nb.id; knowView = 'menu';
     await basesLoad();
@@ -2752,6 +2757,7 @@ dbSetup.addEventListener('click', async () => {
     const r = await api('/db/setup', { method: 'POST', body: JSON.stringify({ ...dbConn(), name: dbNameInput.value.trim(), ownerKey: dbOwnerKey }) });
     // si la base confirma que la clave que iba en el SQL es la del dueño, el
     // bridge ya la ha guardado como clave de poder de esta base
+    instanceWarn(r);
     if (r.base?.id) { await applyInviteToken(editingBase ? '' : r.base.id); selectedBase = r.base.id; knowView = editingBase ? 'config' : 'menu'; editingBase = null; }
     await basesLoad();
     toast(r.owned ? 'Base lista: eres su dueño' : 'Base de datos vinculada con éxito');

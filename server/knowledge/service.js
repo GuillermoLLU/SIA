@@ -5,6 +5,11 @@
 //
 // Los grupos de cada base se guardan en memoria (con sus tokens) al listar
 // las bases; la web solo recibe { id, name } y, al asignar, manda ids.
+//
+// Configuración → Conocimiento manda: las bases que un admin tiene ahí con su
+// clave de poder son las de la instancia (las que se asignan en Personas).
+// syncFromConfig da de alta las que falten y las renombra; quitar una base en
+// Configuración la quita de la instancia (removeByUrl).
 
 import { PlatformError } from '../platform/client.js';
 import { toGroups, publicGroups, pickGroups } from './groups.js';
@@ -38,19 +43,36 @@ export const createKnowledge = ({ platform, readGroups }) => {
     mine: (jwt) => platform.rpc(jwt, 'platform_my_knowledge'),
     bases,
 
-    async addBase(jwt, { name, url, key, powerKey }) {
-      if (powerKey) await tryPowerKey(url, key, powerKey);
-      return platform.rpc(jwt, 'platform_add_base', { p_name: name, p_url: url, p_publishable_key: key, p_power_key: powerKey || null });
+    // local: las bases de Configuración ({ name, url, key, powerKey }).
+    // changedPowerKey: url cuya clave de poder acaba de cambiar.
+    // → [problemas] (una base que no se pudo llevar a la instancia, con el motivo)
+    async syncFromConfig(jwt, local, { changedPowerKey = null } = {}) {
+      const byUrl = new Map((await platform.rpc(jwt, 'platform_list_bases')).map((b) => [b.url, b]));
+      const problems = [];
+      for (const l of local) {
+        if (!l.key || !l.powerKey) continue; // sin clave de poder no se leen sus grupos: no se puede asignar
+        const inst = byUrl.get(l.url);
+        try {
+          if (!inst) {
+            await tryPowerKey(l.url, l.key, l.powerKey);
+            await platform.rpc(jwt, 'platform_add_base', { p_name: l.name, p_url: l.url, p_publishable_key: l.key, p_power_key: l.powerKey });
+            continue;
+          }
+          if (inst.name !== l.name) await platform.rpc(jwt, 'platform_rename_base', { p_base: inst.id, p_name: l.name });
+          if (!inst.has_power_key || changedPowerKey === l.url) {
+            await tryPowerKey(l.url, l.key, l.powerKey);
+            await platform.rpc(jwt, 'platform_set_base_power', { p_base: inst.id, p_power_key: l.powerKey });
+            groupsByBase.delete(inst.id);
+          }
+        } catch (e) { problems.push(`«${l.name}»: ${e.message}`); }
+      }
+      return problems;
     },
-    async setPowerKey(jwt, baseId, powerKey) {
-      const base = (await platform.rpc(jwt, 'platform_list_bases')).find((b) => b.id === baseId);
-      if (!base) throw new PlatformError(404, 'Esa base no existe.');
-      await tryPowerKey(base.url, base.publishable_key, powerKey);
-      await platform.rpc(jwt, 'platform_set_base_power', { p_base: baseId, p_power_key: powerKey });
-    },
-    async removeBase(jwt, baseId) {
-      await platform.rpc(jwt, 'platform_remove_base', { p_base: baseId });
-      groupsByBase.delete(baseId);
+    async removeByUrl(jwt, url) {
+      const inst = (await platform.rpc(jwt, 'platform_list_bases')).find((b) => b.url === url);
+      if (!inst) return;
+      await platform.rpc(jwt, 'platform_remove_base', { p_base: inst.id });
+      groupsByBase.delete(inst.id);
     },
 
     // Qué grupos de una base ve alguien (ids de la web; vacío: no la ve).

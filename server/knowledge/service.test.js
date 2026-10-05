@@ -40,11 +40,27 @@ test('setGroups: de ids a nombre y token; a la base solo lo marcado', async () =
   await assert.rejects(knowledge.setGroups('jwt', 'u1', LOG, []), { status: 400 }, 'sin clave de poder no se asigna');
 });
 
-test('la clave de poder se prueba antes de guardarla', async () => {
+test('syncFromConfig: da de alta, renombra y pone la clave; con clave mala, avisa y no guarda', async () => {
   const { calls, knowledge } = setup();
-  await assert.rejects(knowledge.addBase('jwt', { name: 'X', url: 'u', key: 'k', powerKey: 'mala' }), /no abre los grupos/);
-  assert.ok(!calls.some(([fn]) => fn === 'platform_add_base'), 'una clave mala no se guarda');
-  await knowledge.setPowerKey('jwt', LOG, 'buena');
-  assert.deepEqual(calls.at(-1), ['platform_set_base_power', { p_base: LOG, p_power_key: 'buena' }]);
-  await assert.rejects(knowledge.setPowerKey('jwt', LOG, 'mala'), /no abre los grupos/);
+  const problems = await knowledge.syncFromConfig('jwt', [
+    { name: 'Soporte España', url: 'https://s.supabase.co', key: 'pk-s', powerKey: 'poder-s' },  // ya está: renombrar
+    { name: 'Logística', url: 'https://l.supabase.co', key: 'pk-l', powerKey: 'poder-l' },       // ya está sin clave: ponerla
+    { name: 'Nueva', url: 'https://n.supabase.co', key: 'pk-n', powerKey: 'poder-n' },           // no está: alta
+    { name: 'Mala', url: 'https://m.supabase.co', key: 'pk-m', powerKey: 'mala' },               // clave que no abre nada
+    { name: 'Sin clave', url: 'https://x.supabase.co', key: 'pk-x', powerKey: '' },              // no se puede asignar: fuera
+  ]);
+  const fns = calls.map(([fn, args]) => `${fn}:${args?.p_name || args?.p_url || args?.p_base || ''}`);
+  assert.ok(fns.includes(`platform_rename_base:Soporte España`));
+  assert.ok(fns.includes(`platform_set_base_power:${LOG}`));
+  assert.ok(fns.includes('platform_add_base:Nueva'));
+  assert.ok(!fns.some((f) => f.includes('Mala') || f.includes('Sin clave')));
+  assert.deepEqual(problems, ['«Mala»: Esa clave de poder no abre los grupos de la base (tiene que tener permiso de Administración).']);
+});
+
+test('removeByUrl: quita de la instancia la base de esa URL (si está)', async () => {
+  const { calls, knowledge } = setup();
+  await knowledge.removeByUrl('jwt', 'https://l.supabase.co');
+  assert.deepEqual(calls.at(-1), ['platform_remove_base', { p_base: LOG }]);
+  await knowledge.removeByUrl('jwt', 'https://otra.supabase.co');
+  assert.equal(calls.at(-1)[0], 'platform_list_bases', 'si no está, no quita nada');
 });

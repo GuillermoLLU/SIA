@@ -635,6 +635,10 @@ const loadAssigned = async (token) => {
   try {
     const ctx = await auth.context(token);
     if (!ctx) return;
+    if (ctx.user.role === 'admin') {
+      const problems = await knowledge.syncFromConfig(ctx.accessToken, localBases());
+      for (const p of problems) console.warn(`[sia] no se pudo llevar a la instancia ${p}`);
+    }
     const next = { role: ctx.user.role, bases: toAssignedBases(await knowledge.mine(ctx.accessToken)) };
     if (JSON.stringify(next) === JSON.stringify(assigned)) return;
     assigned = next;
@@ -1450,6 +1454,13 @@ const apiServer = http.createServer(async (req, res) => {
       if (!isAdmin) return json(res, 403, { error: 'Tu conocimiento lo gestiona un administrador.' });
       const local = localBases();
       const taken = (url, exceptId) => list.find((x) => x.id !== exceptId && x.url === url);
+      // Configuración manda: lo que cambia aquí se lleva a la instancia (lo que
+      // se asigna en Personas). Si una base no se puede, se avisa del motivo.
+      const syncInstance = async (opts) => {
+        const problems = await knowledge.syncFromConfig(who.accessToken, localBases(), opts).catch((e) => [e.message]);
+        await loadAssigned(req.headers['x-sia-auth']);
+        return problems.length ? { instanceWarning: `No se pudo hacer asignable a personas: ${problems.join(' ')}` } : {};
+      };
       const dupMsg = (x) => (x.managed ? 'esa base ya te la asigna la plataforma' : 'esa base ya está conectada');
       if (req.method === 'POST' && !parts[2]) {
         const body = await readBody(req);
@@ -1459,7 +1470,7 @@ const apiServer = http.createServer(async (req, res) => {
         if (taken(b.url)) return json(res, 409, { error: dupMsg(taken(b.url)) });
         saveBases([...local, b]);
         await applyDbConnection();
-        return json(res, 200, b);
+        return json(res, 200, { ...b, ...(await syncInstance()) });
       }
       const target = parts[2] && list.find((b) => b.id === decodeURIComponent(parts[2]));
       if (!target) return json(res, 404, { error: 'esa base no existe' });
@@ -1480,7 +1491,8 @@ const apiServer = http.createServer(async (req, res) => {
         saveBases(prev ? local.map((l) => (l === prev ? overlay : l)) : [...local, overlay]);
         if (body.powerKey !== undefined) keysInvalidate(target);
         if (body.tokens !== undefined) await syncSkills(baseById(target.id));
-        return json(res, 200, baseById(target.id));
+        const warn = body.powerKey !== undefined ? await syncInstance({ changedPowerKey: target.url }) : {};
+        return json(res, 200, { ...baseById(target.id), ...warn });
       }
       if (req.method === 'PUT') {
         const body = await readBody(req);
@@ -1503,11 +1515,16 @@ const apiServer = http.createServer(async (req, res) => {
         saveBases(next);
         if (conn || body.enabled !== undefined) { keysInvalidate(target); await applyDbConnection(); } // otra conexión o activar/desactivar: reconectar y resincronizar
         else if (body.tokens !== undefined) await syncSkills(baseById(target.id)); // otros tokens, otras skills visibles
-        return json(res, 200, baseById(target.id));
+        if (conn && conn.url !== target.url) await knowledge.removeByUrl(who.accessToken, target.url); // otro proyecto: el anterior sale de la instancia
+        const warn = conn || body.name !== undefined || body.powerKey !== undefined
+          ? await syncInstance({ changedPowerKey: conn || body.powerKey !== undefined ? (conn?.url || target.url) : null }) : {};
+        return json(res, 200, { ...baseById(target.id), ...warn });
       }
       if (req.method === 'DELETE') {
-        if (target.managed) return json(res, 403, { error: 'Esta base la asigna la plataforma: no se quita aquí.' });
-        saveBases(local.filter((b) => b.id !== target.id));
+        // quitarla aquí la quita de la instancia: nadie más la ve
+        saveBases(local.filter((b) => b.url !== target.url));
+        await knowledge.removeByUrl(who.accessToken, target.url);
+        await loadAssigned(req.headers['x-sia-auth']);
         await applyDbConnection();
         return json(res, 200, { ok: true, bases: basesList() });
       }
@@ -1555,7 +1572,9 @@ const apiServer = http.createServer(async (req, res) => {
       saveBases(existing ? list.map((b) => (b.id === base.id ? base : b)) : [...list, base]);
       keysInvalidate();
       await applyDbConnection();
-      return json(res, 200, { ok: true, owned, base: baseById(base.id) });
+      const problems = await knowledge.syncFromConfig(who.accessToken, localBases(), { changedPowerKey: base.url }).catch((e) => [e.message]);
+      await loadAssigned(req.headers['x-sia-auth']);
+      return json(res, 200, { ok: true, owned, base: baseById(base.id), ...(problems.length ? { instanceWarning: `No se pudo hacer asignable a personas: ${problems.join(' ')}` } : {}) });
     }
     // proyectos accesibles para los tokens del usuario (selector de fuentes,
     // siempre fresco — no depende del WS)
