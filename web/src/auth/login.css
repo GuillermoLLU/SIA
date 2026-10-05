@@ -1,0 +1,35 @@
+/* Inicio de sesión: la puerta del candado (.lock-gate/.lock-card en style.css).
+   La S y el formulario ocupan la misma celda, centrados: al abrir, la S se
+   encoge y se desvanece mientras el formulario sube y aparece. */
+.login-stage { display: grid; place-items: center; width: min(300px, 100%); }
+.login-stage > * { grid-area: 1 / 1; }
+
+.login-open {
+  padding: 0; border: 0; background: none; cursor: pointer;
+  transition: opacity 0.3s ease, transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.login-open .lock-logo { transition: transform 0.25s ease, opacity 0.25s ease; opacity: 0.9; }
+.login-open:hover .lock-logo, .login-open:focus-visible .lock-logo { transform: scale(1.05); opacity: 1; }
+.login-open:active .lock-logo { transform: scale(0.97); }
+.login-open:focus-visible { outline: none; }
+.login-stage.open .login-open { opacity: 0; transform: scale(0.7); pointer-events: none; }
+
+.login-card {
+  width: 100%; gap: 10px;
+  opacity: 0; transform: translateY(16px);
+  transition: opacity 0.35s ease 0.12s, transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) 0.12s;
+}
+.login-stage.open .login-card { opacity: 1; transform: none; }
+
+.login-input { height: 40px; font-size: 14px; background: var(--surface); }
+.login-go { width: 100%; height: 40px; font-size: 14px; }
+/* «Mantener la sesión»: una línea discreta bajo el botón, con el interruptor
+   .sw de la app (style.css) */
+.login-remember { display: inline-flex; align-items: center; gap: 10px; margin-top: 6px; font-size: 12.5px; color: var(--text-low); cursor: pointer; user-select: none; transition: color 0.15s ease; }
+.login-remember:hover { color: var(--text); }
+.login-card .lock-msg { margin-top: 6px; }
+.login-card.bad { animation: lock-shake 0.36s ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  .login-open, .login-card, .login-open .lock-logo { transition: none; }
+}

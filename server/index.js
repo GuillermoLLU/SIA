@@ -12,6 +12,8 @@ import { ALL_PERMS, cleanPerms, permsFromRow } from './access/perms.js';
 import { cleanSupabase, baseRef, cleanBase, normalizeBases, usable } from './base/bases.js';
 import { makeDiagnose, schemaOk } from './base/diagnose.js';
 import { buildSchemaSql } from './base/schema-sql.js';
+import { createAuth } from './auth/service.js';
+import { authRoutes } from './auth/routes.js';
 import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -595,6 +597,10 @@ const lockTry = (key) => {
   return { ok: false };
 };
 
+/* ── Inicio de sesión: server/auth/ ── */
+const auth = createAuth({ readConfig: readUserConfig, writeConfig: writeUserConfig });
+if (auth.ensureUsers()) console.log('[sia] creado el usuario administrador inicial');
+
 /* Claves de GitHub: se guardan varias (trabajo, personal…) y solo UNA está
    activa; es la que viaja a los chats que se abran a partir de ese momento.
    `GH_TOKEN` es una variable de entorno, así que un chat solo puede llevar
@@ -792,6 +798,7 @@ const readBody = (req) => new Promise((resolve, reject) => {
   req.on('data', (c) => { b += c; if (b.length > 40_000_000) req.destroy(); });
   req.on('end', () => { try { resolve(b ? JSON.parse(b) : {}); } catch (e) { reject(e); } });
 });
+const authRoute = authRoutes(auth, { json, readBody });
 const validId = (s) => typeof s === 'string' && /^[a-z0-9][a-z0-9_-]{1,63}$/i.test(s);
 let uploadSeq = 0;
 const validFiles = (files) => Array.isArray(files) && files.length &&
@@ -927,7 +934,7 @@ setInterval(() => {
 
 const apiServer = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-SIA-Admin, X-SIA-Base, X-SIA-LAN');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-SIA-Admin, X-SIA-Base, X-SIA-LAN, X-SIA-Auth');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
 
@@ -996,6 +1003,8 @@ const apiServer = http.createServer(async (req, res) => {
       // bloquear ya o tiene que pedir antes que se elija uno
       return json(res, 200, { sia: true, version: APP_VERSION, dev: !process.versions.electron, ws: PORT, api: API_PORT, db: hasDb, theme: UI_THEME, ...(s ? { mode: s.mode, pin: lockHasKey() } : {}) });
     }
+
+    if (parts[1] === 'auth') return authRoute(req, res, parts[2]);
 
     /* ── Bloqueo de pantalla (solo desde esta máquina) ── */
     if (parts[1] === 'lock') {

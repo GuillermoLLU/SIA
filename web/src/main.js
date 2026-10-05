@@ -8,6 +8,9 @@ import logoUrl from './logo.png';
 import { inviteDecode } from './access/invite.js';
 import { accessMarkup, wireAccess } from './access/access-view.js';
 import { installAutoLock } from './mobile/auto-lock.js';
+import { createAuthSession } from './auth/session.js';
+import { ensureLogin } from './auth/login-view.js';
+import { wireLogout } from './auth/logout-button.js';
 
 // Favicon de la pestaña (la K).
 {
@@ -261,6 +264,10 @@ const lockGate = ({ remote = false } = {}) => {
   return lockGatePromise;
 };
 
+// Sesión de usuario (web/src/auth/): se abre al arrancar en el escritorio; el
+// móvil entra por su emparejamiento y se queda sin ella.
+let AUTH = null; // { session, user }
+
 {
   const q = new URLSearchParams(location.search);
   const isPhone = location.protocol.startsWith('http') && !['localhost', '127.0.0.1'].includes(location.hostname);
@@ -322,6 +329,11 @@ const lockGate = ({ remote = false } = {}) => {
       const st = await (await fetch(`${API_BASE}/lock`, { signal: AbortSignal.timeout(1500) })).json();
       if (st.locked) { paintCachedTheme(); await lockGate(); }
     } catch { /* bridge sin arrancar o anterior al candado: sin puerta */ }
+  }
+  // y después, quién eres (el móvil no: entra emparejado con el ordenador)
+  if (!isPhone) {
+    const session = createAuthSession(API_BASE);
+    AUTH = { session, user: await ensureLogin(session, { logoHtml: LOGO_HTML, paintTheme: paintCachedTheme }) };
   }
 }
 
@@ -2193,6 +2205,9 @@ const closeSettings = () => {
 };
 settingsClose.addEventListener('click', closeSettings);
 settingsModal.addEventListener('mousedown', (e) => { if (e.target === settingsModal) closeSettings(); });
+
+// Cerrar sesión (barra lateral): web/src/auth/logout-button.js
+wireLogout(document.getElementById('logout-btn'), { ...AUTH, confirm: dlgConfirm });
 
 /* ── Bloqueo de pantalla ──────────────────────────────────────────
    El candado de la barra lateral tapa la ventana hasta dar el PIN; la primera
