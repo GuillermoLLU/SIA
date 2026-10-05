@@ -31,7 +31,7 @@ const createWindow = () => {
     width: 1280,
     height: 840,
     title: 'SIA',
-    backgroundColor: '#1e1e2e',
+    backgroundColor: '#f2f2f2',
     webPreferences: { contextIsolation: true },
   });
   const ports = globalThis.__SIA_PORTS || {};

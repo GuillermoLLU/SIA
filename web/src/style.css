@@ -1,13 +1,13 @@
-/* Theme tokens are injected from JS (see main.js THEMES). These :root values
-   are just the first-paint defaults (Catppuccin Mocha) before JS runs. */
+/* Los colores del tema los pone el JS (web/src/theme/themes.js). Estos de
+   :root son solo los del primer pintado, antes de que corra: los del claro. */
 :root {
-  --bg: #1e1e2e;
-  --surface: #181825;
-  --border: #313244;
-  --text: #cdd6f4;
-  --text-low: #9399b2;
-  --accent: #89b4fa;
-  --scrollbar: #45475a;
+  --bg: #f2f2f2;
+  --surface: #ffffff;
+  --border: #dcdcdc;
+  --text: #111111;
+  --text-low: #6f6f6f;
+  --accent: #111111;
+  --scrollbar: #c8c8c8;
   --font-ui: -apple-system, "SF Pro Text", system-ui, sans-serif;
 }
 
@@ -1054,7 +1054,7 @@ body { display: flex; flex-direction: column; }
 .update-banner[hidden] { display: none; }
 .ub-dot { width: 8px; height: 8px; border-radius: 0; background: var(--accent); flex: none; }
 .ub-text { flex: 1; }
-.ub-download { border: none; background: var(--accent); color: #fff; padding: 5px 12px; border-radius: 0; font: 600 12px var(--font-ui); cursor: pointer; }
+.ub-download { border: none; background: var(--accent); color: var(--bg); padding: 5px 12px; border-radius: 0; font: 600 12px var(--font-ui); cursor: pointer; }
 .ub-download:hover { filter: brightness(1.08); }
 .ub-close { border: none; background: transparent; color: var(--text-low); font-size: 14px; cursor: pointer; padding: 4px 6px; border-radius: 0; }
 .ub-close:hover { background: var(--border); color: var(--text); }
