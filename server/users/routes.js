@@ -1,9 +1,10 @@
-// /api/users/*: gestión de usuarios, solo para administradores (sesión en
-// X-SIA-Auth). La base vuelve a comprobarlo todo con el JWT de quien llama.
+// /api/users/*: gestión de usuarios (sesión en X-SIA-Auth; la vista Personas
+// la exige el bridge antes de llegar aquí). La base vuelve a comprobarlo todo
+// con el JWT de quien llama.
 //   GET    /      → { users }
 //   POST   /      { email, name, password, role, knowledge? } → { user, warning? }
 //                 knowledge = { baseId: [ids de grupo] }: lo que verá desde el alta
-//   PUT    /:id   { name?, role?, active?, password? } → { ok }
+//   PUT    /:id   { name?, role?, views?, active?, password? } → { ok }   (un rol sin vistas trae las suyas)
 //   DELETE /:id   → { ok }
 // Los errores de la base o de la función llegan con su estado y su texto.
 
@@ -14,7 +15,6 @@ export const usersRoutes = (users, auth, { json, readBody, assignKnowledge }) =>
   try {
     const ctx = await auth.context(token);
     if (!ctx) return json(res, 401, { error: 'Inicia sesión.' });
-    if (ctx.user.role !== 'admin') return json(res, 403, { error: 'Solo para administradores.' });
     if (id && !UUID.test(id)) return json(res, 404, { error: 'Ese usuario no existe.' });
     const jwt = ctx.accessToken;
 
@@ -32,8 +32,8 @@ export const usersRoutes = (users, auth, { json, readBody, assignKnowledge }) =>
       return json(res, 200, { user, ...(failed.length ? { warning: `Creada, pero no se pudo asignar parte de su conocimiento: ${failed[0]}` } : {}) });
     }
     if (id && req.method === 'PUT') {
-      const { name, role, active, password } = await readBody(req);
-      await users.update(jwt, id, { name, role, active, password });
+      const { name, role, views, active, password } = await readBody(req);
+      await users.update(jwt, id, { name, role, views, active, password });
       if (id === ctx.user.id) auth.refreshProfile(token); // su propio nombre: que se vea ya
       return json(res, 200, { ok: true });
     }

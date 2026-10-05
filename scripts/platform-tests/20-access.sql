@@ -68,6 +68,27 @@ select t_as(:U2);
 select assert_eq((select count(*) from public.platform_list_users()), 3::bigint, 'el nuevo admin ve a todos');
 select t_as(:AD);
 select public.platform_update_user(:U2, null, 'agent');
+select assert_eq((select views from public.platform_list_users() where id = :U2), array['links'], 'volver a agente: sus vistas');
+
+-- vistas: el rol es el punto de partida; después, una a una
+select assert_eq((select (public.platform_whoami() -> 'views') ?& array['links', 'lab', 'admin', 'people', 'knowledge']), true, 'el admin, todas');
+select public.platform_update_user(:U1, null, null, null, array['people', 'links', 'people']);
+select assert_eq((select views from public.platform_list_users() where id = :U1), array['links', 'people'], 'vistas a mano, sin repetir');
+select expect_error($$select public.platform_update_user('00000000-0000-0000-0000-0000000000a2', null, null, null, array['root'])$$, 'vista desconocida');
+select expect_error($$select public.platform_update_user('00000000-0000-0000-0000-0000000000a1', null, null, null, array['links'])$$, 'nadie cambia sus propias vistas');
+select t_as(:U1);
+select assert_eq((select count(*) from public.platform_list_users()), 3::bigint, 'con Personas ve a todos aunque sea agente');
+select assert_eq(public.platform_can_manage_users(), true, 'y da de alta');
+select assert_eq((select count(*) from public.platform_list_bases()), 0::bigint, 've las bases para asignarlas');
+select expect_error($$select public.platform_add_base('X', 'https://abcdefghijklmnopqrsw.supabase.co', 'sb_publishable_abcdefghijklmnopqrstuvwxyz')$$, 'sin Conocimiento no añade bases');
+select expect_error($$select public.platform_update_user('00000000-0000-0000-0000-0000000000a2', null, null, null, array['links', 'people', 'knowledge'])$$, 'ni se da vistas a sí mismo');
+select t_as(:AD);
+select public.platform_update_user(:U1, null, null, null, array[]::text[]);
+select t_as(:U1);
+select assert_eq((public.platform_whoami() -> 'views'), '[]'::jsonb, 'sin vistas: solo el Chat');
+select assert_eq(public.platform_can_manage_users(), false, 'y sin Personas');
+select t_as(:AD);
+select public.platform_update_user(:U1, null, null, null, array['links']);
 
 -- contraseña puesta por un admin: hay que cambiarla al entrar; un cambio cierra sesiones
 reset role;

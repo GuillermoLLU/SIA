@@ -28,18 +28,22 @@ Instala dependencias si faltan y levanta las dos piezas. Abre
 cuenta de la instancia (las da un administrador; ver «La base de la
 instancia»). Con «Mantener la sesión» se entra solo la próxima vez.
 
-- **Agente**: su conocimiento ya viene asignado; pulsa **+** para abrir un
-  chat. En ⚙️ → Conocimiento lo ve en solo lectura.
-- **Administrador**: en **Personas** da de alta a la gente (con su rol y lo
-  que verá, en un solo paso) y, en la ficha de cada uno, cambia su rol, le
-  genera una contraseña nueva, le corta el acceso o decide qué bases y grupos
-  ve (o le copia los de otra persona). En la pestaña **Bases de
-  conocimiento** añade las bases de la instancia con su clave de poder de
-  Administración, que se guarda cifrada y con la que SIA lee sus grupos: así
-  nadie maneja tokens a mano. Quien recibe una contraseña de un administrador
-  la cambia al entrar. Además puede conectar bases propias:
+Cada persona ve las **vistas** que se le den: el Chat siempre y, además,
+Enlaces rápidos, Laboratorio, Administración, Personas y Bases de
+conocimiento (⚙️ → Conocimiento). El rol solo pone las de partida: un
+**agente** empieza con Chat y Enlaces; un **administrador**, con todas.
 
-1. **⚙️ Configuración → Conocimiento** (solo administradores): ponle un nombre a la base, pega el
+- **Personas**: da de alta a la gente (con su rol y lo que verá, en un solo
+  paso) y, en la ficha de cada uno, cambia su rol, enciende o apaga sus
+  vistas, le genera una contraseña nueva, le corta el acceso o decide qué
+  bases y grupos ve (o le copia los de otra persona). Quien recibe una
+  contraseña de otro la cambia al entrar.
+- **Bases de conocimiento** (⚙️ → Conocimiento): las bases que tienen su
+  clave de poder de Administración pasan solas a la instancia y se pueden
+  asignar en Personas; la clave se guarda cifrada y con ella SIA lee sus
+  grupos, así que nadie maneja tokens a mano. Para conectar una:
+
+1. **⚙️ Configuración → Conocimiento**: ponle un nombre a la base, pega el
    Project ID de tu proyecto Supabase (o su URL) y su clave *publishable*
    (`sb_publishable_…`) y pulsa **Conectar**. Si al proyecto le faltan las
    tablas, el asistente te guía en tres pasos (copiar el SQL, ejecutarlo en
@@ -78,16 +82,17 @@ Endurecimiento recomendado en el panel: registro público cerrado, contraseñas
 de 6 caracteres o más, SSL obligatorio y claves legacy
 desactivadas. Las pruebas del SQL: `npm run test:platform` (Docker).
 
-Roles: **admin** (gestiona personas, bases y lo que ve cada una) y **agent**
-(usa lo asignado). Nadie cambia su propio rol ni se desactiva, así que
-siempre queda un admin. Todo pasa por funciones de la base que comprueban
-quién llama; las tablas no se pueden leer ni con la publishable.
+Vistas por persona (`platform.users.views`: links, lab, admin, people,
+knowledge); el rol (**admin** / **agent**) solo pone las de partida. Nadie
+cambia su propio rol ni sus vistas ni se desactiva, así que siempre queda
+alguien con Personas. Todo pasa por funciones de la base que comprueban
+quién llama y sus vistas; las tablas no se pueden leer ni con la publishable.
 
 En SIA, el bridge guarda la sesión de Supabase (el JWT solo en memoria; el
 refresh token, en `~/.sia/config.json` si se marcó «Mantener la sesión») y da
-a la web un token propio. Toda la API y el terminal exigen sesión, y lo de
-gestión (Laboratorio, Administración, claves, montar bases, editar enlaces)
-es solo de admins. Lo asignado a cada persona se carga al iniciar sesión y
+a la web un token propio. Toda la API y el terminal exigen sesión, y cada
+ruta de gestión exige su vista (`server/auth/views.js`): la web esconde lo
+que no toca y el bridge lo rechaza igual. Lo asignado a cada persona se carga al iniciar sesión y
 solo vive en memoria; un agente no recibe tokens ni claves en la web.
 
 ## Quién ve qué

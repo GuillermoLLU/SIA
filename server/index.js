@@ -15,6 +15,7 @@ import { buildSchemaSql } from './base/schema-sql.js';
 import { createAuth } from './auth/service.js';
 import { authRoutes } from './auth/routes.js';
 import { liveSessions } from './auth/sessions.js';
+import { allowed, can } from './auth/views.js';
 import { createUserAdmin } from './users/service.js';
 import { usersRoutes } from './users/routes.js';
 import { loadPlatformConfig } from './platform/config.js';
@@ -408,11 +409,14 @@ const localBases = () => {
   return normalizeBases(readUserConfig().bases);
 };
 // Lo que la plataforma asigna a quien ha iniciado sesión en este bridge (el
-// último que entra) y su rol; solo en memoria, nunca en la config.
-let assigned = { role: null, bases: [] };
-// Bases en uso: lo asignado y, si administra, también sus bases propias
-// (server/knowledge/assigned.js). Un agente solo usa lo asignado.
-const basesList = () => mergeBases(assigned.bases, localBases(), { allowLocal: assigned.role === 'admin' });
+// último que entra) y si gestiona bases (vista Conocimiento); solo en
+// memoria, nunca en la config.
+let assigned = { configures: false, bases: [] };
+// Lo que puede el móvil emparejado (entra sin sesión, con su llave).
+const PHONE_USER = { views: ['links'] };
+// Bases en uso: lo asignado y, si gestiona bases, también las de su
+// Configuración (server/knowledge/assigned.js). Si no, solo lo asignado.
+const basesList = () => mergeBases(assigned.bases, localBases(), { allowLocal: assigned.configures });
 // no hay base «principal»: cada chat y cada vista eligen la suya; la primera de
 // la lista solo sirve de valor por defecto cuando algo llega sin base
 const primaryBase = () => activeBases()[0] || null;
@@ -635,18 +639,19 @@ const loadAssigned = async (token) => {
   try {
     const ctx = await auth.context(token);
     if (!ctx) return;
-    if (ctx.user.role === 'admin') {
+    const configures = can(ctx.user, 'knowledge');
+    if (configures) {
       const problems = await knowledge.syncFromConfig(ctx.accessToken, localBases());
       for (const p of problems) console.warn(`[sia] no se pudo llevar a la instancia ${p}`);
     }
-    const next = { role: ctx.user.role, bases: toAssignedBases(await knowledge.mine(ctx.accessToken)) };
+    const next = { configures, bases: toAssignedBases(await knowledge.mine(ctx.accessToken)) };
     if (JSON.stringify(next) === JSON.stringify(assigned)) return;
     assigned = next;
     await applyDbConnection();
   } catch (e) { console.warn(`[sia] no se pudo cargar el conocimiento asignado: ${e.message}`); }
 };
 const clearAssigned = async () => {
-  assigned = { role: null, bases: [] };
+  assigned = { configures: false, bases: [] };
   await applyDbConnection();
 };
 // Del inicio de sesión local anterior: fuera los usuarios y sus sesiones.
@@ -1117,15 +1122,11 @@ const apiServer = http.createServer(async (req, res) => {
       // contraseña puesta por un admin: nada más hasta que elija la suya
       if (who.user.must_change_password) return json(res, 401, { error: 'Elige tu contraseña para seguir.', auth: true });
     }
-    // Lo de gestión (Laboratorio, Administración, claves de poder, grupos,
-    // montar bases, editar enlaces) es solo de admins, aunque una clave de
-    // poder lo abriera: segunda capa por rol, además de la de la base.
-    const adminOnly = ['keys', 'drafts', 'groups', 'db'].includes(parts[1])
-      || (parts[1] === 'admin' && parts[2] !== 'check')
-      || (parts[1] === 'skills' && (req.method === 'DELETE' || parts[2] === 'publish'))
-      || (parts[1] === 'links' && req.method !== 'GET')
-      || (parts[1] === 'access' && parts[2] === 'groups');
-    if (adminOnly && who?.user.role !== 'admin') return json(res, 403, { error: 'Solo para administradores.' });
+    // Cada vista (Laboratorio, Administración, Personas, Conocimiento,
+    // Enlaces) solo para quien la tiene, aunque una clave de poder lo abriera:
+    // segunda capa, además de la de la base (server/auth/views.js). El móvil
+    // emparejado no inicia sesión: ve los Enlaces y nada de gestión.
+    if (!allowed(who?.user ?? PHONE_USER, parts, req.method)) return json(res, 403, { error: 'No tienes acceso a esto.' });
     if (parts[1] === 'users') return usersRoute(req, res, parts[2]);
     if (parts[1] === 'knowledge') return knowledgeRoute(req, res, parts.slice(2));
 
@@ -1448,10 +1449,10 @@ const apiServer = http.createServer(async (req, res) => {
        tablas pasa por /db/setup, que también la añade). */
     if (parts[1] === 'bases') {
       const list = basesList();
-      const isAdmin = who?.user.role === 'admin';
-      // quien no administra ve sus bases sin tokens ni claves, y no cambia nada
-      if (req.method === 'GET' && !parts[2]) return json(res, 200, isAdmin ? list : list.map(publicBase));
-      if (!isAdmin) return json(res, 403, { error: 'Tu conocimiento lo gestiona un administrador.' });
+      const configures = can(who?.user, 'knowledge');
+      // quien no gestiona bases ve las suyas sin tokens ni claves, y no cambia nada
+      if (req.method === 'GET' && !parts[2]) return json(res, 200, configures ? list : list.map(publicBase));
+      if (!configures) return json(res, 403, { error: 'Tu conocimiento lo gestiona otra persona.' });
       const local = localBases();
       const taken = (url, exceptId) => list.find((x) => x.id !== exceptId && x.url === url);
       // Configuración manda: lo que cambia aquí se lleva a la instancia (lo que

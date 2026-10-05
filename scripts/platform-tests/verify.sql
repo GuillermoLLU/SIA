@@ -78,9 +78,9 @@ checks (orden, comprobacion, ok, detalle) as (
     not exists (select 1 from auth.users a where not exists (select 1 from platform.users u where u.id = a.id)),
     (select count(*)::text from auth.users) || ' en Auth, ' || (select count(*)::text from platform.users) || ' en platform.users'
   union all
-  select 15, 'Hay al menos un administrador activo',
-    exists (select 1 from platform.users where role = 'admin' and active),
-    coalesce((select string_agg(email, ', ') from platform.users where role = 'admin' and active), 'ninguno: falta select platform.grant_admin(''tu-email'')')
+  select 15, 'Hay al menos una persona activa que gestiona Personas',
+    exists (select 1 from platform.users where 'people' = any (views) and active),
+    coalesce((select string_agg(email, ', ') from platform.users where 'people' = any (views) and active), 'nadie: falta select platform.grant_admin(''tu-email'')')
 )
 select orden as "#", case when ok then 'OK' else 'FALLO' end as estado, comprobacion, detalle
 from checks order by orden;

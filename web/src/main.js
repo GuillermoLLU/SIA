@@ -271,6 +271,9 @@ const lockGate = ({ remote = false } = {}) => {
 // Sesión de usuario (web/src/auth/): se abre al arrancar en el escritorio; el
 // móvil entra por su emparejamiento y se queda sin ella.
 let AUTH = null; // { session, user }
+// Vistas de quien ha iniciado sesión (las decide la instancia; el Chat,
+// siempre). El móvil emparejado, sin sesión, solo ve los Enlaces.
+const canView = (view) => (AUTH ? AUTH.user.views || [] : ['links']).includes(view);
 // URL del socket: en el escritorio, con la sesión (?a=); el móvil ya lleva su llave (?t=)
 const wsUrl = () => (AUTH ? `${WS_URL}${WS_URL.includes('?') ? '&' : '?'}a=${encodeURIComponent(AUTH.session.headers()['X-SIA-Auth'])}` : WS_URL);
 
@@ -1754,11 +1757,10 @@ const refreshAdmin = async ({ quiet = false } = {}) => {
     basesPerms = bases || [];
     const changed = JSON.stringify(basesPerms) !== before;
     if (viewBase && !basesPerms.some((b) => b.id === viewBase)) viewBase = null;
-    // Laboratorio y Administración: solo admins (el bridge también lo exige)
-    const isAdmin = AUTH?.user.role === 'admin';
-    navLab.hidden = !isAdmin || !basesFor('lab').length;
-    navAdmin.hidden = !isAdmin || !basesFor('admin').length;
-    navLinks.hidden = !basesFor('links').length;
+    // cada vista, si la tiene (el bridge también lo exige) y si alguna base la abre
+    navLab.hidden = !canView('lab') || !basesFor('lab').length;
+    navAdmin.hidden = !canView('admin') || !basesFor('admin').length;
+    navLinks.hidden = !(canView('links') || canView('admin')) || !basesFor('links').length;
     if (navLab.hidden && !viewLab.hidden) showView('chat');
     if (navAdmin.hidden && !viewAdmin.hidden) showView('chat');
     if (navLinks.hidden && !viewLinks.hidden) showView('chat');
@@ -2089,8 +2091,8 @@ jiraSave.addEventListener('click', async () => {
     for (const p of panes) p.hidden = p.dataset.pane !== name;
   };
   for (const t of tabs) t.addEventListener('click', () => showPane(t.dataset.pane));
-  // quien no administra no gestiona bases ni conocimiento: sin esa pestaña
-  if (AUTH?.user.role !== 'admin') {
+  // sin la vista Conocimiento no gestiona bases: sin esa pestaña
+  if (!canView('knowledge')) {
     tabs.find((t) => t.dataset.pane === 'conocimiento').hidden = true;
     showPane('credenciales');
   }
@@ -2112,8 +2114,8 @@ settingsModal.addEventListener('mousedown', (e) => { if (e.target === settingsMo
 // Cerrar sesión (barra lateral): web/src/auth/logout-button.js
 wireLogout(document.getElementById('logout-btn'), { ...AUTH, confirm: dlgConfirm });
 
-// Usuarios (barra lateral, solo administradores): web/src/users/
-const usersView = AUTH?.user.role === 'admin'
+// Personas (barra lateral, con esa vista): web/src/users/
+const usersView = canView('people')
   ? mountPeopleView(viewUsers, { usersApi: createUsersApi(API_BASE, AUTH.session), knowledgeApi: createKnowledgeApi(API_BASE, AUTH.session), me: AUTH.user, toast: (t) => toast(t) })
   : null;
 navUsers.hidden = !usersView;
@@ -2257,8 +2259,8 @@ const ICON_CONFIG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" 
 const ICON_POWER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/><path d="M12 2v10"/></svg>';
 const ICON_KEY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.9 12.1 21 2M15 8l3 3M18 5l3 3"/></svg>';
 const knowPane = document.querySelector('#settings-modal .settings-pane[data-pane="conocimiento"]');
-// Quien no administra no tiene la pestaña Conocimiento (ver las pestañas).
-const knowReadOnly = () => AUTH?.user.role !== 'admin';
+// Sin la vista Conocimiento no hay esa pestaña (ver las pestañas).
+const knowReadOnly = () => !canView('knowledge');
 
 /* Varias bases de conocimiento. Sin ninguna: solo el formulario de conexión,
    centrado, para que lo primero sea vincular una. Con bases: una tarjeta por

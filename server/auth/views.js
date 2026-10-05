@@ -1,0 +1,24 @@
+// Vistas: lo que cada persona puede ver y hacer en SIA (el Chat, siempre).
+// Las decide la base de la instancia (platform.users.views); el rol solo
+// pone las de partida. Aquí, qué vista exige cada ruta de la API: la web
+// esconde lo que no toca y el bridge lo rechaza igual.
+
+export const VIEWS = ['links', 'lab', 'admin', 'people', 'knowledge'];
+
+export const can = (user, view) => Array.isArray(user?.views) && user.views.includes(view);
+
+// Vistas que abren una ruta (basta con una), o null si basta la sesión.
+// `parts` = la ruta partida por '/', con parts[0] = 'api'.
+export const viewsForRoute = ([, area, sub], method) => {
+  if (['keys', 'db'].includes(area) || (area === 'access' && sub === 'groups')) return ['knowledge'];
+  if (area === 'admin' && sub !== 'check') return ['admin'];
+  if (area === 'links') return method === 'GET' ? ['links', 'admin'] : ['admin'];
+  if (['drafts', 'groups'].includes(area) || (area === 'skills' && (method === 'DELETE' || sub === 'publish'))) return ['lab'];
+  if (area === 'users' || area === 'knowledge') return ['people'];
+  return null;
+};
+
+export const allowed = (user, parts, method) => {
+  const need = viewsForRoute(parts, method);
+  return !need || need.some((v) => can(user, v));
+};

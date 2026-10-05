@@ -1,19 +1,20 @@
-// Vista «Personas» (solo administradores). Lista con buscador y filtros y,
+// Vista «Personas» (para quien la tiene). Lista con buscador y filtros y,
 // al pulsar a alguien, su ficha: rol, contraseña y acceso (cada uno con su
-// modal) y su conocimiento en cajas de base. Alta en un modal propio. La
+// modal), sus vistas (interruptores) y su conocimiento en cajas de base. Alta en un modal propio. La
 // gestión de las bases de la instancia no va aquí. Solo DOM: los datos van
 // por users-api.js y knowledge-api.js y las reglas las pone la base.
 import './people.css';
 import { openModal, closeModal } from './modal.js';
 import { strongPassword } from './password.js';
+import { VIEWS, CHAT_ICON } from './views.js';
 
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 const BASE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="1"/><rect x="3" y="14" width="18" height="6" rx="1"/><path d="M7 7h.01M7 17h.01"/></svg>';
 
 const ROLE = {
-  admin: { label: 'Administrador', desc: 'Gestiona personas, bases de conocimiento y lo que ve cada uno.' },
-  agent: { label: 'Agente', desc: 'Usa el conocimiento que le asignan. No gestiona nada.' },
+  admin: { label: 'Administrador', desc: 'Empieza con todas las vistas: gestiona personas, bases y contenido.' },
+  agent: { label: 'Agente', desc: 'Empieza con el Chat y los Enlaces. Usa el conocimiento que le asignan.' },
 };
 const ROLE_ICON = {
   admin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V6z"/><path d="m9 12 2 2 4-4"/></svg>',
@@ -98,6 +99,20 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast }) => 
   };
 
   /* ── ficha ── */
+  // Vistas: una caja por vista; pulsarla la da o la quita al momento.
+  const viewsBlock = (p, self) => {
+    const has = (v) => (p.views || []).includes(v);
+    const n = VIEWS.filter((v) => has(v.id)).length;
+    return `<div class="pp-block">
+      <div class="pp-block-head"><span class="pp-k">Vistas</span>
+        <span class="pp-sum">${self ? 'Las tuyas no las puedes cambiar' : n ? `Ve el Chat y ${n} de ${VIEWS.length} vistas más` : 'Solo ve el Chat'}</span></div>
+      <div class="pp-bases pp-views">
+        <div class="pp-box on fixed"><span class="b-ico">${CHAT_ICON}</span><span class="b-name">Chat</span><span class="b-meta">Siempre</span></div>
+        ${VIEWS.map((v) => `<button class="pp-box ${has(v.id) ? 'on' : 'off'}" data-view="${v.id}" aria-pressed="${has(v.id)}"${self ? ' disabled' : ''}>
+          <span class="b-ico">${v.icon}</span><span class="b-name">${v.label}</span><span class="b-meta">${has(v.id) ? 'La ve' : 'No la ve'}</span></button>`).join('')}
+      </div>
+    </div>`;
+  };
   const knowledgeBlock = (kn, { copyFrom = true } = {}) => {
     const n = knBases(kn).length;
     return `<div class="pp-block">
@@ -127,6 +142,7 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast }) => 
         <div class="pp-item"><span class="pp-k">Contraseña</span><span class="pp-v">${p.must_change_password ? 'Pendiente de cambiar' : 'La eligió la propia persona'}<small>${p.must_change_password ? 'La puso un administrador: se le pedirá cambiarla al entrar.' : 'Si la olvida, genera una nueva.'}</small></span>${self ? '<span></span>' : '<button class="lab-btn" data-act="password">Generar nueva</button>'}</div>
         <div class="pp-item"><span class="pp-k">Acceso a SIA</span><span class="pp-v">${p.active ? 'Puede iniciar sesión' : 'No puede iniciar sesión'}<small>${self ? 'Tu propio acceso no lo puedes desactivar.' : p.active ? 'Desactívala para cortarle el acceso sin borrarla.' : 'Su rol y su conocimiento se conservan.'}</small></span>
           ${self ? '<span></span>' : `<button class="lab-btn${p.active ? ' pp-danger' : ''}" data-act="access">${p.active ? 'Desactivar acceso' : 'Reactivar acceso'}</button>`}</div>
+        ${viewsBlock(p, self)}
         ${knowledgeBlock(knOf(p))}
       </div>`;
     renderList();
@@ -149,7 +165,7 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast }) => 
   /* ── modales de la ficha ── */
   const roleModal = () => {
     const p = person();
-    const m = openModal({ title: `Rol de ${p.name}`, lead: 'Qué puede hacer en SIA.', body: roleCards(p.role), foot: footer('Guardar') });
+    const m = openModal({ title: `Rol de ${p.name}`, lead: 'Al cambiarlo se le ponen las vistas de ese rol; después puedes ajustarlas una a una.', body: roleCards(p.role), foot: footer('Guardar') });
     wireRoleCards(m);
     wireFoot(m, (msg) => save(() => usersApi.update(p.id, { role: pickedRole(m) }), 'Rol guardado', msg));
   };
@@ -315,6 +331,12 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast }) => 
     if (act === 'password') return passwordModal();
     if (act === 'delete') return deleteModal();
     const p = person();
+    const view = e.target.closest('.pp-panel [data-view]');
+    if (view && p) {
+      const v = VIEWS.find((x) => x.id === view.dataset.view), on = (p.views || []).includes(v.id);
+      const views = on ? p.views.filter((x) => x !== v.id) : [...(p.views || []), v.id];
+      return save(() => usersApi.update(p.id, { views }), on ? `${p.name} ya no ve ${v.label}` : `${p.name} ya ve ${v.label}`);
+    }
     if (act === 'kn-copy' && p) {
       return copyModal(p.name, p.id, (src, msg) => save(() => knowledgeApi.copy(p.id, src.id), `Mismo conocimiento que ${src.name}`, msg));
     }

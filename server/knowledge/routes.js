@@ -1,5 +1,5 @@
-// /api/knowledge/*: conocimiento de cada persona, solo para administradores
-// (sesión en X-SIA-Auth). La base vuelve a comprobarlo todo con su JWT. Las
+// /api/knowledge/*: conocimiento de cada persona (sesión en X-SIA-Auth; la
+// vista Personas la exige el bridge). La base vuelve a comprobarlo todo con su JWT. Las
 // bases de la instancia se gestionan en Configuración → Conocimiento.
 //   GET    /bases                          → { bases }  (con sus grupos: { id, name })
 //   PUT    /people/:userId/bases/:baseId   { groups: [ids] } → { ok }   (vacío: no la ve)
@@ -13,7 +13,6 @@ export const knowledgeRoutes = (knowledge, auth, { json, readBody, onChange }) =
   try {
     const ctx = await auth.context(token);
     if (!ctx) return json(res, 401, { error: 'Inicia sesión.' });
-    if (ctx.user.role !== 'admin') return json(res, 403, { error: 'Solo para administradores.' });
     const [kind, id, sub, subId] = path;
     if ([id, subId].some((x) => x && !UUID.test(x))) return json(res, 404, { error: 'No existe.' });
     const jwt = ctx.accessToken;

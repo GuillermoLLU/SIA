@@ -157,3 +157,12 @@
   .pp-item { grid-template-columns: minmax(0, 1fr) auto; }
   .pp-item .pp-k { grid-column: 1 / -1; }
 }
+/* Vistas: cajas más bajas; el Chat, fija */
+.pp-views { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); margin-bottom: 4px; }
+.pp-views .pp-box { min-height: 96px; }
+.pp-views .pp-box .b-ico svg { width: 24px; height: 24px; }
+.pp-views .pp-box.fixed { cursor: default; }
+.pp-views .pp-box.fixed:hover { border-color: var(--accent); }
+.pp-views .pp-box:disabled { cursor: default; }
+.pp-views .pp-box:disabled:hover { border-color: var(--border); }
+.pp-views .pp-box.on:disabled:hover { border-color: var(--accent); }

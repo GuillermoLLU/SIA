@@ -3,8 +3,8 @@
 // aquí, en Supabase, y no en SIA.
 //
 // La llama el bridge de SIA con el JWT de quien está usando la app. Antes de
-// nada pregunta a la base, CON ESE JWT, si es un admin activo
-// (platform_can_manage_users): la autorización la decide el SQL, no esta
+// nada pregunta a la base, CON ESE JWT, si está activo y tiene la vista
+// Personas (platform_can_manage_users): la autorización la decide el SQL, no esta
 // función. Después de cada cambio lo apunta en la auditoría a su nombre
 // (platform_record_user_event).
 //
@@ -80,7 +80,7 @@ const create = async (jwt: string, body: Json) => {
     if (e instanceof Fail && e.status === 422 && /already/i.test(e.message)) throw new Fail(409, 'Ya hay un usuario con ese email.');
     throw e;
   }
-  // El alta entra como agente (disparador de la base). El rol admin y el
+  // El alta entra como agente (disparador de la base). El rol admin (con sus vistas) y el
   // apunte en la auditoría van con el JWT de quien la pide; si algo falla, se
   // deshace el alta para no dejar a medias a nadie.
   try {
@@ -133,12 +133,12 @@ Deno.serve(async (req) => {
       throw new Fail(400, 'Petición no válida.');
     }
 
-    // quién llama (su JWT) y si es un admin activo (lo decide la base)
+    // quién llama (su JWT) y si gestiona Personas (lo decide la base)
     const me = await call('/auth/v1/user', jwt).catch(() => {
       throw new Fail(401, 'Sesión no válida.');
     }) as { id: string };
     const allowed = await rpc(jwt, 'platform_can_manage_users', {}).catch(() => false);
-    if (allowed !== true) throw new Fail(403, 'Solo un administrador puede hacer esto.');
+    if (allowed !== true) throw new Fail(403, 'Solo quien gestiona Personas puede hacer esto.');
 
     switch (body.action) {
       case 'create':
