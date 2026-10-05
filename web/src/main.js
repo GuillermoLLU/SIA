@@ -15,7 +15,6 @@ import { themeById, toggledTheme } from './theme/themes.js';
 import { createUsersApi } from './users/users-api.js';
 import { mountPeopleView } from './users/people-view.js';
 import { createKnowledgeApi } from './knowledge/knowledge-api.js';
-import { renderAssignedView } from './knowledge/assigned-view.js';
 
 // Favicon de la pestaña (la S).
 {
@@ -2090,6 +2089,11 @@ jiraSave.addEventListener('click', async () => {
     for (const p of panes) p.hidden = p.dataset.pane !== name;
   };
   for (const t of tabs) t.addEventListener('click', () => showPane(t.dataset.pane));
+  // quien no administra no gestiona bases ni conocimiento: sin esa pestaña
+  if (AUTH?.user.role !== 'admin') {
+    tabs.find((t) => t.dataset.pane === 'conocimiento').hidden = true;
+    showPane('credenciales');
+  }
 }
 
 // Al cerrar Configuración, Enlaces se vuelve a cargar si está a la vista: lo que
@@ -2253,12 +2257,8 @@ const ICON_CONFIG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" 
 const ICON_POWER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/><path d="M12 2v10"/></svg>';
 const ICON_KEY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.9 12.1 21 2M15 8l3 3M18 5l3 3"/></svg>';
 const knowPane = document.querySelector('#settings-modal .settings-pane[data-pane="conocimiento"]');
-// Quien no administra ve aquí su conocimiento en solo lectura y nada más
-// (web/src/knowledge/assigned-view.js): ni añadir bases ni invitaciones.
+// Quien no administra no tiene la pestaña Conocimiento (ver las pestañas).
 const knowReadOnly = () => AUTH?.user.role !== 'admin';
-const assignedPane = document.createElement('div');
-assignedPane.hidden = true;
-knowPane.appendChild(assignedPane);
 
 /* Varias bases de conocimiento. Sin ninguna: solo el formulario de conexión,
    centrado, para que lo primero sea vincular una. Con bases: una tarjeta por
@@ -2278,6 +2278,7 @@ const curBase = () => bases.find((b) => b.id === selectedBase) || null;
 // antes mandaban a buscarla a mano. Al abrir, basesLoad() repinta respetando
 // knowView y selectedBase; sin base conocida cae en la rejilla de bases.
 const openBaseSettings = (baseId, view = 'access') => {
+  if (knowReadOnly()) return;
   if (baseId) { selectedBase = baseId; knowView = view; }
   document.querySelector('#settings-tabs [data-pane="conocimiento"]').click();
   settingsBtn.click();
@@ -2436,10 +2437,7 @@ const renderBaseViews = () => {
   baseAccess.appendChild(baseCard(b, 'access'));
 };
 const basesRender = () => {
-  if (knowReadOnly()) {
-    for (const c of knowPane.children) c.hidden = c !== assignedPane;
-    return renderAssignedView(assignedPane, bases);
-  }
+  if (knowReadOnly()) return;
   knowPane.classList.toggle('centered', !bases.length);
   if (!bases.some((b) => b.id === selectedBase)) selectedBase = null;
   renderGrid();

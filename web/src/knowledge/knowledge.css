@@ -1,9 +1,0 @@
-/* Configuración → Conocimiento de quien no administra: su conocimiento en
-   solo lectura (assigned-view.js). */
-.kn-assigned { max-width: 640px; }
-.kn-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.kn-list li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); background: var(--bg); }
-.kn-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.kn-main strong { font-size: 13px; font-weight: 600; color: var(--text); }
-.kn-main span { font-size: 12px; color: var(--text-low); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.kn-empty { font-size: 12.5px; color: var(--text-low); }
