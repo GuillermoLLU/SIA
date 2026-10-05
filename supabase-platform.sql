@@ -23,7 +23,11 @@
 --                       Administración usa la del dueño de la base.
 --    audit_log          registro de todo cambio (solo se añade, nunca se edita)
 --
---  Vistas: lo que cada persona puede ver y hacer en SIA (el Chat, siempre)
+--  Vistas: lo que cada persona puede ver y hacer en SIA (el Chat, siempre).
+--  La lista está en platform.known_views().
+--    issues     Issues: el gestor de incidencias de soporte
+--    work       Panel de trabajo: métricas de los empleados
+--    metrics    Métricas: OKRs, KPIs y otros indicadores
 --    links      Enlaces rápidos
 --    lab        Laboratorio de skills
 --    admin      Administración del contenido de las bases (grupos, proyectos, enlaces)
@@ -84,17 +88,28 @@ end $$;
 create schema if not exists platform;
 revoke all on schema platform from public, anon, authenticated;
 
+-- Las vistas que existen (una más = añadirla aquí, en server/auth/views.js y
+-- en web/src/users/views.js). Administrador las tiene siempre todas.
+create or replace function platform.known_views() returns text[]
+language sql immutable set search_path = '' as $$
+  select array['issues', 'work', 'metrics', 'links', 'lab', 'admin', 'people']
+$$;
+
 -- ── Tablas ────────────────────────────────────────────────────────────────
 create table if not exists platform.roles (
   id          uuid primary key default gen_random_uuid(),
   name        text not null check (char_length(btrim(name)) between 1 and 40),
-  views       text[] not null default '{}' check (views <@ array['links', 'lab', 'admin', 'people']),
+  views       text[] not null default '{}',
   builtin     text unique check (builtin in ('admin', 'agent')),  -- los de serie
   created_at  timestamptz not null default now()
 );
 create unique index if not exists roles_name on platform.roles (lower(name));
+-- (antes de dar de alta los de serie: una base anterior traía otra lista de vistas)
+alter table platform.roles drop constraint if exists roles_views_check;
+alter table platform.roles drop constraint if exists roles_views_known;
+alter table platform.roles add constraint roles_views_known check (views <@ platform.known_views());
 insert into platform.roles (name, views, builtin) values
-  ('Administrador', array['links', 'lab', 'admin', 'people'], 'admin'),
+  ('Administrador', platform.known_views(), 'admin'),
   ('Agente', array['links'], 'agent')
 on conflict (builtin) do nothing;
 
@@ -182,7 +197,10 @@ drop function if exists platform.role_views(text);
 -- una y se fija desde aquí.
 update platform.users set views = array_remove(views, 'knowledge') where 'knowledge' = any (views);
 alter table platform.users drop constraint if exists users_views_known;
-alter table platform.users add constraint users_views_known check (views <@ array['links', 'lab', 'admin', 'people']);
+alter table platform.users add constraint users_views_known check (views <@ platform.known_views());
+-- Administrador, con todas las que haya (también las que se añadan)
+update platform.roles set views = platform.known_views() where builtin = 'admin' and views is distinct from platform.known_views();
+update platform.users u set views = r.views from platform.roles r where r.builtin = 'admin' and u.role_id = r.id and u.views is distinct from r.views;
 
 -- RLS activado y sin políticas en todas: nadie fuera de las funciones.
 alter table platform.users            enable row level security;
@@ -490,7 +508,7 @@ begin
     if v_views is null then raise exception 'Ese rol no existe.' using errcode = 'P0002'; end if;
   elsif p_views is not null then
     v_views := array(select distinct v from unnest(p_views) v order by v);
-    if not (v_views <@ array['links', 'lab', 'admin', 'people']) then raise exception 'Vista desconocida.' using errcode = '22023'; end if;
+    if not (v_views <@ platform.known_views()) then raise exception 'Vista desconocida.' using errcode = '22023'; end if;
   end if;
   update platform.users
      set name = coalesce(nullif(btrim(p_name), ''), name),
@@ -529,7 +547,7 @@ declare v_me uuid := platform.require_view('people');
         v_builtin text;
         v_id uuid;
 begin
-  if not (v_views <@ array['links', 'lab', 'admin', 'people']) then raise exception 'Vista desconocida.' using errcode = '22023'; end if;
+  if not (v_views <@ platform.known_views()) then raise exception 'Vista desconocida.' using errcode = '22023'; end if;
   if p_role is null then
     insert into platform.roles (name, views) values (btrim(p_name), v_views) returning id into v_id;
     perform platform.audit(v_me, 'role.create', null, jsonb_build_object('role', v_id, 'name', btrim(p_name), 'views', to_jsonb(v_views)));

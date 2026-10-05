@@ -11,6 +11,10 @@ import { ensureLogin } from './auth/login-view.js';
 import { wireLogout } from './auth/logout-button.js';
 import { themeById, toggledTheme, modeOf } from './theme/themes.js';
 import { renderThemePicker } from './theme/theme-picker.js';
+import { VIEWS } from './users/views.js';
+import { mountIssuesView } from './issues/issues-view.js';
+import { mountWorkView } from './work/work-view.js';
+import { mountMetricsView } from './metrics/metrics-view.js';
 import { createUsersApi } from './users/users-api.js';
 import { mountPeopleView } from './users/people-view.js';
 import { createKnowledgeApi } from './knowledge/knowledge-api.js';
@@ -1596,6 +1600,13 @@ const navLinks = document.getElementById('nav-links');
 const viewLinks = document.getElementById('view-links');
 const navUsers = document.getElementById('nav-users');
 const viewUsers = document.getElementById('view-users');
+// Paneles (Issues, Panel de trabajo, Métricas): una vista cada uno, sin base;
+// el icono de la barra se enseña si la persona tiene esa vista.
+const PANELS = [
+  { name: 'issues', mount: mountIssuesView },
+  { name: 'work', mount: mountWorkView },
+  { name: 'metrics', mount: mountMetricsView },
+].map((p) => ({ ...p, nav: document.getElementById(`nav-${p.name}`), view: document.getElementById(`view-${p.name}`) }));
 const linksGrid = document.getElementById('links-grid');
 const linksFilters = document.getElementById('links-filters');
 
@@ -1632,6 +1643,7 @@ const renderBasePick = (view) => {
   }
   basePickBody.append(title, grid);
   viewChat.hidden = true; viewLab.hidden = true; viewAdmin.hidden = true; viewLinks.hidden = true; viewUsers.hidden = true;
+  for (const p of PANELS) { p.view.hidden = true; p.nav.classList.remove('active'); }
   viewBasePick.hidden = false;
   navChat.classList.remove('active');
   navLab.classList.toggle('active', view === 'lab');
@@ -1665,6 +1677,7 @@ const showView = (name) => {
   viewAdmin.hidden = name !== 'admin';
   viewLinks.hidden = name !== 'links';
   viewUsers.hidden = name !== 'users';
+  for (const p of PANELS) { p.view.hidden = name !== p.name; p.nav.classList.toggle('active', name === p.name); }
   if (VIEW_TITLE_EL[name]) paintViewTitle(name);
   navChat.classList.toggle('active', name === 'chat');
   navLab.classList.toggle('active', name === 'lab');
@@ -1681,6 +1694,12 @@ const showView = (name) => {
   }
 };
 navChat.addEventListener('click', () => showView('chat'));
+for (const p of PANELS) {
+  p.nav.innerHTML = VIEWS.find((v) => v.id === p.name).icon;
+  p.nav.hidden = !canView(p.name);
+  p.nav.addEventListener('click', () => showView(p.name));
+  p.mount(p.view);
+}
 navLab.addEventListener('click', () => enterView('lab'));
 navAdmin.addEventListener('click', () => enterView('admin'));
 

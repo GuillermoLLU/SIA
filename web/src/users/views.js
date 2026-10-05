@@ -4,7 +4,15 @@ const svg = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
 
 export const CHAT_ICON = svg('<path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.6-.8L3 21l1.9-5.4A8.38 8.38 0 0 1 4 11.5 8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z"/>');
 
+// Iconos de las vistas nuevas (también los usa la barra lateral).
+export const ISSUES_ICON = svg('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.2"/>');
+export const WORK_ICON = svg('<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M3 13h18"/>');
+export const METRICS_ICON = svg('<path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/>');
+
 export const VIEWS = [
+  { id: 'issues', label: 'Issues', icon: ISSUES_ICON },
+  { id: 'work', label: 'Panel de trabajo', icon: WORK_ICON },
+  { id: 'metrics', label: 'Métricas', icon: METRICS_ICON },
   { id: 'links', label: 'Enlaces rápidos', icon: svg('<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>') },
   { id: 'lab', label: 'Laboratorio', icon: svg('<path d="M10 2v6.5L4.8 17a3 3 0 0 0 2.6 4.5h9.2a3 3 0 0 0 2.6-4.5L14 8.5V2"/><path d="M8.5 2h7"/><path d="M7 15h10"/>') },
   { id: 'admin', label: 'Administración', icon: svg('<path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9v.01M9 12v.01M9 15v.01M9 18v.01"/>') },

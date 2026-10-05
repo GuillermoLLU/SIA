@@ -29,6 +29,7 @@ cuenta de la instancia (las da un administrador; ver «La base de la
 instancia»). Con «Mantener la sesión» se entra solo la próxima vez.
 
 Cada persona ve las **vistas** que se le den: el Chat siempre y, además,
+Issues, Panel de trabajo, Métricas (las tres, de momento, en esqueleto),
 Enlaces rápidos, Laboratorio, Administración y Personas. Lo cómodo es darlas
 con un **rol** (un nombre y unas vistas): asignar un rol pone sus vistas y
 editarlo las cambia a todos los que lo tienen. Vienen **Administrador** (todas,
@@ -78,7 +79,8 @@ Endurecimiento recomendado en el panel: registro público cerrado, contraseñas
 de 6 caracteres o más, SSL obligatorio y claves legacy
 desactivadas. Las pruebas del SQL: `npm run test:platform` (Docker).
 
-Vistas por persona (`platform.users.views`: links, lab, admin, people) y
+Vistas por persona (`platform.users.views`; la lista, en
+`platform.known_views()`: issues, work, metrics, links, lab, admin, people) y
 roles (`platform.roles`): con rol, sus vistas son las del rol y cambian con
 él; sin rol, personalizadas. Nadie edita el rol que tiene, y Administrador
 no se toca. La base de

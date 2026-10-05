@@ -100,7 +100,7 @@ select public.platform_update_user(:U1, null, :RAGENT);
 select public.platform_update_user(:U2, null, :RAGENT);
 
 -- vistas: el rol es el punto de partida; después, una a una
-select assert_eq((select (public.platform_whoami() -> 'views') ?& array['links', 'lab', 'admin', 'people']), true, 'el admin, todas');
+select assert_eq((select (public.platform_whoami() -> 'views') ?& array['issues', 'work', 'metrics', 'links', 'lab', 'admin', 'people']), true, 'el admin, todas');
 select public.platform_update_user(:U1, null, null, null, array['people', 'links', 'people']);
 select assert_eq((select views from public.platform_list_users() where id = :U1), array['links', 'people'], 'vistas a mano, sin repetir');
 select expect_error($$select public.platform_update_user('00000000-0000-0000-0000-0000000000a2', null, null, null, array['root'])$$, 'vista desconocida');
