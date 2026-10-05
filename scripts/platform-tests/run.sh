@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Pruebas de supabase-platform.sql en un Postgres local (Docker). No toca
+# ninguna base real.
+#
+#   scripts/platform-tests/run.sh
+#
+# Qué prueba (20-access.sql): anon no ve ni ejecuta nada; cada perfil
+# (superadmin, admin de cliente, agente) hace lo suyo y nada más; un admin
+# no ve otro cliente ni gestiona a otros admins; claves secret y URLs ajenas
+# rechazadas; tokens enmascarados para los admins; usuarios y clientes
+# desactivados sin acceso; auditoría inmutable y sin tokens. Después vuelve a
+# ejecutar el SQL encima para comprobar que es re-ejecutable sin perder datos.
+# Emula Supabase con 00-supabase-like.sql (auth.users, auth.uid(), roles).
+set -euo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$HERE/../.." && pwd)"
+WORK="$(mktemp -d)"
+NAME="sia-platform-test-$$"
+trap 'docker rm -f "$NAME" >/dev/null 2>&1 || true; rm -rf "$WORK"' EXIT
+
+cp "$HERE"/*.sql "$WORK/"
+cp "$ROOT/supabase-platform.sql" "$WORK/10-platform.sql"
+
+docker run -d --name "$NAME" -e POSTGRES_PASSWORD=test -v "$WORK":/sql postgres:16 >/dev/null
+for _ in $(seq 1 40); do docker exec "$NAME" pg_isready -U postgres >/dev/null 2>&1 && break; sleep 2; done
+psql() { docker exec -i "$NAME" psql -U postgres -v ON_ERROR_STOP=1 -q -t "$@"; }
+# solo lo que importa: fuera avisos de «ya existe», filas vacías e ids de las altas
+quiet() { grep -v 'skipping' | grep -v -E '^[[:space:]]*$|^ [0-9a-f-]{36}$' || true; }
+
+psql -c "create database t;" >/dev/null
+psql -d t -f /sql/00-supabase-like.sql
+echo "── esquema ──"
+psql -d t -f /sql/10-platform.sql 2>&1 | quiet
+echo "── acceso por perfiles ──"
+psql -d t -f /sql/20-access.sql 2>&1 | quiet
+echo "── re-ejecutar el SQL (sin perder datos) ──"
+psql -d t -f /sql/10-platform.sql 2>&1 | quiet
+psql -d t -c "do \$\$ begin if (select count(*) from platform.clients) <> 2 or (select count(*) from platform.users) <> 6 then raise exception 'FALLO: re-ejecutar perdió datos'; end if; end \$\$;"
+echo "ok"

@@ -9,6 +9,7 @@
     "dev": "node dev.mjs",
     "test": "node --test 'server/**/*.test.js' 'web/src/**/*.test.js'",
     "test:rls": "scripts/rls-tests/run.sh",
+    "test:platform": "scripts/platform-tests/run.sh",
     "app": "electron .",
     "build:web": "cd web && npm run build",
     "dist": "npm run build:web && electron-builder --mac",
