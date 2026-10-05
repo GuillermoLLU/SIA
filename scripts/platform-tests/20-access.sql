@@ -69,56 +69,100 @@ select assert_eq((select count(*) from public.platform_list_users()), 3::bigint,
 select t_as(:AD);
 select public.platform_update_user(:U2, null, 'agent');
 
+-- contraseña puesta por un admin: hay que cambiarla al entrar; un cambio cierra sesiones
+reset role;
+insert into auth.sessions (user_id) values ('00000000-0000-0000-0000-0000000000a3');
+insert into auth.refresh_tokens (user_id) values ('00000000-0000-0000-0000-0000000000a3');
+set role authenticated;
+select t_as(:AD);
 select public.platform_record_user_event('user.create', :U2, 'Agente.Dos@empresa.com');
 select assert_eq((select details ->> 'email' from public.platform_list_audit() where action = 'user.create'), 'agente.dos@empresa.com', 'el alta queda apuntada');
+select assert_eq((select must_change_password from public.platform_list_users() where id = :U2), true, 'alta: debe cambiar la contraseña');
+select public.platform_record_user_event('user.password', :U2, 'agente.dos@empresa.com');
+reset role;
+select assert_eq((select count(*) from auth.sessions where user_id = '00000000-0000-0000-0000-0000000000a3'), 0::bigint, 'contraseña nueva: sesiones cerradas');
+select assert_eq((select count(*) from auth.refresh_tokens where user_id = '00000000-0000-0000-0000-0000000000a3'), 0::bigint, 'y sus refresh tokens');
+set role authenticated;
+select t_as(:U2);
+select assert_eq((public.platform_whoami() ->> 'must_change_password')::boolean, true, 'whoami lo dice');
+select public.platform_password_changed();
+select assert_eq((public.platform_whoami() ->> 'must_change_password')::boolean, false, 'cambiada: ya no');
+select t_as(:AD);
 select expect_error($$select public.platform_record_user_event('user.hack', '00000000-0000-0000-0000-0000000000a3', 'x@y.z')$$, 'evento desconocido');
 select t_as(:U1);
 select expect_error($$select public.platform_record_user_event('user.delete', '00000000-0000-0000-0000-0000000000a3', 'x@y.z')$$, 'un agente no apunta eventos');
 select t_as(:AD);
 
--- ── 4. bases y conocimiento ──
+-- ── 4. bases y su clave de poder (Vault) ──
 select expect_error($$select public.platform_add_base('Mala', 'https://abcdefghijklmnopqrst.supabase.co', 'sb_secret_abcdefghijklmnopqrstuvwxyz')$$, 'rechaza la clave secret');
 select expect_error($$select public.platform_add_base('Mala', 'https://abcdefghijklmnopqrst.supabase.co', 'eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.abc')$$, 'rechaza un JWT');
 select expect_error($$select public.platform_add_base('Mala', 'https://evil.com', 'sb_publishable_abcdefghijklmnopqrstuvwxyz')$$, 'rechaza URLs que no son de Supabase');
-select public.platform_add_base('Soporte', 'https://ABCDEFGHIJKLMNOPQRST.supabase.co/', 'sb_publishable_abcdefghijklmnopqrstuvwxyz');
+select expect_error($$select public.platform_add_base('Mala', 'https://abcdefghijklmnopqrsx.supabase.co', 'sb_publishable_abcdefghijklmnopqrstuvwxyz', 'con,coma')$$, 'clave de poder con coma');
+select public.platform_add_base('Soporte', 'https://ABCDEFGHIJKLMNOPQRST.supabase.co/', 'sb_publishable_abcdefghijklmnopqrstuvwxyz', 'pk-admin-soporte-123');
+select public.platform_add_base('Logística', 'https://abcdefghijklmnopqrsu.supabase.co', 'sb_publishable_abcdefghijklmnopqrstuvwxyz');
 select expect_error($$select public.platform_add_base('Otra', 'https://abcdefghijklmnopqrst.supabase.co', 'sb_publishable_abcdefghijklmnopqrstuvwxyz')$$, 'base repetida');
-select assert_eq((select url from public.platform_list_bases()), 'https://abcdefghijklmnopqrst.supabase.co', 'URL normalizada');
-select public.platform_grant_knowledge(:U1, (select id from public.platform_list_bases()), 'Soporte N1', 'tok-soporte-n1-secreto');
-select expect_error($$select public.platform_grant_knowledge('00000000-0000-0000-0000-0000000000a2', (select id from public.platform_list_bases()), 'Soporte N1', 'tok-soporte-n1-secreto')$$, 'acceso repetido');
-select expect_error($$select public.platform_grant_knowledge('00000000-0000-0000-0000-0000000000a2', (select id from public.platform_list_bases()), 'X', 'con,coma1')$$, 'token con coma');
-select expect_error($$select public.platform_grant_knowledge(gen_random_uuid(), (select id from public.platform_list_bases()), 'X', 'tok-xxxxxxxx')$$, 'usuario inexistente');
-select assert_eq((select token_hint from public.platform_list_grants(:U1)), 'tok-…reto', 'el admin ve el token enmascarado');
+select assert_eq((select url from public.platform_list_bases() where name = 'Soporte'), 'https://abcdefghijklmnopqrst.supabase.co', 'URL normalizada');
+select assert_eq((select string_agg(name || '=' || has_power_key, ',' order by name) from public.platform_list_bases()), 'Logística=false,Soporte=true', 'qué bases tienen clave de poder');
+select assert_eq((select power_key from public.platform_base_access()), 'pk-admin-soporte-123', 'el admin recibe la clave descifrada');
+select assert_eq((select count(*) from public.platform_base_access()), 1::bigint, 'solo de las que la tienen');
+select public.platform_set_base_power((select id from public.platform_list_bases() where name = 'Logística'), 'pk-admin-logistica-1');
+select public.platform_set_base_power((select id from public.platform_list_bases() where name = 'Soporte'), 'pk-admin-soporte-456');
+select assert_eq((select string_agg(power_key, ',' order by power_key) from public.platform_base_access()), 'pk-admin-logistica-1,pk-admin-soporte-456', 'poner y cambiar la clave');
+reset role;
+select assert_eq((select count(*) from vault.secrets where name like 'sia-base-%'), 2::bigint, 'una clave por base en Vault, sin duplicar al cambiarla');
+select assert_eq((select count(*) from platform.knowledge_bases where power_secret is not null), 2::bigint, 'y la base apunta a ella (no guarda la clave)');
+set role authenticated;
 
--- ── 5. agente: solo su conocimiento ──
+-- ── 5. conocimiento: fijar grupos de una base y copiar de otra persona ──
+select public.platform_set_knowledge(:U1, (select id from public.platform_list_bases() where name = 'Soporte'),
+  '[{"name":"Nivel 1","token":"tok-soporte-n1-secreto"},{"name":"Nivel 2","token":"tok-soporte-n2-secreto"}]');
+select assert_eq((select jsonb_array_length(knowledge -> 0 -> 'groups') from public.platform_list_users() where id = :U1), 2, 'dos grupos');
+select assert_eq((select knowledge -> 0 -> 'groups' -> 0 ->> 'id' from public.platform_list_users() where id = :U1),
+  encode(sha256(convert_to('tok-soporte-n1-secreto', 'UTF8')), 'hex'), 'el admin ve la huella, no el token');
+select assert_eq((select count(*) from public.platform_list_users() where knowledge::text like '%secreto%'), 0::bigint, 'ningún token en la lista');
+select public.platform_set_knowledge(:U1, (select id from public.platform_list_bases() where name = 'Soporte'), '[{"name":"Nivel 1","token":"tok-soporte-n1-secreto"}]');
+select assert_eq((select jsonb_array_length(knowledge -> 0 -> 'groups') from public.platform_list_users() where id = :U1), 1, 'quitar un grupo');
+select expect_error($$select public.platform_set_knowledge('00000000-0000-0000-0000-0000000000a2', (select id from public.platform_list_bases() where name = 'Soporte'), '[{"name":"X","token":"con,coma1"}]')$$, 'token con coma');
+select expect_error($$select public.platform_set_knowledge(gen_random_uuid(), (select id from public.platform_list_bases() where name = 'Soporte'), '[]')$$, 'usuario inexistente');
+select expect_error($$select public.platform_set_knowledge('00000000-0000-0000-0000-0000000000a2', gen_random_uuid(), '[]')$$, 'base inexistente');
+select public.platform_copy_knowledge(:U2, :U1);
+select assert_eq((select knowledge from public.platform_list_users() where id = :U2), (select knowledge from public.platform_list_users() where id = :U1), 'igual que otra persona');
+select expect_error($$select public.platform_copy_knowledge('00000000-0000-0000-0000-0000000000a2', '00000000-0000-0000-0000-0000000000a2')$$, 'copiarse a sí mismo');
+select public.platform_set_knowledge(:U2, (select id from public.platform_list_bases() where name = 'Soporte'), '[]');
+select assert_eq((select knowledge from public.platform_list_users() where id = :U2), '[]'::jsonb, 'lista vacía: deja de ver la base');
+
+-- ── 6. agente: solo su conocimiento ──
 select t_as(:U1);
 select assert_eq((select group_token from public.platform_my_knowledge()), 'tok-soporte-n1-secreto', 'el agente recibe su token entero');
 select assert_eq((select publishable_key from public.platform_my_knowledge()), 'sb_publishable_abcdefghijklmnopqrstuvwxyz', 'y la clave publishable de la base');
-select expect_error('select count(*) from public.platform_list_grants(''00000000-0000-0000-0000-0000000000a2'')', 'el agente no lista accesos');
-select expect_error($$select public.platform_add_base('X', 'https://abcdefghijklmnopqrsu.supabase.co', 'sb_publishable_abcdefghijklmnopqrstuvwxyz')$$, 'el agente no añade bases');
+select expect_error('select count(*) from public.platform_base_access()', 'el agente no recibe claves de poder');
+select expect_error($$select public.platform_set_knowledge('00000000-0000-0000-0000-0000000000a2', gen_random_uuid(), '[]')$$, 'el agente no asigna');
+select expect_error($$select public.platform_copy_knowledge('00000000-0000-0000-0000-0000000000a2', '00000000-0000-0000-0000-0000000000a1')$$, 'el agente no copia');
+select expect_error($$select public.platform_add_base('X', 'https://abcdefghijklmnopqrsv.supabase.co', 'sb_publishable_abcdefghijklmnopqrstuvwxyz')$$, 'el agente no añade bases');
 select t_as(:U2);
 select assert_eq((select count(*) from public.platform_my_knowledge()), 0::bigint, 'otro agente no ve lo ajeno');
 
--- ── 6. revocar y desactivar ──
-reset role;
-create temporary table t_grant as select id from platform.knowledge_grants;
-grant select on t_grant to authenticated;
-set role authenticated;
-select t_as(:U2);
-select expect_error('select public.platform_revoke_knowledge((select id from t_grant))', 'un agente no revoca');
+-- ── 6b. quitar una base y desactivar ──
 select t_as(:AD);
-select public.platform_revoke_knowledge((select id from t_grant));
-select expect_error('select public.platform_revoke_knowledge((select id from t_grant))', 'revocar lo inexistente');
+select public.platform_remove_base((select id from public.platform_list_bases() where name = 'Soporte'));
+reset role;
+select assert_eq((select count(*) from vault.secrets where name like 'sia-base-%'), 1::bigint, 'quitar la base borra su clave de Vault');
+insert into auth.sessions (user_id) values ('00000000-0000-0000-0000-0000000000a2');
+set role authenticated;
 select t_as(:U1);
-select assert_eq((select count(*) from public.platform_my_knowledge()), 0::bigint, 'revocado: ya no lo ve');
+select assert_eq((select count(*) from public.platform_my_knowledge()), 0::bigint, 'quitada la base: ya no la ve');
 select t_as(:AD);
 select public.platform_update_user(:U1, null, null, false);
+reset role;
+select assert_eq((select count(*) from auth.sessions where user_id = '00000000-0000-0000-0000-0000000000a2'), 0::bigint, 'desactivar cierra sus sesiones');
+set role authenticated;
 select t_as(:U1);
 select expect_error('select public.platform_whoami()', 'un usuario desactivado no entra');
 
 -- ── 7. auditoría ──
 select t_as(:AD);
 select assert_eq((select count(*) > 0 from public.platform_list_audit()), true, 'el admin ve la auditoría');
-select assert_eq((select count(*) from public.platform_list_audit(500) where details::text like '%tok-soporte-n1-secreto%'), 0::bigint, 'la auditoría no guarda tokens enteros');
+select assert_eq((select count(*) from public.platform_list_audit(500) where details::text like '%secreto%' or details::text like '%pk-admin%'), 0::bigint, 'la auditoría no guarda tokens ni claves');
 reset role;
 select expect_error('update platform.audit_log set action = ''x''', 'la auditoría no se edita');
 select expect_error('delete from platform.audit_log', 'ni se borra');

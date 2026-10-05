@@ -8,10 +8,10 @@ api as (
   where n.nspname = 'public' and p.proname like 'platform\_%'
 ),
 expected (proname) as (values
-  ('platform_whoami'), ('platform_my_knowledge'),
+  ('platform_whoami'), ('platform_password_changed'), ('platform_my_knowledge'),
   ('platform_list_users'), ('platform_can_manage_users'), ('platform_update_user'), ('platform_record_user_event'),
-  ('platform_list_bases'), ('platform_add_base'), ('platform_remove_base'),
-  ('platform_list_grants'), ('platform_grant_knowledge'), ('platform_revoke_knowledge'),
+  ('platform_list_bases'), ('platform_add_base'), ('platform_set_base_power'), ('platform_remove_base'), ('platform_base_access'),
+  ('platform_set_knowledge'), ('platform_copy_knowledge'),
   ('platform_list_audit')
 ),
 tables as (
@@ -41,9 +41,9 @@ checks (orden, comprobacion, ok, detalle) as (
     not has_schema_privilege('anon', 'platform', 'usage') and not has_schema_privilege('authenticated', 'platform', 'usage'),
     'usage: anon=' || has_schema_privilege('anon', 'platform', 'usage') || ', authenticated=' || has_schema_privilege('authenticated', 'platform', 'usage')
   union all
-  select 6, 'Las 13 funciones de la API existen',
-    (select count(*) from api where proname in (select proname from expected)) = 13,
-    coalesce((select 'faltan: ' || string_agg(e.proname, ', ') from expected e where e.proname not in (select proname from api)), '13 de 13')
+  select 6, 'Las 15 funciones de la API existen',
+    (select count(*) from api where proname in (select proname from expected)) = 15,
+    coalesce((select 'faltan: ' || string_agg(e.proname, ', ') from expected e where e.proname not in (select proname from api)), '15 de 15')
   union all
   select 7, 'Todas son SECURITY DEFINER',
     not exists (select 1 from api where not prosecdef),

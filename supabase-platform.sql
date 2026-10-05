@@ -27,7 +27,11 @@
 --    · Nadie cambia su propio rol ni se desactiva: siempre queda un admin.
 --    · Un usuario desactivado no pasa ninguna comprobación.
 --    · Los tokens de grupo solo se devuelven enteros a su titular; a los
---      admins, enmascarados. Las claves secret de Supabase se rechazan.
+--      admins, como huella (sha256). Las claves secret de Supabase se rechazan.
+--    · La clave de poder de cada base (para leer sus grupos) se guarda cifrada
+--      en Supabase Vault y solo la recibe el bridge de un admin.
+--    · Desactivar a alguien o ponerle contraseña nueva cierra sus sesiones; una
+--      contraseña puesta por un admin hay que cambiarla al entrar.
 --    · El alta, la baja y el cambio de contraseña de personas en Supabase Auth
 --      NO se hacen aquí: los hace la Edge Function sia-users (necesita la
 --      clave secret, que SIA no tiene nunca), que antes pregunta a
@@ -103,6 +107,13 @@ create table if not exists platform.audit_log (
   details      jsonb not null default '{}'::jsonb
 );
 create index if not exists audit_happened on platform.audit_log (happened_at desc);
+
+-- Añadidos (se aplican también a bases ya montadas):
+--   must_change_password  la contraseña la puso un admin: cambiarla al entrar
+--   power_secret          la clave de poder (Administración) de la base, en
+--                         Supabase Vault: con ella SIA lee los grupos de la base
+alter table platform.users add column if not exists must_change_password boolean not null default false;
+alter table platform.knowledge_bases add column if not exists power_secret uuid;
 
 -- RLS activado y sin políticas en todas: nadie fuera de las funciones.
 alter table platform.users            enable row level security;
@@ -197,10 +208,35 @@ language sql set search_path = '' as $$
   values (p_actor, p_action, p_target, coalesce(p_details, '{}'::jsonb))
 $$;
 
-create or replace function platform.mask(p_token text) returns text
+-- Huella de un token de grupo: identifica el grupo ante la web sin enseñar el token.
+create or replace function platform.token_id(p_token text) returns text
 language sql immutable set search_path = '' as $$
-  select left(p_token, 4) || '…' || right(p_token, 4)
+  select encode(pg_catalog.sha256(convert_to(p_token, 'UTF8')), 'hex')
 $$;
+
+-- Cierra todas las sesiones de alguien (al desactivarlo o ponerle contraseña nueva).
+create or replace function platform.revoke_sessions(p_user uuid) returns void
+language sql set search_path = '' as $$
+  delete from auth.sessions where user_id = p_user;
+  delete from auth.refresh_tokens where user_id = p_user::text;
+$$;
+
+-- Guarda (o cambia) en Vault la clave de poder de una base.
+create or replace function platform.store_power(p_base uuid, p_key text) returns void
+language plpgsql set search_path = '' as $$
+declare v_secret uuid;
+begin
+  if p_key is null or p_key !~ '^[\x21-\x7e]{8,200}$' or strpos(p_key, ',') > 0 then
+    raise exception 'Clave de poder no válida (8-200 caracteres visibles, sin comas).' using errcode = '22023';
+  end if;
+  select b.power_secret into v_secret from platform.knowledge_bases b where b.id = p_base;
+  if v_secret is null then
+    v_secret := vault.create_secret(p_key, 'sia-base-' || p_base::text, 'Clave de poder (Administración) de una base de conocimiento de SIA');
+    update platform.knowledge_bases set power_secret = v_secret where id = p_base;
+  else
+    perform vault.update_secret(v_secret, p_key);
+  end if;
+end $$;
 
 -- Primer administrador: SOLO desde el SQL Editor (este esquema no es accesible desde la API).
 create or replace function platform.grant_admin(p_email text) returns void
@@ -220,13 +256,29 @@ revoke all on all functions in schema platform from public, anon, authenticated;
 --  API para la app (RPC). Todas exigen sesión; anon no puede llamarlas.
 -- ════════════════════════════════════════════════════════════════════════
 
--- Quién soy.
+-- Funciones retiradas (la asignación token a token la sustituye platform_set_knowledge).
+drop function if exists public.platform_list_grants(uuid);
+drop function if exists public.platform_grant_knowledge(uuid, uuid, text, text);
+drop function if exists public.platform_revoke_knowledge(uuid);
+drop function if exists public.platform_add_base(text, text, text);
+drop function if exists platform.mask(text);
+
+-- Quién soy (y si tengo que cambiar la contraseña antes de seguir).
 create or replace function public.platform_whoami() returns jsonb
 language plpgsql stable security definer set search_path = '' as $$
 declare v_me uuid := platform.require_user();
 begin
-  return (select jsonb_build_object('id', u.id, 'email', u.email, 'name', u.name, 'role', u.role)
+  return (select jsonb_build_object('id', u.id, 'email', u.email, 'name', u.name, 'role', u.role, 'must_change_password', u.must_change_password)
           from platform.users u where u.id = v_me);
+end $$;
+
+-- Ya he cambiado la contraseña que me puso un admin.
+create or replace function public.platform_password_changed() returns void
+language plpgsql security definer set search_path = '' as $$
+declare v_me uuid := platform.require_user();
+begin
+  update platform.users set must_change_password = false where id = v_me;
+  perform platform.audit(v_me, 'user.password_changed', v_me);
 end $$;
 
 -- Mi conocimiento: bases y tokens de grupo asignados (con el token entero:
@@ -245,15 +297,24 @@ begin
 end $$;
 
 -- ── Usuarios ──────────────────────────────────────────────────────────────
-create or replace function public.platform_list_users()
-returns table (id uuid, email text, name text, role text, active boolean, created_at timestamptz)
+-- Con su último acceso y su conocimiento: por base, sus grupos (nombre y
+-- huella del token, nunca el token).
+drop function if exists public.platform_list_users();
+create function public.platform_list_users()
+returns table (id uuid, email text, name text, role text, active boolean, must_change_password boolean,
+               last_sign_in_at timestamptz, created_at timestamptz, knowledge jsonb)
 language plpgsql stable security definer set search_path = '' as $$
 #variable_conflict use_column
 begin
   perform platform.require_admin();
   return query
-    select u.id, u.email, u.name, u.role, u.active, u.created_at
-    from platform.users u order by u.role, u.name;
+    select u.id, u.email, u.name, u.role, u.active, u.must_change_password, a.last_sign_in_at, u.created_at,
+           coalesce((select jsonb_agg(jsonb_build_object('base_id', k.base_id, 'groups', k.groups) order by k.base_id)
+                     from (select g.base_id,
+                                  jsonb_agg(jsonb_build_object('id', platform.token_id(g.group_token), 'name', g.group_name) order by g.group_name) as groups
+                           from platform.knowledge_grants g where g.user_id = u.id group by g.base_id) k), '[]'::jsonb)
+    from platform.users u left join auth.users a on a.id = u.id
+    order by u.role, u.name;
 end $$;
 
 -- ¿Puedo dar de alta o de baja personas? (lo usa la Edge Function antes de
@@ -266,6 +327,7 @@ end $$;
 
 -- Cada uno cambia su nombre. Un admin cambia nombre, rol y activo de los
 -- demás, pero nunca su propio rol ni se desactiva (siempre queda un admin).
+-- Desactivar cierra sus sesiones.
 create or replace function public.platform_update_user(p_user uuid, p_name text default null, p_role text default null, p_active boolean default null) returns void
 language plpgsql security definer set search_path = '' as $$
 declare v_me uuid := platform.require_user();
@@ -289,6 +351,7 @@ begin
          active = coalesce(p_active, active)
    where id = p_user;
   if not found then raise exception 'Ese usuario no existe.' using errcode = 'P0002'; end if;
+  if p_active = false then perform platform.revoke_sessions(p_user); end if;
   perform platform.audit(v_me, 'user.update', p_user,
     jsonb_strip_nulls(jsonb_build_object('name', nullif(btrim(p_name), ''), 'role', p_role, 'active', p_active)));
 exception
@@ -297,7 +360,9 @@ end $$;
 
 -- Altas, bajas y cambios de contraseña los hace la Edge Function sia-users
 -- (con la clave secret, en Supabase Auth); aquí queda constancia en la
--- auditoría, a nombre del admin que los pidió.
+-- auditoría, a nombre del admin que los pidió. Una contraseña puesta por un
+-- admin (alta o cambio) hay que cambiarla al entrar; un cambio cierra además
+-- sus sesiones abiertas.
 create or replace function public.platform_record_user_event(p_action text, p_user uuid, p_email text) returns void
 language plpgsql security definer set search_path = '' as $$
 declare v_me uuid := platform.require_admin();
@@ -305,22 +370,30 @@ begin
   if p_action not in ('user.create', 'user.delete', 'user.password') then
     raise exception 'Evento desconocido.' using errcode = '22023';
   end if;
+  if p_action in ('user.create', 'user.password') then
+    update platform.users set must_change_password = true where id = p_user;
+  end if;
+  if p_action = 'user.password' then perform platform.revoke_sessions(p_user); end if;
   perform platform.audit(v_me, p_action, p_user, jsonb_build_object('email', lower(btrim(p_email))));
 end $$;
 
 -- ── Bases de conocimiento ─────────────────────────────────────────────────
-create or replace function public.platform_list_bases()
-returns table (id uuid, name text, url text, publishable_key text, created_at timestamptz)
+-- Con si tienen clave de poder (sin ella no se leen sus grupos) y cuántas
+-- personas ven cada una.
+drop function if exists public.platform_list_bases();
+create function public.platform_list_bases()
+returns table (id uuid, name text, url text, publishable_key text, has_power_key boolean, people bigint, created_at timestamptz)
 language plpgsql stable security definer set search_path = '' as $$
 #variable_conflict use_column
 begin
   perform platform.require_admin();
   return query
-    select b.id, b.name, b.url, b.publishable_key, b.created_at
+    select b.id, b.name, b.url, b.publishable_key, b.power_secret is not null,
+           (select count(distinct g.user_id) from platform.knowledge_grants g where g.base_id = b.id), b.created_at
     from platform.knowledge_bases b order by b.name;
 end $$;
 
-create or replace function public.platform_add_base(p_name text, p_url text, p_publishable_key text) returns uuid
+create or replace function public.platform_add_base(p_name text, p_url text, p_publishable_key text, p_power_key text default null) returns uuid
 language plpgsql security definer set search_path = '' as $$
 declare v_me uuid := platform.require_admin();
         v_key text := btrim(p_publishable_key);
@@ -334,6 +407,7 @@ begin
   insert into platform.knowledge_bases (name, url, publishable_key, created_by)
   values (btrim(p_name), v_url, v_key, v_me)
   returning id into v_id;
+  if nullif(btrim(p_power_key), '') is not null then perform platform.store_power(v_id, btrim(p_power_key)); end if;
   perform platform.audit(v_me, 'base.add', null, jsonb_build_object('base', v_id, 'name', btrim(p_name), 'url', v_url));
   return v_id;
 exception
@@ -341,55 +415,81 @@ exception
   when check_violation then raise exception 'Datos no válidos: nombre (1-60), URL https://<ref>.supabase.co y clave sb_publishable_….' using errcode = '23514';
 end $$;
 
-create or replace function public.platform_remove_base(p_base uuid) returns void
+-- Pone o cambia la clave de poder de una base (en Vault).
+create or replace function public.platform_set_base_power(p_base uuid, p_power_key text) returns void
 language plpgsql security definer set search_path = '' as $$
 declare v_me uuid := platform.require_admin();
 begin
-  delete from platform.knowledge_bases where id = p_base;
+  if not exists (select 1 from platform.knowledge_bases b where b.id = p_base) then
+    raise exception 'Esa base no existe.' using errcode = 'P0002';
+  end if;
+  perform platform.store_power(p_base, btrim(p_power_key));
+  perform platform.audit(v_me, 'base.power_key', null, jsonb_build_object('base', p_base));
+end $$;
+
+-- Quitar una base se lleva lo asignado de ella y su clave de Vault.
+create or replace function public.platform_remove_base(p_base uuid) returns void
+language plpgsql security definer set search_path = '' as $$
+declare v_me uuid := platform.require_admin();
+        v_secret uuid;
+begin
+  delete from platform.knowledge_bases where id = p_base returning power_secret into v_secret;
   if not found then raise exception 'Esa base no existe.' using errcode = 'P0002'; end if;
+  if v_secret is not null then delete from vault.secrets where id = v_secret; end if;
   perform platform.audit(v_me, 'base.remove', null, jsonb_build_object('base', p_base));
 end $$;
 
--- ── Conocimiento de cada usuario (grupos de cada base) ────────────────────
--- Para los admins, el token sale enmascarado.
-create or replace function public.platform_list_grants(p_user uuid)
-returns table (id uuid, base_id uuid, base_name text, group_name text, token_hint text, created_at timestamptz)
+-- Para el bridge de un admin: con qué leer los grupos de cada base (su
+-- clave de poder, descifrada). Nunca llega a la web.
+create or replace function public.platform_base_access()
+returns table (id uuid, url text, publishable_key text, power_key text)
 language plpgsql stable security definer set search_path = '' as $$
 #variable_conflict use_column
 begin
   perform platform.require_admin();
   return query
-    select g.id, b.id, b.name, g.group_name, platform.mask(g.group_token), g.created_at
-    from platform.knowledge_grants g join platform.knowledge_bases b on b.id = g.base_id
-    where g.user_id = p_user
-    order by b.name, g.group_name;
+    select b.id, b.url, b.publishable_key, d.decrypted_secret
+    from platform.knowledge_bases b join vault.decrypted_secrets d on d.id = b.power_secret;
 end $$;
 
-create or replace function public.platform_grant_knowledge(p_user uuid, p_base uuid, p_group_name text, p_group_token text) returns uuid
+-- ── Conocimiento de cada persona ──────────────────────────────────────────
+-- Fija qué grupos de una base ve alguien: p_groups = [{ name, token }]; los
+-- que no vengan se le quitan. Lista vacía: deja de ver la base.
+create or replace function public.platform_set_knowledge(p_user uuid, p_base uuid, p_groups jsonb) returns void
 language plpgsql security definer set search_path = '' as $$
 declare v_me uuid := platform.require_admin();
-        v_id uuid;
+        v_groups jsonb := coalesce(p_groups, '[]'::jsonb);
+        v_tokens text[];
 begin
+  if jsonb_typeof(v_groups) <> 'array' then raise exception 'Grupos no válidos.' using errcode = '22023'; end if;
+  if not exists (select 1 from platform.users u where u.id = p_user) then raise exception 'Ese usuario no existe.' using errcode = 'P0002'; end if;
+  if not exists (select 1 from platform.knowledge_bases b where b.id = p_base) then raise exception 'Esa base no existe.' using errcode = 'P0002'; end if;
+  select coalesce(array_agg(btrim(x ->> 'token')), '{}') into v_tokens from jsonb_array_elements(v_groups) x;
+  delete from platform.knowledge_grants
+   where user_id = p_user and base_id = p_base and not (group_token = any (v_tokens));
   insert into platform.knowledge_grants (user_id, base_id, group_name, group_token, created_by)
-  values (p_user, p_base, btrim(p_group_name), btrim(p_group_token), v_me)
-  returning id into v_id;
-  perform platform.audit(v_me, 'knowledge.grant', p_user,
-    jsonb_build_object('grant', v_id, 'base', p_base, 'group', btrim(p_group_name), 'token', platform.mask(btrim(p_group_token))));
-  return v_id;
+  select p_user, p_base, btrim(x ->> 'name'), btrim(x ->> 'token'), v_me from jsonb_array_elements(v_groups) x
+  on conflict (user_id, base_id, group_token) do update set group_name = excluded.group_name;
+  perform platform.audit(v_me, 'knowledge.set', p_user, jsonb_build_object('base', p_base,
+    'groups', (select coalesce(jsonb_agg(btrim(x ->> 'name')), '[]'::jsonb) from jsonb_array_elements(v_groups) x)));
 exception
-  when unique_violation then raise exception 'Ese usuario ya tiene ese grupo en esa base.' using errcode = '23505';
-  when foreign_key_violation then raise exception 'El usuario o la base no existen.' using errcode = 'P0002';
-  when check_violation then raise exception 'Nombre de grupo (1-80) o token (8-200 caracteres visibles, sin comas) no válidos.' using errcode = '23514';
+  when check_violation or not_null_violation then raise exception 'Grupo no válido: nombre (1-80) y token (8-200 caracteres visibles, sin comas).' using errcode = '23514';
 end $$;
 
-create or replace function public.platform_revoke_knowledge(p_grant uuid) returns void
+-- «Igual que otra persona»: le quita su conocimiento y le copia el de p_from.
+create or replace function public.platform_copy_knowledge(p_user uuid, p_from uuid) returns void
 language plpgsql security definer set search_path = '' as $$
 declare v_me uuid := platform.require_admin();
-        v_user uuid;
 begin
-  delete from platform.knowledge_grants where id = p_grant returning user_id into v_user;
-  if v_user is null then raise exception 'Ese acceso no existe.' using errcode = 'P0002'; end if;
-  perform platform.audit(v_me, 'knowledge.revoke', v_user, jsonb_build_object('grant', p_grant));
+  if p_user = p_from then raise exception 'Elige a otra persona.' using errcode = '22023'; end if;
+  if not exists (select 1 from platform.users u where u.id = p_user)
+     or not exists (select 1 from platform.users u where u.id = p_from) then
+    raise exception 'Ese usuario no existe.' using errcode = 'P0002';
+  end if;
+  delete from platform.knowledge_grants where user_id = p_user;
+  insert into platform.knowledge_grants (user_id, base_id, group_name, group_token, created_by)
+  select p_user, g.base_id, g.group_name, g.group_token, v_me from platform.knowledge_grants g where g.user_id = p_from;
+  perform platform.audit(v_me, 'knowledge.copy', p_user, jsonb_build_object('from', p_from));
 end $$;
 
 -- ── Auditoría ─────────────────────────────────────────────────────────────

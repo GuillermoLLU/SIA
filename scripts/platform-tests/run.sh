@@ -36,7 +36,7 @@ echo "── acceso por perfiles ──"
 psql -d t -f /sql/20-access.sql 2>&1 | quiet
 echo "── re-ejecutar el SQL (sin perder datos) ──"
 psql -d t -f /sql/10-platform.sql 2>&1 | quiet
-psql -d t -c "do \$\$ begin if (select count(*) from platform.users) <> 3 or (select count(*) from platform.knowledge_bases) <> 1 then raise exception 'FALLO: re-ejecutar perdió datos'; end if; end \$\$;"
+psql -d t -c "do \$\$ begin if (select count(*) from platform.users) <> 3 or (select count(*) from platform.knowledge_bases) <> 1 or (select count(*) from vault.secrets) <> 1 then raise exception 'FALLO: re-ejecutar perdió datos'; end if; end \$\$;"
 echo "── verificación (verify.sql, la que se pega en el SQL Editor) ──"
 psql -d t -f /sql/verify.sql | quiet | tee "$WORK/verify.out"
 if grep -q FALLO "$WORK/verify.out"; then echo "FALLO: la verificación no sale toda en OK"; exit 1; fi
