@@ -1,6 +1,7 @@
 // Puerta de inicio de sesión: pantalla completa antes de la app, con el aspecto
 // de la del candado (el halo, el tema). Primero solo la S en el centro, que hace
-// de botón: al pulsarla se desvanece y en su sitio aparece el formulario.
+// de botón: al pulsarla se desvanece y en su sitio aparece el formulario; un
+// clic fuera de él lo cierra y vuelve la S.
 // Solo DOM; la sesión la lleva session.js.
 import './login.css';
 
@@ -68,12 +69,19 @@ const loginGate = (session, logoHtml) => new Promise((resolve) => {
   form.querySelector('.login-remember').addEventListener('click', () => {
     remember.setAttribute('aria-checked', String(remember.getAttribute('aria-checked') !== 'true'));
   });
-  opener.addEventListener('click', () => {
-    stage.classList.add('open');
-    opener.inert = true;
-    form.inert = false;
-    (username.value ? password : username).focus({ preventScroll: true });
-  }, { once: true });
+  // La S abre el formulario; un clic fuera de él lo cierra y vuelve la S.
+  const setOpen = (open) => {
+    stage.classList.toggle('open', open);
+    opener.inert = open;
+    form.inert = !open;
+    if (open) return (username.value ? password : username).focus({ preventScroll: true });
+    password.value = ''; msg.textContent = '';
+    opener.focus({ preventScroll: true });
+  };
+  opener.addEventListener('click', () => setOpen(true));
+  el.addEventListener('click', (e) => {
+    if (stage.classList.contains('open') && !form.contains(e.target) && !opener.contains(e.target)) setOpen(false);
+  });
   opener.focus();
 });
 
