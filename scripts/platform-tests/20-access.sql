@@ -18,7 +18,8 @@ insert into auth.users (id, email, raw_user_meta_data) values
   ('00000000-0000-0000-0000-0000000000a2', 'agente.uno@empresa.com', '{"name":"Agente Uno"}'),
   ('00000000-0000-0000-0000-0000000000a3', 'agente.dos@empresa.com', '{}');
 select assert_eq((select count(*) from platform.users), 3::bigint, 'el disparador crea las filas de platform.users');
-select assert_eq((select count(*) from platform.users where role = 'agent'), 3::bigint, 'toda alta entra como agente');
+select assert_eq((select count(*) from platform.users u join platform.roles r on r.id = u.role_id where r.builtin = 'agent'), 3::bigint, 'toda alta entra como agente');
+select assert_eq((select views from platform.users limit 1), array['links'], 'con las vistas de Agente');
 select assert_eq((select email from platform.users where name = 'Admin'), 'admin@empresa.com', 'email en minúsculas');
 select assert_eq((select name from platform.users where email = 'agente.dos@empresa.com'), 'agente.dos', 'sin nombre: la parte local del email');
 select platform.grant_admin('ADMIN@empresa.com');
@@ -46,12 +47,14 @@ select expect_error('select public.platform_whoami()', 'un sub inexistente no ti
 select t_as(:U1);
 select expect_error('select count(*) from platform.users', 'authenticated no lee las tablas directamente');
 select expect_error('select platform.grant_admin(''agente.uno@empresa.com'')', 'authenticated no se hace admin');
-select assert_eq((public.platform_whoami() ->> 'role'), 'agent', 'el agente se ve como agente');
+select assert_eq((public.platform_whoami() ->> 'role'), 'Agente', 'el agente se ve como agente');
 select expect_error('select count(*) from public.platform_list_users()', 'el agente no lista usuarios');
 select expect_error('select count(*) from public.platform_list_bases()', 'el agente no lista bases');
 select expect_error('select count(*) from public.platform_list_audit()', 'el agente no ve la auditoría');
 select assert_eq(public.platform_can_manage_users(), false, 'el agente no da de alta');
-select expect_error($$select public.platform_update_user('00000000-0000-0000-0000-0000000000a2', null, 'admin')$$, 'el agente no se hace admin');
+select expect_error($$select public.platform_update_user('00000000-0000-0000-0000-0000000000a2', null, (select id from platform.roles where builtin = 'admin'))$$, 'el agente no se hace admin');
+select expect_error('select count(*) from public.platform_list_roles()', 'el agente no ve los roles');
+select expect_error($$select public.platform_save_role(null, 'Jefe', array['people'])$$, 'ni los crea');
 select expect_error($$select public.platform_update_user('00000000-0000-0000-0000-0000000000a3', 'X')$$, 'el agente no renombra a otros');
 select public.platform_update_user(:U1, 'Agente 1');
 select assert_eq((public.platform_whoami() ->> 'name'), 'Agente 1', 'cada uno cambia su nombre');
@@ -60,15 +63,41 @@ select assert_eq((public.platform_whoami() ->> 'name'), 'Agente 1', 'cada uno ca
 select t_as(:AD);
 select assert_eq((select count(*) from public.platform_list_users()), 3::bigint, 'el admin ve a todos');
 select assert_eq(public.platform_can_manage_users(), true, 'el admin da de alta');
-select expect_error($$select public.platform_update_user('00000000-0000-0000-0000-0000000000a1', null, 'agent')$$, 'nadie cambia su propio rol');
+\set RADMIN '(select id from public.platform_list_roles() where builtin = ''admin'')'
+\set RAGENT '(select id from public.platform_list_roles() where builtin = ''agent'')'
+select expect_error($$select public.platform_update_user('00000000-0000-0000-0000-0000000000a1', null, (select id from public.platform_list_roles() where builtin = 'agent'))$$, 'nadie cambia su propio rol');
 select expect_error($$select public.platform_update_user('00000000-0000-0000-0000-0000000000a1', null, null, false)$$, 'nadie se desactiva');
-select expect_error($$select public.platform_update_user('00000000-0000-0000-0000-0000000000a2', null, 'root')$$, 'rol desconocido');
-select public.platform_update_user(:U2, null, 'admin');
+select expect_error($$select public.platform_update_user('00000000-0000-0000-0000-0000000000a2', null, gen_random_uuid())$$, 'rol desconocido');
+select public.platform_update_user(:U2, null, :RADMIN);
 select t_as(:U2);
 select assert_eq((select count(*) from public.platform_list_users()), 3::bigint, 'el nuevo admin ve a todos');
 select t_as(:AD);
-select public.platform_update_user(:U2, null, 'agent');
+select public.platform_update_user(:U2, null, :RAGENT);
 select assert_eq((select views from public.platform_list_users() where id = :U2), array['links'], 'volver a agente: sus vistas');
+
+-- roles: crear, asignar, editar (se aplica a quien lo tiene), personalizar y borrar
+select public.platform_save_role(null, 'Supervisor', array['lab', 'links', 'lab']);
+select assert_eq((select views from public.platform_list_roles() where name = 'Supervisor'), array['lab', 'links'], 'rol nuevo, sin repetir vistas');
+select expect_error($$select public.platform_save_role(null, 'supervisor', array['links'])$$, 'nombre repetido');
+select expect_error($$select public.platform_save_role(null, 'X', array['root'])$$, 'vista desconocida en un rol');
+select expect_error($$select public.platform_save_role((select id from public.platform_list_roles() where builtin = 'admin'), 'Admin', array['links'])$$, 'Administrador no se cambia');
+select expect_error($$select public.platform_save_role((select id from public.platform_list_roles() where builtin = 'admin'), 'Administrador', array['links', 'lab', 'admin', 'people'])$$, 'ni aunque sea igual: es el mío');
+select expect_error($$select public.platform_delete_role((select id from public.platform_list_roles() where builtin = 'agent'))$$, 'los de serie no se borran');
+select public.platform_update_user(:U1, null, (select id from public.platform_list_roles() where name = 'Supervisor'));
+select public.platform_update_user(:U2, null, (select id from public.platform_list_roles() where name = 'Supervisor'));
+select assert_eq((select role_name || ':' || array_to_string(views, ',') from public.platform_list_users() where id = :U1), 'Supervisor:lab,links', 'asignar un rol pone sus vistas');
+select public.platform_update_user(:U2, null, null, null, array['links']);
+select assert_eq((select coalesce(role_name, 'personalizado') from public.platform_list_users() where id = :U2), 'personalizado', 'tocar una vista: personalizado');
+select public.platform_save_role((select id from public.platform_list_roles() where name = 'Supervisor'), 'Supervisión', array['links', 'people']);
+select assert_eq((select role_name || ':' || array_to_string(views, ',') from public.platform_list_users() where id = :U1), 'Supervisión:links,people', 'editar el rol cambia a quien lo tiene');
+select assert_eq((select views from public.platform_list_users() where id = :U2), array['links'], 'y no al personalizado');
+select t_as(:U1);
+select expect_error($$select public.platform_save_role((select id from public.platform_list_roles() where name = 'Supervisión'), 'Supervisión', array['links', 'people', 'lab'])$$, 'nadie edita el rol que tiene');
+select t_as(:AD);
+select public.platform_delete_role((select id from public.platform_list_roles() where name = 'Supervisión'));
+select assert_eq((select coalesce(role_name, 'personalizado') || ':' || array_to_string(views, ',') from public.platform_list_users() where id = :U1), 'personalizado:links,people', 'borrar el rol: se queda con sus vistas');
+select public.platform_update_user(:U1, null, :RAGENT);
+select public.platform_update_user(:U2, null, :RAGENT);
 
 -- vistas: el rol es el punto de partida; después, una a una
 select assert_eq((select (public.platform_whoami() -> 'views') ?& array['links', 'lab', 'admin', 'people']), true, 'el admin, todas');
@@ -88,7 +117,7 @@ select t_as(:U1);
 select assert_eq((public.platform_whoami() -> 'views'), '[]'::jsonb, 'sin vistas: solo el Chat');
 select assert_eq(public.platform_can_manage_users(), false, 'y sin Personas');
 select t_as(:AD);
-select public.platform_update_user(:U1, null, null, null, array['links']);
+select public.platform_update_user(:U1, null, :RAGENT);
 
 -- contraseña puesta por un admin: hay que cambiarla al entrar; un cambio cierra sesiones
 reset role;

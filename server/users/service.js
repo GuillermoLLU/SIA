@@ -26,4 +26,9 @@ export const createUserAdmin = ({ platform }) => ({
   },
 
   remove: (jwt, id) => platform.users(jwt, { action: 'delete', id }),
+
+  // Roles: nombre y vistas. Guardar uno cambia las vistas de quien lo tiene.
+  roles: (jwt) => platform.rpc(jwt, 'platform_list_roles'),
+  saveRole: (jwt, id, { name, views }) => platform.rpc(jwt, 'platform_save_role', { p_role: id, p_name: name, p_views: views }),
+  removeRole: (jwt, id) => platform.rpc(jwt, 'platform_delete_role', { p_role: id }),
 });

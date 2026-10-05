@@ -1,4 +1,4 @@
-// Cliente de /api/users (solo administradores). Los errores de reglas llegan
+// Cliente de /api/users (vista Personas): personas y roles. Los errores de reglas llegan
 // como Error con el texto del bridge («Ya hay un usuario…»).
 
 export const createUsersApi = (apiBase, session) => {
@@ -17,5 +17,8 @@ export const createUsersApi = (apiBase, session) => {
     create: (user) => call('', 'POST', user), // → { user, warning? }
     update: (id, patch) => call(`/${encodeURIComponent(id)}`, 'PUT', patch),
     remove: (id) => call(`/${encodeURIComponent(id)}`, 'DELETE'),
+    roles: async () => (await call('/roles')).roles,
+    saveRole: (id, role) => (id ? call(`/roles/${encodeURIComponent(id)}`, 'PUT', role) : call('/roles', 'POST', role)),
+    removeRole: (id) => call(`/roles/${encodeURIComponent(id)}`, 'DELETE'),
   };
 };

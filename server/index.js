@@ -783,7 +783,7 @@ const readBody = (req) => new Promise((resolve, reject) => {
   req.on('end', () => { try { resolve(b ? JSON.parse(b) : {}); } catch (e) { reject(e); } });
 });
 const authRoute = authRoutes(auth, { json, readBody, onSession: loadAssigned, onLogout: clearAssigned, platform });
-const syncKeys = (jwt, userId, opts) => knowledge.syncPeople(jwt, [userId], opts);
+const syncKeys = (jwt, userId, opts) => knowledge.syncPeople(jwt, userId ? [userId] : null, opts);
 const usersRoute = usersRoutes(users, auth, { json, readBody, syncKeys, assignKnowledge: (jwt, userId, baseId, ids) => knowledge.setGroups(jwt, userId, baseId, ids) });
 const knowledgeRoute = knowledgeRoutes(knowledge, auth, { json, readBody, syncKeys, onChange: loadAssigned });
 const validId = (s) => typeof s === 'string' && /^[a-z0-9][a-z0-9_-]{1,63}$/i.test(s);
@@ -1047,7 +1047,7 @@ const apiServer = http.createServer(async (req, res) => {
     // segunda capa, además de la de la base (server/auth/views.js). El móvil
     // emparejado no inicia sesión: ve los Enlaces y nada de gestión.
     if (!allowed(who?.user ?? PHONE_USER, parts, req.method)) return json(res, 403, { error: 'No tienes acceso a esto.' });
-    if (parts[1] === 'users') return usersRoute(req, res, parts[2]);
+    if (parts[1] === 'users') return usersRoute(req, res, parts.slice(2));
     if (parts[1] === 'knowledge') return knowledgeRoute(req, res, parts.slice(2));
 
     // Sin base de conocimiento solo funciona lo que no la necesita (terminal,

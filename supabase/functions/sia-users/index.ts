@@ -8,7 +8,7 @@
 // función. Después de cada cambio lo apunta en la auditoría a su nombre
 // (platform_record_user_event).
 //
-//   POST { action: 'create', email, name, password, role }  → { user }
+//   POST { action: 'create', email, name, password, role? } → { user }   (role: id de rol; sin él, Agente)
 //   POST { action: 'delete', id }                           → { ok }
 //   POST { action: 'set_password', id, password }           → { ok }
 //
@@ -21,7 +21,6 @@ const URL_BASE = Deno.env.get('SUPABASE_URL') ?? '';
 const PUBLISHABLE = Deno.env.get('SIA_PUBLISHABLE_KEY') ?? '';
 const SECRET = Deno.env.get('SIA_SECRET_KEY') ?? '';
 
-const ROLES = ['admin', 'agent'];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
@@ -63,10 +62,10 @@ const rpc = (jwt: string, fn: string, args: Json) => call(`/rest/v1/rpc/${fn}`, 
 const create = async (jwt: string, body: Json) => {
   const email = String(body.email ?? '').trim().toLowerCase();
   const name = String(body.name ?? '').trim();
-  const role = String(body.role ?? 'agent');
+  const role = body.role == null || body.role === '' ? null : String(body.role);
   if (!EMAIL.test(email) || email.length > 254) throw new Fail(400, 'Email no válido.');
   if (!name || name.length > 80) throw new Fail(400, 'El nombre necesita de 1 a 80 caracteres.');
-  if (!ROLES.includes(role)) throw new Fail(400, 'Rol desconocido.');
+  if (role !== null && !UUID.test(role)) throw new Fail(400, 'Rol desconocido.');
   const pw = passwordProblem(body.password);
   if (pw) throw new Fail(400, pw);
 
@@ -80,11 +79,11 @@ const create = async (jwt: string, body: Json) => {
     if (e instanceof Fail && e.status === 422 && /already/i.test(e.message)) throw new Fail(409, 'Ya hay un usuario con ese email.');
     throw e;
   }
-  // El alta entra como agente (disparador de la base). El rol admin (con sus vistas) y el
-  // apunte en la auditoría van con el JWT de quien la pide; si algo falla, se
-  // deshace el alta para no dejar a medias a nadie.
+  // El alta entra como Agente (disparador de la base). Otro rol (con sus vistas)
+  // y el apunte en la auditoría van con el JWT de quien la pide; si algo falla,
+  // se deshace el alta para no dejar a medias a nadie.
   try {
-    if (role === 'admin') await rpc(jwt, 'platform_update_user', { p_user: created.id, p_role: 'admin' });
+    if (role) await rpc(jwt, 'platform_update_user', { p_user: created.id, p_role: role });
     await rpc(jwt, 'platform_record_user_event', { p_action: 'user.create', p_user: created.id, p_email: email });
   } catch (e) {
     await call(`/auth/v1/admin/users/${created.id}`, 'secret', { method: 'DELETE' }).catch(() => {});

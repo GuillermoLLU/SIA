@@ -4,24 +4,41 @@
 //   GET    /      → { users }
 //   POST   /      { email, name, password, role, knowledge? } → { user, warning? }
 //                 knowledge = { baseId: [ids de grupo] }: lo que verá desde el alta
-//   PUT    /:id   { name?, role?, views?, active?, password? } → { ok }   (un rol sin vistas trae las suyas)
+//   PUT    /:id   { name?, role?, views?, active?, password? } → { ok }
+//                 role: id de rol (pone sus vistas); views sueltas: personalizado
 //   DELETE /:id   → { ok }
+//   GET    /roles → { roles }      POST /roles { name, views } → { id }
+//   PUT    /roles/:id { name, views } → { ok }   (cambia a quien lo tiene)
+//   DELETE /roles/:id → { ok }      (quien lo tenía se queda con sus vistas)
 // Los errores de la base o de la función llegan con su estado y su texto.
-// syncKeys(jwt, id, { drop }) pone al día sus claves de poder en las bases
-// (sus vistas) tras cambiar su rol, vistas o acceso, y las quita antes de
-// borrarla; si algo falla, se avisa en `warning`.
+// syncKeys(jwt, id | null, { drop }) pone al día las claves de poder en la
+// base (las vistas) tras cambiar el rol, las vistas o el acceso de alguien, o
+// un rol (null: de todos), y las quita antes de borrar a alguien; si algo
+// falla, se avisa en `warning`.
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const keysWarning = (problems) => (problems.length ? { warning: `Hecho, pero sin su clave de poder en alguna base: ${problems[0]}` } : {});
 
-export const usersRoutes = (users, auth, { json, readBody, assignKnowledge, syncKeys }) => async (req, res, id) => {
+export const usersRoutes = (users, auth, { json, readBody, assignKnowledge, syncKeys }) => async (req, res, [id, sub]) => {
   const token = req.headers['x-sia-auth'];
   try {
     const ctx = await auth.context(token);
     if (!ctx) return json(res, 401, { error: 'Inicia sesión.' });
-    if (id && !UUID.test(id)) return json(res, 404, { error: 'Ese usuario no existe.' });
     const jwt = ctx.accessToken;
+    if (id === 'roles') {
+      if (sub && !UUID.test(sub)) return json(res, 404, { error: 'Ese rol no existe.' });
+      if (!sub && req.method === 'GET') return json(res, 200, { roles: await users.roles(jwt) });
+      if (!sub && req.method === 'POST') { const { name, views } = await readBody(req); return json(res, 200, { id: await users.saveRole(jwt, null, { name, views }) }); }
+      if (sub && req.method === 'PUT') {
+        const { name, views } = await readBody(req);
+        await users.saveRole(jwt, sub, { name, views });
+        return json(res, 200, { ok: true, ...keysWarning(await syncKeys(jwt, null)) });
+      }
+      if (sub && req.method === 'DELETE') { await users.removeRole(jwt, sub); return json(res, 200, { ok: true }); }
+      return json(res, 404, { error: 'no encontrado' });
+    }
+    if (id && !UUID.test(id)) return json(res, 404, { error: 'Ese usuario no existe.' });
 
     if (!id && req.method === 'GET') return json(res, 200, { users: await users.list(jwt) });
     if (!id && req.method === 'POST') {

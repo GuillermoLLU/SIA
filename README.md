@@ -29,13 +29,16 @@ cuenta de la instancia (las da un administrador; ver «La base de la
 instancia»). Con «Mantener la sesión» se entra solo la próxima vez.
 
 Cada persona ve las **vistas** que se le den: el Chat siempre y, además,
-Enlaces rápidos, Laboratorio, Administración y Personas. El rol solo pone las
-de partida: un **agente** empieza con Chat y Enlaces; un **administrador**,
-con todas.
+Enlaces rápidos, Laboratorio, Administración y Personas. Lo cómodo es darlas
+con un **rol** (un nombre y unas vistas): asignar un rol pone sus vistas y
+editarlo las cambia a todos los que lo tienen. Vienen **Administrador** (todas,
+fijo) y **Agente** (Chat y Enlaces, el de toda alta), y en Personas → **Roles**
+se crean los que hagan falta. Tocar una vista suelta de alguien lo deja con
+vistas **personalizadas**, que ya no siguen a ningún rol.
 
 - **Personas**: da de alta a la gente (con su rol y lo que verá, en un solo
   paso) y, en la ficha de cada uno, cambia su rol, enciende o apaga sus
-  vistas, le genera una contraseña nueva, le corta el acceso o decide qué
+  vistas (personalizándolas), le genera una contraseña nueva, le corta el acceso o decide qué
   proyectos ve (o le copia los de otra persona). Quien recibe una
   contraseña de otro la cambia al entrar.
 - La instancia tiene **una sola base de conocimiento** y trabaja contra ella
@@ -75,8 +78,10 @@ Endurecimiento recomendado en el panel: registro público cerrado, contraseñas
 de 6 caracteres o más, SSL obligatorio y claves legacy
 desactivadas. Las pruebas del SQL: `npm run test:platform` (Docker).
 
-Vistas por persona (`platform.users.views`: links, lab, admin, people); el
-rol (**admin** / **agent**) solo pone las de partida. La base de
+Vistas por persona (`platform.users.views`: links, lab, admin, people) y
+roles (`platform.roles`): con rol, sus vistas son las del rol y cambian con
+él; sin rol, personalizadas. Nadie edita el rol que tiene, y Administrador
+no se toca. La base de
 conocimiento solo entiende de claves de poder, así que cada persona tiene en
 ella su propia clave («SIA · email», en `platform.person_keys` y Vault) con
 solo los permisos de sus vistas (Laboratorio, Enlaces); quien tiene

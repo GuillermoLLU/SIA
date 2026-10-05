@@ -7,7 +7,11 @@
 --  borra datos (salvo la estructura multicliente anterior, ver paso 0).
 --
 --  Modelo
---    users              las personas (1:1 con auth.users de Supabase Auth), su rol y sus vistas
+--    roles              perfiles de vistas con nombre (Administrador, Agente y los
+--                       que se creen): asignar uno pone sus vistas; editarlo las
+--                       cambia a todos los que lo tienen
+--    users              las personas (1:1 con auth.users de Supabase Auth), su rol
+--                       (o ninguno: vistas personalizadas) y sus vistas
 --    knowledge_bases    la base de conocimiento de la instancia (otro proyecto
 --                       Supabase): una sola, y la ven todas las personas. Se
 --                       fija desde el SQL Editor (platform.set_knowledge_base)
@@ -24,10 +28,12 @@
 --    lab        Laboratorio de skills
 --    admin      Administración del contenido de las bases (grupos, proyectos, enlaces)
 --    people     Personas: altas, bajas, vistas y conocimiento de cada una
---  Roles: punto de partida de las vistas. Al poner un rol se le dan las
---  suyas; después se ajustan una a una.
---    admin   todas. El primero se nombra desde el SQL Editor (platform.grant_admin).
---    agent   Enlaces. Es el rol de toda alta.
+--  Roles: un nombre y unas vistas. Asignar uno pone sus vistas; editarlo las
+--  cambia a todos los que lo tienen; tocar una vista de alguien lo deja con
+--  vistas personalizadas (sin rol). Dos vienen de serie:
+--    Administrador  todas, fijo. El primero se nombra desde el SQL Editor
+--                   (platform.grant_admin).
+--    Agente         Enlaces (editable, no se borra). Es el rol de toda alta.
 --
 --  Seguridad
 --    · Las tablas viven en el esquema privado `platform`, que la Data API NO
@@ -37,8 +43,8 @@
 --      DEFINER con search_path vacío y nombres cualificados, comprueban quién
 --      llama (auth.uid()) y sus vistas antes de nada, y solo las puede ejecutar
 --      el rol authenticated (anon, no).
---    · Nadie cambia su propio rol ni sus vistas ni se desactiva: siempre queda
---      alguien con Personas.
+--    · Nadie cambia su propio rol ni sus vistas, ni edita el rol que tiene, ni
+--      se desactiva: siempre queda alguien con Personas.
 --    · Un usuario desactivado no pasa ninguna comprobación.
 --    · Los tokens de grupo solo se devuelven enteros a su titular; a los
 --      admins, como huella (sha256). Las claves secret de Supabase se rechazan.
@@ -79,11 +85,25 @@ create schema if not exists platform;
 revoke all on schema platform from public, anon, authenticated;
 
 -- ── Tablas ────────────────────────────────────────────────────────────────
+create table if not exists platform.roles (
+  id          uuid primary key default gen_random_uuid(),
+  name        text not null check (char_length(btrim(name)) between 1 and 40),
+  views       text[] not null default '{}' check (views <@ array['links', 'lab', 'admin', 'people']),
+  builtin     text unique check (builtin in ('admin', 'agent')),  -- los de serie
+  created_at  timestamptz not null default now()
+);
+create unique index if not exists roles_name on platform.roles (lower(name));
+insert into platform.roles (name, views, builtin) values
+  ('Administrador', array['links', 'lab', 'admin', 'people'], 'admin'),
+  ('Agente', array['links'], 'agent')
+on conflict (builtin) do nothing;
+
 create table if not exists platform.users (
   id          uuid primary key references auth.users (id) on delete cascade,
   email       text not null check (email = lower(email) and email ~ '^[^@\s]+@[^@\s]+$'),
   name        text not null check (char_length(btrim(name)) between 1 and 80),
-  role        text not null default 'agent' check (role in ('admin', 'agent')),
+  role_id     uuid references platform.roles (id) on delete set null,  -- null: vistas personalizadas
+  views       text[] not null default array['links'],
   active      boolean not null default true,
   created_at  timestamptz not null default now()
 );
@@ -139,20 +159,25 @@ create index if not exists audit_happened on platform.audit_log (happened_at des
 alter table platform.users add column if not exists must_change_password boolean not null default false;
 alter table platform.knowledge_bases add column if not exists power_secret uuid;
 
--- Vistas de cada rol (punto de partida) y de cada persona.
-create or replace function platform.role_views(p_role text) returns text[]
-language sql immutable set search_path = '' as $$
-  select case p_role when 'admin' then array['links', 'lab', 'admin', 'people'] else array['links'] end
-$$;
+-- Versiones con el rol como texto (admin | agent) y, antes, sin vistas: a
+-- role_id. Quien tenía justo las vistas de su rol, con ese rol; si no, vistas
+-- personalizadas.
+alter table platform.users add column if not exists role_id uuid references platform.roles (id) on delete set null;
 do $$
 begin
-  if not exists (select 1 from information_schema.columns where table_schema = 'platform' and table_name = 'users' and column_name = 'views') then
-    alter table platform.users add column views text[];
-    update platform.users set views = platform.role_views(role);
-    alter table platform.users alter column views set not null;
-    alter table platform.users alter column views set default array['links'];
+  if exists (select 1 from information_schema.columns where table_schema = 'platform' and table_name = 'users' and column_name = 'role') then
+    if not exists (select 1 from information_schema.columns where table_schema = 'platform' and table_name = 'users' and column_name = 'views') then
+      alter table platform.users add column views text[];
+      update platform.users u set views = (select r.views from platform.roles r where r.builtin = u.role);
+      alter table platform.users alter column views set not null;
+      alter table platform.users alter column views set default array['links'];
+    end if;
+    update platform.users u set role_id = r.id from platform.roles r
+     where r.builtin = u.role and u.views @> r.views and u.views <@ r.views;
+    alter table platform.users drop column role;
   end if;
 end $$;
+drop function if exists platform.role_views(text);
 -- La vista «knowledge» (Configuración → Conocimiento) ya no existe: la base es
 -- una y se fija desde aquí.
 update platform.users set views = array_remove(views, 'knowledge') where 'knowledge' = any (views);
@@ -165,6 +190,7 @@ alter table platform.knowledge_bases  enable row level security;
 alter table platform.knowledge_grants enable row level security;
 alter table platform.audit_log        enable row level security;
 alter table platform.person_keys      enable row level security;
+alter table platform.roles            enable row level security;
 revoke all on all tables in schema platform from public, anon, authenticated;
 revoke all on all sequences in schema platform from public, anon, authenticated;
 
@@ -190,7 +216,7 @@ drop trigger if exists person_key_forget on platform.person_keys;
 create trigger person_key_forget after delete on platform.person_keys
   for each row execute function platform.person_key_forget();
 
--- ── Alta en Supabase Auth → fila en platform.users (siempre como agente) ──
+-- ── Alta en Supabase Auth → fila en platform.users (siempre con el rol Agente) ──
 -- El nombre llega en user_metadata.name (lo pone la Edge Function de alta).
 create or replace function platform.on_auth_user_created() returns trigger
 language plpgsql security definer set search_path = '' as $$
@@ -198,9 +224,11 @@ begin
   if new.email is null then
     raise exception 'Los usuarios de SIA necesitan email.' using errcode = '23502';
   end if;
-  insert into platform.users (id, email, name)
-  values (new.id, lower(new.email),
-          left(coalesce(nullif(btrim(new.raw_user_meta_data ->> 'name'), ''), split_part(new.email, '@', 1)), 80))
+  insert into platform.users (id, email, name, role_id, views)
+  select new.id, lower(new.email),
+         left(coalesce(nullif(btrim(new.raw_user_meta_data ->> 'name'), ''), split_part(new.email, '@', 1)), 80),
+         r.id, r.views
+  from platform.roles r where r.builtin = 'agent'
   on conflict (id) do nothing;
   return new;
 end $$;
@@ -220,11 +248,12 @@ create trigger sia_on_auth_user_email after update of email on auth.users
   execute function platform.on_auth_user_email();
 
 -- Personas que ya estaban en Authentication antes de este SQL: su fila.
-insert into platform.users (id, email, name)
+insert into platform.users (id, email, name, role_id, views)
 select a.id, lower(a.email),
-       left(coalesce(nullif(btrim(a.raw_user_meta_data ->> 'name'), ''), split_part(a.email, '@', 1)), 80)
-from auth.users a
-where a.email is not null
+       left(coalesce(nullif(btrim(a.raw_user_meta_data ->> 'name'), ''), split_part(a.email, '@', 1)), 80),
+       r.id, r.views
+from auth.users a cross join platform.roles r
+where a.email is not null and r.builtin = 'agent'
 on conflict (id) do nothing;
 
 -- ── Comprobaciones internas (no expuestas) ────────────────────────────────
@@ -301,7 +330,8 @@ create or replace function platform.grant_admin(p_email text) returns void
 language plpgsql set search_path = '' as $$
 declare v_id uuid;
 begin
-  update platform.users set role = 'admin', views = platform.role_views('admin'), active = true where email = lower(btrim(p_email)) returning id into v_id;
+  update platform.users u set role_id = r.id, views = r.views, active = true
+    from platform.roles r where r.builtin = 'admin' and u.email = lower(btrim(p_email)) returning u.id into v_id;
   if v_id is null then
     raise exception 'No hay ningún usuario con email %. Créalo antes en Authentication → Users.', p_email;
   end if;
@@ -369,8 +399,8 @@ create or replace function public.platform_whoami() returns jsonb
 language plpgsql stable security definer set search_path = '' as $$
 declare v_me uuid := platform.require_user();
 begin
-  return (select jsonb_build_object('id', u.id, 'email', u.email, 'name', u.name, 'role', u.role, 'views', to_jsonb(u.views), 'must_change_password', u.must_change_password)
-          from platform.users u where u.id = v_me);
+  return (select jsonb_build_object('id', u.id, 'email', u.email, 'name', u.name, 'role', coalesce(r.name, 'Personalizado'), 'views', to_jsonb(u.views), 'must_change_password', u.must_change_password)
+          from platform.users u left join platform.roles r on r.id = u.role_id where u.id = v_me);
 end $$;
 
 -- Ya he cambiado la contraseña que me puso un admin.
@@ -409,20 +439,20 @@ end $$;
 -- huella del token, nunca el token).
 drop function if exists public.platform_list_users();
 create function public.platform_list_users()
-returns table (id uuid, email text, name text, role text, views text[], active boolean, must_change_password boolean,
+returns table (id uuid, email text, name text, role_id uuid, role_name text, views text[], active boolean, must_change_password boolean,
                last_sign_in_at timestamptz, created_at timestamptz, knowledge jsonb)
 language plpgsql stable security definer set search_path = '' as $$
 #variable_conflict use_column
 begin
   perform platform.require_view('people');
   return query
-    select u.id, u.email, u.name, u.role, u.views, u.active, u.must_change_password, a.last_sign_in_at, u.created_at,
+    select u.id, u.email, u.name, u.role_id, r.name, u.views, u.active, u.must_change_password, a.last_sign_in_at, u.created_at,
            coalesce((select jsonb_agg(jsonb_build_object('base_id', k.base_id, 'groups', k.groups) order by k.base_id)
                      from (select g.base_id,
                                   jsonb_agg(jsonb_build_object('id', platform.token_id(g.group_token), 'name', g.group_name) order by g.group_name) as groups
                            from platform.knowledge_grants g where g.user_id = u.id group by g.base_id) k), '[]'::jsonb)
-    from platform.users u left join auth.users a on a.id = u.id
-    order by u.role, u.name;
+    from platform.users u left join auth.users a on a.id = u.id left join platform.roles r on r.id = u.role_id
+    order by u.name;
 end $$;
 
 -- ¿Puedo dar de alta o de baja personas? (lo usa la Edge Function antes de
@@ -435,14 +465,16 @@ end $$;
 
 -- Cada uno cambia su nombre. Quien tiene Personas cambia además el nombre,
 -- el rol, las vistas y si está activo de los demás, pero nunca lo suyo
--- (siempre queda alguien con Personas). Un rol nuevo sin vistas trae las de
--- ese rol. Desactivar cierra sus sesiones.
-create or replace function public.platform_update_user(p_user uuid, p_name text default null, p_role text default null,
+-- (siempre queda alguien con Personas). Un rol pone sus vistas; unas vistas
+-- sueltas dejan a la persona sin rol (personalizado). Desactivar cierra sus
+-- sesiones.
+drop function if exists public.platform_update_user(uuid, text, text, boolean, text[]);
+create or replace function public.platform_update_user(p_user uuid, p_name text default null, p_role uuid default null,
                                                        p_active boolean default null, p_views text[] default null) returns void
 language plpgsql security definer set search_path = '' as $$
 declare v_me uuid := platform.require_user();
         v_people boolean := platform.can(v_me, array['people']);
-        v_views text[] := coalesce(p_views, case when p_role is not null then platform.role_views(p_role) end);
+        v_views text[];
 begin
   if p_user <> v_me and not v_people then
     raise exception 'Solo quien gestiona Personas cambia los datos de otros.' using errcode = '42501';
@@ -453,16 +485,17 @@ begin
   if p_user = v_me and (p_role is not null or p_active is not null or p_views is not null) then
     raise exception 'No puedes cambiar tu propio rol ni tus vistas ni desactivarte.' using errcode = '42501';
   end if;
-  if p_role is not null and p_role not in ('admin', 'agent') then
-    raise exception 'Rol desconocido.' using errcode = '22023';
-  end if;
-  if v_views is not null and not (v_views <@ array['links', 'lab', 'admin', 'people']) then
-    raise exception 'Vista desconocida.' using errcode = '22023';
+  if p_role is not null then
+    select r.views into v_views from platform.roles r where r.id = p_role;
+    if v_views is null then raise exception 'Ese rol no existe.' using errcode = 'P0002'; end if;
+  elsif p_views is not null then
+    v_views := array(select distinct v from unnest(p_views) v order by v);
+    if not (v_views <@ array['links', 'lab', 'admin', 'people']) then raise exception 'Vista desconocida.' using errcode = '22023'; end if;
   end if;
   update platform.users
      set name = coalesce(nullif(btrim(p_name), ''), name),
-         role = coalesce(p_role, role),
-         views = case when v_views is null then views else array(select distinct v from unnest(v_views) v order by v) end,
+         role_id = case when p_role is not null then p_role when p_views is not null then null else role_id end,
+         views = coalesce(v_views, views),
          active = coalesce(p_active, active)
    where id = p_user;
   if not found then raise exception 'Ese usuario no existe.' using errcode = 'P0002'; end if;
@@ -471,6 +504,64 @@ begin
     jsonb_strip_nulls(jsonb_build_object('name', nullif(btrim(p_name), ''), 'role', p_role, 'views', to_jsonb(v_views), 'active', p_active)));
 exception
   when check_violation then raise exception 'Nombre no válido (1-80 caracteres).' using errcode = '23514';
+end $$;
+
+-- ── Roles ─────────────────────────────────────────────────────────────────
+-- Con cuántas personas lo tienen. Primero los de serie.
+create or replace function public.platform_list_roles()
+returns table (id uuid, name text, views text[], builtin text, people bigint)
+language plpgsql stable security definer set search_path = '' as $$
+#variable_conflict use_column
+begin
+  perform platform.require_view('people');
+  return query
+    select r.id, r.name, r.views, r.builtin, (select count(*) from platform.users u where u.role_id = r.id)
+    from platform.roles r
+    order by r.builtin nulls last, r.builtin, lower(r.name);
+end $$;
+
+-- Crear (p_role null) o cambiar un rol. Cambiarlo cambia las vistas de todos
+-- los que lo tienen. Administrador no se toca, ni el rol que tiene uno mismo.
+create or replace function public.platform_save_role(p_role uuid, p_name text, p_views text[]) returns uuid
+language plpgsql security definer set search_path = '' as $$
+declare v_me uuid := platform.require_view('people');
+        v_views text[] := array(select distinct v from unnest(coalesce(p_views, '{}')) v order by v);
+        v_builtin text;
+        v_id uuid;
+begin
+  if not (v_views <@ array['links', 'lab', 'admin', 'people']) then raise exception 'Vista desconocida.' using errcode = '22023'; end if;
+  if p_role is null then
+    insert into platform.roles (name, views) values (btrim(p_name), v_views) returning id into v_id;
+    perform platform.audit(v_me, 'role.create', null, jsonb_build_object('role', v_id, 'name', btrim(p_name), 'views', to_jsonb(v_views)));
+    return v_id;
+  end if;
+  select r.builtin into v_builtin from platform.roles r where r.id = p_role;
+  if not found then raise exception 'Ese rol no existe.' using errcode = 'P0002'; end if;
+  if v_builtin = 'admin' then raise exception 'Administrador tiene todas las vistas y no se cambia.' using errcode = '42501'; end if;
+  if exists (select 1 from platform.users u where u.id = v_me and u.role_id = p_role) then
+    raise exception 'No puedes cambiar el rol que tienes tú.' using errcode = '42501';
+  end if;
+  update platform.roles set name = btrim(p_name), views = v_views where id = p_role;
+  update platform.users set views = v_views where role_id = p_role;
+  perform platform.audit(v_me, 'role.update', null, jsonb_build_object('role', p_role, 'name', btrim(p_name), 'views', to_jsonb(v_views)));
+  return p_role;
+exception
+  when unique_violation then raise exception 'Ya hay un rol con ese nombre.' using errcode = '23505';
+  when check_violation then raise exception 'Nombre no válido (1-40 caracteres).' using errcode = '23514';
+end $$;
+
+-- Borrar un rol: quien lo tenía se queda con sus vistas, ya personalizadas.
+-- Los de serie no se borran.
+create or replace function public.platform_delete_role(p_role uuid) returns void
+language plpgsql security definer set search_path = '' as $$
+declare v_me uuid := platform.require_view('people');
+        v_builtin text;
+begin
+  select r.builtin into v_builtin from platform.roles r where r.id = p_role;
+  if not found then raise exception 'Ese rol no existe.' using errcode = 'P0002'; end if;
+  if v_builtin is not null then raise exception 'Administrador y Agente no se borran.' using errcode = '42501'; end if;
+  delete from platform.roles where id = p_role;
+  perform platform.audit(v_me, 'role.delete', null, jsonb_build_object('role', p_role));
 end $$;
 
 -- Altas, bajas y cambios de contraseña los hace la Edge Function sia-users

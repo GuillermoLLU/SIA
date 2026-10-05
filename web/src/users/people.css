@@ -165,3 +165,19 @@
 .pp-views .pp-box:disabled { cursor: default; }
 .pp-views .pp-box:disabled:hover { border-color: var(--border); }
 .pp-views .pp-box.on:disabled:hover { border-color: var(--accent); }
+/* Roles: filtros, tarjetas (los que haya) y su gestor */
+.pp-chips { display: contents; }
+.pp-tools .lab-btn:not(.primary) { height: 34px; padding: 0 14px; font-size: 13px; }
+.pp-role.custom { font-style: italic; }
+.pp-roles { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+.pp-rolelist { display: flex; flex-direction: column; border: 1px solid var(--border); }
+.pp-rl { display: flex; align-items: center; gap: 14px; padding: 12px 14px; border-top: 1px solid var(--border); background: var(--bg); }
+.pp-rl:first-child { border-top: 0; }
+.pp-rl .r-ico { width: 32px; height: 32px; display: grid; place-items: center; color: var(--text-low); }
+.pp-rl .r-ico svg { width: 22px; height: 22px; }
+.pp-rl-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pp-rl-main b { font-size: 13.5px; }
+.pp-rl-main span { font-size: 12px; color: var(--text-low); }
+.pp-rl-n, .pp-rl-fixed { font-size: 12px; color: var(--text-low); white-space: nowrap; }
+.pp-rl .lab-btn { height: 30px; padding: 0 12px; }
+.pp-rl-gap { width: 30px; }
