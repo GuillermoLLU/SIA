@@ -1005,7 +1005,7 @@ const apiServer = http.createServer(async (req, res) => {
       // de desarrollo lo usa para preferirlo frente al de una app instalada abierta.
       // pin: si hay PIN de bloqueo, para que el candado del móvil sepa si puede
       // bloquear ya o tiene que pedir antes que se elija uno
-      return json(res, 200, { sia: true, version: APP_VERSION, dev: !process.versions.electron, ws: PORT, api: API_PORT, db: hasDb, theme: UI_THEME, ...(s ? { mode: s.mode, pin: lockHasKey() } : {}) });
+      return json(res, 200, { sia: true, version: APP_VERSION, dev: !process.versions.electron, ws: PORT, api: API_PORT, theme: UI_THEME, ...(s ? { mode: s.mode, pin: lockHasKey() } : {}) });
     }
 
     if (parts[1] === 'auth') return authRoute(req, res, parts[2]);

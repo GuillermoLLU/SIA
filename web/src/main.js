@@ -2233,7 +2233,6 @@ const dbSqlCopy = document.getElementById('db-sql-copy');
 const dbSetup = document.getElementById('db-setup');
 const dbWizardStatus = document.getElementById('db-wizard-status');
 let dbSqlText = ''; // el SQL del esquema, cargado del bridge al abrir el asistente
-const dbBanner = document.getElementById('db-banner');
 const dbForm = document.getElementById('db-form');
 const dbBack = document.getElementById('db-back');
 const dbNameInput = document.getElementById('db-name-input');
@@ -2408,7 +2407,6 @@ const removeBase = async (b) => {
     toast(`Base «${b.name}» quitada`);
     knowView = 'grid';
     await basesLoad();
-    dbBanner.hidden = !!bases.length;
     await refreshAdmin();
   } catch (e) { dbSetStatus(dbStatus, e.message, 'bad'); }
 };
@@ -2636,7 +2634,6 @@ const dbWizardClose = () => {
 
 // Se ha conectado (o montado) una base: la app deja de estar "solo terminal"
 const dbConnected = async () => {
-  dbBanner.hidden = true;
   localStorage.removeItem('sia-lab-cache'); // otra base, otro catálogo
   await refreshAdmin();
   basesRender(); // las tarjetas se pintaron antes de saber qué abre la clave: repintar con los permisos
@@ -2746,7 +2743,6 @@ dbSetup.addEventListener('click', async () => {
   } finally { dbSetup.disabled = false; }
 });
 
-document.getElementById('db-banner-go').addEventListener('click', () => settingsBtn.click());
 // La clave de poder vivía en localStorage (una sola). Ahora va por base: la
 // que hubiera pasa a la base principal si esta no tiene ninguna, una vez.
 (async () => {
@@ -2760,8 +2756,6 @@ document.getElementById('db-banner-go').addEventListener('click', () => settings
     refreshAdmin();
   } catch { /* sin bridge: se reintenta en la próxima carga */ }
 })();
-// al arrancar: sin base conectada, aviso arriba (en el móvil no: se configura en el ordenador)
-if (!document.body.classList.contains('phone')) api('/ping').then((p) => { dbBanner.hidden = !!p.db; }).catch(() => {});
 refreshAdmin();
 
 /* ── Laboratorio de skills ────────────────────────────────────── */
