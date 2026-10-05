@@ -9,7 +9,8 @@ import { installAutoLock } from './mobile/auto-lock.js';
 import { createAuthSession } from './auth/session.js';
 import { ensureLogin } from './auth/login-view.js';
 import { wireLogout } from './auth/logout-button.js';
-import { themeById, toggledTheme } from './theme/themes.js';
+import { themeById, toggledTheme, modeOf } from './theme/themes.js';
+import { renderThemePicker } from './theme/theme-picker.js';
 import { createUsersApi } from './users/users-api.js';
 import { mountPeopleView } from './users/people-view.js';
 import { createKnowledgeApi } from './knowledge/knowledge-api.js';
@@ -1495,10 +1496,14 @@ document.addEventListener('keydown', (e) => {
   }
 }, true);
 
-/* ── Theme application + picker ───────────────────────────────── */
+/* ── Tema: aplicarlo, el selector (⚙️ → Apariencia) y el interruptor ── */
+// el último tema elegido de cada modo: a él salta el interruptor
+const themePrefs = () => ({ light: localStorage.getItem('sia-theme-light'), dark: localStorage.getItem('sia-theme-dark') });
+const themePicker = renderThemePicker(document.getElementById('theme-picker'), { onPick: (id) => applyTheme(id) });
 const applyTheme = (id) => {
   const t = themeById(id);
   currentThemeId = t.id;
+  localStorage.setItem(`sia-theme-${modeOf(t)}`, t.id);
   root.style.setProperty('--bg', t.ui.bg);
   root.style.setProperty('--surface', t.ui.surface);
   root.style.setProperty('--border', t.ui.border);
@@ -1518,9 +1523,10 @@ const applyTheme = (id) => {
     fetch(`${API_BASE}/config`, { method: 'PUT', headers: { 'Content-Type': 'application/json', ...(AUTH ? AUTH.session.headers() : {}) }, body: JSON.stringify({ theme: { id: t.id, ui: t.ui } }) }).catch(() => {});
   }
   themeSwitch.setAttribute('aria-checked', String(!!t.dark));
+  themePicker.mark(t.id);
 };
 
-themeToggle.addEventListener('click', () => applyTheme(toggledTheme(currentThemeId).id));
+themeToggle.addEventListener('click', () => applyTheme(toggledTheme(currentThemeId, themePrefs()).id));
 
 applyTheme(currentThemeId);
 

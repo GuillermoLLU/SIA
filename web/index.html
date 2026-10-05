@@ -6,7 +6,7 @@
     <title>SIA</title>
     <!-- PWA: añadir a pantalla de inicio en el móvil → pantalla completa -->
     <link rel="manifest" href="/manifest.webmanifest" />
-    <meta name="theme-color" content="#f2f2f2" />
+    <meta name="theme-color" content="#f5f6f8" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -260,6 +260,8 @@
             <button class="settings-tab active" data-pane="credenciales" role="tab">Credenciales</button>
             <!-- Acceso desde el móvil: QR + PIN, en red local o por túnel público -->
             <button class="settings-tab" data-pane="movil" role="tab">Móvil</button>
+            <!-- Todos los temas, claros y oscuros -->
+            <button class="settings-tab" data-pane="apariencia" role="tab">Apariencia</button>
             <!-- Claro / Oscuro: el interruptor de la app; los iconos también lo cambian -->
             <div class="theme-toggle" id="theme-toggle" title="Claro / Oscuro">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
@@ -269,6 +271,9 @@
           </nav>
           <div class="settings-layout">
             <div class="settings-main">
+              <div class="settings-pane" data-pane="apariencia" hidden>
+                <div id="theme-picker"></div>
+              </div>
               <div class="settings-pane" data-pane="movil" hidden>
                 <!-- Acceso desde el móvil: una sola vista que cambia de estado, siempre
                      centrada. inicio → elegir modo → (cargando el túnel) → QR y PIN → conectado -->
