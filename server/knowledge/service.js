@@ -18,7 +18,7 @@ import { planKeys, keyName } from './person-keys.js';
 export const createKnowledge = ({ platform, readGroups, baseKeys }) => {
   const groupsByBase = new Map(); // baseId → [{ id, name, token }]
 
-  // Bases de la instancia con sus grupos (los que se pueden leer).
+  // La base de la instancia con sus grupos de acceso, uno por proyecto (server/projects/).
   const bases = async (jwt) => {
     const [list, access] = await Promise.all([platform.rpc(jwt, 'platform_list_bases'), platform.rpc(jwt, 'platform_base_access')]);
     const accessById = new Map(access.map((a) => [a.id, a]));
@@ -27,7 +27,7 @@ export const createKnowledge = ({ platform, readGroups, baseKeys }) => {
       let groups = null, groupsError = null;
       if (a) {
         try { groups = toGroups(await readGroups({ url: a.url, key: a.publishable_key, powerKey: a.power_key })); groupsByBase.set(b.id, groups); }
-        catch { groupsError = 'No se pudieron leer sus grupos: revisa su clave de poder.'; }
+        catch { groupsError = 'No se pudieron leer sus proyectos: revisa la clave del dueño en la instancia.'; }
       }
       return { id: b.id, name: b.name, url: b.url, hasPowerKey: b.has_power_key, people: Number(b.people), groups: groups && publicGroups(groups), groupsError };
     }));

@@ -8,9 +8,9 @@ catálogo de skills compartido.
 **Una instancia por cliente.** Cada cliente tiene su propia instancia de SIA
 con su propia **base de la instancia** (un proyecto Supabase: personas, roles y
 qué conocimiento ve cada una), indicada en `sia-instance.json`. Otro cliente es
-otra instancia del mismo código. Las **bases de conocimiento** (el RAG, las
-skills, los grupos) son otros proyectos Supabase; un administrador decide qué
-grupos de cuáles ve cada persona.
+otra instancia del mismo código. La **base de conocimiento** (el RAG, las
+skills, los proyectos) es otro proyecto Supabase, uno por instancia; en
+Personas se decide qué proyectos ve cada persona.
 
 ## Empezar
 
@@ -36,10 +36,13 @@ con todas.
 - **Personas**: da de alta a la gente (con su rol y lo que verá, en un solo
   paso) y, en la ficha de cada uno, cambia su rol, enciende o apaga sus
   vistas, le genera una contraseña nueva, le corta el acceso o decide qué
-  grupos de la base ve (o le copia los de otra persona). Quien recibe una
+  proyectos ve (o le copia los de otra persona). Quien recibe una
   contraseña de otro la cambia al entrar.
 - La instancia tiene **una sola base de conocimiento** y trabaja contra ella
-  todo el mundo, tenga grupos asignados o no: no se conecta nada a mano.
+  todo el mundo, tenga proyectos asignados o no: no se conecta nada a mano.
+- **Administración**: los proyectos de la base (crear, ver sus entradas y
+  borrarlos). No hay grupos a la vista: por dentro, cada proyecto lleva su
+  propio token de acceso (`server/projects/`), que es lo que la base exige.
   Pulsa **+** para abrir un chat: **Claude**, **Copilot** o **Codex**, ya
   conectados al conocimiento.
 
@@ -105,16 +108,17 @@ reglas. La clave *secret* del proyecto no entra en SIA (se rechaza al
 pegarla y se descarta de las configuraciones antiguas): es la única que salta
 las políticas y solo debe tenerla quien administra el proyecto en Supabase.
 
-Los grupos de cada persona se eligen en su ficha de Personas; las claves de
-poder, las pone SIA según sus vistas (ver «La base de la instancia»).
+Los proyectos de cada persona (es decir, sus tokens) se eligen en su ficha de
+Personas; las claves de poder, las pone SIA según sus vistas (ver «La base de
+la instancia»).
 
 Permisos que puede llevar una clave (`power_keys`):
 
-- **Laboratorio**: crear y editar skills de los grupos a los que se tiene token.
-- **Administración**: grupos, proyectos de conocimiento, accesos y enlaces.
+- **Laboratorio**: crear y editar skills de los proyectos que se ven.
+- **Administración**: los proyectos de conocimiento y sus entradas.
 - **Editar enlaces**: añadir y quitar enlaces rápidos.
 
-Las skills **comunes** (las que ven todos los grupos) solo las crea, edita o
+Las skills **comunes** (las que ve todo el mundo) solo las crea, edita o
 borra el dueño de la base. Una base con un esquema anterior no deja ver nada
 hasta que se vuelve a ejecutar su SQL (`node server/base/schema-sql.js`).
 

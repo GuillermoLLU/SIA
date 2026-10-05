@@ -1984,7 +1984,6 @@ settingsBtn.addEventListener('click', async () => {
   }
 }
 
-/* ── Acceso al conocimiento (tokens de grupo) ─────────────────── */
 /* ── Claves de GitHub (varias guardadas, una activa) ───────────────
    La activa es la que se inyecta como GH_TOKEN a los chats NUEVOS: sirve
    para saltar de entorno (trabajo ↔ personal) sin repegar el token. */
@@ -2275,12 +2274,14 @@ const labRefreshBtn = document.getElementById('lab-refresh');
 const labScopeSel = document.getElementById('lab-scope');
 const labStatus = (text) => { labStatusEl.textContent = text; };
 
-let groups = []; // [{token, name}] — grupos para el selector de visibilidad
-// Nombre de un grupo por su token. Si no se conoce (no tienes token de ese
-// grupo, o el grupo ya no existe) NUNCA se devuelve el token: es una credencial.
-const groupName = (token, known = null) => groups.find((g) => g.token === token)?.name || known || 'otro grupo';
+// Proyectos para el selector de visibilidad: [{token, name}]. Cada proyecto
+// tiene su token de acceso (server/projects/), y una skill es común o de un
+// proyecto. Si no se conoce el nombre (no tienes ese proyecto, o ya no
+// existe) NUNCA se devuelve el token: es una credencial.
+let groups = [];
+const groupName = (token, known = null) => groups.find((g) => g.token === token)?.name || known || 'otro proyecto';
 
-// rellena el <select> de Visibilidad: Común (solo superadmin) + grupos
+// rellena el <select> de Visibilidad: Común (solo el dueño) + proyectos
 const fillScopeSelect = (scope) => {
   labScopeSel.innerHTML = '';
   const common = document.createElement('option');
@@ -2293,7 +2294,7 @@ const fillScopeSelect = (scope) => {
     labScopeSel.appendChild(o);
   }
   labScopeSel.value = scope || '';
-  // si el admin no puede poner Común y no hay valor válido, coge el primer grupo
+  // si no puede poner Común y no hay valor válido, coge el primer proyecto
   if (labScopeSel.value === '' && !curPerms()?.owner && groups.length) labScopeSel.value = groups[0].token;
 };
 
@@ -2339,7 +2340,7 @@ const renderLabCards = (skills, drafts) => {
     if (!sk.enabled) tags.push({ text: 'off', cls: 'off' });
     if (sk.category) tags.push({ text: sk.category });
     // scopeName lo resuelve el bridge; null = el grupo de esa skill ya no existe
-    tags.push({ text: sk.scope ? groupName(sk.scope, sk.scopeName === null ? 'grupo eliminado' : sk.scopeName) : 'Común', cls: 'scope' });
+    tags.push({ text: sk.scope ? groupName(sk.scope, sk.scopeName === null ? 'proyecto eliminado' : sk.scopeName) : 'Común', cls: 'scope' });
     labCards.appendChild(card({
       title: sk.label, tags,
       desc: sk.description, meta: `${sk.id} · v${sk.version}`,
@@ -2545,7 +2546,7 @@ labPublish.addEventListener('click', async () => {
   const scope = labScopeSel.value || null;
   const files = curFiles();
   const resume = files.map((f) => ` • ${f.path} (${f.content.length} chars)`).join('\n');
-  const visib = scope ? `grupo «${groupName(scope)}»` : 'COMÚN (todo el equipo)';
+  const visib = scope ? `proyecto «${groupName(scope)}»` : 'COMÚN (todo el equipo)';
   const out = await dlgConfirm(
     `Publicar «${cur.id}»`,
     `Visibilidad: <strong>${esc(visib)}</strong>. Llegará a quien corresponda en su siguiente chat.<pre>${esc(resume)}</pre>`,
@@ -2561,188 +2562,94 @@ labPublish.addEventListener('click', async () => {
 });
 
 /* ════════════════════════════════════════════════════════════════
-   Panel de administración (solo superadmin): grupos, proyectos, accesos
+   Administración: los proyectos de la base. Es lo único que se gestiona
+   (crear, ver sus entradas y borrar); a quién se habilita cada uno se decide
+   en Personas. Sin grupos a la vista: por dentro cada proyecto lleva su
+   propio token (server/projects/).
    ════════════════════════════════════════════════════════════════ */
 const adminRailList = document.getElementById('admin-rail-list');
 const adminMain = document.getElementById('admin-main');
-const adminGroupSearch = document.getElementById('admin-group-search');
+const adminSearch = document.getElementById('admin-search');
+const TRASH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
 
-let adminData = { groups: [], projects: [] };
-let adminSel = { view: 'group', group: null, project: null }; // group token / project id
-
-const COPY_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
-
-const projectsOfGroup = (token) => { const g = adminData.groups.find((x) => x.token === token); return g ? adminData.projects.filter((p) => g.projectIds.includes(p.id)) : []; };
-const adminGroupName = (token) => adminData.groups.find((g) => g.token === token)?.name || token;
+let adminProjects = []; // [{ id, name, entries }]
+let adminProject = null; // id del proyecto abierto; null = la rejilla
+const entriesLabel = (n) => `${n} ${n === 1 ? 'entrada' : 'entradas'}`;
 
 const adminRefresh = async () => {
   try {
-    adminData = await api('/admin/data');
-    // selección por defecto
-    if (adminSel.view === 'group' && !adminData.groups.some((g) => g.token === adminSel.group)) adminSel.group = adminData.groups[0]?.token || null;
-    if (adminSel.view === 'project' && !adminData.projects.some((p) => p.id === adminSel.project)) adminSel = { view: 'group', group: adminSel.group, project: null };
+    adminProjects = await api('/admin/projects');
+    if (!adminProjects.some((p) => p.id === adminProject)) adminProject = null;
     renderRail(); renderMain();
   } catch (err) { adminMain.innerHTML = `<div class="admin-empty"><span class="big">Error</span><span>${esc(err.message)}</span></div>`; }
 };
+const openProject = (id) => { adminProject = id; renderRail(); renderMain(); };
 
 const renderRail = () => {
-  const q = fold(adminGroupSearch.value.trim());
+  const q = fold(adminSearch.value.trim());
   adminRailList.innerHTML = '';
-  for (const g of adminData.groups.filter((g) => !q || fold(g.name).includes(q) || projectsOfGroup(g.token).some((p) => fold(p.name).includes(q)))) {
+  for (const p of adminProjects.filter((x) => !q || fold(x.name).includes(q))) {
     const li = document.createElement('li');
-    if (adminSel.group === g.token) li.classList.add('active');
-    li.innerHTML = `<span>${esc(g.name)}</span><span class="rl-meta tnum">${g.projectIds.length}</span>`;
-    li.addEventListener('click', () => { adminSel = { view: 'group', group: g.token, project: null }; renderRail(); renderMain(); });
+    if (adminProject === p.id) li.classList.add('active');
+    li.innerHTML = `<span>${esc(p.name)}</span><span class="rl-meta tnum">${p.entries}</span>`;
+    li.addEventListener('click', () => openProject(p.id));
     adminRailList.appendChild(li);
   }
 };
+const renderMain = () => (adminProject ? renderProjectView() : renderProjectsGrid());
 
-const renderMain = () => {
-  if (adminSel.view === 'project') return renderProjectView();
-  return renderGroupView();
-};
-
-/* ── Vista de un grupo: rejilla de proyectos ── */
-const MOVE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v2"/><path d="M3 7v10a2 2 0 0 0 2 2h6"/><path d="M14 16h7"/><path d="m18 13 3 3-3 3"/></svg>';
-const TRASH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
-const renderGroupView = () => {
-  const g = adminData.groups.find((x) => x.token === adminSel.group);
-  if (!g) { adminMain.innerHTML = '<div class="admin-empty"><span class="big">No hay grupos</span><span>Crea uno desde la barra de la izquierda.</span></div>'; return; }
-  const projs = projectsOfGroup(g.token);
+/* ── Todos los proyectos: rejilla de cards ── */
+const renderProjectsGrid = () => {
   adminMain.innerHTML = `
-    <div class="admin-main-head"><h1>${esc(g.name)}</h1><span class="spacer"></span>
-      <button class="admin-ghost danger" id="del-group">Eliminar grupo</button>
+    <div class="admin-main-head"><h1>Proyectos</h1><span class="spacer"></span>
       <button class="admin-primary" id="new-project">+ Nuevo proyecto</button></div>
-    <div class="admin-main-sub"><span class="tnum">${projs.length} ${projs.length === 1 ? 'proyecto' : 'proyectos'}</span></div>
+    <div class="admin-main-sub"><span class="tnum">${adminProjects.length} ${adminProjects.length === 1 ? 'proyecto' : 'proyectos'}</span></div>
     <div class="admin-grid" id="proj-grid"></div>`;
-
   const grid = adminMain.querySelector('#proj-grid');
-  // la card de crear va la primera, como en bases, skills y enlaces
+  // la card de crear va la primera, como en skills y enlaces
   const add = document.createElement('div');
   add.className = 'admin-card new';
   add.innerHTML = '<span class="plus">+</span><span>Nuevo proyecto</span>';
-  add.addEventListener('click', () => newProject(g));
+  add.addEventListener('click', newProject);
   grid.appendChild(add);
-  for (const p of projs) {
-    const entries = p.contexts.reduce((n, c) => n + c.entries, 0);
-    const shared = p.grantedTokens.filter((t) => t !== g.token).map(adminGroupName);
+  for (const p of adminProjects) {
     const card = document.createElement('div');
     card.className = 'admin-card';
-    const others = adminData.groups.filter((og) => og.token !== g.token);
     card.innerHTML = `
-      <span class="ac-actions">
-        ${others.length ? `<button type="button" class="icon-btn" data-act="move" title="Mover a otro grupo" aria-label="Mover a otro grupo">${MOVE_ICON}</button>` : ''}
-        <button type="button" class="icon-btn danger" data-act="remove" title="Eliminar proyecto" aria-label="Eliminar proyecto">${TRASH_ICON}</button>
-      </span>
+      <span class="ac-actions"><button type="button" class="icon-btn danger" data-act="remove" title="Eliminar proyecto" aria-label="Eliminar proyecto">${TRASH_ICON}</button></span>
       <div class="ac-title">${esc(p.name)}</div>
-      <div class="ac-pills">${shared.map((n) => `<span class="ac-pill">+ ${esc(n)}</span>`).join('')}</div>
-      <div class="ac-meta tnum">${entries} ${entries === 1 ? 'entrada' : 'entradas'}</div>`;
-    card.addEventListener('click', (e) => { if (e.target.closest('.ac-actions')) return; adminSel = { view: 'project', group: g.token, project: p.id }; renderMain(); });
-    card.querySelector('[data-act="move"]')?.addEventListener('click', (e) => { e.stopPropagation(); moveProjectDialog(p, g); });
-    card.querySelector('[data-act="remove"]').addEventListener('click', (e) => { e.stopPropagation(); deleteProject(p, g.token); });
+      <div class="ac-meta tnum">${entriesLabel(p.entries)}</div>`;
+    card.addEventListener('click', (e) => { if (!e.target.closest('.ac-actions')) openProject(p.id); });
+    card.querySelector('[data-act="remove"]').addEventListener('click', (e) => { e.stopPropagation(); deleteProject(p); });
     grid.appendChild(card);
   }
-
-  adminMain.querySelector('#new-project').addEventListener('click', () => newProject(g));
-  adminMain.querySelector('#del-group').addEventListener('click', async () => {
-    // se van con él sus skills y los proyectos que SOLO él usa; los compartidos se quedan
-    const only = projs.filter((p) => p.grantedTokens.every((t) => t === g.token));
-    const shared = projs.length - only.length;
-    const entries = only.reduce((n, p) => n + p.contexts.reduce((m, c) => m + c.entries, 0), 0);
-    const what = [
-      only.length ? `${only.length} ${only.length === 1 ? 'proyecto' : 'proyectos'} con ${entries} ${entries === 1 ? 'entrada' : 'entradas'}` : null,
-      'sus skills',
-    ].filter(Boolean).join(' y ');
-    if (!await dlgConfirm('Eliminar grupo', `Se eliminará <strong>${esc(g.name)}</strong> con ${what}.${shared ? ` ${shared} ${shared === 1 ? 'proyecto compartido con otros grupos se queda' : 'proyectos compartidos con otros grupos se quedan'}.` : ''} Irreversible.`, 'Eliminar')) return;
-    try { await api(`/admin/groups/${encodeURIComponent(g.token)}`, { method: 'DELETE' }); adminSel.group = null; adminRefresh(); } catch (e) { dlgAlert('No se pudo eliminar', esc(e.message)); }
-  });
+  adminMain.querySelector('#new-project').addEventListener('click', newProject);
 };
 
-// mover = dar acceso al grupo destino y quitárselo al actual; el proyecto
-// conserva lo compartido con otros grupos
-const moveProject = async (p, from, to) => {
-  const dest = adminData.groups.find((x) => x.token === to);
-  try {
-    await api('/admin/grants', { method: 'POST', body: JSON.stringify({ token: to, project_id: p.id }) });
-    await api('/admin/grants', { method: 'DELETE', body: JSON.stringify({ token: from, project_id: p.id }) });
-    toast(`«${p.name}» movido a ${dest?.name || 'otro grupo'}`);
-    adminRefresh();
-  } catch (err) { dlgAlert('No se pudo mover', esc(err.message)); }
-};
-/* Diálogo «Mover a otro grupo»: una fila por grupo (nombre y cuántos proyectos
-   tiene), el actual marcado y sin elegir, el destino se marca con un punto;
-   «Mover» se enciende al elegir. */
-const moveProjectDialog = async (p, g) => {
-  const others = adminData.groups.filter((og) => og.token !== g.token);
-  if (!others.length) return;
-  let picked = null;
-  const body = `<p class="dlg-lead">A qué grupo pasa <strong>${esc(p.name)}</strong>. Lo que comparte con otros grupos no cambia.</p>
-    <ul class="token-list move-list">
-      <li class="current"><span class="pick"><span class="dot"></span><span class="name">${esc(g.name)}</span></span><span class="gh-tok">actual</span></li>
-      ${others.map((og) => `<li data-to="${esc(og.token)}"><button type="button" class="pick"><span class="dot"></span><span class="name">${esc(og.name)}</span></button><span class="gh-tok tnum">${og.projectIds.length} ${og.projectIds.length === 1 ? 'proyecto' : 'proyectos'}</span></li>`).join('')}
-    </ul>`;
-  const done = openDialog({ title: 'Mover a otro grupo', bodyHTML: body, okLabel: 'Mover', centered: true });
-  const ok = dlgActions.querySelector('.lab-btn.primary');
-  ok.disabled = true;
-  for (const li of dlgBody.querySelectorAll('.move-list li[data-to]')) {
-    li.querySelector('.pick').addEventListener('click', () => {
-      for (const x of dlgBody.querySelectorAll('.move-list li')) x.classList.remove('active');
-      li.classList.add('active');
-      picked = li.dataset.to;
-      ok.disabled = false;
-    });
-  }
-  if (!(await done) || !picked) return;
-  await moveProject(p, g.token, picked);
-};
-const deleteProject = async (p, groupToken) => {
-  const entries = p.contexts.reduce((n, c) => n + c.entries, 0);
-  if (!await dlgConfirm('Eliminar proyecto', `Se eliminará <strong>${esc(p.name)}</strong> y sus ${entries} entrada(s). Irreversible.`, 'Eliminar')) return;
-  try { await api(`/admin/projects/${p.id}`, { method: 'DELETE' }); adminSel = { view: 'group', group: groupToken, project: null }; adminRefresh(); } catch (e) { dlgAlert('No se pudo eliminar', esc(e.message)); }
-};
-const newProject = async (g) => {
-  const name = await dlgPrompt('Nuevo proyecto', 'Patronaje', `Crear un proyecto en «${esc(g.name)}»:`);
+const newProject = async () => {
+  const name = await dlgPrompt('Nuevo proyecto', 'SGA', 'Nombre del proyecto:');
   if (!name) return;
-  try {
-    const r = await api('/admin/projects', { method: 'POST', body: JSON.stringify({ name }) });
-    if (r.project?.id) await api('/admin/grants', { method: 'POST', body: JSON.stringify({ token: g.token, project_id: r.project.id }) });
-    adminRefresh();
-  } catch (e) { dlgAlert('No se pudo crear', esc(e.message)); }
+  try { const p = await api('/admin/projects', { method: 'POST', body: JSON.stringify({ name }) }); adminProject = p.id; await adminRefresh(); toast(`Proyecto «${p.name}» creado`); }
+  catch (e) { dlgAlert('No se pudo crear', esc(e.message)); }
+};
+const deleteProject = async (p) => {
+  if (!await dlgConfirm('Eliminar proyecto', `Se eliminará <strong>${esc(p.name)}</strong> con sus ${entriesLabel(p.entries)}, sus enlaces y sus skills, y nadie podrá verlo. Irreversible.`, 'Eliminar')) return;
+  try { await api(`/admin/projects/${p.id}`, { method: 'DELETE' }); adminProject = null; adminRefresh(); }
+  catch (e) { dlgAlert('No se pudo eliminar', esc(e.message)); }
 };
 
-/* ── Vista de un proyecto: contextos + compartir ── */
+/* ── Un proyecto: sus entradas de conocimiento ── */
 const renderProjectView = () => {
-  const p = adminData.projects.find((x) => x.id === adminSel.project);
-  const g = adminData.groups.find((x) => x.token === adminSel.group);
-  if (!p) { adminSel.view = 'group'; return renderMain(); }
-  const entries = p.contexts.reduce((n, c) => n + c.entries, 0);
+  const p = adminProjects.find((x) => x.id === adminProject);
   adminMain.innerHTML = `
-    <div class="admin-breadcrumb"><button id="bc-group">${esc(g ? g.name : 'Grupos')}</button><span>/</span><span>${esc(p.name)}</span></div>
-    <div class="admin-main-head"><h1>${esc(p.name)}</h1></div>
-    <div class="admin-main-sub"><span class="tnum">${entries} ${entries === 1 ? 'entrada' : 'entradas'}</span></div>
-    <div class="admin-block"><h3>Compartir con otros grupos</h3><div class="access-chips" id="share"></div></div>
+    <div class="admin-breadcrumb"><button id="bc-all">Proyectos</button><span>/</span><span>${esc(p.name)}</span></div>
+    <div class="admin-main-head"><h1>${esc(p.name)}</h1><span class="spacer"></span>
+      <button class="admin-ghost danger" id="del-project">Eliminar proyecto</button></div>
+    <div class="admin-main-sub"><span class="tnum">${entriesLabel(p.entries)}</span></div>
     <div class="admin-block"><h3>Entradas de conocimiento</h3><div class="entry-list" id="entry-list"><div class="entry-empty">Cargando…</div></div></div>`;
-
-  adminMain.querySelector('#bc-group').addEventListener('click', () => { adminSel = { view: 'group', group: adminSel.group, project: null }; renderRail(); renderMain(); });
-
-  // entradas (asíncrono)
+  adminMain.querySelector('#bc-all').addEventListener('click', () => openProject(null));
+  adminMain.querySelector('#del-project').addEventListener('click', () => deleteProject(p));
   loadEntries(p.id);
-
-  const share = adminMain.querySelector('#share');
-  for (const og of adminData.groups) {
-    const on = p.grantedTokens.includes(og.token);
-    const isHome = og.token === adminSel.group;
-    const chip = document.createElement('button');
-    chip.className = `access-chip ${on ? 'on' : ''}`;
-    chip.textContent = og.name + (isHome ? ' (grupo)' : '');
-    chip.disabled = isHome;
-    if (isHome) chip.style.opacity = '0.7';
-    if (!isHome) chip.addEventListener('click', async () => {
-      try { await api('/admin/grants', { method: chip.classList.contains('on') ? 'DELETE' : 'POST', body: JSON.stringify({ token: og.token, project_id: p.id }) }); adminRefresh(); }
-      catch (e) { dlgAlert('No se pudo cambiar', esc(e.message)); }
-    });
-    share.appendChild(chip);
-  }
 };
 
 // cargar y pintar las entradas de un proyecto (capa de contextos oculta)
@@ -2752,7 +2659,7 @@ const loadEntries = async (projectId) => {
   let entries;
   try { entries = await api(`/admin/entries?project=${projectId}`); }
   catch (e) { list.innerHTML = `<div class="entry-empty">Error: ${esc(e.message)}</div>`; return; }
-  if (adminSel.project !== projectId || !adminMain.contains(list)) return; // cambió de vista
+  if (adminProject !== projectId || !adminMain.contains(list)) return; // cambió de vista
   list.innerHTML = '';
   if (!entries.length) { list.innerHTML = '<div class="entry-empty">Aún no hay entradas. Se nutren desde el chat con la skill «Nutrir conocimiento».</div>'; return; }
   entries.forEach((en, i) => {
@@ -2770,13 +2677,7 @@ const loadEntries = async (projectId) => {
   });
 };
 
-adminGroupSearch.addEventListener('input', renderRail);
-document.getElementById('admin-new-group').addEventListener('click', async () => {
-  const name = await dlgPrompt('Nuevo grupo', 'Marketing', 'Nombre del grupo (sección):');
-  if (!name) return;
-  try { const r = await api('/admin/groups', { method: 'POST', body: JSON.stringify({ name }) }); adminSel = { view: 'group', group: r.token, project: null }; adminRefresh(); toast(`Grupo «${r.name}» creado`); }
-  catch (e) { dlgAlert('No se pudo crear', esc(e.message)); }
-});
+adminSearch.addEventListener('input', renderRail);
 
 /* ══ Enlaces rápidos ═══════════════════════════════════════════════
    Accesos del equipo agrupados por conocimiento. Verlos puede cualquiera
@@ -2841,8 +2742,8 @@ const renderLinks = () => {
   linksGrid.innerHTML = '';
 
   if (!linksProjects.length) {
-    // sin grupos en la base: los da quien gestiona Personas
-    linksGrid.appendChild(emptyState('links', 'Aún no tienes ningún grupo de conocimiento: pídeselo a quien gestiona Personas.'));
+    // sin proyectos: los da quien gestiona Personas
+    linksGrid.appendChild(emptyState('links', 'Aún no tienes ningún proyecto: pídeselo a quien gestiona Personas.'));
     return;
   }
   if (!list.length) {

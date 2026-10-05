@@ -1,4 +1,5 @@
-// Grupos de una base de conocimiento (dominio, sin E/S).
+// Grupos de acceso de la base de conocimiento (dominio, sin E/S). Hay uno por
+// proyecto (server/projects/): ante la persona, son sus proyectos.
 //
 // Ante la web, un grupo es { id, name }: el id es la huella sha256 del token
 // (la misma que platform.token_id en la base de la instancia), así la web

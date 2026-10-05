@@ -1,7 +1,7 @@
 // Vista «Personas» (para quien la tiene). Lista con buscador y filtros y,
 // al pulsar a alguien, su ficha: rol, contraseña y acceso (cada uno con su
 // modal), sus vistas (cajas que se encienden y apagan) y su conocimiento: los
-// grupos de la base de la instancia que ve (la base la ve todo el mundo). Alta
+// proyectos de la base de la instancia que ve (la base la ve todo el mundo). Alta
 // en un modal propio. La base la fija la instancia. Solo DOM: los datos van
 // por users-api.js y knowledge-api.js y las reglas las pone la base.
 import './people.css';
@@ -31,7 +31,7 @@ const ago = (ts) => {
   const days = Math.round(min / 1440);
   return days === 1 ? 'ayer' : days < 30 ? `hace ${days} días` : new Date(ts).toLocaleDateString('es-ES');
 };
-// Los grupos (ids) que ve una persona de la base de la instancia.
+// Los proyectos (ids de su token) que ve una persona.
 const knOf = (p) => (p.knowledge || []).flatMap((k) => k.groups.map((g) => g.id));
 const copyText = async (text, input, toast) => {
   try { await navigator.clipboard.writeText(text); toast('Copiado'); }
@@ -112,16 +112,16 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast }) => 
       </div>
     </div>`;
   };
-  // Conocimiento: los grupos de la base que ve (pulsar uno lo da o lo quita).
+  // Conocimiento: los proyectos que ve (pulsar uno lo da o lo quita).
   const knowledgeBlock = (sel, { copyFrom = true } = {}) => {
     const b = base(), groups = b?.groups || [];
     const head = (sum, none) => `<div class="pp-block-head"><span class="pp-k">Conocimiento</span><span class="pp-sum${none ? ' none' : ''}">${sum}</span>
       ${copyFrom && groups.length ? '<button class="pp-link" data-act="kn-copy">Igual que otra persona…</button>' : ''}</div>`;
     if (!b) return `<div class="pp-block">${head('', false)}<div class="pp-callout">La instancia aún no tiene base de conocimiento.</div></div>`;
-    if (!b.groups) return `<div class="pp-block">${head('', false)}<div class="pp-callout">${esc(b.groupsError || 'La base aún no tiene su clave de poder, así que SIA no puede leer sus grupos.')}</div></div>`;
-    if (!groups.length) return `<div class="pp-block">${head('', false)}<div class="pp-callout">«${esc(b.name)}» aún no tiene grupos: créalos en Administración.</div></div>`;
+    if (!b.groups) return `<div class="pp-block">${head('', false)}<div class="pp-callout">${esc(b.groupsError || 'La base aún no tiene su clave de poder, así que SIA no puede leer sus proyectos.')}</div></div>`;
+    if (!groups.length) return `<div class="pp-block">${head('', false)}<div class="pp-callout">«${esc(b.name)}» aún no tiene proyectos: créalos en Administración.</div></div>`;
     const n = groups.filter((g) => sel.includes(g.id)).length;
-    return `<div class="pp-block">${head(n ? `Ve ${n} de ${groups.length} grupos de ${esc(b.name)}` : `No ve ningún grupo de ${esc(b.name)}`, !n)}
+    return `<div class="pp-block">${head(n ? `Ve ${n} de ${groups.length} proyectos` : 'No ve ningún proyecto', !n)}
       <div class="pp-groups">${groups.map((g) => `<button type="button" class="pp-g" data-g="${esc(g.id)}" aria-pressed="${sel.includes(g.id)}">${esc(g.name)}</button>`).join('')}</div>
     </div>`;
   };
@@ -197,7 +197,7 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast }) => 
 
   // Copiar el conocimiento de otra persona: elegir (como en la lista) y revisar.
   const copyModal = (who, excludeId, onApply) => {
-    const m = openModal({ title: '¿De quién copias el conocimiento?', lead: `${who} verá sus mismas bases y grupos.`, body: '<div data-c></div>',
+    const m = openModal({ title: '¿De quién copias el conocimiento?', lead: `${who} verá sus mismos proyectos.`, body: '<div data-c></div>',
       foot: '<span class="pp-msg" data-msg></span><button class="lab-btn" data-cancel>Cancelar</button>' });
     m.querySelector('[data-cancel]').addEventListener('click', closeModal);
     const body = m.querySelector('[data-c]');

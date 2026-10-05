@@ -19,6 +19,7 @@ import { usersRoutes } from './users/routes.js';
 import { loadPlatformConfig } from './platform/config.js';
 import { createPlatformClient } from './platform/client.js';
 import { toAssignedBases } from './knowledge/assigned.js';
+import { createProjects } from './projects/service.js';
 import { createKnowledge } from './knowledge/service.js';
 import { knowledgeRoutes } from './knowledge/routes.js';
 import os from 'node:os';
@@ -453,6 +454,8 @@ const fetchAll = async (build) => {
     if (!data || data.length < PAGE_ROWS) return { data: out, error: null };
   }
 };
+
+const projects = createProjects({ newId: randomUUID, fetchAll });
 
 const syncSkills = async (base) => {
   if (!base) return;
@@ -1203,60 +1206,17 @@ const apiServer = http.createServer(async (req, res) => {
 
     if (parts[1] === 'admin' && parts[2] && parts[2] !== 'check') {
       if (!perms?.admin) return json(res, 403, { error: 'Tu clave de poder no abre la Administración.' });
-      // foto completa
-      if (parts[2] === 'data' && req.method === 'GET') {
-        const [{ data: groups }, { data: projects }, { data: contexts }, { data: entries }, { data: grants }] = await Promise.all([
-          db.from('access_groups').select('token, name').order('name'),
-          db.from('projects').select('id, name').order('id'),
-          db.from('contexts').select('id, name, project_id').order('id'),
-          // por tandas: con más de 1000 entradas en la base, una sola consulta
-          // se quedaba corta y el recuento por proyecto salía a menos (y distinto
-          // cada vez, porque sin orden las 1000 que volvían eran cualesquiera)
-          fetchAll(() => db.from('context_entries').select('id, context_id').order('id')),
-          db.from('access_grants').select('token, project_id'),
-        ]);
-        const entriesByCtx = {};
-        for (const e of entries || []) entriesByCtx[e.context_id] = (entriesByCtx[e.context_id] || 0) + 1;
-        const grantsByProj = {};
-        for (const g of grants || []) (grantsByProj[g.project_id] ||= []).push(g.token);
-        return json(res, 200, {
-          groups: (groups || []).map((g) => ({ ...g, projectIds: (grants || []).filter((x) => x.token === g.token).map((x) => x.project_id) })),
-          projects: (projects || []).map((p) => ({
-            id: p.id, name: p.name,
-            contexts: (contexts || []).filter((c) => c.project_id === p.id).map((c) => ({ id: c.id, name: c.name, entries: entriesByCtx[c.id] || 0 })),
-            grantedTokens: grantsByProj[p.id] || [],
-          })),
-        });
-      }
-      // crear grupo (token autogenerado con prefijo legible del nombre)
-      if (parts[2] === 'groups' && req.method === 'POST') {
-        const { name } = await readBody(req);
-        if (!name || !name.trim()) return json(res, 400, { error: 'nombre requerido' });
-        const slug = (name.trim().toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 3) || 'grp');
-        const token = `${slug}-${randomUUID()}`;
-        const { error } = await db.from('access_groups').insert({ token, name: name.trim() });
-        if (error) return json(res, 500, { error: error.message });
-        return json(res, 200, { ok: true, token, name: name.trim() });
-      }
-      if (parts[2] === 'groups' && req.method === 'DELETE' && parts[3]) {
-        const { error } = await db.from('access_groups').delete().eq('token', decodeURIComponent(parts[3]));
-        if (error) return json(res, 500, { error: error.message });
-        await syncSkills(viewBase); // la base borra las skills del grupo (disparador): fuera de la copia local
-        return json(res, 200, { ok: true });
-      }
-      // crear proyecto (+ contexto inicial con el mismo nombre)
-      if (parts[2] === 'projects' && req.method === 'POST') {
-        const { name } = await readBody(req);
-        if (!name || !name.trim()) return json(res, 400, { error: 'nombre requerido' });
-        const { data: proj, error } = await db.from('projects').insert({ name: name.trim(), description: 'Conocimiento de ' + name.trim() }).select('id, name').single();
-        if (error) return json(res, 500, { error: error.message });
-        await db.from('contexts').insert({ project_id: proj.id, name: name.trim(), description: 'Contexto inicial de ' + name.trim() });
-        return json(res, 200, { ok: true, project: proj });
-      }
-      if (parts[2] === 'projects' && req.method === 'DELETE' && parts[3]) {
-        const { error } = await db.from('projects').delete().eq('id', Number(parts[3]));
-        if (error) return json(res, 500, { error: error.message });
-        return json(res, 200, { ok: true });
+      // proyectos: lo único que se gestiona (server/projects/)
+      if (parts[2] === 'projects') {
+        try {
+          if (!parts[3] && req.method === 'GET') return json(res, 200, await projects.list(db));
+          if (!parts[3] && req.method === 'POST') return json(res, 200, await projects.create(db, (await readBody(req)).name));
+          if (parts[3] && req.method === 'DELETE') {
+            await projects.remove(db, Number(parts[3]));
+            await syncSkills(viewBase); // las skills de su token se van con él: fuera de la copia local
+            return json(res, 200, { ok: true });
+          }
+        } catch (e) { return json(res, e.status || 500, { error: e.message }); }
       }
       // entradas (entries) de un proyecto — capa de contextos oculta para la UI
       if (parts[2] === 'entries' && req.method === 'GET') {
@@ -1272,19 +1232,6 @@ const apiServer = http.createServer(async (req, res) => {
         const id = Number(parts[3]);
         await db.from('context_chunks').delete().eq('entry_id', id);
         const { error } = await db.from('context_entries').delete().eq('id', id);
-        if (error) return json(res, 500, { error: error.message });
-        return json(res, 200, { ok: true });
-      }
-      // conceder / revocar acceso de un grupo a un proyecto
-      if (parts[2] === 'grants' && req.method === 'POST') {
-        const { token, project_id } = await readBody(req);
-        const { error } = await db.from('access_grants').upsert({ token, project_id });
-        if (error) return json(res, 500, { error: error.message });
-        return json(res, 200, { ok: true });
-      }
-      if (parts[2] === 'grants' && req.method === 'DELETE') {
-        const { token, project_id } = await readBody(req);
-        const { error } = await db.from('access_grants').delete().eq('token', token).eq('project_id', project_id);
         if (error) return json(res, 500, { error: error.message });
         return json(res, 200, { ok: true });
       }
