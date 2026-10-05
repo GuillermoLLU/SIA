@@ -86,11 +86,54 @@ const loginGate = (session, logoHtml) => new Promise((resolve) => {
 });
 
 // El usuario de la sesión guardada o, si no hay, el que entre por la puerta.
+// Contraseña puesta por un admin: antes de entrar, la persona elige la suya.
+// La misma puerta, con dos campos y la política a la vista.
+const passwordGate = (session, logoHtml) => new Promise((resolve) => {
+  const appEl = document.querySelector('.app');
+  document.body.classList.add('locked');
+  appEl.inert = true;
+  const el = document.createElement('div');
+  el.className = 'lock-gate';
+  el.innerHTML = `<form class="lock-card login-card login-password" novalidate>
+    ${logoHtml}
+    <p class="login-lead">Elige tu contraseña: la que tienes te la dio un administrador.</p>
+    <input class="settings-input login-input" name="password" type="password" placeholder="Contraseña nueva" autocomplete="new-password" />
+    <input class="settings-input login-input" name="repeat" type="password" placeholder="Repítela" autocomplete="new-password" />
+    <p class="login-hint">12 o más caracteres, con minúsculas, mayúsculas, números y algún símbolo.</p>
+    <button class="lab-btn primary login-go" type="submit">Guardar y entrar</button>
+    <div class="lock-msg" role="alert"></div>
+  </form>`;
+  document.body.appendChild(el);
+  const form = el.querySelector('form');
+  const { password, repeat } = form.elements;
+  const go = form.querySelector('.login-go');
+  const msg = form.querySelector('.lock-msg');
+  const fail = (text) => { msg.textContent = text; form.classList.remove('bad'); void form.offsetWidth; form.classList.add('bad'); };
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (password.value !== repeat.value) return fail('Las dos contraseñas no coinciden.');
+    go.disabled = true; msg.textContent = '';
+    try {
+      const r = await session.changePassword(password.value);
+      if (r.error) return fail(r.error);
+      el.classList.add('leaving');
+      setTimeout(() => { el.remove(); document.body.classList.remove('locked'); appEl.inert = false; resolve(); }, 220);
+    } catch { fail('Sin conexión con SIA.'); }
+    finally { go.disabled = false; }
+  });
+  password.focus();
+});
+
+// El usuario de la sesión guardada o, si no hay, el que entre por la puerta; y,
+// si su contraseña la puso un admin, antes la cambia.
 export const ensureLogin = async (session, { logoHtml, paintTheme }) => {
-  try {
-    const user = await session.current();
-    if (user) return user;
-  } catch { /* sin bridge: la puerta igualmente; su formulario avisa si sigue sin respuesta */ }
-  paintTheme();
-  return loginGate(session, logoHtml);
+  let user = null;
+  try { user = await session.current(); } catch { /* sin bridge: la puerta igualmente; su formulario avisa si sigue sin respuesta */ }
+  if (!user) { paintTheme(); user = await loginGate(session, logoHtml); }
+  if (user.must_change_password) {
+    paintTheme();
+    await passwordGate(session, logoHtml);
+    user = { ...user, must_change_password: false };
+  }
+  return user;
 };

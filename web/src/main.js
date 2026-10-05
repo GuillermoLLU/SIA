@@ -13,9 +13,8 @@ import { ensureLogin } from './auth/login-view.js';
 import { wireLogout } from './auth/logout-button.js';
 import { themeById, toggledTheme } from './theme/themes.js';
 import { createUsersApi } from './users/users-api.js';
-import { mountUsersView } from './users/users-view.js';
+import { mountPeopleView } from './users/people-view.js';
 import { createKnowledgeApi } from './knowledge/knowledge-api.js';
-import { openBasesDialog, openGrantsDialog } from './knowledge/assign-dialogs.js';
 import { renderAssignedView } from './knowledge/assigned-view.js';
 
 // Favicon de la pestaña (la S).
@@ -2112,14 +2111,7 @@ wireLogout(document.getElementById('logout-btn'), { ...AUTH, confirm: dlgConfirm
 
 // Usuarios (barra lateral, solo administradores): web/src/users/
 const usersView = AUTH?.user.role === 'admin'
-  ? (() => {
-    const knowledgeApi = createKnowledgeApi(API_BASE, AUTH.session);
-    return mountUsersView(viewUsers, {
-      api: createUsersApi(API_BASE, AUTH.session), me: AUTH.user, dialog: openDialog, confirm: dlgConfirm, alert: dlgAlert,
-      onBases: () => openBasesDialog({ api: knowledgeApi, dialog: openDialog }),
-      onKnowledge: (user) => openGrantsDialog(user, { api: knowledgeApi, dialog: openDialog }),
-    });
-  })()
+  ? mountPeopleView(viewUsers, { usersApi: createUsersApi(API_BASE, AUTH.session), knowledgeApi: createKnowledgeApi(API_BASE, AUTH.session), me: AUTH.user, toast: (t) => toast(t) })
   : null;
 navUsers.hidden = !usersView;
 navUsers.addEventListener('click', () => showView('users'));

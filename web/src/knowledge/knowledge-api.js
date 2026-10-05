@@ -1,5 +1,6 @@
-// Cliente de /api/knowledge (solo administradores): bases de la instancia y
-// qué grupos de cada base tiene cada usuario. Errores con el texto del bridge.
+// Cliente de /api/knowledge (solo administradores): bases de la instancia
+// (con sus grupos { id, name }, sin tokens) y conocimiento de cada persona.
+// Errores con el texto del bridge.
 
 export const createKnowledgeApi = (apiBase, session) => {
   const call = async (path, method = 'GET', body) => {
@@ -14,11 +15,11 @@ export const createKnowledgeApi = (apiBase, session) => {
   };
   const id = (x) => encodeURIComponent(x);
   return {
-    listBases: async () => (await call('/bases')).bases,
+    bases: async () => (await call('/bases')).bases,
     addBase: (base) => call('/bases', 'POST', base),
+    setPowerKey: (baseId, powerKey) => call(`/bases/${id(baseId)}`, 'PUT', { powerKey }),
     removeBase: (baseId) => call(`/bases/${id(baseId)}`, 'DELETE'),
-    listGrants: async (userId) => (await call(`/grants/${id(userId)}`)).grants,
-    grant: (g) => call('/grants', 'POST', g),
-    revoke: (grantId) => call(`/grants/${id(grantId)}`, 'DELETE'),
+    setGroups: (userId, baseId, groups) => call(`/people/${id(userId)}/bases/${id(baseId)}`, 'PUT', { groups }),
+    copy: (userId, fromId) => call(`/people/${id(userId)}/copy`, 'POST', { from: fromId }),
   };
 };

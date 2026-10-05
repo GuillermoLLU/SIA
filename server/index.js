@@ -619,10 +619,14 @@ const platform = createPlatformClient({ ...(loadPlatformConfig(ROOT) || { url: '
 const auth = createAuth({ platform, readConfig: readUserConfig, writeConfig: writeUserConfig });
 const users = createUserAdmin({ platform });
 // Grupos de una base de conocimiento (access_groups) con su clave de poder;
-// fetch de Node, con TLS verificado (viaja una clave de poder).
+// fetch de Node, con TLS verificado (viaja una clave de poder). Antes, la
+// base dice qué abre esa clave (sia_status): tiene que ser de esa base y abrir
+// la Administración. Si no, la base no da error, solo una lista vacía.
 const readGroups = async ({ url, key, powerKey }) => {
-  const { data, error } = await createClient(url, key, { global: { fetch, headers: siaHeaders([], powerKey) }, auth: { persistSession: false } })
-    .from('access_groups').select('token, name').order('name');
+  const db = createClient(url, key, { global: { fetch, headers: siaHeaders([], powerKey) }, auth: { persistSession: false } });
+  const { data: status, error: e1 } = await db.rpc('sia_status');
+  if (e1 || !permsFromRow(status?.me)?.admin) throw new Error('esa clave de poder no abre la Administración de la base');
+  const { data, error } = await db.from('access_groups').select('token, name').order('name');
   if (error) throw new Error(error.message);
   return data || [];
 };
@@ -1108,6 +1112,8 @@ const apiServer = http.createServer(async (req, res) => {
       try { who = await auth.context(req.headers['x-sia-auth']); }
       catch (e) { return json(res, 503, { error: e.message }); }
       if (!who) return json(res, 401, { error: 'Inicia sesión.', auth: true });
+      // contraseña puesta por un admin: nada más hasta que elija la suya
+      if (who.user.must_change_password) return json(res, 401, { error: 'Elige tu contraseña para seguir.', auth: true });
     }
     // Lo de gestión (Laboratorio, Administración, claves de poder, grupos,
     // montar bases, editar enlaces) es solo de admins, aunque una clave de

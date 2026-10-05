@@ -33,3 +33,9 @@
 @media (prefers-reduced-motion: reduce) {
   .login-open, .login-card, .login-open .lock-logo { transition: none; }
 }
+
+/* Elegir contraseña (la puso un admin): la misma tarjeta, ya abierta. */
+.login-password { width: min(320px, 100%); opacity: 1; transform: none; }
+.login-password .lock-logo { width: 96px; height: 96px; margin-bottom: 10px; }
+.login-lead { margin: 0 0 6px; font-size: 14px; color: var(--text); text-align: center; }
+.login-hint { margin: 0; font-size: 12px; color: var(--text-low); text-align: center; }

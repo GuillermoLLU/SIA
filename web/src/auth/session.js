@@ -43,6 +43,17 @@ export const createAuthSession = (apiBase) => ({
     return { user: data.user };
   },
 
+  // Cambiar la propia contraseña (obligatorio si la puso un admin). → { ok } | { error }
+  async changePassword(password) {
+    const r = await fetch(`${apiBase}/auth/password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-SIA-Auth': storedToken() },
+      body: JSON.stringify({ password }),
+    });
+    const data = await r.json().catch(() => ({}));
+    return r.ok ? { ok: true } : { error: data.error || 'No se pudo cambiar la contraseña.' };
+  },
+
   async logout() {
     try { await fetch(`${apiBase}/auth/logout`, { method: 'POST', headers: { 'X-SIA-Auth': storedToken() } }); }
     finally { forget(); }

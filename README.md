@@ -30,9 +30,14 @@ instancia»). Con «Mantener la sesión» se entra solo la próxima vez.
 
 - **Agente**: su conocimiento ya viene asignado; pulsa **+** para abrir un
   chat. En ⚙️ → Conocimiento lo ve en solo lectura.
-- **Administrador**: en **Usuarios** da de alta a las personas, las bases de
-  conocimiento de la instancia (**Bases de conocimiento**) y, en cada persona,
-  sus grupos (**Conocimiento**). Además puede conectar bases propias:
+- **Administrador**: en **Personas** da de alta a la gente (con su rol y lo
+  que verá, en un solo paso) y, en la ficha de cada uno, cambia su rol, le
+  genera una contraseña nueva, le corta el acceso o decide qué bases y grupos
+  ve (o le copia los de otra persona). En la pestaña **Bases de
+  conocimiento** añade las bases de la instancia con su clave de poder de
+  Administración, que se guarda cifrada y con la que SIA lee sus grupos: así
+  nadie maneja tokens a mano. Quien recibe una contraseña de un administrador
+  la cambia al entrar. Además puede conectar bases propias:
 
 1. **⚙️ Configuración → Conocimiento** (solo administradores): ponle un nombre a la base, pega el
    Project ID de tu proyecto Supabase (o su URL) y su clave *publishable*

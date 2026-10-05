@@ -1,0 +1,349 @@
+// Vista «Personas» (solo administradores). Lista con buscador y filtros y,
+// al pulsar a alguien, su ficha: rol, contraseña y acceso (cada uno con su
+// modal) y su conocimiento en cajas de base. Alta en un modal propio. La
+// pestaña «Bases de conocimiento» va en bases-tab.js. Solo DOM: los datos van
+// por users-api.js y knowledge-api.js y las reglas las pone la base.
+import './people.css';
+import { openModal, closeModal } from './modal.js';
+import { strongPassword } from './password.js';
+import { mountBasesTab } from './bases-tab.js';
+import { esc, BASE_ICON } from './ui.js';
+
+const ROLE = {
+  admin: { label: 'Administrador', desc: 'Gestiona personas, bases de conocimiento y lo que ve cada uno.' },
+  agent: { label: 'Agente', desc: 'Usa el conocimiento que le asignan. No gestiona nada.' },
+};
+const ROLE_ICON = {
+  admin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V6z"/><path d="m9 12 2 2 4-4"/></svg>',
+  agent: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="13" width="4" height="6" rx="1"/><rect x="17" y="13" width="4" height="6" rx="1"/><path d="M19 19c0 1.5-2 2.5-5 2.5"/></svg>',
+};
+const TRASH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
+
+const initials = (n) => String(n).split(/\s+/).filter(Boolean).map((w) => w[0]).slice(0, 2).join('').toUpperCase() || '?';
+const ago = (ts) => {
+  if (!ts) return 'nunca';
+  const min = Math.round((Date.now() - new Date(ts)) / 60000);
+  if (min < 1) return 'ahora';
+  if (min < 60) return `hace ${min} min`;
+  if (min < 24 * 60) return `hace ${Math.round(min / 60)} h`;
+  const days = Math.round(min / 1440);
+  return days === 1 ? 'ayer' : days < 30 ? `hace ${days} días` : new Date(ts).toLocaleDateString('es-ES');
+};
+// El conocimiento de una persona como { baseId: [ids de grupo] }.
+const knOf = (p) => Object.fromEntries((p.knowledge || []).map((k) => [k.base_id, k.groups.map((g) => g.id)]));
+const knBases = (kn) => Object.keys(kn).filter((b) => kn[b]?.length);
+const copyText = async (text, input, toast) => {
+  try { await navigator.clipboard.writeText(text); toast('Copiado'); }
+  catch { input?.select(); toast('Selecciónalo y cópialo con ⌘C'); }
+};
+const roleCards = (current) => `<div class="pp-roles" role="radiogroup" aria-label="Rol">${Object.entries(ROLE).map(([k, r]) =>
+  `<button type="button" class="pp-role-card" role="radio" data-role="${k}" aria-checked="${current === k}"><span class="r-ico">${ROLE_ICON[k]}</span><b>${r.label}</b><span>${r.desc}</span></button>`).join('')}</div>`;
+const wireRoleCards = (el) => el.addEventListener('click', (e) => {
+  const c = e.target.closest('[data-role]');
+  if (c) el.querySelectorAll('[data-role]').forEach((x) => x.setAttribute('aria-checked', String(x === c)));
+});
+const pickedRole = (el) => el.querySelector('[data-role][aria-checked="true"]').dataset.role;
+
+export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast }) => {
+  let people = [], bases = [], filter = 'all', query = '', selected = null;
+
+  root.innerHTML = `
+    <header class="pp-head">
+      <div><h2>Personas</h2><div class="pp-stats" data-stats></div></div>
+      <div class="pp-tabs" role="tablist">
+        <button class="pp-tab on" data-tab="people" role="tab">Personas</button>
+        <button class="pp-tab" data-tab="bases" role="tab">Bases de conocimiento</button>
+      </div>
+    </header>
+    <div class="pp-rule"></div>
+    <section class="pp-pane" data-pane="people">
+      <div class="pp-tools">
+        <input class="settings-input" data-q placeholder="Buscar por nombre o email" aria-label="Buscar persona" />
+        <button class="pp-chip on" data-f="all">Todas</button>
+        <button class="pp-chip" data-f="admin">Administradores</button>
+        <button class="pp-chip" data-f="agent">Agentes</button>
+        <button class="pp-chip" data-f="none">Sin conocimiento</button>
+        <button class="pp-chip" data-f="off">Desactivadas</button>
+        <button class="lab-btn primary" data-act="new">+ Nueva persona</button>
+      </div>
+      <div class="pp-body" data-body>
+        <div class="pp-list" data-list></div>
+        <aside class="pp-panel" data-panel hidden></aside>
+      </div>
+    </section>
+    <section class="pp-pane" data-pane="bases" hidden></section>`;
+  const $ = (s) => root.querySelector(s);
+  const panel = $('[data-panel]');
+  const basesTab = mountBasesTab($('[data-pane="bases"]'), { knowledgeApi, getBases: () => bases, reload: () => load(), toast });
+
+  const load = async () => {
+    try { [people, bases] = await Promise.all([usersApi.list(), knowledgeApi.bases()]); }
+    catch (e) { $('[data-list]').innerHTML = `<div class="pp-empty">No se pudo cargar: ${esc(e.message)}</div>`; return; }
+    if (selected && !people.some((p) => p.id === selected)) selected = null;
+    renderStats(); renderList(); basesTab.render();
+    if (selected) renderPanel(); else panel.hidden = true;
+  };
+  const baseById = (id) => bases.find((b) => b.id === id);
+  const person = () => people.find((p) => p.id === selected);
+
+  /* ── lista ── */
+  const renderStats = () => {
+    const a = people.filter((p) => p.role === 'admin').length, off = people.filter((p) => !p.active).length;
+    const none = people.filter((p) => !knBases(knOf(p)).length).length;
+    const n = (count, one, many) => `<span><b>${count}</b> ${count === 1 ? one : many}</span>`;
+    $('[data-stats]').innerHTML = n(people.length, 'persona', 'personas') + n(a, 'administrador', 'administradores')
+      + n(people.length - a, 'agente', 'agentes') + n(none, 'sin conocimiento', 'sin conocimiento') + n(off, 'desactivada', 'desactivadas');
+  };
+  const knTags = (p) => {
+    const kn = knOf(p), bs = knBases(kn);
+    return bs.length ? bs.map((b) => `<span class="pp-tag">${esc(baseById(b)?.name || 'Base')} · ${kn[b].length}</span>`).join('') : '<span class="pp-tag none">Sin conocimiento</span>';
+  };
+  const renderList = () => {
+    $('[data-body]').classList.toggle('open', !panel.hidden);
+    const rows = people.filter((p) => (filter === 'all' || (filter === 'off' ? !p.active : filter === 'none' ? !knBases(knOf(p)).length : p.role === filter))
+      && `${p.name} ${p.email}`.toLowerCase().includes(query));
+    $('[data-list]').innerHTML = `<div class="pp-row hd"><span></span><span>Persona</span><span>Rol</span><span class="pp-kn">Conocimiento</span><span>Acceso</span></div>`
+      + (rows.length ? rows.map((p) => `<div class="pp-row${p.active ? '' : ' off'}${selected === p.id ? ' current' : ''}" data-id="${esc(p.id)}">
+        <span class="pp-av">${esc(initials(p.name))}</span>
+        <span class="pp-who"><b>${esc(p.name)}${p.id === me.id ? ' (tú)' : ''}</b><span>${esc(p.email)}</span></span>
+        <span class="pp-role ${p.role}">${ROLE[p.role].label}</span>
+        <span class="pp-kn">${knTags(p)}</span>
+        <span class="pp-state ${p.active ? 'on' : 'off'}">${p.active ? 'Activa' : 'Desactivada'}</span>
+      </div>`).join('') : '<div class="pp-empty">Nadie coincide con la búsqueda.</div>');
+  };
+
+  /* ── ficha ── */
+  const knowledgeBlock = (kn, { copyFrom = true } = {}) => {
+    const n = knBases(kn).length;
+    return `<div class="pp-block">
+      <div class="pp-block-head"><span class="pp-k">Conocimiento</span>
+        <span class="pp-sum${n ? '' : ' none'}">${!bases.length ? 'Aún no hay bases de conocimiento' : n ? `Ve ${n} de ${bases.length} base${bases.length === 1 ? '' : 's'}` : 'No ve ninguna base'}</span>
+        ${copyFrom && bases.length ? '<button class="pp-link" data-act="kn-copy">Igual que otra persona…</button>' : ''}</div>
+      ${bases.length ? `<div class="pp-bases">${bases.map((b) => {
+        const sel = kn[b.id] || [], on = sel.length > 0, total = b.groups?.length;
+        const meta = !on ? 'No la ve' : total === 1 ? 'La ve' : total ? `Ve ${sel.length} de ${total} grupos` : `Ve ${sel.length} grupo${sel.length === 1 ? '' : 's'}`;
+        return `<button class="pp-box ${on ? 'on' : 'off'}" data-base="${esc(b.id)}">
+          <span class="b-ico">${BASE_ICON}</span><span class="b-name">${esc(b.name)}</span><span class="b-meta">${meta}</span>
+        </button>`;
+      }).join('')}</div>` : '<p class="pp-hint">Añádelas en la pestaña «Bases de conocimiento».</p>'}
+    </div>`;
+  };
+  const renderPanel = () => {
+    const p = person(), self = p.id === me.id;
+    panel.hidden = false;
+    panel.innerHTML = `
+      <div class="pp-ph"><span class="pp-av${p.active ? '' : ' off'}">${esc(initials(p.name))}</span>
+        <div><h3>${esc(p.name)}</h3><p>${esc(p.email)} · último acceso ${ago(p.last_sign_in_at)}</p>
+          <span class="pp-state ${p.active ? 'on' : 'off'}">${p.active ? 'Activa · puede entrar' : 'Desactivada · no puede entrar'}</span></div>
+        <div class="pp-ph-actions"><button class="pp-x" data-act="close" aria-label="Cerrar ficha">×</button>
+          ${self ? '' : `<button class="icon-btn danger" data-act="delete" title="Borrar persona" aria-label="Borrar persona">${TRASH_ICON}</button>`}</div></div>
+      <div class="pp-pb">
+        <div class="pp-item"><span class="pp-k">Rol</span><span class="pp-v">${ROLE[p.role].label}${self ? '<small>El tuyo no lo puedes cambiar.</small>' : ''}</span>${self ? '<span></span>' : '<button class="lab-btn" data-act="role">Cambiar</button>'}</div>
+        <div class="pp-item"><span class="pp-k">Contraseña</span><span class="pp-v">${p.must_change_password ? 'Pendiente de cambiar' : 'La eligió la propia persona'}<small>${p.must_change_password ? 'La puso un administrador: se le pedirá cambiarla al entrar.' : 'Si la olvida, genera una nueva.'}</small></span>${self ? '<span></span>' : '<button class="lab-btn" data-act="password">Generar nueva</button>'}</div>
+        <div class="pp-item"><span class="pp-k">Acceso a SIA</span><span class="pp-v">${p.active ? 'Puede iniciar sesión' : 'No puede iniciar sesión'}<small>${self ? 'Tu propio acceso no lo puedes desactivar.' : p.active ? 'Desactívala para cortarle el acceso sin borrarla.' : 'Su rol y su conocimiento se conservan.'}</small></span>
+          ${self ? '<span></span>' : `<button class="lab-btn${p.active ? ' pp-danger' : ''}" data-act="access">${p.active ? 'Desactivar acceso' : 'Reactivar acceso'}</button>`}</div>
+        ${knowledgeBlock(knOf(p))}
+      </div>`;
+    renderList();
+  };
+  const openPerson = (id) => { selected = id; renderPanel(); };
+  const closePerson = () => { selected = null; panel.hidden = true; renderList(); };
+
+  // Guardar algo y volver a pintar con lo que dice la base.
+  const save = async (fn, okText, msgEl) => {
+    try { await fn(); closeModal(); toast(okText); await load(); return true; }
+    catch (e) { if (msgEl) msgEl.textContent = e.message; else toast(e.message); return false; }
+  };
+  const footer = (okLabel, okClass = 'primary') => `<span class="pp-msg" data-msg></span><button class="lab-btn" data-cancel>Cancelar</button><button class="lab-btn ${okClass}" data-ok>${okLabel}</button>`;
+  const wireFoot = (m, onOk) => {
+    m.querySelector('[data-cancel]').addEventListener('click', closeModal);
+    const ok = m.querySelector('[data-ok]');
+    ok.addEventListener('click', async () => { ok.disabled = true; await onOk(m.querySelector('[data-msg]')); ok.disabled = false; });
+  };
+
+  /* ── modales de la ficha ── */
+  const roleModal = () => {
+    const p = person();
+    const m = openModal({ title: `Rol de ${p.name}`, lead: 'Qué puede hacer en SIA.', body: roleCards(p.role), foot: footer('Guardar') });
+    wireRoleCards(m);
+    wireFoot(m, (msg) => save(() => usersApi.update(p.id, { role: pickedRole(m) }), 'Rol guardado', msg));
+  };
+  const accessModal = () => {
+    const p = person();
+    const m = openModal(p.active
+      ? { title: `Desactivar el acceso de ${p.name}`, lead: 'No podrá iniciar sesión y se cerrarán sus sesiones abiertas. No se borra nada: puedes reactivarla cuando quieras.',
+        body: '<div class="pp-callout"><b>Qué se conserva:</b> su rol y su conocimiento asignado.</div>', foot: footer('Desactivar acceso', 'pp-danger-solid') }
+      : { title: `Reactivar el acceso de ${p.name}`, lead: 'Podrá volver a iniciar sesión con su contraseña, con el mismo rol y el mismo conocimiento.', foot: footer('Reactivar acceso') });
+    wireFoot(m, (msg) => save(() => usersApi.update(p.id, { active: !p.active }), p.active ? 'Acceso desactivado' : 'Acceso reactivado', msg));
+  };
+  const passwordModal = () => {
+    const p = person();
+    const m = openModal({ title: `Nueva contraseña para ${p.name}`, lead: 'Sustituye a la actual y cierra sus sesiones abiertas. Pásasela por un canal seguro: al entrar se le pedirá cambiarla.',
+      body: `<div class="pp-pw"><input class="settings-input" data-pw value="${esc(strongPassword())}" aria-label="Nueva contraseña" spellcheck="false" /><button class="lab-btn" data-copy>Copiar</button><button class="lab-btn" data-regen title="Generar otra" aria-label="Generar otra">↻</button></div>`,
+      foot: footer('Guardar contraseña') });
+    const input = m.querySelector('[data-pw]');
+    m.querySelector('[data-copy]').addEventListener('click', () => copyText(input.value, input, toast));
+    m.querySelector('[data-regen]').addEventListener('click', () => { input.value = strongPassword(); });
+    wireFoot(m, (msg) => save(() => usersApi.update(p.id, { password: input.value }), 'Contraseña guardada', msg));
+  };
+  const deleteModal = () => {
+    const p = person();
+    const m = openModal({ title: `Borrar a ${p.name}`, lead: 'Se borra su usuario y su conocimiento asignado. No se puede deshacer. Si solo quieres cortarle el acceso, desactívala.',
+      body: `<label class="pp-field" style="margin:0"><span>Escribe su email para confirmar</span><input class="settings-input" data-confirm placeholder="${esc(p.email)}" autocomplete="off" spellcheck="false" /></label>`,
+      foot: footer('Borrar', 'pp-danger-solid') });
+    wireFoot(m, async (msg) => {
+      if (m.querySelector('[data-confirm]').value.trim().toLowerCase() !== p.email) { msg.textContent = 'El email no coincide.'; return; }
+      if (await save(() => usersApi.remove(p.id), 'Persona borrada', msg)) closePerson();
+    });
+  };
+
+  // Una base: ¿la ve? y, si la ve, qué grupos. onSave(ids) guarda (o, en un alta, apunta).
+  const baseModal = (baseId, who, current, onSave) => {
+    const b = baseById(baseId);
+    let sel = [...current];
+    const m = openModal({ title: b.name, icon: BASE_ICON, lead: `Qué ve ${who} de esta base en sus chats.`, body: '<div data-b></div>', foot: footer('Guardar') });
+    const paint = () => {
+      const on = sel.length > 0, groups = b.groups || [];
+      m.querySelector('[data-b]').innerHTML = !b.groups
+        ? `<div class="pp-callout">${esc(b.groupsError || 'Esta base aún no tiene su clave de poder, así que SIA no puede leer sus grupos.')} Ponla en la pestaña «Bases de conocimiento».</div>`
+        : `<div class="pp-toggle"><span><b>Ve esta base</b><span>${on ? (groups.length === 1 ? 'Con todo su conocimiento.' : 'Con los grupos que marques abajo.') : 'Sus chats no la usarán.'}</span></span>
+            <button type="button" class="sw" role="switch" aria-checked="${on}" aria-label="Ve esta base" data-toggle><span class="knob"></span></button></div>
+          ${groups.length > 1 ? `<div class="pp-groups-label">Grupos${on ? ` · ${sel.length} de ${groups.length}` : ''}</div>
+            <div class="pp-groups">${groups.map((g) => `<button type="button" class="pp-g" data-g="${esc(g.id)}" aria-pressed="${sel.includes(g.id)}">${esc(g.name)}</button>`).join('')}</div>` : ''}`;
+      m.querySelector('[data-ok]').disabled = !b.groups;
+    };
+    m.querySelector('[data-b]').addEventListener('click', (e) => {
+      if (e.target.closest('[data-toggle]')) sel = sel.length ? [] : b.groups.map((g) => g.id);
+      const g = e.target.closest('[data-g]');
+      if (g) sel = sel.includes(g.dataset.g) ? sel.filter((x) => x !== g.dataset.g) : [...sel, g.dataset.g];
+      paint();
+    });
+    paint();
+    wireFoot(m, (msg) => onSave(sel, msg));
+  };
+
+  // Copiar el conocimiento de otra persona: elegir (como en la lista) y revisar.
+  const copyModal = (who, excludeId, onApply) => {
+    const m = openModal({ title: '¿De quién copias el conocimiento?', lead: `${who} verá sus mismas bases y grupos.`, body: '<div data-c></div>',
+      foot: '<span class="pp-msg" data-msg></span><button class="lab-btn" data-cancel>Cancelar</button>' });
+    m.querySelector('[data-cancel]').addEventListener('click', closeModal);
+    const body = m.querySelector('[data-c]');
+    const pick = (q = '') => {
+      const who2 = people.filter((p) => p.id !== excludeId && knBases(knOf(p)).length && `${p.name} ${p.email}`.toLowerCase().includes(q));
+      body.innerHTML = `<input class="settings-input" data-pq placeholder="Buscar persona" aria-label="Buscar persona" value="${esc(q)}" />
+        <div class="pp-picks">${who2.length ? who2.map((p) => `<button type="button" class="pp-pick" data-pick="${esc(p.id)}">
+          <span class="pp-av${p.active ? '' : ' off'}">${esc(initials(p.name))}</span>
+          <span class="pp-who"><b>${esc(p.name)}</b><span>${esc(p.email)}</span></span><span class="pp-kn">${knTags(p)}</span></button>`).join('')
+          : '<div class="pp-empty">Nadie con ese nombre tiene conocimiento asignado.</div>'}</div>`;
+      const qi = body.querySelector('[data-pq]');
+      qi.focus(); qi.setSelectionRange(q.length, q.length);
+      qi.addEventListener('input', () => pick(qi.value.toLowerCase()));
+    };
+    const review = (src) => {
+      m.querySelector('h3').textContent = `Igual que ${src.name}`;
+      body.innerHTML = `<button type="button" class="pp-back" data-back>← Elegir otra persona</button>
+        <div class="pp-review">${(src.knowledge || []).map((k) => `<div>${esc(baseById(k.base_id)?.name || 'Base')} <span>· ${k.groups.map((g) => esc(g.name)).join(', ')}</span></div>`).join('')}</div>`;
+      const foot = m.querySelector('.pp-mf');
+      foot.innerHTML = '<span class="pp-msg" data-msg></span><button class="lab-btn" data-cancel>Cancelar</button><button class="lab-btn primary" data-ok>Aplicar</button>';
+      wireFoot(m, (msg) => onApply(src, msg));
+    };
+    body.addEventListener('click', (e) => {
+      const p = e.target.closest('[data-pick]');
+      if (p) return review(people.find((x) => x.id === p.dataset.pick));
+      if (e.target.closest('[data-back]')) {
+        m.querySelector('h3').textContent = '¿De quién copias el conocimiento?';
+        m.querySelector('.pp-mf').innerHTML = '<span class="pp-msg" data-msg></span><button class="lab-btn" data-cancel>Cancelar</button>';
+        m.querySelector('[data-cancel]').addEventListener('click', closeModal);
+        pick();
+      }
+    });
+    pick();
+  };
+
+  /* ── alta: modal propio; el conocimiento se elige en él ── */
+  const newModal = () => {
+    const draft = { kn: {} };
+    const m = openModal({ title: 'Nueva persona', lead: 'Se crea activa y puede entrar en cuanto le pases sus datos.', wide: true,
+      body: `<div class="pp-fields2">
+          <label class="pp-field"><span>Nombre</span><input class="settings-input" data-name placeholder="Nombre y apellidos" autocomplete="off" /></label>
+          <label class="pp-field"><span>Email</span><input class="settings-input" data-email type="email" placeholder="nombre@empresa.com" autocomplete="off" spellcheck="false" /></label>
+        </div>
+        <div class="pp-field" data-roles><span>Rol</span>${roleCards('agent')}</div>
+        <div class="pp-field"><span>Contraseña inicial</span>
+          <div class="pp-pw"><input class="settings-input" data-pw value="${esc(strongPassword())}" aria-label="Contraseña inicial" spellcheck="false" /><button type="button" class="lab-btn" data-copy>Copiar</button><button type="button" class="lab-btn" data-regen title="Generar otra" aria-label="Generar otra">↻</button></div>
+          <small>Se le pedirá cambiarla al entrar por primera vez.</small></div>
+        <div data-kn></div>`,
+      foot: footer('Crear persona') });
+    const val = (s) => m.querySelector(s).value.trim();
+    const pw = m.querySelector('[data-pw]');
+    wireRoleCards(m.querySelector('[data-roles]'));
+    m.querySelector('[data-copy]').addEventListener('click', () => copyText(pw.value, pw, toast));
+    m.querySelector('[data-regen]').addEventListener('click', () => { pw.value = strongPassword(); });
+    const who = () => val('[data-name]') || 'la nueva persona';
+    const paintKn = () => { m.querySelector('[data-kn]').innerHTML = knowledgeBlock(draft.kn); };
+    m.querySelector('[data-kn]').addEventListener('click', (e) => {
+      const box = e.target.closest('[data-base]');
+      if (box) baseModal(box.dataset.base, who(), draft.kn[box.dataset.base] || [], (ids) => { draft.kn[box.dataset.base] = ids; closeModal(); paintKn(); });
+      if (e.target.closest('[data-act="kn-copy"]')) copyModal(who(), null, (src) => { draft.kn = knOf(src); closeModal(); paintKn(); });
+    });
+    paintKn();
+    m.querySelector('[data-name]').focus();
+    wireFoot(m, async (msg) => {
+      try {
+        const r = await usersApi.create({ email: val('[data-email]'), name: val('[data-name]'), role: pickedRole(m), password: pw.value, knowledge: draft.kn });
+        created(m, r.user, pw.value, r.warning);
+        load();
+      } catch (e) { msg.textContent = e.message; }
+    });
+  };
+  // La persona creada: sus datos de acceso para copiar.
+  const created = (m, u, password, warning) => {
+    m.classList.remove('wide');
+    m.querySelector('.pp-mh').innerHTML = '<div><h3></h3><p>Pásale sus datos de acceso por un canal seguro.</p></div>';
+    m.querySelector('h3').textContent = `${u.name} ya puede entrar`;
+    m.querySelector('.pp-mb').innerHTML = `
+      <label class="pp-field"><span>Email</span><div class="pp-pw"><input class="settings-input" data-ce value="${esc(u.email)}" readonly /><button class="lab-btn" data-c="ce">Copiar</button></div></label>
+      <label class="pp-field" style="margin:0"><span>Contraseña inicial</span><div class="pp-pw"><input class="settings-input" data-cp value="${esc(password)}" readonly /><button class="lab-btn" data-c="cp">Copiar</button></div></label>
+      ${warning ? `<p class="pp-msg" style="margin-top:12px">${esc(warning)}</p>` : ''}`;
+    m.querySelector('.pp-mf').innerHTML = '<button class="lab-btn" data-both>Copiar los dos</button><button class="lab-btn primary" data-go>Ver su ficha</button>';
+    m.querySelector('.pp-mb').addEventListener('click', (e) => {
+      const c = e.target.closest('[data-c]');
+      if (c) { const i = m.querySelector(`[data-${c.dataset.c}]`); copyText(i.value, i, toast); }
+    });
+    m.querySelector('[data-both]').addEventListener('click', () => copyText(`Email: ${u.email}\nContraseña: ${password}`, null, toast));
+    m.querySelector('[data-go]').addEventListener('click', async () => { closeModal(); await load(); openPerson(u.id); });
+  };
+
+  /* ── interacción de la vista ── */
+  root.addEventListener('click', (e) => {
+    const tab = e.target.closest('.pp-tab');
+    if (tab) {
+      root.querySelectorAll('.pp-tab').forEach((t) => t.classList.toggle('on', t === tab));
+      root.querySelectorAll('.pp-pane').forEach((p) => { p.hidden = p.dataset.pane !== tab.dataset.tab; });
+      return;
+    }
+    const chip = e.target.closest('.pp-chip');
+    if (chip) { filter = chip.dataset.f; root.querySelectorAll('.pp-chip').forEach((c) => c.classList.toggle('on', c === chip)); return renderList(); }
+    const row = e.target.closest('.pp-row:not(.hd)');
+    if (row) return selected === row.dataset.id ? closePerson() : openPerson(row.dataset.id);
+    const act = e.target.closest('[data-act]')?.dataset.act;
+    if (act === 'new') return newModal();
+    if (act === 'close') return closePerson();
+    if (act === 'role') return roleModal();
+    if (act === 'access') return accessModal();
+    if (act === 'password') return passwordModal();
+    if (act === 'delete') return deleteModal();
+    const p = person();
+    if (act === 'kn-copy' && p) {
+      return copyModal(p.name, p.id, (src, msg) => save(() => knowledgeApi.copy(p.id, src.id), `Mismo conocimiento que ${src.name}`, msg));
+    }
+    const box = e.target.closest('.pp-panel [data-base]');
+    if (box && p) {
+      return baseModal(box.dataset.base, p.name, knOf(p)[box.dataset.base] || [],
+        (ids, msg) => save(() => knowledgeApi.setGroups(p.id, box.dataset.base, ids), ids.length ? `Ve ${baseById(box.dataset.base).name}` : `Ya no ve ${baseById(box.dataset.base).name}`, msg));
+    }
+  });
+  $('[data-q]').addEventListener('input', (e) => { query = e.target.value.trim().toLowerCase(); renderList(); });
+
+  return { refresh: load };
+};
