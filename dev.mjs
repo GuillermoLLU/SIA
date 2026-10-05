@@ -1,8 +1,6 @@
 // Cross-platform dev launcher (Windows / macOS / Linux).
 // Starts the PTY bridge (server) and the web UI together.
 //   node dev.mjs
-// Honors SIA_CMD / SIA_ARGS to choose what the bridge launches
-// (e.g. SIA_CMD=claude node dev.mjs).
 
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';

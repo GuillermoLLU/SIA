@@ -51,10 +51,10 @@ instancia»). Con «Mantener la sesión» se entra solo la próxima vez.
    base, que se elige al crearlo si hay más de una, y usa el conocimiento y las
    skills de esa base. Laboratorio, Administración y Enlaces también actúan
    sobre una base: si varias te la abren, la eliges al entrar.
-2. Pulsa **+** para abrir un chat: **Libre** (shell), **Claude**, **Copilot** o
+2. Pulsa **+** para abrir un chat: **Claude**, **Copilot** o
    **Codex**, ya conectados al conocimiento.
 
-Sin conocimiento asignado SIA funciona como terminal, sin conocimiento ni skills.
+Sin conocimiento asignado los chats funcionan igual, pero sin la base del equipo ni sus skills.
 
 > La primera búsqueda de conocimiento descarga el modelo de embeddings
 > (~120 MB) una única vez; las siguientes son inmediatas.

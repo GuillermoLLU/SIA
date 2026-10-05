@@ -82,7 +82,6 @@ if (process.env.SIA_PORT) {
 // la app Electron lee aquí los puertos elegidos para pasárselos a la UI
 globalThis.__SIA_PORTS = { ws: PORT, api: API_PORT };
 
-const SHELL = process.env.SHELL || (os.platform() === 'win32' ? 'powershell.exe' : 'zsh');
 // ¿`a` es una versión posterior a `b`? (semver simple major.minor.patch)
 const isNewer = (a, b) => {
   const pa = String(a).split('.').map(Number), pb = String(b).split('.').map(Number);
@@ -282,7 +281,6 @@ const writeSessionMcpConfig = (sessionId, kind, allowedProjects, base) => {
 // Available launchers. The client renders these; unavailable ones are disabled.
 // `modes: true` → the client asks for the knowledge mode (auto/demand).
 const LAUNCHERS = [
-  { id: 'shell', label: 'Libre', cmd: SHELL, args: [] },
   { id: 'claude', label: 'Claude', cmd: 'claude', modes: true },
   { id: 'copilot', label: 'Copilot', cmd: 'copilot', modes: true },
   { id: 'codex', label: 'Codex', cmd: 'codex', modes: true }, // el CLI de OpenAI
@@ -1995,9 +1993,6 @@ const handleConnection = (ws, req) => {
       bind(s);
       send(ws, { type: 'started', sessionId: s.id });
       console.log(`[sia] session open (${def.id}${def.modes ? `, conocimiento ${mode}, base ${base?.name || '-'}, proyectos [${allowedProjects.join(',')}]` : ''}, id ${s.id}, pid ${term.pid})`);
-
-      // Free shell: start clean (blank prompt + clear). CLIs paint their own UI.
-      if (def.id === 'shell') term.write("PROMPT='' RPROMPT='' ; clear\r");
 
       term.onData((data) => {
         s.buffer += data;
