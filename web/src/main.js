@@ -13,7 +13,7 @@ import { ensureLogin } from './auth/login-view.js';
 import { wireLogout } from './auth/logout-button.js';
 import { themeById, toggledTheme } from './theme/themes.js';
 
-// Favicon de la pestaña (la K).
+// Favicon de la pestaña (la S).
 {
   const fav = document.createElement('link');
   fav.rel = 'icon';
@@ -31,7 +31,7 @@ let LAN_TOKEN = null; // llave de sesión cuando se accede desde el móvil (red 
 
 /* ── Pantallas completas con PIN ──────────────────────────────────
    Emparejar un móvil y desbloquear (la pantalla del ordenador o la sesión de un
-   móvil) comparten aspecto y pieza: la K del logo y unas casillas. No hay
+   móvil) comparten aspecto y pieza: la S del logo y unas casillas. No hay
    botón: al escribir el último dígito se comprueba solo. */
 const LOCK_PIN_LEN = 4;   // PIN de bloqueo
 const PAIR_PIN_LEN = 6;   // PIN de emparejamiento (el que enseña el ordenador junto al QR)
@@ -176,7 +176,7 @@ const lanPair = (pairToken) => new Promise((resolve) => {
    que mientras tanto no responde a nada más desde esta máquina; aquí solo se
    tapa la ventana y se deja la app de debajo inerte (ni clics ni teclas llegan
    al terminal). Los chats siguen corriendo: viven en el bridge.
-   La puerta es mínima a propósito: la K del logo y las cuatro casillas del
+   La puerta es mínima a propósito: la S del logo y las cuatro casillas del
    PIN, sin textos ni pistas. Si acierta se va; si falla, las casillas se
    sacuden y se vacían. La promesa se resuelve al desbloquear; llamarla dos
    veces da la misma. */
