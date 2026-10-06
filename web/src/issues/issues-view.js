@@ -12,8 +12,10 @@ import { workScreen, aiPanel, logPanel } from './work-screen.js';
 const GOAL = { min: 15, max: 20 }; // resueltas por turno, lo que dice el equipo
 const REFRESH_MS = 15000;
 
-export const mountIssuesView = (root, { api, me, toast }) => {
-  let data = null, rule = 'basic', now = new Date(), opened = null, onDesk = false, workTab = 'ai', analysis = null;
+// openChat(host, issueId) → { dispose }: el chat de la issue (lo pone main.js).
+export const mountIssuesView = (root, { api, me, toast, openChat }) => {
+  let data = null, rule = 'basic', now = new Date(), opened = null, onDesk = false, workTab = 'ai', analysis = null, chat = null;
+  const closeChat = () => { chat?.dispose(); chat = null; };
 
   const kpi = (label, value, hint) => `<div class="iss-kpi"><span>${label}</span><b>${value}</b><small>${hint}</small></div>`;
 
@@ -27,6 +29,7 @@ export const mountIssuesView = (root, { api, me, toast }) => {
   };
 
   const renderDesk = () => {
+    closeChat();
     onDesk = true;
     if (!data.taken) {
       root.innerHTML = `<div class="iss-page"><h2 class="iss-title">Issues</h2>
@@ -89,7 +92,9 @@ export const mountIssuesView = (root, { api, me, toast }) => {
     const mine = i.claimedBy && data?.desk.some((d) => d.id === i.id && d.claimed);
     if (opened !== i.id) workTab = 'ai';
     opened = i.id;
+    closeChat();
     root.innerHTML = workScreen({ issue: i, analysis, sameCenter, now, mine, tab: workTab });
+    chat = openChat?.(root.querySelector('.iss-chat-body'), i.id) || null;
     root.scrollTop = 0;
   };
 

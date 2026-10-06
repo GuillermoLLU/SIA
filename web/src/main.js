@@ -14,10 +14,12 @@ import { renderThemePicker } from './theme/theme-picker.js';
 import { VIEWS } from './users/views.js';
 import { mountIssuesView } from './issues/issues-view.js';
 import { createIssuesApi } from './issues/issues-api.js';
+import { mountIssueChat } from './issues/issue-chat.js';
 import { mountWorkView } from './work/work-view.js';
 import { mountMetricsView } from './metrics/metrics-view.js';
 import { mountProjectsView } from './projects/projects-view.js';
 import { esc, fold } from './ui/html.js';
+import { renderChooser } from './chat/chooser.js';
 import { createUsersApi } from './users/users-api.js';
 import { mountPeopleView } from './users/people-view.js';
 import { createKnowledgeApi } from './knowledge/knowledge-api.js';
@@ -399,13 +401,6 @@ const TERM_OPTS = {
   lineHeight: 1.3,
 };
 
-/* Icons for the launcher buttons (by launcher id). */
-const LAUNCHER_ICONS = {
-  claude: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 6l14 12M19 6L5 18"/></svg>',
-  copilot: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="10" rx="4"/><circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/><path d="M12 8V5"/></svg>',
-  codex: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z"/><path d="M12 3v18M4.2 7.5 19.8 16.5M19.8 7.5 4.2 16.5"/></svg>',
-};
-
 /* ── DOM refs ─────────────────────────────────────────────────── */
 const root = document.documentElement;
 const tabsEl = document.getElementById('tabs');
@@ -466,119 +461,16 @@ const setActive = (id) => {
   }
 };
 
-/* Launcher chooser: paso 1 (motor) y, si aplica, paso 2 (modo de conocimiento). */
-const KNOWLEDGE_MODES = [
-  {
-    id: 'auto', label: 'Conocimiento autónomo',
-    desc: 'Busca solo en la base del equipo cuando no sepa algo del proyecto.',
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 1 7 7c0 2.4-1.2 4.5-3 5.7V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.3C6.2 13.5 5 11.4 5 9a7 7 0 0 1 7-7z"/><path d="M9 21h6"/></svg>',
-  },
-  {
-    id: 'demand', label: 'Conocimiento bajo demanda',
-    desc: 'Solo busca cuando tú lances la skill «Buscar en conocimiento».',
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>',
-  },
-];
-
+/* Selector del chat (web/src/chat/chooser.js): agente, conocimiento y fuentes. */
 let accessProjects = []; // proyectos que ves en la base de conocimiento (del bridge)
-const SOURCE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>';
-
-const renderChooser = (s, launchers) => {
-  s.launchers = launchers;
-  renderEngineStep(s);
-};
-
-const renderEngineStep = (s) => {
-  s.chooser.innerHTML = '';
-  const title = document.createElement('div');
-  title.className = 'launcher-title';
-  title.textContent = '¿Cómo abrimos este chat?';
-  const grid = document.createElement('div');
-  grid.className = 'launcher-grid';
-
-  s.launchers.forEach((l) => {
-    const btn = document.createElement('button');
-    btn.className = 'launcher-btn';
-    btn.disabled = !l.available;
-    btn.innerHTML = `<span class="launcher-ico">${LAUNCHER_ICONS[l.id] || ''}</span><span class="launcher-name">${l.label}</span>${l.available ? '' : '<span class="launcher-na">no instalado</span>'}`;
-    if (l.available) {
-      btn.addEventListener('click', () => (l.modes ? renderKnowledgeStep(s, l) : launchSession(s, l)));
-    }
-    grid.appendChild(btn);
-  });
-
-  s.chooser.append(title, grid);
-};
-
-const renderKnowledgeStep = async (s, launcher) => {
-  // refrescar fuentes desde el bridge (recoge proyectos creados al vuelo)
+const loadAccessProjects = async () => {
   try { accessProjects = await api('/access/projects'); } catch { /* deja lo último conocido */ }
-  s.chooser.innerHTML = '';
-  const title = document.createElement('div');
-  title.className = 'launcher-title';
-  title.textContent = `¿Cómo usamos el conocimiento del equipo en este ${launcher.label}?`;
-  const grid = document.createElement('div');
-  grid.className = 'launcher-grid';
-
-  KNOWLEDGE_MODES.forEach((m) => {
-    const btn = document.createElement('button');
-    btn.className = 'launcher-btn wide';
-    btn.innerHTML = `<span class="launcher-ico">${m.icon}</span><span class="launcher-name">${m.label}</span><span class="launcher-desc">${m.desc}</span>`;
-    btn.addEventListener('click', () => proceedSources(s, launcher, m.id, accessProjects));
-    grid.appendChild(btn);
-  });
-
-  const back = document.createElement('button');
-  back.className = 'launcher-back';
-  back.textContent = '← elegir otro motor';
-  back.addEventListener('click', () => renderEngineStep(s));
-
-  s.chooser.append(title, grid, back);
+  return accessProjects;
 };
-
-// con más de un proyecto, pasar por el selector de fuentes; si no, lanzar
-const proceedSources = (s, launcher, mode, projects) => (projects.length > 1
-  ? renderSourcesStep(s, launcher, mode, projects)
-  : launchSession(s, launcher, mode, projects.map((p) => p.id)));
-
-// Paso 3 (solo con varios proyectos): elegir las fuentes del chat.
-const renderSourcesStep = (s, launcher, mode, projects) => {
-  s.chooser.innerHTML = '';
-  const title = document.createElement('div');
-  title.className = 'launcher-title';
-  title.textContent = '¿Qué fuentes de conocimiento en este chat?';
-  const grid = document.createElement('div');
-  grid.className = 'launcher-grid';
-
-  const selected = new Set(projects.map((p) => p.id)); // por defecto, todas
-  const paint = (btn, on) => {
-    btn.classList.toggle('selected', on);
-    btn.querySelector('.src-state').textContent = on ? '✓ incluida' : 'excluida — clic para añadir';
-  };
-  projects.forEach((p) => {
-    const btn = document.createElement('button');
-    btn.className = 'launcher-btn wide source-btn selected';
-    btn.innerHTML = `<span class="launcher-ico">${SOURCE_ICON}</span><span class="launcher-name">${p.name}</span><span class="launcher-desc src-state">✓ incluida</span>`;
-    btn.addEventListener('click', () => {
-      if (selected.has(p.id)) selected.delete(p.id); else selected.add(p.id);
-      paint(btn, selected.has(p.id));
-      go.disabled = selected.size === 0;
-    });
-    grid.appendChild(btn);
-  });
-
-  const go = document.createElement('button');
-  go.className = 'lab-btn primary';
-  go.textContent = 'Abrir chat';
-  go.addEventListener('click', () => launchSession(s, launcher, mode, [...selected]));
-
-  const back = document.createElement('button');
-  back.className = 'launcher-back';
-  back.textContent = '← volver';
-  back.addEventListener('click', () => renderKnowledgeStep(s, launcher));
-
-  s.chooser.append(title, grid, go, back);
-};
+const renderSessionChooser = (s, launchers) => renderChooser(s.chooser, {
+  launchers, loadProjects: loadAccessProjects,
+  onLaunch: (launcher, mode, projects) => launchSession(s, launcher, mode, projects),
+});
 
 /* Scroll táctil NATIVO (móvil). En escritorio el scroll de xterm va fino
    porque su viewport es un elemento con scroll real: la rueda lo mueve y
@@ -618,6 +510,14 @@ const enableTouchScroll = (s) => {
   s.termHost.addEventListener('touchend', end, { capture: true, passive: true });
   s.termHost.addEventListener('touchcancel', end, { capture: true, passive: true });
   vp.addEventListener('scroll', () => { if (gliding) settle(); }, { passive: true }); // inercia en curso
+};
+
+// Un terminal con las opciones y el tema de SIA (el chat de cada issue).
+const makeTerminal = () => {
+  const term = new Terminal({ ...TERM_OPTS, theme: currentTheme().term });
+  const fit = new FitAddon();
+  term.loadAddon(fit);
+  return { term, fit };
 };
 
 /* Montar la terminal de una sesión (común a lanzar nueva y re-enganchar). */
@@ -803,10 +703,11 @@ const connectSession = (s, attach) => {
       case 'launchers':
         paletteSkills = m.skills || [];
         accessProjects = m.accessProjects || [];
-        if (!s.launched && !attach) renderChooser(s, m.list);
+        if (!s.launched && !attach) renderSessionChooser(s, m.list);
         if (!bootstrapped) {
           bootstrapped = true;
-          if (m.sessions?.length) restoreSessions(m.sessions, s.id);
+          const own = chatSessions(m.sessions);
+          if (own.length) restoreSessions(own, s.id);
         }
         break;
       case 'started':
@@ -963,8 +864,11 @@ const mergeAssets = (s, list) => {
    idempotente, y sin tocar las sesiones activas de ESTE dispositivo (su ciclo
    de vida lo llevan sus propios mensajes exit/gone). */
 let lastSessionsList = null; // última lista procesada (para re-reconciliar)
-const reconcileSessions = (list) => {
+// Los chats de una issue viven en su pantalla de trabajo, no en las pestañas.
+const chatSessions = (list) => (list || []).filter((r) => !r.issue);
+const reconcileSessions = (all) => {
   if (!bootstrapped) return; // el arranque lo gestiona restoreSessions
+  const list = chatSessions(all);
   lastSessionsList = list;
   const remote = new Map(list.map((r) => [r.id, r]));
   for (const s of [...sessions.values()]) {
@@ -1561,7 +1465,10 @@ const viewUsers = document.getElementById('view-users');
 // el icono de la barra se enseña si la persona tiene esa vista. Si el panel
 // devuelve show(), se llama al abrirlo (Issues recarga su foto).
 const PANELS = [
-  { name: 'issues', mount: (el) => AUTH && mountIssuesView(el, { api: createIssuesApi(API_BASE, AUTH.session), me: AUTH.user, toast: (t) => toast(t) }) },
+  { name: 'issues', mount: (el) => AUTH && mountIssuesView(el, {
+    api: createIssuesApi(API_BASE, AUTH.session), me: AUTH.user, toast: (t) => toast(t),
+    openChat: (host, issueId) => mountIssueChat(host, { issueId, wsUrl, loadProjects: loadAccessProjects, makeTerminal }),
+  }) },
   { name: 'work', mount: mountWorkView },
   { name: 'metrics', mount: mountMetricsView },
 ].map((p) => ({ ...p, nav: document.getElementById(`nav-${p.name}`), view: document.getElementById(`view-${p.name}`) }));

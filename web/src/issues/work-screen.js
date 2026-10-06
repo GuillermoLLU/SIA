@@ -1,8 +1,8 @@
 // La pantalla de trabajo de una issue. A la izquierda, en pestañas: el
 // análisis de la IA (con los logs y datos que haya recopilado), el detalle de
 // la issue y las relacionadas. A la derecha, sus datos clave y debajo el chat
-// de la issue (con el conocimiento), que vive mientras la issue esté abierta.
-// De momento son las cajas: el análisis, las parecidas y el chat se conectarán.
+// de la issue (con el conocimiento, issue-chat.js), que vive mientras la issue
+// esté abierta. El análisis y las parecidas, por conectar.
 import { esc } from '../ui/html.js';
 import { STATUS_ES, REASON_ES, SEVERITY_ES, when, age, stamp } from './format.js';
 import { item } from './parts.js';
@@ -103,13 +103,9 @@ export const workScreen = ({ issue: i, analysis = null, sameCenter, now, mine, t
       <div class="k-moved"><span>Último movimiento</span><b>${i.modified ? `hace ${age(i.modified, now)}` : '—'}</b><small>${when(i.modified)}</small></div>
     </section>
     <aside class="iss-card iss-chat" aria-label="Chat de la issue">
-      <div class="iss-card-h"><h3>Chat de la issue</h3><span class="iss-badge">Por conectar</span></div>
-      <p class="iss-chat-note">Conectado al conocimiento del equipo. Sigue abierto mientras la issue lo esté: puedes salir y volver.</p>
-      <div class="iss-chat-log">${pending(`Pregunta lo que necesites sobre ${esc(i.id)}: el chat ya sabe de qué issue hablas.`)}</div>
-      <form class="iss-chat-input" onsubmit="return false">
-        <textarea rows="2" placeholder="Pregunta sobre esta issue…" disabled></textarea>
-        <button class="lab-btn primary" disabled>Enviar</button>
-      </form>
+      <div class="iss-card-h"><h3>Chat de la issue</h3></div>
+      <p class="iss-chat-note">Con el conocimiento del equipo y los datos de ${esc(i.id)}. Sigue abierto mientras la issue lo esté: puedes salir y volver.</p>
+      <div class="iss-chat-body"></div>
     </aside>
     </div>
   </div>

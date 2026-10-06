@@ -24,6 +24,7 @@ import { createKnowledge } from './knowledge/service.js';
 import { knowledgeRoutes } from './knowledge/routes.js';
 import { createIssuesSource } from './issues/source.js';
 import { issuesRoutes } from './issues/routes.js';
+import { issueContext, promptArgs } from './issues/context.js';
 import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -776,7 +777,8 @@ const syncKeys = (jwt, userId, opts) => knowledge.syncPeople(jwt, userId ? [user
 const usersRoute = usersRoutes(users, auth, { json, readBody, syncKeys, assignKnowledge: (jwt, userId, ids) => knowledge.setProjects(jwt, userId, ids) });
 const knowledgeRoute = knowledgeRoutes(knowledge, auth, { json, readBody, syncKeys, onChange: loadAssigned });
 // Issues: de momento, el CSV más reciente que se deje en <workspace>/issues.
-const issuesRoute = issuesRoutes(createIssuesSource(path.join(WORKSPACE, 'issues')), auth, platform, { json, readBody });
+const issuesSource = createIssuesSource(path.join(WORKSPACE, 'issues'));
+const issuesRoute = issuesRoutes(issuesSource, auth, platform, { json, readBody });
 const validId = (s) => typeof s === 'string' && /^[a-z0-9][a-z0-9_-]{1,63}$/i.test(s);
 let uploadSeq = 0;
 const validFiles = (files) => Array.isArray(files) && files.length &&
@@ -1572,10 +1574,19 @@ const handleConnection = (ws, req) => {
   };
 
   let starting = false;
-  const start = async (launcherId, knowledge, projects, cols, rows) => {
+  // `issueId`: el chat de una issue (uno por issue, vive hasta que se cierre).
+  // Arranca con sus datos como primer mensaje y no sale en las pestañas del Chat.
+  const start = async (launcherId, knowledge, projects, cols, rows, issueId) => {
     if (sess || starting) return;
     starting = true;
     try {
+      let issue = null;
+      if (issueId !== undefined && issueId !== null) {
+        issue = /^INC\d+$/.test(String(issueId)) ? issuesSource.load().issues.find((i) => i.id === issueId) : null;
+        if (!issue) { send(ws, { type: 'error', message: 'Esa issue ya no está en la foto.' }); return; }
+        const open = [...SESSIONS.values()].find((x) => x.meta.issue === issue.id);
+        if (open) { bind(open); send(ws, { type: 'started', sessionId: open.id }); send(ws, { type: 'history', data: open.buffer }); return; }
+      }
       const def = LAUNCHERS.find((l) => l.id === launcherId) || LAUNCHERS[0];
       if (!which(def.cmd)) {
         send(ws, { type: 'error', message: `"${def.cmd}" no está instalado.` });
@@ -1613,6 +1624,8 @@ const handleConnection = (ws, req) => {
       // Resolvemos la ruta real del ejecutable. En Windows un shim .cmd/.bat no
       // lo ejecuta ConPTY por sí solo (CreateProcess no corre batch), así que lo
       // lanzamos a través de cmd.exe /c — igual que hace la terminal de VS Code.
+      // el primer mensaje, delante: detrás, `--mcp-config` (admite varios) se lo tragaría
+      if (issue) args = [...promptArgs(def.id, issueContext(issue)), ...args];
       const exe = resolveCmd(def.cmd) || def.cmd;
       let spawnCmd = exe;
       let spawnArgs = args;
@@ -1643,14 +1656,14 @@ const handleConnection = (ws, req) => {
         id: sessionId,
         term,
         buffer: '',
-        meta: { launcher: def.id, knowledge: def.modes ? mode : null, label: def.label, color: null },
+        meta: { launcher: def.id, knowledge: def.modes ? mode : null, label: issue ? issue.id : def.label, color: null, ...(issue ? { issue: issue.id } : {}) },
         assets: [], // adjuntos compartidos en esta sesión (persisten con ella)
         ws: null,
       };
       SESSIONS.set(s.id, s);
       bind(s);
       send(ws, { type: 'started', sessionId: s.id });
-      console.log(`[sia] session open (${def.id}${def.modes ? `, conocimiento ${mode}, base ${base?.name || '-'}, proyectos [${allowedProjects.join(',')}]` : ''}, id ${s.id}, pid ${term.pid})`);
+      console.log(`[sia] session open (${def.id}${issue ? `, issue ${issue.id}` : ''}${def.modes ? `, conocimiento ${mode}, base ${base?.name || '-'}, proyectos [${allowedProjects.join(',')}]` : ''}, id ${s.id}, pid ${term.pid})`);
 
       term.onData((data) => {
         s.buffer += data;
@@ -1679,7 +1692,7 @@ const handleConnection = (ws, req) => {
       if (s) s.lastSeen = Date.now();
     }
     if (msg.type === 'start') {
-      start(msg.launcher, msg.knowledge, msg.projects, msg.cols, msg.rows);
+      start(msg.launcher, msg.knowledge, msg.projects, msg.cols, msg.rows, msg.issue);
     } else if (msg.type === 'attach') {
       const s = SESSIONS.get(msg.sessionId);
       if (!s) { send(ws, { type: 'gone' }); return; }
