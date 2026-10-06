@@ -14,11 +14,15 @@ export const REASON_ES = {
   LOCAL_SITE_ACTION_REQUIRED: 'Centro',
 };
 
-// La mesa: en qué estoy, qué espera a otros y qué he resuelto.
-export const TABS = [
-  { key: 'doing', label: 'En curso', empty: 'No tienes ninguna en curso. Coge la siguiente.', test: (i) => i.status === 'ASSIGNED' || i.status === 'IN_PROGRESS' },
-  { key: 'waiting', label: 'Pendientes de terceros', empty: 'Nada esperando a otros.', test: (i) => i.status === 'PENDING' },
-  { key: 'resolved', label: 'Resueltas', empty: 'Aún no hay resueltas.', test: (i) => i.status === 'RESOLVED' },
+// La mesa: en qué estoy, qué espera a otros (lo que más tiempo lleva sin
+// moverse, arriba) y lo último que he resuelto.
+export const LISTS = [
+  { key: 'doing', label: 'En curso', empty: 'Nada en curso. Coge la siguiente.', test: (i) => i.status === 'ASSIGNED' || i.status === 'IN_PROGRESS',
+    sort: (a, b) => a.reported.localeCompare(b.reported) },
+  { key: 'waiting', label: 'Seguimiento · pendientes de terceros', empty: 'Nada esperando a otros.', test: (i) => i.status === 'PENDING',
+    sort: (a, b) => a.modified.localeCompare(b.modified) },
+  { key: 'resolved', label: 'Resueltas recientes', empty: 'Aún no hay resueltas.', test: (i) => i.status === 'RESOLVED',
+    sort: (a, b) => b.resolved.localeCompare(a.resolved) },
 ];
 
 // Una fecha como las de las issues: «YYYY-MM-DD HH:MM», hora local.
@@ -28,8 +32,8 @@ export const stamp = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d
 // «2026-10-04 11:44» → «04/10 11:44»
 export const when = (s) => (s ? `${s.slice(8, 10)}/${s.slice(5, 7)} ${s.slice(11, 16)}` : '—');
 
+// Minutos legibles: «30 min», «3 h», «3 d».
+export const duration = (m) => (m < 60 ? `${Math.max(0, Math.round(m))} min` : m < 1440 ? `${Math.round(m / 60)} h` : `${Math.round(m / 1440)} d`);
+
 // Tiempo entre una fecha («YYYY-MM-DD HH:MM», hora local) y ahora, legible.
-export const age = (s, now) => {
-  const m = (now - new Date(s.replace(' ', 'T'))) / 60000;
-  return m < 60 ? `${Math.max(0, Math.round(m))} min` : m < 1440 ? `${Math.round(m / 60)} h` : `${Math.round(m / 1440)} d`;
-};
+export const age = (s, now) => duration((now - new Date(s.replace(' ', 'T'))) / 60000);

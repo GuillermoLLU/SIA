@@ -40,6 +40,8 @@ test('GET /: libres, reglas y mi mesa (responsable en Remedy o cogida en SIA)', 
   assert.deepEqual(body.rules, [{ id: 'basic', label: 'Regla básica' }]);
   assert.deepEqual(body.desk.map((i) => [i.id, i.claimed]), [['INC1', true], ['INC3', false]]);
   assert.equal(body.desk[0].notes, undefined);
+  assert.equal(body.next.id, 'INC2');
+  assert.equal(body.stats.perDay.length, 14);
 });
 
 test('POST /next: manda la cola en orden de la regla y devuelve la que se lleva', async () => {

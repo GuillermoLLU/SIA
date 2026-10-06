@@ -1,12 +1,14 @@
 // /api/issues (vista Issues; la exige el bridge). La base de la instancia
 // lleva quién ha cogido qué; las issues, de la fuente (de momento, el CSV).
-//   GET  /              → { taken, rules, free, desk }  (desk: mis issues, en breve)
+//   GET  /              → { taken, rules, free, next, desk, stats }
+//                         (next: la que tocaría ahora; desk: mis issues, en breve)
 //   GET  /:id           → { issue, sameCenter }
 //   POST /next          { rule } → { id }  (null: no queda ninguna libre)
 //   POST /:id/release   → { ok }  (devolverla a la cola)
 // «Coger» es un simulacro: se da por hecho que SIGLO la asigna en Remedy.
 import { queue, RULES } from './queue.js';
 import { deskOf, brief } from './desk.js';
+import { deskStats, dayKey } from './stats.js';
 
 const ISSUE_ID = /^INC\d+$/;
 
@@ -22,11 +24,16 @@ export const issuesRoutes = (source, auth, platform, { json, readBody }) => asyn
     const now = taken ? new Date(taken) : new Date();
 
     if (!id && req.method === 'GET') {
+      const free = queue(issues, claimed, now);
+      const desk = deskOf(issues, ctx.user, claims);
+      const nextIssue = free.length ? issues.find((i) => i.id === free[0]) : null;
       return json(res, 200, {
         taken,
         rules: RULES.map(({ id: rid, label }) => ({ id: rid, label })),
-        free: queue(issues, claimed, now).length,
-        desk: deskOf(issues, ctx.user, claims).map(brief),
+        free: free.length,
+        next: nextIssue ? brief(nextIssue) : null,
+        desk: desk.map(brief),
+        stats: deskStats(desk, claims.filter((c) => c.user_id === ctx.user.id), dayKey(now)),
       });
     }
     if (id === 'next' && !action && req.method === 'POST') {
