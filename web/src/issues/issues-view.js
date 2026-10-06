@@ -1,22 +1,25 @@
 // Vista «Issues»: la mesa de cada persona. Arriba, la siguiente que le toca
 // (la elige la regla; la cola de la base evita que dos cojan la misma) y su
 // día; después sus números, su ritmo y el seguimiento de lo suyo. Al abrir
-// una, la pantalla de trabajo. Resolver y escalar irán por SIGLO.
+// una, la pantalla de trabajo. Resolver y escalar irán por SIGLO. Mientras
+// se ve la mesa, se refresca sola (otros cogen issues).
 import './issues.css';
 import { esc } from '../ui/html.js';
 import { SEVERITY_ES, STATUS_ES, REASON_ES, LISTS, when, age, stamp, duration } from './format.js';
 
 const GOAL = { min: 15, max: 20 }; // resueltas por turno, lo que dice el equipo
 const WEEKDAY = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
+const REFRESH_MS = 15000;
+const dayLabel = (day) => `${WEEKDAY[new Date(`${day}T12:00:00`).getDay()]} ${+day.slice(8)}`;
 
 export const mountIssuesView = (root, { api, me, toast }) => {
-  let data = null, rule = 'basic', now = new Date(), opened = null;
+  let data = null, rule = 'basic', now = new Date(), opened = null, onDesk = false;
 
   const sev = (p) => `<span class="iss-sev ${esc(p)}">${esc(SEVERITY_ES[p] || p)}</span>`;
   const item = (i, key) => {
     const since = key === 'waiting' ? `sin moverse ${age(i.modified, now)}` : key === 'resolved' ? when(i.resolved) : `hace ${age(i.reported, now)}`;
     return `<button class="iss-item" data-id="${esc(i.id)}">
-      <span class="iss-line">${sev(i.priority)}<span class="iss-code">${esc(i.center || '—')}</span>${key === 'waiting' && i.reason ? `<span class="iss-reason">${esc(REASON_ES[i.reason] || i.reason)}</span>` : ''}<span class="iss-when">${since}</span></span>
+      <span class="iss-line">${sev(i.priority)}<span class="iss-code">${esc(i.center || '—')}</span><span class="iss-origin${i.sisu ? ' sisu' : ''}">${i.sisu ? 'SISU' : 'SGA'}</span>${key === 'waiting' && i.reason ? `<span class="iss-reason">${esc(REASON_ES[i.reason] || i.reason)}</span>` : ''}<span class="iss-when">${since}</span></span>
       <span class="iss-text">${esc(i.text)}</span>
     </button>`;
   };
@@ -26,15 +29,24 @@ export const mountIssuesView = (root, { api, me, toast }) => {
     const max = Math.max(GOAL.max, ...perDay.map((d) => d.count));
     return `<div class="iss-bars" role="img" aria-label="Resueltas por día, últimos ${perDay.length} días">
       <i class="iss-goal-line" style="bottom:calc(30px + (100% - 30px) * ${GOAL.min / max})" title="Objetivo por turno: ${GOAL.min}–${GOAL.max}"></i>
-      ${perDay.map(({ day, count }) => {
-        const d = new Date(`${day}T12:00:00`);
-        return `<div class="iss-bar" title="${day.slice(8)}/${day.slice(5, 7)}: ${count}">
-          <small>${count || ''}</small><i style="height:${count / max * 100}%"></i><span>${WEEKDAY[d.getDay()]}<br>${+day.slice(8)}</span></div>`;
+      ${perDay.map(({ day, count, sga, sisu }) => {
+        return `<div class="iss-bar" title="${day.slice(8)}/${day.slice(5, 7)}: ${count} (SGA ${sga}, SISU ${sisu})">
+          <small>${count || ''}</small><i class="sisu" style="height:${sisu / max * 100}%"></i><i style="height:${sga / max * 100}%"></i><span>${dayLabel(day).replace(' ', '<br>')}</span></div>`;
       }).join('')}
     </div>`;
   };
 
+  // Día × hora: a qué horas se resuelve (los turnos, aunque cambien).
+  const hoursMap = (perDay) => {
+    const max = Math.max(1, ...perDay.flatMap((d) => d.hours));
+    return `<div class="iss-heat" role="img" aria-label="Resueltas por hora del día, últimos ${perDay.length} días">
+      <span></span>${Array.from({ length: 24 }, (_, h) => `<span class="iss-heat-h">${h % 3 === 0 ? `${h}h` : ''}</span>`).join('')}
+      ${[...perDay].reverse().map(({ day, hours }) => `<span class="iss-heat-d">${dayLabel(day)}</span>${hours.map((n, h) => `<i style="--v:${n / max}" title="${dayLabel(day)}, ${h}:00–${h}:59 · ${n}"${n ? '' : ' class="zero"'}></i>`).join('')}`).join('')}
+    </div>`;
+  };
+
   const renderDesk = () => {
+    onDesk = true;
     if (!data.taken) {
       root.innerHTML = `<div class="iss-page"><h2 class="iss-title">Issues</h2>
         <p class="iss-empty">Aún no hay issues. De momento se leen del CSV más reciente que se deje en la carpeta «issues» del workspace de SIA.</p></div>`;
@@ -51,7 +63,7 @@ export const mountIssuesView = (root, { api, me, toast }) => {
         <section class="iss-card iss-next">
           <h3>La siguiente que te toca</h3>
           ${next ? `<div class="iss-preview">
-              <span class="iss-line">${sev(next.priority)}<span class="iss-code">${esc(next.center || '—')}</span><span>${next.sisu ? 'SISU' : 'SGA'}</span>${next.prio ? '<span class="iss-prio">Priorizada por negocio</span>' : ''}<span class="iss-when">hace ${age(next.reported, now)}</span></span>
+              <span class="iss-line">${sev(next.priority)}<span class="iss-code">${esc(next.center || '—')}</span><span class="iss-origin${next.sisu ? ' sisu' : ''}">${next.sisu ? 'SISU' : 'SGA'}</span>${next.prio ? '<span class="iss-prio">Priorizada por negocio</span>' : ''}<span class="iss-when">hace ${age(next.reported, now)}</span></span>
               <p>${esc(next.text)}</p>
             </div>` : '<p class="iss-empty">No queda ninguna sin coger.</p>'}
           <div class="iss-go">
@@ -62,24 +74,29 @@ export const mountIssuesView = (root, { api, me, toast }) => {
         </section>
         <section class="iss-card iss-today">
           <h3>Hoy</h3>
-          <div class="iss-big"><b>${stats.resolvedToday}</b><span>resueltas · objetivo ${GOAL.min}–${GOAL.max}</span></div>
+          <div class="iss-big"><b>${stats.resolvedToday}</b><span>resueltas · objetivo ${GOAL.min}–${GOAL.max}<br>${stats.resolvedTodayBy.sga} de SGA · ${stats.resolvedTodayBy.sisu} de SISU</span></div>
           <div class="iss-progress" role="img" aria-label="${stats.resolvedToday} de ${GOAL.max}"><i style="width:${progress}%"></i><em style="left:${GOAL.min / GOAL.max * 100}%"></em></div>
           <dl><dt>Cogidas en SIA</dt><dd>${stats.claimedToday}</dd><dt>En curso ahora</dt><dd>${count('doing')}</dd></dl>
         </section>
+        <div class="iss-tiles">
+          ${tile('En curso', count('doing'))}
+          ${tile('Pendientes de terceros', count('waiting'), count('waiting') ? `la más parada, ${age(lists[1].items[0].modified, now)} sin moverse` : '')}
+          ${tile('Resueltas · 7 días', stats.resolvedWeek)}
+          ${tile('Tiempo típico', stats.medianResolutionMin == null ? '—' : duration(stats.medianResolutionMin), 'mediana, de reportada a resuelta')}
+        </div>
       </div>
 
-      <div class="iss-tiles">
-        ${tile('En curso', count('doing'))}
-        ${tile('Pendientes de terceros', count('waiting'), count('waiting') ? `la más parada, ${age(lists[1].items[0].modified, now)} sin moverse` : '')}
-        ${tile('Resueltas · 7 días', stats.resolvedWeek)}
-        ${tile('Tiempo típico de resolución', stats.medianResolutionMin == null ? '—' : duration(stats.medianResolutionMin), 'mediana, de reportada a resuelta')}
+      <div class="iss-charts">
+        <section class="iss-card">
+          <div class="iss-card-h"><h3>Mi ritmo · resueltas por día</h3><span class="iss-legend"><i></i>SGA <i class="sisu"></i>SISU · la línea es el objetivo mínimo</span></div>
+          ${rhythm(stats.perDay)}
+        </section>
+        <section class="iss-card">
+          <div class="iss-card-h"><h3>A qué horas resuelvo</h3><span>últimos ${stats.perDay.length} días · más intenso, más resueltas</span></div>
+          ${hoursMap(stats.perDay)}
+        </section>
       </div>
-
-      <section class="iss-card">
-        <div class="iss-card-h"><h3>Mi ritmo · resueltas por día</h3><span>últimos ${stats.perDay.length} días · la línea es el objetivo mínimo por turno</span></div>
-        ${rhythm(stats.perDay)}
-        <p class="iss-foot">Solo cuenta las resueltas que Remedy aún no ha cerrado; el histórico completo llegará al leer de Snowflake.</p>
-      </section>
+      <p class="iss-foot">Solo cuentan las resueltas que Remedy aún no ha cerrado; el histórico completo llegará al leer de Snowflake.</p>
 
       <div class="iss-cols">
         ${lists.map((l) => `<section class="iss-card iss-col">
@@ -92,12 +109,13 @@ export const mountIssuesView = (root, { api, me, toast }) => {
 
   const renderIssue = ({ issue: i, sameCenter }) => {
     opened = i.id;
+    onDesk = false;
     const mine = i.claimedBy && data?.desk.some((d) => d.id === i.id && d.claimed);
     root.innerHTML = `<div class="iss-page iss-narrow">
       <button class="iss-back" data-back>← Mi mesa</button>
       <article class="iss-work">
         <header>
-          <div class="iss-meta">${sev(i.priority)}<span class="iss-code">${esc(i.center || '—')}</span><span>${i.sisu ? 'SISU' : 'SGA'}</span>${i.prio ? '<span class="iss-prio">Priorizada por negocio</span>' : ''}
+          <div class="iss-meta">${sev(i.priority)}<span class="iss-code">${esc(i.center || '—')}</span><span class="iss-origin${i.sisu ? ' sisu' : ''}">${i.sisu ? 'SISU' : 'SGA'}</span>${i.prio ? '<span class="iss-prio">Priorizada por negocio</span>' : ''}
             <a href="${esc(i.link)}" target="_blank" rel="noopener">${esc(i.id)} ↗</a></div>
           <h2>${esc(i.text)}</h2>
           <p class="iss-state">${esc(STATUS_ES[i.status] || i.status)}${i.reason ? ` · ${esc(REASON_ES[i.reason] || i.reason)}` : ''} · reportada hace ${age(i.reported, now)}${i.claimedBy ? ` · cogida por ${esc(i.claimedBy.name)}` : ''}</p>
@@ -138,9 +156,12 @@ export const mountIssuesView = (root, { api, me, toast }) => {
       const take = t.closest('[data-take]');
       if (take) {
         take.disabled = true;
+        const seen = data.next?.id;
         const { id } = await api.next(rule);
         await loadDesk();
-        return id ? openIssue(id) : toast?.('No queda ninguna sin coger.');
+        if (!id) return toast?.('No queda ninguna sin coger.');
+        if (seen && id !== seen) toast?.('La que veías ya la había cogido otra persona: te toca la siguiente.');
+        return openIssue(id);
       }
       const r = t.closest('[data-id]');
       if (r) return openIssue(r.dataset.id);
@@ -150,6 +171,13 @@ export const mountIssuesView = (root, { api, me, toast }) => {
     } catch (err) { toast?.(err.message); }
   });
   root.addEventListener('change', (e) => { if (e.target.matches('[data-rule]')) rule = e.target.value; });
+
+  // Refresco: solo con la mesa a la vista (no mientras se trabaja una issue).
+  setInterval(() => {
+    if (!onDesk || root.hidden || document.visibilityState !== 'visible') return;
+    const y = root.scrollTop;
+    api.desk().then((d) => { data = d; now = d.taken ? new Date(d.taken) : new Date(); if (onDesk) { renderDesk(); root.scrollTop = y; } }).catch(() => {});
+  }, REFRESH_MS);
 
   return { show: () => loadDesk().catch((err) => { root.innerHTML = `<div class="iss-page"><p class="iss-empty">No se pudieron cargar las issues: ${esc(err.message)}</p></div>`; }) };
 };
