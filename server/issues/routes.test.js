@@ -13,6 +13,7 @@ const setup = (claims = []) => {
       calls.push([fn, args]);
       if (fn === 'platform_issue_claims') return claims;
       if (fn === 'platform_my_issue_events') return [];
+      if (fn === 'platform_issue_teammates') return [{ id: 'u-ana', name: 'Ana López' }, { id: 'u-luis', name: 'Luis' }];
       if (fn === 'platform_claim_next_issue') return args.p_candidates[0] ?? null;
       return null;
     },
@@ -66,4 +67,9 @@ test('ids raros: 404; devolver: a la base', async () => {
   assert.equal((await call('GET', ['INC9'])).status, 404);
   assert.deepEqual((await call('POST', ['INC1', 'release'])).body, { ok: true });
   assert.deepEqual(calls.at(-1), ['platform_release_issue', { p_issue: 'INC1' }]);
+});
+
+test('GET /teammates: el equipo de Issues sin mí', async () => {
+  const { body } = await setup().call('GET', ['teammates']);
+  assert.deepEqual(body, { teammates: [{ id: 'u-luis', name: 'Luis' }] });
 });

@@ -8,6 +8,7 @@ import { esc } from '../ui/html.js';
 import { LISTS, when, age, stamp } from './format.js';
 import { sev, origin, item } from './parts.js';
 import { workScreen, aiPanel, logPanel } from './work-screen.js';
+import { ACTIONS, actionForm, readAction } from './actions.js';
 
 const GOAL = { min: 15, max: 20 }; // resueltas por turno, lo que dice el equipo
 const REFRESH_MS = 15000;
@@ -93,6 +94,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
     if (opened !== i.id) workTab = 'ai';
     opened = i.id;
     closeChat();
+    closeAction();
     root.innerHTML = workScreen({ issue: i, analysis, sameCenter, now, mine, tab: workTab });
     chat = openChat?.(root.querySelector('.iss-chat-body'), i.id) || null;
     root.scrollTop = 0;
@@ -125,6 +127,9 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
         root.querySelectorAll('[data-wpanel]').forEach((p) => { p.hidden = p.dataset.wpanel !== workTab; });
         return;
       }
+      const act = t.closest('[data-act]');
+      if (act) return openAction(act.dataset.act);
+      if (t.closest('[data-act-cancel]') || t.classList.contains('iss-modal')) return closeAction();
       const lg = t.closest('[data-log]');
       if (lg) { const p = root.querySelector('[data-wpanel="ai"]'); p.innerHTML = logPanel(analysis.logs[+lg.dataset.log]); p.scrollTop = 0; return; }
       if (t.closest('[data-log-back]')) { root.querySelector('[data-wpanel="ai"]').innerHTML = aiPanel(analysis); return; }
@@ -135,6 +140,30 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
       if (rel) { rel.disabled = true; await api.release(opened); await loadDesk(); return toast?.('Devuelta a la cola.'); }
     } catch (err) { toast?.(err.message); }
   });
+  // Acciones: su formulario encima de la pantalla de trabajo. De momento se
+  // valida y se avisa: nada sale hacia Remedy hasta conectar SIGLO.
+  let people = [];
+  const closeAction = () => root.querySelector('.iss-modal')?.remove();
+  const openAction = async (key) => {
+    closeAction();
+    if (key === 'transfer') people = await api.teammates();
+    root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${actionForm(key, opened, people)}</div>`);
+    root.querySelector('.iss-act-form [name]')?.focus();
+  };
+  root.addEventListener('submit', (e) => {
+    const form = e.target.closest('[data-act-form]');
+    if (!form) return;
+    e.preventDefault();
+    const key = form.dataset.actForm;
+    const { missing, values } = readAction(key, Object.fromEntries(new FormData(form)));
+    const err = form.querySelector('.iss-act-err');
+    if (missing) { err.textContent = `Falta: ${missing}.`; err.hidden = false; return; }
+    closeAction();
+    const who = key === 'transfer' ? people.find((p) => p.id === values.to)?.name : null;
+    toast?.(`${ACTIONS[key].label}${who ? ` a ${who}` : ''}: preparado, pero aún no se envía a Remedy (falta conectar SIGLO).`);
+  });
+  root.addEventListener('keydown', (e) => { if (e.key === 'Escape' && root.querySelector('.iss-modal')) closeAction(); });
+
   root.addEventListener('change', (e) => { if (e.target.matches('[data-rule]')) rule = e.target.value; });
 
   // Refresco: solo con la mesa a la vista (no mientras se trabaja una issue).

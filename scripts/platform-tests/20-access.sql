@@ -216,6 +216,7 @@ select t_as(:U1);
 select expect_error($$select public.platform_claim_next_issue(array['INC1'])$$, 'sin la vista Issues no se coge nada');
 select expect_error('select count(*) from public.platform_issue_claims()', 'ni se ve quién tiene qué');
 select expect_error($$select count(*) from public.platform_my_issue_events(now())$$, 'ni su historial');
+select expect_error('select count(*) from public.platform_issue_teammates()', 'ni el equipo de Issues');
 select t_as(:AD);
 select public.platform_update_user(:U2, null, null, null, array['issues']);
 select assert_eq(public.platform_claim_next_issue(array['INC1', 'INC2']), 'INC1', 'el admin coge la primera libre');
@@ -228,6 +229,7 @@ select public.platform_release_issue('INC2');
 select assert_eq((select count(*) from public.platform_issue_claims()), 1::bigint, 'la propia vuelve a la cola');
 select assert_eq((select string_agg(issue_id || ':' || action, ',' order by happened_at) from public.platform_my_issue_events(now() - interval '1 day')), 'INC2:issue.claimed,INC2:issue.released', 'mi historial: solo lo mío');
 select assert_eq((select count(*) from public.platform_my_issue_events(now() + interval '1 day')), 0::bigint, 'desde la fecha pedida');
+select assert_eq((select string_agg(name, ',' order by name) from public.platform_issue_teammates()), 'Admin,agente.dos', 'el equipo: activos con la vista Issues');
 select expect_error($$select public.platform_claim_next_issue(array['x; drop'])$$, 'solo números de incidencia');
 
 -- ── 6b. cambiar de base y desactivar ──

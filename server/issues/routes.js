@@ -4,6 +4,7 @@
 //                         (next: la que tocaría ahora; desk: mis issues, en breve;
 //                          history: lo medido en SIA, 12 semanas)
 //   GET  /:id           → { issue, sameCenter }
+//   GET  /teammates     → { teammates: [{ id, name }] }  (el equipo de Issues, sin mí)
 //   POST /next          { rule } → { id }  (null: no queda ninguna libre)
 //   POST /:id/release   → { ok }  (devolverla a la cola)
 // «Coger» es un simulacro: se da por hecho que SIGLO la asigna en Remedy.
@@ -40,6 +41,10 @@ export const issuesRoutes = (source, auth, platform, { json, readBody }) => asyn
         history: history(await platform.rpc(jwt, 'platform_my_issue_events', { p_since: new Date(Date.now() - WEEKS * 7 * 86400000).toISOString() }),
           new Map(issues.map((i) => [i.id, i])), new Date(), WEEKS),
       });
+    }
+    if (id === 'teammates' && !action && req.method === 'GET') {
+      const all = await platform.rpc(jwt, 'platform_issue_teammates');
+      return json(res, 200, { teammates: all.filter((t) => t.id !== ctx.user.id) });
     }
     if (id === 'next' && !action && req.method === 'POST') {
       const { rule } = await readBody(req);

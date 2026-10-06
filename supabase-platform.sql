@@ -690,6 +690,18 @@ begin
   perform platform.audit(v_me, 'issue.released', v_me, jsonb_build_object('issue', p_issue));
 end $$;
 
+-- El equipo de Issues: las personas activas con la vista Issues (para
+-- traspasar una issue a un compañero).
+drop function if exists public.platform_issue_teammates();
+create function public.platform_issue_teammates()
+returns table (id uuid, name text)
+language plpgsql stable security definer set search_path = '' as $$
+#variable_conflict use_column
+begin
+  perform platform.require_view('issues');
+  return query select u.id, u.name from platform.users u where u.active and 'issues' = any (u.views) order by u.name;
+end $$;
+
 -- Mi historial en SIA: lo que he cogido y devuelto desde una fecha (sale de
 -- la auditoría; con él se miden las métricas de cada persona).
 drop function if exists public.platform_my_issue_events(timestamptz);

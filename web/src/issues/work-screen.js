@@ -45,9 +45,10 @@ export const workScreen = ({ issue: i, analysis = null, sameCenter, now, mine, t
         <p class="iss-state">${esc(STATUS_ES[i.status] || i.status)}${i.reason ? ` · ${esc(REASON_ES[i.reason] || i.reason)}` : ''}</p>
       </div>
       <div class="iss-actions">
-        <button class="lab-btn primary" disabled title="Irá por SIGLO">Resolver</button>
-        <button class="lab-btn" disabled title="Irá por SIGLO">Escalar</button>
-        <button class="lab-btn" disabled title="Irá por SIGLO">Añadir nota</button>
+        <button class="lab-btn primary" data-act="resolve">Resolver</button>
+        <button class="lab-btn" data-act="escalate">Escalar</button>
+        <button class="lab-btn" data-act="transfer">Traspasar</button>
+        <button class="lab-btn" data-act="note">Añadir nota</button>
         ${mine ? '<button class="lab-btn" data-release>Devolver a la cola</button>' : ''}
       </div>
     </div>
