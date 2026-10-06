@@ -36,13 +36,14 @@ export const mountIssuesView = (root, { api, me, toast }) => {
     </div>`;
   };
 
-  // Día × hora: a qué horas se resuelve (los turnos, aunque cambien).
-  const hoursMap = (perDay) => {
-    const max = Math.max(1, ...perDay.flatMap((d) => d.hours));
-    return `<div class="iss-heat" role="img" aria-label="Resueltas por hora del día, últimos ${perDay.length} días">
-      <span></span>${Array.from({ length: 24 }, (_, h) => `<span class="iss-heat-h">${h % 3 === 0 ? `${h}h` : ''}</span>`).join('')}
-      ${[...perDay].reverse().map(({ day, hours }) => `<span class="iss-heat-d">${dayLabel(day)}</span>${hours.map((n, h) => `<i style="--v:${n / max}" title="${dayLabel(day)}, ${h}:00–${h}:59 · ${n}"${n ? '' : ' class="zero"'}></i>`).join('')}`).join('')}
-    </div>`;
+  // En qué trabaja: por tipo y por centro; barra de abiertas + resueltas.
+  const ranking = (rows) => {
+    const max = Math.max(1, ...rows.map((r) => r.open + r.resolved));
+    return rows.length ? `<ol class="iss-rank">${rows.map((r) => `<li title="${esc(r.label)}: ${r.open} abiertas, ${r.resolved} resueltas">
+        <span class="iss-rank-l">${r.key && r.key !== r.label ? `<span class="iss-code">${esc(r.key)}</span> ` : ''}${esc(r.label)}</span>
+        <span class="iss-rank-n">${r.open + r.resolved}</span>
+        <span class="iss-rank-b"><i style="width:${r.open / max * 100}%"></i><i class="done" style="width:${r.resolved / max * 100}%"></i></span>
+      </li>`).join('')}</ol>` : '<p class="iss-empty">Aún nada.</p>';
   };
 
   const renderDesk = () => {
@@ -92,8 +93,11 @@ export const mountIssuesView = (root, { api, me, toast }) => {
           ${rhythm(stats.perDay)}
         </section>
         <section class="iss-card">
-          <div class="iss-card-h"><h3>A qué horas resuelvo</h3><span>últimos ${stats.perDay.length} días · más intenso, más resueltas</span></div>
-          ${hoursMap(stats.perDay)}
+          <div class="iss-card-h"><h3>En qué trabajo</h3><span class="iss-legend"><i></i>abiertas <i class="done"></i>resueltas</span></div>
+          <div class="iss-focus">
+            <div><h4>Por tipo</h4>${ranking(stats.focus.types)}</div>
+            <div><h4>Por centro</h4>${ranking(stats.focus.centers)}</div>
+          </div>
         </section>
       </div>
       <p class="iss-foot">Solo cuentan las resueltas que Remedy aún no ha cerrado; el histórico completo llegará al leer de Snowflake.</p>

@@ -39,6 +39,12 @@ test('statusChanges: solo los cambios de estado', () => {
   assert.deepEqual(statusChanges(''), []);
 });
 
+test('tipo: el segundo nivel, en español', () => {
+  assert.equal(toIssue(row({ CATEGORIZATIONTIER2: 'DISPOSITIVO FRR \\ FRR DEVICE' })).type, 'DISPOSITIVO FRR');
+  assert.equal(toIssue(row({ CATEGORIZATIONTIER2: 'EWMS' })).type, 'EWMS');
+  assert.equal(toIssue(row({})).type, '');
+});
+
 test('categoría por niveles, sin huecos', () => {
   assert.equal(toIssue(row({ CATEGORIZATIONTIER1: 'ECOM ZARA ES13', CATEGORIZATIONTIER2: 'EWMS' })).category, 'ECOM ZARA ES13 › EWMS');
 });

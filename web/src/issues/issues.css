@@ -1,5 +1,5 @@
 /* Vista Issues: la mesa de cada persona, a todo lo ancho. Arriba la siguiente,
-   el día y los números; después ritmo y horas, y tres columnas de seguimiento. Al abrir
+   el día y los números; después ritmo y en qué trabaja, y tres columnas de seguimiento. Al abrir
    una issue, la pantalla de trabajo (más estrecha, para leer). */
 .iss-view {
   --iss-crit: color-mix(in srgb, #d1242f 80%, var(--text));
@@ -7,6 +7,7 @@
   --iss-ok: color-mix(in srgb, #1a7f37 85%, var(--text));
   --iss-track: color-mix(in srgb, var(--border) 60%, var(--bg));
   --iss-sisu: color-mix(in srgb, #8250df 75%, var(--text));
+  --iss-done: color-mix(in srgb, var(--accent) 35%, var(--surface));
   overflow-y: auto; color: var(--text);
 }
 .iss-page { width: 100%; margin: 0 auto; padding: 24px 28px 40px; display: flex; flex-direction: column; gap: 20px; }
@@ -51,17 +52,22 @@
 .iss-tile b { font-size: 26px; font-weight: 680; font-variant-numeric: tabular-nums; }
 .iss-tile small { font-size: 11.5px; color: var(--text-low); }
 
-/* ritmo y horas */
+/* ritmo y en qué trabaja */
 .iss-charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
 .iss-legend { display: inline-flex; align-items: center; gap: 6px; }
 .iss-legend i { display: inline-block; width: 10px; height: 10px; background: var(--accent); }
 .iss-legend i.sisu { margin-left: 6px; background: var(--iss-sisu); }
 .iss-bar i.sisu { background: var(--iss-sisu); min-height: 0; }
-.iss-heat { display: grid; grid-template-columns: 44px repeat(24, minmax(0, 1fr)); gap: 3px; align-items: center; }
-.iss-heat i { display: block; height: 14px; background: color-mix(in srgb, var(--accent) calc(25% + var(--v) * 75%), var(--surface)); }
-.iss-heat i.zero { background: var(--iss-track); }
-.iss-heat-h, .iss-heat-d { font-size: 10.5px; color: var(--text-low); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.iss-heat-h { overflow: visible; }
+.iss-legend i.done { margin-left: 6px; background: var(--iss-done); }
+.iss-focus { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; }
+.iss-focus h4 { margin: 0 0 10px; font-size: 12px; font-weight: 600; color: var(--text); }
+.iss-rank { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.iss-rank li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; font-size: 12.5px; }
+.iss-rank-l { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iss-rank-n { font-weight: 600; font-variant-numeric: tabular-nums; }
+.iss-rank-b { grid-column: 1 / -1; display: flex; height: 6px; background: transparent; }
+.iss-rank-b i { display: block; background: var(--accent); }
+.iss-rank-b i.done { background: var(--iss-done); }
 .iss-bars { position: relative; display: flex; align-items: flex-end; gap: 8px; height: 260px; padding-bottom: 30px; }
 .iss-bar { position: relative; flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; }
 .iss-bar i { display: block; min-height: 2px; background: var(--accent); }
@@ -117,5 +123,5 @@
   .iss-page { padding: 20px 16px 32px; }
   .iss-tiles { grid-template-columns: 1fr 1fr; gap: 12px; }
   .iss-bars { gap: 3px; }
-  .iss-kv { grid-template-columns: 1fr; }
+  .iss-kv, .iss-focus { grid-template-columns: 1fr; }
 }

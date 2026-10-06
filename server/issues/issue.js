@@ -7,6 +7,8 @@
 const SUMMARY = /^(\d{6})\s+(?:(?:cr[ií]tic[ao]|critical|alta|high|m[eé]dia|medium|baja|baixa|low)\b\s*)?/i;
 
 const minute = (s) => String(s || '').slice(0, 16);
+// Las categorías vienen como «ESPAÑOL \\ ENGLISH»: nos quedamos con la primera.
+const spanish = (s) => String(s || '').split(' \\ ')[0].trim();
 
 // AUDIT_DETAIL: «fecha - quién - Campo: antes → después | …». Nos quedamos
 // con los cambios de estado: [fecha, antes, después].
@@ -33,6 +35,7 @@ export const toIssue = (r) => {
     modified: minute(r.LASTMODIFIEDDATE),
     resolved: minute(r.LASTRESOLUTIONDATE),
     notes: r.NOTES,
+    type: spanish(r.CATEGORIZATIONTIER2),
     category: [r.CATEGORIZATIONTIER1, r.CATEGORIZATIONTIER2, r.CATEGORIZATIONTIER3].filter(Boolean).join(' › '),
     resolution: r.RESOLUTION,
     vendorTicket: r.VENDORTICKETNUMBER,
