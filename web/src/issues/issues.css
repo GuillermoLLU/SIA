@@ -116,23 +116,17 @@
 .iss-tl time { display: inline-block; width: 96px; color: var(--text-low); font-variant-numeric: tabular-nums; }
 .iss-side { display: flex; flex-direction: column; gap: 20px; min-height: 0; }
 .iss-keys { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; padding: 14px; }
-.iss-keys > div { --k: var(--text-low); display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 8px 10px; background: color-mix(in srgb, var(--k) 10%, var(--surface)); border-left: 3px solid var(--k); }
-.iss-keys span { font-size: 11px; font-weight: 600; color: var(--k); }
+.iss-keys > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 8px 10px; background: color-mix(in srgb, var(--bg) 60%, var(--surface)); }
+.iss-keys span { font-size: 11px; color: var(--text-low); }
 .iss-keys b { font-size: 14px; font-weight: 650; color: var(--text); font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iss-keys small { font-size: 11px; color: var(--text-low); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iss-keys a { color: var(--accent); text-decoration: none; }
 .iss-keys a:hover { text-decoration: underline; }
-.iss-keys .k-sev.CRITICAL { --k: var(--iss-crit); }
-.iss-keys .k-sev.HIGH { --k: var(--iss-high); }
-.iss-keys .k-sev.MEDIUM { --k: var(--accent); }
-.iss-keys .k-origin { --k: var(--accent); }
-.iss-keys .k-origin.sisu { --k: var(--iss-sisu); }
-.iss-keys .k-center { --k: color-mix(in srgb, #0e7490 80%, var(--text)); }
-.iss-keys .k-link { --k: var(--accent); }
-.iss-keys .k-created { --k: color-mix(in srgb, #0e7490 80%, var(--text)); }
-.iss-keys .k-claimed { --k: var(--iss-ok); }
-.iss-keys .k-open { --k: color-mix(in srgb, #b08000 85%, var(--text)); }
-.iss-keys .k-moved { --k: color-mix(in srgb, #6d28d9 70%, var(--text)); }
+/* color solo donde dice algo: criticidad alta o crítica, y el origen */
+.iss-keys .k-sev.CRITICAL b, .iss-keys .k-sev.CRITICAL small { color: var(--iss-crit); }
+.iss-keys .k-sev.HIGH b { color: var(--iss-high); }
+.iss-keys .k-origin b { color: var(--accent); }
+.iss-keys .k-origin.sisu b { color: var(--iss-sisu); }
 .iss-chat { flex: 1; min-height: 0; }
 .iss-chat-note { margin: -6px 0 0; font-size: 12px; color: var(--text-low); }
 .iss-chat-log { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; justify-content: flex-end; gap: 10px; }
