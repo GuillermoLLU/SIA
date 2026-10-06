@@ -117,7 +117,14 @@
 .iss-kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .iss-tl { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 13px; }
 .iss-tl time { display: inline-block; width: 96px; color: var(--text-low); font-variant-numeric: tabular-nums; }
-.iss-chat { min-height: 0; }
+.iss-side { display: flex; flex-direction: column; gap: 20px; min-height: 0; }
+.iss-keys { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 16px; padding: 16px 20px; }
+.iss-keys > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.iss-keys span:first-child { font-size: 11.5px; color: var(--text-low); }
+.iss-keys b { font-size: 14px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.iss-keys .iss-sev, .iss-keys .iss-origin, .iss-keys .iss-prio { font-size: 13px; }
+.iss-keys small { font-size: 11px; color: var(--text-low); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iss-chat { flex: 1; min-height: 0; }
 .iss-chat-note { margin: -6px 0 0; font-size: 12px; color: var(--text-low); }
 .iss-chat-log { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; justify-content: flex-end; gap: 10px; }
 .iss-chat-input { display: flex; gap: 8px; align-items: flex-end; }
@@ -128,7 +135,7 @@
   .iss-row1, .iss-row2, .iss-cols, .iss-work { grid-template-columns: 1fr; }
   .iss-work { height: auto; }
   .iss-work-main { max-height: 70vh; }
-  .iss-chat { height: 480px; }
+  .iss-chat { flex: none; height: 420px; }
   .iss-kpis { grid-template-rows: none; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 640px) {

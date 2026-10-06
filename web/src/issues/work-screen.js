@@ -1,10 +1,10 @@
 // La pantalla de trabajo de una issue. A la izquierda, en pestañas: el
 // análisis de la IA (con los logs y datos que haya recopilado), el detalle de
-// la issue y las relacionadas. A la derecha, el chat de la issue (con el
-// conocimiento), que vive mientras la issue esté abierta.
+// la issue y las relacionadas. A la derecha, sus datos clave y debajo el chat
+// de la issue (con el conocimiento), que vive mientras la issue esté abierta.
 // De momento son las cajas: el análisis, las parecidas y el chat se conectarán.
 import { esc } from '../ui/html.js';
-import { STATUS_ES, REASON_ES, when, age } from './format.js';
+import { STATUS_ES, REASON_ES, SEVERITY_ES, when, age, stamp } from './format.js';
 import { sev, origin, item } from './parts.js';
 
 const pending = (text) => `<p class="iss-pending">${text}</p>`;
@@ -83,6 +83,15 @@ export const workScreen = ({ issue: i, sameCenter, now, mine, tab = 'ai' }) => `
       </div>
     </section>
 
+    <div class="iss-side">
+    <section class="iss-card iss-keys" aria-label="Datos clave">
+      <div><span>Criticidad</span><b>${sev(i.priority)}</b></div>
+      <div><span>Origen</span><b>${origin(i)}${i.prio ? ' <span class="iss-prio">PRIO</span>' : ''}</b></div>
+      <div><span>Abierta</span><b>${age(i.reported, now)}</b></div>
+      <div><span>Creada</span><b>${when(i.reported)}</b><small>hace ${age(i.reported, now)}</small></div>
+      <div><span>Asignada</span><b>${i.claimedBy?.at ? when(stamp(new Date(i.claimedBy.at))) : '—'}</b><small>${i.claimedBy ? `en SIA, ${esc(i.claimedBy.name)}` : 'nadie la ha cogido en SIA'}</small></div>
+      <div><span>Último movimiento</span><b>${i.modified ? `hace ${age(i.modified, now)}` : '—'}</b><small>${when(i.modified)}</small></div>
+    </section>
     <aside class="iss-card iss-chat" aria-label="Chat de la issue">
       <div class="iss-card-h"><h3>Chat de la issue</h3><span class="iss-badge">Por conectar</span></div>
       <p class="iss-chat-note">Conectado al conocimiento del equipo. Sigue abierto mientras la issue lo esté: puedes salir y volver.</p>
@@ -92,5 +101,6 @@ export const workScreen = ({ issue: i, sameCenter, now, mine, tab = 'ai' }) => `
         <button class="lab-btn primary" disabled>Enviar</button>
       </form>
     </aside>
+    </div>
   </div>
 </div>`;

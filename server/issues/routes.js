@@ -56,7 +56,7 @@ export const issuesRoutes = (source, auth, platform, { json, readBody }) => asyn
       if (!issue) return json(res, 404, { error: 'Esa issue ya no está en la foto.' });
       const holder = claims.find((c) => c.issue_id === id);
       return json(res, 200, {
-        issue: { ...issue, claimedBy: holder ? { id: holder.user_id, name: holder.user_name } : null },
+        issue: { ...issue, claimedBy: holder ? { id: holder.user_id, name: holder.user_name, at: holder.claimed_at } : null },
         sameCenter: issue.center ? issues.filter((i) => i.center === issue.center && i.id !== id).map(brief) : [],
       });
     }

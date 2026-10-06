@@ -54,9 +54,9 @@ test('POST /next: manda la cola en orden de la regla y devuelve la que se lleva'
 });
 
 test('GET /:id: el detalle completo, quién la tiene y las del mismo centro', async () => {
-  const { body } = await setup([{ issue_id: 'INC1', user_id: 'u-ana', user_name: 'Ana López' }]).call('GET', ['INC1']);
+  const { body } = await setup([{ issue_id: 'INC1', user_id: 'u-ana', user_name: 'Ana López', claimed_at: '2026-10-06T08:00:00Z' }]).call('GET', ['INC1']);
   assert.equal(body.issue.notes, 'detalle');
-  assert.deepEqual(body.issue.claimedBy, { id: 'u-ana', name: 'Ana López' });
+  assert.deepEqual(body.issue.claimedBy, { id: 'u-ana', name: 'Ana López', at: '2026-10-06T08:00:00Z' });
   assert.deepEqual(body.sameCenter.map((i) => i.id), ['INC2', 'INC3']);
 });
 
