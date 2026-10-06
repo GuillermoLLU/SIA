@@ -13,7 +13,7 @@ const GOAL = { min: 15, max: 20 }; // resueltas por turno, lo que dice el equipo
 const REFRESH_MS = 15000;
 
 export const mountIssuesView = (root, { api, me, toast }) => {
-  let data = null, rule = 'basic', now = new Date(), opened = null, onDesk = false;
+  let data = null, rule = 'basic', now = new Date(), opened = null, onDesk = false, workTab = 'ai';
 
   const kpi = (label, value, hint) => `<div class="iss-kpi"><span>${label}</span><b>${value}</b><small>${hint}</small></div>`;
 
@@ -84,10 +84,11 @@ export const mountIssuesView = (root, { api, me, toast }) => {
   };
 
   const renderIssue = ({ issue: i, sameCenter }) => {
-    opened = i.id;
     onDesk = false;
     const mine = i.claimedBy && data?.desk.some((d) => d.id === i.id && d.claimed);
-    root.innerHTML = workScreen({ issue: i, sameCenter, now, mine });
+    if (opened !== i.id) workTab = 'ai';
+    opened = i.id;
+    root.innerHTML = workScreen({ issue: i, sameCenter, now, mine, tab: workTab });
     root.scrollTop = 0;
   };
 
@@ -110,6 +111,13 @@ export const mountIssuesView = (root, { api, me, toast }) => {
         if (!id) return toast?.('No queda ninguna sin coger.');
         if (seen && id !== seen) toast?.('La que veías ya la había cogido otra persona: te toca la siguiente.');
         return openIssue(id);
+      }
+      const wt = t.closest('[data-wtab]');
+      if (wt) {
+        workTab = wt.dataset.wtab;
+        root.querySelectorAll('[data-wtab]').forEach((b) => b.setAttribute('aria-selected', String(b === wt)));
+        root.querySelectorAll('[data-wpanel]').forEach((p) => { p.hidden = p.dataset.wpanel !== workTab; });
+        return;
       }
       const r = t.closest('[data-id]');
       if (r) return openIssue(r.dataset.id);
