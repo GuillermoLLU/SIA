@@ -13,6 +13,7 @@ import { themeById, toggledTheme, modeOf } from './theme/themes.js';
 import { renderThemePicker } from './theme/theme-picker.js';
 import { VIEWS } from './users/views.js';
 import { mountIssuesView } from './issues/issues-view.js';
+import { createIssuesApi } from './issues/issues-api.js';
 import { mountWorkView } from './work/work-view.js';
 import { mountMetricsView } from './metrics/metrics-view.js';
 import { mountProjectsView } from './projects/projects-view.js';
@@ -1557,9 +1558,10 @@ const viewLinks = document.getElementById('view-links');
 const navUsers = document.getElementById('nav-users');
 const viewUsers = document.getElementById('view-users');
 // Paneles (Issues, Panel de trabajo, Métricas): una vista cada uno, sin base;
-// el icono de la barra se enseña si la persona tiene esa vista.
+// el icono de la barra se enseña si la persona tiene esa vista. Si el panel
+// devuelve show(), se llama al abrirlo (Issues recarga su foto).
 const PANELS = [
-  { name: 'issues', mount: mountIssuesView },
+  { name: 'issues', mount: (el) => AUTH && mountIssuesView(el, { api: createIssuesApi(API_BASE, AUTH.session) }) },
   { name: 'work', mount: mountWorkView },
   { name: 'metrics', mount: mountMetricsView },
 ].map((p) => ({ ...p, nav: document.getElementById(`nav-${p.name}`), view: document.getElementById(`view-${p.name}`) }));
@@ -1573,6 +1575,7 @@ const showView = (name) => {
   viewLinks.hidden = name !== 'links';
   viewUsers.hidden = name !== 'users';
   for (const p of PANELS) { p.view.hidden = name !== p.name; p.nav.classList.toggle('active', name === p.name); }
+  PANELS.find((p) => p.name === name)?.ui?.show?.();
   navChat.classList.toggle('active', name === 'chat');
   navLab.classList.toggle('active', name === 'lab');
   navAdmin.classList.toggle('active', name === 'admin');
@@ -1592,7 +1595,7 @@ for (const p of PANELS) {
   p.nav.innerHTML = VIEWS.find((v) => v.id === p.name).icon;
   p.nav.hidden = !canView(p.name);
   p.nav.addEventListener('click', () => showView(p.name));
-  p.mount(p.view);
+  p.ui = p.mount(p.view);
 }
 navLab.addEventListener('click', () => showView('lab'));
 navAdmin.addEventListener('click', () => showView('admin'));

@@ -22,6 +22,8 @@ import { toAssignedBase } from './knowledge/assigned.js';
 import { createProjects } from './projects/service.js';
 import { createKnowledge } from './knowledge/service.js';
 import { knowledgeRoutes } from './knowledge/routes.js';
+import { createIssuesSource } from './issues/source.js';
+import { issuesRoutes } from './issues/routes.js';
 import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -773,6 +775,8 @@ const authRoute = authRoutes(auth, { json, readBody, onSession: loadAssigned, on
 const syncKeys = (jwt, userId, opts) => knowledge.syncPeople(jwt, userId ? [userId] : null, opts);
 const usersRoute = usersRoutes(users, auth, { json, readBody, syncKeys, assignKnowledge: (jwt, userId, ids) => knowledge.setProjects(jwt, userId, ids) });
 const knowledgeRoute = knowledgeRoutes(knowledge, auth, { json, readBody, syncKeys, onChange: loadAssigned });
+// Issues: de momento, el CSV más reciente que se deje en <workspace>/issues.
+const issuesRoute = issuesRoutes(createIssuesSource(path.join(WORKSPACE, 'issues')), { json });
 const validId = (s) => typeof s === 'string' && /^[a-z0-9][a-z0-9_-]{1,63}$/i.test(s);
 let uploadSeq = 0;
 const validFiles = (files) => Array.isArray(files) && files.length &&
@@ -1029,12 +1033,13 @@ const apiServer = http.createServer(async (req, res) => {
       // contraseña puesta por un admin: nada más hasta que elija la suya
       if (who.user.must_change_password) return json(res, 401, { error: 'Elige tu contraseña para seguir.', auth: true });
     }
-    // Cada vista (Laboratorio, Administración, Personas, Enlaces) solo para quien la tiene, aunque una clave de poder lo abriera:
+    // Cada vista (Laboratorio, Administración, Personas, Enlaces, Issues) solo para quien la tiene, aunque una clave de poder lo abriera:
     // segunda capa, además de la de la base (server/auth/views.js). El móvil
     // emparejado no inicia sesión: ve los Enlaces y nada de gestión.
     if (!allowed(who?.user ?? PHONE_USER, parts, req.method)) return json(res, 403, { error: 'No tienes acceso a esto.' });
     if (parts[1] === 'users') return usersRoute(req, res, parts.slice(2));
     if (parts[1] === 'knowledge') return knowledgeRoute(req, res, parts.slice(2));
+    if (parts[1] === 'issues') return issuesRoute(req, res, parts.slice(2));
 
     // Sin base de conocimiento solo funciona lo que no la necesita (terminal,
     // móvil, config personal, adjuntos). Lo demás: 503 con aviso claro.

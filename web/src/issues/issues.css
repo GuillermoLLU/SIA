@@ -1,0 +1,92 @@
+/* Vista Issues: cabecera, resumen del turno, columnas por estado y ficha lateral.
+   Colores del tema; la criticidad, con tonos propios mezclados con el texto. */
+.iss-view {
+  --iss-crit: color-mix(in srgb, #d1242f 80%, var(--text));
+  --iss-high: color-mix(in srgb, #d46a12 85%, var(--text));
+  --iss-med: var(--accent);
+  --iss-low: var(--text-low);
+  --iss-warn: color-mix(in srgb, #b08000 85%, var(--text));
+  --iss-ok: color-mix(in srgb, #1a7f37 85%, var(--text));
+  --iss-sunken: color-mix(in srgb, var(--bg) 70%, var(--border));
+  position: relative; gap: 12px; padding: 18px 24px 0; font-size: 13px;
+}
+.iss-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.iss-head h2 { margin: 0; font-size: 20px; font-weight: 680; color: var(--text); }
+.iss-snap { color: var(--text-low); font-size: 12px; }
+.iss-seg { margin-left: auto; display: inline-flex; border: 1px solid var(--border); background: var(--surface); }
+.iss-seg button { border: 0; background: transparent; padding: 6px 12px; cursor: pointer; color: var(--text-low); font: inherit; font-weight: 600; }
+.iss-seg button[aria-pressed="true"] { background: var(--accent); color: var(--surface); }
+.iss-chips { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.iss-chips button { border: 1px solid var(--border); background: var(--surface); padding: 4px 10px; cursor: pointer; color: var(--text-low); font: inherit; font-size: 12px; }
+.iss-chips button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); font-weight: 600; }
+.iss-search { margin-left: auto; width: 260px; max-width: 100%; height: 32px; background: var(--surface); }
+
+/* resumen del turno */
+.iss-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+.iss-strip:empty { display: none; }
+.iss-stat { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); }
+.iss-stat.wide { grid-column: span 2; }
+.iss-stat span { color: var(--text-low); font-size: 12px; }
+.iss-stat b { font-size: 22px; font-weight: 680; color: var(--text); font-variant-numeric: tabular-nums; }
+.iss-stat.alert b { color: var(--iss-crit); }
+.iss-goal { position: relative; height: 6px; margin-top: 6px; background: var(--iss-sunken); }
+.iss-goal i { position: absolute; inset: 0 auto 0 0; background: var(--iss-ok); }
+.iss-goal em { position: absolute; top: -3px; bottom: -3px; left: 75%; width: 2px; background: var(--text-low); }
+.iss-months { display: flex; align-items: flex-end; gap: 6px; height: 64px; padding-top: 4px; }
+.iss-months button { flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; gap: 3px; padding: 0; border: 0; background: transparent; cursor: pointer; }
+.iss-months i { display: block; background: var(--accent); opacity: .35; }
+.iss-months button[aria-pressed="true"] i, .iss-months button:hover i { opacity: 1; }
+.iss-months small { font-size: 10.5px; color: var(--text-low); text-align: center; font-variant-numeric: tabular-nums; }
+
+/* tablero */
+.iss-board { flex: 1; min-height: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(270px, 1fr); gap: 12px; overflow-x: auto; padding-bottom: 16px; }
+.iss-col { display: flex; flex-direction: column; min-height: 0; background: var(--iss-sunken); border: 1px solid var(--border); }
+.iss-col-h { padding: 10px 12px 8px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.iss-col-h h3 { margin: 0; display: flex; align-items: baseline; gap: 8px; font-size: 13px; font-weight: 680; color: var(--text); }
+.iss-col-h h3 span { color: var(--text-low); font-weight: 600; font-variant-numeric: tabular-nums; }
+.iss-col-h p { margin: 2px 0 0; color: var(--text-low); font-size: 11.5px; }
+.iss-list { flex: 1; min-height: 0; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 8px; }
+.iss-card { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; text-align: left; font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--iss-low); cursor: pointer; }
+.iss-card:hover { border-color: var(--accent); }
+.iss-card.CRITICAL { border-left-color: var(--iss-crit); }
+.iss-card.HIGH { border-left-color: var(--iss-high); }
+.iss-card.MEDIUM { border-left-color: var(--iss-med); }
+.iss-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.iss-sev { font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--iss-low); }
+.iss-sev.CRITICAL { color: var(--iss-crit); } .iss-sev.HIGH { color: var(--iss-high); } .iss-sev.MEDIUM { color: var(--iss-med); }
+.iss-code { padding: 0 5px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; background: var(--iss-sunken); }
+.iss-age { margin-left: auto; color: var(--text-low); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.iss-text { font-size: 12.5px; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.iss-tag { padding: 0 5px; font-size: 10.5px; font-weight: 600; color: var(--text-low); border: 1px solid var(--border); }
+.iss-tag.sisu { color: var(--accent); border-color: var(--accent); }
+.iss-tag.prio { color: var(--iss-crit); border-color: var(--iss-crit); }
+.iss-tag.same { color: var(--iss-warn); border-color: var(--iss-warn); }
+.iss-who { margin-left: auto; display: grid; place-items: center; min-width: 22px; height: 22px; padding: 0 4px; font-size: 10.5px; font-weight: 700; color: var(--surface); background: var(--accent); }
+.iss-who.none { padding: 0 6px; color: var(--text-low); background: transparent; border: 1px dashed var(--border); font-weight: 600; }
+.iss-sla { align-self: flex-start; padding: 2px 6px; font-size: 11.5px; font-weight: 700; color: var(--iss-high); background: color-mix(in srgb, var(--iss-high) 14%, var(--surface)); }
+.iss-sla.late { color: var(--iss-crit); background: color-mix(in srgb, var(--iss-crit) 14%, var(--surface)); }
+.iss-more { padding: 6px; font: inherit; color: var(--text-low); background: transparent; border: 1px dashed var(--border); cursor: pointer; }
+.iss-none { padding: 12px 4px; color: var(--text-low); font-size: 12px; }
+
+/* ficha lateral */
+.iss-drawer { position: absolute; top: 0; right: 0; bottom: 0; z-index: 5; width: min(460px, 100%); display: flex; flex-direction: column; background: var(--surface); border-left: 1px solid var(--border); box-shadow: -12px 0 30px rgba(0, 0, 0, .12); color: var(--text); }
+.iss-dh { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 16px 18px 12px; border-bottom: 1px solid var(--border); }
+.iss-x { position: absolute; top: 8px; right: 10px; border: 0; background: transparent; font-size: 20px; color: var(--text-low); cursor: pointer; }
+.iss-dh h3 { margin: 0; padding-right: 26px; font-size: 15px; line-height: 1.35; overflow-wrap: anywhere; }
+.iss-db { display: flex; flex-direction: column; gap: 16px; padding: 14px 18px; overflow-y: auto; }
+.iss-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.iss-note { margin: -8px 0 0; color: var(--text-low); font-size: 11.5px; }
+.iss-kv { display: grid; grid-template-columns: 120px 1fr; gap: 6px 12px; margin: 0; font-size: 12.5px; }
+.iss-kv dt { color: var(--text-low); }
+.iss-kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.iss-kv a { color: var(--accent); font-weight: 600; text-decoration: none; }
+.iss-kv a:hover { text-decoration: underline; }
+.iss-sec h4 { margin: 0 0 8px; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--text-low); }
+.iss-rel { display: flex; flex-direction: column; gap: 4px; }
+.iss-rel button { display: flex; gap: 8px; min-width: 0; padding: 6px 8px; text-align: left; font: inherit; font-size: 12px; color: var(--text); background: var(--bg); border: 1px solid var(--border); cursor: pointer; }
+.iss-rel button span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iss-tl { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.iss-tl li { display: grid; grid-template-columns: 100px 1fr; gap: 10px; font-size: 12px; }
+.iss-tl time { color: var(--text-low); font-variant-numeric: tabular-nums; }
+.iss-seg button:focus-visible, .iss-chips button:focus-visible, .iss-card:focus-visible, .iss-months button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+@media (max-width: 640px) { .iss-view { padding-inline: 16px; } .iss-stat.wide { grid-column: auto; } }

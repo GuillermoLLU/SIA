@@ -14,6 +14,7 @@ test('can: solo las vistas que tiene', () => {
 test('cada ruta de gestión pide su vista', () => {
   assert.deepEqual(viewsForRoute(p('admin/projects'), 'GET'), ['admin']);
   assert.deepEqual(viewsForRoute(p('links'), 'POST'), ['links']);
+  assert.deepEqual(viewsForRoute(p('issues'), 'GET'), ['issues']);
   assert.deepEqual(viewsForRoute(p('drafts'), 'GET'), ['lab']);
   assert.deepEqual(viewsForRoute(p('skills/x'), 'DELETE'), ['lab']);
   assert.deepEqual(viewsForRoute(p('users'), 'GET'), ['people']);
