@@ -1,10 +1,21 @@
-// Cliente de /api/issues: la foto de issues ({ taken, issues }).
+// Cliente de /api/issues: mi mesa, coger la siguiente, el detalle y devolverla.
 
-export const createIssuesApi = (apiBase, session) => ({
-  load: async () => {
-    const r = await fetch(`${apiBase}/issues`, { headers: session.headers() });
+export const createIssuesApi = (apiBase, session) => {
+  const call = async (path, method = 'GET', body) => {
+    const r = await fetch(`${apiBase}/issues${path}`, {
+      method,
+      headers: { 'Content-Type': 'application/json', ...session.headers() },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
     const data = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
     return data;
-  },
-});
+  };
+  const id = (x) => encodeURIComponent(x);
+  return {
+    desk: () => call(''),
+    next: (rule) => call('/next', 'POST', { rule }),
+    get: (issueId) => call(`/${id(issueId)}`),
+    release: (issueId) => call(`/${id(issueId)}/release`, 'POST', {}),
+  };
+};

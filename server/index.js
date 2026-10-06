@@ -776,7 +776,7 @@ const syncKeys = (jwt, userId, opts) => knowledge.syncPeople(jwt, userId ? [user
 const usersRoute = usersRoutes(users, auth, { json, readBody, syncKeys, assignKnowledge: (jwt, userId, ids) => knowledge.setProjects(jwt, userId, ids) });
 const knowledgeRoute = knowledgeRoutes(knowledge, auth, { json, readBody, syncKeys, onChange: loadAssigned });
 // Issues: de momento, el CSV más reciente que se deje en <workspace>/issues.
-const issuesRoute = issuesRoutes(createIssuesSource(path.join(WORKSPACE, 'issues')), { json });
+const issuesRoute = issuesRoutes(createIssuesSource(path.join(WORKSPACE, 'issues')), auth, platform, { json, readBody });
 const validId = (s) => typeof s === 'string' && /^[a-z0-9][a-z0-9_-]{1,63}$/i.test(s);
 let uploadSeq = 0;
 const validFiles = (files) => Array.isArray(files) && files.length &&

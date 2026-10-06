@@ -145,6 +145,14 @@ create table if not exists platform.audit_log (
 );
 create index if not exists audit_happened on platform.audit_log (happened_at desc);
 
+-- Issues cogidas desde SIA: una issue, una persona. La clave primaria es la
+-- cola: si dos piden a la vez, solo una se la lleva.
+create table if not exists platform.issue_claims (
+  issue_id    text primary key check (issue_id ~ '^INC[0-9]+$'),
+  user_id     uuid not null references platform.users (id) on delete cascade,
+  claimed_at  timestamptz not null default now()
+);
+
 -- Administrador, con todas las vistas que haya (también las que se añadan)
 update platform.roles set views = platform.known_views() where builtin = 'admin' and views is distinct from platform.known_views();
 update platform.users u set views = r.views from platform.roles r where r.builtin = 'admin' and u.role_id = r.id and u.views is distinct from r.views;
@@ -156,6 +164,7 @@ alter table platform.knowledge_grants enable row level security;
 alter table platform.audit_log        enable row level security;
 alter table platform.person_keys      enable row level security;
 alter table platform.roles            enable row level security;
+alter table platform.issue_claims     enable row level security;
 revoke all on all tables in schema platform from public, anon, authenticated;
 revoke all on all sequences in schema platform from public, anon, authenticated;
 
@@ -637,6 +646,48 @@ begin
   perform platform.audit(v_me, 'person_key.' || case when p_power_key is null then 'remove' else 'set' end, p_user, jsonb_build_object('base', p_base));
 exception
   when foreign_key_violation then raise exception 'Esa persona o esa base no existe.' using errcode = 'P0002';
+end $$;
+
+-- ── Issues ────────────────────────────────────────────────────────────────
+-- Quién ha cogido cada issue desde SIA.
+drop function if exists public.platform_issue_claims();
+create function public.platform_issue_claims()
+returns table (issue_id text, user_id uuid, user_name text, claimed_at timestamptz)
+language plpgsql stable security definer set search_path = '' as $$
+#variable_conflict use_column
+begin
+  perform platform.require_view('issues');
+  return query
+    select c.issue_id, c.user_id, u.name, c.claimed_at
+    from platform.issue_claims c join platform.users u on u.id = c.user_id
+    order by c.claimed_at;
+end $$;
+
+-- Coger la siguiente: la primera de la lista (ya en el orden de la regla)
+-- que nadie tenga. Devuelve cuál, o null si no queda ninguna libre.
+create or replace function public.platform_claim_next_issue(p_candidates text[]) returns text
+language plpgsql security definer set search_path = '' as $$
+declare v_me uuid := platform.require_view('issues'); v_id text; v_got text;
+begin
+  foreach v_id in array coalesce(p_candidates[1:500], array[]::text[]) loop
+    insert into platform.issue_claims (issue_id, user_id) values (v_id, v_me)
+      on conflict (issue_id) do nothing returning issue_id into v_got;
+    if v_got is not null then
+      perform platform.audit(v_me, 'issue.claimed', v_me, jsonb_build_object('issue', v_got));
+      return v_got;
+    end if;
+  end loop;
+  return null;
+end $$;
+
+-- Devolverla a la cola (solo la propia).
+create or replace function public.platform_release_issue(p_issue text) returns void
+language plpgsql security definer set search_path = '' as $$
+declare v_me uuid := platform.require_view('issues');
+begin
+  delete from platform.issue_claims where issue_id = p_issue and user_id = v_me;
+  if not found then raise exception 'Esa issue no es tuya.' using errcode = '42501'; end if;
+  perform platform.audit(v_me, 'issue.released', v_me, jsonb_build_object('issue', p_issue));
 end $$;
 
 -- ── Auditoría ─────────────────────────────────────────────────────────────

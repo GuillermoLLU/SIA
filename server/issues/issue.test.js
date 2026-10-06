@@ -5,7 +5,7 @@ import { toIssue, statusChanges } from './issue.js';
 const row = (o) => ({
   INCIDENTNUMBER: 'INC1', SUMMARY: '', PRIORITY: 'HIGH', STATUS: 'ASSIGNED', STATUSREASON: '', ASSIGNEE: '',
   ASSIGNEDGROUP: 'G', TAGS: '', REPORTEDDATE: '2026-10-01 08:00:12.000', LASTMODIFIEDDATE: '', LASTRESOLUTIONDATE: '',
-  VENDORTICKETNUMBER: '', CHILDREQUEST: '', LINKREMEDY: '', AUDIT_DETAIL: '', ...o,
+  NOTES: '', CATEGORIZATIONTIER1: '', CATEGORIZATIONTIER2: '', CATEGORIZATIONTIER3: '', RESOLUTION: '', VENDORTICKETNUMBER: '', CHILDREQUEST: '', LINKREMEDY: '', AUDIT_DETAIL: '', ...o,
 });
 
 test('summary: código de centro aparte y sin la criticidad escrita a mano', () => {
@@ -37,4 +37,8 @@ test('statusChanges: solo los cambios de estado', () => {
   const audit = '2026-09-30 04:27:46.000 - robot.siglo - Urgency: 2-High → 2-High | 2026-09-30 05:00:46.000 - X - Status: Assigned → In Progress | 2026-10-01 12:16:15.000 - Y - Status: In Progress → Resolved';
   assert.deepEqual(statusChanges(audit), [['2026-09-30 05:00', 'Assigned', 'In Progress'], ['2026-10-01 12:16', 'In Progress', 'Resolved']]);
   assert.deepEqual(statusChanges(''), []);
+});
+
+test('categoría por niveles, sin huecos', () => {
+  assert.equal(toIssue(row({ CATEGORIZATIONTIER1: 'ECOM ZARA ES13', CATEGORIZATIONTIER2: 'EWMS' })).category, 'ECOM ZARA ES13 › EWMS');
 });

@@ -1,8 +1,56 @@
-// /api/issues (vista Issues; la exige el bridge):
-//   GET / → { taken, issues }  (taken: hora de la foto, o null si no hay fuente)
+// /api/issues (vista Issues; la exige el bridge). La base de la instancia
+// lleva quién ha cogido qué; las issues, de la fuente (de momento, el CSV).
+//   GET  /              → { taken, rules, free, desk }  (desk: mis issues, en breve)
+//   GET  /:id           → { issue, sameCenter }
+//   POST /next          { rule } → { id }  (null: no queda ninguna libre)
+//   POST /:id/release   → { ok }  (devolverla a la cola)
+// «Coger» es un simulacro: se da por hecho que SIGLO la asigna en Remedy.
+import { queue, RULES } from './queue.js';
+import { deskOf, brief } from './desk.js';
 
-export const issuesRoutes = (source, { json }) => (req, res, path) => {
-  if (path.length || req.method !== 'GET') return json(res, 404, { error: 'no encontrado' });
-  try { return json(res, 200, source.load()); }
-  catch { return json(res, 500, { error: 'No se pudieron leer las issues.' }); }
+const ISSUE_ID = /^INC\d+$/;
+
+export const issuesRoutes = (source, auth, platform, { json, readBody }) => async (req, res, path) => {
+  try {
+    const ctx = await auth.context(req.headers['x-sia-auth']);
+    if (!ctx) return json(res, 401, { error: 'Inicia sesión.' });
+    const jwt = ctx.accessToken;
+    const [id, action] = path;
+    const { taken, issues } = source.load();
+    const claims = await platform.rpc(jwt, 'platform_issue_claims');
+    const claimed = new Set(claims.map((c) => c.issue_id));
+    const now = taken ? new Date(taken) : new Date();
+
+    if (!id && req.method === 'GET') {
+      return json(res, 200, {
+        taken,
+        rules: RULES.map(({ id: rid, label }) => ({ id: rid, label })),
+        free: queue(issues, claimed, now).length,
+        desk: deskOf(issues, ctx.user, claims).map(brief),
+      });
+    }
+    if (id === 'next' && !action && req.method === 'POST') {
+      const { rule } = await readBody(req);
+      const got = await platform.rpc(jwt, 'platform_claim_next_issue', { p_candidates: queue(issues, claimed, now, rule).slice(0, 500) });
+      return json(res, 200, { id: got || null });
+    }
+    if (!ISSUE_ID.test(id || '')) return json(res, 404, { error: 'No existe.' });
+    if (action === 'release' && req.method === 'POST') {
+      await platform.rpc(jwt, 'platform_release_issue', { p_issue: id });
+      return json(res, 200, { ok: true });
+    }
+    if (!action && req.method === 'GET') {
+      const issue = issues.find((i) => i.id === id);
+      if (!issue) return json(res, 404, { error: 'Esa issue ya no está en la foto.' });
+      const holder = claims.find((c) => c.issue_id === id);
+      return json(res, 200, {
+        issue: { ...issue, claimedBy: holder ? { id: holder.user_id, name: holder.user_name } : null },
+        sameCenter: issue.center ? issues.filter((i) => i.center === issue.center && i.id !== id).map(brief) : [],
+      });
+    }
+    return json(res, 404, { error: 'no encontrado' });
+  } catch (e) {
+    if (!e.status) return json(res, 500, { error: 'Error interno.' });
+    return json(res, e.status >= 500 ? 503 : e.status, { error: e.message });
+  }
 };

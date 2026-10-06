@@ -1561,7 +1561,7 @@ const viewUsers = document.getElementById('view-users');
 // el icono de la barra se enseña si la persona tiene esa vista. Si el panel
 // devuelve show(), se llama al abrirlo (Issues recarga su foto).
 const PANELS = [
-  { name: 'issues', mount: (el) => AUTH && mountIssuesView(el, { api: createIssuesApi(API_BASE, AUTH.session) }) },
+  { name: 'issues', mount: (el) => AUTH && mountIssuesView(el, { api: createIssuesApi(API_BASE, AUTH.session), toast: (t) => toast(t) }) },
   { name: 'work', mount: mountWorkView },
   { name: 'metrics', mount: mountMetricsView },
 ].map((p) => ({ ...p, nav: document.getElementById(`nav-${p.name}`), view: document.getElementById(`view-${p.name}`) }));
