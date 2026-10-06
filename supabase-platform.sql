@@ -690,6 +690,22 @@ begin
   perform platform.audit(v_me, 'issue.released', v_me, jsonb_build_object('issue', p_issue));
 end $$;
 
+-- Mi historial en SIA: lo que he cogido y devuelto desde una fecha (sale de
+-- la auditoría; con él se miden las métricas de cada persona).
+drop function if exists public.platform_my_issue_events(timestamptz);
+create function public.platform_my_issue_events(p_since timestamptz)
+returns table (issue_id text, action text, happened_at timestamptz)
+language plpgsql stable security definer set search_path = '' as $$
+#variable_conflict use_column
+declare v_me uuid := platform.require_view('issues');
+begin
+  return query
+    select a.details ->> 'issue', a.action, a.happened_at
+    from platform.audit_log a
+    where a.actor = v_me and a.action in ('issue.claimed', 'issue.released') and a.happened_at >= p_since
+    order by a.happened_at, a.id;
+end $$;
+
 -- ── Auditoría ─────────────────────────────────────────────────────────────
 create or replace function public.platform_list_audit(p_limit int default 100)
 returns table (happened_at timestamptz, actor_name text, action text, target_name text, details jsonb)

@@ -1,49 +1,36 @@
-// Vista «Issues»: la mesa de cada persona. Arriba, la siguiente que le toca
-// (la elige la regla; la cola de la base evita que dos cojan la misma) y su
-// día; después sus números, su ritmo y el seguimiento de lo suyo. Al abrir
-// una, la pantalla de trabajo. Resolver y escalar irán por SIGLO. Mientras
-// se ve la mesa, se refresca sola (otros cogen issues).
+// Vista «Issues»: la mesa de cada persona. Arriba, lo inmediato: la
+// siguiente que le toca (la elige la regla; la cola de la base evita que dos
+// cojan la misma) y su día. En medio, su histórico medido en SIA (se llena
+// con el uso). Abajo, el seguimiento de lo suyo. Al abrir una, la pantalla de
+// trabajo; resolver y escalar irán por SIGLO. La mesa se refresca sola.
 import './issues.css';
 import { esc } from '../ui/html.js';
-import { SEVERITY_ES, STATUS_ES, REASON_ES, LISTS, when, age, stamp, duration } from './format.js';
+import { SEVERITY_ES, STATUS_ES, REASON_ES, LISTS, when, age, stamp } from './format.js';
 
 const GOAL = { min: 15, max: 20 }; // resueltas por turno, lo que dice el equipo
-const WEEKDAY = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
 const REFRESH_MS = 15000;
-const dayLabel = (day) => `${WEEKDAY[new Date(`${day}T12:00:00`).getDay()]} ${+day.slice(8)}`;
 
 export const mountIssuesView = (root, { api, me, toast }) => {
   let data = null, rule = 'basic', now = new Date(), opened = null, onDesk = false;
 
   const sev = (p) => `<span class="iss-sev ${esc(p)}">${esc(SEVERITY_ES[p] || p)}</span>`;
+  const origin = (i) => `<span class="iss-origin${i.sisu ? ' sisu' : ''}">${i.sisu ? 'SISU' : 'SGA'}</span>`;
   const item = (i, key) => {
     const since = key === 'waiting' ? `sin moverse ${age(i.modified, now)}` : key === 'resolved' ? when(i.resolved) : `hace ${age(i.reported, now)}`;
     return `<button class="iss-item" data-id="${esc(i.id)}">
-      <span class="iss-line">${sev(i.priority)}<span class="iss-code">${esc(i.center || '—')}</span><span class="iss-origin${i.sisu ? ' sisu' : ''}">${i.sisu ? 'SISU' : 'SGA'}</span>${key === 'waiting' && i.reason ? `<span class="iss-reason">${esc(REASON_ES[i.reason] || i.reason)}</span>` : ''}<span class="iss-when">${since}</span></span>
+      <span class="iss-line">${sev(i.priority)}<span class="iss-code">${esc(i.center || '—')}</span>${origin(i)}${key === 'waiting' && i.reason ? `<span class="iss-reason">${esc(REASON_ES[i.reason] || i.reason)}</span>` : ''}<span class="iss-when">${since}</span></span>
       <span class="iss-text">${esc(i.text)}</span>
     </button>`;
   };
-  const tile = (label, value, hint = '') => `<div class="iss-tile"><span>${label}</span><b>${value}</b>${hint ? `<small>${hint}</small>` : ''}</div>`;
+  const kpi = (label, value, hint) => `<div class="iss-kpi"><span>${label}</span><b>${value}</b><small>${hint}</small></div>`;
 
-  const rhythm = (perDay) => {
-    const max = Math.max(GOAL.max, ...perDay.map((d) => d.count));
-    return `<div class="iss-bars" role="img" aria-label="Resueltas por día, últimos ${perDay.length} días">
-      <i class="iss-goal-line" style="bottom:calc(30px + (100% - 30px) * ${GOAL.min / max})" title="Objetivo por turno: ${GOAL.min}–${GOAL.max}"></i>
-      ${perDay.map(({ day, count, sga, sisu }) => {
-        return `<div class="iss-bar" title="${day.slice(8)}/${day.slice(5, 7)}: ${count} (SGA ${sga}, SISU ${sisu})">
-          <small>${count || ''}</small><i class="sisu" style="height:${sisu / max * 100}%"></i><i style="height:${sga / max * 100}%"></i><span>${dayLabel(day).replace(' ', '<br>')}</span></div>`;
-      }).join('')}
+  // Cogidas por semana (SGA / SISU), lo medido en SIA.
+  const weeksChart = (weeks) => {
+    const max = Math.max(5, ...weeks.map((w) => w.sga + w.sisu));
+    return `<div class="iss-bars" role="img" aria-label="Issues cogidas por semana, últimas ${weeks.length} semanas">
+      ${weeks.map(({ week, sga, sisu }) => `<div class="iss-bar" title="Semana del ${week.slice(8)}/${week.slice(5, 7)}: ${sga + sisu} (SGA ${sga}, SISU ${sisu})">
+          <small>${sga + sisu || ''}</small><i class="sisu" style="height:${sisu / max * 100}%"></i><i style="height:${sga / max * 100}%"></i><span>${+week.slice(8)}/${+week.slice(5, 7)}</span></div>`).join('')}
     </div>`;
-  };
-
-  // En qué trabaja: por tipo y por centro; barra de abiertas + resueltas.
-  const ranking = (rows) => {
-    const max = Math.max(1, ...rows.map((r) => r.open + r.resolved));
-    return rows.length ? `<ol class="iss-rank">${rows.map((r) => `<li title="${esc(r.label)}: ${r.open} abiertas, ${r.resolved} resueltas">
-        <span class="iss-rank-l">${r.key && r.key !== r.label ? `<span class="iss-code">${esc(r.key)}</span> ` : ''}${esc(r.label)}</span>
-        <span class="iss-rank-n">${r.open + r.resolved}</span>
-        <span class="iss-rank-b"><i style="width:${r.open / max * 100}%"></i><i class="done" style="width:${r.resolved / max * 100}%"></i></span>
-      </li>`).join('')}</ol>` : '<p class="iss-empty">Aún nada.</p>';
   };
 
   const renderDesk = () => {
@@ -53,18 +40,18 @@ export const mountIssuesView = (root, { api, me, toast }) => {
         <p class="iss-empty">Aún no hay issues. De momento se leen del CSV más reciente que se deje en la carpeta «issues» del workspace de SIA.</p></div>`;
       return;
     }
-    const { stats, next } = data;
+    const { today, history, next } = data;
     const lists = LISTS.map((l) => ({ ...l, items: data.desk.filter(l.test).sort(l.sort) }));
     const count = (key) => lists.find((l) => l.key === key).items.length;
-    const progress = Math.min(100, stats.resolvedToday / GOAL.max * 100);
+    const used = history.weeks.some((w) => w.sga + w.sisu);
     root.innerHTML = `<div class="iss-page">
       <header class="iss-top"><h2 class="iss-title">Hola, ${esc((me?.name || '').split(' ')[0] || 'equipo')}</h2><span class="iss-snap">Datos de Remedy del ${when(stamp(now))}</span></header>
 
-      <div class="iss-hero">
+      <div class="iss-row1">
         <section class="iss-card iss-next">
           <h3>La siguiente que te toca</h3>
           ${next ? `<div class="iss-preview">
-              <span class="iss-line">${sev(next.priority)}<span class="iss-code">${esc(next.center || '—')}</span><span class="iss-origin${next.sisu ? ' sisu' : ''}">${next.sisu ? 'SISU' : 'SGA'}</span>${next.prio ? '<span class="iss-prio">Priorizada por negocio</span>' : ''}<span class="iss-when">hace ${age(next.reported, now)}</span></span>
+              <span class="iss-line">${sev(next.priority)}<span class="iss-code">${esc(next.center || '—')}</span>${origin(next)}${next.prio ? '<span class="iss-prio">Priorizada por negocio</span>' : ''}<span class="iss-when">hace ${age(next.reported, now)}</span></span>
               <p>${esc(next.text)}</p>
             </div>` : '<p class="iss-empty">No queda ninguna sin coger.</p>'}
           <div class="iss-go">
@@ -75,32 +62,24 @@ export const mountIssuesView = (root, { api, me, toast }) => {
         </section>
         <section class="iss-card iss-today">
           <h3>Hoy</h3>
-          <div class="iss-big"><b>${stats.resolvedToday}</b><span>resueltas · objetivo ${GOAL.min}–${GOAL.max}<br>${stats.resolvedTodayBy.sga} de SGA · ${stats.resolvedTodayBy.sisu} de SISU</span></div>
-          <div class="iss-progress" role="img" aria-label="${stats.resolvedToday} de ${GOAL.max}"><i style="width:${progress}%"></i><em style="left:${GOAL.min / GOAL.max * 100}%"></em></div>
-          <dl><dt>Cogidas en SIA</dt><dd>${stats.claimedToday}</dd><dt>En curso ahora</dt><dd>${count('doing')}</dd></dl>
+          <div class="iss-big"><b>${today.resolved}</b><span>resueltas · objetivo ${GOAL.min}–${GOAL.max}<br>${today.sga} de SGA · ${today.sisu} de SISU</span></div>
+          <div class="iss-progress" role="img" aria-label="${today.resolved} de ${GOAL.max}"><i style="width:${Math.min(100, today.resolved / GOAL.max * 100)}%"></i><em style="left:${GOAL.min / GOAL.max * 100}%"></em></div>
+          <dl><dt>Cogidas en SIA</dt><dd>${history.claimedToday}</dd><dt>En curso</dt><dd>${count('doing')}</dd><dt>Pendientes de terceros</dt><dd>${count('waiting')}</dd></dl>
         </section>
-        <div class="iss-tiles">
-          ${tile('En curso', count('doing'))}
-          ${tile('Pendientes de terceros', count('waiting'), count('waiting') ? `la más parada, ${age(lists[1].items[0].modified, now)} sin moverse` : '')}
-          ${tile('Resueltas · 7 días', stats.resolvedWeek)}
-          ${tile('Tiempo típico', stats.medianResolutionMin == null ? '—' : duration(stats.medianResolutionMin), 'mediana, de reportada a resuelta')}
-        </div>
       </div>
 
-      <div class="iss-charts">
+      <div class="iss-row2">
         <section class="iss-card">
-          <div class="iss-card-h"><h3>Mi ritmo · resueltas por día</h3><span class="iss-legend"><i></i>SGA <i class="sisu"></i>SISU · la línea es el objetivo mínimo</span></div>
-          ${rhythm(stats.perDay)}
+          <div class="iss-card-h"><h3>Mi histórico en SIA · cogidas por semana</h3><span class="iss-legend"><i></i>SGA <i class="sisu"></i>SISU</span></div>
+          ${weeksChart(history.weeks)}
+          <p class="iss-foot">${used ? 'Medido con el uso de SIA.' : 'Se irá llenando con el uso de SIA: cada issue que cojas cuenta.'} Las resueltas se sumarán cuando se resuelva desde SIA.</p>
         </section>
-        <section class="iss-card">
-          <div class="iss-card-h"><h3>En qué trabajo</h3><span class="iss-legend"><i></i>abiertas <i class="done"></i>resueltas</span></div>
-          <div class="iss-focus">
-            <div><h4>Por tipo</h4>${ranking(stats.focus.types)}</div>
-            <div><h4>Por centro</h4>${ranking(stats.focus.centers)}</div>
-          </div>
-        </section>
+        <div class="iss-kpis">
+          ${kpi('Cogidas por semana', history.perWeek, `media de las últimas ${history.weeks.length} semanas`)}
+          ${kpi('Cogidas a tiempo', history.onTimePct == null ? '—' : `${history.onTimePct} %`, 'críticas en 15 min, altas en 2 h')}
+          ${kpi('Tiempo típico de resolución', '—', 'cuando se resuelva desde SIA')}
+        </div>
       </div>
-      <p class="iss-foot">Solo cuentan las resueltas que Remedy aún no ha cerrado; el histórico completo llegará al leer de Snowflake.</p>
 
       <div class="iss-cols">
         ${lists.map((l) => `<section class="iss-card iss-col">
@@ -119,7 +98,7 @@ export const mountIssuesView = (root, { api, me, toast }) => {
       <button class="iss-back" data-back>← Mi mesa</button>
       <article class="iss-work">
         <header>
-          <div class="iss-meta">${sev(i.priority)}<span class="iss-code">${esc(i.center || '—')}</span><span class="iss-origin${i.sisu ? ' sisu' : ''}">${i.sisu ? 'SISU' : 'SGA'}</span>${i.prio ? '<span class="iss-prio">Priorizada por negocio</span>' : ''}
+          <div class="iss-meta">${sev(i.priority)}<span class="iss-code">${esc(i.center || '—')}</span>${origin(i)}${i.prio ? '<span class="iss-prio">Priorizada por negocio</span>' : ''}
             <a href="${esc(i.link)}" target="_blank" rel="noopener">${esc(i.id)} ↗</a></div>
           <h2>${esc(i.text)}</h2>
           <p class="iss-state">${esc(STATUS_ES[i.status] || i.status)}${i.reason ? ` · ${esc(REASON_ES[i.reason] || i.reason)}` : ''} · reportada hace ${age(i.reported, now)}${i.claimedBy ? ` · cogida por ${esc(i.claimedBy.name)}` : ''}</p>

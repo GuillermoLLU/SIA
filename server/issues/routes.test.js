@@ -12,6 +12,7 @@ const setup = (claims = []) => {
     rpc: async (jwt, fn, args) => {
       calls.push([fn, args]);
       if (fn === 'platform_issue_claims') return claims;
+      if (fn === 'platform_my_issue_events') return [];
       if (fn === 'platform_claim_next_issue') return args.p_candidates[0] ?? null;
       return null;
     },
@@ -41,7 +42,8 @@ test('GET /: libres, reglas y mi mesa (responsable en Remedy o cogida en SIA)', 
   assert.deepEqual(body.desk.map((i) => [i.id, i.claimed]), [['INC1', true], ['INC3', false]]);
   assert.equal(body.desk[0].notes, undefined);
   assert.equal(body.next.id, 'INC2');
-  assert.equal(body.stats.perDay.length, 14);
+  assert.equal(body.history.weeks.length, 12);
+  assert.deepEqual(body.today, { resolved: 0, sga: 0, sisu: 0 });
 });
 
 test('POST /next: manda la cola en orden de la regla y devuelve la que se lleva', async () => {

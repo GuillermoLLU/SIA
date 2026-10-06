@@ -1,65 +1,53 @@
-// Las métricas de la mesa de una persona, a partir de sus issues (las de la
-// foto: abiertas y resueltas aún sin cerrar en Remedy) y de lo que ha cogido
-// en SIA. «today» es el día de la foto («YYYY-MM-DD»).
+// Métricas de la mesa de una persona.
+// - today: lo resuelto hoy según Remedy (día de la foto), por origen.
+// - history: lo medido en SIA (se llena con el uso, no hacia atrás): lo
+//   cogido por semana, por origen, y si se cogió a tiempo (primera gestión:
+//   crítica 15 min, alta 2 h, lo que ha explicado el equipo).
 
-const DAY_MS = 86400000;
-const minutesBetween = (from, to) => (new Date(to.replace(' ', 'T')) - new Date(from.replace(' ', 'T'))) / 60000;
 const pad = (n) => String(n).padStart(2, '0');
 export const dayKey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const FIRST_TOUCH_MIN = { CRITICAL: 15, HIGH: 120 };
 
-// Los últimos `days` días hasta `today` (incluido), del más antiguo al más reciente.
-export const lastDays = (today, days) => {
-  const end = new Date(`${today}T12:00:00`);
-  return Array.from({ length: days }, (_, k) => dayKey(new Date(end - (days - 1 - k) * DAY_MS)));
+export const today = (desk, day) => {
+  const done = desk.filter((i) => i.status === 'RESOLVED' && i.resolved.startsWith(day));
+  const sisu = done.filter((i) => i.sisu).length;
+  return { resolved: done.length, sga: done.length - sisu, sisu };
 };
 
-export const median = (xs) => {
-  if (!xs.length) return null;
-  const s = [...xs].sort((a, b) => a - b), m = s.length >> 1;
-  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+// Lunes de la semana de una fecha, «YYYY-MM-DD».
+export const weekOf = (d) => {
+  const m = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  m.setDate(m.getDate() - ((m.getDay() + 6) % 7));
+  return dayKey(m);
 };
 
-// En qué trabaja: sus issues (abiertas y resueltas) por tipo y por centro,
-// las que más arriba. El nombre del centro, el del texto de su issue más
-// reciente (lo que va antes del primer « - »).
-const TOP = 6;
-const isOpen = (i) => i.status !== 'RESOLVED';
-export const focus = (desk) => {
-  const tally = (keyOf, labelOf) => {
-    const m = new Map();
-    for (const i of desk) {
-      const k = keyOf(i);
-      const t = m.get(k) || { key: k, label: labelOf(i), open: 0, resolved: 0, last: '' };
-      t[isOpen(i) ? 'open' : 'resolved'] += 1;
-      if (i.reported > t.last) Object.assign(t, { last: i.reported, label: labelOf(i) });
-      m.set(k, t);
-    }
-    return [...m.values()].sort((a, b) => (b.open + b.resolved) - (a.open + a.resolved) || a.key.localeCompare(b.key))
-      .slice(0, TOP).map(({ key, label, open, resolved }) => ({ key, label, open, resolved }));
-  };
-  return {
-    types: tally((i) => i.type || '', (i) => i.type || 'Sin tipo'),
-    centers: tally((i) => i.center || '', (i) => (i.center ? i.text.split(' - ')[0] : 'Sin centro')),
-  };
+// Las cogidas que siguen siendo suyas (las devueltas no cuentan).
+const kept = (events) => {
+  const last = new Map();
+  for (const e of events) last.set(e.issue_id, e);
+  return events.filter((e) => e.action === 'issue.claimed' && last.get(e.issue_id) === e);
 };
 
-// Por día: resueltas de SGA y de SISU.
-export const deskStats = (desk, myClaims, today, { days = 14 } = {}) => {
-  const resolved = desk.filter((i) => i.status === 'RESOLVED' && i.resolved);
-  const perDay = Object.fromEntries(lastDays(today, days).map((d) => [d, { sga: 0, sisu: 0 }]));
-  for (const i of resolved) {
-    const d = perDay[i.resolved.slice(0, 10)];
-    if (d) d[i.sisu ? 'sisu' : 'sga'] += 1;
+export const history = (events, issuesById, now, weeks = 12) => {
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7 * (weeks - 1));
+  const series = Array.from({ length: weeks }, (_, k) => {
+    const d = new Date(start); d.setDate(d.getDate() + 7 * k);
+    return { week: weekOf(d), sga: 0, sisu: 0 };
+  });
+  const byWeek = new Map(series.map((w) => [w.week, w]));
+  let timed = 0, onTime = 0;
+  const claims = kept(events);
+  for (const e of claims) {
+    const at = new Date(e.happened_at), issue = issuesById.get(e.issue_id);
+    const w = byWeek.get(weekOf(at));
+    if (w) w[issue?.sisu ? 'sisu' : 'sga'] += 1;
+    const limit = issue && FIRST_TOUCH_MIN[issue.priority];
+    if (limit) { timed += 1; if ((at - new Date(issue.reported.replace(' ', 'T'))) / 60000 <= limit) onTime += 1; }
   }
-  const week = lastDays(today, 7);
-  const todays = perDay[today] || { sga: 0, sisu: 0 };
   return {
-    resolvedToday: todays.sga + todays.sisu,
-    resolvedTodayBy: { sga: todays.sga, sisu: todays.sisu },
-    resolvedWeek: resolved.filter((i) => week.includes(i.resolved.slice(0, 10))).length,
-    claimedToday: myClaims.filter((c) => dayKey(new Date(c.claimed_at)) === dayKey(new Date())).length,
-    medianResolutionMin: median(resolved.map((i) => minutesBetween(i.reported, i.resolved)).filter((m) => m >= 0)),
-    perDay: Object.entries(perDay).map(([day, d]) => ({ day, count: d.sga + d.sisu, ...d })),
-    focus: focus(desk),
+    weeks: series,
+    claimedToday: claims.filter((e) => dayKey(new Date(e.happened_at)) === dayKey(now)).length,
+    perWeek: claims.length ? Math.round(claims.length / weeks * 10) / 10 : 0,
+    onTimePct: timed ? Math.round(onTime / timed * 100) : null,
   };
 };
