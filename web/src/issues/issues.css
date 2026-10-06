@@ -83,15 +83,12 @@
    (análisis, detalle, relacionadas) y a la derecha el chat, a la misma altura */
 .iss-back { align-self: flex-start; padding: 0; font: inherit; font-size: 13px; color: var(--accent); background: none; border: 0; cursor: pointer; }
 .iss-work-h { display: flex; flex-direction: column; gap: 10px; }
-.iss-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 12px; color: var(--text-low); }
-.iss-meta a { margin-left: auto; color: var(--accent); font-weight: 600; text-decoration: none; }
-.iss-meta a:hover { text-decoration: underline; }
 .iss-title-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 24px; }
 .iss-title-row > div:first-child { flex: 1; min-width: 280px; }
 .iss-title-row h2 { margin: 0 0 6px; font-size: 22px; font-weight: 650; line-height: 1.3; overflow-wrap: anywhere; }
 .iss-state { margin: 0; font-size: 13px; color: var(--text-low); }
 .iss-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.iss-work { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(360px, 1fr); gap: 20px; height: calc(100vh - 190px); min-height: 480px; }
+.iss-work { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(360px, 1fr); gap: 20px; height: calc(100vh - 160px); min-height: 480px; }
 .iss-work-main { gap: 0; padding: 0; min-height: 0; }
 .iss-wtabs { display: flex; gap: 24px; padding: 0 22px; border-bottom: 1px solid var(--border); }
 .iss-wtabs button { display: inline-flex; gap: 8px; align-items: baseline; padding: 14px 0 12px; margin-bottom: -1px; font: inherit; font-size: 13px; color: var(--text-low); background: none; border: 0; border-bottom: 2px solid transparent; cursor: pointer; }
@@ -118,12 +115,24 @@
 .iss-tl { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 13px; }
 .iss-tl time { display: inline-block; width: 96px; color: var(--text-low); font-variant-numeric: tabular-nums; }
 .iss-side { display: flex; flex-direction: column; gap: 20px; min-height: 0; }
-.iss-keys { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 16px; padding: 16px 20px; }
-.iss-keys > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.iss-keys span:first-child { font-size: 11.5px; color: var(--text-low); }
-.iss-keys b { font-size: 14px; font-weight: 650; font-variant-numeric: tabular-nums; }
-.iss-keys .iss-sev, .iss-keys .iss-origin, .iss-keys .iss-prio { font-size: 13px; }
+.iss-keys { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; padding: 14px; }
+.iss-keys > div { --k: var(--text-low); display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 8px 10px; background: color-mix(in srgb, var(--k) 10%, var(--surface)); border-left: 3px solid var(--k); }
+.iss-keys span { font-size: 11px; font-weight: 600; color: var(--k); }
+.iss-keys b { font-size: 14px; font-weight: 650; color: var(--text); font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iss-keys small { font-size: 11px; color: var(--text-low); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iss-keys a { color: var(--accent); text-decoration: none; }
+.iss-keys a:hover { text-decoration: underline; }
+.iss-keys .k-sev.CRITICAL { --k: var(--iss-crit); }
+.iss-keys .k-sev.HIGH { --k: var(--iss-high); }
+.iss-keys .k-sev.MEDIUM { --k: var(--accent); }
+.iss-keys .k-origin { --k: var(--accent); }
+.iss-keys .k-origin.sisu { --k: var(--iss-sisu); }
+.iss-keys .k-center { --k: color-mix(in srgb, #0e7490 80%, var(--text)); }
+.iss-keys .k-link { --k: var(--accent); }
+.iss-keys .k-created { --k: color-mix(in srgb, #0e7490 80%, var(--text)); }
+.iss-keys .k-claimed { --k: var(--iss-ok); }
+.iss-keys .k-open { --k: color-mix(in srgb, #b08000 85%, var(--text)); }
+.iss-keys .k-moved { --k: color-mix(in srgb, #6d28d9 70%, var(--text)); }
 .iss-chat { flex: 1; min-height: 0; }
 .iss-chat-note { margin: -6px 0 0; font-size: 12px; color: var(--text-low); }
 .iss-chat-log { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; justify-content: flex-end; gap: 10px; }

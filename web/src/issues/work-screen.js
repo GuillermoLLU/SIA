@@ -5,7 +5,7 @@
 // De momento son las cajas: el análisis, las parecidas y el chat se conectarán.
 import { esc } from '../ui/html.js';
 import { STATUS_ES, REASON_ES, SEVERITY_ES, when, age, stamp } from './format.js';
-import { sev, origin, item } from './parts.js';
+import { item } from './parts.js';
 
 const pending = (text) => `<p class="iss-pending">${text}</p>`;
 
@@ -18,12 +18,10 @@ export const WORK_TABS = [
 export const workScreen = ({ issue: i, sameCenter, now, mine, tab = 'ai' }) => `<div class="iss-page iss-work-page">
   <header class="iss-work-h">
     <button class="iss-back" data-back>← Mi mesa</button>
-    <div class="iss-meta">${sev(i.priority)}<span class="iss-code">${esc(i.center || '—')}</span>${origin(i)}${i.prio ? '<span class="iss-prio">Priorizada por negocio</span>' : ''}
-      <a href="${esc(i.link)}" target="_blank" rel="noopener">${esc(i.id)} ↗</a></div>
     <div class="iss-title-row">
       <div>
         <h2>${esc(i.text)}</h2>
-        <p class="iss-state">${esc(STATUS_ES[i.status] || i.status)}${i.reason ? ` · ${esc(REASON_ES[i.reason] || i.reason)}` : ''} · reportada hace ${age(i.reported, now)}${i.claimedBy ? ` · cogida por ${esc(i.claimedBy.name)}` : ''}</p>
+        <p class="iss-state">${esc(STATUS_ES[i.status] || i.status)}${i.reason ? ` · ${esc(REASON_ES[i.reason] || i.reason)}` : ''}</p>
       </div>
       <div class="iss-actions">
         <button class="lab-btn primary" disabled title="Irá por SIGLO">Resolver</button>
@@ -85,12 +83,14 @@ export const workScreen = ({ issue: i, sameCenter, now, mine, tab = 'ai' }) => `
 
     <div class="iss-side">
     <section class="iss-card iss-keys" aria-label="Datos clave">
-      <div><span>Criticidad</span><b>${sev(i.priority)}</b></div>
-      <div><span>Origen</span><b>${origin(i)}${i.prio ? ' <span class="iss-prio">PRIO</span>' : ''}</b></div>
-      <div><span>Abierta</span><b>${age(i.reported, now)}</b></div>
-      <div><span>Creada</span><b>${when(i.reported)}</b><small>hace ${age(i.reported, now)}</small></div>
-      <div><span>Asignada</span><b>${i.claimedBy?.at ? when(stamp(new Date(i.claimedBy.at))) : '—'}</b><small>${i.claimedBy ? `en SIA, ${esc(i.claimedBy.name)}` : 'nadie la ha cogido en SIA'}</small></div>
-      <div><span>Último movimiento</span><b>${i.modified ? `hace ${age(i.modified, now)}` : '—'}</b><small>${when(i.modified)}</small></div>
+      <div class="k-sev ${esc(i.priority)}"><span>Criticidad</span><b>${esc(SEVERITY_ES[i.priority] || i.priority)}</b><small>${i.prio ? 'priorizada por negocio' : '&nbsp;'}</small></div>
+      <div class="k-origin${i.sisu ? ' sisu' : ''}"><span>Origen</span><b>${i.sisu ? 'SISU' : 'SGA'}</b><small>&nbsp;</small></div>
+      <div class="k-center"><span>Centro</span><b class="iss-code">${esc(i.center || '—')}</b><small>&nbsp;</small></div>
+      <div class="k-link"><span>Remedy</span><b>${i.link ? `<a href="${esc(i.link)}" target="_blank" rel="noopener">Abrir ↗</a>` : '—'}</b><small>${esc(i.id)}</small></div>
+      <div class="k-created"><span>Creada</span><b>${when(i.reported)}</b><small>hace ${age(i.reported, now)}</small></div>
+      <div class="k-claimed"><span>Asignada</span><b>${i.claimedBy?.at ? when(stamp(new Date(i.claimedBy.at))) : '—'}</b><small>${i.claimedBy ? `en SIA, ${esc(i.claimedBy.name)}` : 'nadie la ha cogido en SIA'}</small></div>
+      <div class="k-open"><span>Abierta</span><b>${age(i.reported, now)}</b><small>desde que se creó</small></div>
+      <div class="k-moved"><span>Último movimiento</span><b>${i.modified ? `hace ${age(i.modified, now)}` : '—'}</b><small>${when(i.modified)}</small></div>
     </section>
     <aside class="iss-card iss-chat" aria-label="Chat de la issue">
       <div class="iss-card-h"><h3>Chat de la issue</h3><span class="iss-badge">Por conectar</span></div>
