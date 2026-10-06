@@ -1,7 +1,7 @@
 /* Vista Issues: la mesa de cada persona, a todo lo ancho. Arriba lo
    inmediato (la siguiente y hoy); en medio, el histórico medido en SIA con sus
    números; abajo, el seguimiento. Al abrir una issue, la pantalla de trabajo
-   (más estrecha, para leer). */
+   con su chat al lado. */
 .iss-view {
   --iss-crit: color-mix(in srgb, #d1242f 80%, var(--text));
   --iss-high: color-mix(in srgb, #d46a12 85%, var(--text));
@@ -11,7 +11,6 @@
   overflow-y: auto; color: var(--text);
 }
 .iss-page { width: 100%; margin: 0 auto; padding: 24px 28px 40px; display: flex; flex-direction: column; gap: 20px; }
-.iss-page.iss-narrow { max-width: 920px; gap: 24px; }
 .iss-top { display: flex; align-items: baseline; gap: 12px; }
 .iss-title { margin: 0; font-size: 22px; font-weight: 680; }
 .iss-snap { margin-left: auto; font-size: 12px; color: var(--text-low); }
@@ -80,31 +79,50 @@
 .iss-code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; color: var(--text-low); }
 .iss-prio { color: var(--iss-crit); font-weight: 600; }
 
-/* pantalla de trabajo */
+/* pantalla de trabajo: cabecera con acciones; el trabajo a la izquierda y el
+   chat de la issue fijo a la derecha */
 .iss-back { align-self: flex-start; padding: 0; font: inherit; font-size: 13px; color: var(--accent); background: none; border: 0; cursor: pointer; }
-.iss-work { display: flex; flex-direction: column; gap: 28px; }
+.iss-work-h { display: flex; flex-direction: column; gap: 10px; }
 .iss-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 12px; color: var(--text-low); }
 .iss-meta a { margin-left: auto; color: var(--accent); font-weight: 600; text-decoration: none; }
 .iss-meta a:hover { text-decoration: underline; }
-.iss-work h2 { margin: 10px 0 6px; font-size: 22px; font-weight: 650; line-height: 1.3; overflow-wrap: anywhere; }
+.iss-title-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 24px; }
+.iss-title-row > div:first-child { flex: 1; min-width: 280px; }
+.iss-title-row h2 { margin: 0 0 6px; font-size: 22px; font-weight: 650; line-height: 1.3; overflow-wrap: anywhere; }
 .iss-state { margin: 0; font-size: 13px; color: var(--text-low); }
 .iss-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.iss-work h3 { margin: 0 0 10px; font-size: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--text-low); }
-.iss-notes { padding: 16px 18px; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55; background: var(--surface); border: 1px solid var(--border); }
-.iss-kv { display: grid; grid-template-columns: 140px 1fr; gap: 8px 16px; margin: 0; }
+.iss-work { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(360px, 1fr); gap: 20px; align-items: start; }
+.iss-work-main { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.iss-sub { margin: 0 0 6px; font-size: 12px; font-weight: 600; color: var(--text); }
+.iss-badge { padding: 2px 8px; font-size: 11px; color: var(--text-low); border: 1px dashed var(--border); }
+.iss-pending { margin: 0; padding: 12px 14px; font-size: 12.5px; color: var(--text-low); background: color-mix(in srgb, var(--bg) 60%, var(--surface)); border: 1px dashed var(--border); }
+.iss-notes { padding: 14px 16px; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55; background: color-mix(in srgb, var(--bg) 50%, var(--surface)); border: 1px solid var(--border); max-height: 360px; overflow-y: auto; }
+.iss-ai { border-left: 3px solid var(--accent); }
+.iss-ai-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.iss-ai-grid .wide { grid-column: 1 / -1; }
+.iss-evidence { display: flex; flex-direction: column; gap: 8px; }
+.iss-evidence-h { display: grid; grid-template-columns: 160px 110px 1fr; gap: 12px; padding: 0 2px 6px; font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--text-low); border-bottom: 1px solid var(--border); }
+.iss-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.iss-kv { display: grid; grid-template-columns: 120px 1fr; gap: 8px 16px; margin: 0; font-size: 13px; }
 .iss-kv dt { color: var(--text-low); }
 .iss-kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .iss-tl { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 13px; }
 .iss-tl time { display: inline-block; width: 96px; color: var(--text-low); font-variant-numeric: tabular-nums; }
+.iss-chat { position: sticky; top: 16px; height: calc(100vh - 140px); min-height: 420px; }
+.iss-chat-note { margin: -6px 0 0; font-size: 12px; color: var(--text-low); }
+.iss-chat-log { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; justify-content: flex-end; gap: 10px; }
+.iss-chat-input { display: flex; gap: 8px; align-items: flex-end; }
+.iss-chat-input textarea { flex: 1; min-width: 0; padding: 8px 10px; font: inherit; font-size: 13px; color: var(--text); background: var(--bg); border: 1px solid var(--border); resize: none; }
 .iss-take:focus-visible, .iss-item:focus-visible, .iss-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 @media (max-width: 1100px) {
-  .iss-row1, .iss-row2, .iss-cols { grid-template-columns: 1fr; }
+  .iss-row1, .iss-row2, .iss-cols, .iss-work { grid-template-columns: 1fr; }
+  .iss-chat { position: static; height: 480px; }
   .iss-kpis { grid-template-rows: none; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 640px) {
   .iss-page { padding: 20px 16px 32px; }
   .iss-kpis { grid-template-columns: 1fr; gap: 12px; }
   .iss-bars { gap: 3px; }
-  .iss-kv { grid-template-columns: 1fr; }
+  .iss-kv, .iss-facts, .iss-ai-grid { grid-template-columns: 1fr; }
 }

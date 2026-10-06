@@ -2,10 +2,12 @@
 // siguiente que le toca (la elige la regla; la cola de la base evita que dos
 // cojan la misma) y su día. En medio, su histórico medido en SIA (se llena
 // con el uso). Abajo, el seguimiento de lo suyo. Al abrir una, la pantalla de
-// trabajo; resolver y escalar irán por SIGLO. La mesa se refresca sola.
+// trabajo (work-screen.js). La mesa se refresca sola.
 import './issues.css';
 import { esc } from '../ui/html.js';
-import { SEVERITY_ES, STATUS_ES, REASON_ES, LISTS, when, age, stamp } from './format.js';
+import { LISTS, when, age, stamp } from './format.js';
+import { sev, origin, item } from './parts.js';
+import { workScreen } from './work-screen.js';
 
 const GOAL = { min: 15, max: 20 }; // resueltas por turno, lo que dice el equipo
 const REFRESH_MS = 15000;
@@ -13,15 +15,6 @@ const REFRESH_MS = 15000;
 export const mountIssuesView = (root, { api, me, toast }) => {
   let data = null, rule = 'basic', now = new Date(), opened = null, onDesk = false;
 
-  const sev = (p) => `<span class="iss-sev ${esc(p)}">${esc(SEVERITY_ES[p] || p)}</span>`;
-  const origin = (i) => `<span class="iss-origin${i.sisu ? ' sisu' : ''}">${i.sisu ? 'SISU' : 'SGA'}</span>`;
-  const item = (i, key) => {
-    const since = key === 'waiting' ? `sin moverse ${age(i.modified, now)}` : key === 'resolved' ? when(i.resolved) : `hace ${age(i.reported, now)}`;
-    return `<button class="iss-item" data-id="${esc(i.id)}">
-      <span class="iss-line">${sev(i.priority)}<span class="iss-code">${esc(i.center || '—')}</span>${origin(i)}${key === 'waiting' && i.reason ? `<span class="iss-reason">${esc(REASON_ES[i.reason] || i.reason)}</span>` : ''}<span class="iss-when">${since}</span></span>
-      <span class="iss-text">${esc(i.text)}</span>
-    </button>`;
-  };
   const kpi = (label, value, hint) => `<div class="iss-kpi"><span>${label}</span><b>${value}</b><small>${hint}</small></div>`;
 
   // Cogidas por semana (SGA / SISU), lo medido en SIA.
@@ -84,7 +77,7 @@ export const mountIssuesView = (root, { api, me, toast }) => {
       <div class="iss-cols">
         ${lists.map((l) => `<section class="iss-card iss-col">
           <div class="iss-card-h"><h3>${l.label}</h3><span>${l.items.length}</span></div>
-          <div class="iss-items">${l.items.slice(0, 12).map((i) => item(i, l.key)).join('') || `<p class="iss-empty">${l.empty}</p>`}</div>
+          <div class="iss-items">${l.items.slice(0, 12).map((i) => item(i, l.key, now)).join('') || `<p class="iss-empty">${l.empty}</p>`}</div>
         </section>`).join('')}
       </div>
     </div>`;
@@ -94,35 +87,7 @@ export const mountIssuesView = (root, { api, me, toast }) => {
     opened = i.id;
     onDesk = false;
     const mine = i.claimedBy && data?.desk.some((d) => d.id === i.id && d.claimed);
-    root.innerHTML = `<div class="iss-page iss-narrow">
-      <button class="iss-back" data-back>← Mi mesa</button>
-      <article class="iss-work">
-        <header>
-          <div class="iss-meta">${sev(i.priority)}<span class="iss-code">${esc(i.center || '—')}</span>${origin(i)}${i.prio ? '<span class="iss-prio">Priorizada por negocio</span>' : ''}
-            <a href="${esc(i.link)}" target="_blank" rel="noopener">${esc(i.id)} ↗</a></div>
-          <h2>${esc(i.text)}</h2>
-          <p class="iss-state">${esc(STATUS_ES[i.status] || i.status)}${i.reason ? ` · ${esc(REASON_ES[i.reason] || i.reason)}` : ''} · reportada hace ${age(i.reported, now)}${i.claimedBy ? ` · cogida por ${esc(i.claimedBy.name)}` : ''}</p>
-        </header>
-        <div class="iss-actions">
-          <button class="lab-btn primary" disabled title="Irá por SIGLO">Resolver</button>
-          <button class="lab-btn" disabled title="Irá por SIGLO">Escalar</button>
-          <button class="lab-btn" disabled title="Irá por SIGLO">Añadir nota</button>
-          ${mine ? '<button class="lab-btn" data-release>Devolver a la cola</button>' : ''}
-        </div>
-        <section><h3>Descripción</h3><div class="iss-notes">${esc(i.notes || 'Sin descripción.')}</div></section>
-        ${i.resolution ? `<section><h3>Resolución</h3><div class="iss-notes">${esc(i.resolution)}</div></section>` : ''}
-        <section><h3>Datos</h3><dl class="iss-kv">
-          <dt>Categoría</dt><dd>${esc(i.category || '—')}</dd>
-          <dt>Grupo</dt><dd>${esc(i.group || '—')}</dd>
-          <dt>Responsable</dt><dd>${esc(i.assignee || 'Nadie en Remedy')}</dd>
-          <dt>Reportada</dt><dd>${when(i.reported)}</dd>
-          <dt>Último cambio</dt><dd>${when(i.modified)}</dd>
-          ${i.vendorTicket ? `<dt>Ticket proveedor</dt><dd>${esc(i.vendorTicket)}</dd>` : ''}
-        </dl></section>
-        ${sameCenter.length ? `<section><h3>Otras del mismo centro · ${sameCenter.length}</h3><div class="iss-items">${sameCenter.slice(0, 10).map((x) => item(x, 'doing')).join('')}</div></section>` : ''}
-        <section><h3>Historial</h3><ol class="iss-tl">${i.changes.map(([t, a, b]) => `<li><time>${when(t)}</time>${a && a !== b ? `${esc(STATUS_ES[a] || a)} → ` : ''}${esc(STATUS_ES[b] || b)}</li>`).join('') || '<li>Sin cambios de estado.</li>'}</ol></section>
-      </article>
-    </div>`;
+    root.innerHTML = workScreen({ issue: i, sameCenter, now, mine });
     root.scrollTop = 0;
   };
 
