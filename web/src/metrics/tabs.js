@@ -103,7 +103,7 @@ export const createTabs = (m, ch, ui) => {
           kpiCo('Reabiertas', ST, (s) => pct(s.reop, 1), { val: (s) => s.reop, better: 'low' }),
           kpiCo('Abiertas ahora', ST, (s) => num(s.open), { val: (s) => s.open })),
         card('Indicadores', scorecard(ST), { span: 's7', sub: CMP() ? `Diferencia de ${esc(name(0))} respecto a ${esc(name(1))}: en rojo si ${esc(name(0))} está peor, en verde si está mejor. Pasa el ratón por una cifra para ver los dos valores.` : 'Pasa el ratón por un indicador para ver cómo se calcula.' }),
-        card('Evolución mes a mes', `${legend()}<p class="mt-small"><b>Issues abiertas</b></p>${lines(A, (s) => s.n, num)}<p class="mt-small"><b>Media de resolución</b></p>${lines(A, (s) => s.avg, dur)}<p class="mt-small"><b>Media hasta la primera actuación</b></p>${lines(A, (s) => s.fr, dur)}`, { span: 's5', sub: MONTH_NOTE }));
+        card('Evolución mes a mes', `${legend()}<p class="mt-small"><b>Issues recibidas</b></p>${lines(A, (s) => s.n, num)}<p class="mt-small"><b>Media de resolución</b></p>${lines(A, (s) => s.avg, dur)}<p class="mt-small"><b>Media hasta la primera actuación</b></p>${lines(A, (s) => s.fr, dur)}`, { span: 's5', sub: 'Cada punto son las issues que entraron ese mes (por fecha de apertura): cuántas, y su media de resolución y de primera actuación. Un mes con menos de 10 issues no se pinta. * mes incompleto: los últimos meses salen mejor de lo que acabarán, porque lo lento aún no se ha resuelto.' }));
     },
 
     reparto(A) {
@@ -253,7 +253,7 @@ export const createTabs = (m, ch, ui) => {
       }).join('')}</tr>`).join('')}</tbody></table></div>`;
       return grid(card('Por franja horaria', byHours(A, cols), { span: 's12', sub: 'Según la hora de apertura tal cual viene en el dato (sin convertir zona horaria).' }),
         card('Por día de la semana', slices('Día', DOWS.map((d, k) => [d, (i) => DOW[i] === k, `dow:${k}`]), A, cols), { span: 's12' }),
-        card('Cuándo llegan las issues', hours, { span: 's12', sub: 'Issues abiertas por día de la semana y hora. Cuanto más oscuro, más issues. Clic en una celda para filtrar.' }),
+        card('Cuándo llegan las issues', hours, { span: 's12', sub: 'Issues recibidas por día de la semana y hora de apertura. Cuanto más oscuro, más issues. Clic en una celda para filtrar.' }),
         card('Llegadas por hora', legend() + orderedBars('hour', [...Array(24).keys()]), { sub: 'Clic en una hora para filtrar.' }),
         card('Llegadas por día', legend() + orderedBars('dow', [0, 1, 2, 3, 4, 5, 6])));
     },
