@@ -10,7 +10,7 @@
 .wk-blocks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 /* altura fija: el bloque mide lo mismo con cifras o con gráfica, y las filas no saltan */
 .wk-block { display: flex; flex-direction: column; gap: 14px; height: 236px; overflow: hidden; padding: 18px 20px; background: var(--mt-card); border: 1px solid var(--mt-line); box-shadow: var(--mt-shadow); }
-.wk-block-h { display: flex; align-items: center; justify-content: space-between; }
+.wk-block-h { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .wk-chart-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin: -6px -8px -6px 0; padding: 0; color: var(--mt-low); background: none; border: 1px solid transparent; cursor: pointer; }
 .wk-chart-btn svg { width: 16px; height: 16px; }
 .wk-chart-btn:hover { color: var(--accent); border-color: var(--mt-line); background: var(--mt-soft); }
@@ -18,7 +18,11 @@
 .wk-as-chart { gap: 8px; }
 .wk-key { display: flex; align-items: baseline; gap: 8px; }
 .wk-key b { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.wk-key span { font-size: 12.5px; color: var(--mt-low); }
+.wk-key > span { font-size: 12.5px; color: var(--mt-low); }
+/* en la línea del título, a la derecha: la media al día de Volumen */
+.wk-aside { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--mt-low); white-space: nowrap; }
+.wk-aside .mt-sw { margin: 0 0 0 8px; }
+.wk-aside b { color: var(--text); font-size: 13.5px; font-weight: 650; font-variant-numeric: tabular-nums; }
 .wk-chart { display: flex; flex: 1; flex-direction: column; min-height: 0; }
 .wk-chart .mt-svg { flex: 1; min-height: 0; width: 100%; height: 100%; }
 .wk-note { margin: 0; font-size: 11.5px; color: var(--mt-low); }
@@ -33,7 +37,6 @@
 .wk-item b { font-size: 17px; font-weight: 650; font-variant-numeric: tabular-nums; }
 .wk-bar { display: block; flex: 1; height: 6px; background: var(--mt-track); }
 .wk-bar i { display: block; height: 100%; }
-.wk-pace { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 6px 10px; font-size: 12px; color: var(--mt-low); }
 .wk-split { display: flex; height: 8px; overflow: hidden; background: var(--mt-track); }
 .wk-split i { display: block; }
 .wk-orphan { background: var(--mt-bad); }
@@ -52,10 +55,6 @@
 .wk-col-x { margin-top: 4px; font-size: 11px; text-align: center; color: var(--mt-low); }
 .wk-pair { display: flex; flex: 1; align-items: flex-end; justify-content: center; gap: 2px; min-height: 0; }
 .wk-pair i { display: block; width: 42%; min-height: 1px; }
-.wk-flow-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 6px; font-size: 11.5px; }
-.wk-flow-foot .mt-legend { margin: 0; }
-.wk-avg { color: var(--mt-low); }
-.wk-avg b { color: var(--text); font-weight: 650; }
 /* cambiar de cara del equipo: métricas o gestión de personas (también en la cabecera de Personas) */
 .wk-switch-view { height: 32px; padding: 0 14px; font: inherit; font-size: 12px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text); background: var(--surface); border: 1px solid var(--mt-line, var(--border)); cursor: pointer; }
 .wk-switch-view:hover { border-color: var(--accent); color: var(--accent); }

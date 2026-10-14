@@ -44,7 +44,7 @@ test('un bloque como gráfica: su evolución en lugar de las cifras, con la prin
   const base = render([{ company: 0 }, null]);
   assert.equal((base.match(/class="wk-chart"/g) || []).length, 2);   // Volumen e IA, siempre como gráfica
   assert.doesNotMatch(base, /data-chart="(volume|ia)"/);              // sin icono para cambiar
-  assert.match(base, /Media al día: <b>[\d,]+<\/b> nuevas y <b>[\d,]+<\/b> resueltas/);
+  assert.match(base, /<h3>Volumen<\/h3><span class="wk-aside">Media al día <i class="mt-sw mt-c2"><\/i><b>[\d,]+<\/b> nuevas/);
   const h = render([{ company: 0 }, null], new Set(['times', 'sla']));
   assert.equal((h.match(/class="wk-chart"/g) || []).length, 4);
   assert.match(h, /data-chart="times" title="Ver los datos"/);

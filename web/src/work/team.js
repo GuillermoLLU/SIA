@@ -71,7 +71,8 @@ export const teamPanel = (m, ch, ui) => {
   // CHART_ONLY: bloques que se ven siempre como gráfica, sin icono para cambiar.
   const block = (id, title, label, hero, items, extra, chart) => {
     const fixed = CHART_ONLY.has(id), asChart = fixed || charts.has(id);
-    const head = `<div class="wk-block-h"><h3>${title}</h3>${fixed ? '' : `<button class="wk-chart-btn" data-chart="${id}" title="${asChart ? 'Ver los datos' : 'Ver la evolución por mes'}">${asChart ? DATA_ICON : CHART_ICON}</button>`}</div>`;
+    // en los bloques que son siempre gráfica, `extra` va en la línea del título, a la derecha
+    const head = `<div class="wk-block-h"><h3>${title}</h3>${fixed ? extra : `<button class="wk-chart-btn" data-chart="${id}" title="${asChart ? 'Ver los datos' : 'Ver la evolución por mes'}">${asChart ? DATA_ICON : CHART_ICON}</button>`}</div>`;
     if (!asChart) return `<section class="wk-block">${head}<div class="wk-hero"><b>${hero}</b><span>${label}</span></div>${extra}<div class="wk-items">${items.join('')}</div></section>`;
     const note = { queue: 'Lo que sigue sin resolver de cada mes, por mes de creación.', volume: '' }[id]
       ?? 'Por mes de creación. * Mes en curso: aún puede cambiar.';
@@ -91,9 +92,7 @@ export const teamPanel = (m, ch, ui) => {
     const shown = flow.map((v, k) => [k, v]).filter(([k]) => k >= S.from && k <= Math.min(S.to, m.LASTM));
     const max = Math.max(1, ...shown.flatMap(([, v]) => v));
     return `<div class="wk-cols">${shown.map(([k, [inN, outN]]) => `<div class="wk-col" data-tip="${esc(`${MONTHS[k]}\nNuevas: ${num(inN)}\nResueltas: ${num(outN)}`)}">
-        <span class="wk-pair"><i class="mt-c2" style="height:${(inN / max * 100).toFixed(1)}%"></i><i class="mt-c${k0}" style="height:${(outN / max * 100).toFixed(1)}%"></i></span><span class="wk-col-x">${MONTHS[k]}</span></div>`).join('')}</div>
-      <div class="wk-flow-foot"><span class="mt-legend"><span><i class="mt-c2"></i>Nuevas</span><span><i class="mt-c${k0}"></i>Resueltas</span></span>
-        <span class="wk-avg">Media al día: <b>${perDay(ST[k0].inPerDay)}</b> nuevas y <b>${perDay(ST[k0].perDay)}</b> resueltas</span></div>`;
+        <span class="wk-pair"><i class="mt-c2" style="height:${(inN / max * 100).toFixed(1)}%"></i><i class="mt-c${k0}" style="height:${(outN / max * 100).toFixed(1)}%"></i></span><span class="wk-col-x">${MONTHS[k]}</span></div>`).join('')}</div>`;
   };
   // pendientes por mes de creación: una columna por mes, con los mismos colores que la barra del bloque
   const queueBars = (months) => {
@@ -110,13 +109,9 @@ export const teamPanel = (m, ch, ui) => {
   const iaShare = (s) => (s.resolved ? s.ia / s.resolved : null);
   const byPrio = m.PRIOS.map((p) => [p, m.bySide(A.filter((i) => C.pr[i] === p)).map(m.stats)]);
 
-  const volume = block('volume', 'Volumen', 'issues en el periodo', fig((s) => num(s.n)), [
-    item('Nuevas por día', fig((s) => perDay(s.inPerDay))),
-    item('Resueltas por día', fig((s) => perDay(s.perDay))),
-  ], (() => {   // nuevas frente a resueltas: si se resuelve al ritmo al que llegan
-    const st = ST[k0], max = Math.max(st.inPerDay || 0, st.perDay || 0) || 1;
-    return `<div class="wk-pace"><span>Nuevas</span>${bar((st.inPerDay || 0) / max, 'mt-c2')}<span>Resueltas</span>${bar((st.perDay || 0) / max)}</div>`;
-  })(), flowBars);
+  // la media al día, en la línea del título; sus colores son también la leyenda de las barras
+  const volume = block('volume', 'Volumen', 'issues en el periodo', fig((s) => num(s.n)), [],
+    `<span class="wk-aside">Media al día <i class="mt-sw mt-c2"></i><b>${perDay(ST[k0].inPerDay)}</b> nuevas <i class="mt-sw mt-c${k0}"></i><b>${perDay(ST[k0].perDay)}</b> resueltas</span>`, flowBars);
   const backlog = block('queue', 'Pendientes', 'sin resolver en SGA y SISU', num(queue.all), [
     item('Asignadas al equipo', num(queue.mine), `mt-c${k0}`),
     item('Sin asignar', num(queue.orphan), 'wk-orphan'),
