@@ -73,10 +73,10 @@ export const teamPanel = (m, ch, ui) => {
     const fixed = CHART_ONLY.has(id), asChart = fixed || charts.has(id);
     const head = `<div class="wk-block-h"><h3>${title}</h3>${fixed ? '' : `<button class="wk-chart-btn" data-chart="${id}" title="${asChart ? 'Ver los datos' : 'Ver la evolución por mes'}">${asChart ? DATA_ICON : CHART_ICON}</button>`}</div>`;
     if (!asChart) return `<section class="wk-block">${head}<div class="wk-hero"><b>${hero}</b><span>${label}</span></div>${extra}<div class="wk-items">${items.join('')}</div></section>`;
-    const note = { queue: 'Lo que sigue sin resolver de cada mes, por mes de creación.', volume: 'Creadas y resueltas cada mes (las resueltas, por su fecha de resolución).' }[id]
-      || 'Por mes de creación. * Mes en curso: aún puede cambiar.';
+    const note = { queue: 'Lo que sigue sin resolver de cada mes, por mes de creación.', volume: '' }[id]
+      ?? 'Por mes de creación. * Mes en curso: aún puede cambiar.';
     return `<section class="wk-block wk-as-chart">${head}<div class="wk-key"><b>${hero}</b><span>${label}</span></div>
-      <div class="wk-chart">${typeof chart === 'function' ? chart() : lines(A, ...chart, { height: 150, left: 78 })}</div><p class="wk-note">${note}</p></section>`;
+      <div class="wk-chart">${typeof chart === 'function' ? chart() : lines(A, ...chart, { height: 150, left: 78 })}</div>${note ? `<p class="wk-note">${note}</p>` : ''}</section>`;
   };
   // nuevas y resueltas de cada mes: las creadas ese mes y las resueltas ese mes (por su fecha de resolución,
   // aunque se crearan antes), del equipo; dos columnas por mes
@@ -92,7 +92,8 @@ export const teamPanel = (m, ch, ui) => {
     const max = Math.max(1, ...shown.flatMap(([, v]) => v));
     return `<div class="wk-cols">${shown.map(([k, [inN, outN]]) => `<div class="wk-col" data-tip="${esc(`${MONTHS[k]}\nNuevas: ${num(inN)}\nResueltas: ${num(outN)}`)}">
         <span class="wk-pair"><i class="mt-c2" style="height:${(inN / max * 100).toFixed(1)}%"></i><i class="mt-c${k0}" style="height:${(outN / max * 100).toFixed(1)}%"></i></span><span class="wk-col-x">${MONTHS[k]}</span></div>`).join('')}</div>
-      <div class="mt-legend wk-flow-legend"><span><i class="mt-c2"></i>Nuevas · <b>${perDay(ST[k0].inPerDay)}</b> al día</span><span><i class="mt-c${k0}"></i>Resueltas · <b>${perDay(ST[k0].perDay)}</b> al día</span></div>`;
+      <div class="wk-flow-foot"><span class="mt-legend"><span><i class="mt-c2"></i>Nuevas</span><span><i class="mt-c${k0}"></i>Resueltas</span></span>
+        <span class="wk-avg">Media al día: <b>${perDay(ST[k0].inPerDay)}</b> nuevas y <b>${perDay(ST[k0].perDay)}</b> resueltas</span></div>`;
   };
   // pendientes por mes de creación: una columna por mes, con los mismos colores que la barra del bloque
   const queueBars = (months) => {
