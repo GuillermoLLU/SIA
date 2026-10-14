@@ -53,3 +53,6 @@
 .wk-pair { display: flex; flex: 1; align-items: flex-end; justify-content: center; gap: 2px; min-height: 0; }
 .wk-pair i { display: block; width: 42%; min-height: 1px; }
 .wk-flow-legend { margin: 4px 0 0; font-size: 11.5px; }
+/* cambiar de cara del equipo: métricas o gestión de personas (también en la cabecera de Personas) */
+.wk-switch-view { margin-left: auto; height: 32px; padding: 0 14px; font: inherit; font-size: 12px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text); background: var(--surface); border: 1px solid var(--mt-line, var(--border)); cursor: pointer; }
+.wk-switch-view:hover { border-color: var(--accent); color: var(--accent); }

@@ -9,7 +9,7 @@
 }
 
 /* cabecera */
-.pp-head { padding: 22px 28px 14px; }
+.pp-head { display: flex; align-items: center; padding: 22px 28px 14px; }
 .pp-head h2 { margin: 0; font-size: 20px; font-weight: 650; color: var(--text); }
 .pp-rule { height: 1px; margin: 0 28px; background: var(--border); }
 

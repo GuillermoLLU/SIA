@@ -2,7 +2,8 @@
 // cada persona (team.js). Con los datos de las Métricas, que se cargan desde
 // allí; se vuelven a leer al abrir la vista, por si alguien ha cargado otro
 // CSV. Es el equipo de Indra. Clic en una persona: se abre en Métricas frente
-// al resto de su equipo (openPerson).
+// al resto de su equipo (openPerson). Si la persona también gestiona el equipo,
+// «Gestionar equipo» lleva a la gestión de personas (onManage).
 import '../metrics/metrics.css';
 import './work.css';
 import { esc } from '../ui/html.js';
@@ -15,12 +16,13 @@ import { teamPanel } from './team.js';
 
 const CALENDAR_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>';
 
-export const mountWorkView = (root, { api, openPerson }) => {
+export const mountWorkView = (root, { api, openPerson, onManage }) => {
   let m = null, ch = null, generated = null, calendar = false, anchor = null;
   const ui = { exp: {}, sort: {}, charts: new Set() };   // charts: los bloques con su gráfica desplegada
   const $ = (s) => root.querySelector(s);
 
-  const page = (body) => `<div class="mt-page"><header class="mt-top"><h2 class="mt-title">Panel de trabajo</h2>${body}</header>`;
+  const manage = onManage ? '<button class="wk-switch-view" data-manage>Gestionar equipo</button>' : '';
+  const page = (body) => `<div class="mt-page"><header class="mt-top"><h2 class="mt-title">Panel de trabajo</h2>${body}${manage}</header>`;
 
   const renderFrame = () => {
     const snap = new Date(m.BASE + m.SNAP * 6e4);
@@ -50,6 +52,7 @@ export const mountWorkView = (root, { api, openPerson }) => {
   };
 
   root.addEventListener('click', (e) => {
+    if (e.target.closest('[data-manage]')) return onManage();
     if (!m) return;
     const { S } = m;
     if (e.target.closest('[data-calendar]')) { if (calendar) closeCalendar(); else calendar = true; return render(); }

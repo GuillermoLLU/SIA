@@ -1460,7 +1460,6 @@ const navAdmin = document.getElementById('nav-admin');
 const viewAdmin = document.getElementById('view-admin');
 const navLinks = document.getElementById('nav-links');
 const viewLinks = document.getElementById('view-links');
-const navUsers = document.getElementById('nav-users');
 const viewUsers = document.getElementById('view-users');
 // Paneles (Issues, Panel de trabajo, Métricas): una vista cada uno, sin base;
 // el icono de la barra se enseña si la persona tiene esa vista. Si el panel
@@ -1471,8 +1470,10 @@ const PANELS = [
     openChat: (host, issueId) => mountIssueChat(host, { issueId, wsUrl, loadProjects: loadAccessProjects, makeTerminal }),
   }) },
   // clic en una persona del Panel de trabajo: se abre en Métricas frente al resto de su equipo
+  // «Gestionar equipo» lleva a Personas (si también tiene esa vista)
   { name: 'work', mount: (el) => AUTH && mountWorkView(el, { api: createMetricsApi(API_BASE, AUTH.session),
-    openPerson: (person) => { PANELS.find((p) => p.name === 'metrics').ui?.focus(person); showView('metrics'); } }) },
+    openPerson: (person) => { PANELS.find((p) => p.name === 'metrics').ui?.focus(person); showView('metrics'); },
+    onManage: canView('people') ? () => showView('users') : undefined }) },
   { name: 'metrics', mount: (el) => AUTH && mountMetricsView(el, { api: createMetricsApi(API_BASE, AUTH.session), toast: (t) => toast(t) }) },
 ].map((p) => ({ ...p, nav: document.getElementById(`nav-${p.name}`), view: document.getElementById(`view-${p.name}`) }));
 const linksGrid = document.getElementById('links-grid');
@@ -1484,13 +1485,13 @@ const showView = (name) => {
   viewAdmin.hidden = name !== 'admin';
   viewLinks.hidden = name !== 'links';
   viewUsers.hidden = name !== 'users';
-  for (const p of PANELS) { p.view.hidden = name !== p.name; p.nav.classList.toggle('active', name === p.name); }
+  // Panel de trabajo y Personas son las dos caras del equipo: un solo icono en la barra
+  for (const p of PANELS) { p.view.hidden = name !== p.name; p.nav.classList.toggle('active', name === p.name || (p.name === 'work' && name === 'users')); }
   PANELS.find((p) => p.name === name)?.ui?.show?.();
   navChat.classList.toggle('active', name === 'chat');
   navLab.classList.toggle('active', name === 'lab');
   navAdmin.classList.toggle('active', name === 'admin');
   navLinks.classList.toggle('active', name === 'links');
-  navUsers.classList.toggle('active', name === 'users');
   if (name === 'lab') labRefresh();
   if (name === 'admin') projectsView.show();
   if (name === 'links') linksRefresh();
@@ -1501,10 +1502,12 @@ const showView = (name) => {
   }
 };
 navChat.addEventListener('click', () => showView('chat'));
+// El icono del Panel de trabajo abre las métricas del equipo o, si solo se gestiona, Personas.
+const teamView = () => (canView('work') ? 'work' : 'users');
 for (const p of PANELS) {
   p.nav.innerHTML = VIEWS.find((v) => v.id === p.name).icon;
-  p.nav.hidden = !canView(p.name);
-  p.nav.addEventListener('click', () => showView(p.name));
+  p.nav.hidden = p.name === 'work' ? !canView('work') && !canView('people') : !canView(p.name);
+  p.nav.addEventListener('click', () => showView(p.name === 'work' ? teamView() : p.name));
   p.ui = p.mount(p.view);
 }
 navLab.addEventListener('click', () => showView('lab'));
@@ -1910,12 +1913,12 @@ settingsModal.addEventListener('mousedown', (e) => { if (e.target === settingsMo
 // Cerrar sesión (pie de Configuración): web/src/auth/logout-button.js
 wireLogout(document.getElementById('settings-session'), { ...AUTH, confirm: dlgConfirm });
 
-// Personas (barra lateral, con esa vista): web/src/users/
+// Personas (web/src/users/): la gestión del equipo, la otra cara del Panel de trabajo (se entra
+// por su icono); «Métricas equipo» vuelve a sus métricas si también tiene esa vista.
 const usersView = canView('people')
-  ? mountPeopleView(viewUsers, { usersApi: createUsersApi(API_BASE, AUTH.session), knowledgeApi: createKnowledgeApi(API_BASE, AUTH.session), me: AUTH.user, toast: (t) => toast(t) })
+  ? mountPeopleView(viewUsers, { usersApi: createUsersApi(API_BASE, AUTH.session), knowledgeApi: createKnowledgeApi(API_BASE, AUTH.session), me: AUTH.user, toast: (t) => toast(t),
+    onMetrics: canView('work') ? () => showView('work') : undefined })
   : null;
-navUsers.hidden = !usersView;
-navUsers.addEventListener('click', () => showView('users'));
 
 /* ── Bloqueo de pantalla ──────────────────────────────────────────
    El candado de la barra lateral tapa la ventana hasta dar el PIN; la primera

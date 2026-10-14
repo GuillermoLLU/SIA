@@ -50,11 +50,12 @@ const wireRoleCards = (el) => el.addEventListener('click', (e) => {
 });
 const pickedRole = (el) => el.querySelector('[data-role][aria-checked="true"]')?.dataset.role || null;
 
-export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast }) => {
+// onMetrics: si la persona también ve el Panel de trabajo, «Métricas equipo» vuelve a sus métricas.
+export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast, onMetrics }) => {
   let people = [], kbase = null, roles = [], filter = 'all', query = '', selected = null;
 
   root.innerHTML = `
-    <header class="pp-head"><h2>Personas</h2></header>
+    <header class="pp-head"><h2>Personas</h2>${onMetrics ? '<button class="wk-switch-view" data-metrics>Métricas equipo</button>' : ''}</header>
     <div class="pp-rule"></div>
     <div class="pp-tools">
       <input class="settings-input" data-q placeholder="Buscar por nombre o email" aria-label="Buscar persona" />
@@ -358,6 +359,7 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast }) => 
 
   /* ── interacción de la vista ── */
   root.addEventListener('click', (e) => {
+    if (e.target.closest('[data-metrics]')) return onMetrics();
     const chip = e.target.closest('.pp-chip');
     if (chip) { filter = chip.dataset.f; root.querySelectorAll('.pp-chip').forEach((c) => c.classList.toggle('on', c === chip)); return renderList(); }
     const row = e.target.closest('.pp-row:not(.hd)');
