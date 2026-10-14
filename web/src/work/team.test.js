@@ -36,7 +36,7 @@ test('solo Indra: una fila por persona y la del equipo, con sus datos y sin colo
   assert.match(h, /Equipo Indra/);
   assert.doesNotMatch(h.slice(h.indexOf('<table class="wk-team"')), /mt-num (good|bad)/);
   assert.match(rowOf(h, 'ANA'), />100 %</);   // SLA cumplido: solo el %
-  assert.match(h, /<h3>Cola<\/h3>\s*<div class="wk-hero"><b>0<\/b><span>backlog SGA \+ SISU/);   // ninguna en SGA ni SISU
+  assert.match(h, /<h3>Pendientes<\/h3>\s*<div class="wk-hero"><b>0<\/b><span>sin resolver en SGA y SISU/);   // ninguna en SGA ni SISU
   assert.equal((h.match(/class="wk-block"/g) || []).length, 6);   // seis bloques, en dos filas
 });
 

@@ -2,7 +2,7 @@
 .wk-switch { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--text); cursor: pointer; }
 .wk-switch input { width: 15px; height: 15px; accent-color: var(--accent); }
 .wk-main { padding-top: 18px; }
-.wk-team td:first-child { white-space: nowrap; }
+.wk-team td:first-child { max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wk-team td:first-child .mt-sw { margin-right: 8px; }
 .wk-team tr.mt-grp td { text-transform: none; letter-spacing: 0; font-size: 12.5px; }
 .mt-view .wk-team th.mt-num, .mt-view .wk-team td.mt-num { text-align: center; }
@@ -35,3 +35,4 @@
 .wk-prio span { color: var(--mt-low); }
 .wk-prio b { text-align: right; font-variant-numeric: tabular-nums; }
 @media (max-width: 1100px) { .wk-blocks { grid-template-columns: 1fr; } .wk-evo { grid-template-columns: 1fr; } }
+.mt-view .wk-team th { white-space: normal; vertical-align: bottom; line-height: 1.25; }
