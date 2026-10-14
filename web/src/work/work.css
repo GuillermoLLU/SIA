@@ -50,3 +50,6 @@
 .wk-col-bar { display: flex; flex-direction: column; min-height: 1px; }
 .wk-col-bar i { display: block; }
 .wk-col-x { margin-top: 4px; font-size: 11px; text-align: center; color: var(--mt-low); }
+.wk-pair { display: flex; flex: 1; align-items: flex-end; justify-content: center; gap: 2px; min-height: 0; }
+.wk-pair i { display: block; width: 42%; min-height: 1px; }
+.wk-flow-legend { margin: 4px 0 0; font-size: 11.5px; }

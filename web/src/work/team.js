@@ -70,9 +70,26 @@ export const teamPanel = (m, ch, ui) => {
     const asChart = charts.has(id);
     const head = `<div class="wk-block-h"><h3>${title}</h3><button class="wk-chart-btn" data-chart="${id}" title="${asChart ? 'Ver los datos' : 'Ver la evolución por mes'}">${asChart ? DATA_ICON : CHART_ICON}</button></div>`;
     if (!asChart) return `<section class="wk-block">${head}<div class="wk-hero"><b>${hero}</b><span>${label}</span></div>${extra}<div class="wk-items">${items.join('')}</div></section>`;
-    const note = id === 'queue' ? 'Lo que sigue sin resolver de cada mes, por mes de creación.' : 'Por mes de creación. * Mes en curso: aún puede cambiar.';
+    const note = { queue: 'Lo que sigue sin resolver de cada mes, por mes de creación.', volume: 'Creadas y resueltas cada mes (las resueltas, por su fecha de resolución).' }[id]
+      || 'Por mes de creación. * Mes en curso: aún puede cambiar.';
     return `<section class="wk-block wk-as-chart">${head}<div class="wk-key"><b>${hero}</b><span>${label}</span></div>
       <div class="wk-chart">${typeof chart === 'function' ? chart() : lines(A, ...chart, { height: 150, left: 78 })}</div><p class="wk-note">${note}</p></section>`;
+  };
+  // nuevas y resueltas de cada mes: las creadas ese mes y las resueltas ese mes (por su fecha de resolución,
+  // aunque se crearan antes), del equipo; dos columnas por mes
+  const flow = Array.from({ length: 12 }, () => [0, 0]);
+  const yearEnd = (Date.UTC(m.data.meta.year + 1, 0, 1) - m.BASE) / 6e4;
+  for (let i = 0; i < N; i++) {
+    if (TEAM[i] !== own || !C.as[i]) continue;
+    flow[MONTH[i]][0]++;
+    if (C.res[i] >= 0 && C.res[i] < yearEnd) flow[new Date(m.BASE + C.res[i] * 6e4).getUTCMonth()][1]++;
+  }
+  const flowBars = () => {
+    const shown = flow.map((v, k) => [k, v]).filter(([k]) => k >= S.from && k <= Math.min(S.to, m.LASTM));
+    const max = Math.max(1, ...shown.flatMap(([, v]) => v));
+    return `<div class="wk-cols">${shown.map(([k, [inN, outN]]) => `<div class="wk-col" data-tip="${esc(`${MONTHS[k]}\nNuevas: ${num(inN)}\nResueltas: ${num(outN)}`)}">
+        <span class="wk-pair"><i class="mt-c2" style="height:${(inN / max * 100).toFixed(1)}%"></i><i class="mt-c${k0}" style="height:${(outN / max * 100).toFixed(1)}%"></i></span><span class="wk-col-x">${MONTHS[k]}</span></div>`).join('')}</div>
+      <div class="mt-legend wk-flow-legend"><span><i class="mt-c2"></i>Nuevas</span><span><i class="mt-c${k0}"></i>Resueltas</span></div>`;
   };
   // pendientes por mes de creación: una columna por mes, con los mismos colores que la barra del bloque
   const queueBars = (months) => {
@@ -95,7 +112,7 @@ export const teamPanel = (m, ch, ui) => {
   ], (() => {   // nuevas frente a resueltas: si se resuelve al ritmo al que llegan
     const st = ST[k0], max = Math.max(st.inPerDay || 0, st.perDay || 0) || 1;
     return `<div class="wk-pace"><span>Nuevas</span>${bar((st.inPerDay || 0) / max, 'mt-c2')}<span>Resueltas</span>${bar((st.perDay || 0) / max)}</div>`;
-  })(), [(s) => s.n, num]);
+  })(), flowBars);
   const backlog = block('queue', 'Pendientes', 'sin resolver en SGA y SISU', num(queue.all), [
     item('Asignadas al equipo', num(queue.mine), `mt-c${k0}`),
     item('Sin asignar', num(queue.orphan), 'wk-orphan'),
