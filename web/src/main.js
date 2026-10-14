@@ -1470,7 +1470,9 @@ const PANELS = [
     api: createIssuesApi(API_BASE, AUTH.session), me: AUTH.user, toast: (t) => toast(t),
     openChat: (host, issueId) => mountIssueChat(host, { issueId, wsUrl, loadProjects: loadAccessProjects, makeTerminal }),
   }) },
-  { name: 'work', mount: mountWorkView },
+  // clic en una persona del Panel de trabajo: se abre en Métricas frente al resto de su equipo
+  { name: 'work', mount: (el) => AUTH && mountWorkView(el, { api: createMetricsApi(API_BASE, AUTH.session),
+    openPerson: (person) => { PANELS.find((p) => p.name === 'metrics').ui?.focus(person); showView('metrics'); } }) },
   { name: 'metrics', mount: (el) => AUTH && mountMetricsView(el, { api: createMetricsApi(API_BASE, AUTH.session), toast: (t) => toast(t) }) },
 ].map((p) => ({ ...p, nav: document.getElementById(`nav-${p.name}`), view: document.getElementById(`view-${p.name}`) }));
 const linksGrid = document.getElementById('links-grid');

@@ -47,6 +47,9 @@ export const createModel = (data) => {
   const LASTM = new Date(BASE + SNAP * 6e4).getUTCMonth();
   const CRIT = DI.prio.indexOf('CRITICAL'), HIGH = DI.prio.indexOf('HIGH');
   const SLA = DI.prio.map((p) => SLA_MINUTES[p] ?? -1);
+  // las prioridades de más a menos urgente y su SLA de inicio («Crítica · 15 min»)
+  const PRIOS = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map((p) => DI.prio.indexOf(p)).filter((k) => k > 0);
+  const slaLabel = (p) => `${nice(DI.prio[p])} · ${SLA[p] < 60 ? `${SLA[p]} min` : `${SLA[p] / 60} h`}`;
   const OPEN_ST = new Set(['ASSIGNED', 'IN_PROGRESS', 'PENDING'].map((s) => DI.status.indexOf(s)));
 
   // --- lo que se deriva de cada issue
@@ -216,7 +219,7 @@ export const createModel = (data) => {
   };
 
   return {
-    data, C, DI, N, BASE, SNAP, LASTM, SLA, MONTH, DOW, HOUR, OPEN, TEAM, SIDE, DESCL, DIMS, S,
+    data, C, DI, N, BASE, SNAP, LASTM, SLA, PRIOS, slaLabel, MONTH, DOW, HOUR, OPEN, TEAM, SIDE, DESCL, DIMS, S,
     CMP, CO, NAMES, refilter, rows, pool, toggle, isSel, group, bySide, byMonth, trend, stats,
   };
 };

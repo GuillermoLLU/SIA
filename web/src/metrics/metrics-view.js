@@ -13,6 +13,8 @@ import { num, MONTHS } from './format.js';
 import { createModel, COMPANIES } from './model.js';
 import { createCharts } from './charts.js';
 import { createTabs, TABS } from './tabs.js';
+import { periodLabel, calendarHtml } from './period.js';
+import { attachTip } from './tip.js';
 
 const SEARCH_MS = 250;
 const svg = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
@@ -70,14 +72,10 @@ export const mountMetricsView = (root, { api, toast }) => {
   // ve ese mes. Los meses sin datos aún no se pueden marcar.
   const renderPeriod = () => {
     const { S, LASTM } = m;
-    $('[data-period]').textContent = S.from === 0 && S.to === LASTM ? `Todo ${m.data.meta.year}` : S.from === S.to ? MONTHS[S.from] : `${MONTHS[S.from]} – ${MONTHS[S.to]}`;
+    $('[data-period]').textContent = periodLabel(S, LASTM, m.data.meta.year);
     const cal = $('[data-cal]');
     cal.hidden = open !== 'calendar';
-    if (cal.hidden) return;
-    const on = (k) => (anchor == null ? k >= S.from && k <= S.to : k === anchor);
-    cal.innerHTML = `<p>${anchor == null ? 'Marca el primer mes' : 'Ahora, el último'}</p>
-      <div class="mt-months">${MONTHS.map((mm, k) => `<button data-month="${k}" class="${on(k) ? 'mt-on' : ''}" ${k > LASTM ? 'disabled' : ''}>${mm}</button>`).join('')}</div>
-      <button class="mt-more" data-month-all>Todo ${m.data.meta.year}</button>`;
+    if (!cal.hidden) cal.innerHTML = calendarHtml(S, LASTM, m.data.meta.year, anchor);
   };
 
   // Cada lado: el botón dice qué es y lleva su color; la × lo quita (si hay dos). Su desplegable deja
@@ -248,23 +246,7 @@ export const mountMetricsView = (root, { api, toast }) => {
     searchTimer = setTimeout(() => { m.S.q = e.target.value; render(); }, SEARCH_MS);
   });
 
-  // Tarjeta al pasar el ratón: el texto de data-tip o, en una diferencia
-  // entre lados, A a la izquierda, la diferencia en el centro y B a la derecha.
-  root.addEventListener('mousemove', (e) => {
-    const tip = $('[data-tip-box]');
-    if (!tip) return;
-    const t = e.target.closest('[data-cmp],[data-tip]');
-    if (!t) { tip.hidden = true; return; }
-    if (t.dataset.cmp) {
-      const [a, d, b, cls] = t.dataset.cmp.split('¦'), [na, nb] = m.NAMES();
-      tip.className = 'mt-tip mt-tip-cmp';
-      tip.innerHTML = `<div><span>${esc(na)}</span><b class="mt-a">${esc(a)}</b></div><div><span>diferencia</span><b class="${cls}">${esc(d)}</b></div><div><span>${esc(nb)}</span><b class="mt-b">${esc(b)}</b></div>`;
-    } else { tip.className = 'mt-tip'; tip.textContent = t.dataset.tip; }
-    tip.hidden = false;
-    const w = tip.offsetWidth, h = tip.offsetHeight, cmp = !!t.dataset.cmp;
-    tip.style.left = `${Math.max(8, Math.min(e.clientX - (cmp ? w / 2 : -14), innerWidth - w - 8))}px`;
-    tip.style.top = `${e.clientY + 18 + h > innerHeight ? e.clientY - h - 12 : e.clientY + 18}px`;
-  });
+  attachTip(root, () => m.NAMES());
   // Escape: cierra el desplegable abierto; en la búsqueda, la borra y la cierra. Se escucha en todo
   // el documento: al elegir un color el desplegable se repinta y el foco sale de la vista.
   document.addEventListener('keydown', (e) => {
@@ -275,17 +257,22 @@ export const mountMetricsView = (root, { api, toast }) => {
   root.addEventListener('focusout', (e) => {
     if (m && e.target.matches('[data-q]') && !e.target.value && !e.relatedTarget?.closest('[data-search]')) { searching = false; e.target.hidden = true; }
   });
-  root.addEventListener('mouseleave', () => { const tip = $('[data-tip-box]'); if (tip) tip.hidden = true; });
 
-  // Al abrir la vista: los datos guardados (la primera vez) y siempre el Resumen.
+  // Los datos guardados se leen una vez (aunque los pidan a la vez show y focus).
+  let reading = null;
+  const ready = () => (m ? Promise.resolve() : (reading ||= api.load().then(start).finally(() => { reading = null; })));
+  const failed = (e) => { root.innerHTML = `<div class="mt-page"><p class="mt-empty">No se pudieron cargar las métricas: ${esc(e.message)}</p></div>`; };
+
   return {
-    show: async () => {
-      try {
-        if (!m) return start(await api.load());
-        if (tab !== 'resumen') { tab = 'resumen'; render(); }
-      } catch (e) {
-        root.innerHTML = `<div class="mt-page"><p class="mt-empty">No se pudieron cargar las métricas: ${esc(e.message)}</p></div>`;
-      }
-    },
+    // Al abrir la vista: siempre el Resumen.
+    show: () => ready().then(() => { if (m && tab !== 'resumen') { tab = 'resumen'; render(); } }).catch(failed),
+    // Una persona frente al resto de su equipo (desde el Panel de trabajo).
+    focus: (person) => ready().then(() => {
+      if (!m) return;
+      m.S.sides = [{ people: new Set([person]) }, { company: m.data.company[person] }];
+      colors = [COLORS[0][0], COLORS[1][0]];
+      tab = 'resumen'; closePops();
+      render();
+    }).catch(failed),
   };
 };

@@ -15,14 +15,12 @@ const REMEDY = 'https://itx.onbmc.com/arsys/servlet/ViewFormServlet?server=onbmc
 const incId = (id) => `INC${String(id).padStart(12, '0')}`;
 
 export const createTabs = (m, ch, ui) => {
-  const { C, DI, N, S, BASE, LASTM, SLA, MONTH, DOW, HOUR, OPEN, SIDE, CMP, CO, NAMES, isSel, rows, stats, group, bySide } = m;
+  const { C, DI, N, S, BASE, LASTM, PRIOS, slaLabel, MONTH, DOW, HOUR, OPEN, SIDE, CMP, CO, NAMES, isSel, rows, stats, group, bySide } = m;
   const name = (k) => NAMES()[k];
   const { card, legend, kpi, kpis, kpiCo, diff, bars, orderedBars, monthly, lines, ranking, compare, heat, timeBars, movers, mini } = ch;
   const noK = (k) => k === 0;
   const noTheme = (k) => k === m.data.themes.length;
   const REQ = DI.svc.indexOf('USER_SERVICE_REQUEST');
-  const PRIOS = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map((p) => DI.prio.indexOf(p)).filter((k) => k > 0);
-  const slaLabel = (p) => `${nice(DI.prio[p])} · ${SLA[p] < 60 ? `${SLA[p]} min` : `${SLA[p] / 60} h`}`;
   const slaPct = (s) => (s.sla == null ? '—' : pct(s.sla));
   const inPeriod = (i) => MONTH[i] >= S.from && MONTH[i] <= S.to;
 

@@ -1,4 +1,4 @@
-// /api/metrics (vista Métricas; la exige el bridge).
+// /api/metrics (vista Métricas; leer, también con la del Panel de trabajo; lo exige el bridge).
 //   GET  /               → { data }  (null: aún no se ha cargado ningún CSV)
 //   POST /csv?name=<fichero>  cuerpo: el CSV completo de Remedy, tal cual → { meta }
 // Los datos se calculan y se quedan en este ordenador (store.js).
