@@ -22,14 +22,13 @@ export const mountWorkView = (root, { api, openPerson, onManage }) => {
   const $ = (s) => root.querySelector(s);
 
   const manage = onManage ? '<button class="wk-switch-view" data-manage>Gestionar equipo</button>' : '';
-  const page = (body) => `<div class="mt-page"><header class="mt-top"><h2 class="mt-title">Panel de trabajo</h2>${body}${manage}</header>`;
+  // cabecera: título, fecha de los datos y, a la derecha, el periodo (si hay datos) y «Gestionar equipo»
+  const page = (body, tools = '') => `<div class="mt-page"><header class="mt-top wk-top"><h2 class="mt-title">Panel de trabajo</h2>${body}<span class="wk-tools">${tools}${manage}</span></header>`;
 
   const renderFrame = () => {
     const snap = new Date(m.BASE + m.SNAP * 6e4);
-    root.innerHTML = `${page(`<span class="mt-date">datos hasta el ${snap.getUTCDate()} de ${MONTHS[snap.getUTCMonth()]} de ${snap.getUTCFullYear()}</span>`)}
-      <div class="mt-fbar">
-        <div class="mt-period"><button class="mt-btn mt-icon-btn" data-calendar aria-haspopup="true">${CALENDAR_ICON}<span data-period></span></button><div class="mt-pop mt-cal" data-cal hidden></div></div>
-      </div>
+    const period = '<div class="mt-period"><button class="mt-btn mt-icon-btn" data-calendar aria-haspopup="true">' + CALENDAR_ICON + '<span data-period></span></button><div class="mt-pop mt-cal" data-cal hidden></div></div>';
+    root.innerHTML = `${page(`<span class="mt-date">datos hasta el ${snap.getUTCDate()} de ${MONTHS[snap.getUTCMonth()]} de ${snap.getUTCFullYear()}</span>`, period)}
       <div class="wk-main" data-main></div>
     </div><div class="mt-tip" data-tip-box hidden></div>`;
   };
