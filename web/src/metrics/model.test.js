@@ -10,7 +10,7 @@ import { createTabs, TABS } from './tabs.js';
 // 5 sin responsable
 const SNAP = 100000;
 const data = () => ({
-  meta: { file: 'x.csv', year: 2026, group: 'AYS SOPORTE', rows: 5, total: 6, notices: 1, snapshot: SNAP, generated: '2026-10-14T08:00:00Z' },
+  meta: { file: 'x.csv', year: 2026, group: 'AYS SOPORTE', rows: 5, total: 5, snapshot: SNAP, generated: '2026-10-14T08:00:00Z' },
   dict: { status: ['', 'CLOSED', 'ASSIGNED'], reason: [''], prio: ['', 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW'], svc: ['', 'USER_SERVICE_RESTORATION'],
     person: ['', 'ANA', 'LUIS'], centre: ['', 'C1'], op: ['', 'ECOM Zara'], module: ['', 'EWMS', 'PACKING'], cat: ['', 'X'],
     vtype: ['', 'TEC'], vproj: ['', 'SGA'], vkey: ['', 'SGA-1'], resol: ['', 'reinicio'] },

@@ -19,7 +19,7 @@ test('sin datos: null', () => {
 test('carga el CSV por trozos, guarda lo calculado y lo vuelve a leer', async () => {
   const dir = tmp();
   const meta = await createMetricsStore(dir, { year: 2026, now }).importCsv(chunks(csv(ISSUE)), 'issues.csv');
-  assert.deepEqual({ ...meta, snapshot: undefined }, { file: 'issues.csv', year: 2026, group: 'AYS SOPORTE', rows: 1, total: 1, notices: 0, snapshot: undefined, generated: '2026-10-14T08:00:00.000Z' });
+  assert.deepEqual({ ...meta, snapshot: undefined }, { file: 'issues.csv', year: 2026, group: 'AYS SOPORTE', rows: 1, total: 1, snapshot: undefined, generated: '2026-10-14T08:00:00.000Z' });
   const again = createMetricsStore(dir, { year: 2026 }).load();
   assert.deepEqual(again.cols.id, [7]);
   assert.deepEqual(fs.readdirSync(dir), ['datos.json']);

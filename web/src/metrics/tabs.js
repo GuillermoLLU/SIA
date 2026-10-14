@@ -77,13 +77,6 @@ export const createTabs = (m, ch, ui) => {
       `<tr class="mt-grp"><td colspan="${cmp ? 2 : cos.length + 1}">${g}</td></tr>${list.map(([l, f, val, bt, tip]) => `<tr><td ${tip ? `data-tip="${esc(tip)}"` : ''}>${l}</td>${cmp ? `<td class="mt-num">${diff(ST[0], ST[1], f, val, bt)}</td>` : cos.map((k) => `<td class="mt-num">${ST[k].n ? f(ST[k]) : '—'}</td>`).join('')}</tr>`).join('')}`).join('')}</tbody></table>`;
   };
 
-  // Lo que queda fuera de la comparación, para que nadie se pierda al cuadrar cifras.
-  const scopeNote = () => {
-    const n = [0, 0, 0];
-    for (let i = 0; i < N; i++) if (inPeriod(i)) n[TEAM[i]]++;
-    const { group, year, notices } = m.data.meta;
-    return `<p class="mt-note"><b>Qué se compara.</b> Issues del grupo ${esc(group)}: ${num(n[0])} de ${COMPANIES[0]} y ${num(n[1])} de ${COMPANIES[1]}, según quién figura hoy como responsable. Quedan fuera ${num(n[2])} sin responsable y los ${num(notices)} avisos automáticos de ruta/etiqueta de ${year}, que se abren y cierran solos. Tiempos en horas naturales; los tiempos «medios» son la media aritmética.</p>`;
-  };
   // Lo abierto por ámbito: todo lo del periodo, también lo que aún no tiene responsable.
   const backlogTable = () => {
     const bk = SCOPES.map(() => [0, 0, 0]);
@@ -98,8 +91,7 @@ export const createTabs = (m, ch, ui) => {
   const VIEWS = {
     resumen(A) {
       const ST = byTeam(A).map(stats);
-      return grid(`<div class="mt-s12">${scopeNote()}</div>`,
-        kpis(kpiCo('Issues', ST, (s) => num(s.n), { val: (s) => s.n }),
+      return grid(kpis(kpiCo('Issues', ST, (s) => num(s.n), { val: (s) => s.n }),
           kpiCo('Primera actuación', ST, (s) => dur(s.fr), { val: (s) => s.fr, better: 'low' }),
           kpiCo('Media de resolución', ST, (s) => dur(s.avg), { val: (s) => s.avg, better: 'low' }),
           kpiCo('Resueltas en < 24 h', ST, (s) => pct(s.d1), { val: (s) => s.d1, better: 'high' }),

@@ -73,7 +73,6 @@
 .mt-card h3 + :not(.mt-sub) { margin-top: 12px; }
 .mt-sec { grid-column: span 12; margin: 12px 0 -4px; font-size: 16px; font-weight: 650; }
 .mt-sec small { margin-left: 8px; font-size: 13px; font-weight: 400; color: var(--text-low); }
-.mt-note { margin: 0; padding: 10px 14px; font-size: 13px; background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--mt-c0); }
 .mt-mut { color: var(--text-low); } .mt-small { margin: 6px 0; font-size: 12.5px; }
 .mt-up { color: var(--mt-bad); } .mt-down { color: var(--mt-good); }
 

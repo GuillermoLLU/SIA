@@ -2,11 +2,11 @@
 // grupo de soporte abiertas en el año, medidas una a una (remedy.js) y
 // guardadas por columnas, con los textos repetidos en diccionarios. Los
 // avisos automáticos de ruta y etiqueta (AUTOTEC) se abren y se cierran
-// solos: no son trabajo del equipo y no se guardan, solo se cuentan.
+// solos: no son trabajo del equipo y no se guardan.
 //
 // Lo que sale (lo lee web/src/metrics/):
-//   meta    { file, year, group, rows, total, notices, snapshot, generated }
-//           rows: issues del grupo y del año; total: filas del CSV; notices: avisos automáticos que se dejan fuera;
+//   meta    { file, year, group, rows, total, snapshot, generated }
+//           rows: issues del grupo y del año; total: filas del CSV;
 //           snapshot: el último minuto con movimiento (la «hora de la foto»).
 //   dict    textos por columna; el 0 es siempre ''.
 //   themes  nombres de los temas (bit i de `th`).
@@ -53,7 +53,7 @@ export const createDataset = ({ year, group = GROUP }) => {
   const D = Object.fromEntries(['status', 'reason', 'prio', 'svc', 'person', 'centre', 'op', 'module', 'cat', 'vtype', 'vproj', 'vkey', 'resol'].map((k) => [k, dictionary()]));
   const cols = Object.fromEntries(COLS.map((c) => [c, []]));
   const resolutions = [], resolutionCount = new Map(), resolvers = new Map();
-  let total = 0, notices = 0, snapshot = 0, checked = false;
+  let total = 0, snapshot = 0, checked = false;
 
   const add = (r) => {
     if (!checked) {
@@ -66,7 +66,7 @@ export const createDataset = ({ year, group = GROUP }) => {
     const i = readIssue(r, base);
     if (i.reported < 0 || i.reported >= yearEnd) return;
     snapshot = Math.max(snapshot, i.reported, i.modified);
-    if (i.flags & FLAG.AUTO_NOTICE) { notices++; return; }
+    if (i.flags & FLAG.AUTO_NOTICE) return;
     if (i.resolvedBy.length) {
       const name = own(i.assignee), counts = resolvers.get(name) || new Map();
       for (const who of i.resolvedBy) counts.set(counts.has(who) ? who : own(who), (counts.get(who) || 0) + 1);
@@ -92,7 +92,7 @@ export const createDataset = ({ year, group = GROUP }) => {
     for (const [login, name] of loginsOf(resolvers)) logins.set(name, [...(logins.get(name) || []), login]);
     const people = D.person.values;
     return {
-      meta: { file, year, group, rows: cols.id.length, total, notices, snapshot, generated },
+      meta: { file, year, group, rows: cols.id.length, total, snapshot, generated },
       dict: Object.fromEntries(Object.entries(D).map(([k, d]) => [k, d.values])),
       themes: THEME_NAMES,
       company: people.map((name) => companyOf(name, logins.get(name) || [])),
