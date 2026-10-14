@@ -37,7 +37,7 @@ export const mountMetricsView = (root, { api, toast }) => {
     const { meta } = m.data, snap = new Date(m.BASE + m.SNAP * 6e4);
     root.innerHTML = `<div class="mt-page">
       <header class="mt-top"><h2 class="mt-title">Métricas</h2>
-        <span class="mt-snap" title="${esc(meta.file)}">${esc(meta.group)} · ${num(meta.rows)} issues de ${meta.year} · datos hasta el ${snap.getUTCDate()} de ${MONTHS[snap.getUTCMonth()]} · cargados el ${dayOf(meta.generated)}</span>
+        <span class="mt-date" title="${esc(`${meta.file}, cargado el ${dayOf(meta.generated)}`)}">datos hasta el ${snap.getUTCDate()} de ${MONTHS[snap.getUTCMonth()]} de ${snap.getUTCFullYear()}</span>
         ${loadButton('Cargar otro CSV')}</header>
       <div class="mt-fbar">
         <div class="mt-seg" data-companies></div>
