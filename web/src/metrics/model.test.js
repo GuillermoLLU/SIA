@@ -97,6 +97,7 @@ test('de las resueltas: SLA cumplido, resueltas por día, prioridades y marcas d
   assert.equal(s.slaDoneOk, 1);
   assert.equal(s.slaDone, 1 / 3);
   assert.equal(s.perDay, 3 / 2);          // minutos 1060, 5000 y 5100: dos días distintos
+  assert.equal(s.inPerDay, 3 / 3);        // abiertas en los minutos 1000, 2000 y 5000: tres días
   assert.deepEqual(s.prio, [0, 1, 1, 0, 1]);
   assert.equal(s.ia, 0);
 });

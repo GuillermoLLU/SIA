@@ -12,7 +12,6 @@ import { num, dec, pct, dur } from '../metrics/format.js';
 
 export const MIN = 10;
 
-const slaPct = (s) => (s.sla == null ? '—' : pct(s.sla));
 const donePct = (s) => (s.slaDone == null ? '—' : pct(s.slaDone));
 
 // Columnas de la tabla por persona: [cabecera, cómo se ve, valor, qué es mejor, qué mide]. Las de
@@ -53,14 +52,21 @@ export const teamPanel = (m, ch, ui) => {
     if (!C.as[i]) orphan++;
   }
 
-  const head = kpis(
+  const perDay = (v) => (v == null ? '—' : dec(v));
+  const row1 = kpis(
     kpiCo('Issues', ST, (s) => num(s.n), { val: (s) => s.n }),
+    kpiCo('Entradas al día', ST, (s) => perDay(s.inPerDay), { val: (s) => s.inPerDay, note: 'issues abiertas de media, en los días con alguna' }),
+    kpiCo('Resueltas al día', ST, (s) => perDay(s.perDay), { val: (s) => s.perDay, note: 'de media, en los días con alguna' }),
     kpiCo('Abiertas ahora', ST, (s) => num(s.open), { val: (s) => s.open, note: 'con responsable de la empresa' }),
-    kpi('Backlog SGA + SISU', num(backlog), `${num(orphan)} sin responsable`, m.CMP() ? '' : `mt-t${sides[0]}`),
+    kpi('Backlog SGA + SISU', num(backlog), `${num(orphan)} sin responsable`, m.CMP() ? '' : `mt-t${sides[0]}`));
+  const row2 = kpis(
     kpiCo('SLA cumplido', ST, donePct, { val: (s) => s.slaDone, better: 'high', note: 'de las resueltas' }),
-    kpiCo('Resueltas al día', ST, (s) => (s.perDay == null ? '—' : dec(s.perDay)), { val: (s) => s.perDay, note: 'el equipo, en los días con alguna' }),
     kpiCo('Media de resolución', ST, (s) => dur(s.avg), { val: (s) => s.avg, better: 'low' }),
-    kpiCo('Reabiertas', ST, (s) => pct(s.reop, 1), { val: (s) => s.reop, better: 'low' }));
+    kpiCo('Resueltas en < 24 h', ST, (s) => pct(s.d1), { val: (s) => s.d1, better: 'high' }),
+    kpiCo('Reabiertas', ST, (s) => pct(s.reop, 1), { val: (s) => s.reop, better: 'low' }),
+    kpiCo('Uso de IA', ST, (s) => (s.resolved ? pct(s.ia / s.resolved, 1) : '—'), { val: (s) => (s.resolved ? s.ia / s.resolved : null), note: 'resueltas con alguna marca de IA' }));
+  // SLA cumplido por prioridad, de las resueltas: una caja por prioridad
+  const row3 = kpis(...m.PRIOS.map((p) => kpiCo(m.slaLabel(p), m.bySide(A.filter((i) => C.pr[i] === p)).map(m.stats), donePct, { val: (s) => s.slaDone, better: 'high', note: 'SLA cumplido' })));
 
   // persona a persona, cada una frente a la media de su equipo
   const people = m.group('as', A, true).filter((x) => x.k).map((x) => ({ ...m.stats(x.rows), k: x.k, side: x.t[0] ? 0 : 1 }));
@@ -80,15 +86,12 @@ export const teamPanel = (m, ch, ui) => {
   const table = `<div class="mt-tablewrap"><table class="wk-team"><thead><tr><th>Persona</th>${order.map(th).join('')}</tr></thead>
     <tbody>${people.map(row).join('') || `<tr><td colspan="${order.length + 1}" class="mt-mut">Nadie con issues en este periodo.</td></tr>`}${sides.map(teamRow).join('')}</tbody></table></div>`;
 
-  // el SLA del equipo por prioridad: % dentro, fuera de plazo y media hasta En curso
-  const prio = `<table><thead><tr><th>Prioridad y SLA</th>${sides.map((k) => `<th class="mt-num"><span class="mt-sw mt-c${k}"></span>${esc(names[k])}</th>`).join('')}<th class="mt-num">Fuera de plazo</th></tr></thead><tbody>${m.PRIOS.map((p) => {
-    const st = m.bySide(A.filter((i) => m.C.pr[i] === p)).map(m.stats);
-    return `<tr><td>${m.slaLabel(p)}</td>${sides.map((k) => `<td class="mt-num">${slaPct(st[k])}</td>`).join('')}<td class="mt-num">${sides.map((k) => num(st[k].slaKo)).join(' / ')}</td></tr>`;
-  }).join('')}</tbody></table>`;
-
-  return `<div class="mt-grid">${head}
+  return `<div class="mt-grid wk-panel">
+    <div class="wk-row5">${row1}</div>
+    <div class="wk-row5">${row2}</div>
+    <h2 class="mt-sec">SLA cumplido por prioridad<small>de las resueltas, cuántas pasaron a En curso dentro del plazo de su prioridad</small></h2>
+    <div class="wk-row4">${row3}</div>
     ${card('El equipo, persona a persona', table, { span: 's12', sub: 'Clic en una cabecera para ordenar (pasa el ratón por ella para ver qué mide) y en una persona para verla en Métricas frente al resto de su equipo.' })}
-    ${card('SLA de inicio por prioridad', prio, { span: 's5', sub: 'De la apertura al primer paso a En curso. «Fuera de plazo»: iniciadas tarde o aún sin iniciar con el plazo vencido.' })}
-    ${card('Evolución del equipo', `${legend()}<p class="mt-small"><b>Dentro del SLA de inicio</b></p>${lines(A, (s) => s.sla, (v) => pct(v))}<p class="mt-small"><b>Media de resolución</b></p>${lines(A, (s) => s.avg, dur)}`, { span: 's7', sub: 'Por mes de apertura. * mes incompleto: lo más reciente sale mejor de lo que acabará.' })}
+    ${card('Evolución del equipo', `${legend()}<div class="wk-evo"><div><p class="mt-small"><b>SLA cumplido</b></p>${lines(A, (s) => s.slaDone, (v) => pct(v))}</div><div><p class="mt-small"><b>Media de resolución</b></p>${lines(A, (s) => s.avg, dur)}</div></div>`, { span: 's12', sub: 'Por mes de apertura. * mes incompleto: lo más reciente sale mejor de lo que acabará.' })}
   </div>`;
 };

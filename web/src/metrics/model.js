@@ -190,7 +190,7 @@ export const createModel = (data) => {
     let crit = 0, hi = 0, vend = 0, pend = 0, reop = 0, bounce = 0, open = 0, open30 = 0, d1 = 0, h4 = 0, d3 = 0, f30 = 0, f120 = 0;
     let noCat = 0, noDesc = 0, noRes = 0, done = 0, slaOk = 0, slaKo = 0, noIp = 0, waitKo = 0;
     let doneSla = 0, doneSlaOk = 0, doneIa = 0;
-    const time = [0, 0, 0, 0, 0], t = [0, 0, 0], prio = new Array(DI.prio.length).fill(0), days = new Set();
+    const time = [0, 0, 0, 0, 0], t = [0, 0, 0], prio = new Array(DI.prio.length).fill(0), days = new Set(), inDays = new Set();
     for (const i of list) {
       if (TTR[i] >= 0) {
         ttr.push(TTR[i]); if (TTR[i] < DAY) d1++; if (TTR[i] < 240) h4++; if (TTR[i] < 3 * DAY) d3++;
@@ -200,6 +200,7 @@ export const createModel = (data) => {
         days.add(Math.floor(C.res[i] / DAY));
       }
       prio[C.pr[i]]++;
+      inDays.add(Math.floor(C.rep[i] / DAY));
       if (C.fr[i] >= 0) { fr.push(C.fr[i]); if (C.fr[i] < 30) f30++; if (C.fr[i] < 120) f120++; }
       if (OPEN[i]) { open++; if (SNAP - C.rep[i] > 30 * DAY) open30++; } else { done++; if (C.fl[i] & NO_RESOLUTION) noRes++; }
       if (!C.k3[i]) noCat++;
@@ -228,6 +229,7 @@ export const createModel = (data) => {
       prio,                                                  // cuántas de cada prioridad (por índice de DI.prio)
       slaDone: doneSla ? doneSlaOk / doneSla : null, slaDoneOk: doneSlaOk,   // de las resueltas, las que empezaron en plazo
       perDay: days.size ? ttr.length / days.size : null,     // resueltas por día, en los días en que se resolvió alguna
+      inPerDay: inDays.size ? list.length / inDays.size : null,   // entradas por día, en los días en que entró alguna
       ia: doneIa,                                            // resueltas con alguna marca de IA
     };
   };

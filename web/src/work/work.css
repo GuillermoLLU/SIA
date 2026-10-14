@@ -6,3 +6,8 @@
 .wk-team td:first-child .mt-sw { margin-right: 8px; }
 .wk-team tr.mt-grp td { text-transform: none; letter-spacing: 0; font-size: 12.5px; }
 .mt-view .wk-team th.mt-num, .mt-view .wk-team td.mt-num { text-align: center; }
+.wk-row5, .wk-row4 { grid-column: span 12; }
+.wk-row5 .mt-kpis { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.wk-row4 .mt-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.wk-evo { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+@media (max-width: 1100px) { .wk-row5 .mt-kpis, .wk-row4 .mt-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .wk-evo { grid-template-columns: 1fr; } }
