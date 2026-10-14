@@ -34,11 +34,12 @@
 
 /* filtros: fijos arriba al hacer scroll */
 .mt-fbar { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 -28px; padding: 9px 28px; background: var(--bg); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-/* periodo: botón con calendario y, al abrirlo, los meses del año */
+/* periodo y persona: botón con icono y, al abrirlo, su desplegable */
 .mt-period { position: relative; }
 .mt-icon-btn { display: inline-flex; align-items: center; gap: 7px; height: 32px; }
 .mt-icon-btn svg, .mt-search svg { width: 16px; height: 16px; color: var(--mt-low); }
-.mt-cal { position: absolute; top: calc(100% + 6px); left: 0; z-index: 10; width: 250px; padding: 12px; background: var(--surface); border: 1px solid var(--mt-line); box-shadow: 0 8px 24px rgba(0, 0, 0, .16); }
+.mt-pop { position: absolute; top: calc(100% + 6px); left: 0; z-index: 10; padding: 12px; background: var(--surface); border: 1px solid var(--mt-line); box-shadow: 0 8px 24px rgba(0, 0, 0, .16); }
+.mt-cal { width: 250px; }
 .mt-cal p { margin: 0 0 10px; font-size: 12px; color: var(--mt-low); }
 .mt-months { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
 .mt-months button { height: 32px; font: inherit; font-size: 13px; color: var(--text); background: var(--bg); border: 1px solid var(--mt-line); cursor: pointer; }
@@ -46,6 +47,18 @@
 .mt-months button.mt-on { color: var(--surface); background: var(--accent); border-color: var(--accent); }
 .mt-months button:disabled { opacity: .35; cursor: default; }
 .mt-cal .mt-more { margin-top: 8px; }
+.mt-who { width: 330px; padding: 10px; }
+.mt-person { display: flex; }
+.mt-person .mt-x { height: 32px; margin-left: -1px; padding: 0 10px; font-size: 15px; line-height: 1; color: var(--mt-low); }
+.mt-person .mt-x:hover { color: var(--text); }
+.mt-who input { width: 100%; height: 30px; margin-bottom: 8px; padding: 0 8px; font: inherit; font-size: 13px; color: var(--text); background: var(--bg); border: 1px solid var(--mt-line); }
+.mt-who-list { max-height: 380px; overflow-y: auto; }
+.mt-who-list p { display: flex; align-items: center; margin: 10px 0 4px; font-size: 11.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--mt-low); }
+.mt-who-list button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px 8px; font: inherit; font-size: 13px; text-align: left; color: var(--text); background: none; border: 0; cursor: pointer; }
+.mt-who-list button span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mt-who-list button small { font-size: 12px; color: var(--mt-low); font-variant-numeric: tabular-nums; }
+.mt-who-list button:hover { background: var(--mt-soft); }
+.mt-who-list button.mt-on { background: var(--mt-sel); font-weight: 600; }
 /* búsqueda: la lupa junto al número de issues */
 .mt-find { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .mt-find input { width: 220px; height: 30px; padding: 0 8px; font: inherit; font-size: 13px; color: var(--text); background: var(--surface); border: 1px solid var(--mt-line); }
@@ -57,6 +70,7 @@
 .mt-seg button i { width: 10px; height: 10px; opacity: .35; }
 .mt-seg button.mt-on { color: var(--text); background: var(--mt-soft); }
 .mt-seg button.mt-on i { opacity: 1; }
+.mt-seg button:disabled { cursor: default; }
 .mt-chips { display: flex; flex: 1; flex-wrap: wrap; gap: 6px; }
 .mt-chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 6px 2px 10px; font-size: 12.5px; background: var(--mt-sel); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border)); }
 .mt-chip b { font-weight: 600; }

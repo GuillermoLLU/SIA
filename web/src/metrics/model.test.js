@@ -52,6 +52,19 @@ test('filtrar: cada gráfico ignora el filtro de su propia dimensión; buscar po
   assert.deepEqual(m.rows(), [1]);
 });
 
+test('una persona elegida: solo lo suyo, en su empresa, sin comparar, aunque su empresa no esté marcada', () => {
+  const m = createModel(data());
+  m.S.co = [true, false, false];
+  m.S.f.as = new Set([2]); m.refilter();
+  assert.deepEqual(m.rows(), [1]);
+  assert.deepEqual(m.CO(), [1]);
+  assert.equal(m.CMP(), false);
+  m.S.f.as = new Set([1, 2]); m.refilter();
+  assert.equal(m.CMP(), true);   // dos personas de empresas distintas: se comparan
+  delete m.S.f.as; m.refilter();
+  assert.deepEqual(m.CO(), [0]);
+});
+
 test('SLA de inicio: dentro, fuera, sin iniciar y fuera de plazo, cerrada sin pasar por En curso', () => {
   const m = createModel(data());
   m.refilter();
@@ -76,8 +89,8 @@ test('indicadores de un grupo', () => {
 test('todas las pestañas se pintan en cada modo, sin huecos ni NaN', () => {
   const m = createModel(data()), ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
   for (const co of [[true, true, false], [true, false, false], [false, true, false], [true, true, true]]) {
-    for (const q of ['', 'nada así']) {
-      Object.assign(m.S, { co, q });
+    for (const [q, f] of [['', {}], ['nada así', {}], ['', { as: new Set([1]) }]]) {
+      Object.assign(m.S, { co, q, f });
       m.refilter();
       for (const [tab] of TABS) assert.doesNotMatch(tabs.render(tab, m.rows()), /undefined|NaN|\[object/, `${tab} ${co} «${q}»`);
     }

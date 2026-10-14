@@ -2,9 +2,10 @@
 // en vivo. Los datos salen del CSV completo de Remedy que carga cada persona
 // (el bridge los calcula y los guarda en este ordenador). Al entrar, siempre
 // el Resumen; arriba, los filtros, que valen para todas las pestañas, y con
-// un clic en cualquier barra, fila o celda se filtra por ese valor.
+// un clic en cualquier barra, fila o celda se filtra por ese valor. Con una
+// persona elegida, todas las pestañas enseñan solo lo suyo.
 import './metrics.css';
-import { esc } from '../ui/html.js';
+import { esc, fold } from '../ui/html.js';
 import { num, MONTHS } from './format.js';
 import { createModel, COMPANIES } from './model.js';
 import { createCharts } from './charts.js';
@@ -14,11 +15,13 @@ const SEARCH_MS = 250;
 const svg = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const CALENDAR_ICON = svg('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>');
 const SEARCH_ICON = svg('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>');
+const PERSON_ICON = svg('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>');
 
 export const mountMetricsView = (root, { api, toast }) => {
   let m = null, tabs = null, tab = 'resumen', loading = false;
-  // periodo: si el calendario está abierto y el primer mes marcado a falta del último; búsqueda abierta
-  let calendar = false, anchor = null, searching = false;
+  // open: el desplegable abierto ('calendar' o 'people'); anchor: el primer mes marcado a falta
+  // del último; who: lo escrito en el buscador de personas; searching: la búsqueda abierta
+  let open = null, anchor = null, who = '', searching = false;
   const ui = { exp: {}, sort: {} };
   const $ = (s) => root.querySelector(s);
 
@@ -41,7 +44,9 @@ export const mountMetricsView = (root, { api, toast }) => {
         ${loadButton('Cargar otro CSV')}</header>
       <div class="mt-fbar">
         <div class="mt-seg" data-companies></div>
-        <div class="mt-period"><button class="mt-btn mt-icon-btn" data-calendar aria-haspopup="true">${CALENDAR_ICON}<span data-period></span></button><div class="mt-cal" data-cal hidden></div></div>
+        <div class="mt-period"><button class="mt-btn mt-icon-btn" data-calendar aria-haspopup="true">${CALENDAR_ICON}<span data-period></span></button><div class="mt-pop mt-cal" data-cal hidden></div></div>
+        <div class="mt-period mt-person"><button class="mt-btn mt-icon-btn" data-people aria-haspopup="true">${PERSON_ICON}<span data-person></span></button><button class="mt-btn mt-x" data-person-all title="Volver a todas las personas" hidden>×</button>
+          <div class="mt-pop mt-who" data-who hidden><input type="search" data-who-q placeholder="Buscar persona…"><div class="mt-who-list" data-who-list></div></div></div>
         <div class="mt-chips" data-chips></div>
         <button class="mt-btn" data-clear>Quitar filtros</button>
         <div class="mt-find"><input type="search" data-q placeholder="Título o INC…" hidden><span class="mt-count" data-count></span>
@@ -58,25 +63,53 @@ export const mountMetricsView = (root, { api, toast }) => {
     const { S, LASTM } = m;
     $('[data-period]').textContent = S.from === 0 && S.to === LASTM ? `Todo ${m.data.meta.year}` : S.from === S.to ? MONTHS[S.from] : `${MONTHS[S.from]} – ${MONTHS[S.to]}`;
     const cal = $('[data-cal]');
-    cal.hidden = !calendar;
-    if (!calendar) return;
+    cal.hidden = open !== 'calendar';
+    if (cal.hidden) return;
     const on = (k) => (anchor == null ? k >= S.from && k <= S.to : k === anchor);
     cal.innerHTML = `<p>${anchor == null ? 'Marca el primer mes' : 'Ahora, el último'}</p>
       <div class="mt-months">${MONTHS.map((mm, k) => `<button data-month="${k}" class="${on(k) ? 'mt-on' : ''}" ${k > LASTM ? 'disabled' : ''}>${mm}</button>`).join('')}</div>
       <button class="mt-more" data-month-all>Todo ${m.data.meta.year}</button>`;
   };
-  const closeCalendar = () => { calendar = false; anchor = null; };
+
+  // Persona: el botón dice a quién se mira; el desplegable, las personas con issues en lo que se
+  // ve (sin contar el filtro de persona), por empresa y de más a menos, con un buscador.
+  const renderPeople = () => {
+    const { S, DIMS, data } = m, sel = m.people();
+    $('[data-person]').textContent = !sel ? 'Todas las personas' : sel.length === 1 ? DIMS.as.label(sel[0]) : `${sel.length} personas`;
+    $('.mt-x[data-person-all]').hidden = !sel;
+    const pop = $('[data-who]');
+    pop.hidden = open !== 'people';
+    if (pop.hidden) return;
+    const q = fold(who.trim()), all = m.group('as', m.rows('as')).filter((x) => x.k && (!q || fold(DIMS.as.label(x.k)).includes(q)));
+    const groups = [0, 1, 2].map((c) => [c, all.filter((x) => data.company[x.k] === c)]).filter(([, l]) => l.length);
+    $('[data-who-list]').innerHTML = `${q ? '' : `<button data-person-all class="${sel ? '' : 'mt-on'}">Todas las personas</button>`}
+      ${groups.map(([c, l]) => `<p><i class="mt-sw mt-c${c}"></i>${c === 2 ? 'Fuera de la comparación' : COMPANIES[c]}</p>
+        ${l.map((x) => `<button data-person-pick="${x.k}" class="${S.f.as?.has(x.k) ? 'mt-on' : ''}"><span>${esc(DIMS.as.label(x.k))}</span><small>${num(x.n)}</small></button>`).join('')}`).join('')
+      || '<p class="mt-mut">Nadie con ese nombre.</p>'}`;
+  };
+  const closePops = () => { open = null; anchor = null; who = ''; };
+  const togglePop = (which) => {
+    const was = open;
+    closePops();
+    if (was !== which) open = which;
+    renderPeriod(); renderPeople();
+    if (open === 'people') { const i = $('[data-who-q]'); i.value = ''; i.focus(); }
+  };
 
   const render = () => {
     const { S, DIMS } = m;
     m.refilter();
     const A = m.rows();
-    const chips = Object.keys(S.f).flatMap((dim) => [...S.f[dim]].map((k) => `<span class="mt-chip">${DIMS[dim].name}: <b>${esc(DIMS[dim].label(k))}</b><button data-rm="${dim}:${k}" title="Quitar">×</button></span>`));
+    // la persona ya la dice su botón: no lleva chip
+    const chips = Object.keys(S.f).filter((dim) => dim !== 'as').flatMap((dim) => [...S.f[dim]].map((k) => `<span class="mt-chip">${DIMS[dim].name}: <b>${esc(DIMS[dim].label(k))}</b><button data-rm="${dim}:${k}" title="Quitar">×</button></span>`));
     $('[data-chips]').innerHTML = chips.join('');
-    $('[data-clear]').hidden = !(chips.length || S.q || S.from || S.to !== m.LASTM);
+    $('[data-clear]').hidden = !(chips.length || S.f.as?.size || S.q || S.from || S.to !== m.LASTM);
     renderPeriod();
+    renderPeople();
     $('[data-q]').hidden = !(searching || S.q);
-    $('[data-companies]').innerHTML = [0, 1, 2].map((k) => `<button class="${S.co[k] ? 'mt-on' : ''}" data-co="${k}"><i class="mt-c${k}"></i>${COMPANIES[k]}</button>`).join('');
+    // con personas elegidas mandan sus empresas: los botones lo enseñan y no se tocan
+    const shown = m.CO(), fixed = !!m.people();
+    $('[data-companies]').innerHTML = [0, 1, 2].map((k) => `<button class="${shown.includes(k) ? 'mt-on' : ''}" data-co="${k}" ${fixed ? 'disabled title="Con una persona elegida se ven sus datos"' : ''}><i class="mt-c${k}"></i>${COMPANIES[k]}</button>`).join('');
     $('[data-count]').innerHTML = `<b>${num(A.length)}</b> issues`;
     root.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('mt-on', b.dataset.tab === tab));
     $('[data-main]').innerHTML = tabs.render(tab, A);
@@ -84,7 +117,7 @@ export const mountMetricsView = (root, { api, toast }) => {
 
   const start = (data) => {
     m = data ? createModel(data) : null;
-    ui.exp = {}; ui.sort = {}; tab = 'resumen'; searching = false; closeCalendar();
+    ui.exp = {}; ui.sort = {}; tab = 'resumen'; searching = false; closePops();
     if (!m) return renderEmpty();
     tabs = createTabs(m, createCharts(m, ui), ui);
     renderFrame();
@@ -111,18 +144,25 @@ export const mountMetricsView = (root, { api, toast }) => {
   root.addEventListener('click', (e) => {
     if (!m || e.target.closest('a')) return;
     const { S } = m;
-    // calendario del periodo: abrir y cerrar, marcar meses; un clic fuera lo cierra
-    if (e.target.closest('[data-calendar]')) { calendar = !calendar; anchor = null; return renderPeriod(); }
+    // desplegables del periodo y de la persona: abrir y cerrar, elegir; un clic fuera los cierra
+    if (e.target.closest('[data-calendar]')) return togglePop('calendar');
+    if (e.target.closest('[data-people]')) return togglePop('people');
     const month = e.target.closest('[data-month]');
     if (month) {
       const k = Number(month.dataset.month);
       if (anchor == null) { anchor = k; return renderPeriod(); }
       [S.from, S.to] = [Math.min(anchor, k), Math.max(anchor, k)];
-      closeCalendar();
+      closePops();
       return render();
     }
-    if (e.target.closest('[data-month-all]')) { S.from = 0; S.to = m.LASTM; closeCalendar(); return render(); }
-    if (calendar && !e.target.closest('[data-cal]')) { closeCalendar(); renderPeriod(); }
+    if (e.target.closest('[data-month-all]')) { S.from = 0; S.to = m.LASTM; closePops(); return render(); }
+    const person = e.target.closest('[data-person-pick],[data-person-all]');
+    if (person) {
+      if (person.dataset.personPick) S.f.as = new Set([Number(person.dataset.personPick)]); else delete S.f.as;
+      closePops();
+      return render();
+    }
+    if (open && !e.target.closest('.mt-pop')) { closePops(); renderPeriod(); renderPeople(); }
     if (e.target.closest('[data-search]')) {
       searching = !searching || !!S.q;
       $('[data-q]').hidden = !searching;
@@ -133,7 +173,7 @@ export const mountMetricsView = (root, { api, toast }) => {
     if (!t) return;
     const d = t.dataset;
     if (d.tab) { tab = d.tab; root.scrollTop = 0; }
-    else if (d.co) { const k = Number(d.co); S.co[k] = !S.co[k]; if (!S.co.some(Boolean)) S.co[k] = true; }
+    else if (d.co) { if (m.people()) return; const k = Number(d.co); S.co[k] = !S.co[k]; if (!S.co.some(Boolean)) S.co[k] = true; }
     else if (d.rm) { const [dim, k] = filterKey(d.rm); S.f[dim].delete(k); }
     else if (d.exp) ui.exp[d.exp] = !ui.exp[d.exp];
     else if (d.sort) { const [id, c] = d.sort.split(':'), cur = ui.sort[id]; ui.sort[id] = [c, cur && cur[0] === c ? -cur[1] : -1]; }
@@ -150,6 +190,7 @@ export const mountMetricsView = (root, { api, toast }) => {
   });
   let searchTimer;
   root.addEventListener('input', (e) => {
+    if (m && e.target.matches('[data-who-q]')) { who = e.target.value; renderPeople(); return; }
     if (!m || !e.target.matches('[data-q]')) return;
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => { m.S.q = e.target.value; render(); }, SEARCH_MS);
@@ -172,10 +213,10 @@ export const mountMetricsView = (root, { api, toast }) => {
     tip.style.left = `${Math.max(8, Math.min(e.clientX - (cmp ? w / 2 : -14), innerWidth - w - 8))}px`;
     tip.style.top = `${e.clientY + 18 + h > innerHeight ? e.clientY - h - 12 : e.clientY + 18}px`;
   });
-  // Escape: cierra el calendario; en la búsqueda, la borra y la cierra
+  // Escape: cierra el desplegable abierto; en la búsqueda, la borra y la cierra
   root.addEventListener('keydown', (e) => {
     if (!m || e.key !== 'Escape') return;
-    if (calendar) { closeCalendar(); renderPeriod(); return; }
+    if (open) { closePops(); renderPeriod(); renderPeople(); return; }
     if (e.target.matches('[data-q]')) { e.target.value = ''; searching = false; m.S.q = ''; render(); }
   });
   root.addEventListener('focusout', (e) => {

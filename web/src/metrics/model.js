@@ -102,16 +102,24 @@ export const createModel = (data) => {
 
   // --- filtros. S.co: qué empresas se miran; S.f: dimensión → valores marcados.
   // Una fila cuenta en un gráfico si pasa todos los filtros salvo el de la propia dimensión.
+  // Con personas elegidas (S.f.as) mandan ellas: se miran sus empresas, marcadas o no, y
+  // con una sola persona se ven sus valores, sin comparar.
   const S = { f: {}, from: 0, to: LASTM, q: '', co: [true, true, false] };
-  const CMP = () => S.co[0] && S.co[1];
-  const CO = () => [0, 1, 2].filter((k) => S.co[k]);
+  const people = () => (S.f.as?.size ? [...S.f.as] : null);
+  const CO = () => {
+    const p = people();
+    if (!p) return [0, 1, 2].filter((k) => S.co[k]);
+    const of = new Set(p.map((k) => data.company[k]));
+    return [0, 1, 2].filter((k) => of.has(k));
+  };
+  const CMP = () => { const c = CO(); return c.includes(0) && c.includes(1); };
   let MASK = new Uint32Array(N), ACTIVE = [], CACHE = {};
   const refilter = () => {
     ACTIVE = Object.keys(S.f).filter((k) => S.f[k].size);
-    const q = S.q.trim().toLowerCase();
+    const q = S.q.trim().toLowerCase(), co = people() ? [true, true, true] : S.co;
     for (let i = 0; i < N; i++) {
       let m = 0;
-      if (MONTH[i] < S.from || MONTH[i] > S.to || !S.co[TEAM[i]]) m |= 1 << 30;
+      if (MONTH[i] < S.from || MONTH[i] > S.to || !co[TEAM[i]]) m |= 1 << 30;
       if (q && !C.su[i].toLowerCase().includes(q) && !`inc${String(C.id[i]).padStart(12, '0')}`.includes(q)) m |= 1 << 30;
       for (let a = 0; a < ACTIVE.length; a++) {
         const dm = DIMS[ACTIVE[a]], set = S.f[ACTIVE[a]], v = dm.get(i);
@@ -182,6 +190,6 @@ export const createModel = (data) => {
 
   return {
     data, C, DI, N, BASE, SNAP, LASTM, SLA, MONTH, DOW, HOUR, OPEN, TEAM, DESCL, DIMS, S,
-    CMP, CO, refilter, rows, toggle, isSel, group, byTeam, byMonth, trend, stats,
+    CMP, CO, people, refilter, rows, toggle, isSel, group, byTeam, byMonth, trend, stats,
   };
 };
