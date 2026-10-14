@@ -31,10 +31,12 @@ const COLS = {
   ia: ['Con IA', (s) => (s.resolved ? pct(s.ia / s.resolved, 1) : '—'), (s) => (s.resolved ? s.ia / s.resolved : null), null, 'De las que ha resuelto, el % en el que intervino la IA (marcas en TAGS o en las notas).'],
 };
 
-const CHART_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/></svg>';
+const icon = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const CHART_ICON = icon('<path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/>');
+const DATA_ICON = icon('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h4M7 13h10M7 17h7"/>');
 
 // m: el modelo de las Métricas; ch: sus piezas (charts.js); ui.sort.team: [columna, ±1];
-// ui.charts: los bloques con su gráfica desplegada.
+// ui.charts: los bloques que se ven como gráfica.
 export const teamPanel = (m, ch, ui) => {
   const { card, diff, legend, lines } = ch;
   const A = m.rows(), sides = m.CO(), names = m.NAMES(), ST = m.bySide(A).map(m.stats);
@@ -60,12 +62,17 @@ export const teamPanel = (m, ch, ui) => {
   const cmp = m.CMP(), k0 = sides[0];
   const fig = (fmt, val, better, stats = ST) => (cmp ? diff(stats[0], stats[1], fmt, val, better) : fmt(stats[k0]));
   const item = (label, html, sw = '') => `<div class="wk-item"><span>${sw ? `<i class="mt-sw ${sw}"></i>` : ''}${label}</span><b>${html}</b></div>`;
-  // cada bloque lleva su gráfica mes a mes, que se despliega con el icono de su cabecera
+  // Cada bloque se ve como cifras o como su gráfica mes a mes; el icono de la cabecera cambia de una
+  // vista a otra. En la gráfica se queda arriba, en pequeño, la cifra principal.
   const charts = ui.charts || new Set();
-  const block = (id, title, label, hero, items, extra, chart) => `<section class="wk-block"><div class="wk-block-h"><h3>${title}</h3>
-      <button class="wk-chart-btn ${charts.has(id) ? 'mt-on' : ''}" data-chart="${id}" title="${charts.has(id) ? 'Ocultar la evolución' : 'Ver la evolución por mes'}">${CHART_ICON}</button></div>
-    <div class="wk-hero"><b>${hero}</b><span>${label}</span></div>${extra}<div class="wk-items">${items.join('')}</div>
-    ${charts.has(id) ? `<div class="wk-chart">${cmp ? legend() : ''}${lines(A, ...chart)}<p class="mt-mut mt-small">${id === 'queue' ? 'Por mes de creación de las issues que siguen sin resolver.' : 'Por mes de creación de las issues. * Mes en curso: aún puede cambiar.'}</p></div>` : ''}</section>`;
+  const block = (id, title, label, hero, items, extra, chart) => {
+    const asChart = charts.has(id);
+    const head = `<div class="wk-block-h"><h3>${title}</h3><button class="wk-chart-btn" data-chart="${id}" title="${asChart ? 'Ver los datos' : 'Ver la evolución por mes'}">${asChart ? DATA_ICON : CHART_ICON}</button></div>`;
+    if (!asChart) return `<section class="wk-block">${head}<div class="wk-hero"><b>${hero}</b><span>${label}</span></div>${extra}<div class="wk-items">${items.join('')}</div></section>`;
+    const note = id === 'queue' ? 'Por mes de creación de las que siguen sin resolver.' : 'Por mes de creación. * Mes en curso: aún puede cambiar.';
+    return `<section class="wk-block wk-as-chart">${head}<div class="wk-key"><b>${hero}</b><span>${label}</span></div>
+      <div class="wk-chart">${cmp ? legend() : ''}${lines(A, ...chart, { height: cmp ? 125 : 150, left: 78 })}</div><p class="wk-note">${note}</p></section>`;
+  };
   const bar = (share, cls = `mt-c${k0}`) => `<span class="wk-bar"><i class="${cls}" style="width:${Math.min(100, share * 100).toFixed(1)}%"></i></span>`;
   const perDay = (v) => (v == null ? '—' : dec(v));
   const iaShare = (s) => (s.resolved ? s.ia / s.resolved : null);

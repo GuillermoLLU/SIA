@@ -40,11 +40,14 @@ test('solo Indra: una fila por persona y la del equipo, con sus datos y sin colo
   assert.equal((h.match(/class="wk-block"/g) || []).length, 6);   // seis bloques, en dos filas
 });
 
-test('cada bloque, su gráfica mes a mes al desplegarla', () => {
+test('un bloque como gráfica: su evolución en lugar de las cifras, con la principal arriba', () => {
   assert.equal((render([{ company: 0 }, null]).match(/class="wk-chart"/g) || []).length, 0);
   const h = render([{ company: 0 }, null], new Set(['times', 'sla']));
   assert.equal((h.match(/class="wk-chart"/g) || []).length, 2);
-  assert.match(h, /data-chart="times" title="Ocultar la evolución"/);
+  assert.match(h, /data-chart="times" title="Ver los datos"/);
+  const times = h.slice(h.indexOf('<h3>Tiempos'), h.indexOf('</section>', h.indexOf('<h3>Tiempos')));
+  assert.match(times, /class="wk-key"/);
+  assert.doesNotMatch(times, /wk-items/);
 });
 
 test('al ordenar por una media o un %, quien tiene menos de MIN issues va al final', () => {

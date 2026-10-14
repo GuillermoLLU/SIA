@@ -63,9 +63,10 @@ export const createCharts = (m, ui) => {
       <div class="mt-col-x">${MONTHS[k]}${k === LASTM ? '*' : ''}</div></div>`)).join('')}</div>`;
   };
 
-  // Líneas por mes, una por lado. f(indicadores del mes) da el valor.
-  const lines = (A, f, fmt) => {
-    const W = 620, H = 190, L = 54, R = 12, T = 12, B = 26, cos = CO();
+  // Líneas por mes, una por lado. f(indicadores del mes) da el valor. o.height y o.left: alto del
+  // dibujo y margen para las etiquetas del eje (para gráficas pequeñas, con letra más grande).
+  const lines = (A, f, fmt, o = {}) => {
+    const W = 620, H = o.height || 190, L = o.left || 54, R = 12, T = 12, B = 26, cos = CO();
     const per = cos.map((k) => { const mt = Array.from({ length: LASTM + 1 }, () => []); for (const i of A) if (SIDE[i] === k) mt[MONTH[i]].push(i); return mt.map((l) => (l.length >= 10 ? f(stats(l)) : null)); });
     const max = Math.max(1e-9, ...per.flat().filter((v) => v != null)) * 1.1;
     const x = (i) => L + i * (W - L - R) / Math.max(LASTM, 1), y = (v) => T + (H - T - B) * (1 - v / max);
