@@ -10,7 +10,6 @@ export const FLAGS = [[1, 'SISUINC (abierta desde SISU)'], [2, 'PRIO (priorizada
   [32, 'IA_SOLVED…'], [64, 'IA_FAIL / HITL_IA_FAIL'], [128, 'DB2_LOCK'], [256, 'Major incident (en notas)'], [512, 'Reabierta'],
   [1024, 'Con llamada al centro (CALL… en notas)'], [2048, 'Con intervención de IA (en notas)'], [4096, 'Revisión humana de IA: OK'], [8192, 'IA fallida o revisión no OK'],
   [16384, 'Marcada como recurrencia'], [32768, 'Sin texto de resolución']];
-export const AUTO_NOTICE = 8;
 export const MAJOR = 256;
 const REOPENED = 512, NO_RESOLUTION = 32768;
 export const IA_MARKS = 32 | 64 | 2048 | 4096 | 8192;
@@ -103,7 +102,7 @@ export const createModel = (data) => {
 
   // --- filtros. S.co: qué empresas se miran; S.f: dimensión → valores marcados.
   // Una fila cuenta en un gráfico si pasa todos los filtros salvo el de la propia dimensión.
-  const S = { f: {}, from: 0, to: LASTM, auto: false, q: '', co: [true, true, false] };
+  const S = { f: {}, from: 0, to: LASTM, q: '', co: [true, true, false] };
   const CMP = () => S.co[0] && S.co[1];
   const CO = () => [0, 1, 2].filter((k) => S.co[k]);
   let MASK = new Uint32Array(N), ACTIVE = [], CACHE = {};
@@ -113,7 +112,6 @@ export const createModel = (data) => {
     for (let i = 0; i < N; i++) {
       let m = 0;
       if (MONTH[i] < S.from || MONTH[i] > S.to || !S.co[TEAM[i]]) m |= 1 << 30;
-      if (!S.auto && (C.fl[i] & AUTO_NOTICE)) m |= 1 << 30;
       if (q && !C.su[i].toLowerCase().includes(q) && !`inc${String(C.id[i]).padStart(12, '0')}`.includes(q)) m |= 1 << 30;
       for (let a = 0; a < ACTIVE.length; a++) {
         const dm = DIMS[ACTIVE[a]], set = S.f[ACTIVE[a]], v = dm.get(i);

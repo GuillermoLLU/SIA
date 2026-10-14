@@ -7,16 +7,18 @@ const row = (o = {}) => ({ ...Object.fromEntries(REQUIRED.map((c) => [c, ''])),
   INCIDENTNUMBER: 'INC000000000001', ASSIGNEDGROUP: 'AYS SOPORTE', ASSIGNEE: 'ANA LOPEZ', STATUS: 'CLOSED', PRIORITY: 'HIGH',
   REPORTEDDATE: '2026-03-01 10:00:00', RESOLUTION: 'Hecho', ...o });
 
-test('solo el grupo y el año; textos en diccionarios con el 0 vacío', () => {
+test('solo el grupo y el año, sin avisos automáticos; textos en diccionarios con el 0 vacío', () => {
   const ds = createDataset({ year: 2026 });
   ds.add(row());
   ds.add(row({ INCIDENTNUMBER: 'INC000000000002', ASSIGNEDGROUP: 'OTRO GRUPO' }));
   ds.add(row({ INCIDENTNUMBER: 'INC000000000003', REPORTEDDATE: '2025-12-31 23:59:00' }));
   ds.add(row({ INCIDENTNUMBER: 'INC000000000004', ASSIGNEE: '' }));
+  ds.add(row({ INCIDENTNUMBER: 'INC000000000005', TAGS: 'AUTOTEC' }));
   const out = ds.build({ file: 'issues.csv', generated: '2026-10-14 10:00' });
   assert.deepEqual(out.cols.id, [1, 4]);
   assert.equal(out.meta.rows, 2);
-  assert.equal(out.meta.total, 4);
+  assert.equal(out.meta.total, 5);
+  assert.equal(out.meta.notices, 1);
   assert.deepEqual(out.dict.person, ['', 'ANA LOPEZ']);
   assert.deepEqual(out.cols.as, [1, 0]);
   assert.deepEqual(out.company, [2, 1]);

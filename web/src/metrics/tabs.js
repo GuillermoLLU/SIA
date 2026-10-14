@@ -4,7 +4,7 @@
 // T-Systems; con una, sus valores.
 import { esc } from '../ui/html.js';
 import { num, pct, dur, nice, title, dateOf, MONTHS, DOWS } from './format.js';
-import { COMPANIES, SCOPES, AUTO_NOTICE, MAJOR, IA_MARKS, share } from './model.js';
+import { COMPANIES, SCOPES, MAJOR, IA_MARKS, share } from './model.js';
 
 export const TABS = [['resumen', 'Resumen'], ['reparto', 'Reparto'], ['respuesta', 'Respuesta'], ['sla', 'SLA de inicio'], ['resolucion', 'Resolución'],
   ['backlog', 'Backlog'], ['escalados', 'Escalados'], ['calidad', 'Calidad del trabajo'], ['focos', 'Focos'], ['modulos', 'Módulos'],
@@ -79,9 +79,10 @@ export const createTabs = (m, ch, ui) => {
 
   // Lo que queda fuera de la comparación, para que nadie se pierda al cuadrar cifras.
   const scopeNote = () => {
-    const n = [0, 0, 0]; let auto = 0;
-    for (let i = 0; i < N; i++) { if (!inPeriod(i)) continue; if (C.fl[i] & AUTO_NOTICE) { auto++; if (!S.auto) continue; } n[TEAM[i]]++; }
-    return `<p class="mt-note"><b>Qué se compara.</b> Issues del grupo ${esc(m.data.meta.group)}: ${num(n[0])} de ${COMPANIES[0]} y ${num(n[1])} de ${COMPANIES[1]}, según quién figura hoy como responsable. Quedan fuera ${num(n[2])} sin responsable${S.auto ? `. Incluye ${num(auto)} avisos automáticos de ruta/etiqueta` : ` y ${num(auto)} avisos automáticos de ruta/etiqueta, que se abren y cierran solos`}. Tiempos en horas naturales; los tiempos «medios» son la media aritmética.</p>`;
+    const n = [0, 0, 0];
+    for (let i = 0; i < N; i++) if (inPeriod(i)) n[TEAM[i]]++;
+    const { group, year, notices } = m.data.meta;
+    return `<p class="mt-note"><b>Qué se compara.</b> Issues del grupo ${esc(group)}: ${num(n[0])} de ${COMPANIES[0]} y ${num(n[1])} de ${COMPANIES[1]}, según quién figura hoy como responsable. Quedan fuera ${num(n[2])} sin responsable y los ${num(notices)} avisos automáticos de ruta/etiqueta de ${year}, que se abren y cierran solos. Tiempos en horas naturales; los tiempos «medios» son la media aritmética.</p>`;
   };
   // Lo abierto por ámbito: todo lo del periodo, también lo que aún no tiene responsable.
   const backlogTable = () => {
@@ -91,7 +92,7 @@ export const createTabs = (m, ch, ui) => {
     return `<table><thead><tr><th>Ámbito</th>${[0, 1].map((k) => `<th class="mt-num"><span class="mt-sw mt-c${k}"></span>${COMPANIES[k]}</th>`).join('')}<th class="mt-num"><span class="mt-sw mt-c2"></span>Sin responsable</th><th class="mt-num">Total</th></tr></thead><tbody>${[2, 1, 3, 0].map((j) => `<tr class="mt-clk ${isSel('sc', j) ? 'mt-sel' : ''}" data-f="sc:${j}"><td>${SCOPES[j]}</td>${bk[j].map((v) => `<td class="mt-num">${num(v)}</td>`).join('')}<td class="mt-num"><b>${num(bk[j][0] + bk[j][1] + bk[j][2])}</b></td></tr>`).join('')}
       <tr class="mt-grp"><td>Total</td>${tot.map((v) => `<td class="mt-num">${num(v)}</td>`).join('')}<td class="mt-num">${num(tot[0] + tot[1] + tot[2])}</td></tr></tbody></table>`;
   };
-  const section = (t, small) => `<h2 class="mt-sec">${t}<small>${small}</small></h2>`;
+  const section = (t, small = '') => `<h2 class="mt-sec">${t}${small ? `<small>${small}</small>` : ''}</h2>`;
   const grid = (...parts) => `<div class="mt-grid">${parts.join('')}</div>`;
 
   const VIEWS = {
@@ -186,15 +187,15 @@ export const createTabs = (m, ch, ui) => {
     },
 
     escalados(A) {
-      const base = A.filter((i) => !(C.fl[i] & AUTO_NOTICE)), withT = base.filter((i) => C.vt[i]), without = base.filter((i) => !C.vt[i]);
-      const SB = byTeam(base).map(stats), SW = byTeam(withT).map(stats), SN = byTeam(without).map(stats), tot = (s) => s.time.reduce((x, y) => x + y, 0) || 1;
+      const withT = A.filter((i) => C.vt[i]), without = A.filter((i) => !C.vt[i]);
+      const SB = byTeam(A).map(stats), SW = byTeam(withT).map(stats), SN = byTeam(without).map(stats), tot = (s) => s.time.reduce((x, y) => x + y, 0) || 1;
       const known = group('vk', A, true).filter((x) => x.k && x.n >= 5);
       const kt = `<div class="mt-tablewrap ${ui.exp.known ? 'mt-scroll' : ''}"><table><thead><tr><th>Ticket</th><th class="mt-num">Incidencias</th><th class="mt-num">Centros</th><th>Reparto</th><th>Primera</th><th>Última</th><th class="mt-num">Media resol.</th><th>Título más habitual</th></tr></thead><tbody>${known.slice(0, ui.exp.known ? 200 : 15).map((x) => {
         const ce = new Set(x.rows.map((i) => C.ce[i])).size, f = Math.min(...x.rows.map((i) => C.rep[i])), l = Math.max(...x.rows.map((i) => C.rep[i]));
         const ti = group('de', x.rows).find((y) => y.k);   // el título más habitual
         return `<tr class="mt-clk ${isSel('vk', x.k) ? 'mt-sel' : ''}" data-f="vk:${x.k}"><td><b>${esc(DI.vkey[x.k])}</b></td><td class="mt-num">${x.n}</td><td class="mt-num">${ce}</td><td>${mini(x.t)}</td><td>${dateOf(BASE, f).slice(0, 5)}</td><td>${dateOf(BASE, l).slice(0, 5)}</td><td class="mt-num">${dur(stats(x.rows).avg)}</td><td class="mt-mut">${ti ? esc(m.DESCL[ti.k]) : ''}</td></tr>`;
       }).join('')}</tbody></table></div>${known.length > 15 ? `<button class="mt-more" data-exp="known">${ui.exp.known ? 'Ver menos' : `Ver todos (${num(known.length)})`}</button>` : ''}`;
-      return grid(kpis(kpiCo('Con ticket de tercero', SB, (s) => pct(s.vend), { val: (s) => s.vend, note: 'sin avisos automáticos' }),
+      return grid(kpis(kpiCo('Con ticket de tercero', SB, (s) => pct(s.vend), { val: (s) => s.vend }),
         kpiCo('Pasan por «pendiente»', SB, (s) => pct(s.pend), { val: (s) => s.pend }),
         kpiCo('Media con ticket', SW, (s) => dur(s.avg), { val: (s) => s.avg, better: 'low' }),
         kpiCo('Media sin ticket', SN, (s) => dur(s.avg), { val: (s) => s.avg, better: 'low' }),
@@ -202,10 +203,10 @@ export const createTabs = (m, ch, ui) => {
         kpiCo('Tiempo esperando al centro', SB, (s) => pct(s.time[2] / tot(s)), { val: (s) => s.time[2] / tot(s), note: 'del tiempo de vida' })),
       card('A quién se escala', legend() + bars('vt', { top: 12, skip: noK }), { span: 's5', sub: 'Prefijo escrito en el campo «Vendor Ticket Number», tal cual. Solo issues con ticket.' }),
       card('Proyectos Jira que reciben más', ranking('vp', ['n', 'mix', 'crit', 'avg', 'p90', 'pend'], { skip: noK, top: 12 }), { span: 's7', sub: 'Por la clave que aparece en el ticket de tercero (p. ej. SGAEWMSAP-7037 → SGAEWMSAP).' }),
-      card('Por prioridad', byPrio(base, ['n', 'vend', 'pend', 'avg']), { sub: 'Sin avisos automáticos.' }),
-      card('Por ámbito', byScope(base, ['n', 'vend', 'pend', 'avg']), { sub: 'Sin avisos automáticos.' }),
+      card('Por prioridad', byPrio(A, ['n', 'vend', 'pend', 'avg'])),
+      card('Por ámbito', byScope(A, ['n', 'vend', 'pend', 'avg'])),
       card('Un mismo ticket, muchas incidencias', kt, { span: 's12', sub: 'Tickets de desarrollo a los que se han ligado 5 o más incidencias. Clic en uno para ver esas incidencias en todas las métricas.' }),
-      card('Módulos que más se escalan', ranking('mo', ['n', 'mix', 'vend', 'pend', 'avg', 'p90'], { id: 'esc-mo', rows: base, skip: noK, min: 80, sort: 'vend', top: 12 }), { span: 's12', sub: 'Módulos con al menos 80 issues, sin avisos automáticos.' }));
+      card('Módulos que más se escalan', ranking('mo', ['n', 'mix', 'vend', 'pend', 'avg', 'p90'], { id: 'esc-mo', skip: noK, min: 80, sort: 'vend', top: 12 }), { span: 's12', sub: 'Módulos con al menos 80 issues.' }));
     },
 
     calidad(A) {
@@ -262,13 +263,12 @@ export const createTabs = (m, ch, ui) => {
 
     ia(A) {
       const ia = A.filter((i) => C.fl[i] & IA_MARKS), T = byTeam(A), TI = byTeam(ia);
-      let auto = 0; for (let i = 0; i < N; i++) if ((C.fl[i] & AUTO_NOTICE) && inPeriod(i)) auto++;
       const count = (label, b, note) => kpiCo(label, T.map((l) => ({ n: l.length, v: l.filter((i) => C.fl[i] & b).length })), (s) => num(s.v), { val: (s) => s.v, note });
       const extra = (s, l) => { s.req = share(l, (i) => C.sv[i] === REQ); s.rep = share(l, (i) => C.rz[i] > 0); };
-      const SI = TI.map(stats), SN = T.map((l) => stats(l.filter((i) => !(C.fl[i] & (IA_MARKS | AUTO_NOTICE))))), rest = A.filter((i) => !(C.fl[i] & AUTO_NOTICE)), au = A.filter((i) => C.fl[i] & AUTO_NOTICE);
+      const SI = TI.map(stats), SN = T.map((l) => stats(l.filter((i) => !(C.fl[i] & IA_MARKS))));
       return grid(kpis(count('Issues con alguna marca de IA', IA_MARKS, 'en TAGS o en notas'), count('Con marca IA_SOLVED…', 32, 'en TAGS'), count('Con intervención de IA', 2048, 'notas [ACT IA], [INFORME IA]…'),
         count('Revisión humana OK', 4096, '[HITL_REVIEW_OK] en notas'), count('IA fallida o no OK', 8192 | 64, 'IA_FAIL, HITL no OK…'),
-        kpiCo('Media con IA', SI, (s) => dur(s.avg), { val: (s) => s.avg }), kpiCo('Media sin IA', SN, (s) => dur(s.avg), { val: (s) => s.avg, note: 'sin avisos automáticos' })),
+        kpiCo('Media con IA', SI, (s) => dur(s.avg), { val: (s) => s.avg }), kpiCo('Media sin IA', SN, (s) => dur(s.avg), { val: (s) => s.avg })),
       section('Issues donde ya interviene la IA', `${num(ia.length)} issues con alguna marca de IA`),
       card('Por mes', legend() + monthly(ia), { span: 's4' }),
       card('Por módulo', bars('mo', { id: 'ia-mo', rows: ia, top: 10 }), { span: 's4' }),
@@ -276,15 +276,12 @@ export const createTabs = (m, ch, ui) => {
       card('Por centro', bars('ce', { id: 'ia-ce', rows: ia, top: 10 }), { span: 's4' }),
       card('Por tipología', bars('k3', { id: 'ia-k3', rows: ia, top: 10 }), { span: 's4' }),
       card('Resultado', bars('fl', { id: 'ia-fl', rows: ia, top: 15, skip: (x) => ![5, 6, 11, 12, 13].includes(x) }), { span: 's4', sub: 'Marcas de IA presentes en esas issues.' }),
-      section('Trabajo repetitivo', 'sin avisos automáticos'),
-      card('Temas: volumen, rapidez y repetición', ranking('th', ['n', 'mix', 'req', 'rep', 'avg', 'd1', 'vend'], { id: 'auto-th', extra, top: 27, rows: rest }),
+      section('Trabajo repetitivo'),
+      card('Temas: volumen, rapidez y repetición', ranking('th', ['n', 'mix', 'req', 'rep', 'avg', 'd1', 'vend'], { id: 'rep-th', extra, top: 27 }),
         { span: 's12', sub: '«% peticiones» = tipo de servicio Petición de usuario. «% resolución repetida» = issues cuyo texto de resolución se ha usado 4 veces o más.' }),
-      card('Tipología: volumen, rapidez y repetición', ranking('k3', ['n', 'mix', 'req', 'rep', 'avg', 'd1', 'vend'], { id: 'auto-k3', extra, top: 15, min: 50, rows: rest }), { span: 's12' }),
-      card('Títulos que más se repiten', bars('de', { id: 'auto-de', rows: rest, top: 15, skip: noK })),
-      card('Resoluciones que más se repiten', bars('rz', { id: 'auto-rz', rows: rest, top: 15, skip: noK })),
-      section('Avisos automáticos de ruta y etiqueta', `${num(auto)} issues con la marca AUTOTEC en el periodo; se abren solos y se resuelven con «Generado Jira a equipo TEC»`),
-      S.auto ? card('Por mes', monthly(au)) + card('Por centro', bars('ce', { id: 'au-ce', rows: au, top: 12 }))
-        : card('Están fuera de la selección', '<p class="mt-small">Marca «Incluir avisos automáticos» en la barra de filtros para verlos por mes y por centro.</p>', { span: 's12' }));
+      card('Tipología: volumen, rapidez y repetición', ranking('k3', ['n', 'mix', 'req', 'rep', 'avg', 'd1', 'vend'], { id: 'rep-k3', extra, top: 15, min: 50 }), { span: 's12' }),
+      card('Títulos que más se repiten', bars('de', { id: 'rep-de', top: 15, skip: noK })),
+      card('Resoluciones que más se repiten', bars('rz', { id: 'rep-rz', top: 15, skip: noK })));
     },
   };
 

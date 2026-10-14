@@ -25,10 +25,23 @@
 
 /* filtros: fijos arriba al hacer scroll */
 .mt-fbar { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 -28px; padding: 9px 28px; background: var(--bg); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-.mt-fbar label { font-size: 12.5px; color: var(--text-low); }
-.mt-fbar select, .mt-fbar input[type=search] { height: 30px; padding: 0 8px; font: inherit; font-size: 13px; color: var(--text); background: var(--surface); border: 1px solid var(--border); }
-.mt-fbar input[type=search] { width: 220px; }
-.mt-chk { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+/* periodo: botón con calendario y, al abrirlo, los meses del año */
+.mt-period { position: relative; }
+.mt-icon-btn { display: inline-flex; align-items: center; gap: 7px; height: 32px; }
+.mt-icon-btn svg, .mt-search svg { width: 16px; height: 16px; color: var(--text-low); }
+.mt-cal { position: absolute; top: calc(100% + 6px); left: 0; z-index: 10; width: 250px; padding: 12px; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 8px 24px rgba(0, 0, 0, .16); }
+.mt-cal p { margin: 0 0 10px; font-size: 12px; color: var(--text-low); }
+.mt-months { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.mt-months button { height: 32px; font: inherit; font-size: 13px; color: var(--text); background: var(--bg); border: 1px solid var(--border); cursor: pointer; }
+.mt-months button:hover:not(:disabled) { border-color: var(--accent); }
+.mt-months button.mt-on { color: var(--surface); background: var(--accent); border-color: var(--accent); }
+.mt-months button:disabled { opacity: .35; cursor: default; }
+.mt-cal .mt-more { margin-top: 8px; }
+/* búsqueda: la lupa junto al número de issues */
+.mt-find { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.mt-find input { width: 220px; height: 30px; padding: 0 8px; font: inherit; font-size: 13px; color: var(--text); background: var(--surface); border: 1px solid var(--border); }
+.mt-search { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; background: none; border: 1px solid transparent; cursor: pointer; }
+.mt-search:hover { border-color: var(--border); background: var(--surface); }
 .mt-seg { display: inline-flex; border: 1px solid var(--border); }
 .mt-seg button { display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; font: inherit; font-size: 13px; font-weight: 550; color: var(--text-low); background: var(--surface); border: 0; border-right: 1px solid var(--border); cursor: pointer; }
 .mt-seg button:last-child { border-right: 0; }
