@@ -49,13 +49,15 @@ export const teamPanel = (m, ch, ui) => {
   for (const p of m.PRIOS) cols[`p${p}`] = [PRIO[m.DI.prio[p]], (s) => num(s.prio[p]), (s) => s.prio[p], null, `Issues de prioridad ${m.slaLabel(p)}.`];
   const order = ['n', 'open', ...m.PRIOS.map((p) => `p${p}`), 'sla', 'day', 'avg', 'd1', 'reop', 'bounce', 'noRes', 'ia'];
 
-  // Backlog: lo que el equipo ve en sus búsquedas de Remedy (SGA y SISU), sin resolver, tenga
-  // responsable o no; de las issues abiertas en el periodo. Repartido: de su gente, sin responsable, de otros.
+  // Pendientes: todo lo que el equipo tiene sin resolver (caiga o no en sus búsquedas de Remedy) y lo
+  // que espera en sus búsquedas (SGA y SISU) sin asignar o asignado a otros; de las issues abiertas en el periodo.
   const { C, OPEN, MONTH, S, N, TEAM } = m, own = m.S.sides[0].company;
   const queue = { all: 0, mine: 0, orphan: 0, months: Array.from({ length: 12 }, () => [0, 0, 0]) };   // por mes: equipo, sin asignar, otros
   for (let i = 0; i < N; i++) {
-    if (!OPEN[i] || MONTH[i] < S.from || MONTH[i] > S.to || (C.sc[i] !== SCOPE.SGA && C.sc[i] !== SCOPE.SISU)) continue;
-    const who = !C.as[i] ? 1 : TEAM[i] === own ? 0 : 2;
+    if (!OPEN[i] || MONTH[i] < S.from || MONTH[i] > S.to) continue;
+    const mine = C.as[i] && TEAM[i] === own;
+    if (!mine && C.sc[i] !== SCOPE.SGA && C.sc[i] !== SCOPE.SISU) continue;
+    const who = mine ? 0 : !C.as[i] ? 1 : 2;
     queue.all++;
     if (who === 0) queue.mine++; else if (who === 1) queue.orphan++;
     queue.months[MONTH[i]][who]++;
@@ -112,10 +114,10 @@ export const teamPanel = (m, ch, ui) => {
   // la media al día, en la línea del título; sus colores son también la leyenda de las barras
   const volume = block('volume', 'Volumen', 'issues en el periodo', fig((s) => num(s.n)), [],
     `<span class="wk-aside">Media al día <i class="mt-sw mt-c2"></i><b>${perDay(ST[k0].inPerDay)}</b> nuevas <i class="mt-sw mt-c${k0}"></i><b>${perDay(ST[k0].perDay)}</b> resueltas</span>`, flowBars);
-  const backlog = block('queue', 'Pendientes', 'sin resolver en SGA y SISU', num(queue.all), [
+  const backlog = block('queue', 'Pendientes', 'sin resolver', num(queue.all), [
     item('Asignadas al equipo', num(queue.mine), `mt-c${k0}`),
-    item('Sin asignar', num(queue.orphan), 'wk-orphan'),
-  ], queue.all ? `<span class="wk-split" data-tip="${esc(`Pendientes en SGA y SISU: ${num(queue.all)}\nAsignadas al equipo: ${num(queue.mine)}\nSin asignar: ${num(queue.orphan)}\nAsignadas a otros: ${num(queue.all - queue.mine - queue.orphan)}`)}"><i class="mt-c${k0}" style="flex:${queue.mine}"></i><i class="wk-orphan" style="flex:${queue.orphan}"></i><i class="mt-c2" style="flex:${queue.all - queue.mine - queue.orphan}"></i></span>` : '', () => queueBars(queue.months));
+    item('Sin asignar en SGA y SISU', num(queue.orphan), 'wk-orphan'),
+  ], queue.all ? `<span class="wk-split" data-tip="${esc(`Sin resolver: ${num(queue.all)}\nAsignadas al equipo: ${num(queue.mine)}\nSin asignar, en SGA y SISU: ${num(queue.orphan)}\nAsignadas a otros, en SGA y SISU: ${num(queue.all - queue.mine - queue.orphan)}`)}"><i class="mt-c${k0}" style="flex:${queue.mine}"></i><i class="wk-orphan" style="flex:${queue.orphan}"></i><i class="mt-c2" style="flex:${queue.all - queue.mine - queue.orphan}"></i></span>` : '', () => queueBars(queue.months));
   const sla = block('sla', 'SLA de inicio', 'de las resueltas se iniciaron a tiempo', fig(donePct), [],
     `<div class="wk-prios">${byPrio.map(([p, st]) => `<div class="wk-prio"><span>${m.slaLabel(p)}</span>${bar(st[k0].slaDone || 0)}<b>${fig(donePct, st)}</b></div>`).join('')}</div>`, [(s) => s.slaDone, (v) => pct(v)]);
   const times = block('times', 'Tiempos', 'de media hasta resolverse', fig((s) => dur(s.avg)), [

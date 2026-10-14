@@ -36,7 +36,7 @@ test('solo Indra: una fila por persona y la del equipo, con sus datos y sin colo
   assert.match(h, /Equipo Indra/);
   assert.doesNotMatch(h.slice(h.indexOf('<table class="wk-team"')), /mt-num (good|bad)/);
   assert.match(rowOf(h, 'ANA'), />100 %</);   // SLA cumplido: solo el %
-  assert.match(h, /<h3>Pendientes<\/h3>[\s\S]*?<div class="wk-hero"><b>0<\/b><span>sin resolver en SGA y SISU/);   // ninguna en SGA ni SISU
+  assert.match(h, /<h3>Pendientes<\/h3>[\s\S]*?<div class="wk-hero"><b>0<\/b><span>sin resolver/);   // todas cerradas
   assert.equal((h.match(/class="wk-block[ "]/g) || []).length, 6);   // seis bloques, en dos filas (con cifras o como gráfica)
 });
 
@@ -51,6 +51,15 @@ test('un bloque como gráfica: su evolución en lugar de las cifras, con la prin
   const times = h.slice(h.indexOf('<h3>Tiempos'), h.indexOf('</section>', h.indexOf('<h3>Tiempos')));
   assert.match(times, /class="wk-key"/);
   assert.doesNotMatch(times, /wk-items/);
+});
+
+test('pendientes: lo del equipo cuenta aunque no caiga en SGA ni SISU, como en la tabla', () => {
+  const d = data(); d.dict.status = ['', 'CLOSED', 'ASSIGNED']; d.cols.st[0] = 2;   // una de ANA, abierta y fuera de los filtros
+  const m = createModel(d), ui = { exp: {}, sort: {}, charts: new Set() };
+  m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const h = teamPanel(m, createCharts(m, ui), ui);
+  assert.match(h, /<h3>Pendientes<\/h3>[\s\S]*?<div class="wk-hero"><b>1<\/b>/);
+  assert.match(h, /Asignadas al equipo<\/span><b>1</);
 });
 
 test('al ordenar por una media o un %, quien tiene menos de MIN issues va al final', () => {
