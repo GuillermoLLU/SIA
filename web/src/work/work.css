@@ -7,9 +7,8 @@
 
 /* bloques de arriba: dos filas de tres, una cifra grande por tema y sus apoyos */
 .wk-panel { display: flex; flex-direction: column; gap: 12px; }
-.wk-blocks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: minmax(210px, 300px); gap: 12px; }
-/* el alto lo da la fila (igual con cifras o con gráfica, y las filas no saltan): mínimo 210 px y, si
-   sobra pantalla, hasta 300 */
+.wk-blocks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: 230px; gap: 12px; }
+/* el alto lo da la fila, fijo (igual con cifras o con gráfica, y las filas no saltan) */
 .wk-block { display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow: hidden; padding: 16px 20px; background: var(--mt-card); border: 1px solid var(--mt-line); box-shadow: var(--mt-shadow); }
 .wk-block-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .wk-chart-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin: -6px 0; padding: 0; color: var(--mt-low); background: none; border: 1px solid transparent; cursor: pointer; }
@@ -65,13 +64,13 @@
 .wk-top { border-bottom: 1px solid var(--border); }
 
 /* La vista llena la ventana. La tabla mide lo que necesita; si no cabe, se desplaza por dentro con las
-   cabeceras y los totales fijos. Si sobra alto, lo ganan los bloques (hasta 300 px). Si la ventana es muy
+   cabeceras y los totales fijos. Si sobra alto, el conjunto se centra en vertical. Si la ventana es muy
    baja, la tabla guarda un mínimo y la página se desplaza. */
 .wk-view .mt-page { display: flex; flex-direction: column; height: 100%; padding-bottom: 16px; }
-.wk-view .wk-main { display: flex; flex: 1; flex-direction: column; min-height: 0; }
-.wk-view .wk-panel { flex: 1; min-height: 0; }
-.wk-view .wk-panel > .wk-blocks { flex: 1 1 0; min-height: calc(2 * 210px + 12px); align-content: start; }
-.wk-view .wk-panel > .mt-grid { display: flex; flex: 0 1 auto; flex-direction: column; min-height: 300px; }
+.wk-view .wk-main { display: flex; flex: 1; flex-direction: column; justify-content: safe center; min-height: 0; }
+.wk-view .wk-panel { flex: 0 1 auto; min-height: 0; }
+.wk-view .wk-panel > .wk-blocks { flex: none; }
+.wk-view .wk-panel > .mt-grid { display: flex; flex: 0 1 auto; flex-direction: column; min-height: 260px; }
 .wk-view .wk-panel > .mt-grid > .mt-card { display: flex; flex: 1; flex-direction: column; min-height: 0; padding-bottom: 8px; }
 .wk-view .wk-panel > .mt-grid .mt-tablewrap { flex: 1; min-height: 0; overflow: auto; }
 .wk-top { padding: 16px 0 12px; }
