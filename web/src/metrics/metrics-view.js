@@ -1,9 +1,12 @@
-// Vista «Métricas»: cómo va el soporte, Indra frente a T-Systems, para verlo
-// en vivo. Los datos salen del CSV completo de Remedy que carga cada persona
-// (el bridge los calcula y los guarda en este ordenador). Al entrar, siempre
-// el Resumen; arriba, los filtros, que valen para todas las pestañas, y con
-// un clic en cualquier barra, fila o celda se filtra por ese valor. Con
-// personas elegidas, todas las pestañas enseñan solo lo suyo.
+// Vista «Métricas»: cómo va el soporte, para verlo en vivo. Los datos salen
+// del CSV completo de Remedy que carga cada persona (el bridge los calcula y
+// los guarda en este ordenador). Al entrar, siempre el Resumen.
+//
+// Arriba, qué se compara: A frente a B, cada lado una empresa o un grupo de
+// personas (B puede ser «nada»: entonces se ve solo A). De partida, Indra
+// frente a T-Systems. Al lado, los filtros, que valen para todas las
+// pestañas: el periodo, la búsqueda y, con un clic en cualquier barra, fila o
+// celda, ese valor.
 import './metrics.css';
 import { esc, fold } from '../ui/html.js';
 import { num, MONTHS } from './format.js';
@@ -15,12 +18,14 @@ const SEARCH_MS = 250;
 const svg = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const CALENDAR_ICON = svg('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>');
 const SEARCH_ICON = svg('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>');
-const PERSON_ICON = svg('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>');
+const CHEVRON = svg('<path d="m6 9 6 6 6-6"/>');
+// lo que vuelve a ser cada lado si se le quitan todas sus personas
+const DEFAULT_SIDE = [{ company: 0 }, { company: 1 }];
 
 export const mountMetricsView = (root, { api, toast }) => {
   let m = null, tabs = null, tab = 'resumen', loading = false;
-  // open: el desplegable abierto ('calendar' o 'people'); anchor: el primer mes marcado a falta
-  // del último; who: lo escrito en el buscador de personas; searching: la búsqueda abierta
+  // open: el desplegable abierto ('calendar', 'side0' o 'side1'); anchor: el primer mes marcado a
+  // falta del último; who: lo escrito en el buscador de personas; searching: la búsqueda abierta
   let open = null, anchor = null, who = '', searching = false;
   const ui = { exp: {}, sort: {} };
   const $ = (s) => root.querySelector(s);
@@ -35,7 +40,10 @@ export const mountMetricsView = (root, { api, toast }) => {
         ${loadButton('Cargar CSV')}</div></div>`;
   };
 
-  // Lo fijo de la vista (cabecera, filtros, pestañas); lo de dentro se repinta con cada cambio.
+  const sideSlot = (k) => `<div class="mt-period"><button class="mt-btn mt-icon-btn mt-side" data-side="${k}" aria-haspopup="true"><i class="mt-c${k}"></i><b>${'AB'[k]}</b><span data-side-name="${k}"></span>${CHEVRON}</button>
+    <div class="mt-pop mt-who" data-side-pop="${k}" hidden><div data-side-companies="${k}"></div><input type="search" data-who-q placeholder="Buscar personas…"><div class="mt-who-list" data-side-list="${k}"></div></div></div>`;
+
+  // Lo fijo de la vista (cabecera, comparación, filtros, pestañas); lo de dentro se repinta con cada cambio.
   const renderFrame = () => {
     const { meta } = m.data, snap = new Date(m.BASE + m.SNAP * 6e4);
     root.innerHTML = `<div class="mt-page">
@@ -43,10 +51,8 @@ export const mountMetricsView = (root, { api, toast }) => {
         <span class="mt-date" title="${esc(`${meta.file}, cargado el ${dayOf(meta.generated)}`)}">datos hasta el ${snap.getUTCDate()} de ${MONTHS[snap.getUTCMonth()]} de ${snap.getUTCFullYear()}</span>
         ${loadButton('Cargar otro CSV')}</header>
       <div class="mt-fbar">
-        <div class="mt-seg" data-companies></div>
+        ${sideSlot(0)}<span class="mt-vs">frente a</span>${sideSlot(1)}
         <div class="mt-period"><button class="mt-btn mt-icon-btn" data-calendar aria-haspopup="true">${CALENDAR_ICON}<span data-period></span></button><div class="mt-pop mt-cal" data-cal hidden></div></div>
-        <div class="mt-period mt-person"><button class="mt-btn mt-icon-btn" data-people aria-haspopup="true">${PERSON_ICON}<span data-person></span></button><button class="mt-btn mt-x" data-person-all title="Volver a todas las personas" hidden>×</button>
-          <div class="mt-pop mt-who" data-who hidden><input type="search" data-who-q placeholder="Buscar persona…"><div class="mt-who-list" data-who-list></div></div></div>
         <div class="mt-chips" data-chips></div>
         <button class="mt-btn" data-clear>Quitar filtros</button>
         <div class="mt-find"><input type="search" data-q placeholder="Título o INC…" hidden><span class="mt-count" data-count></span>
@@ -71,48 +77,50 @@ export const mountMetricsView = (root, { api, toast }) => {
       <button class="mt-more" data-month-all>Todo ${m.data.meta.year}</button>`;
   };
 
-  // Personas: el botón dice a quién se mira; el desplegable, las personas con issues en lo que se
-  // ve (sin contar el filtro de persona), por empresa y de más a menos, con un buscador. Cada clic
-  // marca o desmarca a una, y el desplegable sigue abierto para elegir más.
-  const renderPeople = () => {
-    const { S, DIMS, data } = m, sel = m.people();
-    const btn = $('[data-person]');
-    btn.textContent = !sel ? 'Todas las personas' : sel.length === 1 ? DIMS.as.label(sel[0]) : `${sel.length} personas`;
-    btn.parentElement.title = sel?.length > 1 ? sel.map((k) => DIMS.as.label(k)).join('\n') : '';
-    $('.mt-x[data-person-all]').hidden = !sel;
-    const pop = $('[data-who]');
-    pop.hidden = open !== 'people';
-    if (pop.hidden) return;
-    const q = fold(who.trim()), all = m.group('as', m.rows('as')).filter((x) => x.k && (!q || fold(DIMS.as.label(x.k)).includes(q)));
-    const groups = [0, 1, 2].map((c) => [c, all.filter((x) => data.company[x.k] === c)]).filter(([, l]) => l.length);
-    $('[data-who-list]').innerHTML = `${q ? '' : `<button data-person-all class="${sel ? '' : 'mt-on'}">Todas las personas</button>`}
-      ${groups.map(([c, l]) => `<p><i class="mt-sw mt-c${c}"></i>${c === 2 ? 'Fuera de la comparación' : COMPANIES[c]}</p>
-        ${l.map((x) => `<button data-person-pick="${x.k}" class="${S.f.as?.has(x.k) ? 'mt-on' : ''}" aria-pressed="${!!S.f.as?.has(x.k)}"><i class="mt-check"></i><span>${esc(DIMS.as.label(x.k))}</span><small>${num(x.n)}</small></button>`).join('')}`).join('')
-      || '<p class="mt-mut">Nadie con ese nombre.</p>'}`;
+  // Cada lado: el botón dice qué es; su desplegable deja elegir una empresa (B, también «nada») o
+  // marcar personas: las que tienen issues en lo que se ve, por empresa y de más a menos, con un
+  // buscador. Cada clic en una persona la marca o desmarca y el desplegable sigue abierto.
+  // Quien ya está en el otro lado no se puede marcar.
+  const renderSides = () => {
+    const { S, DIMS, data } = m, names = m.NAMES();
+    for (const k of [0, 1]) {
+      const s = S.sides[k], other = S.sides[1 - k];
+      $(`[data-side-name="${k}"]`).textContent = s ? names[k] : 'Nada';
+      $(`[data-side="${k}"]`).title = s?.people?.size > 1 ? [...s.people].map((p) => DIMS.as.label(p)).join('\n') : '';
+      const pop = $(`[data-side-pop="${k}"]`);
+      pop.hidden = open !== `side${k}`;
+      if (pop.hidden) continue;
+      const taken = (c) => !other?.people && other?.company === c;   // la misma empresa a los dos lados no compara nada
+      $(`[data-side-companies="${k}"]`).innerHTML = `<p class="mt-who-co">Empresa</p><div class="mt-cos">${[0, 1, 2].map((c) => `<button data-pick-company="${k}:${c}" class="${s && !s.people && s.company === c ? 'mt-on' : ''}" ${taken(c) ? 'disabled' : ''}>${COMPANIES[c]}</button>`).join('')}${k === 1 ? `<button data-pick-none class="${s ? '' : 'mt-on'}">Nada (solo A)</button>` : ''}</div><p class="mt-who-co">Personas</p>`;
+      const q = fold(who.trim()), mine = s?.people || new Set(), theirs = other?.people || new Set();
+      const all = m.group('as', m.pool()).filter((x) => x.k && (!q || fold(DIMS.as.label(x.k)).includes(q)));
+      const groups = [0, 1, 2].map((c) => [c, all.filter((x) => data.company[x.k] === c)]).filter(([, l]) => l.length);
+      $(`[data-side-list="${k}"]`).innerHTML = groups.map(([c, l]) => `<p class="mt-who-co mt-who-sub">${c === 2 ? 'Fuera de las dos empresas' : COMPANIES[c]}</p>
+        ${l.map((x) => `<button data-pick-person="${k}:${x.k}" class="${mine.has(x.k) ? 'mt-on' : ''}" aria-pressed="${mine.has(x.k)}" ${theirs.has(x.k) ? `disabled title="Ya está en ${'AB'[1 - k]}"` : ''}><i class="mt-check"></i><span>${esc(DIMS.as.label(x.k))}</span><small>${num(x.n)}</small></button>`).join('')}`).join('')
+        || '<p class="mt-mut">Nadie con ese nombre.</p>';
+    }
   };
+
   const closePops = () => { open = null; anchor = null; who = ''; };
   const togglePop = (which) => {
     const was = open;
     closePops();
     if (was !== which) open = which;
-    renderPeriod(); renderPeople();
-    if (open === 'people') { const i = $('[data-who-q]'); i.value = ''; i.focus(); }
+    renderPeriod(); renderSides();
+    const q = open?.startsWith('side') && $(`[data-side-pop="${open.slice(4)}"] [data-who-q]`);
+    if (q) { q.value = ''; q.focus(); }
   };
 
   const render = () => {
     const { S, DIMS } = m;
     m.refilter();
     const A = m.rows();
-    // la persona ya la dice su botón: no lleva chip
-    const chips = Object.keys(S.f).filter((dim) => dim !== 'as').flatMap((dim) => [...S.f[dim]].map((k) => `<span class="mt-chip">${DIMS[dim].name}: <b>${esc(DIMS[dim].label(k))}</b><button data-rm="${dim}:${k}" title="Quitar">×</button></span>`));
+    const chips = Object.keys(S.f).flatMap((dim) => [...S.f[dim]].map((k) => `<span class="mt-chip">${DIMS[dim].name}: <b>${esc(DIMS[dim].label(k))}</b><button data-rm="${dim}:${k}" title="Quitar">×</button></span>`));
     $('[data-chips]').innerHTML = chips.join('');
-    $('[data-clear]').hidden = !(chips.length || S.f.as?.size || S.q || S.from || S.to !== m.LASTM);
+    $('[data-clear]').hidden = !(chips.length || S.q || S.from || S.to !== m.LASTM);
     renderPeriod();
-    renderPeople();
+    renderSides();
     $('[data-q]').hidden = !(searching || S.q);
-    // con personas elegidas mandan sus empresas: los botones lo enseñan y no se tocan
-    const shown = m.CO(), fixed = !!m.people();
-    $('[data-companies]').innerHTML = [0, 1, 2].map((k) => `<button class="${shown.includes(k) ? 'mt-on' : ''}" data-co="${k}" ${fixed ? 'disabled title="Con una persona elegida se ven sus datos"' : ''}><i class="mt-c${k}"></i>${COMPANIES[k]}</button>`).join('');
     $('[data-count]').innerHTML = `<b>${num(A.length)}</b> issues`;
     root.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('mt-on', b.dataset.tab === tab));
     $('[data-main]').innerHTML = tabs.render(tab, A);
@@ -147,9 +155,10 @@ export const mountMetricsView = (root, { api, toast }) => {
   root.addEventListener('click', (e) => {
     if (!m || e.target.closest('a')) return;
     const { S } = m;
-    // desplegables del periodo y de la persona: abrir y cerrar, elegir; un clic fuera los cierra
+    // desplegables: abrir y cerrar, elegir; un clic fuera los cierra
     if (e.target.closest('[data-calendar]')) return togglePop('calendar');
-    if (e.target.closest('[data-people]')) return togglePop('people');
+    const side = e.target.closest('[data-side]');
+    if (side) return togglePop(`side${side.dataset.side}`);
     const month = e.target.closest('[data-month]');
     if (month) {
       const k = Number(month.dataset.month);
@@ -159,25 +168,28 @@ export const mountMetricsView = (root, { api, toast }) => {
       return render();
     }
     if (e.target.closest('[data-month-all]')) { S.from = 0; S.to = m.LASTM; closePops(); return render(); }
-    const pick = e.target.closest('[data-person-pick]');
-    if (pick) {
-      m.toggle('as', Number(pick.dataset.personPick));
-      if (!S.f.as.size) delete S.f.as;
+    const company = e.target.closest('[data-pick-company]');
+    if (company) { const [k, c] = company.dataset.pickCompany.split(':').map(Number); S.sides[k] = { company: c }; closePops(); return render(); }
+    if (e.target.closest('[data-pick-none]')) { S.sides[1] = null; closePops(); return render(); }
+    const person = e.target.closest('[data-pick-person]');
+    if (person) {
+      const [k, p] = person.dataset.pickPerson.split(':').map(Number);
+      const set = new Set(S.sides[k]?.people || []);
+      if (set.has(p)) set.delete(p); else set.add(p);
+      S.sides[k] = set.size ? { people: set } : { ...DEFAULT_SIDE[k] };
       return render();
     }
-    if (e.target.closest('[data-person-all]')) { delete S.f.as; closePops(); return render(); }
-    if (open && !e.target.closest('.mt-pop')) { closePops(); renderPeriod(); renderPeople(); }
+    if (open && !e.target.closest('.mt-pop')) { closePops(); renderPeriod(); renderSides(); }
     if (e.target.closest('[data-search]')) {
       searching = !searching || !!S.q;
       $('[data-q]').hidden = !searching;
       if (searching) $('[data-q]').focus();
       return;
     }
-    const t = e.target.closest('[data-tab],[data-co],[data-rm],[data-exp],[data-sort],[data-clear],[data-f2],[data-f]');
+    const t = e.target.closest('[data-tab],[data-rm],[data-exp],[data-sort],[data-clear],[data-f2],[data-f]');
     if (!t) return;
     const d = t.dataset;
     if (d.tab) { tab = d.tab; root.scrollTop = 0; }
-    else if (d.co) { if (m.people()) return; const k = Number(d.co); S.co[k] = !S.co[k]; if (!S.co.some(Boolean)) S.co[k] = true; }
     else if (d.rm) { const [dim, k] = filterKey(d.rm); S.f[dim].delete(k); }
     else if (d.exp) ui.exp[d.exp] = !ui.exp[d.exp];
     else if (d.sort) { const [id, c] = d.sort.split(':'), cur = ui.sort[id]; ui.sort[id] = [c, cur && cur[0] === c ? -cur[1] : -1]; }
@@ -189,28 +201,28 @@ export const mountMetricsView = (root, { api, toast }) => {
     render();
   });
   root.addEventListener('change', (e) => {
-    const t = e.target;
-    if (t.matches('[data-csv]')) upload(t.files[0]);
+    if (e.target.matches('[data-csv]')) upload(e.target.files[0]);
   });
   let searchTimer;
   root.addEventListener('input', (e) => {
-    if (m && e.target.matches('[data-who-q]')) { who = e.target.value; renderPeople(); return; }
-    if (!m || !e.target.matches('[data-q]')) return;
+    if (!m) return;
+    if (e.target.matches('[data-who-q]')) { who = e.target.value; renderSides(); return; }
+    if (!e.target.matches('[data-q]')) return;
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => { m.S.q = e.target.value; render(); }, SEARCH_MS);
   });
 
   // Tarjeta al pasar el ratón: el texto de data-tip o, en una diferencia
-  // entre empresas, Indra a la izquierda, la diferencia en el centro y T-Systems a la derecha.
+  // entre lados, A a la izquierda, la diferencia en el centro y B a la derecha.
   root.addEventListener('mousemove', (e) => {
     const tip = $('[data-tip-box]');
     if (!tip) return;
     const t = e.target.closest('[data-cmp],[data-tip]');
     if (!t) { tip.hidden = true; return; }
     if (t.dataset.cmp) {
-      const [a, d, b, cls] = t.dataset.cmp.split('¦');
+      const [a, d, b, cls] = t.dataset.cmp.split('¦'), [na, nb] = m.NAMES();
       tip.className = 'mt-tip mt-tip-cmp';
-      tip.innerHTML = `<div><span>${COMPANIES[0]}</span><b class="mt-a">${esc(a)}</b></div><div><span>diferencia</span><b class="${cls}">${esc(d)}</b></div><div><span>${COMPANIES[1]}</span><b class="mt-b">${esc(b)}</b></div>`;
+      tip.innerHTML = `<div><span>${esc(na)}</span><b class="mt-a">${esc(a)}</b></div><div><span>diferencia</span><b class="${cls}">${esc(d)}</b></div><div><span>${esc(nb)}</span><b class="mt-b">${esc(b)}</b></div>`;
     } else { tip.className = 'mt-tip'; tip.textContent = t.dataset.tip; }
     tip.hidden = false;
     const w = tip.offsetWidth, h = tip.offsetHeight, cmp = !!t.dataset.cmp;
@@ -220,7 +232,7 @@ export const mountMetricsView = (root, { api, toast }) => {
   // Escape: cierra el desplegable abierto; en la búsqueda, la borra y la cierra
   root.addEventListener('keydown', (e) => {
     if (!m || e.key !== 'Escape') return;
-    if (open) { closePops(); renderPeriod(); renderPeople(); return; }
+    if (open) { closePops(); renderPeriod(); renderSides(); return; }
     if (e.target.matches('[data-q]')) { e.target.value = ''; searching = false; m.S.q = ''; render(); }
   });
   root.addEventListener('focusout', (e) => {

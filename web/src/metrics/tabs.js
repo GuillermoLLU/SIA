@@ -1,10 +1,10 @@
 // Las pestañas de las Métricas, una por área del servicio. Cada una recibe
-// las issues que pasan los filtros (A) y devuelve su HTML. Con las dos
-// empresas marcadas, cada indicador es la diferencia de Indra respecto a
-// T-Systems; con una, sus valores.
+// las issues que pasan los filtros (A) y devuelve su HTML. Con los dos lados
+// (A frente a B: empresas o personas), cada indicador es la diferencia de A
+// respecto a B; con uno, sus valores.
 import { esc } from '../ui/html.js';
 import { num, pct, dur, nice, title, dateOf, MONTHS, DOWS } from './format.js';
-import { COMPANIES, SCOPES, MAJOR, IA_MARKS, share } from './model.js';
+import { SCOPES, MAJOR, IA_MARKS, share } from './model.js';
 
 export const TABS = [['resumen', 'Resumen'], ['reparto', 'Reparto'], ['respuesta', 'Respuesta'], ['sla', 'SLA de inicio'], ['resolucion', 'Resolución'],
   ['backlog', 'Backlog'], ['escalados', 'Escalados'], ['calidad', 'Calidad del trabajo'], ['focos', 'Focos'], ['modulos', 'Módulos'],
@@ -15,7 +15,8 @@ const REMEDY = 'https://itx.onbmc.com/arsys/servlet/ViewFormServlet?server=onbmc
 const incId = (id) => `INC${String(id).padStart(12, '0')}`;
 
 export const createTabs = (m, ch, ui) => {
-  const { C, DI, N, S, BASE, LASTM, SLA, MONTH, DOW, HOUR, OPEN, TEAM, CMP, CO, isSel, rows, stats, group, byTeam } = m;
+  const { C, DI, N, S, BASE, LASTM, SLA, MONTH, DOW, HOUR, OPEN, SIDE, CMP, CO, NAMES, isSel, rows, stats, group, bySide } = m;
+  const name = (k) => NAMES()[k];
   const { card, legend, kpi, kpis, kpiCo, diff, bars, orderedBars, monthly, lines, ranking, compare, heat, timeBars, movers, mini } = ch;
   const noK = (k) => k === 0;
   const noTheme = (k) => k === m.data.themes.length;
@@ -25,7 +26,7 @@ export const createTabs = (m, ch, ui) => {
   const slaPct = (s) => (s.sla == null ? '—' : pct(s.sla));
   const inPeriod = (i) => MONTH[i] >= S.from && MONTH[i] <= S.to;
 
-  // Tabla de cortes fijos (prioridad, ámbito, franja, día): una fila por corte; la diferencia entre empresas o el valor de la que se mira.
+  // Tabla de cortes fijos (prioridad, ámbito, franja, día): una fila por corte; la diferencia entre los lados o el valor del único que se mira.
   const SLICE = {
     n: ['Issues', (s) => num(s.n), (s) => s.n], fr: ['1.ª actuación (media)', (s) => dur(s.fr), (s) => s.fr, 'low'],
     f30: ['1.ª act. en < 30 min', (s) => pct(s.f30), (s) => s.f30, 'high'], f120: ['1.ª act. en < 2 h', (s) => pct(s.f120), (s) => s.f120, 'high'],
@@ -41,7 +42,7 @@ export const createTabs = (m, ch, ui) => {
   };
   const cell = (st, [, f, v, bt]) => (CMP() ? diff(st[0], st[1], f, v, bt) : f(st[CO()[0]]));
   const slices = (first, defs, A, cols) => `<div class="mt-tablewrap"><table><thead><tr><th>${first}</th>${cols.map((c) => `<th class="mt-num">${SLICE[c][0]}</th>`).join('')}</tr></thead><tbody>${defs.map(([label, test, f]) => {
-    const st = byTeam(A.filter(test)).map(stats);
+    const st = bySide(A.filter(test)).map(stats);
     return `<tr ${f ? `class="mt-clk" data-f="${f}"` : ''}><td>${label}</td>${cols.map((c) => `<td class="mt-num">${cell(st, SLICE[c])}</td>`).join('')}</tr>`;
   }).join('')}</tbody></table></div>`;
   const byPrio = (A, cols, label = (p) => nice(DI.prio[p]), first = 'Prioridad') => slices(first, PRIOS.map((p) => [label(p), (i) => C.pr[i] === p, `pr:${p}`]), A, cols);
@@ -73,36 +74,40 @@ export const createTabs = (m, ch, ui) => {
   ];
   const scorecard = (ST) => {
     const cmp = CMP(), cos = CO();
-    return `<table><thead><tr><th></th>${cmp ? `<th class="mt-num">${COMPANIES[0]} respecto a ${COMPANIES[1]}</th>` : cos.map((k) => `<th class="mt-num"><span class="mt-sw mt-c${k}"></span>${COMPANIES[k]}</th>`).join('')}</tr></thead><tbody>${METRICS.map(([g, list]) =>
+    return `<table><thead><tr><th></th>${cmp ? `<th class="mt-num">${esc(name(0))} respecto a ${esc(name(1))}</th>` : cos.map((k) => `<th class="mt-num"><span class="mt-sw mt-c${k}"></span>${esc(name(k))}</th>`).join('')}</tr></thead><tbody>${METRICS.map(([g, list]) =>
       `<tr class="mt-grp"><td colspan="${cmp ? 2 : cos.length + 1}">${g}</td></tr>${list.map(([l, f, val, bt, tip]) => `<tr><td ${tip ? `data-tip="${esc(tip)}"` : ''}>${l}</td>${cmp ? `<td class="mt-num">${diff(ST[0], ST[1], f, val, bt)}</td>` : cos.map((k) => `<td class="mt-num">${ST[k].n ? f(ST[k]) : '—'}</td>`).join('')}</tr>`).join('')}`).join('')}</tbody></table>`;
   };
 
-  // Lo abierto por ámbito: todo lo del periodo, también lo que aún no tiene responsable.
+  // Lo abierto por ámbito: lo de cada lado y, aparte, lo que aún no tiene responsable.
   const backlogTable = () => {
-    const bk = SCOPES.map(() => [0, 0, 0]);
-    for (let i = 0; i < N; i++) if (OPEN[i] && inPeriod(i)) bk[C.sc[i]][C.as[i] ? TEAM[i] : 2]++;
-    const tot = [0, 1, 2].map((k) => bk.reduce((a, x) => a + x[k], 0));
-    return `<table><thead><tr><th>Ámbito</th>${[0, 1].map((k) => `<th class="mt-num"><span class="mt-sw mt-c${k}"></span>${COMPANIES[k]}</th>`).join('')}<th class="mt-num"><span class="mt-sw mt-c2"></span>Sin responsable</th><th class="mt-num">Total</th></tr></thead><tbody>${[2, 1, 3, 0].map((j) => `<tr class="mt-clk ${isSel('sc', j) ? 'mt-sel' : ''}" data-f="sc:${j}"><td>${SCOPES[j]}</td>${bk[j].map((v) => `<td class="mt-num">${num(v)}</td>`).join('')}<td class="mt-num"><b>${num(bk[j][0] + bk[j][1] + bk[j][2])}</b></td></tr>`).join('')}
-      <tr class="mt-grp"><td>Total</td>${tot.map((v) => `<td class="mt-num">${num(v)}</td>`).join('')}<td class="mt-num">${num(tot[0] + tot[1] + tot[2])}</td></tr></tbody></table>`;
+    const cos = CO(), bk = SCOPES.map(() => [0, 0, 0]);
+    for (let i = 0; i < N; i++) {
+      if (!OPEN[i] || !inPeriod(i)) continue;
+      if (SIDE[i] < 2) bk[C.sc[i]][SIDE[i]]++;
+      else if (!C.as[i]) bk[C.sc[i]][2]++;
+    }
+    const cols = [...cos, 2], tot = cols.map((k) => bk.reduce((a, x) => a + x[k], 0));
+    return `<table><thead><tr><th>Ámbito</th>${cos.map((k) => `<th class="mt-num"><span class="mt-sw mt-c${k}"></span>${esc(name(k))}</th>`).join('')}<th class="mt-num"><span class="mt-sw mt-c2"></span>Sin responsable</th><th class="mt-num">Total</th></tr></thead><tbody>${[2, 1, 3, 0].map((j) => `<tr class="mt-clk ${isSel('sc', j) ? 'mt-sel' : ''}" data-f="sc:${j}"><td>${SCOPES[j]}</td>${cols.map((k) => `<td class="mt-num">${num(bk[j][k])}</td>`).join('')}<td class="mt-num"><b>${num(cols.reduce((a, k) => a + bk[j][k], 0))}</b></td></tr>`).join('')}
+      <tr class="mt-grp"><td>Total</td>${tot.map((v) => `<td class="mt-num">${num(v)}</td>`).join('')}<td class="mt-num">${num(tot.reduce((a, b) => a + b, 0))}</td></tr></tbody></table>`;
   };
   const section = (t, small = '') => `<h2 class="mt-sec">${t}${small ? `<small>${small}</small>` : ''}</h2>`;
   const grid = (...parts) => `<div class="mt-grid">${parts.join('')}</div>`;
 
   const VIEWS = {
     resumen(A) {
-      const ST = byTeam(A).map(stats);
+      const ST = bySide(A).map(stats);
       return grid(kpis(kpiCo('Issues', ST, (s) => num(s.n), { val: (s) => s.n }),
           kpiCo('Primera actuación', ST, (s) => dur(s.fr), { val: (s) => s.fr, better: 'low' }),
           kpiCo('Media de resolución', ST, (s) => dur(s.avg), { val: (s) => s.avg, better: 'low' }),
           kpiCo('Resueltas en < 24 h', ST, (s) => pct(s.d1), { val: (s) => s.d1, better: 'high' }),
           kpiCo('Reabiertas', ST, (s) => pct(s.reop, 1), { val: (s) => s.reop, better: 'low' }),
           kpiCo('Abiertas ahora', ST, (s) => num(s.open), { val: (s) => s.open })),
-        card('Indicadores', scorecard(ST), { span: 's7', sub: CMP() ? `Diferencia de ${COMPANIES[0]} respecto a ${COMPANIES[1]}: en rojo si ${COMPANIES[0]} está peor, en verde si está mejor. Pasa el ratón por una cifra para ver los dos valores.` : 'Pasa el ratón por un indicador para ver cómo se calcula.' }),
+        card('Indicadores', scorecard(ST), { span: 's7', sub: CMP() ? `Diferencia de ${esc(name(0))} respecto a ${esc(name(1))}: en rojo si ${esc(name(0))} está peor, en verde si está mejor. Pasa el ratón por una cifra para ver los dos valores.` : 'Pasa el ratón por un indicador para ver cómo se calcula.' }),
         card('Evolución mes a mes', `${legend()}<p class="mt-small"><b>Issues abiertas</b></p>${lines(A, (s) => s.n, num)}<p class="mt-small"><b>Media de resolución</b></p>${lines(A, (s) => s.avg, dur)}<p class="mt-small"><b>Media hasta la primera actuación</b></p>${lines(A, (s) => s.fr, dur)}`, { span: 's5', sub: MONTH_NOTE }));
     },
 
     reparto(A) {
-      const T = byTeam(A), ST = T.map(stats);
+      const T = bySide(A), ST = T.map(stats);
       return grid(kpis(kpiCo('Issues', ST, (s) => num(s.n), { val: (s) => s.n }), kpiCo('Críticas', ST, (s) => pct(s.crit, 1), { val: (s) => s.crit }),
         kpiCo('Críticas o altas', ST, (s) => pct(s.crit + s.hi), { val: (s) => s.crit + s.hi }),
         kpiCo('Peticiones de usuario', T.map((l) => ({ n: l.length, v: share(l, (i) => C.sv[i] === REQ) })), (s) => pct(s.v), { val: (s) => s.v })),
@@ -116,7 +121,7 @@ export const createTabs = (m, ch, ui) => {
     },
 
     respuesta(A) {
-      const ST = byTeam(A).map(stats);
+      const ST = bySide(A).map(stats);
       return grid(kpis(kpiCo('Media hasta la primera actuación', ST, (s) => dur(s.fr), { val: (s) => s.fr, better: 'low' }),
         kpiCo('Primera actuación en < 30 min', ST, (s) => pct(s.f30), { val: (s) => s.f30, better: 'high' }),
         kpiCo('Primera actuación en < 2 h', ST, (s) => pct(s.f120), { val: (s) => s.f120, better: 'high' }),
@@ -130,7 +135,7 @@ export const createTabs = (m, ch, ui) => {
     },
 
     sla(A) {
-      const ST = byTeam(A).map(stats), byP = (p) => byTeam(A.filter((i) => C.pr[i] === p)).map(stats);
+      const ST = bySide(A).map(stats), byP = (p) => bySide(A.filter((i) => C.pr[i] === p)).map(stats);
       const cols = ['n', 'sla', 'ip', 'ip90', 'slaKo', 'waitKo', 'noIp'];
       return grid(kpis(kpiCo('Dentro del SLA de inicio', ST, slaPct, { val: (s) => s.sla, better: 'high', note: 'todas las prioridades' }),
         ...PRIOS.map((p) => kpiCo(slaLabel(p), byP(p), slaPct, { val: (s) => s.sla, better: 'high', note: 'dentro del SLA' })),
@@ -144,14 +149,14 @@ export const createTabs = (m, ch, ui) => {
     },
 
     resolucion(A) {
-      const ST = byTeam(A).map(stats);
+      const ST = bySide(A).map(stats);
       return grid(kpis(kpiCo('Media de resolución', ST, (s) => dur(s.avg), { val: (s) => s.avg, better: 'low' }),
         kpiCo('P90 de resolución', ST, (s) => dur(s.p90), { val: (s) => s.p90, better: 'low' }),
         kpiCo('Resueltas en < 4 h', ST, (s) => pct(s.h4), { val: (s) => s.h4, better: 'high' }),
         kpiCo('Resueltas en < 24 h', ST, (s) => pct(s.d1), { val: (s) => s.d1, better: 'high' }),
         kpiCo('Resueltas en < 72 h', ST, (s) => pct(s.d3), { val: (s) => s.d3, better: 'high' })),
       card('Cuánto tardan en resolverse', legend() + orderedBars('tb', [0, 1, 2, 3, 4, 5, 6, 7, 8]), { sub: 'Desde la apertura hasta la última resolución, en horas naturales (cuenta noches y fines de semana).' }),
-      card('Dónde se va el tiempo', `${timeBars(ST)}<p class="mt-mut mt-small">Suma del tiempo que las issues pasan en cada estado hasta resolverse, según el historial de cambios. «En cola» incluye el tiempo que vuelven a estar asignadas tras un pendiente. Todo el tiempo de una issue se cuenta a la empresa de su responsable actual.</p>`, { sub: 'Reparto del tiempo total de vida de las issues por estado.' }),
+      card('Dónde se va el tiempo', `${timeBars(ST)}<p class="mt-mut mt-small">Suma del tiempo que las issues pasan en cada estado hasta resolverse, según el historial de cambios. «En cola» incluye el tiempo que vuelven a estar asignadas tras un pendiente. Todo el tiempo de una issue se cuenta a su responsable actual.</p>`, { sub: 'Reparto del tiempo total de vida de las issues por estado.' }),
       card('Por prioridad', byPrio(A, ['n', 'avg', 'p90', 'h4', 'd1', 'd3'])),
       card('Por ámbito', byScope(A, ['n', 'avg', 'p90', 'h4', 'd1', 'd3'])),
       card('Evolución de la media de resolución', legend() + lines(A, (s) => s.avg, dur), { sub: MONTH_NOTE }),
@@ -162,10 +167,10 @@ export const createTabs = (m, ch, ui) => {
     },
 
     backlog(A) {
-      const ST = byTeam(A).map(stats), op = A.filter((i) => OPEN[i]);
+      const ST = bySide(A).map(stats), op = A.filter((i) => OPEN[i]);
       let orphan = 0; for (let i = 0; i < N; i++) if (OPEN[i] && !C.as[i] && inPeriod(i)) orphan++;
       const oldest = op.slice().sort((a, b) => C.rep[a] - C.rep[b]).slice(0, ui.exp.old ? 100 : 15);
-      const list = `<div class="mt-tablewrap"><table><thead><tr><th>Issue</th><th>Abierta</th><th>Título</th><th>Prioridad</th><th>Estado</th><th>Responsable</th></tr></thead><tbody>${oldest.map((i) => `<tr><td><a href="${REMEDY}${incId(C.id[i])}%22" target="_blank" rel="noopener">${incId(C.id[i])}</a></td><td>${dateOf(BASE, C.rep[i]).slice(0, 5)}</td><td>${esc(C.su[i])}</td><td>${nice(DI.prio[C.pr[i]])}</td><td>${nice(DI.status[C.st[i]])}${C.rs[i] ? ` · <span class="mt-mut">${esc(title(DI.reason[C.rs[i]]))}</span>` : ''}</td><td><span class="mt-pill mt-p${TEAM[i]}">${esc(m.DIMS.as.label(C.as[i]))}</span></td></tr>`).join('')}</tbody></table></div>${op.length > 15 ? `<button class="mt-more" data-exp="old">${ui.exp.old ? 'Ver menos' : 'Ver más'}</button>` : ''}`;
+      const list = `<div class="mt-tablewrap"><table><thead><tr><th>Issue</th><th>Abierta</th><th>Título</th><th>Prioridad</th><th>Estado</th><th>Responsable</th></tr></thead><tbody>${oldest.map((i) => `<tr><td><a href="${REMEDY}${incId(C.id[i])}%22" target="_blank" rel="noopener">${incId(C.id[i])}</a></td><td>${dateOf(BASE, C.rep[i]).slice(0, 5)}</td><td>${esc(C.su[i])}</td><td>${nice(DI.prio[C.pr[i]])}</td><td>${nice(DI.status[C.st[i]])}${C.rs[i] ? ` · <span class="mt-mut">${esc(title(DI.reason[C.rs[i]]))}</span>` : ''}</td><td><span class="mt-pill mt-p${SIDE[i]}">${esc(m.DIMS.as.label(C.as[i]))}</span></td></tr>`).join('')}</tbody></table></div>${op.length > 15 ? `<button class="mt-more" data-exp="old">${ui.exp.old ? 'Ver menos' : 'Ver más'}</button>` : ''}`;
       return grid(kpis(kpiCo('Abiertas ahora', ST, (s) => num(s.open), { val: (s) => s.open }), kpiCo('Con más de 30 días', ST, (s) => num(s.open30), { val: (s) => s.open30 }),
         kpi('Abiertas sin responsable', num(orphan), 'en todo el grupo, sin contar a ninguna empresa', 'mt-t2')),
       card('Lo abierto, por ámbito', backlogTable(), { span: 's7', sub: 'Todo lo abierto hoy, tenga o no responsable. Los ámbitos SISU y SGA son los filtros con los que Indra reconoce su backlog.' }),
@@ -175,12 +180,12 @@ export const createTabs = (m, ch, ui) => {
       card('Prioridad', bars('pr', { id: 'op-pr', rows: op, top: 4 }), { span: 's4' }),
       card('Centros con más abiertas', bars('ce', { id: 'op-ce', rows: op, top: 12, skip: noK })),
       card('Módulos con más abiertas', bars('mo', { id: 'op-mo', rows: op, top: 12 })),
-      card('Las abiertas más antiguas', list, { span: 's12', sub: 'De las empresas marcadas arriba. Marca «Sin asignar / fuera» para incluir las que no tienen responsable.' }));
+      card('Las abiertas más antiguas', list, { span: 's12', sub: 'De lo que se compara arriba. Para ver las que no tienen responsable, elige «Sin asignar / fuera» en uno de los lados.' }));
     },
 
     escalados(A) {
       const withT = A.filter((i) => C.vt[i]), without = A.filter((i) => !C.vt[i]);
-      const SB = byTeam(A).map(stats), SW = byTeam(withT).map(stats), SN = byTeam(without).map(stats), tot = (s) => s.time.reduce((x, y) => x + y, 0) || 1;
+      const SB = bySide(A).map(stats), SW = bySide(withT).map(stats), SN = bySide(without).map(stats), tot = (s) => s.time.reduce((x, y) => x + y, 0) || 1;
       const known = group('vk', A, true).filter((x) => x.k && x.n >= 5);
       const kt = `<div class="mt-tablewrap ${ui.exp.known ? 'mt-scroll' : ''}"><table><thead><tr><th>Ticket</th><th class="mt-num">Incidencias</th><th class="mt-num">Centros</th><th>Reparto</th><th>Primera</th><th>Última</th><th class="mt-num">Media resol.</th><th>Título más habitual</th></tr></thead><tbody>${known.slice(0, ui.exp.known ? 200 : 15).map((x) => {
         const ce = new Set(x.rows.map((i) => C.ce[i])).size, f = Math.min(...x.rows.map((i) => C.rep[i])), l = Math.max(...x.rows.map((i) => C.rep[i]));
@@ -202,7 +207,7 @@ export const createTabs = (m, ch, ui) => {
     },
 
     calidad(A) {
-      const ST = byTeam(A).map(stats), cols = ['n', 'reop', 'bounce', 'noCat', 'noDesc', 'noRes'];
+      const ST = bySide(A).map(stats), cols = ['n', 'reop', 'bounce', 'noCat', 'noDesc', 'noRes'];
       return grid(kpis(kpiCo('Reabiertas', ST, (s) => pct(s.reop, 1), { val: (s) => s.reop, better: 'low', note: 'de Resuelta a abierta' }),
         kpiCo('Devueltas a la cola', ST, (s) => pct(s.bounce, 1), { val: (s) => s.bounce, better: 'low', note: 'de En curso a Asignada' }),
         kpiCo('Sin tipología', ST, (s) => pct(s.noCat, 1), { val: (s) => s.noCat, better: 'low' }),
@@ -230,7 +235,7 @@ export const createTabs = (m, ch, ui) => {
     },
 
     modulos(A) {
-      const op = A.filter((i) => OPEN[i]), sub = 'Cuanto más oscuro, más issues. Pasa el ratón por una celda para ver el reparto por empresa; clic para filtrar por ambos.';
+      const op = A.filter((i) => OPEN[i]), sub = 'Cuanto más oscuro, más issues. Pasa el ratón por una celda para ver el reparto por lado; clic para filtrar por ambos.';
       return grid(card('Módulos / sistemas', ranking('mo', ['n', 'sh', 'mix', 'crit', 'sla', 'fr', 'avg', 'p90', 'd1', 'reop', 'vend', 'open', 'tr'], { id: 'md-mo', skip: noK, top: 15 }), { span: 's12', sub: 'Categoría de producto 3. Clic en una cabecera para ordenar; clic en un módulo para ver todas las métricas solo de ese módulo.' }),
         card('Centro × módulo', heat('ce', 'mo', 18, 14, { skipR: noK, skipC: noK }), { span: 's12', sub: `Los 18 centros y 14 módulos con más issues. ${sub}` }),
         card('Tema × módulo', heat('th', 'mo', 16, 14, { skipR: noTheme, skipC: noK }), { span: 's12', sub: `Temas detectados por palabras clave en el título; una issue puede estar en varios. ${sub}` }),
@@ -254,7 +259,7 @@ export const createTabs = (m, ch, ui) => {
     },
 
     ia(A) {
-      const ia = A.filter((i) => C.fl[i] & IA_MARKS), T = byTeam(A), TI = byTeam(ia);
+      const ia = A.filter((i) => C.fl[i] & IA_MARKS), T = bySide(A), TI = bySide(ia);
       const count = (label, b, note) => kpiCo(label, T.map((l) => ({ n: l.length, v: l.filter((i) => C.fl[i] & b).length })), (s) => num(s.v), { val: (s) => s.v, note });
       const extra = (s, l) => { s.req = share(l, (i) => C.sv[i] === REQ); s.rep = share(l, (i) => C.rz[i] > 0); };
       const SI = TI.map(stats), SN = T.map((l) => stats(l.filter((i) => !(C.fl[i] & IA_MARKS))));

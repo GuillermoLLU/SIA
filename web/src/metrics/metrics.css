@@ -34,7 +34,13 @@
 
 /* filtros: fijos arriba al hacer scroll */
 .mt-fbar { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 -28px; padding: 9px 28px; background: var(--bg); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-/* periodo y persona: botón con icono y, al abrirlo, su desplegable */
+/* qué se compara: A frente a B, cada uno con su color */
+.mt-side i { width: 10px; height: 10px; }
+.mt-side b { font-weight: 700; }
+.mt-side span { max-width: 230px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mt-side svg { width: 14px; height: 14px; }
+.mt-vs { font-size: 12.5px; color: var(--mt-low); }
+/* periodo y lados: botón con icono y, al abrirlo, su desplegable */
 .mt-period { position: relative; }
 .mt-icon-btn { display: inline-flex; align-items: center; gap: 7px; height: 32px; }
 .mt-icon-btn svg, .mt-search svg { width: 16px; height: 16px; color: var(--mt-low); }
@@ -48,17 +54,17 @@
 .mt-months button:disabled { opacity: .35; cursor: default; }
 .mt-cal .mt-more { margin-top: 8px; }
 .mt-who { width: 330px; padding: 10px; }
-.mt-person { display: flex; }
-.mt-person .mt-x { height: 32px; margin-left: -1px; padding: 0 10px; font-size: 15px; line-height: 1; color: var(--mt-low); }
-.mt-person .mt-x:hover { color: var(--text); }
 .mt-who input { width: 100%; height: 30px; margin-bottom: 8px; padding: 0 8px; font: inherit; font-size: 13px; color: var(--text); background: var(--bg); border: 1px solid var(--mt-line); }
-.mt-who-list { max-height: 380px; overflow-y: auto; }
-.mt-who-list p { display: flex; align-items: center; margin: 10px 0 4px; font-size: 11.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--mt-low); }
-.mt-who-list button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px 8px; font: inherit; font-size: 13px; text-align: left; color: var(--text); background: none; border: 0; cursor: pointer; }
+.mt-who-list { max-height: 340px; overflow-y: auto; }
+.mt-who-co { display: flex; align-items: center; margin: 4px 0 6px; font-size: 11.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--mt-low); }
+.mt-who-sub { margin-top: 10px; font-weight: 500; }
+.mt-who-list button, .mt-cos button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px 8px; font: inherit; font-size: 13px; text-align: left; color: var(--text); background: none; border: 0; cursor: pointer; }
 .mt-who-list button span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mt-who-list button small { font-size: 12px; color: var(--mt-low); font-variant-numeric: tabular-nums; }
-.mt-who-list button:hover { background: var(--mt-soft); }
-.mt-who-list button.mt-on { background: var(--mt-sel); font-weight: 600; }
+.mt-who-list button:hover:not(:disabled), .mt-cos button:hover:not(:disabled) { background: var(--mt-soft); }
+.mt-who-list button:disabled, .mt-cos button:disabled { opacity: .4; cursor: default; }
+.mt-who-list button.mt-on, .mt-cos button.mt-on { background: var(--mt-sel); font-weight: 600; }
+.mt-cos { display: flex; flex-direction: column; margin-bottom: 10px; }
 .mt-check { flex: none; width: 14px; height: 14px; border: 1.5px solid var(--mt-line); }
 .mt-on > .mt-check { background: var(--accent); border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--surface); }
 /* búsqueda: la lupa junto al número de issues */
@@ -66,13 +72,6 @@
 .mt-find input { width: 220px; height: 30px; padding: 0 8px; font: inherit; font-size: 13px; color: var(--text); background: var(--surface); border: 1px solid var(--mt-line); }
 .mt-search { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; background: none; border: 1px solid transparent; cursor: pointer; }
 .mt-search:hover { border-color: var(--mt-line); background: var(--surface); }
-.mt-seg { display: inline-flex; border: 1px solid var(--mt-line); }
-.mt-seg button { display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; font: inherit; font-size: 13px; font-weight: 550; color: var(--mt-low); background: var(--surface); border: 0; border-right: 1px solid var(--mt-line); cursor: pointer; }
-.mt-seg button:last-child { border-right: 0; }
-.mt-seg button i { width: 10px; height: 10px; opacity: .35; }
-.mt-seg button.mt-on { color: var(--text); background: var(--mt-soft); }
-.mt-seg button.mt-on i { opacity: 1; }
-.mt-seg button:disabled { cursor: default; }
 .mt-chips { display: flex; flex: 1; flex-wrap: wrap; gap: 6px; }
 .mt-chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 6px 2px 10px; font-size: 12.5px; background: var(--mt-sel); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border)); }
 .mt-chip b { font-weight: 600; }

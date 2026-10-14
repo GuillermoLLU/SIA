@@ -100,27 +100,47 @@ export const createModel = (data) => {
     } },
   };
 
-  // --- filtros. S.co: qué empresas se miran; S.f: dimensión → valores marcados.
-  // Una fila cuenta en un gráfico si pasa todos los filtros salvo el de la propia dimensión.
-  // Con personas elegidas (S.f.as) mandan ellas: se miran sus empresas, marcadas o no, y
-  // con una sola persona se ven sus valores, sin comparar.
-  const S = { f: {}, from: 0, to: LASTM, q: '', co: [true, true, false] };
-  const people = () => (S.f.as?.size ? [...S.f.as] : null);
-  const CO = () => {
-    const p = people();
-    if (!p) return [0, 1, 2].filter((k) => S.co[k]);
-    const of = new Set(p.map((k) => data.company[k]));
-    return [0, 1, 2].filter((k) => of.has(k));
+  // --- qué se compara: dos lados, A y B (B puede no estar: entonces se ve solo A). Cada lado
+  // es una empresa ({ company }) o un grupo de personas ({ people: Set }). Las personas mandan
+  // sobre las empresas: quien está en un grupo no cuenta en la empresa del otro lado, que pasa a
+  // ser «Resto de …». SIDE[i]: el lado de cada issue (0 A, 1 B, 2 ninguno; las de ninguno no se ven).
+  // --- filtros. S.f: dimensión → valores marcados. Una fila cuenta en un gráfico si pasa todos
+  // los filtros salvo el de la propia dimensión.
+  const S = { f: {}, from: 0, to: LASTM, q: '', sides: [{ company: 0 }, { company: 1 }] };
+  const SIDE = new Uint8Array(N);
+  const CO = () => (S.sides[1] ? [0, 1] : [0]);
+  const CMP = () => !!S.sides[1];
+  const sideName = (k) => {
+    const s = S.sides[k], o = S.sides[1 - k];
+    if (!s) return '';
+    if (s.people) {
+      const n = s.people.size;
+      if (n === 1) return DIMS.as.label([...s.people][0]);
+      return o?.people?.size > 1 ? `${'AB'[k]} · ${n} personas` : `${n} personas`;
+    }
+    return o?.people && [...o.people].some((p) => data.company[p] === s.company) ? `Resto de ${COMPANIES[s.company]}` : COMPANIES[s.company];
   };
-  const CMP = () => { const c = CO(); return c.includes(0) && c.includes(1); };
+  const NAMES = () => [sideName(0), sideName(1)];
+  const sideOf = (i) => {
+    const [a, b] = S.sides, p = C.as[i];
+    if (a.people?.has(p)) return 0;
+    if (b?.people?.has(p)) return 1;
+    if (a.company === TEAM[i]) return 0;
+    if (b?.company === TEAM[i]) return 1;
+    return 2;
+  };
+  // bit 29: fuera de los dos lados; bit 30: fuera del periodo o de la búsqueda; el resto, un bit por filtro
+  const OUT_SIDE = 1 << 29, OUT = 1 << 30;
   let MASK = new Uint32Array(N), ACTIVE = [], CACHE = {};
   const refilter = () => {
     ACTIVE = Object.keys(S.f).filter((k) => S.f[k].size);
-    const q = S.q.trim().toLowerCase(), co = people() ? [true, true, true] : S.co;
+    const q = S.q.trim().toLowerCase();
     for (let i = 0; i < N; i++) {
       let m = 0;
-      if (MONTH[i] < S.from || MONTH[i] > S.to || !co[TEAM[i]]) m |= 1 << 30;
-      if (q && !C.su[i].toLowerCase().includes(q) && !`inc${String(C.id[i]).padStart(12, '0')}`.includes(q)) m |= 1 << 30;
+      SIDE[i] = sideOf(i);
+      if (SIDE[i] === 2) m |= OUT_SIDE;
+      if (MONTH[i] < S.from || MONTH[i] > S.to) m |= OUT;
+      if (q && !C.su[i].toLowerCase().includes(q) && !`inc${String(C.id[i]).padStart(12, '0')}`.includes(q)) m |= OUT;
       for (let a = 0; a < ACTIVE.length; a++) {
         const dm = DIMS[ACTIVE[a]], set = S.f[ACTIVE[a]], v = dm.get(i);
         if (dm.multi ? !v.some((x) => set.has(x)) : !set.has(v)) m |= 1 << a;
@@ -128,6 +148,13 @@ export const createModel = (data) => {
       MASK[i] = m;
     }
     CACHE = {};
+  };
+  // las que pasan los filtros, sean del lado que sean (para elegir personas)
+  const pool = () => {
+    if (CACHE.pool) return CACHE.pool;
+    const out = [];
+    for (let i = 0; i < N; i++) if (!(MASK[i] & ~OUT_SIDE)) out.push(i);
+    return (CACHE.pool = out);
   };
   // filas que pasan los filtros (sin contar el de la dimensión `skip`, si se indica)
   const rows = (skip) => {
@@ -143,11 +170,11 @@ export const createModel = (data) => {
   // --- agregación
   const group = (dim, list, keep) => {
     const dm = DIMS[dim], m = new Map();
-    const add = (k, i) => { let g = m.get(k); if (!g) m.set(k, g = { k, n: 0, t: [0, 0, 0], rows: keep ? [] : null }); g.n++; g.t[TEAM[i]]++; if (keep) g.rows.push(i); };
+    const add = (k, i) => { let g = m.get(k); if (!g) m.set(k, g = { k, n: 0, t: [0, 0, 0], rows: keep ? [] : null }); g.n++; g.t[SIDE[i]]++; if (keep) g.rows.push(i); };
     for (const i of list || rows(dim)) { const v = dm.get(i); if (dm.multi) for (const k of v) add(k, i); else add(v, i); }
     return [...m.values()].sort((a, b) => b.n - a.n);
   };
-  const byTeam = (list) => { const t = [[], [], []]; for (const i of list) t[TEAM[i]].push(i); return t; };
+  const bySide = (list) => { const t = [[], [], []]; for (const i of list) t[SIDE[i]].push(i); return t; };
   const byMonth = (list) => { const a = new Array(12).fill(0); for (const i of list) a[MONTH[i]]++; return a; };
   // últimos 90 días de la foto frente a los 90 anteriores
   const trend = (list) => { let now = 0, prev = 0; for (const i of list) { const age = SNAP - C.rep[i]; if (age < 90 * DAY) now++; else if (age < 180 * DAY) prev++; } return { now, prev }; };
@@ -175,7 +202,7 @@ export const createModel = (data) => {
       else if (!OPEN[i]) noIp++;
       else if (lim >= 0 && SNAP - C.rep[i] > lim) { slaKo++; waitKo++; }
       time[0] += C.tA[i]; time[1] += C.tI[i]; time[2] += C.tPc[i]; time[3] += C.tPv[i]; time[4] += C.tPo[i];
-      t[TEAM[i]]++;
+      t[SIDE[i]]++;
     }
     const n = list.length || 1, R = ttr.length || 1, F = fr.length || 1;
     return {
@@ -189,7 +216,7 @@ export const createModel = (data) => {
   };
 
   return {
-    data, C, DI, N, BASE, SNAP, LASTM, SLA, MONTH, DOW, HOUR, OPEN, TEAM, DESCL, DIMS, S,
-    CMP, CO, people, refilter, rows, toggle, isSel, group, byTeam, byMonth, trend, stats,
+    data, C, DI, N, BASE, SNAP, LASTM, SLA, MONTH, DOW, HOUR, OPEN, TEAM, SIDE, DESCL, DIMS, S,
+    CMP, CO, NAMES, refilter, rows, pool, toggle, isSel, group, bySide, byMonth, trend, stats,
   };
 };

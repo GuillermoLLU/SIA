@@ -2,44 +2,44 @@
 // probar en node). Los clics van por atributos que lee metrics-view.js:
 // data-f="dimensión:clave" filtra, data-f2 filtra por dos a la vez,
 // data-exp despliega una lista, data-sort ordena una tabla.
-// Con las dos empresas marcadas, los indicadores son la diferencia de
-// Indra respecto a T-Systems (compare.js); data-cmp lleva lo que enseña
+// Con los dos lados (A frente a B), los indicadores son la diferencia de
+// A respecto a B (compare.js); data-cmp lleva lo que enseña
 // la tarjeta al pasar el ratón.
 import { esc } from '../ui/html.js';
 import { num, pct, dur, MONTHS } from './format.js';
 import { compareFigure } from './compare.js';
-import { COMPANIES } from './model.js';
 
 // ui: { exp: {id: true}, sort: {id: [columna, ±1]} }, lo que la persona ha desplegado y ordenado.
 export const createCharts = (m, ui) => {
-  const { DIMS, LASTM, CO, CMP, isSel, rows, group, stats, byTeam, byMonth, trend, TEAM, MONTH } = m;
+  const { DIMS, LASTM, CO, CMP, NAMES, isSel, rows, group, stats, bySide, byMonth, trend, SIDE, MONTH } = m;
+  const name = (k) => NAMES()[k];   // el nombre de cada lado: una empresa, una persona o «N personas»
 
   const card = (t, body, o = {}) => `<section class="mt-card ${o.span ? `mt-${o.span}` : ''}"><h3>${t}</h3>${o.sub ? `<p class="mt-sub">${o.sub}</p>` : ''}${body}</section>`;
-  const legend = () => `<div class="mt-legend">${CO().map((k) => `<span><i class="mt-c${k}"></i>${COMPANIES[k]}</span>`).join('')}</div>`;
+  const legend = () => `<div class="mt-legend">${CO().map((k) => `<span><i class="mt-c${k}"></i>${esc(name(k))}</span>`).join('')}</div>`;
   const kpi = (l, v, d = '', cls = '') => `<div class="mt-kpi ${cls}"><div class="mt-kpi-l">${l}</div><div class="mt-kpi-v">${v}</div><div class="mt-kpi-d">${d}</div></div>`;
   const kpis = (...k) => `<div class="mt-kpis">${k.join('')}</div>`;
   const more = (id, total, top) => (total > top ? `<button class="mt-more" data-exp="${id}">${ui.exp[id] ? 'Ver menos' : `Ver todos (${num(total)})`}</button>` : '');
   const empty = '<p class="mt-mut mt-small">Sin datos con estos filtros.</p>';
 
-  // Diferencia de Indra respecto a T-Systems en un indicador.
+  // Diferencia de A respecto a B en un indicador.
   const diff = (a, b, fmt, val, better) => {
     const f = compareFigure(a, b, fmt, val, better);
     return f ? `<b class="mt-diff ${f.cls}" data-cmp="${esc([f.a, f.other, f.b, f.cls].join('¦'))}">${f.main}</b>` : '<span class="mt-mut">—</span>';
   };
-  // Indicador de cabecera: con una empresa, su valor; con las dos, la diferencia.
+  // Indicador de cabecera: con un lado, su valor; con los dos, la diferencia.
   const kpiCo = (label, ST, fmt, o = {}) => {
     if (!CMP()) { const k = CO()[0]; return kpi(label, fmt(ST[k]), o.note || '', `mt-t${k}`); }
-    return kpi(label, diff(ST[0], ST[1], fmt, o.val, o.better), `${COMPANIES[0]} respecto a ${COMPANIES[1]}${o.note ? ` · ${o.note}` : ''}`);
+    return kpi(label, diff(ST[0], ST[1], fmt, o.val, o.better), `${esc(name(0))} respecto a ${esc(name(1))}${o.note ? ` · ${o.note}` : ''}`);
   };
 
-  // Barras horizontales de una dimensión, partidas por empresa.
+  // Barras horizontales de una dimensión, partidas por lado.
   const bars = (dim, o = {}) => {
     const id = o.id || dim, top = o.top || 10, list = o.rows || rows(dim);
     const g = (o.groups || group(dim, list)).filter((x) => !(o.skip && o.skip(x.k)));
     const total = list.length || 1, max = Math.max(1, ...g.map((x) => x.n)), all = ui.exp[id];
     const w = (v) => (v / max * 100).toFixed(2);
     const html = (all ? g.slice(0, 300) : g.slice(0, top)).map((x) => {
-      const tip = `${DIMS[dim].label(x.k)}\n${num(x.n)} issues · ${pct(x.n / total, 1)}\n${CO().map((k) => `${COMPANIES[k]}: ${num(x.t[k])}`).join(' · ')}`;
+      const tip = `${DIMS[dim].label(x.k)}\n${num(x.n)} issues · ${pct(x.n / total, 1)}\n${CO().map((k) => `${name(k)}: ${num(x.t[k])}`).join(' · ')}`;
       return `<div class="mt-br ${isSel(dim, x.k) ? 'mt-sel' : ''}" data-f="${dim}:${x.k}" data-tip="${esc(tip)}"><span class="mt-bl">${esc(DIMS[dim].label(x.k))}</span>
         <span class="mt-bt">${[0, 1, 2].map((k) => `<i class="mt-c${k}" style="width:${w(x.t[k])}%"></i>`).join('')}</span>
         <span class="mt-bv">${num(x.n)}</span><span class="mt-bp">${pct(x.n / total)}</span></div>`;
@@ -52,21 +52,21 @@ export const createCharts = (m, ui) => {
     return bars(dim, { ...o, top: order.length, groups: order.map((k) => g.get(k) || { k, n: 0, t: [0, 0, 0] }) });
   };
 
-  // Columnas por mes, apiladas por empresa.
+  // Columnas por mes, apiladas por lado.
   const monthly = (list) => {
     const mt = Array.from({ length: 12 }, () => [0, 0, 0]);
-    for (const i of list) mt[MONTH[i]][TEAM[i]]++;
+    for (const i of list) mt[MONTH[i]][SIDE[i]]++;
     const tot = mt.map((x) => x[0] + x[1] + x[2]), max = Math.max(...tot, 1);
     return `<div class="mt-ts">${mt.map((x, k) => (k > LASTM ? '' : `<div class="mt-col ${isSel('month', k) ? 'mt-sel' : ''} ${k === LASTM ? 'mt-part' : ''}" data-f="month:${k}"
-      data-tip="${MONTHS[k]}${k === LASTM ? ' (mes incompleto)' : ''}\n${num(tot[k])} issues\n${CO().map((t) => `${COMPANIES[t]}: ${num(x[t])}`).join(' · ')}">
+      data-tip="${esc(`${MONTHS[k]}${k === LASTM ? ' (mes incompleto)' : ''}\n${num(tot[k])} issues\n${CO().map((t) => `${name(t)}: ${num(x[t])}`).join(' · ')}`)}">
       <div class="mt-col-n">${num(tot[k])}</div><div class="mt-stack" style="height:${(tot[k] / max * 100).toFixed(1)}%">${[0, 1, 2].map((t) => `<div class="mt-c${t}" style="flex:${x[t]}"></div>`).join('')}</div>
       <div class="mt-col-x">${MONTHS[k]}${k === LASTM ? '*' : ''}</div></div>`)).join('')}</div>`;
   };
 
-  // Líneas por mes, una por empresa (con las dos, sin la de «fuera»). f(indicadores del mes) da el valor.
+  // Líneas por mes, una por lado. f(indicadores del mes) da el valor.
   const lines = (A, f, fmt) => {
-    const W = 620, H = 190, L = 54, R = 12, T = 12, B = 26, cos = CO().filter((k) => k < 2 || !CMP());
-    const per = cos.map((k) => { const mt = Array.from({ length: LASTM + 1 }, () => []); for (const i of A) if (TEAM[i] === k) mt[MONTH[i]].push(i); return mt.map((l) => (l.length >= 10 ? f(stats(l)) : null)); });
+    const W = 620, H = 190, L = 54, R = 12, T = 12, B = 26, cos = CO();
+    const per = cos.map((k) => { const mt = Array.from({ length: LASTM + 1 }, () => []); for (const i of A) if (SIDE[i] === k) mt[MONTH[i]].push(i); return mt.map((l) => (l.length >= 10 ? f(stats(l)) : null)); });
     const max = Math.max(1e-9, ...per.flat().filter((v) => v != null)) * 1.1;
     const x = (i) => L + i * (W - L - R) / Math.max(LASTM, 1), y = (v) => T + (H - T - B) * (1 - v / max);
     const grid = [0, 0.5, 1].map((p) => `<line x1="${L}" x2="${W - R}" y1="${y(max * p)}" y2="${y(max * p)}" class="mt-gridline"/><text x="${L - 6}" y="${y(max * p) + 4}" text-anchor="end" class="mt-axis">${fmt(max * p)}</text>`).join('');
@@ -74,7 +74,7 @@ export const createCharts = (m, ui) => {
     const ser = per.map((v, s) => {
       const pts = v.map((p, i) => (p == null ? null : [x(i), y(p)])).filter(Boolean);
       return `<polyline class="mt-line mt-s${cos[s]}" points="${pts.map((p) => p.map((n) => n.toFixed(1)).join(',')).join(' ')}"/>`
-        + v.map((p, i) => (p == null ? '' : `<circle cx="${x(i).toFixed(1)}" cy="${y(p).toFixed(1)}" r="4" class="mt-f${cos[s]}" data-tip="${COMPANIES[cos[s]]} · ${MONTHS[i]}\n${fmt(p)}"/>`)).join('');
+        + v.map((p, i) => (p == null ? '' : `<circle cx="${x(i).toFixed(1)}" cy="${y(p).toFixed(1)}" r="4" class="mt-f${cos[s]}" data-tip="${esc(`${name(cos[s])} · ${MONTHS[i]}\n${fmt(p)}`)}"/>`)).join('');
     }).join('');
     return `<svg viewBox="0 0 ${W} ${H}" class="mt-svg">${grid}${xs}${ser}</svg>`;
   };
@@ -92,7 +92,7 @@ export const createCharts = (m, ui) => {
   };
 
   // Columnas de las tablas por valor de una dimensión: [cabecera, cómo se ve, valor para ordenar, qué es mejor].
-  // Al comparar, las de DUO salen como diferencia entre empresas.
+  // Al comparar, las de DUO salen como diferencia entre los dos lados.
   const COLS = {
     n: ['Issues', (s) => num(s.n), (s) => s.n], sh: ['% total', (s, T) => pct(s.n / T, 1), (s) => s.n], mix: ['Reparto', (s) => mini(s.t), (s) => s.t[0] / (s.n || 1)],
     crit: ['% críticas', (s) => pct(s.crit), (s) => s.crit], avg: ['Media resol.', (s) => dur(s.avg), (s) => s.avg ?? -1, 'low'], p90: ['P90 resol.', (s) => dur(s.p90), (s) => s.p90 ?? -1, 'low'],
@@ -116,7 +116,7 @@ export const createCharts = (m, ui) => {
       const s = full(x.rows);
       s.k = x.k;
       if (cols.includes('tr') || cols.includes('dl')) { s.m = byMonth(x.rows); s.tr = trend(x.rows); }
-      if (cmp) s.co = byTeam(x.rows).slice(0, 2).map(full);
+      if (cmp) s.co = bySide(x.rows).slice(0, 2).map(full);
       return s;
     });
     const srt = ui.sort[id] || [o.sort || 'n', -1];
@@ -137,15 +137,15 @@ export const createCharts = (m, ui) => {
       </tbody></table></div>${more(id, data.length, top)}`;
   };
 
-  // Perfil comparado: qué parte de lo de cada empresa cae en cada valor. Con una sola, barras normales.
+  // Perfil comparado: qué parte de lo de cada lado cae en cada valor. Con uno solo, barras normales.
   const compare = (dim, o = {}) => {
     if (!CMP()) return bars(dim, { top: o.top || 10, skip: o.skip, id: `cmp-${dim}` });
     const list = o.rows || rows(dim), g = group(dim, list).filter((x) => !(o.skip && o.skip(x.k)));
-    const tot = [0, 0]; for (const i of list) if (TEAM[i] < 2) tot[TEAM[i]]++;
+    const tot = [0, 0]; for (const i of list) if (SIDE[i] < 2) tot[SIDE[i]]++;
     const sh = g.map((x) => ({ k: x.k, a: x.t[0] / (tot[0] || 1), b: x.t[1] / (tot[1] || 1), t: x.t })).sort((p, q) => Math.max(q.a, q.b) - Math.max(p.a, p.b)).slice(0, o.top || 10);
     const max = Math.max(0.01, ...sh.map((x) => Math.max(x.a, x.b)));
-    return `<div class="mt-cmp mt-cmp-h"><div class="mt-cmp-l">${COMPANIES[0]}</div><div class="mt-cmp-m mt-mut">% de lo que lleva cada una</div><div class="mt-cmp-r">${COMPANIES[1]}</div></div>` + sh.map((x) =>
-      `<div class="mt-cmp ${isSel(dim, x.k) ? 'mt-sel' : ''}" data-f="${dim}:${x.k}" data-tip="${esc(`${DIMS[dim].label(x.k)}\n${COMPANIES[0]}: ${num(x.t[0])} (${pct(x.a, 1)})\n${COMPANIES[1]}: ${num(x.t[1])} (${pct(x.b, 1)})`)}">
+    return `<div class="mt-cmp mt-cmp-h"><div class="mt-cmp-l">${esc(name(0))}</div><div class="mt-cmp-m mt-mut">% de lo que lleva cada lado</div><div class="mt-cmp-r">${esc(name(1))}</div></div>` + sh.map((x) =>
+      `<div class="mt-cmp ${isSel(dim, x.k) ? 'mt-sel' : ''}" data-f="${dim}:${x.k}" data-tip="${esc(`${DIMS[dim].label(x.k)}\n${name(0)}: ${num(x.t[0])} (${pct(x.a, 1)})\n${name(1)}: ${num(x.t[1])} (${pct(x.b, 1)})`)}">
        <div class="mt-cmp-l"><span>${pct(x.a)}</span><i class="mt-c0" style="width:${x.a / max * 70}%"></i></div><div class="mt-cmp-m">${esc(DIMS[dim].label(x.k))}</div><div class="mt-cmp-r"><i class="mt-c1" style="width:${x.b / max * 70}%"></i><span>${pct(x.b)}</span></div></div>`).join('');
   };
 
@@ -156,11 +156,11 @@ export const createCharts = (m, ui) => {
     if (!R.length || !Cc.length) return empty;
     if (o.orderR) R.sort((x, y) => o.orderR.indexOf(x.k) - o.orderR.indexOf(y.k));
     const ri = new Map(R.map((x, i) => [x.k, i])), ci = new Map(Cc.map((x, i) => [x.k, i])), mt = R.map(() => Cc.map(() => [0, 0, 0]));
-    for (const i of list) for (const a of keys(dr, i)) { const r = ri.get(a); if (r == null) continue; for (const b of keys(dc, i)) { const c = ci.get(b); if (c != null) mt[r][c][TEAM[i]]++; } }
+    for (const i of list) for (const a of keys(dr, i)) { const r = ri.get(a); if (r == null) continue; for (const b of keys(dc, i)) { const c = ci.get(b); if (c != null) mt[r][c][SIDE[i]]++; } }
     const tot = (t) => t[0] + t[1] + t[2], max = Math.max(1, ...mt.flat().map(tot));
     const cell = (t, r, c) => {
       const v = tot(t), a = v ? Math.round(8 + 92 * Math.pow(v / max, 0.6)) : 0;
-      return `<td class="${a > 50 ? 'mt-hot' : ''}" style="--mt-a:${a}%" data-f2="${rd}:${R[r].k}|${cd}:${Cc[c].k}" data-tip="${esc(`${dr.label(R[r].k)} × ${dc.label(Cc[c].k)}\n${num(v)} issues\n${CO().map((k) => `${COMPANIES[k]}: ${num(t[k])}`).join(' · ')}`)}">${v || ''}</td>`;
+      return `<td class="${a > 50 ? 'mt-hot' : ''}" style="--mt-a:${a}%" data-f2="${rd}:${R[r].k}|${cd}:${Cc[c].k}" data-tip="${esc(`${dr.label(R[r].k)} × ${dc.label(Cc[c].k)}\n${num(v)} issues\n${CO().map((k) => `${name(k)}: ${num(t[k])}`).join(' · ')}`)}">${v || ''}</td>`;
     };
     return `<div class="mt-tablewrap"><table class="mt-hm"><thead><tr><th></th>${Cc.map((c) => `<th class="mt-v">${esc(dc.label(c.k))}</th>`).join('')}<th class="mt-v">Total</th></tr></thead><tbody>
       ${R.map((r, i) => `<tr><th class="mt-r" title="${esc(dr.label(r.k))}">${esc(dr.label(r.k))}</th>${mt[i].map((t, j) => cell(t, i, j)).join('')}<td class="mt-mut mt-total">${num(r.n)}</td></tr>`).join('')}</tbody></table></div>`;
@@ -173,7 +173,7 @@ export const createCharts = (m, ui) => {
     return `<div class="mt-hbar">${t.map((v, i) => `<i class="mt-time${i}" style="width:${v / total * 100}%" data-tip="${TIME_NAMES[i]}\n${pct(v / total, 1)} del tiempo · ${num(v / 60)} h"></i>`).join('')}</div>`;
   };
   const timeBars = (ST) => `<div class="mt-legend">${TIME_NAMES.map((n, i) => `<span><i class="mt-time${i}"></i>${n}</span>`).join('')}</div>`
-    + CO().map((k) => `<p class="mt-small"><span class="mt-sw mt-c${k}"></span><b>${COMPANIES[k]}</b></p>${timeBar(ST[k].time)}`).join('');
+    + CO().map((k) => `<p class="mt-small"><span class="mt-sw mt-c${k}"></span><b>${esc(name(k))}</b></p>${timeBar(ST[k].time)}`).join('');
 
   // Quién sube y quién baja: últimos 90 días frente a los 90 anteriores.
   const movers = (dim, o = {}) => {

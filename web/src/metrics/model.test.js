@@ -35,12 +35,14 @@ test('lo derivado de cada issue: empresa, abierta, mes', () => {
   assert.equal(m.LASTM, 2);
 });
 
-test('de partida, Indra y T-Systems; lo que no tiene responsable, aparte', () => {
+test('de partida, Indra (A) frente a T-Systems (B); lo que no es de ningún lado no se ve', () => {
   const m = createModel(data());
   m.refilter();
   assert.deepEqual(m.rows(), [0, 1, 2, 3]);
-  m.S.co[2] = true; m.refilter();
-  assert.deepEqual(m.rows(), [0, 1, 2, 3, 4]);
+  assert.deepEqual([...m.SIDE], [0, 1, 0, 0, 2]);
+  assert.deepEqual(m.NAMES(), ['Indra', 'T-Systems']);
+  m.S.sides[1] = { company: 2 }; m.refilter();
+  assert.deepEqual(m.rows(), [0, 2, 3, 4]);
 });
 
 test('filtrar: cada gráfico ignora el filtro de su propia dimensión; buscar por título o número', () => {
@@ -52,23 +54,26 @@ test('filtrar: cada gráfico ignora el filtro de su propia dimensión; buscar po
   assert.deepEqual(m.rows(), [1]);
 });
 
-test('una persona elegida: solo lo suyo, en su empresa, sin comparar, aunque su empresa no esté marcada', () => {
+test('una persona frente a una empresa, frente a su propia empresa (el resto) o sola', () => {
   const m = createModel(data());
-  m.S.co = [true, false, false];
-  m.S.f.as = new Set([2]); m.refilter();
-  assert.deepEqual(m.rows(), [1]);
-  assert.deepEqual(m.CO(), [1]);
-  assert.equal(m.CMP(), false);
-  m.S.f.as = new Set([1, 2]); m.refilter();
-  assert.equal(m.CMP(), true);   // dos personas de empresas distintas: se comparan
-  delete m.S.f.as; m.refilter();
+  m.S.sides = [{ people: new Set([1]) }, { company: 1 }]; m.refilter();
+  assert.deepEqual(m.NAMES(), ['ANA', 'T-Systems']);
+  assert.deepEqual(m.rows(), [0, 1, 2, 3]);
+  assert.equal(m.CMP(), true);
+  m.S.sides = [{ people: new Set([2]) }, { company: 1 }]; m.refilter();
+  assert.deepEqual(m.NAMES(), ['LUIS', 'Resto de T-Systems']);   // LUIS es de T-Systems: cuenta solo en A
+  assert.deepEqual([...m.SIDE], [2, 0, 2, 2, 2]);
+  m.S.sides = [{ people: new Set([1, 2]) }, null]; m.refilter();
+  assert.deepEqual(m.NAMES(), ['2 personas', '']);
   assert.deepEqual(m.CO(), [0]);
+  assert.equal(m.CMP(), false);
+  assert.deepEqual(m.pool(), [0, 1, 2, 3, 4]);   // para elegir personas, todas, sea cual sea su lado
 });
 
 test('SLA de inicio: dentro, fuera, sin iniciar y fuera de plazo, cerrada sin pasar por En curso', () => {
   const m = createModel(data());
   m.refilter();
-  const [indra, other] = m.byTeam(m.rows()).map(m.stats);
+  const [indra, other] = m.bySide(m.rows()).map(m.stats);
   assert.equal(indra.sla, 0.5);       // la 1 a tiempo; la 3, abierta sin iniciar y vencida
   assert.equal(indra.waitKo, 1);
   assert.equal(indra.noIp, 1 / 3);    // la 4
@@ -88,11 +93,12 @@ test('indicadores de un grupo', () => {
 
 test('todas las pestañas se pintan en cada modo, sin huecos ni NaN', () => {
   const m = createModel(data()), ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
-  for (const co of [[true, true, false], [true, false, false], [false, true, false], [true, true, true]]) {
-    for (const [q, f] of [['', {}], ['nada así', {}], ['', { as: new Set([1]) }]]) {
-      Object.assign(m.S, { co, q, f });
+  const sides = [[{ company: 0 }, { company: 1 }], [{ company: 0 }, null], [{ people: new Set([1]) }, { company: 1 }], [{ people: new Set([2]) }, { people: new Set([1]) }]];
+  for (const pair of sides) {
+    for (const q of ['', 'nada así']) {
+      Object.assign(m.S, { sides: pair, q });
       m.refilter();
-      for (const [tab] of TABS) assert.doesNotMatch(tabs.render(tab, m.rows()), /undefined|NaN|\[object/, `${tab} ${co} «${q}»`);
+      for (const [tab] of TABS) assert.doesNotMatch(tabs.render(tab, m.rows()), /undefined|NaN|\[object/, `${tab} ${m.NAMES()} «${q}»`);
     }
   }
 });
