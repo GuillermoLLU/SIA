@@ -116,7 +116,7 @@ export const createModel = (data) => {
     if (s.people) {
       const n = s.people.size;
       if (n === 1) return DIMS.as.label([...s.people][0]);
-      return o?.people?.size > 1 ? `${'AB'[k]} · ${n} personas` : `${n} personas`;
+      return `${n} personas`;
     }
     return o?.people && [...o.people].some((p) => data.company[p] === s.company) ? `Resto de ${COMPANIES[s.company]}` : COMPANIES[s.company];
   };

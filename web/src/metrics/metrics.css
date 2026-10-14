@@ -1,13 +1,17 @@
 /* Vista Métricas: cabecera, filtros fijos arriba, pestañas y, dentro de cada
    una, una rejilla de 12 columnas con indicadores, tablas y gráficos. Indra
-   en azul y T-Systems en ocre; peor en rojo y mejor en verde. Todo se mezcla
+   y T-Systems, o lo que se compare, en el color que se elija para cada lado
+   (de partida, azul y ocre); peor en rojo y mejor en verde. Todo se mezcla
    con los colores del tema: cuanto más pesa el texto en la mezcla, más se
    aclara en los temas oscuros y más se oscurece en los claros, así se lee
    bien en los dos. Algunos temas oscuros traen un gris secundario y unos
    bordes muy apagados: aquí se suben (--mt-low, --mt-line). */
 .mt-view {
-  --mt-c0: color-mix(in srgb, #2f6fb5 66%, var(--text));
-  --mt-c1: color-mix(in srgb, #c98a3a 76%, var(--text));
+  /* el color de cada lado lo elige la persona (--mt-base0 y --mt-base1, los pone la vista) */
+  --mt-base0: #2f6fb5;
+  --mt-base1: #c98a3a;
+  --mt-c0: color-mix(in srgb, var(--mt-base0) 70%, var(--text));
+  --mt-c1: color-mix(in srgb, var(--mt-base1) 70%, var(--text));
   --mt-c2: color-mix(in srgb, var(--text) 32%, var(--surface));
   --mt-good: color-mix(in srgb, #1f8a3e 72%, var(--text));
   --mt-bad: color-mix(in srgb, #cf3b2c 74%, var(--text));
@@ -36,10 +40,18 @@
 .mt-fbar { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 -28px; padding: 9px 28px; background: var(--bg); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
 /* qué se compara: A frente a B, cada uno con su color */
 .mt-side i { width: 10px; height: 10px; }
-.mt-side b { font-weight: 700; }
 .mt-side span { max-width: 230px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mt-side svg { width: 14px; height: 14px; }
 .mt-vs { font-size: 12.5px; color: var(--mt-low); }
+.mt-vs[hidden], .mt-slot[hidden], .mt-add[hidden], .mt-x[hidden] { display: none; }
+.mt-slot { display: flex; }
+.mt-slot .mt-x { height: 32px; margin-left: -1px; padding: 0 10px; font-size: 15px; line-height: 1; color: var(--mt-low); }
+.mt-slot .mt-x:hover { color: var(--text); }
+.mt-add { height: 32px; border-style: dashed; color: var(--mt-low); }
+.mt-add:hover { color: var(--text); }
+.mt-colors { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.mt-colors button { width: 24px; height: 24px; padding: 0; background: color-mix(in srgb, var(--mt-swatch) 70%, var(--text)); border: 2px solid transparent; cursor: pointer; }
+.mt-colors button.mt-on { border-color: var(--surface); outline: 2px solid var(--text); }
 /* periodo y lados: botón con icono y, al abrirlo, su desplegable */
 .mt-period { position: relative; }
 .mt-icon-btn { display: inline-flex; align-items: center; gap: 7px; height: 32px; }
