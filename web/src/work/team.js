@@ -1,4 +1,4 @@
-// El Panel de trabajo (sin DOM): un control rápido del equipo y de cada
+// Equipo soporte (sin DOM): un control rápido del equipo y de cada
 // persona con lo que importa para seguir la calidad del servicio: el SLA de
 // inicio, los tiempos, la calidad del trabajo, las tareas y la cola. Con los
 // datos de las Métricas (web/src/metrics/model.js); el detalle, en Métricas.

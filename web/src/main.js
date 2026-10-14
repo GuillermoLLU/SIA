@@ -1461,7 +1461,7 @@ const viewAdmin = document.getElementById('view-admin');
 const navLinks = document.getElementById('nav-links');
 const viewLinks = document.getElementById('view-links');
 const viewUsers = document.getElementById('view-users');
-// Paneles (Issues, Panel de trabajo, Métricas): una vista cada uno, sin base;
+// Paneles (Issues, Equipo soporte, Métricas): una vista cada uno, sin base;
 // el icono de la barra se enseña si la persona tiene esa vista. Si el panel
 // devuelve show(), se llama al abrirlo (Issues recarga su foto).
 const PANELS = [
@@ -1469,7 +1469,7 @@ const PANELS = [
     api: createIssuesApi(API_BASE, AUTH.session), me: AUTH.user, toast: (t) => toast(t),
     openChat: (host, issueId) => mountIssueChat(host, { issueId, wsUrl, loadProjects: loadAccessProjects, makeTerminal }),
   }) },
-  // clic en una persona del Panel de trabajo: se abre en Métricas frente al resto de su equipo
+  // clic en una persona de Equipo soporte: se abre en Métricas frente al resto de su equipo
   // «Gestionar equipo» lleva a Personas (si también tiene esa vista)
   { name: 'work', mount: (el) => AUTH && mountWorkView(el, { api: createMetricsApi(API_BASE, AUTH.session),
     openPerson: (person) => { PANELS.find((p) => p.name === 'metrics').ui?.focus(person); showView('metrics'); },
@@ -1485,7 +1485,7 @@ const showView = (name) => {
   viewAdmin.hidden = name !== 'admin';
   viewLinks.hidden = name !== 'links';
   viewUsers.hidden = name !== 'users';
-  // Panel de trabajo y Personas son las dos caras del equipo: un solo icono en la barra
+  // Las métricas y la gestión del equipo son las dos caras del equipo: un solo icono en la barra
   for (const p of PANELS) { p.view.hidden = name !== p.name; p.nav.classList.toggle('active', name === p.name || (p.name === 'work' && name === 'users')); }
   PANELS.find((p) => p.name === name)?.ui?.show?.();
   navChat.classList.toggle('active', name === 'chat');
@@ -1502,7 +1502,7 @@ const showView = (name) => {
   }
 };
 navChat.addEventListener('click', () => showView('chat'));
-// El icono del Panel de trabajo abre las métricas del equipo o, si solo se gestiona, Personas.
+// El icono de Equipo soporte abre las métricas del equipo o, si solo se gestiona, la gestión de personas.
 const teamView = () => (canView('work') ? 'work' : 'users');
 for (const p of PANELS) {
   p.nav.innerHTML = VIEWS.find((v) => v.id === p.name).icon;
@@ -1913,7 +1913,7 @@ settingsModal.addEventListener('mousedown', (e) => { if (e.target === settingsMo
 // Cerrar sesión (pie de Configuración): web/src/auth/logout-button.js
 wireLogout(document.getElementById('settings-session'), { ...AUTH, confirm: dlgConfirm });
 
-// Personas (web/src/users/): la gestión del equipo, la otra cara del Panel de trabajo (se entra
+// Gestión del equipo (web/src/users/): la otra cara de Equipo soporte (se entra
 // por su icono); «Métricas equipo» vuelve a sus métricas si también tiene esa vista.
 const usersView = canView('people')
   ? mountPeopleView(viewUsers, { usersApi: createUsersApi(API_BASE, AUTH.session), knowledgeApi: createKnowledgeApi(API_BASE, AUTH.session), me: AUTH.user, toast: (t) => toast(t),

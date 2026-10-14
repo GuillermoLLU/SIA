@@ -266,7 +266,7 @@ export const mountMetricsView = (root, { api, toast }) => {
   return {
     // Al abrir la vista: siempre el Resumen.
     show: () => ready().then(() => { if (m && tab !== 'resumen') { tab = 'resumen'; render(); } }).catch(failed),
-    // Una persona frente al resto de su equipo (desde el Panel de trabajo).
+    // Una persona frente al resto de su equipo (desde Equipo soporte).
     focus: (person) => ready().then(() => {
       if (!m) return;
       m.S.sides = [{ people: new Set([person]) }, { company: m.data.company[person] }];

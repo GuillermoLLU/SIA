@@ -1,4 +1,4 @@
-// Vista «Panel de trabajo»: un control rápido de la calidad del equipo y de
+// Vista «Equipo soporte» (vista work): un control rápido de la calidad del equipo y de
 // cada persona (team.js). Con los datos de las Métricas, que se cargan desde
 // allí; se vuelven a leer al abrir la vista, por si alguien ha cargado otro
 // CSV. Es el equipo de Indra. Clic en una persona: se abre en Métricas frente
@@ -23,7 +23,7 @@ export const mountWorkView = (root, { api, openPerson, onManage }) => {
 
   const manage = onManage ? '<button class="wk-switch-view" data-manage>Gestionar equipo</button>' : '';
   // cabecera: título, fecha de los datos y, a la derecha, el periodo (si hay datos) y «Gestionar equipo»
-  const page = (body, tools = '') => `<div class="mt-page"><header class="mt-top wk-top"><h2 class="mt-title">Panel de trabajo</h2>${body}<span class="wk-tools">${tools}${manage}</span></header>`;
+  const page = (body, tools = '') => `<div class="mt-page"><header class="mt-top wk-top"><h2 class="mt-title">Equipo soporte</h2>${body}<span class="wk-tools">${tools}${manage}</span></header>`;
 
   const renderFrame = () => {
     const snap = new Date(m.BASE + m.SNAP * 6e4);

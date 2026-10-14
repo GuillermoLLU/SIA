@@ -1,4 +1,4 @@
-// Vista «Personas» (para quien la tiene). Lista con buscador y filtros y,
+// Vista «Equipo soporte · gestión» (vista people, antes Personas; para quien la tiene). Lista con buscador y filtros y,
 // al pulsar a alguien, su ficha: rol, contraseña y acceso (cada uno con su
 // modal), sus vistas (cajas que se encienden y apagan: tocar una lo deja con
 // vistas personalizadas) y su conocimiento: los
@@ -50,12 +50,12 @@ const wireRoleCards = (el) => el.addEventListener('click', (e) => {
 });
 const pickedRole = (el) => el.querySelector('[data-role][aria-checked="true"]')?.dataset.role || null;
 
-// onMetrics: si la persona también ve el Panel de trabajo, «Métricas equipo» vuelve a sus métricas.
+// onMetrics: si la persona también ve Equipo soporte, «Métricas equipo» vuelve a sus métricas.
 export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast, onMetrics }) => {
   let people = [], kbase = null, roles = [], filter = 'all', query = '', selected = null;
 
   root.innerHTML = `
-    <header class="pp-head"><h2>Personas</h2>${onMetrics ? '<button class="wk-switch-view" data-metrics>Métricas equipo</button>' : ''}</header>
+    <header class="pp-head"><h2>Equipo soporte</h2>${onMetrics ? '<button class="wk-switch-view" data-metrics>Métricas equipo</button>' : ''}</header>
     <div class="pp-rule"></div>
     <div class="pp-tools">
       <input class="settings-input" data-q placeholder="Buscar por nombre o email" aria-label="Buscar persona" />

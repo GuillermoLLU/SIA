@@ -1,5 +1,5 @@
 // El periodo que se mira (sin DOM): el texto de su botón y el calendario de
-// meses. Lo usan Métricas y el Panel de trabajo; cada vista lleva sus clics.
+// meses. Lo usan Métricas y Equipo soporte; cada vista lleva sus clics.
 import { MONTHS } from './format.js';
 
 // «Todo 2026», «sep» o «abr – jul»

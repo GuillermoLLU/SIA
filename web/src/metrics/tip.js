@@ -1,4 +1,4 @@
-// La tarjeta al pasar el ratón, para Métricas y el Panel de trabajo: el texto
+// La tarjeta al pasar el ratón, para Métricas y Equipo soporte: el texto
 // de data-tip o, en una diferencia entre lados (data-cmp), el valor del
 // primero a la izquierda, la diferencia en el centro y el del segundo a la
 // derecha. names() da el nombre de cada lado en ese momento.
