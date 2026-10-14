@@ -3,12 +3,11 @@
 // inicio, los tiempos, la calidad del trabajo, las tareas y la cola. Con los
 // datos de las Métricas (web/src/metrics/model.js); el detalle, en Métricas.
 //
-// Cada cifra de una persona sale en verde si está mejor que la media de su
-// equipo y en rojo si está peor (cualquier diferencia cuenta). Con menos de
-// MIN issues en el periodo, sus porcentajes y medias dicen poco: salen sin color.
+// Las cifras de cada persona son sus datos, sin colores: aquí no se compara.
+// Con menos de MIN issues en el periodo, sus porcentajes y medias dicen poco:
+// al ordenar por ellos, esas personas van al final.
 import { esc } from '../ui/html.js';
 import { num, dec, pct, dur } from '../metrics/format.js';
-import { verdict } from '../metrics/compare.js';
 
 export const MIN = 10;
 
@@ -21,7 +20,7 @@ const share = (part, s) => (s.resolved ? ` <small>${pct(part / s.resolved, 1)}</
 const COLS = {
   n: ['Issues', (s) => num(s.n), (s) => s.n, null, 'Issues de las que es responsable, abiertas en el periodo.'],
   open: ['Abiertas', (s) => num(s.open), (s) => s.open, null, 'Su cola: las que siguen sin resolver hoy.'],
-  sla: ['SLA cumplido', (s) => `${num(s.slaDoneOk)}${s.slaDone == null ? '' : ` <small>${donePct(s)}</small>`}`, (s) => s.slaDone, 'high',
+  sla: ['SLA cumplido', donePct, (s) => s.slaDone, 'high',
     'De las que ha resuelto, cuántas empezaron (pasaron a En curso) dentro del plazo de su prioridad: crítica 15 min, alta 45 min, media 2 h, baja 8 h.'],
   day: ['Resueltas / día', (s) => (s.perDay == null ? '—' : dec(s.perDay)), (s) => s.perDay, 'high',
     'Media de issues resueltas en los días en que resolvió alguna. En la fila del equipo, la media de su gente.'],
@@ -54,7 +53,7 @@ export const teamPanel = (m, ch, ui) => {
 
   // persona a persona, cada una frente a la media de su equipo
   const people = m.group('as', A, true).filter((x) => x.k).map((x) => ({ ...m.stats(x.rows), k: x.k, side: x.t[0] ? 0 : 1 }));
-  // resueltas al día: lo del equipo entero no se compara con lo de una persona; la referencia es la media de su gente
+  // resueltas al día, en la fila del equipo: la media de su gente (lo que resuelve el equipo entero en un día va arriba)
   for (const k of sides) {
     const v = people.filter((p) => p.side === k && p.n >= MIN && p.perDay != null).map((p) => p.perDay);
     ST[k] = { ...ST[k], perDay: v.length ? v.reduce((a, b) => a + b, 0) / v.length : null };
@@ -63,14 +62,9 @@ export const teamPanel = (m, ch, ui) => {
   // al ordenar por un % o una media, quien tiene pocas issues va al final: su cifra dice poco
   const key = (r) => cols[sortCol][2](r) ?? -Infinity, rated = !!cols[sortCol][3], few = (r) => (rated && r.n < MIN ? 1 : 0);
   people.sort((a, b) => few(a) - few(b) || (key(a) - key(b)) * dir || b.n - a.n);
-  const cell = (s, c, ref) => {
-    const [, fmt, val, better] = cols[c];
-    const cls = better && s.n >= MIN && val(s) != null && val(ref) != null ? verdict(val(s), val(ref), better === 'low') : '';
-    const tip = better ? ` data-tip="${esc(`Media de su equipo: ${fmt(ref).replace(/<[^>]+>/g, '')}`)}"` : '';
-    return `<td class="mt-num ${cls} ${better && s.n < MIN ? 'mt-mut' : ''}"${tip}>${fmt(s)}</td>`;
-  };
+  const cell = (s, c) => `<td class="mt-num">${cols[c][1](s)}</td>`;
   const th = (c) => `<th class="mt-num ${sortCol === c ? 'mt-srt' : ''}" data-sort="team:${c}" data-tip="${esc(cols[c][4])}">${cols[c][0]}${sortCol === c ? (dir < 0 ? ' ↓' : ' ↑') : ''}</th>`;
-  const row = (s) => `<tr class="mt-clk" data-person="${s.k}" title="Ver en Métricas"><td><i class="mt-sw mt-c${s.side}"></i>${esc(m.DIMS.as.label(s.k))}</td>${order.map((c) => cell(s, c, ST[s.side])).join('')}</tr>`;
+  const row = (s) => `<tr class="mt-clk" data-person="${s.k}" title="Ver en Métricas"><td><i class="mt-sw mt-c${s.side}"></i>${esc(m.DIMS.as.label(s.k))}</td>${order.map((c) => cell(s, c)).join('')}</tr>`;
   const teamRow = (k) => `<tr class="mt-grp"><td>Equipo ${esc(names[k])}</td>${order.map((c) => `<td class="mt-num">${cols[c][1](ST[k])}</td>`).join('')}</tr>`;
   const table = `<div class="mt-tablewrap"><table class="wk-team"><thead><tr><th>Persona</th>${order.map(th).join('')}</tr></thead>
     <tbody>${people.map(row).join('') || `<tr><td colspan="${order.length + 1}" class="mt-mut">Nadie con issues en este periodo.</td></tr>`}${sides.map(teamRow).join('')}</tbody></table></div>`;
@@ -82,7 +76,7 @@ export const teamPanel = (m, ch, ui) => {
   }).join('')}</tbody></table>`;
 
   return `<div class="mt-grid">${head}
-    ${card('El equipo, persona a persona', table, { span: 's12', sub: `En verde, mejor que la media de su equipo; en rojo, peor (pasa el ratón para verla). Con menos de ${MIN} issues en el periodo, sin color. Clic en una persona para verla en Métricas frente al resto de su equipo.` })}
+    ${card('El equipo, persona a persona', table, { span: 's12', sub: 'Clic en una cabecera para ordenar (pasa el ratón por ella para ver qué mide) y en una persona para verla en Métricas frente al resto de su equipo.' })}
     ${card('SLA de inicio por prioridad', prio, { span: 's5', sub: 'De la apertura al primer paso a En curso. «Fuera de plazo»: iniciadas tarde o aún sin iniciar con el plazo vencido.' })}
     ${card('Evolución del equipo', `${legend()}<p class="mt-small"><b>Dentro del SLA de inicio</b></p>${lines(A, (s) => s.sla, (v) => pct(v))}<p class="mt-small"><b>Media de resolución</b></p>${lines(A, (s) => s.avg, dur)}`, { span: 's7', sub: 'Por mes de apertura. * mes incompleto: lo más reciente sale mejor de lo que acabará.' })}
   </div>`;

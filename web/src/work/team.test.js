@@ -29,13 +29,13 @@ const render = (sides) => {
 };
 const rowOf = (html, name) => html.split('<tr').find((r) => r.includes(`>${name}<`));
 
-test('solo Indra: una fila por persona y la del equipo; mejor o peor que la media, en verde o rojo', () => {
+test('solo Indra: una fila por persona y la del equipo, con sus datos y sin colores', () => {
   const h = render([{ company: 0 }, null]);
   assert.doesNotMatch(h, /undefined|NaN/);
   assert.ok(rowOf(h, 'ANA') && rowOf(h, 'PEPE') && !rowOf(h, 'LUIS'));
   assert.match(h, /Equipo Indra/);
-  assert.match(rowOf(h, 'ANA'), /class="mt-num good/);   // ANA resuelve antes que la media
-  assert.match(rowOf(h, 'PEPE'), /class="mt-num bad/);
+  assert.doesNotMatch(h.slice(h.indexOf('<table class="wk-team"')), /mt-num (good|bad)/);
+  assert.match(rowOf(h, 'ANA'), />100 %</);   // SLA cumplido: solo el %
 });
 
 test('al ordenar por una media o un %, quien tiene menos de MIN issues va al final', () => {
@@ -45,10 +45,9 @@ test('al ordenar por una media o un %, quien tiene menos de MIN issues va al fin
   assert.deepEqual(names, ['1', '2', '3']);   // LUIS, con 1 issue y la media más baja, al final
 });
 
-test('comparando con T-Systems: también su gente y su equipo; con menos de MIN issues, sin color', () => {
+test('comparando con T-Systems: también su gente y su equipo', () => {
   const h = render([{ company: 0 }, { company: 1 }]);
   assert.doesNotMatch(h, /undefined|NaN/);
   assert.match(h, /Equipo T-Systems/);
-  assert.doesNotMatch(rowOf(h, 'LUIS'), /good|bad"/);
   assert.match(h, /data-person="3"/);
 });
