@@ -13,6 +13,7 @@ export const viewsForRoute = ([, area, sub], method) => {
   if (area === 'admin' && sub !== 'check') return ['admin'];
   if (area === 'links') return ['links'];
   if (area === 'issues') return ['issues'];
+  if (area === 'metrics') return ['metrics'];
   if (['drafts', 'groups'].includes(area) || (area === 'skills' && (method === 'DELETE' || sub === 'publish'))) return ['lab'];
   if (area === 'users' || area === 'knowledge') return ['people'];
   return null;
