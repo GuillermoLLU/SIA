@@ -5,4 +5,4 @@
 .wk-team td:first-child { white-space: nowrap; }
 .wk-team td:first-child .mt-sw { margin-right: 8px; }
 .wk-team tr.mt-grp td { text-transform: none; letter-spacing: 0; font-size: 12.5px; }
-.wk-team td small { margin-left: 3px; font-size: 11px; font-weight: 400; color: var(--mt-low); }
+.mt-view .wk-team th.mt-num, .mt-view .wk-team td.mt-num { text-align: center; }

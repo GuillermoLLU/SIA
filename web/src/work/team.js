@@ -13,7 +13,6 @@ export const MIN = 10;
 
 const slaPct = (s) => (s.sla == null ? '—' : pct(s.sla));
 const donePct = (s) => (s.slaDone == null ? '—' : pct(s.slaDone));
-const share = (part, s) => (s.resolved ? ` <small>${pct(part / s.resolved, 1)}</small>` : '');
 
 // Columnas de la tabla por persona: [cabecera, cómo se ve, valor, qué es mejor, qué mide]. Las de
 // prioridad se añaden con el modelo (sus índices dependen de los datos).
@@ -29,7 +28,7 @@ const COLS = {
   reop: ['Reabiertas', (s) => pct(s.reop, 1), (s) => s.reop, 'low', 'Volvieron de Resuelta a un estado abierto.'],
   bounce: ['Devueltas', (s) => pct(s.bounce, 1), (s) => s.bounce, 'low', 'Pasaron de En curso a Asignada (devueltas a la cola) al menos una vez.'],
   noRes: ['Sin texto resol.', (s) => pct(s.noRes, 1), (s) => s.noRes, 'low', 'Cerradas sin explicar cómo se resolvió.'],
-  ia: ['Con IA', (s) => `${num(s.ia)}${share(s.ia, s)}`, (s) => s.ia, null, 'De las que ha resuelto, cuántas llevan alguna marca de IA (en TAGS o en las notas).'],
+  ia: ['Con IA', (s) => (s.resolved ? pct(s.ia / s.resolved, 1) : '—'), (s) => (s.resolved ? s.ia / s.resolved : null), null, 'De las que ha resuelto, el % que lleva alguna marca de IA (en TAGS o en las notas).'],
 };
 
 // m: el modelo de las Métricas; ch: sus piezas (charts.js); ui.sort.team: [columna, ±1].
