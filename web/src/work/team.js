@@ -31,7 +31,10 @@ const COLS = {
   ia: ['Con IA', (s) => (s.resolved ? pct(s.ia / s.resolved, 1) : '—'), (s) => (s.resolved ? s.ia / s.resolved : null), null, 'De las que ha resuelto, el % en el que intervino la IA (marcas en TAGS o en las notas).'],
 };
 
-// m: el modelo de las Métricas; ch: sus piezas (charts.js); ui.sort.team: [columna, ±1].
+const CHART_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/></svg>';
+
+// m: el modelo de las Métricas; ch: sus piezas (charts.js); ui.sort.team: [columna, ±1];
+// ui.charts: los bloques con su gráfica desplegada.
 export const teamPanel = (m, ch, ui) => {
   const { card, diff, legend, lines } = ch;
   const A = m.rows(), sides = m.CO(), names = m.NAMES(), ST = m.bySide(A).map(m.stats);
@@ -57,38 +60,42 @@ export const teamPanel = (m, ch, ui) => {
   const cmp = m.CMP(), k0 = sides[0];
   const fig = (fmt, val, better, stats = ST) => (cmp ? diff(stats[0], stats[1], fmt, val, better) : fmt(stats[k0]));
   const item = (label, html, sw = '') => `<div class="wk-item"><span>${sw ? `<i class="mt-sw ${sw}"></i>` : ''}${label}</span><b>${html}</b></div>`;
-  const block = (title, label, hero, items, extra = '') => `<section class="wk-block"><h3>${title}</h3>
-    <div class="wk-hero"><b>${hero}</b><span>${label}</span></div>${extra}<div class="wk-items">${items.join('')}</div></section>`;
+  // cada bloque lleva su gráfica mes a mes, que se despliega con el icono de su cabecera
+  const charts = ui.charts || new Set();
+  const block = (id, title, label, hero, items, extra, chart) => `<section class="wk-block"><div class="wk-block-h"><h3>${title}</h3>
+      <button class="wk-chart-btn ${charts.has(id) ? 'mt-on' : ''}" data-chart="${id}" title="${charts.has(id) ? 'Ocultar la evolución' : 'Ver la evolución por mes'}">${CHART_ICON}</button></div>
+    <div class="wk-hero"><b>${hero}</b><span>${label}</span></div>${extra}<div class="wk-items">${items.join('')}</div>
+    ${charts.has(id) ? `<div class="wk-chart">${cmp ? legend() : ''}${lines(A, ...chart)}<p class="mt-mut mt-small">${id === 'queue' ? 'Por mes de creación de las issues que siguen sin resolver.' : 'Por mes de creación de las issues. * Mes en curso: aún puede cambiar.'}</p></div>` : ''}</section>`;
   const bar = (share, cls = `mt-c${k0}`) => `<span class="wk-bar"><i class="${cls}" style="width:${Math.min(100, share * 100).toFixed(1)}%"></i></span>`;
   const perDay = (v) => (v == null ? '—' : dec(v));
   const iaShare = (s) => (s.resolved ? s.ia / s.resolved : null);
   const byPrio = m.PRIOS.map((p) => [p, m.bySide(A.filter((i) => C.pr[i] === p)).map(m.stats)]);
 
-  const volume = block('Volumen', 'issues en el periodo', fig((s) => num(s.n), (s) => s.n), [
+  const volume = block('volume', 'Volumen', 'issues en el periodo', fig((s) => num(s.n), (s) => s.n), [
     item('Nuevas por día', fig((s) => perDay(s.inPerDay), (s) => s.inPerDay)),
     item('Resueltas por día', fig((s) => perDay(s.perDay), (s) => s.perDay)),
   ], cmp ? '' : (() => {   // nuevas frente a resueltas: si se resuelve al ritmo al que llegan
     const st = ST[k0], max = Math.max(st.inPerDay || 0, st.perDay || 0) || 1;
     return `<div class="wk-pace"><span>Nuevas</span>${bar((st.inPerDay || 0) / max, 'mt-c2')}<span>Resueltas</span>${bar((st.perDay || 0) / max)}</div>`;
-  })());
-  const backlog = block('Pendientes', 'sin resolver en SGA y SISU', num(queue.all), [
+  })(), [(s) => s.n, num]);
+  const backlog = block('queue', 'Pendientes', 'sin resolver en SGA y SISU', num(queue.all), [
     // asignadas al equipo: las pendientes con alguien de la empresa; comparando, todas sus pendientes, de un lado y del otro
     item('Asignadas al equipo', cmp ? fig((s) => num(s.open), (s) => s.open) : num(queue.mine), `mt-c${k0}`),
     item('Sin asignar', num(queue.orphan), 'wk-orphan'),
-  ], queue.all ? `<span class="wk-split" data-tip="${esc(`Pendientes en SGA y SISU: ${num(queue.all)}\nAsignadas al equipo: ${num(queue.mine)}\nSin asignar: ${num(queue.orphan)}\nAsignadas a otros: ${num(queue.all - queue.mine - queue.orphan)}`)}"><i class="mt-c${k0}" style="flex:${queue.mine}"></i><i class="wk-orphan" style="flex:${queue.orphan}"></i><i class="mt-c2" style="flex:${queue.all - queue.mine - queue.orphan}"></i></span>` : '');
-  const sla = block('SLA de inicio', 'de las resueltas se iniciaron a tiempo', fig(donePct, (s) => s.slaDone, 'high'), [],
-    `<div class="wk-prios">${byPrio.map(([p, st]) => `<div class="wk-prio"><span>${m.slaLabel(p)}</span>${cmp ? '' : bar(st[k0].slaDone || 0)}<b>${fig(donePct, (s) => s.slaDone, 'high', st)}</b></div>`).join('')}</div>`);
-  const times = block('Tiempos', 'de media hasta resolverse', fig((s) => dur(s.avg), (s) => s.avg, 'low'), [
+  ], queue.all ? `<span class="wk-split" data-tip="${esc(`Pendientes en SGA y SISU: ${num(queue.all)}\nAsignadas al equipo: ${num(queue.mine)}\nSin asignar: ${num(queue.orphan)}\nAsignadas a otros: ${num(queue.all - queue.mine - queue.orphan)}`)}"><i class="mt-c${k0}" style="flex:${queue.mine}"></i><i class="wk-orphan" style="flex:${queue.orphan}"></i><i class="mt-c2" style="flex:${queue.all - queue.mine - queue.orphan}"></i></span>` : '', [(s) => s.open, num]);
+  const sla = block('sla', 'SLA de inicio', 'de las resueltas se iniciaron a tiempo', fig(donePct, (s) => s.slaDone, 'high'), [],
+    `<div class="wk-prios">${byPrio.map(([p, st]) => `<div class="wk-prio"><span>${m.slaLabel(p)}</span>${cmp ? '' : bar(st[k0].slaDone || 0)}<b>${fig(donePct, (s) => s.slaDone, 'high', st)}</b></div>`).join('')}</div>`, [(s) => s.slaDone, (v) => pct(v)]);
+  const times = block('times', 'Tiempos', 'de media hasta resolverse', fig((s) => dur(s.avg), (s) => s.avg, 'low'), [
     item('Resueltas en menos de 24 h', fig((s) => pct(s.d1), (s) => s.d1, 'high')),
     item('El 90 % se resuelve en menos de', fig((s) => dur(s.p90), (s) => s.p90, 'low')),
-  ]);
-  const quality = block('Calidad', 'se reabrieron tras resolverse', fig((s) => pct(s.reop, 1), (s) => s.reop, 'low'), [
+  ], '', [(s) => s.avg, dur]);
+  const quality = block('quality', 'Calidad', 'se reabrieron tras resolverse', fig((s) => pct(s.reop, 1), (s) => s.reop, 'low'), [
     item('Devueltas a la cola', fig((s) => pct(s.bounce, 1), (s) => s.bounce, 'low')),
     item('Cerradas sin explicar la solución', fig((s) => pct(s.noRes, 1), (s) => s.noRes, 'low')),
-  ]);
-  const ia = block('IA', 'de las resueltas tuvieron intervención de la IA', fig((s) => (iaShare(s) == null ? '—' : pct(iaShare(s), 1)), iaShare), [
+  ], '', [(s) => s.reop, (v) => pct(v, 1)]);
+  const ia = block('ia', 'IA', 'de las resueltas tuvieron intervención de la IA', fig((s) => (iaShare(s) == null ? '—' : pct(iaShare(s), 1)), iaShare), [
     item('Resueltas con ayuda de la IA', fig((s) => num(s.ia), (s) => s.ia)),
-  ]);
+  ], '', [iaShare, (v) => pct(v, 1)]);
 
   // persona a persona, cada una frente a la media de su equipo
   const people = m.group('as', A, true).filter((x) => x.k).map((x) => ({ ...m.stats(x.rows), k: x.k, side: x.t[0] ? 0 : 1 }));
@@ -113,8 +120,7 @@ export const teamPanel = (m, ch, ui) => {
     <div class="wk-blocks">${volume}${backlog}${sla}</div>
     <div class="wk-blocks">${times}${quality}${ia}</div>
     <div class="mt-grid">
-    ${card('El equipo, persona a persona', table, { span: 's12', sub: 'Clic en una cabecera para ordenar (pasa el ratón por ella para ver qué mide) y en una persona para verla en Métricas frente al resto de su equipo.' })}
-    ${card('Evolución del equipo', `${legend()}<div class="wk-evo"><div><p class="mt-small"><b>SLA cumplido</b></p>${lines(A, (s) => s.slaDone, (v) => pct(v))}</div><div><p class="mt-small"><b>Tiempo medio de resolución</b></p>${lines(A, (s) => s.avg, dur)}</div></div>`, { span: 's12', sub: 'Por mes de creación de las issues. * Mes en curso: los últimos meses salen mejor de lo que acabarán, porque lo más lento aún no se ha resuelto.' })}
+    ${card('El equipo, persona a persona', table, { span: 's12' })}
     </div>
   </div>`;
 };

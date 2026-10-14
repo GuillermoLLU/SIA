@@ -22,8 +22,8 @@ const data = () => ({
     su: col(() => 'título') },
 });
 
-const render = (sides) => {
-  const m = createModel(data()), ui = { exp: {}, sort: {} };
+const render = (sides, charts = new Set()) => {
+  const m = createModel(data()), ui = { exp: {}, sort: {}, charts };
   m.S.sides = sides; m.refilter();
   return teamPanel(m, createCharts(m, ui), ui);
 };
@@ -36,8 +36,15 @@ test('solo Indra: una fila por persona y la del equipo, con sus datos y sin colo
   assert.match(h, /Equipo Indra/);
   assert.doesNotMatch(h.slice(h.indexOf('<table class="wk-team"')), /mt-num (good|bad)/);
   assert.match(rowOf(h, 'ANA'), />100 %</);   // SLA cumplido: solo el %
-  assert.match(h, /<h3>Pendientes<\/h3>\s*<div class="wk-hero"><b>0<\/b><span>sin resolver en SGA y SISU/);   // ninguna en SGA ni SISU
+  assert.match(h, /<h3>Pendientes<\/h3>[\s\S]*?<div class="wk-hero"><b>0<\/b><span>sin resolver en SGA y SISU/);   // ninguna en SGA ni SISU
   assert.equal((h.match(/class="wk-block"/g) || []).length, 6);   // seis bloques, en dos filas
+});
+
+test('cada bloque, su gráfica mes a mes al desplegarla', () => {
+  assert.equal((render([{ company: 0 }, null]).match(/class="wk-chart"/g) || []).length, 0);
+  const h = render([{ company: 0 }, null], new Set(['times', 'sla']));
+  assert.equal((h.match(/class="wk-chart"/g) || []).length, 2);
+  assert.match(h, /data-chart="times" title="Ocultar la evolución"/);
 });
 
 test('al ordenar por una media o un %, quien tiene menos de MIN issues va al final', () => {

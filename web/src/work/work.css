@@ -6,7 +6,6 @@
 .wk-team td:first-child .mt-sw { margin-right: 8px; }
 .wk-team tr.mt-grp td { text-transform: none; letter-spacing: 0; font-size: 12.5px; }
 .mt-view .wk-team th.mt-num, .mt-view .wk-team td.mt-num { text-align: center; }
-.wk-evo { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
 
 /* bloques de arriba: dos filas de tres, una cifra grande por tema y sus apoyos */
 .wk-panel { display: flex; flex-direction: column; gap: 16px; }
@@ -14,6 +13,13 @@
 .wk-cmp .mt-legend { margin: 0; }
 .wk-blocks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .wk-block { display: flex; flex-direction: column; gap: 14px; padding: 18px 20px; background: var(--mt-card); border: 1px solid var(--mt-line); box-shadow: var(--mt-shadow); }
+.wk-block-h { display: flex; align-items: center; justify-content: space-between; }
+.wk-chart-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin: -6px -8px -6px 0; padding: 0; color: var(--mt-low); background: none; border: 1px solid transparent; cursor: pointer; }
+.wk-chart-btn svg { width: 16px; height: 16px; }
+.wk-chart-btn:hover, .wk-chart-btn.mt-on { color: var(--accent); border-color: var(--mt-line); background: var(--mt-soft); }
+.wk-chart { padding-top: 12px; border-top: 1px solid var(--border); }
+.wk-chart .mt-legend { margin-bottom: 4px; }
+.wk-chart p { margin: 4px 0 0; }
 .wk-block h3 { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--mt-low); }
 .wk-hero { display: flex; align-items: baseline; gap: 10px; }
 .wk-hero b { font-size: 34px; font-weight: 700; line-height: 1; letter-spacing: -.5px; font-variant-numeric: tabular-nums; }
@@ -34,5 +40,6 @@
 .wk-prio { display: grid; grid-template-columns: 110px 1fr 56px; align-items: center; gap: 10px; font-size: 13px; }
 .wk-prio span { color: var(--mt-low); }
 .wk-prio b { text-align: right; font-variant-numeric: tabular-nums; }
-@media (max-width: 1100px) { .wk-blocks { grid-template-columns: 1fr; } .wk-evo { grid-template-columns: 1fr; } }
+@media (max-width: 1100px) { .wk-blocks { grid-template-columns: 1fr; } }
 .mt-view .wk-team th { white-space: normal; vertical-align: bottom; line-height: 1.25; }
+.wk-chart .mt-axis { font-size: 15px; }

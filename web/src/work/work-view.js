@@ -18,7 +18,7 @@ const CALENDAR_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor
 
 export const mountWorkView = (root, { api, openPerson }) => {
   let m = null, ch = null, generated = null, compare = false, calendar = false, anchor = null;
-  const ui = { exp: {}, sort: {} };
+  const ui = { exp: {}, sort: {}, charts: new Set() };   // charts: los bloques con su gráfica desplegada
   const $ = (s) => root.querySelector(s);
 
   const page = (body) => `<div class="mt-page"><header class="mt-top"><h2 class="mt-title">Panel de trabajo</h2>${body}</header>`;
@@ -66,6 +66,12 @@ export const mountWorkView = (root, { api, openPerson }) => {
     }
     if (e.target.closest('[data-month-all]')) { S.from = 0; S.to = m.LASTM; calendar = false; anchor = null; return render(); }
     if (calendar && !e.target.closest('.mt-pop')) { closeCalendar(); render(); }
+    const chart = e.target.closest('[data-chart]');
+    if (chart) {
+      const id = chart.dataset.chart;
+      if (ui.charts.has(id)) ui.charts.delete(id); else ui.charts.add(id);
+      return render();
+    }
     const sort = e.target.closest('[data-sort]');
     if (sort) {
       const [id, c] = sort.dataset.sort.split(':'), cur = ui.sort[id];
