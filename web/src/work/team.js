@@ -121,8 +121,8 @@ export const teamPanel = (m, ch, ui) => {
   const sla = block('sla', 'SLA de inicio', 'de las resueltas se iniciaron a tiempo', fig(donePct), [],
     `<div class="wk-prios">${byPrio.map(([p, st]) => `<div class="wk-prio"><span>${m.slaLabel(p)}</span>${bar(st[k0].slaDone || 0)}<b>${fig(donePct, st)}</b></div>`).join('')}</div>`, [(s) => s.slaDone, (v) => pct(v)]);
   const times = block('times', 'Tiempos', 'de media hasta resolverse', fig((s) => dur(s.avg)), [
-    item('Resueltas en menos de 24 h', fig((s) => pct(s.d1))),
-    item('El 90 % se resuelve en menos de', fig((s) => dur(s.p90))),
+    item('En menos de 24 h', fig((s) => pct(s.d1))),
+    item('El 90 %, en menos de', fig((s) => dur(s.p90))),
   ], '', [(s) => s.avg, dur]);
   const quality = block('quality', 'Calidad', 'se reabrieron tras resolverse', fig((s) => pct(s.reop, 1)), [
     item('Devueltas a la cola', fig((s) => pct(s.bounce, 1))),
@@ -149,8 +149,7 @@ export const teamPanel = (m, ch, ui) => {
     <tbody>${people.map(row).join('') || `<tr><td colspan="${order.length + 1}" class="mt-mut">Nadie con issues en este periodo.</td></tr>`}${teamRow}</tbody></table></div>`;
 
   return `<div class="wk-panel">
-    <div class="wk-blocks">${volume}${backlog}${sla}</div>
-    <div class="wk-blocks">${times}${quality}${ia}</div>
+    <div class="wk-blocks">${volume}${backlog}${sla}${times}${quality}${ia}</div>
     <div class="mt-grid">
     ${card('El equipo, persona a persona', table, { span: 's12' })}
     </div>

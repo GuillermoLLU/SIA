@@ -18,6 +18,7 @@ const CALENDAR_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor
 
 export const mountWorkView = (root, { api, openPerson, onManage }) => {
   let m = null, ch = null, generated = null, calendar = false, anchor = null;
+  root.classList.add('wk-view');
   const ui = { exp: {}, sort: {}, charts: new Set() };   // charts: los bloques con su gráfica desplegada
   const $ = (s) => root.querySelector(s);
 

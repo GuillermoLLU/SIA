@@ -1,47 +1,47 @@
 /* Equipo soporte: usa las piezas de las Métricas (metrics.css); aquí, lo suyo. */
-.wk-main { padding-top: 18px; }
+.wk-main { padding-top: 14px; }
 .wk-team td:first-child { max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wk-team td:first-child .mt-sw { margin-right: 8px; }
 .wk-team tr.mt-grp td { text-transform: none; letter-spacing: 0; font-size: 12.5px; }
 .mt-view .wk-team th.mt-num, .mt-view .wk-team td.mt-num { text-align: center; }
 
 /* bloques de arriba: dos filas de tres, una cifra grande por tema y sus apoyos */
-.wk-panel { display: flex; flex-direction: column; gap: 16px; }
-.wk-blocks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.wk-panel { display: flex; flex-direction: column; gap: 12px; }
+.wk-blocks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 /* altura fija: el bloque mide lo mismo con cifras o con gráfica, y las filas no saltan */
-.wk-block { display: flex; flex-direction: column; gap: 14px; height: 236px; overflow: hidden; padding: 18px 20px; background: var(--mt-card); border: 1px solid var(--mt-line); box-shadow: var(--mt-shadow); }
-.wk-block-h { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.wk-chart-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin: -6px -8px -6px 0; padding: 0; color: var(--mt-low); background: none; border: 1px solid transparent; cursor: pointer; }
+.wk-block { display: flex; flex-direction: column; gap: 8px; height: 164px; overflow: hidden; padding: 12px 18px; background: var(--mt-card); border: 1px solid var(--mt-line); box-shadow: var(--mt-shadow); }
+.wk-block-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.wk-chart-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin: -6px 0; padding: 0; color: var(--mt-low); background: none; border: 1px solid transparent; cursor: pointer; }
 .wk-chart-btn svg { width: 16px; height: 16px; }
 .wk-chart-btn:hover { color: var(--accent); border-color: var(--mt-line); background: var(--mt-soft); }
 /* el bloque como gráfica: la cifra principal en pequeño, la gráfica y una nota */
-.wk-as-chart { gap: 8px; }
+.wk-as-chart { gap: 6px; }
 .wk-key { display: flex; align-items: baseline; gap: 8px; }
-.wk-key b { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.wk-key b { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .wk-key > span { font-size: 12.5px; color: var(--mt-low); }
 /* en la línea del título, a la derecha: la media al día de Volumen */
-.wk-aside { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--mt-low); white-space: nowrap; }
-.wk-aside .mt-sw { margin: 0 0 0 8px; }
-.wk-aside b { color: var(--text); font-size: 13.5px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.wk-aside { display: flex; align-items: center; gap: 3px; font-size: 11px; color: var(--mt-low); white-space: nowrap; }
+.wk-aside .mt-sw { margin: 0 0 0 5px; }
+.wk-aside b { color: var(--text); font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; }
 .wk-chart { display: flex; flex: 1; flex-direction: column; min-height: 0; }
 .wk-chart .mt-svg { flex: 1; min-height: 0; width: 100%; height: 100%; }
 .wk-note { margin: 0; font-size: 11.5px; color: var(--mt-low); }
 .wk-block h3 { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--mt-low); }
 .wk-hero { display: flex; align-items: baseline; gap: 10px; }
-.wk-hero b { font-size: 34px; font-weight: 700; line-height: 1; letter-spacing: -.5px; font-variant-numeric: tabular-nums; }
+.wk-hero b { font-size: 26px; font-weight: 700; line-height: 1; letter-spacing: -.5px; font-variant-numeric: tabular-nums; }
 .wk-hero span { font-size: 13px; color: var(--mt-low); }
-.wk-items { display: flex; flex-wrap: wrap; gap: 8px 28px; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--border); }
+.wk-items { display: flex; flex-wrap: wrap; gap: 6px 28px; margin-top: auto; padding-top: 8px; border-top: 1px solid var(--border); }
 .wk-items:empty { display: none; }
 .wk-item { display: flex; flex-direction: column; gap: 2px; }
 .wk-item span { font-size: 12px; color: var(--mt-low); }
-.wk-item b { font-size: 17px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.wk-item b { font-size: 15px; font-weight: 650; font-variant-numeric: tabular-nums; }
 .wk-bar { display: block; flex: 1; height: 6px; background: var(--mt-track); }
 .wk-bar i { display: block; height: 100%; }
 .wk-split { display: flex; height: 8px; overflow: hidden; background: var(--mt-track); }
 .wk-split i { display: block; }
 .wk-orphan { background: var(--mt-bad); }
-.wk-prios { display: flex; flex-direction: column; gap: 8px; }
-.wk-prio { display: grid; grid-template-columns: 110px 1fr 56px; align-items: center; gap: 10px; font-size: 13px; }
+.wk-prios { display: flex; flex-direction: column; gap: 3px; }
+.wk-prio { display: grid; grid-template-columns: 110px 1fr 56px; align-items: center; gap: 10px; font-size: 12.5px; }
 .wk-prio span { color: var(--mt-low); }
 .wk-prio b { text-align: right; font-variant-numeric: tabular-nums; }
 @media (max-width: 1100px) { .wk-blocks { grid-template-columns: 1fr; } }
@@ -62,3 +62,14 @@
 .wk-tools { display: flex; align-items: center; gap: 10px; margin-left: auto; }
 .wk-top .mt-pop { left: auto; right: 0; }
 .wk-top { border-bottom: 1px solid var(--border); }
+
+/* La vista llena la ventana: cabecera y bloques arriba y la tabla en el alto que queda, con su propio
+   scroll y las cabeceras fijas. Si la ventana es muy baja, la tabla guarda un mínimo y la página se desplaza. */
+.wk-view .mt-page { display: flex; flex-direction: column; height: 100%; padding-bottom: 16px; }
+.wk-view .wk-main { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+.wk-view .wk-panel { flex: 1; min-height: 0; }
+.wk-view .wk-panel > .mt-grid { display: flex; flex: 1; flex-direction: column; min-height: 300px; }
+.wk-view .wk-panel > .mt-grid > .mt-card { display: flex; flex: 1; flex-direction: column; min-height: 0; padding-bottom: 8px; }
+.wk-view .wk-panel > .mt-grid .mt-tablewrap { flex: 1; min-height: 0; overflow: auto; }
+.mt-view .wk-team td { padding-top: 4px; padding-bottom: 4px; }
+.wk-top { padding: 16px 0 12px; }
