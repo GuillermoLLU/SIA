@@ -1,4 +1,4 @@
-// Piezas comunes de los paneles nuevos (Issues, Panel de trabajo, Métricas)
+// Piezas comunes de los paneles nuevos (hoy, el Panel de trabajo)
 // mientras son esqueleto: cabecera con su propósito y bloques vacíos que
 // cuentan qué irá ahí. Sin datos de mentira.
 import './panels.css';

@@ -1,0 +1,85 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createModel } from './model.js';
+import { createCharts } from './charts.js';
+import { createTabs, TABS } from './tabs.js';
+
+// Cinco issues inventadas (minutos desde el 1 de enero; la foto, en el minuto 100.000):
+// 1 Indra crítica, en curso a los 10 min · 2 T-Systems alta, en curso a los 100 min
+// 3 Indra media, abierta y sin iniciar · 4 Indra baja, cerrada sin pasar por En curso
+// 5 T-Systems, aviso automático
+const SNAP = 100000;
+const data = () => ({
+  meta: { file: 'x.csv', year: 2026, group: 'AYS SOPORTE', rows: 5, total: 5, snapshot: SNAP, generated: '2026-10-14T08:00:00Z' },
+  dict: { status: ['', 'CLOSED', 'ASSIGNED'], reason: [''], prio: ['', 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW'], svc: ['', 'USER_SERVICE_RESTORATION'],
+    person: ['', 'ANA', 'LUIS'], centre: ['', 'C1'], op: ['', 'ECOM Zara'], module: ['', 'EWMS', 'PACKING'], cat: ['', 'X'],
+    vtype: ['', 'TEC'], vproj: ['', 'SGA'], vkey: ['', 'SGA-1'], resol: ['', 'reinicio'] },
+  themes: ['Tema A', 'Tema B'],
+  company: [2, 0, 1],
+  cols: {
+    id: [1, 2, 3, 4, 5], rep: [1000, 2000, SNAP - 200, 5000, 6000], res: [1060, 5000, -1, 5100, 6001],
+    st: [1, 1, 2, 1, 1], rs: [0, 0, 0, 0, 0], pr: [1, 2, 3, 4, 2], sv: [1, 1, 1, 1, 1], as: [1, 2, 1, 1, 2],
+    ce: [1, 1, 1, 0, 1], op: [1, 1, 1, 1, 1], mo: [1, 2, 1, 2, 1], k3: [1, 0, 1, 1, 1], sc: [1, 2, 1, 0, 0], fl: [0, 512, 0, 0, 8],
+    vt: [1, 0, 0, 0, 0], vp: [1, 0, 0, 0, 0], vk: [1, 0, 0, 0, 0], fr: [10, 100, -1, 50, 1], ip: [10, 100, -1, -1, -1],
+    tA: [10, 100, 200, 50, 0], tI: [50, 2900, 0, 0, 0], tPc: [0, 0, 0, 0, 0], tPv: [0, 0, 0, 0, 0], tPo: [0, 0, 0, 0, 0],
+    nb: [0, 1, 0, 0, 0], np: [0, 0, 0, 0, 0], th: [1, 2, 3, 0, 0], rz: [1, 0, 0, 0, 0],
+    su: ['100001 High ECOM ZARA C1 EWMS - Etiqueta mal', 'Otro título', 'Abierta', '100002 Low ALGO', 'Incidencia ruta y/o etiqueta: x'],
+  },
+});
+
+test('lo derivado de cada issue: empresa, abierta, mes', () => {
+  const m = createModel(data());
+  assert.deepEqual([...m.TEAM], [0, 1, 0, 0, 1]);
+  assert.deepEqual([...m.OPEN], [0, 0, 1, 0, 0]);
+  assert.equal(m.MONTH[2], 2);   // minuto 99.800 → marzo
+  assert.equal(m.LASTM, 2);
+});
+
+test('de partida: Indra y T-Systems, sin avisos automáticos', () => {
+  const m = createModel(data());
+  m.refilter();
+  assert.deepEqual(m.rows(), [0, 1, 2, 3]);
+  m.S.auto = true; m.refilter();
+  assert.deepEqual(m.rows(), [0, 1, 2, 3, 4]);
+});
+
+test('filtrar: cada gráfico ignora el filtro de su propia dimensión; buscar por título o número', () => {
+  const m = createModel(data());
+  m.toggle('pr', 1); m.refilter();
+  assert.deepEqual(m.rows(), [0]);
+  assert.equal(m.group('pr').length, 4);
+  m.toggle('pr', 1); m.S.q = 'inc000000000002'; m.refilter();
+  assert.deepEqual(m.rows(), [1]);
+});
+
+test('SLA de inicio: dentro, fuera, sin iniciar y fuera de plazo, cerrada sin pasar por En curso', () => {
+  const m = createModel(data());
+  m.refilter();
+  const [indra, other] = m.byTeam(m.rows()).map(m.stats);
+  assert.equal(indra.sla, 0.5);       // la 1 a tiempo; la 3, abierta sin iniciar y vencida
+  assert.equal(indra.waitKo, 1);
+  assert.equal(indra.noIp, 1 / 3);    // la 4
+  assert.equal(other.sla, 0);         // la 2, a los 100 min con 45 de plazo
+  assert.deepEqual([0, 1, 2, 3].map(m.DIMS.sl.get), [0, 2, 4, 6]);
+});
+
+test('indicadores de un grupo', () => {
+  const m = createModel(data());
+  const s = m.stats([0, 1]);
+  assert.equal(s.avg, (60 + 3000) / 2);
+  assert.equal(s.d1, 0.5);
+  assert.equal(s.reop, 0.5);
+  assert.equal(s.vend, 0.5);
+  assert.deepEqual(s.time, [110, 2950, 0, 0, 0]);
+});
+
+test('todas las pestañas se pintan en cada modo, sin huecos ni NaN', () => {
+  const m = createModel(data()), ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  for (const co of [[true, true, false], [true, false, false], [false, true, false], [true, true, true]]) {
+    for (const q of ['', 'nada así']) {
+      Object.assign(m.S, { co, q });
+      m.refilter();
+      for (const [tab] of TABS) assert.doesNotMatch(tabs.render(tab, m.rows()), /undefined|NaN|\[object/, `${tab} ${co} «${q}»`);
+    }
+  }
+});

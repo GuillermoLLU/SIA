@@ -17,6 +17,7 @@ import { createIssuesApi } from './issues/issues-api.js';
 import { mountIssueChat } from './issues/issue-chat.js';
 import { mountWorkView } from './work/work-view.js';
 import { mountMetricsView } from './metrics/metrics-view.js';
+import { createMetricsApi } from './metrics/metrics-api.js';
 import { mountProjectsView } from './projects/projects-view.js';
 import { esc, fold } from './ui/html.js';
 import { renderChooser } from './chat/chooser.js';
@@ -1470,7 +1471,7 @@ const PANELS = [
     openChat: (host, issueId) => mountIssueChat(host, { issueId, wsUrl, loadProjects: loadAccessProjects, makeTerminal }),
   }) },
   { name: 'work', mount: mountWorkView },
-  { name: 'metrics', mount: mountMetricsView },
+  { name: 'metrics', mount: (el) => AUTH && mountMetricsView(el, { api: createMetricsApi(API_BASE, AUTH.session), toast: (t) => toast(t) }) },
 ].map((p) => ({ ...p, nav: document.getElementById(`nav-${p.name}`), view: document.getElementById(`view-${p.name}`) }));
 const linksGrid = document.getElementById('links-grid');
 const linksFilters = document.getElementById('links-filters');
