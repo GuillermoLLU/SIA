@@ -66,7 +66,8 @@ export const mountMetricsView = (root, { api, toast }) => {
   };
 
   // Periodo: el botón dice qué meses se miran; el calendario, un mes por casilla. Primer clic, el primer
-  // mes; segundo, el último (en cualquier orden). Los meses sin datos aún no se pueden marcar.
+  // mes; segundo, el último (en cualquier orden). Con un solo mes marcado, al salir del calendario se
+  // ve ese mes. Los meses sin datos aún no se pueden marcar.
   const renderPeriod = () => {
     const { S, LASTM } = m;
     $('[data-period]').textContent = S.from === 0 && S.to === LASTM ? `Todo ${m.data.meta.year}` : S.from === S.to ? MONTHS[S.from] : `${MONTHS[S.from]} – ${MONTHS[S.to]}`;
@@ -113,11 +114,17 @@ export const mountMetricsView = (root, { api, toast }) => {
   const freeCompany = (other) => ({ company: [0, 1, 2].find((c) => other?.people || other?.company !== c) });
 
   const closePops = () => { open = null; anchor = null; who = ''; };
+  // Al salir del calendario con un solo mes marcado, ese mes; true si el periodo ha cambiado.
+  const settleMonth = () => {
+    if (open !== 'calendar' || anchor == null) return false;
+    m.S.from = m.S.to = anchor;
+    return true;
+  };
   const togglePop = (which) => {
-    const was = open;
+    const was = open, changed = settleMonth();
     closePops();
     if (was !== which) open = which;
-    renderPeriod(); renderSides();
+    if (changed) render(); else { renderPeriod(); renderSides(); }
     const q = open?.startsWith('side') && $(`[data-side-pop="${open.slice(4)}"] [data-who-q]`);
     if (q) { q.value = ''; q.focus(); }
   };
@@ -204,7 +211,11 @@ export const mountMetricsView = (root, { api, toast }) => {
       S.sides[k] = set.size ? { people: set } : freeCompany(S.sides[1 - k]);
       return render();
     }
-    if (open && !e.target.closest('.mt-pop')) { closePops(); renderPeriod(); renderSides(); }
+    if (open && !e.target.closest('.mt-pop')) {
+      const changed = settleMonth();
+      closePops();
+      if (changed) render(); else { renderPeriod(); renderSides(); }
+    }
     if (e.target.closest('[data-search]')) {
       searching = !searching || !!S.q;
       $('[data-q]').hidden = !searching;
