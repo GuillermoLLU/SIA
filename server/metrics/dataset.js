@@ -12,7 +12,7 @@
 //   themes  nombres de los temas (bit i de `th`).
 //   company empresa de cada persona de dict.person (companies.js).
 //   cols    una lista por columna, una posición por issue:
-//           id número · rep/res abierta y resuelta (minutos desde el 1 de enero; -1 no hay)
+//           id número · rep/res abierta y resuelta · lm último cambio (minutos desde el 1 de enero; -1 no hay)
 //           st estado · rs motivo · pr prioridad · sv tipo de servicio · as responsable
 //           ce centro · op operación · mo módulo · k3 tipología · sc ámbito · fl marcas (remedy.js FLAG)
 //           vt/vp/vk ticket de tercero: tipo, proyecto Jira y clave · th temas · su título
@@ -45,7 +45,7 @@ const dictionary = () => {
   return { id, values };
 };
 
-const COLS = ['id', 'rep', 'res', 'st', 'rs', 'pr', 'sv', 'as', 'ce', 'op', 'mo', 'k3', 'sc', 'fl', 'vt', 'vp', 'vk',
+const COLS = ['id', 'rep', 'res', 'lm', 'st', 'rs', 'pr', 'sv', 'as', 'ce', 'op', 'mo', 'k3', 'sc', 'fl', 'vt', 'vp', 'vk',
   'fr', 'ip', 'tA', 'tI', 'tPc', 'tPv', 'tPo', 'nb', 'np', 'th', 'su'];
 
 export const createDataset = ({ year, group = GROUP }) => {
@@ -76,7 +76,7 @@ export const createDataset = ({ year, group = GROUP }) => {
     resolutionCount.set(resolution, (resolutionCount.get(resolution) || 0) + 1);
     resolutions.push(resolution);
     const row = {
-      id: i.id, rep: i.reported, res: i.resolved, st: D.status.id(i.status), rs: D.reason.id(i.reason), pr: D.prio.id(i.priority),
+      id: i.id, rep: i.reported, res: i.resolved, lm: i.modified, st: D.status.id(i.status), rs: D.reason.id(i.reason), pr: D.prio.id(i.priority),
       sv: D.svc.id(i.service), as: D.person.id(i.assignee), ce: D.centre.id(i.centre), op: D.op.id(i.operation), mo: D.module.id(i.module),
       k3: D.cat.id(i.category), sc: i.scope, fl: i.flags, vt: D.vtype.id(i.vendor.type), vp: D.vproj.id(i.vendor.project), vk: D.vkey.id(i.vendor.key),
       fr: i.first, ip: i.start, tA: i.time.queue, tI: i.time.work, tPc: i.time.client, tPv: i.time.vendor, tPo: i.time.other,

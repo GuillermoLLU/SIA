@@ -25,6 +25,14 @@ test('solo el grupo y el año, sin avisos automáticos; textos en diccionarios c
   assert.deepEqual(out.themes, THEME_NAMES);
 });
 
+test('el último cambio de cada issue, en minutos como la apertura', () => {
+  const ds = createDataset({ year: 2026 });
+  ds.add(row({ LASTMODIFIEDDATE: '2026-03-02 10:00:00' }));
+  const { cols, meta } = ds.build({ file: 'x', generated: 'y' });
+  assert.equal(cols.lm[0] - cols.rep[0], 1440);
+  assert.equal(meta.snapshot, cols.lm[0]);
+});
+
 test('resoluciones repetidas: solo las usadas 4 veces o más', () => {
   const ds = createDataset({ year: 2026 });
   for (let n = 0; n < 4; n++) ds.add(row({ INCIDENTNUMBER: `INC00000000001${n}`, RESOLUTION: `Reinicio ${n}` }));
