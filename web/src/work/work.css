@@ -1,6 +1,4 @@
 /* Panel de trabajo: usa las piezas de las Métricas (metrics.css); aquí, lo suyo. */
-.wk-switch { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--text); cursor: pointer; }
-.wk-switch input { width: 15px; height: 15px; accent-color: var(--accent); }
 .wk-main { padding-top: 18px; }
 .wk-team td:first-child { max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wk-team td:first-child .mt-sw { margin-right: 8px; }
@@ -9,8 +7,6 @@
 
 /* bloques de arriba: dos filas de tres, una cifra grande por tema y sus apoyos */
 .wk-panel { display: flex; flex-direction: column; gap: 16px; }
-.wk-cmp { display: flex; align-items: center; gap: 14px; font-size: 12.5px; }
-.wk-cmp .mt-legend { margin: 0; }
 .wk-blocks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 /* altura fija: el bloque mide lo mismo con cifras o con gráfica, y las filas no saltan */
 .wk-block { display: flex; flex-direction: column; gap: 14px; height: 236px; overflow: hidden; padding: 18px 20px; background: var(--mt-card); border: 1px solid var(--mt-line); box-shadow: var(--mt-shadow); }
@@ -25,12 +21,10 @@
 .wk-key span { font-size: 12.5px; color: var(--mt-low); }
 .wk-chart { display: flex; flex: 1; flex-direction: column; min-height: 0; }
 .wk-chart .mt-svg { flex: 1; min-height: 0; width: 100%; height: 100%; }
-.wk-chart .mt-legend { margin-bottom: 2px; }
 .wk-note { margin: 0; font-size: 11.5px; color: var(--mt-low); }
 .wk-block h3 { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--mt-low); }
 .wk-hero { display: flex; align-items: baseline; gap: 10px; }
 .wk-hero b { font-size: 34px; font-weight: 700; line-height: 1; letter-spacing: -.5px; font-variant-numeric: tabular-nums; }
-.wk-hero b .mt-diff { font-weight: 700; }
 .wk-hero span { font-size: 13px; color: var(--mt-low); }
 .wk-items { display: flex; flex-wrap: wrap; gap: 8px 28px; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--border); }
 .wk-items:empty { display: none; }

@@ -4,7 +4,7 @@ import { createModel } from '../metrics/model.js';
 import { createCharts } from '../metrics/charts.js';
 import { teamPanel, MIN } from './team.js';
 
-// 2 personas de Indra (ANA, rápida; PEPE, lenta) con MIN issues cada una y 1 de T-Systems (LUIS, con 1 issue).
+// 2 personas de Indra (ANA, rápida; PEPE, lenta) con MIN issues cada una y 1 de T-Systems (LUIS, con 1 issue), que no sale.
 const issues = [
   ...Array.from({ length: MIN }, (_, i) => ({ as: 1, rep: 1000 + i, res: 1060 + i, ip: 5, fr: 5 })),
   ...Array.from({ length: MIN }, (_, i) => ({ as: 2, rep: 2000 + i, res: 9000 + i, ip: 300, fr: 300 })),
@@ -51,15 +51,9 @@ test('un bloque como gráfica: su evolución en lugar de las cifras, con la prin
 });
 
 test('al ordenar por una media o un %, quien tiene menos de MIN issues va al final', () => {
-  const m = createModel(data()), ui = { exp: {}, sort: { team: ['avg', 1] } };
-  m.S.sides = [{ company: 0 }, { company: 1 }]; m.refilter();
+  const d = data(); d.company[3] = 0;   // LUIS, en el equipo, con 1 issue
+  const m = createModel(d), ui = { exp: {}, sort: { team: ['avg', 1] } };
+  m.S.sides = [{ company: 0 }, null]; m.refilter();
   const names = [...teamPanel(m, createCharts(m, ui), ui).matchAll(/data-person="(\d)"/g)].map((x) => x[1]);
-  assert.deepEqual(names, ['1', '2', '3']);   // LUIS, con 1 issue y la media más baja, al final
-});
-
-test('comparando con T-Systems: también su gente y su equipo', () => {
-  const h = render([{ company: 0 }, { company: 1 }]);
-  assert.doesNotMatch(h, /undefined|NaN/);
-  assert.match(h, /Equipo T-Systems/);
-  assert.match(h, /data-person="3"/);
+  assert.deepEqual(names, ['1', '2', '3']);   // LUIS tiene la media más baja, pero va al final
 });

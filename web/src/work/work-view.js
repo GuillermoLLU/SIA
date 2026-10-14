@@ -1,9 +1,8 @@
 // Vista «Panel de trabajo»: un control rápido de la calidad del equipo y de
 // cada persona (team.js). Con los datos de las Métricas, que se cargan desde
 // allí; se vuelven a leer al abrir la vista, por si alguien ha cargado otro
-// CSV. De partida, el equipo de Indra; «Comparar con T-Systems» añade el suyo
-// y la diferencia. Clic en una persona: se abre en Métricas frente al resto de
-// su equipo (openPerson).
+// CSV. Es el equipo de Indra. Clic en una persona: se abre en Métricas frente
+// al resto de su equipo (openPerson).
 import '../metrics/metrics.css';
 import './work.css';
 import { esc } from '../ui/html.js';
@@ -17,7 +16,7 @@ import { teamPanel } from './team.js';
 const CALENDAR_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>';
 
 export const mountWorkView = (root, { api, openPerson }) => {
-  let m = null, ch = null, generated = null, compare = false, calendar = false, anchor = null;
+  let m = null, ch = null, generated = null, calendar = false, anchor = null;
   const ui = { exp: {}, sort: {}, charts: new Set() };   // charts: los bloques con su gráfica desplegada
   const $ = (s) => root.querySelector(s);
 
@@ -28,7 +27,6 @@ export const mountWorkView = (root, { api, openPerson }) => {
     root.innerHTML = `${page(`<span class="mt-date">datos hasta el ${snap.getUTCDate()} de ${MONTHS[snap.getUTCMonth()]} de ${snap.getUTCFullYear()}</span>`)}
       <div class="mt-fbar">
         <div class="mt-period"><button class="mt-btn mt-icon-btn" data-calendar aria-haspopup="true">${CALENDAR_ICON}<span data-period></span></button><div class="mt-pop mt-cal" data-cal hidden></div></div>
-        <label class="wk-switch"><input type="checkbox" data-compare> Comparar con T-Systems</label>
       </div>
       <div class="wk-main" data-main></div>
     </div><div class="mt-tip" data-tip-box hidden></div>`;
@@ -36,13 +34,12 @@ export const mountWorkView = (root, { api, openPerson }) => {
 
   const render = () => {
     const { S, LASTM } = m, year = m.data.meta.year;
-    S.sides = [{ company: 0 }, compare ? { company: 1 } : null];
+    S.sides = [{ company: 0 }, null];   // el equipo de Indra
     m.refilter();
     $('[data-period]').textContent = periodLabel(S, LASTM, year);
     const cal = $('[data-cal]');
     cal.hidden = !calendar;
     if (calendar) cal.innerHTML = calendarHtml(S, LASTM, year, anchor);
-    $('[data-compare]').checked = compare;
     $('[data-main]').innerHTML = teamPanel(m, ch, ui);
   };
 
@@ -81,9 +78,7 @@ export const mountWorkView = (root, { api, openPerson }) => {
     const person = e.target.closest('[data-person]');
     if (person) openPerson?.(Number(person.dataset.person));
   });
-  root.addEventListener('change', (e) => {
-    if (m && e.target.matches('[data-compare]')) { compare = e.target.checked; render(); }
-  });
+
   document.addEventListener('keydown', (e) => {
     if (m && !root.hidden && e.key === 'Escape' && calendar) { calendar = false; anchor = null; render(); }
   });
