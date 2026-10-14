@@ -71,7 +71,7 @@ export const teamPanel = (m, ch, ui) => {
     if (!asChart) return `<section class="wk-block">${head}<div class="wk-hero"><b>${hero}</b><span>${label}</span></div>${extra}<div class="wk-items">${items.join('')}</div></section>`;
     const note = id === 'queue' ? 'Por mes de creación de las que siguen sin resolver.' : 'Por mes de creación. * Mes en curso: aún puede cambiar.';
     return `<section class="wk-block wk-as-chart">${head}<div class="wk-key"><b>${hero}</b><span>${label}</span></div>
-      <div class="wk-chart">${cmp ? legend() : ''}${lines(A, ...chart, { height: cmp ? 125 : 150, left: 78 })}</div><p class="wk-note">${note}</p></section>`;
+      <div class="wk-chart">${cmp ? legend() : ''}${lines(A, ...chart, { height: 150, left: 78 })}</div><p class="wk-note">${note}</p></section>`;
   };
   const bar = (share, cls = `mt-c${k0}`) => `<span class="wk-bar"><i class="${cls}" style="width:${Math.min(100, share * 100).toFixed(1)}%"></i></span>`;
   const perDay = (v) => (v == null ? '—' : dec(v));
