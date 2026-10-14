@@ -35,9 +35,12 @@ test('lo derivado de cada issue: empresa, abierta, mes', () => {
   assert.equal(m.LASTM, 2);
 });
 
-test('de partida, Indra (A) frente a T-Systems (B); lo que no es de ningún lado no se ve', () => {
+test('de partida, solo nuestro equipo (Indra); comparar es añadir un segundo lado', () => {
   const m = createModel(data());
   m.refilter();
+  assert.deepEqual(m.rows(), [0, 2, 3]);
+  assert.equal(m.CMP(), false);
+  m.S.sides[1] = { company: 1 }; m.refilter();
   assert.deepEqual(m.rows(), [0, 1, 2, 3]);
   assert.deepEqual([...m.SIDE], [0, 1, 0, 0, 2]);
   assert.deepEqual(m.NAMES(), ['Indra', 'T-Systems']);
@@ -45,8 +48,18 @@ test('de partida, Indra (A) frente a T-Systems (B); lo que no es de ningún lado
   assert.deepEqual(m.rows(), [0, 2, 3, 4]);
 });
 
+test('el turno en que entra cada issue y si se empezó en ese mismo turno', () => {
+  const m = createModel(data());
+  // minuto 1.000 = 1 de enero, 16:40 (tarde); 2.000 = 2 de enero, 9:20 (mañana); 6.000 = 5 de enero (lunes), 4:00 (noche del domingo)
+  assert.deepEqual([0, 1, 4].map(m.DIMS.tu.get), [1, 0, 2]);
+  assert.deepEqual([0, 1, 4].map(m.DIMS.we.get), [0, 0, 1]);
+  assert.equal(m.stats([0, 1]).inShift, 1);   // la 1 a los 10 min y la 2 a los 100: en su turno
+  assert.equal(m.stats([2]).inShift, null);   // sin empezar
+});
+
 test('filtrar: cada gráfico ignora el filtro de su propia dimensión; buscar por título o número', () => {
   const m = createModel(data());
+  m.S.sides[1] = { company: 1 };
   m.toggle('pr', 1); m.refilter();
   assert.deepEqual(m.rows(), [0]);
   assert.equal(m.group('pr').length, 4);
@@ -72,7 +85,7 @@ test('una persona frente a una empresa, frente a su propia empresa (el resto) o 
 
 test('SLA de inicio: dentro, fuera, sin iniciar y fuera de plazo, cerrada sin pasar por En curso', () => {
   const m = createModel(data());
-  m.refilter();
+  m.S.sides[1] = { company: 1 }; m.refilter();
   const [indra, other] = m.bySide(m.rows()).map(m.stats);
   assert.equal(indra.sla, 0.5);       // la 1 a tiempo; la 3, abierta sin iniciar y vencida
   assert.equal(indra.waitKo, 1);

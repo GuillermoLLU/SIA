@@ -8,7 +8,7 @@
 // al ordenar por ellos, esas personas van al final.
 import { esc } from '../ui/html.js';
 import { SCOPE } from '../metrics/model.js';
-import { num, dec, pct, span, MONTHS } from '../metrics/format.js';
+import { num, dec, pct, dur, MONTHS } from '../metrics/format.js';
 
 export const MIN = 10;
 
@@ -23,7 +23,7 @@ const COLS = {
     'De las que ha resuelto, el % que pasó a En curso dentro del plazo de su prioridad: crítica 15 min, alta 45 min, media 2 h y baja 8 h.'],
   day: ['Resueltas por día', (s) => (s.perDay == null ? '—' : dec(s.perDay)), (s) => s.perDay, 'high',
     'Media de issues que resuelve al día, contando solo los días en que resolvió alguna. En la fila del equipo, la media de sus personas.'],
-  avg: ['Resolución media', (s) => span(s.avg), (s) => s.avg, 'low', 'Tiempo medio desde que se abre la issue hasta que se resuelve, en horas y días naturales.'],
+  avg: ['Resolución media', (s) => dur(s.avg), (s) => s.avg, 'low', 'Tiempo medio desde que se abre la issue hasta que se resuelve, en horas y días naturales.'],
   d1: ['En menos de 24 h', (s) => pct(s.d1), (s) => s.d1, 'high', 'De las que ha resuelto, el % resuelto en menos de 24 horas.'],
   reop: ['Reabiertas', (s) => pct(s.reop, 1), (s) => s.reop, 'low', '% de issues que se reabrieron después de resolverse.'],
   bounce: ['Devueltas', (s) => pct(s.bounce, 1), (s) => s.bounce, 'low', '% de issues que se devolvieron a la cola (pasaron de En curso a Asignada).'],
@@ -120,10 +120,10 @@ export const teamPanel = (m, ch, ui) => {
   ], queue.all ? `<span class="wk-split" data-tip="${esc(`Sin resolver: ${num(queue.all)}\nAsignadas al equipo: ${num(queue.mine)}\nSin asignar, en SGA y SISU: ${num(queue.orphan)}\nAsignadas a otros, en SGA y SISU: ${num(queue.all - queue.mine - queue.orphan)}`)}"><i class="mt-c${k0}" style="flex:${queue.mine}"></i><i class="wk-orphan" style="flex:${queue.orphan}"></i><i class="mt-c2" style="flex:${queue.all - queue.mine - queue.orphan}"></i></span>` : '', () => queueBars(queue.months));
   const sla = block('sla', 'SLA de inicio', 'de las resueltas se iniciaron a tiempo', fig(donePct), [],
     `<div class="wk-prios">${byPrio.map(([p, st]) => `<div class="wk-prio"><span>${m.slaLabel(p)}</span>${bar(st[k0].slaDone || 0)}<b>${fig(donePct, st)}</b></div>`).join('')}</div>`, [(s) => s.slaDone, (v) => pct(v)]);
-  const times = block('times', 'Tiempos', 'de media hasta resolverse', fig((s) => span(s.avg)), [
+  const times = block('times', 'Tiempos', 'de media hasta resolverse', fig((s) => dur(s.avg)), [
     item('En menos de 24 h', fig((s) => pct(s.d1))),
-    item('El 90 %, en menos de', fig((s) => span(s.p90))),
-  ], '', [(s) => s.avg, span]);
+    item('El 90 %, en menos de', fig((s) => dur(s.p90))),
+  ], '', [(s) => s.avg, dur]);
   const quality = block('quality', 'Calidad', 'se reabrieron tras resolverse', fig((s) => pct(s.reop, 1)), [
     item('Devueltas a la cola', fig((s) => pct(s.bounce, 1))),
     item('Cerradas sin explicar la solución', fig((s) => pct(s.noRes, 1))),

@@ -2,6 +2,7 @@
 // (server/metrics/dataset.js), lo que se deriva de cada issue, los filtros
 // y los indicadores de cualquier grupo de issues.
 import { MONTHS, DOWS, nice, title } from './format.js';
+import { SHIFTS, SHIFT_HOURS, DAYS, slotOf, weekendOf, typeOf, slotsIn, carry, shiftWork } from './shifts.js';
 
 export const COMPANIES = ['Indra', 'T-Systems', 'Sin asignar / fuera'];
 // ámbitos (server/metrics/remedy.js, SCOPE): los filtros de Remedy con los que el equipo de Indra ve su backlog
@@ -53,13 +54,16 @@ export const createModel = (data) => {
   const PRIOS = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map((p) => DI.prio.indexOf(p)).filter((k) => k > 0);
   const slaLabel = (p) => `${nice(DI.prio[p])} · ${SLA[p] < 60 ? `${SLA[p]} min` : `${SLA[p] / 60} h`}`;
   const OPEN_ST = new Set(['ASSIGNED', 'IN_PROGRESS', 'PENDING'].map((s) => DI.status.indexOf(s)));
+  const shiftType = typeOf(weekendOf(BASE));   // tipo del turno de un instante (shifts.js): 0–2 laborables, 3–5 fin de semana
 
   // --- lo que se deriva de cada issue
   const MONTH = new Uint8Array(N), DOW = new Uint8Array(N), HOUR = new Uint8Array(N), TTR = new Int32Array(N), TB = new Uint8Array(N), OPEN = new Uint8Array(N), TEAM = new Uint8Array(N);
+  const SLOT = new Int32Array(N), STYPE = new Uint8Array(N);   // el turno en que entra y su tipo
   const DESC = new Uint32Array(N), DESCL = [''], descIndex = new Map([['', 0]]);
   for (let i = 0; i < N; i++) {
     const d = new Date(BASE + C.rep[i] * 6e4);
     MONTH[i] = d.getUTCMonth(); DOW[i] = (d.getUTCDay() + 6) % 7; HOUR[i] = d.getUTCHours();
+    SLOT[i] = slotOf(C.rep[i]); STYPE[i] = shiftType(SLOT[i]);
     TTR[i] = C.res[i] >= 0 ? Math.max(C.res[i] - C.rep[i], 0) : -1;
     TB[i] = TTR[i] < 0 ? 8 : TTR_LIMITS.findIndex((l) => TTR[i] < l);
     OPEN[i] = OPEN_ST.has(C.st[i]) ? 1 : 0;
@@ -89,6 +93,8 @@ export const createModel = (data) => {
     rz: dictDim('Resolución (texto)', 'rz', 'resol', (s) => s || '(texto único o vacío)'),
     dow: { name: 'Día de la semana', get: (i) => DOW[i], label: (k) => DOWS[k] },
     hour: { name: 'Hora', get: (i) => HOUR[i], label: (k) => `${k} h` },
+    tu: { name: 'Turno', get: (i) => STYPE[i] % 3, label: (k) => `${SHIFTS[k]} (${SHIFT_HOURS[k]})` },
+    we: { name: 'Días', get: (i) => (STYPE[i] < 3 ? 0 : 1), label: (k) => DAYS[k] },
     age: { name: 'Antigüedad', get: (i) => AGE_LIMITS.findIndex((l) => SNAP - C.rep[i] < l), label: (k) => AGE_NAMES[k] },
     tb: { name: 'Tiempo de resolución', get: (i) => TB[i], label: (k) => TTR_NAMES[k] },
     de: { name: 'Título', get: (i) => DESC[i], label: (k) => DESCL[k] || '(título sin descripción del problema)' },
@@ -105,13 +111,13 @@ export const createModel = (data) => {
     } },
   };
 
-  // --- qué se compara: dos lados, A y B (B puede no estar: entonces se ve solo A). Cada lado
+  // --- qué se mira: un lado, A, y si se quiere comparar, otro, B (de partida, solo nuestro equipo). Cada lado
   // es una empresa ({ company }) o un grupo de personas ({ people: Set }). Las personas mandan
   // sobre las empresas: quien está en un grupo no cuenta en la empresa del otro lado, que pasa a
   // ser «Resto de …». SIDE[i]: el lado de cada issue (0 A, 1 B, 2 ninguno; las de ninguno no se ven).
   // --- filtros. S.f: dimensión → valores marcados. Una fila cuenta en un gráfico si pasa todos
   // los filtros salvo el de la propia dimensión.
-  const S = { f: {}, from: 0, to: LASTM, q: '', sides: [{ company: 0 }, { company: 1 }] };
+  const S = { f: {}, from: 0, to: LASTM, q: '', sides: [{ company: 0 }, null] };
   const SIDE = new Uint8Array(N);
   const CO = () => (S.sides[1] ? [0, 1] : [0]);
   const CMP = () => !!S.sides[1];
@@ -182,6 +188,10 @@ export const createModel = (data) => {
   const bySide = (list) => { const t = [[], [], []]; for (const i of list) t[SIDE[i]].push(i); return t; };
   const byMonth = (list) => { const a = new Array(12).fill(0); for (const i of list) a[MONTH[i]]++; return a; };
   // últimos 90 días de la foto frente a los 90 anteriores
+  // día de la semana (0 = lunes) y hora de un instante
+  const clock = (min) => { const d = new Date(BASE + min * 6e4); return [(d.getUTCDay() + 6) % 7, d.getUTCHours()]; };
+  // los turnos de cada tipo que caben en el periodo (hasta la foto), para las medias por turno
+  const periodSlots = () => slotsIn(Date.UTC(meta.year, S.from, 1) / 6e4 - BASE / 6e4, Math.min(Date.UTC(meta.year, S.to + 1, 1) / 6e4 - BASE / 6e4, SNAP), shiftType);
   const trend = (list) => { let now = 0, prev = 0; for (const i of list) { const age = SNAP - C.rep[i]; if (age < 90 * DAY) now++; else if (age < 180 * DAY) prev++; } return { now, prev }; };
 
   // Indicadores de un grupo de issues. Tiempos en minutos; proporciones de 0 a 1.
@@ -189,7 +199,7 @@ export const createModel = (data) => {
     const ttr = [], fr = [], ip = [];
     let crit = 0, hi = 0, vend = 0, pend = 0, reop = 0, bounce = 0, open = 0, open30 = 0, d1 = 0, h4 = 0, d3 = 0, f30 = 0, f120 = 0;
     let noCat = 0, noDesc = 0, noRes = 0, done = 0, slaOk = 0, slaKo = 0, noIp = 0, waitKo = 0;
-    let doneSla = 0, doneSlaOk = 0, doneIa = 0;
+    let doneSla = 0, doneSlaOk = 0, doneIa = 0, started = 0, sameShift = 0;
     const time = [0, 0, 0, 0, 0], t = [0, 0, 0], prio = new Array(DI.prio.length).fill(0), days = new Set(), inDays = new Set();
     for (const i of list) {
       if (TTR[i] >= 0) {
@@ -212,7 +222,10 @@ export const createModel = (data) => {
       if (C.nb[i]) bounce++;
       // SLA de inicio: iniciada a tiempo, tarde, sin iniciar y fuera de plazo, o cerrada sin pasar por En curso
       const lim = SLA[C.pr[i]];
-      if (C.ip[i] >= 0) { ip.push(C.ip[i]); if (lim >= 0) { if (C.ip[i] <= lim) slaOk++; else slaKo++; } }
+      if (C.ip[i] >= 0) {
+        ip.push(C.ip[i]); started++; if (slotOf(C.rep[i] + C.ip[i]) === SLOT[i]) sameShift++;
+        if (lim >= 0) { if (C.ip[i] <= lim) slaOk++; else slaKo++; }
+      }
       else if (!OPEN[i]) noIp++;
       else if (lim >= 0 && SNAP - C.rep[i] > lim) { slaKo++; waitKo++; }
       time[0] += C.tA[i]; time[1] += C.tI[i]; time[2] += C.tPc[i]; time[3] += C.tPv[i]; time[4] += C.tPo[i];
@@ -231,11 +244,13 @@ export const createModel = (data) => {
       perDay: days.size ? ttr.length / days.size : null,     // resueltas por día, en los días en que se resolvió alguna
       inPerDay: inDays.size ? list.length / inDays.size : null,   // entradas por día, en los días en que entró alguna
       ia: doneIa,                                            // resueltas con alguna marca de IA
+      inShift: started ? sameShift / started : null,         // de las que se empezaron, las empezadas en el turno en que entraron
     };
   };
 
   return {
-    data, C, DI, N, BASE, SNAP, LASTM, SLA, PRIOS, slaLabel, MONTH, DOW, HOUR, OPEN, TEAM, SIDE, DESCL, DIMS, S,
-    CMP, CO, NAMES, refilter, rows, pool, toggle, isSel, group, bySide, byMonth, trend, stats,
+    data, C, DI, N, BASE, SNAP, LASTM, SLA, PRIOS, slaLabel, MONTH, DOW, HOUR, OPEN, TEAM, SIDE, DESCL, DIMS, S, STYPE,
+    CMP, CO, NAMES, refilter, rows, pool, toggle, isSel, group, bySide, byMonth, trend, stats, periodSlots, clock,
+    carry: (list) => carry(list, C, shiftType), shiftWork: (list) => shiftWork(list, C, (i) => OPEN[i], shiftType),
   };
 };

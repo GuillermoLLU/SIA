@@ -7,11 +7,8 @@ const nf1 = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 1, minimumFr
 export const num = (n) => nf.format(Math.round(n));
 export const dec = (x) => nf1.format(x);
 export const pct = (x, digits = 0) => `${digits ? nf1.format(x * 100) : Math.round(x * 100)} %`;
-// minutos → «45 min», «3,5 h» o «2,1 días»
-export const dur = (m) => (m == null ? '—' : m < 90 ? `${Math.round(m)} min` : m < 2880 ? `${nf1.format(m / 60)} h` : `${nf1.format(m / 1440)} días`);
-
 // minutos → «45 min», «21 h», «1 día 19 h» o «3 días»: horas enteras hasta el día y, desde ahí, días y horas
-export const span = (m) => {
+export const dur = (m) => {
   if (m == null) return '—';
   if (m < 60) return `${Math.round(m)} min`;
   const h = Math.round(m / 60), d = Math.floor(h / 24), r = h % 24;
