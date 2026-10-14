@@ -8,6 +8,7 @@
 import { esc } from '../ui/html.js';
 import { num, pct, dur, MONTHS } from './format.js';
 import { compareFigure } from './compare.js';
+import { SHIFTS } from './shifts.js';
 
 // ui: { exp: {id: true}, sort: {id: [columna, ±1]} }, lo que la persona ha desplegado y ordenado.
 export const createCharts = (m, ui) => {
@@ -66,7 +67,7 @@ export const createCharts = (m, ui) => {
   // Líneas por mes, una por lado. f(indicadores del mes) da el valor. o.height y o.left: alto del
   // dibujo y margen para las etiquetas del eje (para gráficas pequeñas, con letra más grande).
   const lines = (A, f, fmt, o = {}) => {
-    const W = 620, H = o.height || 190, L = o.left || 54, R = 12, T = 12, B = 26, cos = CO();
+    const W = 620, H = o.height || 190, L = o.left || 74, R = 12, T = 12, B = 26, cos = CO();
     const per = cos.map((k) => { const mt = Array.from({ length: LASTM + 1 }, () => []); for (const i of A) if (SIDE[i] === k) mt[MONTH[i]].push(i); return mt.map((l) => (l.length >= 10 ? f(stats(l)) : null)); });
     const max = Math.max(1e-9, ...per.flat().filter((v) => v != null)) * 1.1;
     const x = (i) => L + i * (W - L - R) / Math.max(LASTM, 1), y = (v) => T + (H - T - B) * (1 - v / max);
@@ -96,13 +97,13 @@ export const createCharts = (m, ui) => {
   // Al comparar, las de DUO salen como diferencia entre los dos lados.
   const COLS = {
     n: ['Issues', (s) => num(s.n), (s) => s.n], sh: ['% total', (s, T) => pct(s.n / T, 1), (s) => s.n], mix: ['Reparto', (s) => mini(s.t), (s) => s.t[0] / (s.n || 1)],
-    crit: ['% críticas', (s) => pct(s.crit), (s) => s.crit], avg: ['Media resol.', (s) => dur(s.avg), (s) => s.avg ?? -1, 'low'], p90: ['P90 resol.', (s) => dur(s.p90), (s) => s.p90 ?? -1, 'low'],
+    crit: ['% críticas', (s) => pct(s.crit), (s) => s.crit], avg: ['Media resol.', (s) => dur(s.avg), (s) => s.avg ?? -1, 'low'], p90: ['El 90 %, en menos de', (s) => dur(s.p90), (s) => s.p90 ?? -1, 'low'],
     fr: ['1.ª actuación', (s) => dur(s.fr), (s) => s.fr ?? -1, 'low'], vend: ['% a terceros', (s) => pct(s.vend), (s) => s.vend], pend: ['% pasa por pendiente', (s) => pct(s.pend), (s) => s.pend],
     reop: ['% reabiertas', (s) => pct(s.reop, 1), (s) => s.reop, 'low'], open: ['Abiertas', (s) => num(s.open), (s) => s.open], d1: ['% en < 24 h', (s) => pct(s.d1), (s) => s.d1, 'high'],
     f30: ['1.ª act. < 30 min', (s) => pct(s.f30), (s) => s.f30, 'high'], f120: ['1.ª act. < 2 h', (s) => pct(s.f120), (s) => s.f120, 'high'], h4: ['% en < 4 h', (s) => pct(s.h4), (s) => s.h4, 'high'],
     bounce: ['% devueltas a cola', (s) => pct(s.bounce, 1), (s) => s.bounce, 'low'], noCat: ['% sin tipología', (s) => pct(s.noCat, 1), (s) => s.noCat, 'low'],
     noDesc: ['% título sin descripción', (s) => pct(s.noDesc, 1), (s) => s.noDesc, 'low'], noRes: ['% sin texto de resolución', (s) => pct(s.noRes, 1), (s) => s.noRes, 'low'],
-    sla: ['% en SLA de inicio', (s) => (s.sla == null ? '—' : pct(s.sla)), (s) => s.sla ?? -1, 'high'], ip: ['Media hasta En curso', (s) => dur(s.ip), (s) => s.ip ?? -1, 'low'],
+    sla: ['Empezadas dentro del SLA', (s) => (s.sla == null ? '—' : pct(s.sla)), (s) => s.sla ?? -1, 'high'], ip: ['Media hasta En curso', (s) => dur(s.ip), (s) => s.ip ?? -1, 'low'],
     slaKo: ['Fuera de SLA', (s) => num(s.slaKo), (s) => s.slaKo],
     req: ['% peticiones', (s) => pct(s.req), (s) => s.req], rep: ['% resolución repetida', (s) => pct(s.rep), (s) => s.rep],
     tr: ['Tendencia', (s) => spark(s.m), (s) => s.tr.now - s.tr.prev], dl: ['Últ. 90 d vs. 90 ant.', (s) => `${num(s.tr.now)} / ${num(s.tr.prev)} ${delta(s.tr)}`, (s) => s.tr.now - s.tr.prev],
@@ -112,6 +113,7 @@ export const createCharts = (m, ui) => {
   // Tabla ordenable con indicadores por valor de una dimensión. Clic en una fila = filtrar.
   const ranking = (dim, cols, o = {}) => {
     const id = o.id || `rk-${dim}`, list = o.rows || rows(dim), T = list.length || 1, min = o.min || 1, cmp = CMP();
+    if (!cmp) cols = cols.filter((c) => c !== 'mix');   // el reparto entre lados, solo al comparar
     const full = (l) => { const s = stats(l); o.extra?.(s, l); return s; };
     const data = group(dim, list, true).filter((x) => x.n >= min && !(o.skip && o.skip(x.k))).map((x) => {
       const s = full(x.rows);
@@ -156,14 +158,17 @@ export const createCharts = (m, ui) => {
     const R = group(rd, list).filter((x) => !(o.skipR && o.skipR(x.k))).slice(0, nr), Cc = group(cd, list).filter((x) => !(o.skipC && o.skipC(x.k))).slice(0, nc);
     if (!R.length || !Cc.length) return empty;
     if (o.orderR) R.sort((x, y) => o.orderR.indexOf(x.k) - o.orderR.indexOf(y.k));
+    if (o.orderC) Cc.sort((x, y) => o.orderC.indexOf(x.k) - o.orderC.indexOf(y.k));
     const ri = new Map(R.map((x, i) => [x.k, i])), ci = new Map(Cc.map((x, i) => [x.k, i])), mt = R.map(() => Cc.map(() => [0, 0, 0]));
     for (const i of list) for (const a of keys(dr, i)) { const r = ri.get(a); if (r == null) continue; for (const b of keys(dc, i)) { const c = ci.get(b); if (c != null) mt[r][c][SIDE[i]]++; } }
     const tot = (t) => t[0] + t[1] + t[2], max = Math.max(1, ...mt.flat().map(tot));
     const cell = (t, r, c) => {
       const v = tot(t), a = v ? Math.round(8 + 92 * Math.pow(v / max, 0.6)) : 0;
-      return `<td class="${a > 50 ? 'mt-hot' : ''}" style="--mt-a:${a}%" data-f2="${rd}:${R[r].k}|${cd}:${Cc[c].k}" data-tip="${esc(`${dr.label(R[r].k)} × ${dc.label(Cc[c].k)}\n${num(v)} issues\n${CO().map((k) => `${name(k)}: ${num(t[k])}`).join(' · ')}`)}">${v || ''}</td>`;
+      return `<td class="${a > 50 ? 'mt-hot' : ''}" style="--mt-a:${a}%" ${o.noClick ? '' : `data-f2="${rd}:${R[r].k}|${cd}:${Cc[c].k}"`} data-tip="${esc(`${dr.label(R[r].k)} × ${dc.label(Cc[c].k)}\n${num(v)} issues\n${CO().map((k) => `${name(k)}: ${num(t[k])}`).join(' · ')}`)}">${v || ''}</td>`;
     };
-    return `<div class="mt-tablewrap"><table class="mt-hm"><thead><tr><th></th>${Cc.map((c) => `<th class="mt-v">${esc(dc.label(c.k))}</th>`).join('')}<th class="mt-v">Total</th></tr></thead><tbody>
+    // cabeceras en vertical solo si son muchas y largas (módulos, centros…); meses, tramos o pocas, en horizontal
+    const v = Cc.length > 6 && Cc.some((c) => dc.label(c.k).length > 12) ? 'mt-v' : 'mt-h';
+    return `<div class="mt-tablewrap"><table class="mt-hm"><thead><tr><th></th>${Cc.map((c) => `<th class="${v}">${esc(dc.label(c.k))}</th>`).join('')}<th class="${v}">Total</th></tr></thead><tbody>
       ${R.map((r, i) => `<tr><th class="mt-r" title="${esc(dr.label(r.k))}">${esc(dr.label(r.k))}</th>${mt[i].map((t, j) => cell(t, i, j)).join('')}<td class="mt-mut mt-total">${num(r.n)}</td></tr>`).join('')}</tbody></table></div>`;
   };
 
@@ -188,5 +193,26 @@ export const createCharts = (m, ui) => {
       <div><p class="mt-small"><b class="mt-down">▼ Bajan</b></p><table>${head}<tbody>${dn.map(row).join('') || none}</tbody></table></div></div>`;
   };
 
-  return { card, legend, kpi, kpis, kpiCo, diff, bars, orderedBars, monthly, lines, ranking, compare, heat, timeBars, movers, mini };
+  // Un día en 24 horas: una línea por serie ({ label, cls, v: 24 valores }) sobre los turnos, de fondo.
+  const day = (series, fmt = num) => {
+    const W = 1100, H = 260, L = 46, R = 12, T = 22, B = 24, x = (h) => L + (h + 0.5) * (W - L - R) / 24;
+    const max = Math.max(1, ...series.flatMap((s) => s.v)) * 1.1, y = (v) => T + (H - T - B) * (1 - v / max);
+    const band = (from, to, k) => `<rect x="${(L + from * (W - L - R) / 24).toFixed(1)}" y="${T}" width="${((to - from) * (W - L - R) / 24).toFixed(1)}" height="${H - T - B}" class="mt-band${k}"/>`;
+    const bands = band(0, 7, 2) + band(7, 15, 0) + band(15, 23, 1) + band(23, 24, 2)
+      + [[3.5, 2], [11, 0], [19, 1]].map(([h, k]) => `<text x="${(L + h * (W - L - R) / 24).toFixed(1)}" y="${T - 8}" text-anchor="middle" class="mt-axis">${SHIFTS[k]}</text>`).join('');
+    const grid = [0, 0.5, 1].map((p) => `<line x1="${L}" x2="${W - R}" y1="${y(max * p)}" y2="${y(max * p)}" class="mt-gridline"/><text x="${L - 6}" y="${y(max * p) + 4}" text-anchor="end" class="mt-axis">${fmt(max * p)}</text>`).join('');
+    const xs = [0, 3, 6, 9, 12, 15, 18, 21].map((h) => `<text x="${x(h)}" y="${H - 6}" text-anchor="middle" class="mt-axis">${h} h</text>`).join('');
+    const ser = series.map((s) => `<polyline class="mt-line ${s.cls}" points="${s.v.map((v, h) => `${x(h).toFixed(1)},${y(v).toFixed(1)}`).join(' ')}"/>`
+      + s.v.map((v, h) => `<circle cx="${x(h).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3" class="mt-dot ${s.cls}" data-tip="${esc(`${s.label} · de ${h} a ${h + 1} h\n${fmt(v)}`)}"/>`).join('')).join('');
+    return `<div class="mt-legend">${series.map((s) => `<span><i class="mt-key ${s.cls}"></i>${esc(s.label)}</span>`).join('')}</div><svg viewBox="0 0 ${W} ${H}" class="mt-svg">${bands}${grid}${xs}${ser}</svg>`;
+  };
+
+  // Barras apiladas al 100 %: cómo se reparte cada fila ({ label, k: lado, v: valores }) entre unos tramos.
+  const split = (names, list) => `<div class="mt-legend">${names.map((n, j) => `<span><i class="mt-part${j}"></i>${n}</span>`).join('')}</div>`
+    + list.map((r) => {
+      const t = r.v.reduce((a, b) => a + b, 0);
+      return `<div class="mt-split"><span class="mt-split-l">${r.k != null && CMP() ? `<i class="mt-sw mt-c${r.k}"></i>` : ''}${esc(r.label)}</span><span class="mt-hbar mt-split-b">${t ? r.v.map((v, j) => `<i class="mt-part${j}" style="width:${v / t * 100}%" data-tip="${esc(`${r.label}${r.k != null && CMP() ? ` · ${name(r.k)}` : ''}\n${names[j]}: ${num(v)} (${pct(v / t)})`)}">${v / t >= 0.08 ? pct(v / t) : ''}</i>`).join('') : ''}</span><span class="mt-split-n">${num(t)}</span></div>`;
+    }).join('');
+
+  return { card, legend, kpi, kpis, kpiCo, diff, bars, orderedBars, monthly, lines, ranking, compare, heat, timeBars, movers, mini, day, split };
 };

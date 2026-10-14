@@ -2,11 +2,11 @@
 // del CSV completo de Remedy que carga cada persona (el bridge los calcula y
 // los guarda en este ordenador). Al entrar, siempre el Resumen.
 //
-// Arriba, qué se compara: A frente a B, cada lado una empresa o un grupo de
-// personas, con el color que se elija. Con la × se quita un lado y se ve solo
-// el otro; «+ Comparar» lo vuelve a añadir. De partida, Indra frente a T-Systems. Al lado, los filtros, que valen para todas las
-// pestañas: el periodo, la búsqueda y, con un clic en cualquier barra, fila o
-// celda, ese valor.
+// Arriba, qué se mira: el equipo, una empresa o un grupo de personas (de partida,
+// nuestro equipo) y, si se quiere, con «+ Comparar», otro lado frente a él; cada
+// lado con el color que se elija y la × para quitarlo. Al lado, los filtros, que
+// valen para todas las pestañas: el periodo, la búsqueda y, con un clic en
+// cualquier barra, fila o celda, ese valor.
 import './metrics.css';
 import { esc, fold } from '../ui/html.js';
 import { num, MONTHS } from './format.js';
@@ -220,10 +220,10 @@ export const mountMetricsView = (root, { api, toast }) => {
       if (searching) $('[data-q]').focus();
       return;
     }
-    const t = e.target.closest('[data-tab],[data-rm],[data-exp],[data-sort],[data-clear],[data-f2],[data-f]');
+    const t = e.target.closest('[data-tab],[data-go],[data-rm],[data-exp],[data-sort],[data-clear],[data-f2],[data-f]');
     if (!t) return;
     const d = t.dataset;
-    if (d.tab) { tab = d.tab; root.scrollTop = 0; }
+    if (d.tab || d.go) { tab = d.tab || d.go; root.scrollTop = 0; }
     else if (d.rm) { const [dim, k] = filterKey(d.rm); S.f[dim].delete(k); }
     else if (d.exp) ui.exp[d.exp] = !ui.exp[d.exp];
     else if (d.sort) { const [id, c] = d.sort.split(':'), cur = ui.sort[id]; ui.sort[id] = [c, cur && cur[0] === c ? -cur[1] : -1]; }

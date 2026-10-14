@@ -1,7 +1,7 @@
 /* Vista Métricas: cabecera, filtros fijos arriba, pestañas y, dentro de cada
-   una, una rejilla de 12 columnas con indicadores, tablas y gráficos. Indra
-   y T-Systems, o lo que se compare, en el color que se elija para cada lado
-   (de partida, azul y ocre); peor en rojo y mejor en verde. Todo se mezcla
+   una, su pregunta y una rejilla de 12 columnas con indicadores, tablas y
+   gráficos. Lo que se mira y, si se compara, el otro lado, en el color que se
+   elija para cada uno (de partida, azul y ocre); peor en rojo y mejor en verde. Todo se mezcla
    con los colores del tema: cuanto más pesa el texto en la mezcla, más se
    aclara en los temas oscuros y más se oscurece en los claros, así se lee
    bien en los dos. Algunos temas oscuros traen un gris secundario y unos
@@ -192,6 +192,7 @@
 .mt-view .mt-hm th { position: static; font-weight: 550; color: var(--text); background: none; }
 .mt-view .mt-hm th.mt-r { max-width: 230px; overflow: hidden; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
 .mt-view .mt-hm th.mt-v { height: 170px; font-size: 11.5px; text-align: left; white-space: nowrap; color: var(--mt-low); writing-mode: vertical-rl; transform: rotate(180deg); }
+.mt-view .mt-hm th.mt-h { font-size: 11.5px; font-weight: 550; color: var(--mt-low); vertical-align: bottom; }
 .mt-hm td { min-width: 38px; cursor: pointer; background: color-mix(in srgb, var(--mt-c0) var(--mt-a, 0%), var(--mt-soft)); }
 .mt-hm td.mt-hot { color: #fff; font-weight: 600; text-shadow: 0 0 2px rgba(0, 0, 0, .35); }
 .mt-hm td:hover { outline: 2px solid var(--mt-c1); }
@@ -208,4 +209,44 @@
 .mt-tip-cmp b { font-size: 17px; font-weight: 650; }
 .mt-tip-cmp b.mt-a { color: var(--mt-c0); } .mt-tip-cmp b.mt-b { color: var(--mt-c1); }
 
-@media (max-width: 1100px) { .mt-card, .mt-s7, .mt-s5, .mt-s4 { grid-column: span 12; } }
+/* la pregunta que responde cada pestaña, encima de todo */
+.mt-ask { grid-column: span 12; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: -4px 0 0; }
+.mt-ask b { font-size: 18px; font-weight: 680; }
+.mt-ask span { font-size: 13px; color: var(--mt-low); }
+
+/* Resumen: un bloque por pregunta con sus cifras y el paso a su pestaña */
+.mt-answers { grid-column: span 12; display: flex; flex-wrap: wrap; gap: 16px; }
+.mt-answers .mt-ans { display: flex; flex: 1 1 330px; flex-direction: column; gap: 12px; }
+.mt-ans header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.mt-ans h3 { margin: 0; font-size: 15px; font-weight: 650; letter-spacing: 0; text-transform: none; color: var(--text); }
+.mt-go { flex: none; padding: 3px 8px; font: inherit; font-size: 12px; font-weight: 600; color: var(--accent); background: none; border: 1px solid transparent; cursor: pointer; }
+.mt-go:hover { border-color: var(--mt-line); background: var(--mt-soft); }
+.mt-figs { display: flex; flex-direction: column; }
+.mt-fig { display: grid; grid-template-columns: 1fr auto auto; align-items: baseline; gap: 10px; padding: 6px 0; border-top: 1px solid var(--border); }
+.mt-fig span { overflow: hidden; font-size: 13px; color: var(--mt-low); text-overflow: ellipsis; white-space: nowrap; }
+.mt-fig > b { font-size: 16px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.mt-fig .mt-diff { min-width: 64px; font-size: 12.5px; text-align: right; }
+.mt-trio { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+
+/* el día en 24 horas: los turnos de fondo y una línea por serie */
+.mt-band0 { fill: color-mix(in srgb, var(--text) 3%, transparent); } .mt-band1 { fill: color-mix(in srgb, var(--text) 7%, transparent); } .mt-band2 { fill: color-mix(in srgb, var(--text) 12%, transparent); }
+.mt-l-in { --mt-l: var(--mt-low); } .mt-l-st0, .mt-l-rs0 { --mt-l: var(--mt-c0); } .mt-l-st1, .mt-l-rs1 { --mt-l: var(--mt-c1); }
+.mt-line.mt-l-in, .mt-line.mt-l-st0, .mt-line.mt-l-rs0, .mt-line.mt-l-st1, .mt-line.mt-l-rs1 { stroke: var(--mt-l); }
+.mt-line.mt-l-rs0, .mt-line.mt-l-rs1 { stroke-dasharray: 6 4; }
+.mt-dot { fill: var(--mt-l); }
+.mt-legend i.mt-key { width: 16px; height: 0; margin-right: 6px; vertical-align: middle; border-top: 2.5px solid var(--mt-l); }
+.mt-legend i.mt-key.mt-l-rs0, .mt-legend i.mt-key.mt-l-rs1 { border-top-style: dashed; }
+/* cambios de turno en los mapas día × hora */
+.mt-view .mt-hm .mt-shift { border-left: 2px solid var(--mt-low); }
+.mt-hm td:not([data-f2]) { cursor: default; }
+
+/* barras al 100 %: cómo se reparte cada fila entre unos tramos */
+.mt-split { display: grid; grid-template-columns: 110px 1fr 48px; gap: 10px; align-items: center; font-size: 13px; }
+.mt-split-l { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mt-split-b { height: 24px; margin: 3px 0; background: var(--mt-track); }
+.mt-split-b i { display: flex; align-items: center; justify-content: center; overflow: hidden; font-size: 11.5px; font-style: normal; font-weight: 600; color: #fff; white-space: nowrap; }
+.mt-split-n { text-align: right; color: var(--mt-low); font-variant-numeric: tabular-nums; }
+.mt-part0 { background: var(--mt-c0); } .mt-part1 { background: color-mix(in srgb, var(--mt-c0) 62%, var(--mt-card)); }
+.mt-part2 { background: color-mix(in srgb, var(--mt-c0) 36%, var(--mt-card)); } .mt-part3 { background: var(--mt-c2); }
+
+@media (max-width: 1100px) { .mt-card, .mt-s7, .mt-s5, .mt-s4 { grid-column: span 12; } .mt-trio { grid-template-columns: 1fr; } }
