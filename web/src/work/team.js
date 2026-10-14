@@ -23,7 +23,7 @@ const COLS = {
     'De las que ha resuelto, cuántas empezaron (pasaron a En curso) dentro del plazo de su prioridad: crítica 15 min, alta 45 min, media 2 h, baja 8 h.'],
   day: ['Resueltas / día', (s) => (s.perDay == null ? '—' : dec(s.perDay)), (s) => s.perDay, 'high',
     'Media de issues resueltas en los días en que resolvió alguna. En la fila del equipo, la media de su gente.'],
-  avg: ['Media resol.', (s) => dur(s.avg), (s) => s.avg, 'low', 'Media desde la apertura hasta la resolución, en horas naturales.'],
+  avg: ['Med. resol. (días)', (s) => (s.avg == null ? '—' : dec(s.avg / 1440)), (s) => s.avg, 'low', 'Media desde la apertura hasta la resolución, en días naturales.'],
   d1: ['< 24 h', (s) => pct(s.d1), (s) => s.d1, 'high', 'De las resueltas, las que se resolvieron en menos de 24 h.'],
   reop: ['Reabiertas', (s) => pct(s.reop, 1), (s) => s.reop, 'low', 'Volvieron de Resuelta a un estado abierto.'],
   bounce: ['Devueltas', (s) => pct(s.bounce, 1), (s) => s.bounce, 'low', 'Pasaron de En curso a Asignada (devueltas a la cola) al menos una vez.'],
