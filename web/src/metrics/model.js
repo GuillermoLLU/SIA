@@ -4,6 +4,8 @@
 import { MONTHS, DOWS, nice, title } from './format.js';
 
 export const COMPANIES = ['Indra', 'T-Systems', 'Sin asignar / fuera'];
+// ámbitos (server/metrics/remedy.js, SCOPE): los filtros de Remedy con los que el equipo de Indra ve su backlog
+export const SCOPE = { OUT: 0, SGA: 1, SISU: 2, REQUEST: 3 };
 export const SCOPES = ['Fuera de los filtros de Indra', 'SGA de Indra (ECOM, Bloqueo DB2, RETURNS)', 'SISU (etiqueta SISUINC)', 'Petición de usuario ECOM (el filtro de SGA la excluye)'];
 // Marcas de una issue: los bits de server/metrics/remedy.js (FLAG).
 export const FLAGS = [[1, 'SISUINC (abierta desde SISU)'], [2, 'PRIO (priorizada por negocio)'], [4, 'PETREQ'], [8, 'AUTOTEC (aviso automático)'], [16, 'RPROC'],

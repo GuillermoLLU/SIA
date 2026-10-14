@@ -7,6 +7,7 @@
 // Con menos de MIN issues en el periodo, sus porcentajes y medias dicen poco:
 // al ordenar por ellos, esas personas van al final.
 import { esc } from '../ui/html.js';
+import { SCOPE } from '../metrics/model.js';
 import { num, dec, pct, dur } from '../metrics/format.js';
 
 export const MIN = 10;
@@ -33,7 +34,7 @@ const COLS = {
 
 // m: el modelo de las Métricas; ch: sus piezas (charts.js); ui.sort.team: [columna, ±1].
 export const teamPanel = (m, ch, ui) => {
-  const { card, kpis, kpiCo, legend, lines } = ch;
+  const { card, kpi, kpis, kpiCo, legend, lines } = ch;
   const A = m.rows(), sides = m.CO(), names = m.NAMES(), ST = m.bySide(A).map(m.stats);
 
   // las prioridades, una columna cada una (cuántas de cada)
@@ -42,9 +43,20 @@ export const teamPanel = (m, ch, ui) => {
   for (const p of m.PRIOS) cols[`p${p}`] = [PRIO[m.DI.prio[p]], (s) => num(s.prio[p]), (s) => s.prio[p], null, `Cuántas de prioridad ${m.slaLabel(p)}.`];
   const order = ['n', 'open', ...m.PRIOS.map((p) => `p${p}`), 'sla', 'day', 'avg', 'd1', 'reop', 'bounce', 'noRes', 'ia'];
 
+  // Backlog: lo que el equipo ve en sus búsquedas de Remedy (SGA y SISU), sin resolver, tenga
+  // responsable o no; de las issues abiertas en el periodo.
+  const { C, OPEN, MONTH, S, N } = m;
+  let backlog = 0, orphan = 0;
+  for (let i = 0; i < N; i++) {
+    if (!OPEN[i] || MONTH[i] < S.from || MONTH[i] > S.to || (C.sc[i] !== SCOPE.SGA && C.sc[i] !== SCOPE.SISU)) continue;
+    backlog++;
+    if (!C.as[i]) orphan++;
+  }
+
   const head = kpis(
     kpiCo('Issues', ST, (s) => num(s.n), { val: (s) => s.n }),
-    kpiCo('Abiertas ahora', ST, (s) => num(s.open), { val: (s) => s.open }),
+    kpiCo('Abiertas ahora', ST, (s) => num(s.open), { val: (s) => s.open, note: 'con responsable de la empresa' }),
+    kpi('Backlog SGA + SISU', num(backlog), `${num(orphan)} sin responsable`, m.CMP() ? '' : `mt-t${sides[0]}`),
     kpiCo('SLA cumplido', ST, donePct, { val: (s) => s.slaDone, better: 'high', note: 'de las resueltas' }),
     kpiCo('Resueltas al día', ST, (s) => (s.perDay == null ? '—' : dec(s.perDay)), { val: (s) => s.perDay, note: 'el equipo, en los días con alguna' }),
     kpiCo('Media de resolución', ST, (s) => dur(s.avg), { val: (s) => s.avg, better: 'low' }),
