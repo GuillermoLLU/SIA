@@ -34,6 +34,8 @@ const COLS = {
 const icon = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const CHART_ICON = icon('<path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/>');
 const DATA_ICON = icon('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h4M7 13h10M7 17h7"/>');
+// bloques que se leen mejor como gráfica: siempre así, sin icono para cambiar
+const CHART_ONLY = new Set(['volume', 'ia']);
 
 // m: el modelo de las Métricas; ch: sus piezas (charts.js); ui.sort.team: [columna, ±1];
 // ui.charts: los bloques que se ven como gráfica.
@@ -66,9 +68,10 @@ export const teamPanel = (m, ch, ui) => {
   // Cada bloque se ve como cifras o como su gráfica mes a mes; el icono de la cabecera cambia de una
   // vista a otra. En la gráfica se queda arriba, en pequeño, la cifra principal.
   const charts = ui.charts || new Set();
+  // CHART_ONLY: bloques que se ven siempre como gráfica, sin icono para cambiar.
   const block = (id, title, label, hero, items, extra, chart) => {
-    const asChart = charts.has(id);
-    const head = `<div class="wk-block-h"><h3>${title}</h3><button class="wk-chart-btn" data-chart="${id}" title="${asChart ? 'Ver los datos' : 'Ver la evolución por mes'}">${asChart ? DATA_ICON : CHART_ICON}</button></div>`;
+    const fixed = CHART_ONLY.has(id), asChart = fixed || charts.has(id);
+    const head = `<div class="wk-block-h"><h3>${title}</h3>${fixed ? '' : `<button class="wk-chart-btn" data-chart="${id}" title="${asChart ? 'Ver los datos' : 'Ver la evolución por mes'}">${asChart ? DATA_ICON : CHART_ICON}</button>`}</div>`;
     if (!asChart) return `<section class="wk-block">${head}<div class="wk-hero"><b>${hero}</b><span>${label}</span></div>${extra}<div class="wk-items">${items.join('')}</div></section>`;
     const note = { queue: 'Lo que sigue sin resolver de cada mes, por mes de creación.', volume: 'Creadas y resueltas cada mes (las resueltas, por su fecha de resolución).' }[id]
       || 'Por mes de creación. * Mes en curso: aún puede cambiar.';
@@ -89,7 +92,7 @@ export const teamPanel = (m, ch, ui) => {
     const max = Math.max(1, ...shown.flatMap(([, v]) => v));
     return `<div class="wk-cols">${shown.map(([k, [inN, outN]]) => `<div class="wk-col" data-tip="${esc(`${MONTHS[k]}\nNuevas: ${num(inN)}\nResueltas: ${num(outN)}`)}">
         <span class="wk-pair"><i class="mt-c2" style="height:${(inN / max * 100).toFixed(1)}%"></i><i class="mt-c${k0}" style="height:${(outN / max * 100).toFixed(1)}%"></i></span><span class="wk-col-x">${MONTHS[k]}</span></div>`).join('')}</div>
-      <div class="mt-legend wk-flow-legend"><span><i class="mt-c2"></i>Nuevas</span><span><i class="mt-c${k0}"></i>Resueltas</span></div>`;
+      <div class="mt-legend wk-flow-legend"><span><i class="mt-c2"></i>Nuevas · <b>${perDay(ST[k0].inPerDay)}</b> al día</span><span><i class="mt-c${k0}"></i>Resueltas · <b>${perDay(ST[k0].perDay)}</b> al día</span></div>`;
   };
   // pendientes por mes de creación: una columna por mes, con los mismos colores que la barra del bloque
   const queueBars = (months) => {

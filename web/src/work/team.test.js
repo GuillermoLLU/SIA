@@ -37,13 +37,16 @@ test('solo Indra: una fila por persona y la del equipo, con sus datos y sin colo
   assert.doesNotMatch(h.slice(h.indexOf('<table class="wk-team"')), /mt-num (good|bad)/);
   assert.match(rowOf(h, 'ANA'), />100 %</);   // SLA cumplido: solo el %
   assert.match(h, /<h3>Pendientes<\/h3>[\s\S]*?<div class="wk-hero"><b>0<\/b><span>sin resolver en SGA y SISU/);   // ninguna en SGA ni SISU
-  assert.equal((h.match(/class="wk-block"/g) || []).length, 6);   // seis bloques, en dos filas
+  assert.equal((h.match(/class="wk-block[ "]/g) || []).length, 6);   // seis bloques, en dos filas (con cifras o como gráfica)
 });
 
 test('un bloque como gráfica: su evolución en lugar de las cifras, con la principal arriba', () => {
-  assert.equal((render([{ company: 0 }, null]).match(/class="wk-chart"/g) || []).length, 0);
+  const base = render([{ company: 0 }, null]);
+  assert.equal((base.match(/class="wk-chart"/g) || []).length, 2);   // Volumen e IA, siempre como gráfica
+  assert.doesNotMatch(base, /data-chart="(volume|ia)"/);              // sin icono para cambiar
+  assert.match(base, /Nuevas · <b>[\d,]+<\/b> al día/);
   const h = render([{ company: 0 }, null], new Set(['times', 'sla']));
-  assert.equal((h.match(/class="wk-chart"/g) || []).length, 2);
+  assert.equal((h.match(/class="wk-chart"/g) || []).length, 4);
   assert.match(h, /data-chart="times" title="Ver los datos"/);
   const times = h.slice(h.indexOf('<h3>Tiempos'), h.indexOf('</section>', h.indexOf('<h3>Tiempos')));
   assert.match(times, /class="wk-key"/);
