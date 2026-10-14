@@ -8,7 +8,7 @@
 // al ordenar por ellos, esas personas van al final.
 import { esc } from '../ui/html.js';
 import { SCOPE } from '../metrics/model.js';
-import { num, dec, pct, dur } from '../metrics/format.js';
+import { num, dec, pct, dur, MONTHS } from '../metrics/format.js';
 
 export const MIN = 10;
 
@@ -50,11 +50,13 @@ export const teamPanel = (m, ch, ui) => {
   // Backlog: lo que el equipo ve en sus búsquedas de Remedy (SGA y SISU), sin resolver, tenga
   // responsable o no; de las issues abiertas en el periodo. Repartido: de su gente, sin responsable, de otros.
   const { C, OPEN, MONTH, S, N, TEAM } = m, own = m.S.sides[0].company;
-  const queue = { all: 0, mine: 0, orphan: 0 };
+  const queue = { all: 0, mine: 0, orphan: 0, months: Array.from({ length: 12 }, () => [0, 0, 0]) };   // por mes: equipo, sin asignar, otros
   for (let i = 0; i < N; i++) {
     if (!OPEN[i] || MONTH[i] < S.from || MONTH[i] > S.to || (C.sc[i] !== SCOPE.SGA && C.sc[i] !== SCOPE.SISU)) continue;
+    const who = !C.as[i] ? 1 : TEAM[i] === own ? 0 : 2;
     queue.all++;
-    if (!C.as[i]) queue.orphan++; else if (TEAM[i] === own) queue.mine++;
+    if (who === 0) queue.mine++; else if (who === 1) queue.orphan++;
+    queue.months[MONTH[i]][who]++;
   }
 
   // Un bloque por tema: su cifra principal, unas pocas de apoyo y, si ayuda, una barra. Con un lado,
@@ -69,9 +71,19 @@ export const teamPanel = (m, ch, ui) => {
     const asChart = charts.has(id);
     const head = `<div class="wk-block-h"><h3>${title}</h3><button class="wk-chart-btn" data-chart="${id}" title="${asChart ? 'Ver los datos' : 'Ver la evolución por mes'}">${asChart ? DATA_ICON : CHART_ICON}</button></div>`;
     if (!asChart) return `<section class="wk-block">${head}<div class="wk-hero"><b>${hero}</b><span>${label}</span></div>${extra}<div class="wk-items">${items.join('')}</div></section>`;
-    const note = id === 'queue' ? 'Por mes de creación de las que siguen sin resolver.' : 'Por mes de creación. * Mes en curso: aún puede cambiar.';
+    const note = id === 'queue' ? 'Lo que sigue sin resolver de cada mes, por mes de creación.' : 'Por mes de creación. * Mes en curso: aún puede cambiar.';
     return `<section class="wk-block wk-as-chart">${head}<div class="wk-key"><b>${hero}</b><span>${label}</span></div>
-      <div class="wk-chart">${cmp ? legend() : ''}${lines(A, ...chart, { height: 150, left: 78 })}</div><p class="wk-note">${note}</p></section>`;
+      <div class="wk-chart">${typeof chart === 'function' ? chart() : `${cmp ? legend() : ''}${lines(A, ...chart, { height: 150, left: 78 })}`}</div><p class="wk-note">${note}</p></section>`;
+  };
+  // pendientes por mes de creación: una columna por mes, con los mismos colores que la barra del bloque
+  const queueBars = (months) => {
+    const shown = months.map((v, k) => [k, v]).filter(([k]) => k >= S.from && k <= Math.min(S.to, m.LASTM));
+    const max = Math.max(1, ...shown.map(([, v]) => v[0] + v[1] + v[2]));
+    return `<div class="wk-cols">${shown.map(([k, v]) => {
+      const n = v[0] + v[1] + v[2];
+      return `<div class="wk-col" data-tip="${esc(`${MONTHS[k]}: ${num(n)} sin resolver\nAsignadas al equipo: ${num(v[0])}\nSin asignar: ${num(v[1])}\nAsignadas a otros: ${num(v[2])}`)}">
+        <span class="wk-col-n">${n ? num(n) : ''}</span><span class="wk-col-bar" style="height:${(n / max * 100).toFixed(1)}%"><i class="mt-c2" style="flex:${v[2]}"></i><i class="wk-orphan" style="flex:${v[1]}"></i><i class="mt-c${k0}" style="flex:${v[0]}"></i></span><span class="wk-col-x">${MONTHS[k]}</span></div>`;
+    }).join('')}</div>`;
   };
   const bar = (share, cls = `mt-c${k0}`) => `<span class="wk-bar"><i class="${cls}" style="width:${Math.min(100, share * 100).toFixed(1)}%"></i></span>`;
   const perDay = (v) => (v == null ? '—' : dec(v));
@@ -89,7 +101,7 @@ export const teamPanel = (m, ch, ui) => {
     // asignadas al equipo: las pendientes con alguien de la empresa; comparando, todas sus pendientes, de un lado y del otro
     item('Asignadas al equipo', cmp ? fig((s) => num(s.open), (s) => s.open) : num(queue.mine), `mt-c${k0}`),
     item('Sin asignar', num(queue.orphan), 'wk-orphan'),
-  ], queue.all ? `<span class="wk-split" data-tip="${esc(`Pendientes en SGA y SISU: ${num(queue.all)}\nAsignadas al equipo: ${num(queue.mine)}\nSin asignar: ${num(queue.orphan)}\nAsignadas a otros: ${num(queue.all - queue.mine - queue.orphan)}`)}"><i class="mt-c${k0}" style="flex:${queue.mine}"></i><i class="wk-orphan" style="flex:${queue.orphan}"></i><i class="mt-c2" style="flex:${queue.all - queue.mine - queue.orphan}"></i></span>` : '', [(s) => s.open, num]);
+  ], queue.all ? `<span class="wk-split" data-tip="${esc(`Pendientes en SGA y SISU: ${num(queue.all)}\nAsignadas al equipo: ${num(queue.mine)}\nSin asignar: ${num(queue.orphan)}\nAsignadas a otros: ${num(queue.all - queue.mine - queue.orphan)}`)}"><i class="mt-c${k0}" style="flex:${queue.mine}"></i><i class="wk-orphan" style="flex:${queue.orphan}"></i><i class="mt-c2" style="flex:${queue.all - queue.mine - queue.orphan}"></i></span>` : '', () => queueBars(queue.months));
   const sla = block('sla', 'SLA de inicio', 'de las resueltas se iniciaron a tiempo', fig(donePct, (s) => s.slaDone, 'high'), [],
     `<div class="wk-prios">${byPrio.map(([p, st]) => `<div class="wk-prio"><span>${m.slaLabel(p)}</span>${cmp ? '' : bar(st[k0].slaDone || 0)}<b>${fig(donePct, (s) => s.slaDone, 'high', st)}</b></div>`).join('')}</div>`, [(s) => s.slaDone, (v) => pct(v)]);
   const times = block('times', 'Tiempos', 'de media hasta resolverse', fig((s) => dur(s.avg), (s) => s.avg, 'low'), [
