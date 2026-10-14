@@ -7,9 +7,10 @@
 
 /* bloques de arriba: dos filas de tres, una cifra grande por tema y sus apoyos */
 .wk-panel { display: flex; flex-direction: column; gap: 12px; }
-.wk-blocks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-/* altura fija: el bloque mide lo mismo con cifras o con gráfica, y las filas no saltan */
-.wk-block { display: flex; flex-direction: column; gap: 10px; height: 210px; overflow: hidden; padding: 16px 20px; background: var(--mt-card); border: 1px solid var(--mt-line); box-shadow: var(--mt-shadow); }
+.wk-blocks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: minmax(210px, 300px); gap: 12px; }
+/* el alto lo da la fila (igual con cifras o con gráfica, y las filas no saltan): mínimo 210 px y, si
+   sobra pantalla, hasta 300 */
+.wk-block { display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow: hidden; padding: 16px 20px; background: var(--mt-card); border: 1px solid var(--mt-line); box-shadow: var(--mt-shadow); }
 .wk-block-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .wk-chart-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin: -6px 0; padding: 0; color: var(--mt-low); background: none; border: 1px solid transparent; cursor: pointer; }
 .wk-chart-btn svg { width: 16px; height: 16px; }
@@ -24,7 +25,7 @@
 .wk-aside .mt-sw { margin: 0 0 0 5px; }
 .wk-aside b { color: var(--text); font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; }
 .wk-chart { display: flex; flex: 1; flex-direction: column; min-height: 0; }
-.wk-chart .mt-svg { flex: 1; min-height: 0; width: 100%; height: 100%; }
+.wk-chart .mt-svg { flex: 1; min-height: 0; max-height: 170px; width: 100%; height: 100%; }
 .wk-note { margin: 0; font-size: 11.5px; color: var(--mt-low); }
 .wk-block h3 { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--mt-low); }
 .wk-hero { display: flex; align-items: baseline; gap: 10px; }
@@ -63,15 +64,16 @@
 .wk-top .mt-pop { left: auto; right: 0; }
 .wk-top { border-bottom: 1px solid var(--border); }
 
-/* La vista llena la ventana: cabecera y bloques arriba y la tabla en el alto que queda, con su propio
-   scroll y las cabeceras fijas. Si la ventana es muy baja, la tabla guarda un mínimo y la página se desplaza. */
+/* La vista llena la ventana. La tabla mide lo que necesita; si no cabe, se desplaza por dentro con las
+   cabeceras y los totales fijos. Si sobra alto, lo ganan los bloques (hasta 300 px). Si la ventana es muy
+   baja, la tabla guarda un mínimo y la página se desplaza. */
 .wk-view .mt-page { display: flex; flex-direction: column; height: 100%; padding-bottom: 16px; }
 .wk-view .wk-main { display: flex; flex: 1; flex-direction: column; min-height: 0; }
 .wk-view .wk-panel { flex: 1; min-height: 0; }
-.wk-view .wk-panel > .mt-grid { display: flex; flex: 1; flex-direction: column; min-height: 300px; }
+.wk-view .wk-panel > .wk-blocks { flex: 1 1 0; min-height: calc(2 * 210px + 12px); align-content: start; }
+.wk-view .wk-panel > .mt-grid { display: flex; flex: 0 1 auto; flex-direction: column; min-height: 300px; }
 .wk-view .wk-panel > .mt-grid > .mt-card { display: flex; flex: 1; flex-direction: column; min-height: 0; padding-bottom: 8px; }
 .wk-view .wk-panel > .mt-grid .mt-tablewrap { flex: 1; min-height: 0; overflow: auto; }
-.mt-view .wk-team td { padding-top: 4px; padding-bottom: 4px; }
 .wk-top { padding: 16px 0 12px; }
 /* la fila del equipo, siempre a la vista al pie de la tabla (como las cabeceras arriba) */
 .mt-view .wk-team tr.mt-grp td { position: sticky; bottom: 0; z-index: 1; box-shadow: 0 -1px 0 var(--border); }
