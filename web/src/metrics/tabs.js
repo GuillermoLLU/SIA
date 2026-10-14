@@ -5,13 +5,14 @@
 // respecto a B.
 import { esc } from '../ui/html.js';
 import { num, dec, pct, dur, nice, title, dateOf, MONTHS, DOWS } from './format.js';
-import { SCOPES, MAJOR, IA_MARKS, share } from './model.js';
+import { CARDS, MAJOR, IA_MARKS, share } from './model.js';
 import { SHIFTS, SHIFT_HOURS, DAYS, MIN_ACTIONS } from './shifts.js';
 
-export const TABS = [['resumen', 'Resumen'], ['backlog', 'Backlog'], ['reparto', 'Reparto'], ['modulos', 'Módulos y focos'],
+export const TABS = [['resumen', 'Resumen'], ['hoy', 'Foto de hoy'], ['backlog', 'Backlog'], ['reparto', 'Reparto'], ['modulos', 'Módulos y focos'],
   ['resolucion', 'Resolución y escalados'], ['sla', 'SLA y calidad'], ['ia', 'IA'], ['turnos', 'Turnos']];
 const QUESTIONS = {
   resumen: ['¿Cómo vamos?', 'Cada bloque responde a una pregunta con sus cifras clave; el detalle, en su pestaña.'],
+  hoy: ['¿Qué hay que mover hoy?', 'Lo abierto ahora mismo, sea del mes que sea (no depende del periodo), en listas para actuar: lo urgente, lo que espera y lo que está parado.'],
   backlog: ['¿Qué tenemos encima?', 'Lo que sigue abierto, cuánto lleva esperando, a qué espera y si la pila crece o baja.'],
   reparto: ['¿Qué nos entra?', 'Cuánto entra, en qué meses, con qué prioridad y de qué tipo.'],
   modulos: ['¿De dónde viene?', 'Los módulos, centros y problemas que concentran el trabajo, y lo que se repite.'],
@@ -65,8 +66,9 @@ export const createTabs = (m, ch, ui) => {
     return `<tr ${f ? `class="mt-clk" data-f${f.includes('|') ? '2' : ''}="${f}"` : ''}><td>${label}</td>${cols.map((c) => `<td class="mt-num">${cell(st, SLICE[c])}</td>`).join('')}</tr>`;
   }).join(''));
   const byPrio = (A, cols, label = (p) => nice(DI.prio[p]), first = 'Prioridad') => slices(first, PRIOS.map((p) => [label(p), (i) => C.pr[i] === p, `pr:${p}`]), A, cols);
-  const SCOPE_SHORT = ['Fuera de los filtros', 'SGA', 'SISU', 'Petición de usuario ECOM'];
-  const byScope = (A, cols) => slices('Ámbito', [2, 1, 3, 0].map((k) => [`<span data-tip="${esc(SCOPES[k])}">${SCOPE_SHORT[k]}</span>`, (i) => C.sc[i] === k, `sc:${k}`]), A, cols);
+  const cardsOf = (i) => m.DIMS.tj.get(i);
+  const byCard = (A, cols) => slices('Tarjeta', CARDS.map((c, k) => [c, (i) => cardsOf(i).includes(k), `tj:${k}`]), A, cols);
+  const CARD_NOTE = 'SGA y SISU, por los filtros de Remedy del equipo; PRIO, priorizada por negocio, cuenta además en su SGA o SISU.';
 
   // Mapa de calor día de la semana × hora de un instante de cada issue (la apertura, la resolución…).
   const clockHeat = (list, at, clickable) => {
@@ -81,38 +83,47 @@ export const createTabs = (m, ch, ui) => {
   const startAt = (i) => (C.ip[i] >= 0 ? C.rep[i] + C.ip[i] : null);
   const resAt = (i) => (!OPEN[i] && C.res[i] >= 0 ? C.res[i] : null);
 
-  // Entran y salen, mes a mes, de lo recibido en el periodo: recibidas, resueltas ese mes, el saldo y
-  // lo que quedaba abierto al cerrar el mes.
+  // Entran y salen, de lo recibido en el periodo: mes a mes o, si el periodo es un solo mes, día a día.
+  // Recibidas, resueltas en ese tramo, el saldo y lo que quedaba abierto al cerrarlo.
   const FLOW = [['Recibidas', (s) => num(s.in), (s) => s.in], ['Resueltas', (s) => num(s.out), (s) => s.out, 'high'],
     ['Saldo', (s) => `${s.out - s.in > 0 ? '+' : ''}${num(s.out - s.in)}`, (s) => s.out - s.in, 'high', 'Resueltas menos recibidas: en positivo, la pila baja; en negativo, crece.'],
-    ['Pendientes al cierre del mes', (s) => num(s.open), (s) => s.open, 'low', 'De lo recibido desde el inicio del periodo, lo que seguía abierto el último día del mes.']];
+    ['Pendientes al cierre', (s) => num(s.open), (s) => s.open, 'low', 'De lo recibido desde el inicio del periodo, lo que seguía abierto al acabar el mes o el día.']];
+  const minOf = (y, mo, d = 1) => (Date.UTC(y, mo, d) - BASE) / 6e4;
+  const flowUnits = () => {
+    const y = m.data.meta.year;
+    if (S.from !== S.to) return monthsIn().map((k) => ({ label: MONTHS[k] + (k === LASTM ? '*' : ''), from: minOf(y, k), to: minOf(y, k + 1), f: `month:${k}` }));
+    const last = Math.min(new Date(Date.UTC(y, S.from + 1, 0)).getUTCDate(), S.from === LASTM ? new Date(BASE + m.SNAP * 6e4).getUTCDate() : 31);
+    return Array.from({ length: last }, (_, j) => ({ label: `${j + 1} ${MONTHS[S.from]}`, from: minOf(y, S.from, j + 1), to: minOf(y, S.from, j + 2) }));
+  };
   const flow = (A) => {
-    const ms = monthsIn(), T = bySide(A);
-    const per = [0, 1].map((k) => {
-      const r = ms.map(() => ({ in: 0, out: 0, open: 0 }));
+    const units = flowUnits(), T = bySide(A);
+    const per = [0, 1].map((k) => units.map((u) => {
+      const x = { in: 0, out: 0, open: 0 };
       for (const i of T[k]) {
-        const a = MONTH[i] - S.from, rm = resAt(i) == null ? 99 : new Date(BASE + C.res[i] * 6e4).getUTCMonth();
-        r[a].in++;
-        if (rm <= S.to) r[rm - S.from].out++;
-        for (let j = a; j < ms.length; j++) if (ms[j] < rm) r[j].open++;
+        const r = resAt(i);
+        if (C.rep[i] >= u.from && C.rep[i] < u.to) x.in++;
+        if (r != null && r >= u.from && r < u.to) x.out++;
+        if (C.rep[i] < u.to && (r == null || r >= u.to)) x.open++;
       }
-      return r.map((x) => ({ ...x, n: x.in + x.out + x.open }));
-    });
-    return table('Mes', FLOW, ms.map((k, j) => `<tr class="mt-clk" data-f="month:${k}"><td>${MONTHS[k]}${k === LASTM ? '*' : ''}</td>${FLOW.map((d) => `<td class="mt-num">${cell([per[0][j], per[1][j]], d)}</td>`).join('')}</tr>`).join(''));
+      return { ...x, n: x.in + x.out + x.open };
+    }));
+    return table(S.from === S.to ? 'Día' : 'Mes', FLOW, units.map((u, j) => `<tr ${u.f ? `class="mt-clk" data-f="${u.f}"` : ''}><td>${u.label}</td>${FLOW.map((d) => `<td class="mt-num">${cell([per[0][j], per[1][j]], d)}</td>`).join('')}</tr>`).join(''));
   };
 
-  // Lo abierto por ámbito: lo de cada lado y, aparte (si se mira una empresa, no personas), lo que aún
-  // no tiene responsable.
+  // Lo abierto por tarjeta: lo de cada lado y, aparte (si se mira una empresa, no personas), lo que aún
+  // no tiene responsable. Una PRIO cuenta en PRIO y en su SGA o SISU; el total, una vez.
   const backlogTable = () => {
-    const cos = CO(), bk = SCOPES.map(() => [0, 0, 0]), orphans = !S.sides.some((x) => x?.people);
+    const cos = CO(), bk = CARDS.map(() => [0, 0, 0]), tot = [0, 0, 0], orphans = !S.sides.some((x) => x?.people);
     for (let i = 0; i < N; i++) {
       if (!OPEN[i] || !inPeriod(i)) continue;
-      if (SIDE[i] < 2) bk[C.sc[i]][SIDE[i]]++;
-      else if (!C.as[i]) bk[C.sc[i]][2]++;
+      const k = SIDE[i] < 2 ? SIDE[i] : !C.as[i] ? 2 : -1;
+      if (k < 0) continue;
+      tot[k]++;
+      for (const c of cardsOf(i)) bk[c][k]++;
     }
-    const cols = orphans ? [...cos, 2] : cos, tot = cols.map((k) => bk.reduce((a, x) => a + x[k], 0));
-    return `<table><thead><tr><th>Ámbito</th>${cos.map((k) => `<th class="mt-num"><span class="mt-sw mt-c${k}"></span>${esc(name(k))}</th>`).join('')}${orphans ? '<th class="mt-num"><span class="mt-sw mt-c2"></span>Sin responsable</th>' : ''}<th class="mt-num">Total</th></tr></thead><tbody>${[2, 1, 3, 0].map((j) => `<tr class="mt-clk ${isSel('sc', j) ? 'mt-sel' : ''}" data-f="sc:${j}"><td>${SCOPES[j]}</td>${cols.map((k) => `<td class="mt-num">${num(bk[j][k])}</td>`).join('')}<td class="mt-num"><b>${num(cols.reduce((a, k) => a + bk[j][k], 0))}</b></td></tr>`).join('')}
-      <tr class="mt-grp"><td>Total</td>${tot.map((v) => `<td class="mt-num">${num(v)}</td>`).join('')}<td class="mt-num">${num(tot.reduce((a, b) => a + b, 0))}</td></tr></tbody></table>`;
+    const cols = orphans ? [...cos, 2] : cos, sum = (row) => cols.reduce((a, k) => a + row[k], 0);
+    return `<table><thead><tr><th>Tarjeta</th>${cos.map((k) => `<th class="mt-num"><span class="mt-sw mt-c${k}"></span>${esc(name(k))}</th>`).join('')}${orphans ? '<th class="mt-num"><span class="mt-sw mt-c2"></span>Sin responsable</th>' : ''}<th class="mt-num">Total</th></tr></thead><tbody>${CARDS.map((c, j) => `<tr class="mt-clk ${isSel('tj', j) ? 'mt-sel' : ''}" data-f="tj:${j}"><td>${c}</td>${cols.map((k) => `<td class="mt-num">${num(bk[j][k])}</td>`).join('')}<td class="mt-num"><b>${num(sum(bk[j]))}</b></td></tr>`).join('')}
+      <tr class="mt-grp"><td>Total</td>${cols.map((k) => `<td class="mt-num">${num(tot[k])}</td>`).join('')}<td class="mt-num">${num(sum(tot))}</td></tr></tbody></table>`;
   };
 
   // --- Resumen: un bloque por pregunta, con sus cifras clave y el paso a su pestaña. Cada cifra es la
@@ -133,15 +144,23 @@ export const createTabs = (m, ch, ui) => {
       const ia = shareOf(T, (i) => C.fl[i] & IA_MARKS), iaDone = ST.map((s) => ({ n: s.n, v: s.resolved ? s.ia / s.resolved : null }));
       const count = (b) => T.map((l) => ({ n: l.length, v: l.filter((i) => C.fl[i] & b).length }));
       const sharePct = (s) => opt(pct)(s.v);
+      // último mes completo del periodo frente al anterior (las del mes anterior pueden quedar fuera del periodo)
+      const lastFull = S.to === LASTM ? LASTM - 1 : S.to, all = bySide(m.today());
+      const vsPrev = lastFull >= 1 && lastFull >= S.from ? [lastFull, all.map((l) => {
+        let a = 0, b = 0; for (const i of l) { if (MONTH[i] === lastFull) a++; else if (MONTH[i] === lastFull - 1) b++; }
+        return { n: a + b, v: b ? (a - b) / b : null };
+      })] : null;
       return grid(ask('resumen'),
         `<div class="mt-answers">${[
           answer('backlog', [
             fig('Abiertas ahora', ST, (s) => num(s.open), sv('open'), 'low'),
             fig('Sin iniciar y fuera de plazo', ST, (s) => num(s.waitKo), sv('waitKo'), 'low', 'Abiertas que nunca han pasado a En curso y ya superan el plazo de su prioridad.'),
             fig('Con más de 30 días', ST, (s) => num(s.open30), sv('open30'), 'low'),
+            fig('PRIO abiertas', T.map((l) => ({ n: l.length, v: l.filter((i) => OPEN[i] && cardsOf(i).includes(2)).length })), (s) => num(s.v), sv('v'), 'low'),
             fig('Sin resolver de lo recibido', ST.map((s) => ({ n: s.n, v: s.n ? s.open / s.n : null })), sharePct, sv('v'), 'low')]),
           answer('reparto', [
             fig('Recibidas', ST, (s) => num(s.n), sv('n')),
+            ...(vsPrev ? [fig(`${MONTHS[vsPrev[0]]} frente a ${MONTHS[vsPrev[0] - 1]}`, vsPrev[1], (s) => opt((v) => `${v > 0 ? '+' : ''}${pct(v)}`)(s.v), sv('v'), null, 'Variación de las recibidas en el último mes completo del periodo respecto al anterior.')] : []),
             fig('Al día', ST.map((s) => ({ n: s.n, v: s.n / d })), (s) => dec(s.v), sv('v'), null, 'Recibidas entre los días naturales del periodo.'),
             fig('Críticas o altas', ST, (s) => pct(s.crit + s.hi), (s) => s.crit + s.hi),
             fig('Peticiones de usuario', shareOf(T, (i) => C.sv[i] === REQ), sharePct, sv('v'))]),
@@ -175,8 +194,70 @@ export const createTabs = (m, ch, ui) => {
           <div><p class="mt-small"><b>Media de resolución</b></p>${lines(A, (s) => s.avg, dur, { height: 170 })}</div></div>`, { span: 's12', sub: `${MONTH_NOTE} Un mes con menos de 10 issues no se pinta.` }));
     },
 
+    hoy() {
+      const L = m.today(), op = L.filter((i) => OPEN[i]), T = bySide(op), cos = CO(), now = m.SNAP;
+      const people = S.sides.some((x) => x?.people), one = S.sides.some((x) => x?.people?.size === 1) && !CMP();
+      const R = (r) => DI.reason.indexOf(r);
+      const VENDOR = R('THIRD_PARTY_VENDOR_ACTION_REQD'), CLIENT = [R('CLIENT_ACTION_REQUIRED'), R('CUSTOMER_FOLLOW_UP_REQUIRED')];
+      const CRITICAL = DI.prio.indexOf('CRITICAL'), lm = C.lm, days = (min) => Math.floor(min / 1440);
+      const idle = (i) => (lm ? now - lm[i] : null);   // sin ningún cambio desde hace (minutos); null con datos de antes de guardar el último cambio
+      const IDLE = 5 * 1440;
+      const late = (i) => { const l = m.SLA[C.pr[i]]; return C.ip[i] < 0 && l >= 0 && now - C.rep[i] > l; };
+      const waits = (i) => (C.rs[i] === VENDOR ? 'v' : CLIENT.includes(C.rs[i]) ? 'c' : '');
+      const count = (test) => T.map((l) => ({ n: l.length || 1, v: l.filter(test).length }));
+      // una lista de issues: cada fila con su enlace a Remedy
+      const list = (id, rowsIn, o = {}) => {
+        const top = o.top || 10, all = ui.exp[id], shown = all ? rowsIn.slice(0, 500) : rowsIn.slice(0, top);
+        const head = ['Issue', 'Abierta', 'Título', 'Prioridad', 'Tarjeta', 'Estado', ...(one ? [] : ['Responsable']), 'Antigüedad', ...(lm ? ['Sin cambios'] : []), 'Ticket de tercero'];
+        const body = shown.map((i) => `<tr><td><a href="${REMEDY}${incId(C.id[i])}%22" target="_blank" rel="noopener">${incId(C.id[i])}</a></td><td>${dateOf(BASE, C.rep[i]).slice(0, 5)}</td>
+          <td class="mt-subj" data-tip="${esc(C.su[i])}">${esc(C.su[i])}</td><td>${nice(DI.prio[C.pr[i]])}</td><td>${cardsOf(i).filter((k) => k < 3).map((k) => CARDS[k]).join(' · ')}</td>
+          <td>${nice(DI.status[C.st[i]])}${C.rs[i] ? ` · <span class="mt-mut">${esc(title(DI.reason[C.rs[i]]))}</span>` : ''}</td>
+          ${one ? '' : `<td><span class="mt-pill mt-p${SIDE[i]}">${esc(m.DIMS.as.label(C.as[i]))}</span></td>`}
+          <td class="mt-num">${days(now - C.rep[i])} d</td>${lm ? `<td class="mt-num">${days(idle(i))} d</td>` : ''}<td>${C.vk[i] ? esc(DI.vkey[C.vk[i]]) : C.vt[i] ? esc(m.DIMS.vt.label(C.vt[i])) : ''}</td></tr>`).join('');
+        const more = rowsIn.length > top ? `<button class="mt-more" data-exp="${id}">${all ? 'Ver menos' : `Ver todas (${num(rowsIn.length)})`}</button>` : '';
+        return rowsIn.length ? `<div class="mt-tablewrap ${all ? 'mt-scroll' : ''}"><table class="mt-list"><thead><tr>${head.map((h) => `<th>${h}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>${more}` : '<p class="mt-mut mt-small">Ninguna.</p>';
+      };
+      const byAge = (a, b) => C.rep[a] - C.rep[b];
+      const crit3 = L.filter((i) => C.pr[i] === CRITICAL && now - C.rep[i] <= 3 * 1440).sort((a, b) => C.rep[b] - C.rep[a]);
+      const prio = op.filter((i) => cardsOf(i).includes(2)).sort(byAge);
+      const lateL = op.filter(late).sort(byAge);
+      const vendor = op.filter((i) => waits(i) === 'v').sort(byAge);
+      const client = op.filter((i) => waits(i) === 'c').sort(byAge);
+      const stale = lm ? op.filter((i) => idle(i) > IDLE).sort((a, b) => lm[a] - lm[b]) : [];
+      const orphan = people ? [] : m.today(true).filter((i) => OPEN[i] && !C.as[i] && cardsOf(i).some((k) => k < 3)).sort(byAge);
+      // quién tiene qué: lo abierto de cada persona
+      const PCOLS = [['Abiertas', () => true], ['Asignada', (i) => DI.status[C.st[i]] === 'ASSIGNED'], ['En curso', (i) => DI.status[C.st[i]] === 'IN_PROGRESS'],
+        ['Pendiente', (i) => DI.status[C.st[i]] === 'PENDING'], ['Críticas', (i) => C.pr[i] === CRITICAL], ['PRIO', (i) => cardsOf(i).includes(2)],
+        ['Sin iniciar, fuera de plazo', late], ['Esperando a un tercero', (i) => waits(i) === 'v'], ['Esperando al cliente', (i) => waits(i) === 'c'],
+        ['Más de 15 días', (i) => now - C.rep[i] > 15 * 1440], ...(lm ? [['Sin cambios en 5 días', (i) => idle(i) > IDLE]] : [])];
+      const who = group('as', op, true).filter((x) => x.k).map((x) => ({ k: x.k, v: PCOLS.map(([, t]) => x.rows.filter(t).length) }));
+      const tot = PCOLS.map(([, t]) => op.filter(t).length);
+      const whoTable = `<div class="mt-tablewrap"><table><thead><tr><th>Persona</th>${PCOLS.map(([l]) => `<th class="mt-num">${l}</th>`).join('')}</tr></thead><tbody>${who.map((r) => `<tr class="mt-clk ${isSel('as', r.k) ? 'mt-sel' : ''}" data-f="as:${r.k}"><td>${CMP() ? `<i class="mt-sw mt-c${m.SIDE[op.find((i) => C.as[i] === r.k)]}"></i>` : ''}${esc(m.DIMS.as.label(r.k))}</td>${r.v.map((v) => `<td class="mt-num">${v || ''}</td>`).join('')}</tr>`).join('')}
+        <tr class="mt-grp"><td>Total</td>${tot.map((v) => `<td class="mt-num">${num(v)}</td>`).join('')}</tr></tbody></table></div>`;
+      const sub = (t) => `${t} Pasa el ratón por un título para leerlo entero.`;
+      return grid(ask('hoy'),
+        kpis(kpiCo('Abiertas', count(() => true), (s) => num(s.v), { val: (s) => s.v }),
+          kpiCo('Críticas abiertas', count((i) => C.pr[i] === CRITICAL), (s) => num(s.v), { val: (s) => s.v }),
+          kpiCo('PRIO abiertas', count((i) => cardsOf(i).includes(2)), (s) => num(s.v), { val: (s) => s.v }),
+          kpiCo('Sin iniciar, fuera de plazo', count(late), (s) => num(s.v), { val: (s) => s.v, better: 'low' }),
+          kpiCo('Esperando a un tercero', count((i) => waits(i) === 'v'), (s) => num(s.v), { val: (s) => s.v }),
+          kpiCo('Esperando al cliente', count((i) => waits(i) === 'c'), (s) => num(s.v), { val: (s) => s.v }),
+          lm ? kpiCo('Sin cambios en 5 días', count((i) => idle(i) > IDLE), (s) => num(s.v), { val: (s) => s.v, better: 'low' }) : '',
+          people ? '' : kpi('Sin asignar', num(orphan.length), 'SGA, SISU o PRIO, sin nadie', 'mt-t2')),
+        lm ? '' : '<p class="mt-note">Para ver lo que lleva días sin cambios, carga de nuevo el CSV: los datos guardados son de antes de que se leyera el último cambio de cada issue.</p>',
+        card('Quién tiene qué', whoTable, { span: 's12', sub: 'Lo abierto de cada persona. Clic en una persona para ver todas las métricas solo de ella.' }),
+        card('Críticas de los últimos 3 días', list('hoy-crit', crit3), { span: 's12', sub: sub('Todas las críticas abiertas en los 3 últimos días, resueltas o no, de la más reciente a la más antigua.') }),
+        card('PRIO abiertas', list('hoy-prio', prio), { span: 's12', sub: sub('Priorizadas por negocio, de la más antigua a la más reciente.') }),
+        card('Sin iniciar y fuera de plazo', list('hoy-late', lateL), { span: 's12', sub: sub('Abiertas que nunca han pasado a En curso y ya superan el plazo de su prioridad.') }),
+        ...(people ? [] : [card('Sin asignar', list('hoy-orphan', orphan), { span: 's12', sub: sub('En SGA, SISU o PRIO, sin responsable.') })]),
+        card('Sin cambios desde hace más de 5 días', lm ? list('hoy-stale', stale) : '<p class="mt-mut mt-small">Carga de nuevo el CSV para verlo.</p>', { span: 's12', sub: sub('Abiertas en las que nadie ha tocado nada en 5 días, de la más parada a la menos.') }),
+        card('Esperando a un tercero', list('hoy-vendor', vendor), { span: 's12', sub: sub('Pendientes de una acción de un tercero (desarrollo, proveedor…), con su ticket.') }),
+        card('Esperando al cliente', list('hoy-client', client), { span: 's12', sub: sub('Pendientes de una acción o de una respuesta del centro o del cliente.') }),
+        card('Todo lo abierto', list('hoy-all', op.slice().sort(byAge), { top: 15 }), { span: 's12', sub: sub('La sábana del backlog: todo lo abierto, de lo más antiguo a lo más reciente.') }));
+    },
+
     backlog(A) {
-      const ST = bySide(A).map(stats), op = A.filter((i) => OPEN[i]);
+      const T = bySide(A), ST = T.map(stats), op = A.filter((i) => OPEN[i]);
       let orphan = 0; for (let i = 0; i < N; i++) if (OPEN[i] && !C.as[i] && inPeriod(i)) orphan++;
       const oldest = op.slice().sort((a, b) => C.rep[a] - C.rep[b]).slice(0, ui.exp.old ? 100 : 15);
       const list = `<div class="mt-tablewrap"><table><thead><tr><th>Issue</th><th>Abierta</th><th>Título</th><th>Prioridad</th><th>Estado</th><th>Responsable</th></tr></thead><tbody>${oldest.map((i) => `<tr><td><a href="${REMEDY}${incId(C.id[i])}%22" target="_blank" rel="noopener">${incId(C.id[i])}</a></td><td>${dateOf(BASE, C.rep[i]).slice(0, 5)}</td><td>${esc(C.su[i])}</td><td>${nice(DI.prio[C.pr[i]])}</td><td>${nice(DI.status[C.st[i]])}${C.rs[i] ? ` · <span class="mt-mut">${esc(title(DI.reason[C.rs[i]]))}</span>` : ''}</td><td><span class="mt-pill mt-p${SIDE[i]}">${esc(m.DIMS.as.label(C.as[i]))}</span></td></tr>`).join('')}</tbody></table></div>${op.length > 15 ? `<button class="mt-more" data-exp="old">${ui.exp.old ? 'Ver menos' : 'Ver más'}</button>` : ''}`;
@@ -185,15 +266,18 @@ export const createTabs = (m, ch, ui) => {
         kpis(kpiCo('Abiertas ahora', ST, (s) => num(s.open), { val: (s) => s.open }),
           kpiCo('Sin iniciar y fuera de plazo', ST, (s) => num(s.waitKo), { val: (s) => s.waitKo, note: 'nunca han pasado a En curso' }),
           kpiCo('Con más de 30 días', ST, (s) => num(s.open30), { val: (s) => s.open30 }),
+          kpiCo('PRIO abiertas', T.map((l) => ({ n: l.length, v: l.filter((i) => OPEN[i] && cardsOf(i).includes(2)).length })), (s) => num(s.v), { val: (s) => s.v, note: 'priorizadas por negocio' }),
+          kpiCo('Escaladas abiertas', T.map((l) => ({ n: l.length, v: l.filter((i) => OPEN[i] && C.vt[i]).length })), (s) => num(s.v), { val: (s) => s.v, note: 'con ticket de tercero' }),
           people ? '' : kpi('Abiertas sin responsable', num(orphan), 'en todo el grupo, aún sin nadie asignado', 'mt-t2')),
-        card('Entran y salen, mes a mes', flow(A), { span: 's7', sub: 'De lo recibido en el periodo. Clic en un mes para filtrar.' }),
+        card(S.from === S.to ? 'Entran y salen, día a día' : 'Entran y salen, mes a mes', flow(A), { span: 's7', sub: S.from === S.to ? 'De lo recibido en el mes.' : 'De lo recibido en el periodo. Clic en un mes para filtrar; con un solo mes, se ve día a día.' }),
         card('Antigüedad de lo abierto', legend() + orderedBars('age', [0, 1, 2, 3, 4], { rows: op, id: 'op-age' }), { span: 's5', sub: 'Tiempo desde la apertura hasta la foto.' }),
         card('Módulo × antigüedad', heat('mo', 'age', 14, 5, { rows: op, skipR: noK, orderC: [0, 1, 2, 3, 4] }), { sub: 'Lo abierto hoy, por módulo y por cuánto lleva abierto. Clic en una celda para filtrar.' }),
         card('Módulo × motivo de espera', heat('mo', 'rs', 14, 8, { rows: op, skipR: noK }), { sub: 'A qué o a quién espera lo abierto en cada módulo («Sin dato»: sin motivo informado). Clic en una celda para filtrar.' }),
+        card('Escaladas abiertas: a quién y desde cuándo', heat('vt', 'age', 10, 5, { rows: op.filter((i) => C.vt[i]), skipR: noK, orderC: [0, 1, 2, 3, 4] }), { span: 's12', sub: 'Lo abierto con ticket de tercero, por destino del escalado (prefijo del ticket) y antigüedad. Clic en una celda para filtrar.' }),
         card('Estado', legend() + bars('st', { id: 'op-st', rows: op, top: 4 }), { span: 's4' }),
         card('Prioridad', bars('pr', { id: 'op-pr', rows: op, top: 4 }), { span: 's4' }),
         card('Centros con más abiertas', bars('ce', { id: 'op-ce', rows: op, top: 8, skip: noK }), { span: 's4' }),
-        card('Lo abierto, por ámbito', backlogTable(), { span: 's12', sub: `Lo abierto hoy${people ? '' : ', tenga o no responsable'}. SISU y SGA son los filtros de Remedy con los que el equipo reconoce su backlog.` }),
+        card('Lo abierto, por tarjeta', backlogTable(), { span: 's12', sub: `Lo abierto hoy${people ? '' : ', tenga o no responsable'}. ${CARD_NOTE}` }),
         card('Las abiertas más antiguas', list, { span: 's12' }));
     },
 
@@ -206,7 +290,7 @@ export const createTabs = (m, ch, ui) => {
           kpiCo('Críticas o altas', ST, (s) => pct(s.crit + s.hi), { val: (s) => s.crit + s.hi }),
           kpiCo('Peticiones de usuario', shareOf(T, (i) => C.sv[i] === REQ), (s) => pct(s.v), { val: (s) => s.v })),
         card('Issues por mes', legend() + monthly(A), { span: 's7', sub: 'Por fecha de apertura. * mes incompleto. Clic en un mes para filtrar.' }),
-        card('Ámbito', legend() + bars('sc', { top: 4 }), { span: 's5', sub: 'Según los filtros de Remedy con los que el equipo reconoce su backlog. Clic en un ámbito para ver todas las métricas solo ahí.' }),
+        card('Tarjeta', legend() + bars('tj', { top: 4 }), { span: 's5', sub: `${CARD_NOTE} Clic en una para ver todas las métricas solo de ella.` }),
         card('Prioridad × mes', heat('pr', 'month', 4, 12, { skipR: noK, orderR: PRIOS, orderC: monthsIn() }), { span: 's12', sub: 'Issues recibidas de cada prioridad cada mes. Clic en una celda para filtrar.' }),
         card('Tipo de servicio × mes', heat('sv', 'month', 6, 12, { skipR: noK, orderC: monthsIn() }), { span: 's7', sub: 'Incidencias frente a peticiones, mes a mes. Clic en una celda para filtrar.' }),
         card('Tipo de operación', compare('op'), { span: 's5', sub: 'Derivado del prefijo de la categoría de producto 2.' }));
@@ -251,7 +335,7 @@ export const createTabs = (m, ch, ui) => {
         card('Por prioridad', byPrio(A, cols)),
         card('Con y sin ticket de tercero', slices('', [['Con ticket de tercero', (i) => C.vt[i]], ['Sin ticket', (i) => !C.vt[i]]], A, ['n', 'avg', 'p90', 'd1', 'pend']), { sub: 'Lo que se escala tarda más: aquí, cuánto.' }),
         card('Evolución de la media de resolución', legend() + lines(A, (s) => s.avg, dur), { sub: MONTH_NOTE }),
-        card('Por ámbito', byScope(A, cols)),
+        card('Por tarjeta', byCard(A, cols), { sub: CARD_NOTE }),
         card('Por módulo / sistema', ranking('mo', ['n', 'mix', 'avg', 'p90', 'h4', 'd1', 'vend', 'pend'], { id: 'rv-mo', skip: noK, min: 30, top: 15 }), { span: 's12', sub: 'Módulos con al menos 30 issues. Clic en una cabecera para ordenar.' }),
         section('Escalados a terceros'),
         card('A quién se escala', legend() + bars('vt', { top: 12, skip: noK }), { span: 's5', sub: 'Prefijo escrito en el campo «Vendor Ticket Number», tal cual. Solo issues con ticket.' }),
@@ -275,7 +359,7 @@ export const createTabs = (m, ch, ui) => {
         card('Calidad por prioridad', byPrio(A, ['n', 'reop', 'bounce', 'noCat', 'noDesc', 'noRes']), { span: 's12', sub: 'Reabiertas: volvieron de Resuelta a abierta. Devueltas: pasaron de En curso a Asignada.' }),
         card('Evolución de las reabiertas', legend() + lines(A, (s) => s.reop, (v) => pct(v, 1)), { sub: MONTH_NOTE }),
         card('Evolución de las cerradas sin explicar la solución', legend() + lines(A, (s) => s.noRes, (v) => pct(v, 1)), { sub: MONTH_NOTE }),
-        card('Por ámbito', byScope(A, ['n', 'sla', 'fr', 'reop', 'bounce', 'noRes']), { span: 's12' }),
+        card('Por tarjeta', byCard(A, ['n', 'sla', 'fr', 'reop', 'bounce', 'noRes']), { span: 's12', sub: CARD_NOTE }),
         card('Por módulo / sistema', ranking('mo', ['n', 'mix', 'sla', 'slaKo', 'fr', 'reop', 'bounce', 'noCat', 'noRes'], { id: 'sla-mo', skip: noK, min: 30, sort: 'slaKo', top: 15 }), { span: 's12', sub: 'Módulos con al menos 30 issues, de más a menos fuera de SLA. Clic en una cabecera para ordenar.' }),
         card('Cómo se tipifica', compare('k3', { top: 12 }), { sub: 'Categorización 3 de Remedy, tal cual está informada.' }),
         card('Resoluciones que más se repiten', bars('rz', { top: 12, skip: noK }), { sub: 'Textos de resolución idénticos (salvo números) usados 4 veces o más.' }));
@@ -319,6 +403,7 @@ export const createTabs = (m, ch, ui) => {
         ['Entran por turno', (s) => opt(dec)(s.perTurn), (s) => s.perTurn, null, 'Media de issues que entran en cada turno de este tipo del periodo.'],
         ['Empezadas dentro del SLA', slaPct, (s) => s.sla, 'high'],
         ['Empezadas en su turno', (s) => opt(pct)(s.inShift), (s) => s.inShift, 'high', 'De las que se empezaron, las que pasaron a En curso en el mismo turno en que entraron.'],
+        ['Resueltas en su turno', (s) => opt(pct)(s.resInShift), (s) => s.resInShift, 'high', 'De las resueltas, las que se resolvieron en el mismo turno en que entraron.'],
         ['Media hasta En curso', (s) => dur(s.ip), (s) => s.ip, 'low'],
         ['Turnos con actividad', (s) => num(s.worked), (s) => s.worked, null, 'Turnos de este tipo en que se empezó o resolvió alguna issue.'],
         ['Resueltas por turno', (s) => opt(dec)(s.resTurn), (s) => s.resTurn, 'high', 'Issues resueltas en cada turno con actividad, de media.'],
@@ -343,10 +428,12 @@ export const createTabs = (m, ch, ui) => {
       return grid(ask('turnos'),
         kpis(...SHIFTS.map((sn, k) => kpiCo(`Entran de ${sn.toLowerCase()}`, shareOf(T, (i) => STYPE[i] % 3 === k), (s) => pct(s.v), { val: (s) => s.v, note: SHIFT_HOURS[k] })),
           kpiCo('Entran en fin de semana', shareOf(T, (i) => STYPE[i] >= 3), (s) => pct(s.v), { val: (s) => s.v }),
-          kpiCo('Empezadas en su turno', ST, (s) => opt(pct)(s.inShift), { val: (s) => s.inShift, better: 'high', note: 'en el turno en que entran' })),
+          kpiCo('Empezadas en su turno', ST, (s) => opt(pct)(s.inShift), { val: (s) => s.inShift, better: 'high', note: 'en el turno en que entran' }),
+          kpiCo('Resueltas en su turno', ST, (s) => opt(pct)(s.resInShift), { val: (s) => s.resInShift, better: 'high', note: 'en el turno en que entran' })),
         card('Turno a turno', table('Turno', TCOLS, rowsHtml), { span: 's12', sub: 'Por el turno en que entra cada issue; el trabajo (resueltas, personas, acciones), por el turno en que se hace. Clic en una fila para filtrar. Pasa el ratón por una cabecera para ver cómo se calcula.' }),
         card('El día en 24 horas', curves, { span: 's12', sub: 'Issues que entran, que se empiezan (pasan a En curso) y que se resuelven en cada hora, en todo el periodo. Si la línea de las que entran va por encima, en esas horas se acumula trabajo.' }),
-        card('¿Qué se queda para el turno siguiente?', split(['En su turno', 'En el siguiente', 'Más tarde', 'Sin pasar por En curso'], carryRows), { sub: 'De lo que entra en cada turno, cuándo se empieza. «Sin pasar por En curso»: abiertas sin empezar o cerradas sin ese paso.' }),
+        card('¿Qué se queda para el turno siguiente?', split(['En su turno', 'En el siguiente', 'Más tarde', 'Sin pasar por En curso'], carryRows), { span: 's12', sub: 'De lo que entra en cada turno, cuándo se empieza. «Sin pasar por En curso»: abiertas sin empezar o cerradas sin ese paso.' }),
+        card('Prioridad por turno', heat('pr', 'tu', 4, 3, { skipR: noK, orderR: PRIOS, orderC: [0, 1, 2] }), { sub: 'Issues que entran de cada prioridad en cada turno. Clic en una celda para filtrar.' }),
         card('Por día de la semana', slices('Día', DOWS.map((dw, k) => [dw, (i) => DOW[i] === k, `dow:${k}`]), A, ['n', 'sla', 'inShift', 'ip', 'avg'])),
         card('Cuándo llegan las issues', clockHeat(A, (i) => C.rep[i], true), { span: 's12', sub: 'Issues recibidas por día de la semana y hora. Cuanto más oscuro, más issues; las líneas marcan los cambios de turno. Clic en una celda para filtrar.' }),
         card('Cuándo se resuelven', clockHeat(A, resAt, false), { span: 's12', sub: 'Las mismas issues, por el día y la hora en que se resolvieron.' }));

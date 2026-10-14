@@ -57,6 +57,25 @@ test('el turno en que entra cada issue y si se empezó en ese mismo turno', () =
   assert.equal(m.stats([2]).inShift, null);   // sin empezar
 });
 
+test('tarjetas: SGA y SISU por el ámbito, PRIO por la etiqueta (además de su SGA o SISU); si no, sin tarjeta', () => {
+  const d = data(); d.cols.fl[0] = 2;   // la 1, SGA y priorizada
+  const m = createModel(d);
+  assert.deepEqual([0, 1, 3].map(m.DIMS.tj.get), [[0, 2], [1], [3]]);
+});
+
+test('la foto de hoy no mira el periodo; con anySide, tampoco el lado', () => {
+  const m = createModel(data());
+  m.S.from = m.S.to = 2; m.refilter();   // solo marzo: la 3
+  assert.deepEqual(m.rows(), [2]);
+  assert.deepEqual(m.today(), [0, 2, 3]);
+  assert.deepEqual(m.today(true), [0, 1, 2, 3, 4]);
+});
+
+test('resueltas en el turno en que entraron', () => {
+  const m = createModel(data());
+  assert.equal(m.stats([0, 1]).resInShift, 0.5);   // la 1, en 60 min; la 2 se resuelve 2 días después
+});
+
 test('filtrar: cada gráfico ignora el filtro de su propia dimensión; buscar por título o número', () => {
   const m = createModel(data());
   m.S.sides[1] = { company: 1 };

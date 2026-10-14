@@ -209,6 +209,11 @@
 .mt-tip-cmp b { font-size: 17px; font-weight: 650; }
 .mt-tip-cmp b.mt-a { color: var(--mt-c0); } .mt-tip-cmp b.mt-b { color: var(--mt-c1); }
 
+/* Foto de hoy: listas de issues para actuar */
+.mt-view .mt-list td { white-space: nowrap; }
+.mt-view .mt-list td.mt-subj { max-width: 340px; overflow: hidden; text-overflow: ellipsis; }
+.mt-note { grid-column: span 12; margin: 0; padding: 10px 14px; font-size: 13px; background: var(--mt-sel); border: 1px solid var(--mt-line); }
+
 /* la pregunta que responde cada pestaña, encima de todo */
 .mt-ask { grid-column: span 12; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: -4px 0 0; }
 .mt-ask b { font-size: 18px; font-weight: 680; }

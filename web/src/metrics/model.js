@@ -16,12 +16,17 @@ export const FLAGS = [[1, 'SISUINC (abierta desde SISU)'], [2, 'PRIO (priorizada
 export const MAJOR = 256;
 const REOPENED = 512, NO_RESOLUTION = 32768;
 export const IA_MARKS = 32 | 64 | 2048 | 4096 | 8192;
+const PRIO = 2;
+// Tarjetas: como reconoce el equipo su trabajo. SGA y SISU, por los filtros de Remedy (ámbito); PRIO, por la
+// etiqueta de priorizada por negocio, que va además de su SGA o SISU. 3: sin tarjeta.
+export const CARDS = ['SGA', 'SISU', 'PRIO', 'Sin tarjeta'];
 
 // Tramos de tiempo de resolución y de antigüedad (minutos).
 const TTR_NAMES = ['< 1 h', '1–4 h', '4–8 h', '8–24 h', '1–3 días', '3–7 días', '7–30 días', '> 30 días', 'Sin resolver'];
 const TTR_LIMITS = [60, 240, 480, 1440, 4320, 10080, 43200, Infinity];
-const AGE_NAMES = ['< 2 días', '2–7 días', '7–30 días', '30–90 días', '> 90 días'];
-const AGE_LIMITS = [2880, 10080, 43200, 129600, Infinity];
+// la antigüedad, en los tramos con que la mira el equipo
+const AGE_NAMES = ['1–5 días', '6–10 días', '11–15 días', '16–30 días', '> 30 días'];
+const AGE_LIMITS = [6, 11, 16, 31, Infinity].map((d) => d * 1440);
 
 // SLA de inicio: de la apertura al primer paso a En curso, por prioridad.
 const SLA_MINUTES = { CRITICAL: 15, HIGH: 45, MEDIUM: 120, LOW: 480 };
@@ -93,6 +98,8 @@ export const createModel = (data) => {
     rz: dictDim('Resolución (texto)', 'rz', 'resol', (s) => s || '(texto único o vacío)'),
     dow: { name: 'Día de la semana', get: (i) => DOW[i], label: (k) => DOWS[k] },
     hour: { name: 'Hora', get: (i) => HOUR[i], label: (k) => `${k} h` },
+    tj: { name: 'Tarjeta', multi: true, label: (k) => CARDS[k],
+      get: (i) => { const o = []; if (C.sc[i] === SCOPE.SGA) o.push(0); if (C.sc[i] === SCOPE.SISU) o.push(1); if (C.fl[i] & PRIO) o.push(2); return o.length ? o : [3]; } },
     tu: { name: 'Turno', get: (i) => STYPE[i] % 3, label: (k) => `${SHIFTS[k]} (${SHIFT_HOURS[k]})` },
     we: { name: 'Días', get: (i) => (STYPE[i] < 3 ? 0 : 1), label: (k) => DAYS[k] },
     age: { name: 'Antigüedad', get: (i) => AGE_LIMITS.findIndex((l) => SNAP - C.rep[i] < l), label: (k) => AGE_NAMES[k] },
@@ -140,8 +147,8 @@ export const createModel = (data) => {
     if (b?.company === TEAM[i]) return 1;
     return 2;
   };
-  // bit 29: fuera de los dos lados; bit 30: fuera del periodo o de la búsqueda; el resto, un bit por filtro
-  const OUT_SIDE = 1 << 29, OUT = 1 << 30;
+  // bit 28: fuera del periodo; bit 29: fuera de los dos lados; bit 30: fuera de la búsqueda; el resto, un bit por filtro
+  const OUT_PERIOD = 1 << 28, OUT_SIDE = 1 << 29, OUT = 1 << 30;
   let MASK = new Uint32Array(N), ACTIVE = [], CACHE = {};
   const refilter = () => {
     ACTIVE = Object.keys(S.f).filter((k) => S.f[k].size);
@@ -150,7 +157,7 @@ export const createModel = (data) => {
       let m = 0;
       SIDE[i] = sideOf(i);
       if (SIDE[i] === 2) m |= OUT_SIDE;
-      if (MONTH[i] < S.from || MONTH[i] > S.to) m |= OUT;
+      if (MONTH[i] < S.from || MONTH[i] > S.to) m |= OUT_PERIOD;
       if (q && !C.su[i].toLowerCase().includes(q) && !`inc${String(C.id[i]).padStart(12, '0')}`.includes(q)) m |= OUT;
       for (let a = 0; a < ACTIVE.length; a++) {
         const dm = DIMS[ACTIVE[a]], set = S.f[ACTIVE[a]], v = dm.get(i);
@@ -166,6 +173,15 @@ export const createModel = (data) => {
     const out = [];
     for (let i = 0; i < N; i++) if (!(MASK[i] & ~OUT_SIDE)) out.push(i);
     return (CACHE.pool = out);
+  };
+  // la foto de hoy: las que pasan los filtros sea cual sea su mes de apertura; con anySide, también las de
+  // ningún lado (para lo que aún no tiene responsable)
+  const today = (anySide = false) => {
+    const key = anySide ? 'today*' : 'today';
+    if (CACHE[key]) return CACHE[key];
+    const allow = OUT_PERIOD | (anySide ? OUT_SIDE : 0), out = [];
+    for (let i = 0; i < N; i++) if (!(MASK[i] & ~allow)) out.push(i);
+    return (CACHE[key] = out);
   };
   // filas que pasan los filtros (sin contar el de la dimensión `skip`, si se indica)
   const rows = (skip) => {
@@ -199,7 +215,7 @@ export const createModel = (data) => {
     const ttr = [], fr = [], ip = [];
     let crit = 0, hi = 0, vend = 0, pend = 0, reop = 0, bounce = 0, open = 0, open30 = 0, d1 = 0, h4 = 0, d3 = 0, f30 = 0, f120 = 0;
     let noCat = 0, noDesc = 0, noRes = 0, done = 0, slaOk = 0, slaKo = 0, noIp = 0, waitKo = 0;
-    let doneSla = 0, doneSlaOk = 0, doneIa = 0, started = 0, sameShift = 0;
+    let doneSla = 0, doneSlaOk = 0, doneIa = 0, started = 0, sameShift = 0, resSameShift = 0;
     const time = [0, 0, 0, 0, 0], t = [0, 0, 0], prio = new Array(DI.prio.length).fill(0), days = new Set(), inDays = new Set();
     for (const i of list) {
       if (TTR[i] >= 0) {
@@ -207,6 +223,7 @@ export const createModel = (data) => {
         // de las resueltas: si empezaron dentro del SLA, si llevan marca de IA y qué días se resolvieron
         if (SLA[C.pr[i]] >= 0) { doneSla++; if (C.ip[i] >= 0 && C.ip[i] <= SLA[C.pr[i]]) doneSlaOk++; }
         if (C.fl[i] & IA_MARKS) doneIa++;
+        if (slotOf(C.res[i]) === SLOT[i]) resSameShift++;
         days.add(Math.floor(C.res[i] / DAY));
       }
       prio[C.pr[i]]++;
@@ -245,12 +262,13 @@ export const createModel = (data) => {
       inPerDay: inDays.size ? list.length / inDays.size : null,   // entradas por día, en los días en que entró alguna
       ia: doneIa,                                            // resueltas con alguna marca de IA
       inShift: started ? sameShift / started : null,         // de las que se empezaron, las empezadas en el turno en que entraron
+      resInShift: ttr.length ? resSameShift / ttr.length : null,   // de las resueltas, las resueltas en el turno en que entraron
     };
   };
 
   return {
     data, C, DI, N, BASE, SNAP, LASTM, SLA, PRIOS, slaLabel, MONTH, DOW, HOUR, OPEN, TEAM, SIDE, DESCL, DIMS, S, STYPE,
-    CMP, CO, NAMES, refilter, rows, pool, toggle, isSel, group, bySide, byMonth, trend, stats, periodSlots, clock,
+    CMP, CO, NAMES, refilter, rows, pool, today, toggle, isSel, group, bySide, byMonth, trend, stats, periodSlots, clock,
     carry: (list) => carry(list, C, shiftType), shiftWork: (list) => shiftWork(list, C, (i) => OPEN[i], shiftType),
   };
 };
