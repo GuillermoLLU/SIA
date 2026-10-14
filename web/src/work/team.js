@@ -33,7 +33,7 @@ const COLS = {
 
 // m: el modelo de las Métricas; ch: sus piezas (charts.js); ui.sort.team: [columna, ±1].
 export const teamPanel = (m, ch, ui) => {
-  const { card, kpi, kpis, kpiCo, legend, lines } = ch;
+  const { card, diff, legend, lines } = ch;
   const A = m.rows(), sides = m.CO(), names = m.NAMES(), ST = m.bySide(A).map(m.stats);
 
   // las prioridades, una columna cada una (cuántas de cada)
@@ -43,30 +43,52 @@ export const teamPanel = (m, ch, ui) => {
   const order = ['n', 'open', ...m.PRIOS.map((p) => `p${p}`), 'sla', 'day', 'avg', 'd1', 'reop', 'bounce', 'noRes', 'ia'];
 
   // Backlog: lo que el equipo ve en sus búsquedas de Remedy (SGA y SISU), sin resolver, tenga
-  // responsable o no; de las issues abiertas en el periodo.
-  const { C, OPEN, MONTH, S, N } = m;
-  let backlog = 0, orphan = 0;
+  // responsable o no; de las issues abiertas en el periodo. Repartido: de su gente, sin responsable, de otros.
+  const { C, OPEN, MONTH, S, N, TEAM } = m, own = m.S.sides[0].company;
+  const queue = { all: 0, mine: 0, orphan: 0 };
   for (let i = 0; i < N; i++) {
     if (!OPEN[i] || MONTH[i] < S.from || MONTH[i] > S.to || (C.sc[i] !== SCOPE.SGA && C.sc[i] !== SCOPE.SISU)) continue;
-    backlog++;
-    if (!C.as[i]) orphan++;
+    queue.all++;
+    if (!C.as[i]) queue.orphan++; else if (TEAM[i] === own) queue.mine++;
   }
 
+  // Un bloque por tema: su cifra principal, unas pocas de apoyo y, si ayuda, una barra. Con un lado,
+  // sus valores; comparando, la diferencia (la tarjeta del ratón da los dos valores).
+  const cmp = m.CMP(), k0 = sides[0];
+  const fig = (fmt, val, better, stats = ST) => (cmp ? diff(stats[0], stats[1], fmt, val, better) : fmt(stats[k0]));
+  const item = (label, html, sw = '') => `<div class="wk-item"><span>${sw ? `<i class="mt-sw ${sw}"></i>` : ''}${label}</span><b>${html}</b></div>`;
+  const block = (title, label, hero, items, extra = '') => `<section class="wk-block"><h3>${title}</h3>
+    <div class="wk-hero"><b>${hero}</b><span>${label}</span></div>${extra}<div class="wk-items">${items.join('')}</div></section>`;
+  const bar = (share, cls = `mt-c${k0}`) => `<span class="wk-bar"><i class="${cls}" style="width:${Math.min(100, share * 100).toFixed(1)}%"></i></span>`;
   const perDay = (v) => (v == null ? '—' : dec(v));
-  const row1 = kpis(
-    kpiCo('Issues', ST, (s) => num(s.n), { val: (s) => s.n }),
-    kpiCo('Entradas al día', ST, (s) => perDay(s.inPerDay), { val: (s) => s.inPerDay, note: 'issues abiertas de media, en los días con alguna' }),
-    kpiCo('Resueltas al día', ST, (s) => perDay(s.perDay), { val: (s) => s.perDay, note: 'de media, en los días con alguna' }),
-    kpiCo('Abiertas ahora', ST, (s) => num(s.open), { val: (s) => s.open, note: 'con responsable de la empresa' }),
-    kpi('Backlog SGA + SISU', num(backlog), `${num(orphan)} sin responsable`, m.CMP() ? '' : `mt-t${sides[0]}`));
-  const row2 = kpis(
-    kpiCo('SLA cumplido', ST, donePct, { val: (s) => s.slaDone, better: 'high', note: 'de las resueltas' }),
-    kpiCo('Media de resolución', ST, (s) => dur(s.avg), { val: (s) => s.avg, better: 'low' }),
-    kpiCo('Resueltas en < 24 h', ST, (s) => pct(s.d1), { val: (s) => s.d1, better: 'high' }),
-    kpiCo('Reabiertas', ST, (s) => pct(s.reop, 1), { val: (s) => s.reop, better: 'low' }),
-    kpiCo('Uso de IA', ST, (s) => (s.resolved ? pct(s.ia / s.resolved, 1) : '—'), { val: (s) => (s.resolved ? s.ia / s.resolved : null), note: 'resueltas con alguna marca de IA' }));
-  // SLA cumplido por prioridad, de las resueltas: una caja por prioridad
-  const row3 = kpis(...m.PRIOS.map((p) => kpiCo(m.slaLabel(p), m.bySide(A.filter((i) => C.pr[i] === p)).map(m.stats), donePct, { val: (s) => s.slaDone, better: 'high', note: 'SLA cumplido' })));
+  const iaShare = (s) => (s.resolved ? s.ia / s.resolved : null);
+  const byPrio = m.PRIOS.map((p) => [p, m.bySide(A.filter((i) => C.pr[i] === p)).map(m.stats)]);
+
+  const volume = block('Volumen', 'issues en el periodo', fig((s) => num(s.n), (s) => s.n), [
+    item('Entradas al día', fig((s) => perDay(s.inPerDay), (s) => s.inPerDay)),
+    item('Resueltas al día', fig((s) => perDay(s.perDay), (s) => s.perDay)),
+  ], cmp ? '' : (() => {   // entradas frente a resueltas: si se resuelve al ritmo que entra
+    const st = ST[k0], max = Math.max(st.inPerDay || 0, st.perDay || 0) || 1;
+    return `<div class="wk-pace"><span>entran</span>${bar((st.inPerDay || 0) / max, 'mt-c2')}<span>se resuelven</span>${bar((st.perDay || 0) / max)}</div>`;
+  })());
+  const backlog = block('Cola', 'backlog SGA + SISU', num(queue.all), [
+    // de su gente: las del backlog con responsable de la empresa; comparando, todas sus abiertas, de un lado y del otro
+    item('De su gente', cmp ? fig((s) => num(s.open), (s) => s.open) : num(queue.mine), `mt-c${k0}`),
+    item('Sin responsable', num(queue.orphan), 'wk-orphan'),
+  ], queue.all ? `<span class="wk-split" data-tip="${esc(`Backlog SGA + SISU: ${num(queue.all)}\nDe su gente: ${num(queue.mine)}\nSin responsable: ${num(queue.orphan)}\nDe otros: ${num(queue.all - queue.mine - queue.orphan)}`)}"><i class="mt-c${k0}" style="flex:${queue.mine}"></i><i class="wk-orphan" style="flex:${queue.orphan}"></i><i class="mt-c2" style="flex:${queue.all - queue.mine - queue.orphan}"></i></span>` : '');
+  const sla = block('SLA de inicio', 'cumplido, de las resueltas', fig(donePct, (s) => s.slaDone, 'high'), [],
+    `<div class="wk-prios">${byPrio.map(([p, st]) => `<div class="wk-prio"><span>${m.slaLabel(p)}</span>${cmp ? '' : bar(st[k0].slaDone || 0)}<b>${fig(donePct, (s) => s.slaDone, 'high', st)}</b></div>`).join('')}</div>`);
+  const times = block('Tiempos', 'media de resolución', fig((s) => dur(s.avg), (s) => s.avg, 'low'), [
+    item('Resueltas en < 24 h', fig((s) => pct(s.d1), (s) => s.d1, 'high')),
+    item('P90 de resolución', fig((s) => dur(s.p90), (s) => s.p90, 'low')),
+  ]);
+  const quality = block('Calidad', 'reabiertas', fig((s) => pct(s.reop, 1), (s) => s.reop, 'low'), [
+    item('Devueltas a la cola', fig((s) => pct(s.bounce, 1), (s) => s.bounce, 'low')),
+    item('Sin texto de resolución', fig((s) => pct(s.noRes, 1), (s) => s.noRes, 'low')),
+  ]);
+  const ia = block('IA', 'de las resueltas, con marca de IA', fig((s) => (iaShare(s) == null ? '—' : pct(iaShare(s), 1)), iaShare), [
+    item('Resueltas con IA', fig((s) => num(s.ia), (s) => s.ia)),
+  ]);
 
   // persona a persona, cada una frente a la media de su equipo
   const people = m.group('as', A, true).filter((x) => x.k).map((x) => ({ ...m.stats(x.rows), k: x.k, side: x.t[0] ? 0 : 1 }));
@@ -86,12 +108,13 @@ export const teamPanel = (m, ch, ui) => {
   const table = `<div class="mt-tablewrap"><table class="wk-team"><thead><tr><th>Persona</th>${order.map(th).join('')}</tr></thead>
     <tbody>${people.map(row).join('') || `<tr><td colspan="${order.length + 1}" class="mt-mut">Nadie con issues en este periodo.</td></tr>`}${sides.map(teamRow).join('')}</tbody></table></div>`;
 
-  return `<div class="mt-grid wk-panel">
-    <div class="wk-row5">${row1}</div>
-    <div class="wk-row5">${row2}</div>
-    <h2 class="mt-sec">SLA cumplido por prioridad<small>de las resueltas, cuántas pasaron a En curso dentro del plazo de su prioridad</small></h2>
-    <div class="wk-row4">${row3}</div>
+  return `<div class="wk-panel">
+    ${cmp ? `<div class="wk-cmp">${legend()}<span class="mt-mut">Cada cifra es la diferencia de ${esc(names[0])} respecto a ${esc(names[1])}; pasa el ratón para ver los dos valores.</span></div>` : ''}
+    <div class="wk-blocks">${volume}${backlog}${sla}</div>
+    <div class="wk-blocks">${times}${quality}${ia}</div>
+    <div class="mt-grid">
     ${card('El equipo, persona a persona', table, { span: 's12', sub: 'Clic en una cabecera para ordenar (pasa el ratón por ella para ver qué mide) y en una persona para verla en Métricas frente al resto de su equipo.' })}
     ${card('Evolución del equipo', `${legend()}<div class="wk-evo"><div><p class="mt-small"><b>SLA cumplido</b></p>${lines(A, (s) => s.slaDone, (v) => pct(v))}</div><div><p class="mt-small"><b>Media de resolución</b></p>${lines(A, (s) => s.avg, dur)}</div></div>`, { span: 's12', sub: 'Por mes de apertura. * mes incompleto: lo más reciente sale mejor de lo que acabará.' })}
+    </div>
   </div>`;
 };
