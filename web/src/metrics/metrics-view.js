@@ -2,8 +2,8 @@
 // en vivo. Los datos salen del CSV completo de Remedy que carga cada persona
 // (el bridge los calcula y los guarda en este ordenador). Al entrar, siempre
 // el Resumen; arriba, los filtros, que valen para todas las pestañas, y con
-// un clic en cualquier barra, fila o celda se filtra por ese valor. Con una
-// persona elegida, todas las pestañas enseñan solo lo suyo.
+// un clic en cualquier barra, fila o celda se filtra por ese valor. Con
+// personas elegidas, todas las pestañas enseñan solo lo suyo.
 import './metrics.css';
 import { esc, fold } from '../ui/html.js';
 import { num, MONTHS } from './format.js';
@@ -71,11 +71,14 @@ export const mountMetricsView = (root, { api, toast }) => {
       <button class="mt-more" data-month-all>Todo ${m.data.meta.year}</button>`;
   };
 
-  // Persona: el botón dice a quién se mira; el desplegable, las personas con issues en lo que se
-  // ve (sin contar el filtro de persona), por empresa y de más a menos, con un buscador.
+  // Personas: el botón dice a quién se mira; el desplegable, las personas con issues en lo que se
+  // ve (sin contar el filtro de persona), por empresa y de más a menos, con un buscador. Cada clic
+  // marca o desmarca a una, y el desplegable sigue abierto para elegir más.
   const renderPeople = () => {
     const { S, DIMS, data } = m, sel = m.people();
-    $('[data-person]').textContent = !sel ? 'Todas las personas' : sel.length === 1 ? DIMS.as.label(sel[0]) : `${sel.length} personas`;
+    const btn = $('[data-person]');
+    btn.textContent = !sel ? 'Todas las personas' : sel.length === 1 ? DIMS.as.label(sel[0]) : `${sel.length} personas`;
+    btn.parentElement.title = sel?.length > 1 ? sel.map((k) => DIMS.as.label(k)).join('\n') : '';
     $('.mt-x[data-person-all]').hidden = !sel;
     const pop = $('[data-who]');
     pop.hidden = open !== 'people';
@@ -84,7 +87,7 @@ export const mountMetricsView = (root, { api, toast }) => {
     const groups = [0, 1, 2].map((c) => [c, all.filter((x) => data.company[x.k] === c)]).filter(([, l]) => l.length);
     $('[data-who-list]').innerHTML = `${q ? '' : `<button data-person-all class="${sel ? '' : 'mt-on'}">Todas las personas</button>`}
       ${groups.map(([c, l]) => `<p><i class="mt-sw mt-c${c}"></i>${c === 2 ? 'Fuera de la comparación' : COMPANIES[c]}</p>
-        ${l.map((x) => `<button data-person-pick="${x.k}" class="${S.f.as?.has(x.k) ? 'mt-on' : ''}"><span>${esc(DIMS.as.label(x.k))}</span><small>${num(x.n)}</small></button>`).join('')}`).join('')
+        ${l.map((x) => `<button data-person-pick="${x.k}" class="${S.f.as?.has(x.k) ? 'mt-on' : ''}" aria-pressed="${!!S.f.as?.has(x.k)}"><i class="mt-check"></i><span>${esc(DIMS.as.label(x.k))}</span><small>${num(x.n)}</small></button>`).join('')}`).join('')
       || '<p class="mt-mut">Nadie con ese nombre.</p>'}`;
   };
   const closePops = () => { open = null; anchor = null; who = ''; };
@@ -156,12 +159,13 @@ export const mountMetricsView = (root, { api, toast }) => {
       return render();
     }
     if (e.target.closest('[data-month-all]')) { S.from = 0; S.to = m.LASTM; closePops(); return render(); }
-    const person = e.target.closest('[data-person-pick],[data-person-all]');
-    if (person) {
-      if (person.dataset.personPick) S.f.as = new Set([Number(person.dataset.personPick)]); else delete S.f.as;
-      closePops();
+    const pick = e.target.closest('[data-person-pick]');
+    if (pick) {
+      m.toggle('as', Number(pick.dataset.personPick));
+      if (!S.f.as.size) delete S.f.as;
       return render();
     }
+    if (e.target.closest('[data-person-all]')) { delete S.f.as; closePops(); return render(); }
     if (open && !e.target.closest('.mt-pop')) { closePops(); renderPeriod(); renderPeople(); }
     if (e.target.closest('[data-search]')) {
       searching = !searching || !!S.q;

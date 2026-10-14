@@ -59,6 +59,8 @@
 .mt-who-list button small { font-size: 12px; color: var(--mt-low); font-variant-numeric: tabular-nums; }
 .mt-who-list button:hover { background: var(--mt-soft); }
 .mt-who-list button.mt-on { background: var(--mt-sel); font-weight: 600; }
+.mt-check { flex: none; width: 14px; height: 14px; border: 1.5px solid var(--mt-line); }
+.mt-on > .mt-check { background: var(--accent); border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--surface); }
 /* búsqueda: la lupa junto al número de issues */
 .mt-find { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .mt-find input { width: 220px; height: 30px; padding: 0 8px; font: inherit; font-size: 13px; color: var(--text); background: var(--surface); border: 1px solid var(--mt-line); }
