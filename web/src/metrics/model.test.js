@@ -91,6 +91,16 @@ test('indicadores de un grupo', () => {
   assert.deepEqual(s.time, [110, 2950, 0, 0, 0]);
 });
 
+test('de las resueltas: SLA cumplido, resueltas por día, prioridades y marcas de IA', () => {
+  const m = createModel(data());
+  const s = m.stats([0, 1, 3]);           // resueltas las tres; la 1 empezó a tiempo, la 2 tarde, la 4 nunca pasó a En curso
+  assert.equal(s.slaDoneOk, 1);
+  assert.equal(s.slaDone, 1 / 3);
+  assert.equal(s.perDay, 3 / 2);          // minutos 1060, 5000 y 5100: dos días distintos
+  assert.deepEqual(s.prio, [0, 1, 1, 0, 1]);
+  assert.equal(s.ia, 0);
+});
+
 test('todas las pestañas se pintan en cada modo, sin huecos ni NaN', () => {
   const m = createModel(data()), ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
   const sides = [[{ company: 0 }, { company: 1 }], [{ company: 0 }, null], [{ people: new Set([1]) }, { company: 1 }], [{ people: new Set([2]) }, { people: new Set([1]) }]];

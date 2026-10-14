@@ -187,9 +187,17 @@ export const createModel = (data) => {
     const ttr = [], fr = [], ip = [];
     let crit = 0, hi = 0, vend = 0, pend = 0, reop = 0, bounce = 0, open = 0, open30 = 0, d1 = 0, h4 = 0, d3 = 0, f30 = 0, f120 = 0;
     let noCat = 0, noDesc = 0, noRes = 0, done = 0, slaOk = 0, slaKo = 0, noIp = 0, waitKo = 0;
-    const time = [0, 0, 0, 0, 0], t = [0, 0, 0];
+    let doneSla = 0, doneSlaOk = 0, doneIa = 0;
+    const time = [0, 0, 0, 0, 0], t = [0, 0, 0], prio = new Array(DI.prio.length).fill(0), days = new Set();
     for (const i of list) {
-      if (TTR[i] >= 0) { ttr.push(TTR[i]); if (TTR[i] < DAY) d1++; if (TTR[i] < 240) h4++; if (TTR[i] < 3 * DAY) d3++; }
+      if (TTR[i] >= 0) {
+        ttr.push(TTR[i]); if (TTR[i] < DAY) d1++; if (TTR[i] < 240) h4++; if (TTR[i] < 3 * DAY) d3++;
+        // de las resueltas: si empezaron dentro del SLA, si llevan marca de IA y qué días se resolvieron
+        if (SLA[C.pr[i]] >= 0) { doneSla++; if (C.ip[i] >= 0 && C.ip[i] <= SLA[C.pr[i]]) doneSlaOk++; }
+        if (C.fl[i] & IA_MARKS) doneIa++;
+        days.add(Math.floor(C.res[i] / DAY));
+      }
+      prio[C.pr[i]]++;
       if (C.fr[i] >= 0) { fr.push(C.fr[i]); if (C.fr[i] < 30) f30++; if (C.fr[i] < 120) f120++; }
       if (OPEN[i]) { open++; if (SNAP - C.rep[i] > 30 * DAY) open30++; } else { done++; if (C.fl[i] & NO_RESOLUTION) noRes++; }
       if (!C.k3[i]) noCat++;
@@ -215,6 +223,10 @@ export const createModel = (data) => {
       sla: slaOk + slaKo ? slaOk / (slaOk + slaKo) : null, slaKo, waitKo, noIp: noIp / n, ip: mean(ip), ip90: quant(ip, 0.9),
       crit: crit / n, hi: hi / n, vend: vend / n, pend: pend / n, reop: reop / n, bounce: bounce / n,
       noCat: noCat / n, noDesc: noDesc / n, noRes: noRes / (done || 1), time,
+      prio,                                                  // cuántas de cada prioridad (por índice de DI.prio)
+      slaDone: doneSla ? doneSlaOk / doneSla : null, slaDoneOk: doneSlaOk,   // de las resueltas, las que empezaron en plazo
+      perDay: days.size ? ttr.length / days.size : null,     // resueltas por día, en los días en que se resolvió alguna
+      ia: doneIa,                                            // resueltas con alguna marca de IA
     };
   };
 
