@@ -4,7 +4,7 @@
 // Se relee solo si cambia el fichero.
 import fs from 'node:fs';
 import path from 'node:path';
-import { parseCsv } from './csv.js';
+import { parseCsv } from '../shared/csv.js';
 import { toIssue } from './issue.js';
 
 export const createIssuesSource = (dir) => {
