@@ -21,9 +21,10 @@ const PRIO = 2;
 // etiqueta de priorizada por negocio, que va además de su SGA o SISU. 3: sin tarjeta.
 export const CARDS = ['SGA', 'SISU', 'PRIO', 'Sin tarjeta'];
 
-// Situación de cada issue, como la mira el equipo: abierta en curso, sin empezar (Asignada) o en espera
+// Situación de cada issue, como la mira el equipo: abierta en curso; en Asignada sin tocar (ningún cambio de
+// estado desde que se abrió ni ticket de tercero) o devuelta a Asignada (ya se trabajó antes); en espera
 // (Pendiente) de un tercero, del cliente o por otro motivo; o cerrada.
-export const SITUATIONS = ['En curso', 'Sin empezar', 'Espera tercero', 'Espera cliente', 'Espera otro motivo', 'Cerrada'];
+export const SITUATIONS = ['En curso', 'Sin tocar', 'Devuelta a Asignada', 'Espera tercero', 'Espera cliente', 'Espera otro motivo', 'Cerrada'];
 const VENDOR_REASON = 'THIRD_PARTY_VENDOR_ACTION_REQD', CLIENT_REASONS = ['CLIENT_ACTION_REQUIRED', 'CUSTOMER_FOLLOW_UP_REQUIRED'];
 
 // Tramos de tiempo de resolución y de antigüedad (minutos).
@@ -66,7 +67,12 @@ export const createModel = (data) => {
   const OPEN_ST = new Set(['ASSIGNED', 'IN_PROGRESS', 'PENDING'].map((s) => DI.status.indexOf(s)));
   const [ASSIGNED, IN_PROGRESS] = ['ASSIGNED', 'IN_PROGRESS'].map((x) => DI.status.indexOf(x));
   const VENDOR = DI.reason.indexOf(VENDOR_REASON), CLIENT = CLIENT_REASONS.map((r) => DI.reason.indexOf(r)).filter((k) => k > 0);
-  const situation = (i) => (!OPEN[i] ? 5 : C.st[i] === IN_PROGRESS ? 0 : C.st[i] === ASSIGNED ? 1 : C.rs[i] === VENDOR ? 2 : CLIENT.includes(C.rs[i]) ? 3 : 4);
+  const situation = (i) => {
+    if (!OPEN[i]) return 6;
+    if (C.st[i] === IN_PROGRESS) return 0;
+    if (C.st[i] === ASSIGNED) return C.fr[i] < 0 && !C.vt[i] ? 1 : 2;
+    return C.rs[i] === VENDOR ? 3 : CLIENT.includes(C.rs[i]) ? 4 : 5;
+  };
   const shiftType = typeOf(weekendOf(BASE));   // tipo del turno de un instante (shifts.js): 0–2 laborables, 3–5 fin de semana
 
   // --- lo que se deriva de cada issue

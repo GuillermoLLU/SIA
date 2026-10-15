@@ -109,9 +109,11 @@ export const createTabs = (m, ch, ui) => {
     })];
   };
 
-  // --- Lo pendiente. Su situación (model.js, SITUATIONS): en curso, sin empezar (Asignada) o en espera (Pendiente)
-  // de un tercero, del cliente o por otro motivo; las cinco suman todo lo abierto.
-  const SIT_TIPS = ['Alguien está trabajando en ellas.', 'En Asignada: nadie las está trabajando.', 'En Pendiente por una acción de un tercero (desarrollo, proveedor…).',
+  // --- Lo pendiente. Su situación (model.js, SITUATIONS): en curso, en Asignada sin tocar o devuelta, o en espera
+  // (Pendiente) de un tercero, del cliente o por otro motivo; las seis suman todo lo abierto.
+  const SIT_TIPS = ['Alguien está trabajando en ellas.', 'En Asignada y sin ningún movimiento desde que se abrieron: nadie las ha mirado.',
+    'En Asignada, pero ya se trabajaron: pasaron por En curso o Pendiente, o tienen ticket de tercero. Están paradas en la cola.',
+    'En Pendiente por una acción de un tercero (desarrollo, proveedor…).',
     'En Pendiente por una acción o respuesta del centro o del cliente.', 'En Pendiente con otro motivo o sin motivo informado.'];
   const SITUATION = SIT_TIPS.map((tip, k) => ({ label: SITUATIONS[k], test: (i) => m.DIMS.sit.get(i) === k, f: `sit:${k}`, tip }));
   // los dos tramos de antigüedad de más de 15 días, para filtrar con un clic
@@ -125,7 +127,7 @@ export const createTabs = (m, ch, ui) => {
   };
   // lo que no tiene a nadie: abierto, de las tarjetas del equipo (SGA, SISU o PRIO) y del periodo, con los filtros
   const orphansIn = () => m.today(true).filter((i) => OPEN[i] && !C.as[i] && inPeriod(i) && cardsOf(i).some((k) => k < 3));
-  // Lo pendiente, de un vistazo y en orden: el total; en qué punto está (en curso, sin empezar y en espera de
+  // Lo pendiente, de un vistazo y en orden: el total; en qué punto está (en curso, sin tocar, devuelta y en espera de
   // un tercero, del cliente u otro motivo, que suman el total), en una barra; lo que conviene vigilar dentro
   // (se solapa: no se suma) y, aparte, lo de nuestras tarjetas que no tiene a nadie (no está en el total).
   const stockPanel = (T, ST) => {
@@ -143,7 +145,7 @@ export const createTabs = (m, ch, ui) => {
     const watch = [
       ['Fuera de plazo', count(late), 'Nunca han pasado a En curso y ya superan el plazo de su prioridad.', 'sl:4', 'low'],
       ['Con más de 15 días', count((i) => m.SNAP - C.rep[i] > OLD), 'Llevan más de 15 días abiertas: si sube, el backlog envejece.', OLD15, 'low'],
-      ['Escaladas', count((i) => C.vt[i] > 0), 'Con ticket de tercero, estén en el estado que estén (por eso no coincide con «espera tercero»: algunas ya se están trabajando o están en cola).', 'es:1', null],
+      ['Escaladas', count((i) => C.vt[i] > 0), 'Con ticket de tercero, estén en el estado que estén (por eso no coincide con «espera tercero»: algunas ya se están trabajando o han vuelto a la cola).', 'es:1', null],
       ['Críticas', count((i) => C.pr[i] === CRITICAL), 'De prioridad crítica.', `pr:${CRITICAL}`, 'low'],
       ['PRIO', count((i) => cardsOf(i).includes(2)), 'Priorizadas por negocio.', 'tj:2', 'low'],
     ];
@@ -281,7 +283,7 @@ export const createTabs = (m, ch, ui) => {
       const idle = (i) => (lm ? now - lm[i] : null);   // sin ningún cambio desde hace (minutos); null con datos de antes de guardar el último cambio
       const IDLE = 5 * 1440;
       const late = (i) => { const l = m.SLA[C.pr[i]]; return C.ip[i] < 0 && l >= 0 && now - C.rep[i] > l; };
-      const waits = (i) => { const k = m.DIMS.sit.get(i); return k === 2 ? 'v' : k === 3 ? 'c' : ''; };
+      const waits = (i) => { const k = m.DIMS.sit.get(i); return k === 3 ? 'v' : k === 4 ? 'c' : ''; };
       const count = (test) => T.map((l) => ({ n: l.length || 1, v: l.filter(test).length }));
       // una lista de issues: cada fila con su enlace a Remedy
       const list = (id, rowsIn, o = {}) => {
