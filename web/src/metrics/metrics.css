@@ -365,3 +365,10 @@
 .mt-view .mt-sc tr.mt-off th, .mt-view .mt-sc tr.mt-off td { opacity: .42; }
 .mt-view .mt-sc tr.mt-off:hover th, .mt-view .mt-sc tr.mt-off:hover td { opacity: .8; }
 .mt-view .mt-sc tr.mt-sel th.mt-r { background: var(--mt-sel); box-shadow: inset 3px 0 0 var(--accent); }
+/* ficha con filas que se despliegan (temas → problemas): ▸ despliega, la fila filtra; los hijos, sangrados y en un tono */
+.mt-sc-tog { width: 18px; margin: 0 4px 0 -4px; padding: 0; border: 0; font-size: 11px; color: var(--accent); background: none; cursor: pointer; }
+.mt-view .mt-sc tr.mt-sc-open th, .mt-view .mt-sc tr.mt-sc-open td { border-bottom-color: transparent; }
+.mt-view .mt-sc tr.mt-sc-kid th, .mt-view .mt-sc tr.mt-sc-kid td { font-size: 12px; background: color-mix(in srgb, var(--mt-soft) 55%, transparent); }
+.mt-view .mt-sc tr.mt-sc-kid th.mt-r { padding-left: 32px; font-weight: 450; }
+.mt-view .mt-sc tr.mt-sc-others th, .mt-view .mt-sc tr.mt-sc-others td { font-style: italic; color: var(--mt-low); }
+.mt-view .mt-sc col.mt-sc-same { width: 9%; }

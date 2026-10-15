@@ -109,6 +109,10 @@ export const createModel = (data) => {
     de: { name: 'Problema', get: (i) => C.de[i], label: (k) => DI.problem[k] || '(título sin descripción del problema)' },
     th: { name: 'Tema', multi: true, label: (k) => data.themes[k] || 'Sin tema detectado',
       get: (i) => { const t = C.th[i], o = []; if (!t) return [data.themes.length]; for (let j = 0; j < data.themes.length; j++) if (t >> j & 1) o.push(j); return o; } },
+    // el primero de sus temas (van de más concreto a más general: «cancelar pedido» es Cancelar, no Pedidos), para
+    // que cada issue cuente en uno solo y los temas sumen el total
+    tp: { name: 'Tema', label: (k) => data.themes[k] || 'Sin tema detectado',
+      get: (i) => { const t = C.th[i]; return t ? 31 - Math.clz32(t & -t) : data.themes.length; } },
     fl: { name: 'Marca', multi: true, label: (k) => FLAGS[k][1], get: (i) => { const f = C.fl[i], o = []; for (let j = 0; j < FLAGS.length; j++) if (f & FLAGS[j][0]) o.push(j); return o; } },
     // cómo se inició respecto a su SLA
     sl: { name: 'SLA de inicio', label: (k) => SLA_NAMES[k], get: (i) => {

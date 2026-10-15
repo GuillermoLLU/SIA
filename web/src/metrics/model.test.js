@@ -161,3 +161,22 @@ test('todas las pestañas se pintan en cada modo, sin huecos ni NaN', () => {
     }
   }
 });
+
+test('tema principal: el primero de los suyos, para que cada issue cuente en uno solo; sin tema, el último', () => {
+  const m = createModel(data());   // th: [A, B, A y B, ninguno, ninguno]
+  assert.deepEqual([0, 1, 2, 3].map(m.DIMS.tp.get), [0, 1, 0, 2]);
+  assert.equal(m.DIMS.tp.label(2), 'Sin tema detectado');
+});
+
+test('ficha con filas que se despliegan: el tema, en sus problemas; «Otros» suma lo que no cabe', () => {
+  const d = data(); d.cols.de = [1, 0, 2, 0, 0]; d.dict.problem = ['', 'etiqueta mal', 'otro'];
+  const m = createModel(d), ui = { exp: {}, sort: {} }, ch = createCharts(m, ui);
+  m.refilter();
+  const html = () => ch.scorecard('tp', [['Volumen', ['n']]], { id: 't', child: { dim: 'de', top: 1, noun: 'problemas' } });
+  assert.equal((html().match(/mt-sc-kid/g) || []).length, 0);
+  ui.exp['t:0'] = true;   // Tema A: las issues 1 y 3 (la 2 es de T-Systems)
+  const h = html();
+  assert.match(h, /data-f="de:\d"/);
+  assert.match(h, /Otros 1 problemas/);
+  assert.equal((h.match(/mt-sc-kid/g) || []).length, 2);
+});

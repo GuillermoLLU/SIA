@@ -147,6 +147,8 @@ export const createCharts = (m, ui) => {
   // solo con al menos SC_MIN issues, para no marcar lo que dice poco). Las o.top primeras y «Resto», para que
   // sume el total; un clic en «Resto» las enseña todas. Clic en una cabecera ordena; en una fila, filtra. Comparando,
   // cada cifra es la del primer lado con su diferencia respecto al otro.
+  // o.child: { dim, top, noun }: cada fila se despliega (▸) en sus valores de otra dimensión (los temas, en sus problemas),
+  // ordenados igual; los o.child.top primeros y «Otros», para que sumen la fila.
   const SC_MIN = 30;
   const SC = {
     n: ['Issues', null, (s) => s.n, 'Issues recibidas en el periodo y su parte del total.'],
@@ -161,8 +163,11 @@ export const createCharts = (m, ui) => {
     // con o.extra: top, el valor de otra dimensión que más se repite ({ label, share }); mi, los major incidents
     top: ['Lo que más falla', null, null, 'El módulo con más issues y su parte.'],
     mi: ['Major inc.', null, (s) => s.mi, 'Issues con la etiqueta de major incident en sus notas de trabajo.'],
+    // con o.extra: nce, en cuántos centros pasa; same, de las resueltas, la parte cerrada con el texto más usado
+    nce: ['Centros', null, (s) => s.nce, 'En cuántos centros distintos ha pasado. En uno, es algo local; en muchos, del sistema.'],
+    same: ['Mismo cierre', null, (s) => s.same, 'De las resueltas, la parte cerrada con el mismo texto de resolución (el más usado). Si es alta, se resuelve siempre igual: se puede automatizar o llevar a la IA.'],
   };
-  const SC_FMT = { sla: (v) => (v == null ? '—' : pct(v)), avg: dur, d1: (v) => pct(v), reop: (v) => pct(v, 1), crit: (v) => pct(v), vend: (v) => pct(v), open: num, mi: (v) => (v ? num(v) : '') };
+  const SC_FMT = { sla: (v) => (v == null ? '—' : pct(v)), avg: dur, d1: (v) => pct(v), reop: (v) => pct(v, 1), crit: (v) => pct(v), vend: (v) => pct(v), open: num, mi: (v) => (v ? num(v) : ''), nce: num, same: pct };
   const scorecard = (dim, groups, o = {}) => {
     const id = o.id || `sc-${dim}`, list = o.rows || rows(dim), cmp = CMP(), cols = groups.flatMap(([, c]) => c);
     const side = (l) => (cmp ? l.filter((i) => SIDE[i] === 0) : l), other = (l) => l.filter((i) => SIDE[i] === 1);
@@ -172,7 +177,8 @@ export const createCharts = (m, ui) => {
     const srt = ui.sort[id] || ['n', -1], key = (r) => SC[srt[0]][2](r) ?? -Infinity;
     // al ordenar por cómo se atiende, lo que tiene pocas issues va al final: su cifra dice poco
     const few = (r) => (SC[srt[0]][1] && r.n < SC_MIN ? 1 : 0);
-    const data = all.map((x) => ({ ...full(x.rows), k: x.k })).sort((a, b) => few(a) - few(b) || (key(a) - key(b)) * srt[1] || b.n - a.n);
+    const order = (a, b) => few(a) - few(b) || (key(a) - key(b)) * srt[1] || b.n - a.n;
+    const data = all.map((x) => ({ ...full(x.rows), k: x.k, rows: x.rows })).sort(order);
     // lo marcado (filtrado) va primero y siempre a la vista, aunque estuviera en «Resto»; lo demás, apagado
     const picked = data.filter((r) => isSel(dim, r.k)), any = picked.length > 0;
     const ordered = any ? [...picked, ...data.filter((r) => !isSel(dim, r.k))] : data;
@@ -194,10 +200,21 @@ export const createCharts = (m, ui) => {
     };
     const head = (c) => `<th class="mt-num ${srt[0] === c ? 'mt-srt' : ''}" ${SC[c][2] ? `data-sort="${id}:${c}"` : ''} data-tip="${esc(SC[c][3])}">${SC[c][0]}${srt[0] === c ? (srt[1] < 0 ? ' ↓' : ' ↑') : ''}</th>`;
     const colgroup = `<colgroup><col class="mt-sc-first">${groups.map(([, c]) => c.map((x, j) => `<col class="${j ? '' : 'mt-gsep'} mt-sc-${x}">`).join('')).join('')}</colgroup>`;
-    const row = (label, r, attrs = '', isRef = false) => `<tr ${attrs}><th class="mt-r" title="${esc(label)}">${esc(label)}</th>${cols.map((c) => cell(c, r, isRef)).join('')}</tr>`;
+    const row = (label, r, attrs = '', isRef = false, lead = '') => `<tr ${attrs}><th class="mt-r" title="${esc(label)}">${lead}${esc(label)}</th>${cols.map((c) => cell(c, r, isRef)).join('')}</tr>`;
+    const ch = o.child, cd = ch && DIMS[ch.dim], kidAny = ch && m.S.f[ch.dim]?.size > 0;
+    const kids = (r) => {
+      const g = group(ch.dim, r.rows, true).map((x) => ({ ...full(x.rows), k: x.k, rows: x.rows })).sort(order), top = g.slice(0, ch.top || 8);
+      const others = g.length > top.length ? full(g.slice(top.length).flatMap((x) => x.rows)) : null;
+      return top.map((x) => row(cd.label(x.k), x, `class="mt-clk mt-sc-kid ${isSel(ch.dim, x.k) ? 'mt-sel' : any || kidAny ? 'mt-off' : ''}" data-f="${ch.dim}:${x.k}"`)).join('')
+        + (others ? row(`Otros ${num(g.length - top.length)} ${ch.noun}`, others, `class="mt-sc-kid mt-sc-others ${any || kidAny ? 'mt-off' : ''}"`) : '');
+    };
+    const parent = (r) => {
+      const ek = `${id}:${r.k}`, tog = ch ? `<button class="mt-sc-tog" data-exp="${ek}" data-tip="${ui.exp[ek] ? 'Recoger' : 'Ver sus problemas'}">${ui.exp[ek] ? '▾' : '▸'}</button>` : '';
+      return row(DIMS[dim].label(r.k), r, `class="mt-clk ${isSel(dim, r.k) ? 'mt-sel' : any ? 'mt-off' : ''} ${ch && ui.exp[ek] ? 'mt-sc-open' : ''}" data-f="${dim}:${r.k}"`, false, tog) + (ch && ui.exp[ek] ? kids(r) : '');
+    };
     return `${cmp ? `<p class="mt-small mt-mut mt-sc-cmp">Cifras de ${esc(name(0))}; debajo, la diferencia con ${esc(name(1))}.</p>` : ''}<div class="mt-tablewrap"><table class="mt-sc">${colgroup}
       <thead><tr class="mt-cgrp"><th rowspan="2" class="mt-sc-title">${esc(o.title || DIMS[dim].name)}</th>${groups.map(([t, c]) => `<th colspan="${c.length}">${t}</th>`).join('')}</tr><tr>${cols.map(head).join('')}</tr></thead><tbody>
-      ${shown.map((r) => row(DIMS[dim].label(r.k), r, `class="mt-clk ${isSel(dim, r.k) ? 'mt-sel' : any ? 'mt-off' : ''}" data-f="${dim}:${r.k}"`)).join('')}
+      ${shown.map(parent).join('')}
       ${rest ? row(`Resto (${data.length - shown.length})`, rest, `class="mt-sc-rest ${any ? 'mt-off' : ''}" data-exp="${id}" data-tip="Ver todos"`) : ''}
       ${open && data.length > top ? `<tr class="mt-sc-less" data-exp="${id}"><th class="mt-r" colspan="${cols.length + 1}">Ver menos</th></tr>` : ''}
       ${row(o.refLabel || 'Todos', ref, 'class="mt-sc-ref"', true)}

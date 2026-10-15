@@ -80,6 +80,16 @@ export const createTabs = (m, ch, ui) => {
     st.top = g.length ? { label: m.DIMS.mo.label(g[0].k), share: g[0].n / (l.length || 1) } : null;
     st.mi = l.filter((i) => C.fl[i] & MAJOR).length;
   };
+  // y la de los problemas, por tema: cuánto se repiten, en cuántos centros y si se cierran siempre igual (esto, solo
+  // de un problema: en un tema o en el total se mezclan problemas distintos)
+  const PB_GROUPS = [['Volumen', ['n', 'dl', 'nce']], ['Cómo se resuelve', ['avg', 'd1', 'reop', 'vend', 'same']], ['Hoy', ['open']]];
+  const problemExtra = (st, l) => {
+    const ce = new Set(), rz = new Map();
+    let done = 0;
+    for (const i of l) { if (C.ce[i]) ce.add(C.ce[i]); if (!OPEN[i] && C.res[i] >= 0) { done++; if (C.rz[i]) rz.set(C.rz[i], (rz.get(C.rz[i]) || 0) + 1); } }
+    st.nce = ce.size;
+    st.same = done && l.every((i) => C.de[i] === C.de[l[0]]) ? Math.max(0, ...rz.values()) / done : null;
+  };
   const CARD_NOTE = 'SGA y SISU, por los filtros de Remedy del equipo; PRIO, priorizada por negocio, cuenta además en su SGA o SISU.';
 
   // Mapa de calor día de la semana × hora de un instante de cada issue (la apertura, la resolución…).
@@ -410,10 +420,9 @@ export const createTabs = (m, ch, ui) => {
         card('', scorecard('ce', CE_GROUPS, { id: 'md-ce', skip: noK, refLabel: 'Todos los centros', extra: centreExtra, title: 'Centros' }), { span: 's12' }),
         card('', scorecard('mo', MOD_GROUPS, { id: 'md-mo', skip: noK, refLabel: 'Todos los módulos', title: 'Módulos' }), { span: 's12' }),
         card('', heat('ce', 'mo', 18, 14, { skipR: noK, skipC: noK, title: true }), { span: 's12' }),
-        card('', heat('th', 'mo', 16, 14, { skipR: noTheme, skipC: noK, title: true }), { span: 's12' }),
+        card('', heat('tp', 'mo', 16, 14, { skipR: noTheme, skipC: noK, title: true }), { span: 's12' }),
         card('', heat('pr', 'mo', 4, 14, { skipR: noK, skipC: noK, orderR: PRIOS, title: true }), { span: 's12' }),
-        card('Problemas que más se repiten', ranking('de', ['n', 'sh', 'avg', 'd1', 'reop', 'vend', 'tr'], { id: 'md-de', skip: noK, min: 5, top: 15 }), { span: 's12', sub: 'Mismo título tras quitar centro, criticidad y números: lo que vuelve una y otra vez y cuánto cuesta resolverlo. Clic en uno para ver todas las métricas solo de ese problema.' }),
-        card('Temas en los títulos', legend() + bars('th', { top: 14 }), { sub: 'Detectados por palabras clave; una issue puede estar en varios. «Sin tema» son títulos que no encajan en ninguno.' }));
+        card('', scorecard('tp', PB_GROUPS, { id: 'md-pb', refLabel: 'Todos los problemas', extra: problemExtra, title: 'Problemas', top: 14, child: { dim: 'de', top: 8, noun: 'problemas' } }), { span: 's12' }));
     },
 
     resolucion(A) {
