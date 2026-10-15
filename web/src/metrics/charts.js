@@ -15,8 +15,8 @@ export const createCharts = (m, ui) => {
   const { DIMS, LASTM, CO, CMP, NAMES, isSel, rows, group, stats, bySide, byMonth, trend, SIDE, MONTH } = m;
   const name = (k) => NAMES()[k];   // el nombre de cada lado: una empresa, una persona o «N personas»
 
-  // o.cross: [filas, columnas] de un mapa de calor; el título va centrado, «filas × columnas»
-  const card = (t, body, o = {}) => `<section class="mt-card ${o.span ? `mt-${o.span}` : ''} ${o.cross ? 'mt-cross' : ''}"><h3>${o.cross ? `${esc(o.cross[0])}<i>×</i>${esc(o.cross[1])}` : t}</h3>${o.sub ? `<p class="mt-sub">${o.sub}</p>` : ''}${body}</section>`;
+  // sin título (t vacío), la tarjeta es solo su contenido: p. ej. un mapa de calor que lleva el título dentro
+  const card = (t, body, o = {}) => `<section class="mt-card ${o.span ? `mt-${o.span}` : ''}">${t ? `<h3>${t}</h3>` : ''}${o.sub ? `<p class="mt-sub">${o.sub}</p>` : ''}${body}</section>`;
   const legend = () => `<div class="mt-legend">${CO().map((k) => `<span><i class="mt-c${k}"></i>${esc(name(k))}</span>`).join('')}</div>`;
   const kpi = (l, v, d = '', cls = '') => `<div class="mt-kpi ${cls}"><div class="mt-kpi-l">${l}</div><div class="mt-kpi-v">${v}</div><div class="mt-kpi-d">${d}</div></div>`;
   const kpis = (...k) => `<div class="mt-kpis">${k.join('')}</div>`;
@@ -224,7 +224,9 @@ export const createCharts = (m, ui) => {
     // cabeceras en horizontal; si son muchas (módulos, centros…), columnas iguales y el nombre cortado con «…» (entero al pasar el ratón)
     const v = 'mt-h', wide = Cc.length > 6;
     const cg = wide ? `<colgroup><col style="width:22%">${'<col>'.repeat(Cc.length)}<col style="width:6%"></colgroup>` : '';
-    return `<div class="mt-tablewrap"><table class="mt-hm ${wide ? 'mt-hwide' : ''}">${cg}<thead><tr><th></th>${Cc.map((c) => `<th class="${v}" data-tip="${esc(dc.label(c.k))}">${esc(dc.label(c.k))}</th>`).join('')}<th class="${v}">Total</th></tr></thead><tbody>
+    // o.title: el título, dentro de la tabla, en la esquina de la fila de cabecera («Centro × Módulo»)
+    const corner = o.title ? `<th class="mt-hm-title">${esc(DIMS[rd].name.split(' ')[0])}<i>×</i>${esc(dc.name.split(' ')[0])}</th>` : '<th></th>';
+    return `<div class="mt-tablewrap"><table class="mt-hm ${wide ? 'mt-hwide' : ''} ${o.title ? 'mt-hm-titled' : ''}">${cg}<thead><tr>${corner}${Cc.map((c) => `<th class="${v}" data-tip="${esc(dc.label(c.k))}">${esc(dc.label(c.k))}</th>`).join('')}<th class="${v}">Total</th></tr></thead><tbody>
       ${R.map((r, i) => `<tr><th class="mt-r" title="${esc(dr.label(r.k))}">${esc(dr.label(r.k))}</th>${mt[i].map((t, j) => cell(t, i, j)).join('')}<td class="mt-mut mt-total">${num(r.n)}</td></tr>`).join('')}</tbody></table></div>`;
   };
 

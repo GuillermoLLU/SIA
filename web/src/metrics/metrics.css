@@ -335,8 +335,8 @@
 .mt-view .mt-sc tr.mt-sc-rest th, .mt-view .mt-sc tr.mt-sc-rest td { color: var(--mt-low); font-style: italic; }
 .mt-view .mt-sc td.mt-worse { font-weight: 650; color: color-mix(in srgb, #c98a2b 70%, var(--text)); background: color-mix(in srgb, #c98a2b 16%, var(--mt-card)); }
 
-/* Mapas de calor: el título centrado, «Filas × Columnas», con el × en el color del panel */
-.mt-view .mt-card.mt-cross h3 { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 14px;
-  font-size: 15px; font-weight: 650; letter-spacing: .3px; text-transform: none; color: var(--text); }
-.mt-view .mt-card.mt-cross h3 i { font-size: 17px; font-style: normal; font-weight: 400; color: var(--mt-c0); }
-.mt-view .mt-card.mt-cross h3::before, .mt-view .mt-card.mt-cross h3::after { content: ''; flex: 0 1 60px; height: 1px; background: var(--mt-line); }
+/* Mapas de calor con el título dentro: la fila de cabecera es una franja de fondo suave, con el título en la
+   esquina («Centro × Módulo») y los nombres de las columnas, todo en una unidad con la tabla */
+.mt-view table.mt-hm-titled thead th { padding-top: 8px; padding-bottom: 8px; background: var(--mt-soft); border-bottom: 2px solid var(--mt-line); }
+.mt-view table.mt-hm-titled th.mt-hm-title { font-size: 13px; font-weight: 650; text-align: left; vertical-align: bottom; color: var(--text); }
+.mt-view table.mt-hm-titled th.mt-hm-title i { margin: 0 7px; font-style: normal; font-weight: 400; color: var(--mt-c0); }
