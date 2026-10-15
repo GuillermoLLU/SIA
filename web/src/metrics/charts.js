@@ -220,10 +220,10 @@ export const createCharts = (m, ui) => {
       const v = tot(t), a = v ? Math.round(8 + 92 * Math.pow(v / max, 0.6)) : 0;
       return `<td class="${a > 50 ? 'mt-hot' : ''}" style="--mt-a:${a}%" ${o.noClick ? '' : `data-f2="${rd}:${R[r].k}|${cd}:${Cc[c].k}"`} data-tip="${esc(`${dr.label(R[r].k)} × ${dc.label(Cc[c].k)}\n${num(v)} issues\n${CO().map((k) => `${name(k)}: ${num(t[k])}`).join(' · ')}`)}">${v || ''}</td>`;
     };
-    // cabeceras en horizontal; si son muchas (módulos, centros…), columnas iguales y nombres en dos líneas si no caben
+    // cabeceras en horizontal; si son muchas (módulos, centros…), columnas iguales y el nombre cortado con «…» (entero al pasar el ratón)
     const v = 'mt-h', wide = Cc.length > 6;
     const cg = wide ? `<colgroup><col style="width:22%">${'<col>'.repeat(Cc.length)}<col style="width:6%"></colgroup>` : '';
-    return `<div class="mt-tablewrap"><table class="mt-hm ${wide ? 'mt-hwide' : ''}">${cg}<thead><tr><th></th>${Cc.map((c) => `<th class="${v}" title="${esc(dc.label(c.k))}">${esc(dc.label(c.k))}</th>`).join('')}<th class="${v}">Total</th></tr></thead><tbody>
+    return `<div class="mt-tablewrap"><table class="mt-hm ${wide ? 'mt-hwide' : ''}">${cg}<thead><tr><th></th>${Cc.map((c) => `<th class="${v}" data-tip="${esc(dc.label(c.k))}">${esc(dc.label(c.k))}</th>`).join('')}<th class="${v}">Total</th></tr></thead><tbody>
       ${R.map((r, i) => `<tr><th class="mt-r" title="${esc(dr.label(r.k))}">${esc(dr.label(r.k))}</th>${mt[i].map((t, j) => cell(t, i, j)).join('')}<td class="mt-mut mt-total">${num(r.n)}</td></tr>`).join('')}</tbody></table></div>`;
   };
 
