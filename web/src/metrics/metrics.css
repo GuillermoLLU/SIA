@@ -227,6 +227,7 @@
 .mt-ans h3 { margin: 0; font-size: 15px; font-weight: 650; letter-spacing: 0; text-transform: none; color: var(--text); }
 .mt-go { flex: none; padding: 3px 8px; font: inherit; font-size: 12px; font-weight: 600; color: var(--accent); background: none; border: 1px solid transparent; cursor: pointer; }
 .mt-go:hover { border-color: var(--mt-line); background: var(--mt-soft); }
+.mt-gos { display: flex; flex: none; gap: 2px; }
 .mt-figs { display: flex; flex-direction: column; }
 .mt-fig { display: grid; grid-template-columns: 1fr auto auto; align-items: baseline; gap: 10px; padding: 6px 0; border-top: 1px solid var(--border); }
 .mt-fig span { overflow: hidden; font-size: 13px; color: var(--mt-low); text-overflow: ellipsis; white-space: nowrap; }
