@@ -8,14 +8,12 @@ import { num, dec, pct, dur, nice, title, dateOf, MONTHS, DOWS } from './format.
 import { CARDS, MAJOR, IA_MARKS, share } from './model.js';
 import { SHIFTS, SHIFT_HOURS, DAYS, MIN_ACTIONS } from './shifts.js';
 
-export const TABS = [['resumen', 'Resumen'], ['hoy', 'Foto de hoy'], ['carga', 'Entrada y backlog'], ['backlog', 'Backlog'], ['reparto', 'Reparto'], ['modulos', 'Módulos y focos'],
+export const TABS = [['resumen', 'Resumen'], ['hoy', 'Foto de hoy'], ['carga', 'Entrada y backlog'], ['modulos', 'Módulos y focos'],
   ['resolucion', 'Resolución y escalados'], ['sla', 'SLA y calidad'], ['ia', 'IA'], ['turnos', 'Turnos']];
 const QUESTIONS = {
   resumen: ['¿Cómo vamos?', 'Cada bloque responde a una pregunta con sus cifras clave; el detalle, en su pestaña.'],
   hoy: ['¿Qué hay que mover hoy?', 'Lo abierto ahora mismo, sea del mes que sea (no depende del periodo), en listas para actuar: lo urgente, lo que espera y lo que está parado.'],
   carga: ['¿Qué tenemos?', 'Lo que entra, cuánto se cierra y lo que queda pendiente: de qué tipo, en qué situación y desde cuándo. Cada tabla lleva su total y los totales cuadran con las cifras de arriba.'],
-  backlog: ['¿Qué tenemos encima?', 'Lo que sigue abierto, cuánto lleva esperando, a qué espera y si la pila crece o baja.'],
-  reparto: ['¿Qué nos entra?', 'Cuánto entra, en qué meses, con qué prioridad y de qué tipo.'],
   modulos: ['¿De dónde viene?', 'Los módulos, centros y problemas que concentran el trabajo, y lo que se repite.'],
   resolucion: ['¿Cómo lo resolvemos?', 'Cuánto tardamos, en qué se va el tiempo y qué escalamos a terceros.'],
   sla: ['¿Cómo de bien lo resolvemos?', 'Si empezamos a tiempo y si el trabajo queda bien hecho.'],
@@ -87,49 +85,6 @@ export const createTabs = (m, ch, ui) => {
   const startAt = (i) => (C.ip[i] >= 0 ? C.rep[i] + C.ip[i] : null);
   const resAt = (i) => (!OPEN[i] && C.res[i] >= 0 ? C.res[i] : null);
 
-  // Entran y salen, de lo recibido en el periodo: mes a mes o, si el periodo es un solo mes, día a día.
-  // Recibidas, resueltas en ese tramo, el saldo y lo que quedaba abierto al cerrarlo.
-  const FLOW = [['Recibidas', (s) => num(s.in), (s) => s.in], ['Resueltas', (s) => num(s.out), (s) => s.out, 'high'],
-    ['Saldo', (s) => `${s.out - s.in > 0 ? '+' : ''}${num(s.out - s.in)}`, (s) => s.out - s.in, 'high', 'Resueltas menos recibidas: en positivo, la pila baja; en negativo, crece.'],
-    ['Pendientes al cierre', (s) => num(s.open), (s) => s.open, 'low', 'De lo recibido desde el inicio del periodo, lo que seguía abierto al acabar el mes o el día.']];
-  const minOf = (y, mo, d = 1) => (Date.UTC(y, mo, d) - BASE) / 6e4;
-  const flowUnits = () => {
-    const y = m.data.meta.year;
-    if (S.from !== S.to) return monthsIn().map((k) => ({ label: MONTHS[k] + (k === LASTM ? '*' : ''), from: minOf(y, k), to: minOf(y, k + 1), f: `month:${k}` }));
-    const last = Math.min(new Date(Date.UTC(y, S.from + 1, 0)).getUTCDate(), S.from === LASTM ? new Date(BASE + m.SNAP * 6e4).getUTCDate() : 31);
-    return Array.from({ length: last }, (_, j) => ({ label: `${j + 1} ${MONTHS[S.from]}`, from: minOf(y, S.from, j + 1), to: minOf(y, S.from, j + 2) }));
-  };
-  const flow = (A) => {
-    const units = flowUnits(), T = bySide(A);
-    const per = [0, 1].map((k) => units.map((u) => {
-      const x = { in: 0, out: 0, open: 0 };
-      for (const i of T[k]) {
-        const r = resAt(i);
-        if (C.rep[i] >= u.from && C.rep[i] < u.to) x.in++;
-        if (r != null && r >= u.from && r < u.to) { x.out++; if (C.rep[i] < u.from) x.prev++; }
-        if (C.rep[i] < u.to && (r == null || r >= u.to)) x.open++;
-      }
-      return { ...x, n: x.in + x.out + x.open };
-    }));
-    return table(S.from === S.to ? 'Día' : 'Mes', FLOW, units.map((u, j) => `<tr ${u.f ? `class="mt-clk" data-f="${u.f}"` : ''}><td>${u.label}</td>${FLOW.map((d) => `<td class="mt-num">${cell([per[0][j], per[1][j]], d)}</td>`).join('')}</tr>`).join(''));
-  };
-
-  // Lo abierto por tarjeta: lo de cada lado y, aparte (si se mira una empresa, no personas), lo que aún
-  // no tiene responsable. Una PRIO cuenta en PRIO y en su SGA o SISU; el total, una vez.
-  const backlogTable = () => {
-    const cos = CO(), bk = CARDS.map(() => [0, 0, 0]), tot = [0, 0, 0], orphans = !S.sides.some((x) => x?.people);
-    for (let i = 0; i < N; i++) {
-      if (!OPEN[i] || !inPeriod(i)) continue;
-      const k = SIDE[i] < 2 ? SIDE[i] : !C.as[i] ? 2 : -1;
-      if (k < 0) continue;
-      tot[k]++;
-      for (const c of cardsOf(i)) bk[c][k]++;
-    }
-    const cols = orphans ? [...cos, 2] : cos, sum = (row) => cols.reduce((a, k) => a + row[k], 0);
-    return `<table><thead><tr><th>Tarjeta</th>${cos.map((k) => `<th class="mt-num"><span class="mt-sw mt-c${k}"></span>${esc(name(k))}</th>`).join('')}${orphans ? '<th class="mt-num"><span class="mt-sw mt-c2"></span>Sin responsable</th>' : ''}<th class="mt-num">Total</th></tr></thead><tbody>${CARDS.map((c, j) => `<tr class="mt-clk ${isSel('tj', j) ? 'mt-sel' : ''}" data-f="tj:${j}"><td>${c}</td>${cols.map((k) => `<td class="mt-num">${num(bk[j][k])}</td>`).join('')}<td class="mt-num"><b>${num(sum(bk[j]))}</b></td></tr>`).join('')}
-      <tr class="mt-grp"><td>Total</td>${cols.map((k) => `<td class="mt-num">${num(tot[k])}</td>`).join('')}<td class="mt-num">${num(sum(tot))}</td></tr></tbody></table>`;
-  };
-
   // --- Resumen: un bloque por pregunta, con sus cifras clave y el paso a su pestaña. Cada cifra es la
   // de lo que se mira y, al comparar, al lado, la diferencia con el otro lado.
   const fig = (label, ST, fmt, val, better, tip) => {
@@ -178,6 +133,20 @@ export const createTabs = (m, ch, ui) => {
   };
   const PLURAL = { CRITICAL: 'Críticas', HIGH: 'Altas', MEDIUM: 'Medias', LOW: 'Bajas' };
   const late = (i) => { const l = m.SLA[C.pr[i]]; return OPEN[i] && C.ip[i] < 0 && l >= 0 && m.SNAP - C.rep[i] > l; };
+
+  // Los tramos de la tabla mes a mes: los meses del periodo o, si es un solo mes, sus días (hasta la foto).
+  const minOf = (y, mo, d = 1) => (Date.UTC(y, mo, d) - BASE) / 6e4;
+  const flowUnits = () => {
+    const y = m.data.meta.year;
+    if (S.from !== S.to) return monthsIn().map((k) => ({ label: MONTHS[k] + (k === LASTM ? '*' : ''), from: minOf(y, k), to: minOf(y, k + 1), f: `month:${k}` }));
+    const last = Math.min(new Date(Date.UTC(y, S.from + 1, 0)).getUTCDate(), S.from === LASTM ? new Date(BASE + m.SNAP * 6e4).getUTCDate() : 31);
+    return Array.from({ length: last }, (_, j) => ({ label: `${j + 1} ${MONTHS[S.from]}`, from: minOf(y, S.from, j + 1), to: minOf(y, S.from, j + 2) }));
+  };
+  // lo cerrado dentro del periodo, por lado, se abriera cuando se abriera
+  const closedInPeriod = () => {
+    const y = m.data.meta.year, from = minOf(y, S.from), to = minOf(y, S.to + 1);
+    return bySide(m.today()).map((l) => l.filter((i) => { const r = resAt(i); return r != null && r >= from && r < to; }).length);
+  };
 
   // Mes a mes (o día a día con un solo mes): de lo recibido en cada tramo, cuánto se ha cerrado y cuánto
   // sigue abierto (por cerrar), y el movimiento del tramo: lo resuelto en él,
@@ -237,21 +206,16 @@ export const createTabs = (m, ch, ui) => {
       const count = (b) => T.map((l) => ({ n: l.length, v: l.filter((i) => C.fl[i] & b).length }));
       const sharePct = (s) => opt(pct)(s.v);
       // último mes completo del periodo frente al anterior (las del mes anterior pueden quedar fuera del periodo)
-      const vsPrev = monthVsPrev();
+      const vsPrev = monthVsPrev(), closedIn = closedInPeriod();
       return grid(ask('resumen'),
         `<div class="mt-answers">${[
-          answer('backlog', [
-            fig('Abiertas ahora', ST, (s) => num(s.open), sv('open'), 'low'),
-            fig('Sin iniciar y fuera de plazo', ST, (s) => num(s.waitKo), sv('waitKo'), 'low', 'Abiertas que nunca han pasado a En curso y ya superan el plazo de su prioridad.'),
-            fig('Con más de 30 días', ST, (s) => num(s.open30), sv('open30'), 'low'),
-            fig('PRIO abiertas', T.map((l) => ({ n: l.length, v: l.filter((i) => OPEN[i] && cardsOf(i).includes(2)).length })), (s) => num(s.v), sv('v'), 'low'),
-            fig('Sin resolver de lo recibido', ST.map((s) => ({ n: s.n, v: s.n ? s.open / s.n : null })), sharePct, sv('v'), 'low')]),
-          answer('reparto', [
+          answer('carga', [
             fig('Recibidas', ST, (s) => num(s.n), sv('n')),
+            fig('Entran al día', ST.map((s) => ({ n: s.n, v: s.n / d })), (s) => dec(s.v), sv('v'), null, 'Recibidas entre los días naturales del periodo.'),
+            fig('Cerramos al día', closedIn.map((v, k) => ({ n: v + ST[k].n, v: v / d })), (s) => dec(s.v), sv('v'), 'high', 'Todo lo cerrado en el periodo, entre sus días naturales.'),
             ...(vsPrev ? [fig(`${MONTHS[vsPrev[0]]} frente a ${MONTHS[vsPrev[0] - 1]}`, vsPrev[1], (s) => opt((v) => `${v > 0 ? '+' : ''}${pct(v)}`)(s.v), sv('v'), null, 'Variación de las recibidas en el último mes completo del periodo respecto al anterior.')] : []),
-            fig('Al día', ST.map((s) => ({ n: s.n, v: s.n / d })), (s) => dec(s.v), sv('v'), null, 'Recibidas entre los días naturales del periodo.'),
-            fig('Críticas o altas', ST, (s) => pct(s.crit + s.hi), (s) => s.crit + s.hi),
-            fig('Peticiones de usuario', shareOf(T, (i) => C.sv[i] === REQ), sharePct, sv('v'))]),
+            fig('Pendientes', ST, (s) => num(s.open), sv('open'), 'low', 'Lo recibido en el periodo que sigue sin resolver.'),
+            fig('Fuera de plazo', ST, (s) => num(s.waitKo), sv('waitKo'), 'low', 'Pendientes que nunca han pasado a En curso y ya superan el plazo de su prioridad.')]),
           answer('modulos', [
             ...mods.map((x) => fig(m.DIMS.mo.label(x.k), shareOf(T, (i) => C.mo[i] === x.k), sharePct, sv('v'), null, 'Su parte de lo recibido.')),
             ...(mods.length > 1 ? [fig(`Los ${mods.length} primeros módulos`, shareOf(T, inSet('mo', mods.map((x) => x.k))), sharePct, sv('v'))] : []),
@@ -349,9 +313,7 @@ export const createTabs = (m, ch, ui) => {
     carga(A) {
       const T = bySide(A), ST = T.map(stats), d = days() || 1, sharePct = (s) => opt(pct)(s.v);
       const inA = (i) => SIDE[i] < 2;
-      // lo que se cierra dentro del periodo, de cada lado, se abriera cuando se abriera
-      const y = m.data.meta.year, from = minOf(y, S.from), to = minOf(y, S.to + 1);
-      const closedIn = bySide(m.today()).map((l) => l.filter((i) => { const r = resAt(i); return r != null && r >= from && r < to; }).length);
+      const closedIn = closedInPeriod();
       const op = A.filter((i) => OPEN[i]), people = S.sides.some((s) => s?.people), orphans = people ? [] : orphansIn();
       const CRITICAL = DI.prio.indexOf('CRITICAL');
       // filas de una dimensión: las n con más issues en `list` y, si hay más, «Resto» (así la tabla suma el total)
@@ -412,40 +374,6 @@ export const createTabs = (m, ch, ui) => {
         card('Escaladas: a quién y desde cuándo', esc3.length ? matrix(topRows('vt', esc3, 10), AGES, esc3, { total: true, foot: { label: 'Escaladas', test: () => true }, footTop: true, corner: 'Destino · antigüedad →' }) : '<p class="mt-mut mt-small">Nada escalado.</p>',
           { span: 's6', sub: 'Lo pendiente con ticket de tercero, por destino del escalado (prefijo del ticket).' }),
         card('Por centro: desde cuándo', matrix(topRows('ce', op, 10), AGES, op, { ...st, corner: 'Centro · antigüedad →' }), { span: 's6', sub: 'Los 10 centros con más pendientes; «Resto», los demás.' }));
-    },
-
-    backlog(A) {
-      const T = bySide(A), ST = T.map(stats), op = A.filter((i) => OPEN[i]);
-      const oldest = op.slice().sort((a, b) => C.rep[a] - C.rep[b]).slice(0, ui.exp.old ? 100 : 15);
-      const list = `<div class="mt-tablewrap"><table><thead><tr><th>Issue</th><th>Abierta</th><th>Título</th><th>Prioridad</th><th>Estado</th><th>Responsable</th></tr></thead><tbody>${oldest.map((i) => `<tr><td><a href="${REMEDY}${incId(C.id[i])}%22" target="_blank" rel="noopener">${incId(C.id[i])}</a></td><td>${dateOf(BASE, C.rep[i]).slice(0, 5)}</td><td>${esc(C.su[i])}</td><td>${nice(DI.prio[C.pr[i]])}</td><td>${nice(DI.status[C.st[i]])}${C.rs[i] ? ` · <span class="mt-mut">${esc(title(DI.reason[C.rs[i]]))}</span>` : ''}</td><td><span class="mt-pill mt-p${SIDE[i]}">${esc(m.DIMS.as.label(C.as[i]))}</span></td></tr>`).join('')}</tbody></table></div>${op.length > 15 ? `<button class="mt-more" data-exp="old">${ui.exp.old ? 'Ver menos' : 'Ver más'}</button>` : ''}`;
-      const people = S.sides.some((s) => s?.people);
-      return grid(ask('backlog'),
-        stockKpis(T, ST),
-        card(S.from === S.to ? 'Entran y salen, día a día' : 'Entran y salen, mes a mes', flow(A), { span: 's7', sub: S.from === S.to ? 'De lo recibido en el mes.' : 'De lo recibido en el periodo. Clic en un mes para filtrar; con un solo mes, se ve día a día.' }),
-        card('Antigüedad de lo abierto', legend() + orderedBars('age', [0, 1, 2, 3, 4], { rows: op, id: 'op-age' }), { span: 's5', sub: 'Tiempo desde la apertura hasta la foto.' }),
-        card('Módulo × antigüedad', heat('mo', 'age', 14, 5, { rows: op, skipR: noK, orderC: [0, 1, 2, 3, 4] }), { sub: 'Lo abierto hoy, por módulo y por cuánto lleva abierto. Clic en una celda para filtrar.' }),
-        card('Módulo × motivo de espera', heat('mo', 'rs', 14, 8, { rows: op, skipR: noK }), { sub: 'A qué o a quién espera lo abierto en cada módulo («Sin dato»: sin motivo informado). Clic en una celda para filtrar.' }),
-        card('Escaladas abiertas: a quién y desde cuándo', heat('vt', 'age', 10, 5, { rows: op.filter((i) => C.vt[i]), skipR: noK, orderC: [0, 1, 2, 3, 4] }), { span: 's12', sub: 'Lo abierto con ticket de tercero, por destino del escalado (prefijo del ticket) y antigüedad. Clic en una celda para filtrar.' }),
-        card('Estado', legend() + bars('st', { id: 'op-st', rows: op, top: 4 }), { span: 's4' }),
-        card('Prioridad', bars('pr', { id: 'op-pr', rows: op, top: 4 }), { span: 's4' }),
-        card('Centros con más abiertas', bars('ce', { id: 'op-ce', rows: op, top: 8, skip: noK }), { span: 's4' }),
-        card('Lo abierto, por tarjeta', backlogTable(), { span: 's12', sub: `Lo abierto hoy${people ? '' : ', tenga o no responsable'}. ${CARD_NOTE}` }),
-        card('Las abiertas más antiguas', list, { span: 's12' }));
-    },
-
-    reparto(A) {
-      const T = bySide(A), ST = T.map(stats), d = days() || 1;
-      return grid(ask('reparto'),
-        kpis(kpiCo('Recibidas', ST, (s) => num(s.n), { val: (s) => s.n }),
-          kpiCo('Al día', ST.map((s) => ({ n: s.n, v: s.n / d })), (s) => dec(s.v), { val: (s) => s.v, note: 'días naturales del periodo' }),
-          kpiCo('Críticas', ST, (s) => pct(s.crit, 1), { val: (s) => s.crit }),
-          kpiCo('Críticas o altas', ST, (s) => pct(s.crit + s.hi), { val: (s) => s.crit + s.hi }),
-          kpiCo('Peticiones de usuario', shareOf(T, (i) => C.sv[i] === REQ), (s) => pct(s.v), { val: (s) => s.v })),
-        card('Issues por mes', legend() + monthly(A), { span: 's7', sub: 'Por fecha de apertura. * mes incompleto. Clic en un mes para filtrar.' }),
-        card('Tarjeta', legend() + bars('tj', { top: 4 }), { span: 's5', sub: `${CARD_NOTE} Clic en una para ver todas las métricas solo de ella.` }),
-        card('Prioridad × mes', heat('pr', 'month', 4, 12, { skipR: noK, orderR: PRIOS, orderC: monthsIn() }), { span: 's12', sub: 'Issues recibidas de cada prioridad cada mes. Clic en una celda para filtrar.' }),
-        card('Tipo de servicio × mes', heat('sv', 'month', 6, 12, { skipR: noK, orderC: monthsIn() }), { span: 's7', sub: 'Incidencias frente a peticiones, mes a mes. Clic en una celda para filtrar.' }),
-        card('Tipo de operación', compare('op'), { span: 's5', sub: 'Derivado del prefijo de la categoría de producto 2.' }));
     },
 
     modulos(A) {

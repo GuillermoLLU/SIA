@@ -220,8 +220,9 @@
 .mt-ask span { font-size: 13px; color: var(--mt-low); }
 
 /* Resumen: un bloque por pregunta con sus cifras y el paso a su pestaña */
-.mt-answers { grid-column: span 12; display: flex; flex-wrap: wrap; gap: 16px; }
-.mt-answers .mt-ans { display: flex; flex: 1 1 330px; flex-direction: column; gap: 12px; }
+.mt-answers { grid-column: span 12; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.mt-answers .mt-ans { display: flex; flex-direction: column; gap: 12px; grid-column: auto; }
+@media (max-width: 1100px) { .mt-answers { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .mt-ans header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .mt-ans h3 { margin: 0; font-size: 15px; font-weight: 650; letter-spacing: 0; text-transform: none; color: var(--text); }
 .mt-go { flex: none; padding: 3px 8px; font: inherit; font-size: 12px; font-weight: 600; color: var(--accent); background: none; border: 1px solid transparent; cursor: pointer; }
