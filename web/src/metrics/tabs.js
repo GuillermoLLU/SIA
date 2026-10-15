@@ -30,7 +30,7 @@ const opt = (f) => (v) => (v == null ? '—' : f(v));
 export const createTabs = (m, ch, ui) => {
   const { C, DI, N, S, BASE, LASTM, PRIOS, slaLabel, MONTH, DOW, OPEN, SIDE, STYPE, CMP, CO, NAMES, isSel, stats, group, bySide, clock } = m;
   const name = (k) => NAMES()[k];
-  const { card, legend, kpi, kpis, kpiCo, diff, bars, orderedBars, monthly, lines, ranking, compare, heat, matrix, scorecard, timeBars, movers, mini, day, split } = ch;
+  const { card, legend, kpi, kpis, kpiCo, diff, bars, orderedBars, monthly, lines, ranking, compare, heat, matrix, scorecard, timeBars, mini, day, split } = ch;
   const noK = (k) => k === 0;
   const noTheme = (k) => k === m.data.themes.length;
   const REQ = DI.svc.indexOf('USER_SERVICE_REQUEST');
@@ -410,14 +410,12 @@ export const createTabs = (m, ch, ui) => {
       let acc = 0, k80 = 0;
       for (const x of gc) { acc += x.n; k80++; if (acc >= tc * 0.8) break; }
       return grid(ask('modulos'),
+        card(`Centros: de dónde viene el trabajo <small>${k80} de ${gc.length} concentran el 80 % de las issues</small>`, scorecard('ce', CE_GROUPS, { id: 'md-ce', skip: noK, refLabel: 'Todos los centros', extra: centreExtra }), { span: 's12' }),
         card('Módulos: cuánto pesa cada uno y cómo se atiende', scorecard('mo', MOD_GROUPS, { id: 'md-mo', skip: noK, refLabel: 'Todos los módulos' }), { span: 's12' }),
         card('', heat('ce', 'mo', 18, 14, { skipR: noK, skipC: noK, title: true }), { span: 's12' }),
         card('', heat('th', 'mo', 16, 14, { skipR: noTheme, skipC: noK, title: true }), { span: 's12' }),
         card('', heat('pr', 'mo', 4, 14, { skipR: noK, skipC: noK, orderR: PRIOS, title: true }), { span: 's12' }),
-        card(`Centros: de dónde viene el trabajo <small>${k80} de ${gc.length} concentran el 80 % de las issues</small>`, scorecard('ce', CE_GROUPS, { id: 'md-ce', skip: noK, refLabel: 'Todos los centros', extra: centreExtra }), { span: 's12' }),
         card('Problemas que más se repiten', ranking('de', ['n', 'sh', 'avg', 'd1', 'reop', 'vend', 'tr'], { id: 'md-de', skip: noK, min: 5, top: 15 }), { span: 's12', sub: 'Mismo título tras quitar centro, criticidad y números: lo que vuelve una y otra vez y cuánto cuesta resolverlo. Clic en uno para ver todas las métricas solo de ese problema.' }),
-        card('Módulos que suben y bajan', movers('mo', { skip: noK }), { sub: 'Últimos 90 días de la foto frente a los 90 anteriores.' }),
-        card('Centros que suben y bajan', movers('ce', { skip: noK }), { sub: 'Últimos 90 días de la foto frente a los 90 anteriores.' }),
         card('Temas en los títulos', legend() + bars('th', { top: 14 }), { sub: 'Detectados por palabras clave; una issue puede estar en varios. «Sin tema» son títulos que no encajan en ninguno.' }));
     },
 

@@ -292,18 +292,6 @@ export const createCharts = (m, ui) => {
   const timeBars = (ST) => `<div class="mt-legend">${TIME_NAMES.map((n, i) => `<span><i class="mt-time${i}"></i>${n}</span>`).join('')}</div>`
     + CO().map((k) => `<p class="mt-small"><span class="mt-sw mt-c${k}"></span><b>${esc(name(k))}</b></p>${timeBar(ST[k].time)}`).join('');
 
-  // Quién sube y quién baja: últimos 90 días frente a los 90 anteriores.
-  const movers = (dim, o = {}) => {
-    const g = group(dim, o.rows || rows(dim), true).filter((x) => !(o.skip && o.skip(x.k))).map((x) => ({ k: x.k, ...trend(x.rows) })).filter((x) => x.now + x.prev >= (o.min || 40));
-    const row = (x) => `<tr class="mt-clk" data-f="${dim}:${x.k}"><td>${esc(DIMS[dim].label(x.k))}</td><td class="mt-num">${num(x.prev)}</td><td class="mt-num">${num(x.now)}</td><td class="mt-num">${delta(x)}</td></tr>`;
-    const up = g.slice().sort((a, b) => (b.now - b.prev) - (a.now - a.prev)).filter((x) => x.now > x.prev).slice(0, o.top || 6);
-    const dn = g.slice().sort((a, b) => (a.now - a.prev) - (b.now - b.prev)).filter((x) => x.now < x.prev).slice(0, o.top || 6);
-    const head = '<thead><tr><th></th><th class="mt-num">90 d ant.</th><th class="mt-num">Últ. 90 d</th><th class="mt-num">Var.</th></tr></thead>';
-    const none = '<tr><td class="mt-mut">Nada destacable</td></tr>';
-    return `<div class="mt-pair"><div><p class="mt-small"><b class="mt-up">▲ Suben</b></p><table>${head}<tbody>${up.map(row).join('') || none}</tbody></table></div>
-      <div><p class="mt-small"><b class="mt-down">▼ Bajan</b></p><table>${head}<tbody>${dn.map(row).join('') || none}</tbody></table></div></div>`;
-  };
-
   // Un día en 24 horas: una línea por serie ({ label, cls, v: 24 valores }) sobre los turnos, de fondo.
   const day = (series, fmt = num) => {
     const W = 1100, H = 260, L = 46, R = 12, T = 22, B = 24, x = (h) => L + (h + 0.5) * (W - L - R) / 24;
@@ -325,5 +313,5 @@ export const createCharts = (m, ui) => {
       return `<div class="mt-split"><span class="mt-split-l">${r.k != null && CMP() ? `<i class="mt-sw mt-c${r.k}"></i>` : ''}${esc(r.label)}</span><span class="mt-hbar mt-split-b">${t ? r.v.map((v, j) => `<i class="mt-part${j}" style="width:${v / t * 100}%" data-tip="${esc(`${r.label}${r.k != null && CMP() ? ` · ${name(r.k)}` : ''}\n${names[j]}: ${num(v)} (${pct(v / t)})`)}">${v / t >= 0.08 ? pct(v / t) : ''}</i>`).join('') : ''}</span><span class="mt-split-n">${num(t)}</span></div>`;
     }).join('');
 
-  return { card, legend, kpi, kpis, kpiCo, diff, bars, orderedBars, monthly, lines, ranking, compare, heat, matrix, scorecard, timeBars, movers, mini, day, split };
+  return { card, legend, kpi, kpis, kpiCo, diff, bars, orderedBars, monthly, lines, ranking, compare, heat, matrix, scorecard, timeBars, mini, day, split };
 };

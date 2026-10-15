@@ -174,7 +174,6 @@
 .mt-clk { cursor: pointer; } .mt-clk:hover td { background: var(--mt-soft); } .mt-sel td { background: var(--mt-sel); }
 .mt-grp td { padding: 5px 8px; font-size: 12px; font-weight: 650; letter-spacing: .4px; text-transform: uppercase; color: var(--mt-low); background: var(--mt-soft); }
 .mt-view a { color: var(--accent); }
-.mt-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 
 /* perfil comparado */
 .mt-cmp { display: grid; grid-template-columns: 1fr minmax(120px, 190px) 1fr; gap: 6px; align-items: center; padding: 2px 0; font-size: 12.5px; cursor: pointer; }
