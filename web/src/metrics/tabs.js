@@ -229,7 +229,8 @@ export const createTabs = (m, ch, ui) => {
   // Comparando: cada dato en dos columnas, una por lado, con su valor (no la diferencia). Entre empresas, lo que
   // depende de cuánto entra va en relación a lo que entra, para poder compararlo; con personas, el volumen es la
   // media por persona (la de la empresa, de todo su equipo: model.js, heads) y los % no cambian. En verde, el lado
-  // que va mejor, solo en lo que tiene un mejor. Cada dato: [nombre, valor, tipo (p %, n número, v volumen), mejor, nota].
+  // que va mejor, solo en lo que tiene un mejor; en naranja ('warn'), el que más saca de meses anteriores: un aviso de
+  // que se abre más de lo que se cierra. Cada dato: [nombre, valor, tipo (p %, n número, v volumen), mejor, nota].
   const LEDGER_CMP = {
     co: [['Lo recibido ese mes', [
       ['Recibidas', (s) => s.in, 'n', null, 'Issues abiertas en ese mes.'],
@@ -237,14 +238,14 @@ export const createTabs = (m, ch, ui) => {
       ['% cerrado hasta hoy', (s) => (s.in ? s.closed / s.in : null), 'p', 'high', 'De las recibidas en ese mes, las que ya están resueltas, cerradas o canceladas hoy.']]],
     ['Lo que pasó en el mes', [
       ['Resueltas por cada 100 recibidas', (s) => (s.in ? s.out / s.in * 100 : null), 'n', 'high', 'Más de 100: se resolvió más de lo que entró y la pila bajó; menos de 100, creció.'],
-      ['% de meses anteriores', (s) => (s.out ? s.prev / s.out : null), 'p', null, 'De lo resuelto en el mes, lo que se abrió en un mes anterior: el esfuerzo en sacar backlog.'],
+      ['% de meses anteriores', (s) => (s.out ? s.prev / s.out : null), 'p', 'warn', 'De lo resuelto en el mes, lo que se abrió en un mes anterior: el esfuerzo en sacar backlog.'],
       ['% pendientes con más de 15 días', (s) => (s.open ? s.old / s.open : null), 'p', 'low', 'De lo pendiente al acabar el mes, lo que ya llevaba más de 15 días abierto: si sube, el backlog envejece.']]]],
     pp: [['Lo recibido ese mes', [
       ['Recibidas', (s) => s.in, 'v', null, 'Issues abiertas en ese mes.'],
       ['% cerrado en el mes', (s) => (s.in ? s.same / s.in : null), 'p', 'high', 'De las recibidas en ese mes, las cerradas antes de acabar el mismo mes.']]],
     ['Lo que pasó en el mes', [
-      ['Resueltas', (s) => s.out, 'v', null, 'Lo resuelto en el mes, se abriera cuando se abriera.'],
-      ['De meses anteriores', (s) => s.prev, 'v', null, 'De lo resuelto en el mes, lo que se abrió en un mes anterior.'],
+      ['Resueltas', (s) => s.out, 'v', 'high', 'Lo resuelto en el mes, se abriera cuando se abriera.'],
+      ['De meses anteriores', (s) => s.prev, 'v', 'warn', 'De lo resuelto en el mes, lo que se abrió en un mes anterior.'],
       ['Pendientes al cierre', (s) => s.open, 'v', null, 'Lo que seguía abierto al acabar el mes.'],
       ['Con más de 15 días', (s) => s.old, 'v', null, 'De las pendientes al cierre, las que ya llevaban más de 15 días abiertas.']]]],
   };
@@ -257,9 +258,12 @@ export const createTabs = (m, ch, ui) => {
     const defs = groups.flatMap(([, d]) => d);
     const cells = (j) => defs.map((d, c) => {
       const v = [0, 1].map((k) => value(d, per[k][j], k)), t = v.map((x, k) => show(d, x, k));
-      const best = d[3] && v[0] != null && v[1] != null && t[0] !== t[1] ? ((d[3] === 'high') === (v[0] > v[1]) ? 0 : 1) : -1;
-      const first = groups.some(([, g]) => g[0] === d);
-      return [0, 1].map((k) => `<td class="mt-num ${k ? '' : first ? 'mt-gsep' : 'mt-msep'} ${best === k ? 'mt-better' : ''}">${t[k]}</td>`).join('');
+      // el lado marcado: el que va mejor (verde) o, en 'warn', el más alto (naranja)
+      // (comparando los valores redondeados como se ven: «0» y «0,0» son iguales)
+      const r = (x) => Math.round(x * (d[2] === 'p' ? 100 : 10));
+      const mark = d[3] && v[0] != null && v[1] != null && r(v[0]) !== r(v[1]) ? ((d[3] === 'low') === (v[0] < v[1]) ? 0 : 1) : -1;
+      const cls = d[3] === 'warn' ? 'mt-warn' : 'mt-better', first = groups.some(([, g]) => g[0] === d);
+      return [0, 1].map((k) => `<td class="mt-num ${k ? '' : first ? 'mt-gsep' : 'mt-msep'} ${mark === k ? cls : ''}">${t[k]}</td>`).join('');
     }).join('');
     const row = (label, j, attrs = '') => `<tr ${attrs}><td>${label}</td>${cells(j)}</tr>`;
     // los nombres, en una leyenda encima; en la cabecera, solo el color de cada lado (el nombre, al pasar el ratón)
