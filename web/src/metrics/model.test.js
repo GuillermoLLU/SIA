@@ -102,15 +102,16 @@ test('filtrar: cada gráfico ignora el filtro de su propia dimensión; buscar po
   assert.deepEqual(m.rows(), [1]);
 });
 
-test('una persona frente a una empresa, frente a su propia empresa (el resto) o sola', () => {
+test('una persona frente a una empresa, frente a su propia empresa (todo el equipo, ella incluida) o sola', () => {
   const m = createModel(data());
   m.S.sides = [{ people: new Set([1]) }, { company: 1 }]; m.refilter();
   assert.deepEqual(m.NAMES(), ['ANA', 'T-Systems']);
   assert.deepEqual(m.rows(), [0, 1, 2, 3]);
   assert.equal(m.CMP(), true);
   m.S.sides = [{ people: new Set([2]) }, { company: 1 }]; m.refilter();
-  assert.deepEqual(m.NAMES(), ['LUIS', 'Resto de T-Systems']);   // LUIS es de T-Systems: cuenta solo en A
+  assert.deepEqual(m.NAMES(), ['LUIS', 'T-Systems']);   // LUIS es de T-Systems: su issue va en A y en las cifras de T-Systems
   assert.deepEqual([...m.SIDE], [2, 0, 2, 2, 2]);
+  assert.deepEqual(m.bySide(m.rows())[1], []);   // y LUIS, sin actividad en los últimos 30 días, no cuenta en el equipo
   m.S.sides = [{ people: new Set([1, 2]) }, null]; m.refilter();
   assert.deepEqual(m.NAMES(), ['2 personas', '']);
   assert.deepEqual(m.CO(), [0]);
@@ -181,19 +182,18 @@ test('ficha con filas que se despliegan: el tema, en sus problemas; «Otros» su
   assert.equal((h.match(/mt-sc-kid/g) || []).length, 2);
 });
 
-test('media por persona: solo al comparar con personas; cuenta quien tuvo actividad en los últimos días del periodo', () => {
-  const d = data(); d.cols.rep[0] = SNAP - 100 * 1440;   // ANA (1): su issue 1, hace 100 días; la 3, hace nada
+test('comparando con personas, una empresa es todo su equipo: quien tuvo actividad en los 30 días antes de la foto, también la persona comparada', () => {
+  const d = data();   // ANA (1, Indra): la 3, abierta hace nada; LUIS (2, T-Systems)
   const m = createModel(d);
   m.S.sides = [{ company: 0 }, { company: 1 }]; m.refilter();
   assert.equal(m.perHead(), false);
-  m.S.sides = [{ people: new Set([2]) }, { company: 0 }]; m.refilter();   // LUIS frente a Indra (ANA)
+  m.S.sides = [{ people: new Set([1]) }, { company: 0 }]; m.refilter();   // ANA frente a Indra
   assert.equal(m.perHead(), true);
   assert.deepEqual([...m.heads(1)], [1]);
-  d.cols.rep[2] = SNAP - 100 * 1440; d.cols.res[3] = 5100;   // ANA, sin nada en los últimos 60 días
-  const m2 = createModel(d); m2.S.sides = [{ people: new Set([2]) }, { company: 0 }]; m2.refilter();
+  assert.deepEqual(m.bySide(m.rows())[1], [0, 2, 3]);   // todo lo de Indra, también lo de ANA
+  assert.equal(m.NAMES()[1], 'Indra');
+  d.cols.rep[2] = SNAP - 40 * 1440;   // ANA, sin nada en los últimos 30 días: ya no cuenta en el equipo
+  const m2 = createModel(d); m2.S.sides = [{ people: new Set([1]) }, { company: 0 }]; m2.refilter();
   assert.equal(m2.heads(1).size, 0);
-  // una persona de Indra frente a Indra: la media es la de todo el equipo, ella incluida
-  const m3 = createModel(data()); m3.S.sides = [{ people: new Set([1]) }, { company: 0 }]; m3.refilter();
-  assert.deepEqual([...m3.heads(1)], [1]);
-  assert.equal(m3.inTeam(1)(0), true);   // su issue cuenta en el equipo aunque esté en el otro lado
+  assert.deepEqual(m2.bySide(m2.rows())[1], []);
 });

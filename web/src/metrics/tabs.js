@@ -196,17 +196,16 @@ export const createTabs = (m, ch, ui) => {
     const y = m.data.meta.year, from = minOf(y, S.from), to = minOf(y, S.to + 1);
     return bySide(m.today()).map((l) => l.filter((i) => { const r = resAt(i); return r != null && r >= from && r < to; }));
   };
-  // El volumen de cada lado ({ n, v }, para kpiCo): su total o, comparando con alguna persona, la media por persona
-  // (model.js, heads): lo de sus personas con actividad reciente entre cuántas son; una empresa, con todo su equipo
-  // (también quien está en el otro lado). per: el divisor que se le añade (los días, para «al día»).
-  // teamNames: el nombre de cada lado en esas cifras («Media de Indra» en vez de «Resto de Indra»).
+  // El volumen de cada lado ({ n, v }, para kpiCo): su total o, comparando con alguna persona, la media por persona:
+  // lo de cada lado (una empresa, todo su equipo: model.js, bySide y heads) entre sus personas. per: el divisor que se
+  // le añade (los días, para «al día»). teamNames: el nombre de cada lado en esas cifras («Media de Indra»).
   const volume = (lists, per = 1) => lists.slice(0, 2).map((l, k) => {
     if (!m.perHead()) return { n: l.length, v: l.length / per };
-    const H = m.heads(k), mine = m.inTeam(k), c = lists.slice(0, 2).flat().filter((i) => mine(i) && H.has(C.as[i])).length;
-    return { n: H.size, v: H.size ? c / H.size / per : null };
+    const H = m.heads(k).size;
+    return { n: H, v: H ? l.length / H / per : null };
   });
   const teamNames = () => (m.perHead() ? [0, 1].map((k) => (S.sides[k].people ? name(k) : `Media de ${COMPANIES[S.sides[k].company]}`)) : null);
-  const headsNote = () => (m.perHead() ? ` · por persona: lo de cada lado entre sus personas con actividad en los últimos ${ACTIVE_DAYS} días (${[0, 1].map((k) => `${teamNames()[k]}: ${m.heads(k).size}`).join(' · ')})` : '');
+  const headsNote = () => (m.perHead() ? ` · por persona: lo de cada lado entre sus personas; el equipo, quien ha tenido actividad en los ${ACTIVE_DAYS} días antes de la foto (${[0, 1].map((k) => `${teamNames()[k]}: ${m.heads(k).size}`).join(' · ')})` : '');
 
   // Mes a mes (o día a día con un solo mes): de lo recibido en cada tramo, cuánto se ha cerrado y cuánto
   // sigue abierto (por cerrar), y el movimiento del tramo: lo resuelto en él,

@@ -176,7 +176,7 @@ export const createCharts = (m, ui) => {
   const SC_FMT = { sla: (v) => (v == null ? '—' : pct(v)), avg: dur, d1: (v) => pct(v), reop: (v) => pct(v, 1), crit: (v) => pct(v), vend: (v) => pct(v), open: num, mi: (v) => (v ? num(v) : ''), nce: num, same: pct };
   const scorecard = (dim, groups, o = {}) => {
     const id = o.id || `sc-${dim}`, list = o.rows || rows(dim), cmp = CMP(), cols = groups.flatMap(([, c]) => c);
-    const side = (l) => (cmp ? l.filter((i) => SIDE[i] === 0) : l), other = (l) => l.filter((i) => SIDE[i] === 1);
+    const side = (l) => (cmp ? bySide(l)[0] : l), other = (l) => bySide(l)[1];
     const full = (l) => { const st = stats(side(l)); st.tr = trend(side(l)); o.extra?.(st, side(l)); if (cmp) { st.b = stats(other(l)); o.extra?.(st.b, other(l)); } return st; };
     const all = group(dim, list, true).filter((x) => !(o.skip && o.skip(x.k)));
     const ref = full(list), T = ref.n || 1;

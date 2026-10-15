@@ -40,7 +40,7 @@ export const SLA_NAMES = ['Dentro del SLA', 'Hasta el doble del SLA', 'Del doble
   'Sin iniciar y ya fuera de plazo', 'Sin iniciar, aún en plazo', 'Cerrada sin pasar por En curso', 'Prioridad sin SLA'];
 
 const DAY = 1440;
-export const ACTIVE_DAYS = 60;   // para la media por persona: quien ha tenido actividad en estos días
+export const ACTIVE_DAYS = 30;   // el equipo de una empresa, comparando con personas: quien ha tenido actividad en estos días antes de la foto
 
 const quant = (arr, p) => { if (!arr.length) return null; const a = Float64Array.from(arr).sort(); return a[Math.min(a.length - 1, Math.floor(a.length * p))]; };
 const mean = (arr) => { if (!arr.length) return null; let t = 0; for (const x of arr) t += x; return t / arr.length; };
@@ -126,9 +126,9 @@ export const createModel = (data) => {
   };
 
   // --- qué se mira: un lado, A, y si se quiere comparar, otro, B (de partida, solo nuestro equipo). Cada lado
-  // es una empresa ({ company }) o un grupo de personas ({ people: Set }). Las personas mandan
-  // sobre las empresas: quien está en un grupo no cuenta en la empresa del otro lado, que pasa a
-  // ser «Resto de …». SIDE[i]: el lado de cada issue (0 A, 1 B, 2 ninguno; las de ninguno no se ven).
+  // es una empresa ({ company }) o un grupo de personas ({ people: Set }). SIDE[i]: el lado de cada issue (0 A, 1 B,
+  // 2 ninguno; las de ninguno no se ven); las personas mandan sobre las empresas. Para las cifras, comparando con
+  // personas, una empresa es todo su equipo, también quien está en el otro lado (bySide, heads).
   // --- filtros. S.f: dimensión → valores marcados. Una fila cuenta en un gráfico si pasa todos
   // los filtros salvo el de la propia dimensión.
   const S = { f: {}, from: 0, to: LASTM, q: '', sides: [{ company: 0 }, null] };
@@ -143,7 +143,7 @@ export const createModel = (data) => {
       if (n === 1) return DIMS.as.label([...s.people][0]);
       return `${n} personas`;
     }
-    return o?.people && [...o.people].some((p) => data.company[p] === s.company) ? `Resto de ${COMPANIES[s.company]}` : COMPANIES[s.company];
+    return COMPANIES[s.company];
   };
   const NAMES = () => [sideName(0), sideName(1)];
   const sideOf = (i) => {
@@ -198,18 +198,17 @@ export const createModel = (data) => {
     for (let i = 0; i < N; i++) if (!(MASK[i] & ~allow)) out.push(i);
     return (CACHE[key] = out);
   };
-  // Al comparar con alguna persona, el volumen de cada lado es la media por persona (perHead). Cuentan las personas
-  // del lado con actividad (una de sus issues se abre, empieza o resuelve) en los ACTIVE_DAYS días antes del final
-  // del periodo, o de la foto si es antes: así no cuenta quien ya no está, aunque haya trabajado poco sí. Un lado
-  // que es una empresa es todo su equipo, también quien está en el otro lado: la media es la de todo el equipo.
-  const inTeam = (k) => { const s = S.sides[k]; return s.people ? (i) => SIDE[i] === k : (i) => TEAM[i] === s.company; };
+  // Comparando con alguna persona (perHead), una empresa es todo su equipo: sus personas con actividad (una de sus
+  // issues se abre, empieza o resuelve) en los ACTIVE_DAYS días antes de la foto, sea cual sea el periodo que se
+  // mira; también quien está en el otro lado. Así una persona se compara con todo su equipo; no cuenta quien ya no
+  // está, y sí quien trabaja poco. heads(k): las personas de cada lado (las elegidas, o ese equipo).
   const heads = (k) => {
-    const key = `heads${k}`;
+    const s = S.sides[k], key = `heads${k}`;
+    if (s.people) return s.people;
     if (CACHE[key]) return CACHE[key];
-    const end = Math.min(SNAP, Date.UTC(meta.year, S.to + 1, 1) / 6e4 - BASE / 6e4), from = end - ACTIVE_DAYS * DAY, out = new Set();
-    const near = (t) => t >= from && t <= end, mine = inTeam(k);
+    const from = SNAP - ACTIVE_DAYS * DAY, out = new Set(), near = (t) => t >= from && t <= SNAP;
     for (let i = 0; i < N; i++) {
-      if (!C.as[i] || out.has(C.as[i]) || !mine(i)) continue;
+      if (!C.as[i] || out.has(C.as[i]) || TEAM[i] !== s.company) continue;
       if (near(C.rep[i]) || (C.ip[i] >= 0 && near(C.rep[i] + C.ip[i])) || (C.res[i] >= 0 && near(C.res[i]))) out.add(C.as[i]);
     }
     return (CACHE[key] = out);
@@ -225,7 +224,13 @@ export const createModel = (data) => {
     for (const i of list || rows(dim)) { const v = dm.get(i); if (dm.multi) for (const k of v) add(k, i); else add(v, i); }
     return [...m.values()].sort((a, b) => b.n - a.n);
   };
-  const bySide = (list) => { const t = [[], [], []]; for (const i of list) t[SIDE[i]].push(i); return t; };
+  // las de cada lado; comparando con personas, el lado de una empresa es lo de su equipo (heads)
+  const bySide = (list) => {
+    const t = [[], [], []];
+    for (const i of list) t[SIDE[i]].push(i);
+    if (perHead()) for (const k of [0, 1]) if (!S.sides[k].people) { const H = heads(k); t[k] = list.filter((i) => TEAM[i] === S.sides[k].company && H.has(C.as[i])); }
+    return t;
+  };
   const byMonth = (list) => { const a = new Array(12).fill(0); for (const i of list) a[MONTH[i]]++; return a; };
   // últimos 90 días de la foto frente a los 90 anteriores
   // día de la semana (0 = lunes) y hora de un instante
@@ -293,6 +298,6 @@ export const createModel = (data) => {
   return {
     data, C, DI, N, BASE, SNAP, LASTM, SLA, PRIOS, slaLabel, MONTH, DOW, HOUR, OPEN, TEAM, SIDE, DIMS, S, STYPE,
     CMP, CO, NAMES, refilter, rows, pool, today, toggle, isSel, group, bySide, byMonth, trend, stats, periodSlots, clock,
-    heads, perHead, inTeam, carry: (list) => carry(list, C, shiftType), shiftWork: (list) => shiftWork(list, C, (i) => OPEN[i], shiftType),
+    heads, perHead, carry: (list) => carry(list, C, shiftType), shiftWork: (list) => shiftWork(list, C, (i) => OPEN[i], shiftType),
   };
 };
