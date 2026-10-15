@@ -168,8 +168,53 @@ export const createCharts = (m, ui) => {
     };
     // cabeceras en vertical solo si son muchas y largas (módulos, centros…); meses, tramos o pocas, en horizontal
     const v = Cc.length > 6 && Cc.some((c) => dc.label(c.k).length > 12) ? 'mt-v' : 'mt-h';
+    // o.foot: fila de totales por columna (de las filas que se ven; con o.rest, también lo que no cabe)
+    const colSum = (j) => mt.reduce((a, r) => a + tot(r[j]), 0);
+    const foot = o.foot ? `<tr class="mt-grp"><th class="mt-r">Total</th>${Cc.map((c, j) => `<td class="mt-num">${num(colSum(j))}</td>`).join('')}<td class="mt-num">${num(R.reduce((a, r) => a + r.n, 0))}</td></tr>` : '';
+    const hidden = group(rd, list).filter((x) => !(o.skipR && o.skipR(x.k))).length - R.length;
     return `<div class="mt-tablewrap"><table class="mt-hm"><thead><tr><th></th>${Cc.map((c) => `<th class="${v}">${esc(dc.label(c.k))}</th>`).join('')}<th class="${v}">Total</th></tr></thead><tbody>
-      ${R.map((r, i) => `<tr><th class="mt-r" title="${esc(dr.label(r.k))}">${esc(dr.label(r.k))}</th>${mt[i].map((t, j) => cell(t, i, j)).join('')}<td class="mt-mut mt-total">${num(r.n)}</td></tr>`).join('')}</tbody></table></div>`;
+      ${R.map((r, i) => `<tr><th class="mt-r" title="${esc(dr.label(r.k))}">${esc(dr.label(r.k))}</th>${mt[i].map((t, j) => cell(t, i, j)).join('')}<td class="mt-mut mt-total">${num(r.n)}</td></tr>`).join('')}${foot}</tbody></table></div>`
+      + (o.foot && hidden > 0 ? `<p class="mt-mut mt-small">El total es de las ${R.length} filas que se ven; hay ${hidden} más con menos issues.</p>` : '');
+  };
+
+  // Tabla de recuentos para cuadrar cuentas: filas y columnas son condiciones ({ label, test, f }); una
+  // fila { head } abre un grupo. Cada celda, cuántas de `list` cumplen las dos; el color, dentro de su
+  // grupo. o.total: columna Total; o.share: columna % (de o.of, por defecto todo `list`); o.foot: fila
+  // { label, test } de totales. Clic en una celda o fila con `f` = filtrar.
+  const matrix = (rowsDef, cols, list, o = {}) => {
+    const R = rowsDef.filter((r) => !r.head), ri = new Map(R.map((r, j) => [r, j]));
+    const all = o.foot ? [...R, o.foot] : R, cnt = all.map(() => cols.map(() => [0, 0, 0])), rt = all.map(() => [0, 0, 0]);
+    for (const i of list) {
+      for (let r = 0; r < all.length; r++) {
+        if (!all[r].test(i)) continue;
+        rt[r][SIDE[i]]++;
+        for (let c = 0; c < cols.length; c++) if (cols[c].test(i)) cnt[r][c][SIDE[i]]++;
+      }
+    }
+    const tot = (t) => t[0] + t[1] + t[2], of = o.of ?? list.length;
+    // comparando, cada celda lleva lo de los dos lados: «A / B» (lo que no es de ninguno, tal cual)
+    const show = (t) => (!CMP() || (!t[0] && !t[1]) ? (tot(t) ? num(tot(t)) : '') : `${num(t[0])}<span class="mt-mut"> / ${num(t[1])}</span>`);
+    // el máximo de cada grupo, para el color
+    const gmax = new Map(); let g = 0;
+    for (const r of rowsDef) { if (r.head) { g++; continue; } const j = ri.get(r); gmax.set(g, Math.max(gmax.get(g) || 1, ...cnt[j].map(tot))); r.g = g; }
+    const tip = (label, t) => `${label}\n${num(tot(t))} issues${CMP() ? `\n${CO().map((k) => `${name(k)}: ${num(t[k])}`).join(' · ')}` : ''}`;
+    const filt = (r, c) => (r.f && c?.f ? `data-f2="${r.f}|${c.f}"` : r.f && !c ? `data-f="${r.f}"` : c?.f && !r.f ? `data-f="${c.f}"` : '');
+    const cell = (r, j, c, k, shade) => {
+      const v = tot(cnt[j][k]), a = shade && v ? Math.round(8 + 92 * Math.pow(v / gmax.get(r.g), 0.6)) : 0;
+      return `<td class="mt-num ${a > 50 ? 'mt-hot' : ''}" ${shade ? `style="--mt-a:${a}%"` : ''} ${filt(r, c)} data-tip="${esc(tip(`${r.label} · ${c.label}`, cnt[j][k]))}">${show(cnt[j][k])}</td>`;
+    };
+    if (CMP()) o = { ...o, share: false };   // comparando, un % sobre los dos lados juntos no dice nada
+    const ncol = cols.length + 1 + (o.total ? 1 : 0) + (o.share ? 1 : 0);
+    const row = (r) => {
+      if (r.head) return `<tr class="mt-mhead"><th colspan="${ncol}">${esc(r.head)}</th></tr>`;
+      const j = ri.get(r);
+      return `<tr><th class="mt-r" title="${esc(r.label)}" ${filt(r)}>${esc(r.label)}</th>${cols.map((c, k) => cell(r, j, c, k, o.shade !== false)).join('')}`
+        + `${o.total ? `<td class="mt-num mt-total" ${filt(r)} data-tip="${esc(tip(r.label, rt[j]))}">${show(rt[j])}</td>` : ''}${o.share ? `<td class="mt-num mt-mut">${pct(tot(rt[j]) / (of || 1), 1)}</td>` : ''}</tr>`;
+    };
+    const fj = all.length - 1;
+    const foot = o.foot ? `<tr class="mt-grp"><th class="mt-r">${esc(o.foot.label)}</th>${cols.map((c, k) => `<td class="mt-num" ${filt({}, c)}>${show(cnt[fj][k])}</td>`).join('')}${o.total ? `<td class="mt-num">${show(rt[fj])}</td>` : ''}${o.share ? `<td class="mt-num mt-mut">${pct(tot(rt[fj]) / (of || 1), 1)}</td>` : ''}</tr>` : '';
+    return `${CMP() ? `<p class="mt-small mt-mut">Cada celda: ${esc(name(0))} / ${esc(name(1))}.</p>` : ''}<div class="mt-tablewrap"><table class="mt-hm mt-mx"><thead><tr><th></th>${cols.map((c) => `<th class="mt-h" ${c.tip ? `data-tip="${esc(c.tip)}"` : ''}>${esc(c.label)}</th>`).join('')}${o.total ? '<th class="mt-h">Total</th>' : ''}${o.share ? '<th class="mt-h">%</th>' : ''}</tr></thead><tbody>
+      ${o.footTop ? foot : ''}${rowsDef.map(row).join('')}${o.footTop ? '' : foot}</tbody></table></div>`;
   };
 
   // Barra única repartida en tramos: dónde se va el tiempo de vida de las issues.
@@ -214,5 +259,5 @@ export const createCharts = (m, ui) => {
       return `<div class="mt-split"><span class="mt-split-l">${r.k != null && CMP() ? `<i class="mt-sw mt-c${r.k}"></i>` : ''}${esc(r.label)}</span><span class="mt-hbar mt-split-b">${t ? r.v.map((v, j) => `<i class="mt-part${j}" style="width:${v / t * 100}%" data-tip="${esc(`${r.label}${r.k != null && CMP() ? ` · ${name(r.k)}` : ''}\n${names[j]}: ${num(v)} (${pct(v / t)})`)}">${v / t >= 0.08 ? pct(v / t) : ''}</i>`).join('') : ''}</span><span class="mt-split-n">${num(t)}</span></div>`;
     }).join('');
 
-  return { card, legend, kpi, kpis, kpiCo, diff, bars, orderedBars, monthly, lines, ranking, compare, heat, timeBars, movers, mini, day, split };
+  return { card, legend, kpi, kpis, kpiCo, diff, bars, orderedBars, monthly, lines, ranking, compare, heat, matrix, timeBars, movers, mini, day, split };
 };
