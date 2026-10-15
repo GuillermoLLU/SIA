@@ -258,17 +258,23 @@ export const createTabs = (m, ch, ui) => {
 
     backlog(A) {
       const T = bySide(A), ST = T.map(stats), op = A.filter((i) => OPEN[i]);
-      let orphan = 0; for (let i = 0; i < N; i++) if (OPEN[i] && !C.as[i] && inPeriod(i)) orphan++;
+      let orphan = 0; for (let i = 0; i < N; i++) if (OPEN[i] && !C.as[i] && inPeriod(i) && cardsOf(i).some((k) => k < 3)) orphan++;
       const oldest = op.slice().sort((a, b) => C.rep[a] - C.rep[b]).slice(0, ui.exp.old ? 100 : 15);
       const list = `<div class="mt-tablewrap"><table><thead><tr><th>Issue</th><th>Abierta</th><th>Título</th><th>Prioridad</th><th>Estado</th><th>Responsable</th></tr></thead><tbody>${oldest.map((i) => `<tr><td><a href="${REMEDY}${incId(C.id[i])}%22" target="_blank" rel="noopener">${incId(C.id[i])}</a></td><td>${dateOf(BASE, C.rep[i]).slice(0, 5)}</td><td>${esc(C.su[i])}</td><td>${nice(DI.prio[C.pr[i]])}</td><td>${nice(DI.status[C.st[i]])}${C.rs[i] ? ` · <span class="mt-mut">${esc(title(DI.reason[C.rs[i]]))}</span>` : ''}</td><td><span class="mt-pill mt-p${SIDE[i]}">${esc(m.DIMS.as.label(C.as[i]))}</span></td></tr>`).join('')}</tbody></table></div>${op.length > 15 ? `<button class="mt-more" data-exp="old">${ui.exp.old ? 'Ver menos' : 'Ver más'}</button>` : ''}`;
       const people = S.sides.some((s) => s?.people);
+      // El desglose de lo pendiente: por estado (en curso, sin empezar y en espera suman el total) y, aparte,
+      // lo que no ha pasado nunca a En curso y ya supera su SLA, lo escalado y lo que no tiene a nadie.
+      const st = (s) => DI.status.indexOf(s), [ASSIGNED, IN_PROGRESS, PENDING] = ['ASSIGNED', 'IN_PROGRESS', 'PENDING'].map(st);
+      const openCount = (test) => T.map((l) => ({ n: l.length, v: l.filter((i) => OPEN[i] && test(i)).length }));
+      const v = { val: (s) => s.v }, one = !CMP();
       return grid(ask('backlog'),
-        kpis(kpiCo('Abiertas ahora', ST, (s) => num(s.open), { val: (s) => s.open }),
-          kpiCo('Sin iniciar y fuera de plazo', ST, (s) => num(s.waitKo), { val: (s) => s.waitKo, note: 'nunca han pasado a En curso' }),
-          kpiCo('Con más de 30 días', ST, (s) => num(s.open30), { val: (s) => s.open30 }),
-          kpiCo('PRIO abiertas', T.map((l) => ({ n: l.length, v: l.filter((i) => OPEN[i] && cardsOf(i).includes(2)).length })), (s) => num(s.v), { val: (s) => s.v, note: 'priorizadas por negocio' }),
-          kpiCo('Escaladas abiertas', T.map((l) => ({ n: l.length, v: l.filter((i) => OPEN[i] && C.vt[i]).length })), (s) => num(s.v), { val: (s) => s.v, note: 'con ticket de tercero' }),
-          people ? '' : kpi('Abiertas sin responsable', num(orphan), 'en todo el grupo, aún sin nadie asignado', 'mt-t2')),
+        kpis(kpiCo('Pendientes', ST, (s) => num(s.open), { val: (s) => s.open, note: one ? `el backlog: sin resolver, de ${num(ST[CO()[0]].n)} recibidas en el periodo` : '' }),
+          kpiCo('En curso', openCount((i) => C.st[i] === IN_PROGRESS), (s) => num(s.v), { ...v, note: 'alguien trabajando en ellas' }),
+          kpiCo('Sin empezar', openCount((i) => C.st[i] === ASSIGNED), (s) => num(s.v), { ...v, note: 'en Asignada: nadie las está trabajando' }),
+          kpiCo('En espera', openCount((i) => C.st[i] === PENDING), (s) => num(s.v), { ...v, note: 'en Pendiente: de un tercero, del cliente…' }),
+          kpiCo('Fuera de plazo', ST, (s) => num(s.waitKo), { val: (s) => s.waitKo, better: 'low', note: 'sin iniciar: nunca han pasado a En curso y ya superan su SLA' }),
+          kpiCo('Escaladas', openCount((i) => C.vt[i]), (s) => num(s.v), { ...v, note: 'con ticket de tercero' }),
+          people ? '' : kpi('Sin responsable', num(orphan), 'SGA, SISU o PRIO, sin nadie asignado', 'mt-t2')),
         card(S.from === S.to ? 'Entran y salen, día a día' : 'Entran y salen, mes a mes', flow(A), { span: 's7', sub: S.from === S.to ? 'De lo recibido en el mes.' : 'De lo recibido en el periodo. Clic en un mes para filtrar; con un solo mes, se ve día a día.' }),
         card('Antigüedad de lo abierto', legend() + orderedBars('age', [0, 1, 2, 3, 4], { rows: op, id: 'op-age' }), { span: 's5', sub: 'Tiempo desde la apertura hasta la foto.' }),
         card('Módulo × antigüedad', heat('mo', 'age', 14, 5, { rows: op, skipR: noK, orderC: [0, 1, 2, 3, 4] }), { sub: 'Lo abierto hoy, por módulo y por cuánto lleva abierto. Clic en una celda para filtrar.' }),
