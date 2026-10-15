@@ -322,7 +322,7 @@
 
 /* Ficha por módulo (scorecard): bloques de columnas, la referencia arriba y lo que va peor en ocre */
 .mt-view table.mt-sc { table-layout: fixed; }
-.mt-view .mt-sc col.mt-sc-first { width: 20%; } .mt-view .mt-sc col.mt-sc-n { width: 24%; }
+.mt-view .mt-sc col.mt-sc-first { width: 19%; } .mt-view .mt-sc col.mt-sc-n { width: 22%; }
 .mt-view .mt-sc col.mt-gsep { border-left: 1px solid var(--mt-line); }
 .mt-view .mt-sc td, .mt-view .mt-sc th { padding: 7px 10px; }
 .mt-view .mt-sc th.mt-r { overflow: hidden; font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
@@ -345,3 +345,8 @@
 .mt-view .mt-flush table.mt-hm-titled tbody th.mt-r { padding-left: 14px; }
 .mt-view .mt-flush table.mt-hm-titled td.mt-total, .mt-view .mt-flush table.mt-hm-titled thead th:last-child { padding-right: 12px; }
 .mt-view table.mt-hm-titled th.mt-hm-title i { margin: 0 7px; font-style: normal; font-weight: 400; color: var(--mt-c0); }
+.mt-view .mt-sc col.mt-sc-top { width: 15%; }
+.mt-view .mt-sc td.mt-sc-top { display: table-cell; text-align: left; }
+.mt-sc-top span { display: inline-block; max-width: calc(100% - 42px); overflow: hidden; vertical-align: bottom; text-overflow: ellipsis; white-space: nowrap; }
+.mt-sc-top em { margin-left: 6px; font-size: 12px; font-style: normal; color: var(--mt-low); }
+.mt-card h3 small { margin-left: 8px; font-size: 12px; font-weight: 400; letter-spacing: 0; text-transform: none; }

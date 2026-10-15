@@ -158,12 +158,15 @@ export const createCharts = (m, ui) => {
     crit: ['Críticas', null, (s) => s.crit, 'Parte de prioridad crítica.'],
     vend: ['Escaladas', null, (s) => s.vend, 'Parte con ticket de tercero.'],
     open: ['Pendientes', null, (s) => s.open, 'Lo recibido en el periodo que sigue sin resolver.'],
+    // con o.extra: top, el valor de otra dimensión que más se repite ({ label, share }); mi, los major incidents
+    top: ['Lo que más falla', null, null, 'El módulo con más issues y su parte.'],
+    mi: ['Major inc.', null, (s) => s.mi, 'Issues con la etiqueta de major incident en sus notas de trabajo.'],
   };
-  const SC_FMT = { sla: (v) => (v == null ? '—' : pct(v)), avg: dur, d1: (v) => pct(v), reop: (v) => pct(v, 1), crit: (v) => pct(v), vend: (v) => pct(v), open: num };
+  const SC_FMT = { sla: (v) => (v == null ? '—' : pct(v)), avg: dur, d1: (v) => pct(v), reop: (v) => pct(v, 1), crit: (v) => pct(v), vend: (v) => pct(v), open: num, mi: (v) => (v ? num(v) : '') };
   const scorecard = (dim, groups, o = {}) => {
     const id = o.id || `sc-${dim}`, list = o.rows || rows(dim), cmp = CMP(), cols = groups.flatMap(([, c]) => c);
     const side = (l) => (cmp ? l.filter((i) => SIDE[i] === 0) : l), other = (l) => l.filter((i) => SIDE[i] === 1);
-    const full = (l) => { const st = stats(side(l)); st.tr = trend(side(l)); if (cmp) st.b = stats(other(l)); return st; };
+    const full = (l) => { const st = stats(side(l)); st.tr = trend(side(l)); o.extra?.(st, side(l)); if (cmp) { st.b = stats(other(l)); o.extra?.(st.b, other(l)); } return st; };
     const all = group(dim, list, true).filter((x) => !(o.skip && o.skip(x.k)));
     const ref = full(list), T = ref.n || 1;
     const srt = ui.sort[id] || ['n', -1], key = (r) => SC[srt[0]][2](r) ?? -Infinity;
@@ -178,20 +181,22 @@ export const createCharts = (m, ui) => {
       if (!b || r.n < SC_MIN || v == null || w == null) return false;
       return b === 'low' ? v > w * 1.15 : v < w * 0.85;
     };
-    const cell = (c, r, isRef) => {
-      if (c === 'n') return `<td><div class="mt-sc-vol"><em>${pct(r.n / T, 1)}</em><span class="mt-sc-bar"><i style="width:${isRef ? 100 : (r.n / nmax * 100).toFixed(1)}%"></i></span><b>${num(r.n)}</b></div></td>`;
+    // la barra, frente al mayor; el total, entera; «Resto» suma muchos y no lleva barra
+    const cell = (c, r, isRef, isRest) => {
+      if (c === 'n') return `<td><div class="mt-sc-vol"><em>${pct(r.n / T, 1)}</em><span class="mt-sc-bar">${isRest ? '' : `<i style="width:${isRef ? 100 : (r.n / nmax * 100).toFixed(1)}%"></i>`}</span><b>${num(r.n)}</b></div></td>`;
+      if (c === 'top') return `<td class="mt-sc-top">${r.top ? `<span data-tip="${esc(`${r.top.label}\n${pct(r.top.share, 1)} de sus issues`)}">${esc(r.top.label)}</span><em>${pct(r.top.share)}</em>` : ''}</td>`;
       if (c === 'dl') return `<td class="mt-num" data-tip="${esc(`Últimos 90 días: ${num(r.tr.now)}\n90 anteriores: ${num(r.tr.prev)}`)}">${delta(r.tr)}</td>`;
       const v = SC[c][2](r), shown = v == null ? '—' : SC_FMT[c](v);
       const d = cmp && r.b ? diff(r, r.b, (x) => SC_FMT[c](SC[c][2](x)), (x) => SC[c][2](x), SC[c][1]) : '';
       return `<td class="mt-num ${!isRef && worse(c, r) ? 'mt-worse' : ''}" ${!isRef && worse(c, r) ? `data-tip="${esc(`Peor que la media de todos: ${SC_FMT[c](SC[c][2](ref))}`)}"` : ''}>${shown}${d ? `<small>${d}</small>` : ''}</td>`;
     };
-    const head = (c) => `<th class="mt-num ${srt[0] === c ? 'mt-srt' : ''}" data-sort="${id}:${c}" data-tip="${esc(SC[c][3])}">${SC[c][0]}${srt[0] === c ? (srt[1] < 0 ? ' ↓' : ' ↑') : ''}</th>`;
+    const head = (c) => `<th class="mt-num ${srt[0] === c ? 'mt-srt' : ''}" ${SC[c][2] ? `data-sort="${id}:${c}"` : ''} data-tip="${esc(SC[c][3])}">${SC[c][0]}${srt[0] === c ? (srt[1] < 0 ? ' ↓' : ' ↑') : ''}</th>`;
     const colgroup = `<colgroup><col class="mt-sc-first">${groups.map(([, c]) => c.map((x, j) => `<col class="${j ? '' : 'mt-gsep'} mt-sc-${x}">`).join('')).join('')}</colgroup>`;
-    const row = (label, r, attrs = '', isRef = false) => `<tr ${attrs}><th class="mt-r" title="${esc(label)}">${esc(label)}</th>${cols.map((c) => cell(c, r, isRef)).join('')}</tr>`;
+    const row = (label, r, attrs = '', isRef = false, isRest = false) => `<tr ${attrs}><th class="mt-r" title="${esc(label)}">${esc(label)}</th>${cols.map((c) => cell(c, r, isRef, isRest)).join('')}</tr>`;
     return `${cmp ? `<p class="mt-small mt-mut">Cifras de ${esc(name(0))}; debajo, la diferencia con ${esc(name(1))}.</p>` : ''}<div class="mt-tablewrap"><table class="mt-sc">${colgroup}
       <thead><tr class="mt-cgrp"><th></th>${groups.map(([t, c]) => `<th colspan="${c.length}">${t}</th>`).join('')}</tr><tr><th>${DIMS[dim].name}</th>${cols.map(head).join('')}</tr></thead><tbody>
       ${shown.map((r) => row(DIMS[dim].label(r.k), r, `class="mt-clk ${isSel(dim, r.k) ? 'mt-sel' : ''}" data-f="${dim}:${r.k}"`)).join('')}
-      ${rest ? row(`Resto (${data.length - shown.length})`, rest, 'class="mt-sc-rest"') : ''}
+      ${rest ? row(`Resto (${data.length - shown.length})`, rest, 'class="mt-sc-rest"', false, true) : ''}
       ${row(o.refLabel || 'Todos', ref, 'class="mt-sc-ref"', true)}
       </tbody></table></div>${more(id, data.length, top)}`;
   };

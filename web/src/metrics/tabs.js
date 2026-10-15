@@ -73,6 +73,13 @@ export const createTabs = (m, ch, ui) => {
   const byCard = (A, cols) => slices('Tarjeta', CARDS.map((c, k) => [c, (i) => cardsOf(i).includes(k), `tj:${k}`]), A, cols);
   // la ficha de los módulos: bloques de columnas (charts.js, scorecard)
   const MOD_GROUPS = [['Volumen', ['n', 'dl']], ['Cómo se atiende', ['sla', 'avg', 'd1', 'reop']], ['Qué trae', ['crit', 'vend']], ['Hoy', ['open']]];
+  // y la de los centros: lo que más les falla (su módulo con más issues) y sus major incidents
+  const CE_GROUPS = [['Volumen', ['n', 'dl']], ['Cómo se atiende', ['sla', 'avg']], ['Qué trae', ['top', 'crit', 'vend', 'mi']], ['Hoy', ['open']]];
+  const centreExtra = (st, l) => {
+    const g = group('mo', l).filter((x) => x.k);
+    st.top = g.length ? { label: m.DIMS.mo.label(g[0].k), share: g[0].n / (l.length || 1) } : null;
+    st.mi = l.filter((i) => C.fl[i] & MAJOR).length;
+  };
   const CARD_NOTE = 'SGA y SISU, por los filtros de Remedy del equipo; PRIO, priorizada por negocio, cuenta además en su SGA o SISU.';
 
   // Mapa de calor día de la semana × hora de un instante de cada issue (la apertura, la resolución…).
@@ -407,12 +414,11 @@ export const createTabs = (m, ch, ui) => {
         card('', heat('ce', 'mo', 18, 14, { skipR: noK, skipC: noK, title: true }), { span: 's12' }),
         card('', heat('th', 'mo', 16, 14, { skipR: noTheme, skipC: noK, title: true }), { span: 's12' }),
         card('', heat('pr', 'mo', 4, 14, { skipR: noK, skipC: noK, orderR: PRIOS, title: true }), { span: 's12' }),
-        card('Centros', ranking('ce', ['n', 'sh', 'mix', 'crit', 'avg', 'vend', 'tr', 'dl'], { skip: noK, top: 15 }), { span: 's12', sub: `${k80} centros de ${gc.length} concentran el 80 % del volumen. Clic en una cabecera para ordenar; clic en un centro para ver todas las métricas solo de ese centro.` }),
+        card(`Centros: de dónde viene el trabajo <small>${k80} de ${gc.length} concentran el 80 % de las issues</small>`, scorecard('ce', CE_GROUPS, { id: 'md-ce', skip: noK, refLabel: 'Todos los centros', extra: centreExtra }), { span: 's12' }),
         card('Problemas que más se repiten', ranking('de', ['n', 'sh', 'avg', 'd1', 'reop', 'vend', 'tr'], { id: 'md-de', skip: noK, min: 5, top: 15 }), { span: 's12', sub: 'Mismo título tras quitar centro, criticidad y números: lo que vuelve una y otra vez y cuánto cuesta resolverlo. Clic en uno para ver todas las métricas solo de ese problema.' }),
         card('Módulos que suben y bajan', movers('mo', { skip: noK }), { sub: 'Últimos 90 días de la foto frente a los 90 anteriores.' }),
         card('Centros que suben y bajan', movers('ce', { skip: noK }), { sub: 'Últimos 90 días de la foto frente a los 90 anteriores.' }),
-        card('Temas en los títulos', legend() + bars('th', { top: 14 }), { sub: 'Detectados por palabras clave; una issue puede estar en varios. «Sin tema» son títulos que no encajan en ninguno.' }),
-        card('Major incidents por centro', bars('ce', { id: 'mi-ce', rows: A.filter((i) => C.fl[i] & MAJOR), top: 10, skip: noK }), { sub: 'Issues con la etiqueta de major incident en sus notas de trabajo.' }));
+        card('Temas en los títulos', legend() + bars('th', { top: 14 }), { sub: 'Detectados por palabras clave; una issue puede estar en varios. «Sin tema» son títulos que no encajan en ninguno.' }));
     },
 
     resolucion(A) {
