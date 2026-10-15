@@ -208,12 +208,12 @@ export const createCharts = (m, ui) => {
     const row = (r) => {
       if (r.head) return `<tr class="mt-mhead"><th colspan="${ncol}">${esc(r.head)}</th></tr>`;
       const j = ri.get(r);
-      return `<tr><th class="mt-r" title="${esc(r.label)}" ${filt(r)}>${esc(r.label)}</th>${cols.map((c, k) => cell(r, j, c, k, o.shade !== false)).join('')}`
+      return `<tr><th class="mt-r" ${r.tip ? `data-tip="${esc(r.tip)}"` : `title="${esc(r.label)}"`} ${filt(r)}>${esc(r.label)}</th>${cols.map((c, k) => cell(r, j, c, k, o.shade !== false)).join('')}`
         + `${o.total ? `<td class="mt-num mt-total" ${filt(r)} data-tip="${esc(tip(r.label, rt[j]))}">${show(rt[j])}</td>` : ''}${o.share ? `<td class="mt-num mt-mut">${pct(tot(rt[j]) / (of || 1), 1)}</td>` : ''}</tr>`;
     };
     const fj = all.length - 1;
     const foot = o.foot ? `<tr class="mt-grp"><th class="mt-r">${esc(o.foot.label)}</th>${cols.map((c, k) => `<td class="mt-num" ${filt({}, c)}>${show(cnt[fj][k])}</td>`).join('')}${o.total ? `<td class="mt-num">${show(rt[fj])}</td>` : ''}${o.share ? `<td class="mt-num mt-mut">${pct(tot(rt[fj]) / (of || 1), 1)}</td>` : ''}</tr>` : '';
-    return `${CMP() ? `<p class="mt-small mt-mut">Cada celda: ${esc(name(0))} / ${esc(name(1))}.</p>` : ''}<div class="mt-tablewrap"><table class="mt-hm mt-mx"><thead><tr><th></th>${cols.map((c) => `<th class="mt-h" ${c.tip ? `data-tip="${esc(c.tip)}"` : ''}>${esc(c.label)}</th>`).join('')}${o.total ? '<th class="mt-h">Total</th>' : ''}${o.share ? '<th class="mt-h">%</th>' : ''}</tr></thead><tbody>
+    return `${CMP() ? `<p class="mt-small mt-mut">Cada celda: ${esc(name(0))} / ${esc(name(1))}.</p>` : ''}<div class="mt-tablewrap"><table class="mt-hm mt-mx"><colgroup><col style="width:${cols.length > 8 ? 20 : 27}%">${'<col>'.repeat(ncol - 1)}</colgroup><thead><tr><th></th>${cols.map((c) => `<th class="mt-h" ${c.tip ? `data-tip="${esc(c.tip)}"` : ''}>${esc(c.label)}</th>`).join('')}${o.total ? '<th class="mt-h">Total</th>' : ''}${o.share ? '<th class="mt-h">%</th>' : ''}</tr></thead><tbody>
       ${o.footTop ? foot : ''}${rowsDef.map(row).join('')}${o.footTop ? '' : foot}</tbody></table></div>`;
   };
 

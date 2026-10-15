@@ -61,8 +61,10 @@ export const createTabs = (m, ch, ui) => {
     vend: ['Con ticket de tercero', (s) => pct(s.vend), (s) => s.vend], pend: ['Pasan por pendiente', (s) => pct(s.pend), (s) => s.pend], crit: ['Críticas', (s) => pct(s.crit, 1), (s) => s.crit],
   };
   const cell = (st, [, f, v, bt]) => (CMP() ? diff(st[0], st[1], f, v, bt) : (st[CO()[0]].n ? f(st[CO()[0]]) : '—'));
-  // groups: [título, columnas] de una fila de cabecera por encima, para agrupar columnas
-  const table = (first, defs, rowsHtml, groups) => `<div class="mt-tablewrap"><table><thead>${groups ? `<tr class="mt-cgrp"><th></th>${groups.map(([l, n]) => `<th colspan="${n}">${l}</th>`).join('')}</tr>` : ''}<tr><th>${first}</th>${defs.map((d) => `<th class="mt-num" ${d[4] ? `data-tip="${esc(d[4])}"` : ''}>${d[0]}</th>`).join('')}</tr></thead><tbody>${rowsHtml}</tbody></table></div>`;
+  // groups: [título, columnas] de una fila de cabecera por encima, para agrupar columnas; entonces las
+  // columnas van todas igual de anchas y con una línea entre grupos
+  const colgroup = (groups) => `<colgroup><col class="mt-first">${groups.map(([, n]) => Array.from({ length: n }, (_, j) => `<col${j ? '' : ' class="mt-gsep"'}>`).join('')).join('')}</colgroup>`;
+  const table = (first, defs, rowsHtml, groups) => `<div class="mt-tablewrap"><table ${groups ? 'class="mt-fixed"' : ''}>${groups ? colgroup(groups) : ''}<thead>${groups ? `<tr class="mt-cgrp"><th></th>${groups.map(([l, n]) => `<th colspan="${n}">${l}</th>`).join('')}</tr>` : ''}<tr><th>${first}</th>${defs.map((d) => `<th class="mt-num" ${d[4] ? `data-tip="${esc(d[4])}"` : ''}>${d[0]}</th>`).join('')}</tr></thead><tbody>${rowsHtml}</tbody></table></div>`;
   const slices = (first, defs, A, cols) => table(first, cols.map((c) => SLICE[c]), defs.map(([label, test, f]) => {
     const st = bySide(A.filter(test)).map(stats);
     return `<tr ${f ? `class="mt-clk" data-f${f.includes('|') ? '2' : ''}="${f}"` : ''}><td>${label}</td>${cols.map((c) => `<td class="mt-num">${cell(st, SLICE[c])}</td>`).join('')}</tr>`;
@@ -375,12 +377,12 @@ export const createTabs = (m, ch, ui) => {
       const pend = { label: 'Pendientes', test: inA };
       const stateRows = [
         ...SIT.map((s) => ({ ...s, test: (i) => inA(i) && s.test(i) })),
-        { head: 'De lo pendiente' },
-        { label: 'Fuera de plazo (sin iniciar)', test: (i) => inA(i) && late(i) },
-        { label: 'Escaladas (con ticket de tercero)', test: (i) => inA(i) && C.vt[i] > 0 },
+        { head: 'De lo pendiente, lo que conviene vigilar' },
+        { label: 'Fuera de plazo', tip: 'Sin iniciar: nunca han pasado a En curso y ya superan su SLA.', test: (i) => inA(i) && late(i) },
+        { label: 'Escaladas', tip: 'Con ticket de tercero.', test: (i) => inA(i) && C.vt[i] > 0 },
         { label: 'PRIO', test: (i) => inA(i) && cardsOf(i).includes(2), f: 'tj:2' },
         { label: 'Críticas', test: (i) => inA(i) && C.pr[i] === CRITICAL, f: `pr:${CRITICAL}` },
-        ...(orphans.length ? [{ head: 'Aparte, sin nadie' }, { label: 'Sin responsable (SGA, SISU o PRIO)', test: (i) => !C.as[i] }] : []),
+        ...(orphans.length ? [{ head: 'Aparte: SGA, SISU o PRIO sin nadie asignado' }, { label: 'Sin responsable', test: (i) => !C.as[i] }] : []),
       ];
       const prioRows = [{ head: 'Prioridad' }, ...PRIOS.map((p) => ({ label: nice(DI.prio[p]), test: (i) => C.pr[i] === p, f: `pr:${p}` })),
         { head: 'Tarjeta · una PRIO cuenta también en su SGA o SISU' }, ...CARDS.map((c, k) => ({ label: c, test: (i) => cardsOf(i).includes(k), f: `tj:${k}` }))];
