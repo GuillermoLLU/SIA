@@ -4,16 +4,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { csvReader } from '../shared/csv.js';
-import { createDataset } from './dataset.js';
+import { createDataset, FORMAT } from './dataset.js';
 
 export const createMetricsStore = (dir, { year, now = () => new Date() }) => {
   const file = path.join(dir, 'datos.json');
-  let cache;            // undefined: sin leer aún; null: no hay datos
+  let cache;            // undefined: sin leer aún; null: no hay datos (o son de otro formato: hay que cargar el CSV de nuevo)
   let loading = false;
 
   const load = () => {
     if (cache === undefined) {
       try { cache = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { cache = null; }
+      if (cache?.meta?.format !== FORMAT) cache = null;
     }
     return cache;
   };

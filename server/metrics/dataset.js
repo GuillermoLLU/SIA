@@ -5,7 +5,8 @@
 // solos: no son trabajo del equipo y no se guardan.
 //
 // Lo que sale (lo lee web/src/metrics/):
-//   meta    { file, year, group, rows, total, snapshot, generated }
+//   meta    { format, file, year, group, rows, total, snapshot, generated }
+//           format: FORMAT; unos datos de otro formato se vuelven a calcular cargando el CSV.
 //           rows: issues del grupo y del año; total: filas del CSV;
 //           snapshot: el último minuto con movimiento (la «hora de la foto»).
 //   dict    textos por columna; el 0 es siempre ''.
@@ -16,14 +17,16 @@
 //           st estado · rs motivo · pr prioridad · sv tipo de servicio · as responsable
 //           ce centro · op operación · mo módulo · k3 tipología · sc ámbito · fl marcas (remedy.js FLAG)
 //           vt/vp/vk ticket de tercero: tipo, proyecto Jira y clave · th temas · su título
+//           de problema (themes.js): las formas de escribir lo mismo, juntas; dict.problem, la más escrita
 //           fr primera actuación · ip primer paso a En curso (minutos desde la apertura; -1 no hay)
 //           tA/tI/tPc/tPv/tPo minutos en cola, en curso y pendiente del centro, de un tercero u otros
 //           nb devoluciones a la cola · np pendientes · rz resolución repetida (4 veces o más; 0 si no)
 import { readIssue, FLAG } from './remedy.js';
 import { loginsOf, companyOf } from './companies.js';
-import { THEME_NAMES } from './themes.js';
+import { THEME_NAMES, problemKey } from './themes.js';
 
 export const GROUP = 'AYS SOPORTE';
+export const FORMAT = 2;
 
 export const REQUIRED = ['INCIDENTNUMBER', 'ASSIGNEDGROUP', 'ASSIGNEE', 'SUMMARY', 'PRIORITY', 'STATUS', 'STATUSREASON', 'SERVICETYPE', 'TAGS',
   'REPORTEDDATE', 'LASTRESOLUTIONDATE', 'LASTMODIFIEDDATE', 'RESOLUTION', 'VENDORTICKETNUMBER', 'PRODUCTCATEGORIZATIONTIER1',
@@ -46,13 +49,14 @@ const dictionary = () => {
 };
 
 const COLS = ['id', 'rep', 'res', 'lm', 'st', 'rs', 'pr', 'sv', 'as', 'ce', 'op', 'mo', 'k3', 'sc', 'fl', 'vt', 'vp', 'vk',
-  'fr', 'ip', 'tA', 'tI', 'tPc', 'tPv', 'tPo', 'nb', 'np', 'th', 'su'];
+  'fr', 'ip', 'tA', 'tI', 'tPc', 'tPv', 'tPo', 'nb', 'np', 'th', 'su', 'de'];
 
 export const createDataset = ({ year, group = GROUP }) => {
   const base = Date.UTC(year, 0, 1), yearEnd = (Date.UTC(year + 1, 0, 1) - base) / 60000;
-  const D = Object.fromEntries(['status', 'reason', 'prio', 'svc', 'person', 'centre', 'op', 'module', 'cat', 'vtype', 'vproj', 'vkey', 'resol'].map((k) => [k, dictionary()]));
+  const D = Object.fromEntries(['status', 'reason', 'prio', 'svc', 'person', 'centre', 'op', 'module', 'cat', 'vtype', 'vproj', 'vkey', 'resol', 'problem'].map((k) => [k, dictionary()]));
   const cols = Object.fromEntries(COLS.map((c) => [c, []]));
   const resolutions = [], resolutionCount = new Map(), resolvers = new Map();
+  const spellings = [];   // por problema: cuántas veces se escribe de cada forma
   let total = 0, snapshot = 0, checked = false;
 
   const add = (r) => {
@@ -75,12 +79,14 @@ export const createDataset = ({ year, group = GROUP }) => {
     const resolution = own(i.resolution);
     resolutionCount.set(resolution, (resolutionCount.get(resolution) || 0) + 1);
     resolutions.push(resolution);
+    const de = D.problem.id(problemKey(i.problem));
+    if (de) { const w = spellings[de] || (spellings[de] = new Map()); w.set(i.problem, (w.get(i.problem) || 0) + 1); }
     const row = {
       id: i.id, rep: i.reported, res: i.resolved, lm: i.modified, st: D.status.id(i.status), rs: D.reason.id(i.reason), pr: D.prio.id(i.priority),
       sv: D.svc.id(i.service), as: D.person.id(i.assignee), ce: D.centre.id(i.centre), op: D.op.id(i.operation), mo: D.module.id(i.module),
       k3: D.cat.id(i.category), sc: i.scope, fl: i.flags, vt: D.vtype.id(i.vendor.type), vp: D.vproj.id(i.vendor.project), vk: D.vkey.id(i.vendor.key),
       fr: i.first, ip: i.start, tA: i.time.queue, tI: i.time.work, tPc: i.time.client, tPv: i.time.vendor, tPo: i.time.other,
-      nb: i.bounces, np: i.pendings, th: i.themes, su: own(i.title),
+      nb: i.bounces, np: i.pendings, th: i.themes, su: own(i.title), de,
     };
     for (const c of COLS) cols[c].push(row[c]);
   };
@@ -91,9 +97,11 @@ export const createDataset = ({ year, group = GROUP }) => {
     const logins = new Map();
     for (const [login, name] of loginsOf(resolvers)) logins.set(name, [...(logins.get(name) || []), login]);
     const people = D.person.values;
+    const dict = Object.fromEntries(Object.entries(D).map(([k, d]) => [k, d.values]));
+    dict.problem = dict.problem.map((k, n) => (n ? [...spellings[n]].reduce((a, b) => (b[1] > a[1] ? b : a))[0] : ''));
     return {
-      meta: { file, year, group, rows: cols.id.length, total, snapshot, generated },
-      dict: Object.fromEntries(Object.entries(D).map(([k, d]) => [k, d.values])),
+      meta: { format: FORMAT, file, year, group, rows: cols.id.length, total, snapshot, generated },
+      dict,
       themes: THEME_NAMES,
       company: people.map((name) => companyOf(name, logins.get(name) || [])),
       cols,

@@ -41,16 +41,6 @@ export const SLA_NAMES = ['Dentro del SLA', 'Hasta el doble del SLA', 'Del doble
 
 const DAY = 1440;
 
-// Título sin centro ni criticidad, y solo la parte que describe el problema (tras « - »).
-const HEAD = /^(\d{6})\s+(?:(?:cr[ií]tic[ao]|critical|alta|high|m[eé]dia|medium|baja|baixa|low)\b\s*)?/i;
-const describe = (summary, autoNotice) => {
-  const s = summary.replace(HEAD, '');
-  let d = '';
-  if (autoNotice) d = s.replace(/^.*?:\s*/, '');
-  else { const p = s.indexOf(' - '); if (p >= 0) d = s.slice(p + 3); else if (!HEAD.test(summary)) d = s; }
-  return d.normalize('NFD').replace(/\p{Mn}/gu, '').toLowerCase().replace(/\d+/g, '#').replace(/[.\s]+$/, '').replace(/\s+/g, ' ').trim();
-};
-
 const quant = (arr, p) => { if (!arr.length) return null; const a = Float64Array.from(arr).sort(); return a[Math.min(a.length - 1, Math.floor(a.length * p))]; };
 const mean = (arr) => { if (!arr.length) return null; let t = 0; for (const x of arr) t += x; return t / arr.length; };
 export const share = (list, test) => { if (!list.length) return 0; let n = 0; for (const i of list) if (test(i)) n++; return n / list.length; };
@@ -78,7 +68,6 @@ export const createModel = (data) => {
   // --- lo que se deriva de cada issue
   const MONTH = new Uint8Array(N), DOW = new Uint8Array(N), HOUR = new Uint8Array(N), TTR = new Int32Array(N), TB = new Uint8Array(N), OPEN = new Uint8Array(N), TEAM = new Uint8Array(N);
   const SLOT = new Int32Array(N), STYPE = new Uint8Array(N);   // el turno en que entra y su tipo
-  const DESC = new Uint32Array(N), DESCL = [''], descIndex = new Map([['', 0]]);
   for (let i = 0; i < N; i++) {
     const d = new Date(BASE + C.rep[i] * 6e4);
     MONTH[i] = d.getUTCMonth(); DOW[i] = (d.getUTCDay() + 6) % 7; HOUR[i] = d.getUTCHours();
@@ -87,9 +76,6 @@ export const createModel = (data) => {
     TB[i] = TTR[i] < 0 ? 8 : TTR_LIMITS.findIndex((l) => TTR[i] < l);
     OPEN[i] = OPEN_ST.has(C.st[i]) ? 1 : 0;
     TEAM[i] = data.company[C.as[i]];
-    const k = describe(C.su[i], C.th[i] & 1);
-    if (!descIndex.has(k)) { descIndex.set(k, DESCL.length); DESCL.push(k); }
-    DESC[i] = descIndex.get(k);
   }
 
   // --- dimensiones: por las que se agrupa y se filtra
@@ -120,7 +106,7 @@ export const createModel = (data) => {
     we: { name: 'Días', get: (i) => (STYPE[i] < 3 ? 0 : 1), label: (k) => DAYS[k] },
     age: { name: 'Antigüedad', get: (i) => AGE_LIMITS.findIndex((l) => SNAP - C.rep[i] < l), label: (k) => AGE_NAMES[k] },
     tb: { name: 'Tiempo de resolución', get: (i) => TB[i], label: (k) => TTR_NAMES[k] },
-    de: { name: 'Título', get: (i) => DESC[i], label: (k) => DESCL[k] || '(título sin descripción del problema)' },
+    de: { name: 'Problema', get: (i) => C.de[i], label: (k) => DI.problem[k] || '(título sin descripción del problema)' },
     th: { name: 'Tema', multi: true, label: (k) => data.themes[k] || 'Sin tema detectado',
       get: (i) => { const t = C.th[i], o = []; if (!t) return [data.themes.length]; for (let j = 0; j < data.themes.length; j++) if (t >> j & 1) o.push(j); return o; } },
     fl: { name: 'Marca', multi: true, label: (k) => FLAGS[k][1], get: (i) => { const f = C.fl[i], o = []; for (let j = 0; j < FLAGS.length; j++) if (f & FLAGS[j][0]) o.push(j); return o; } },
@@ -247,7 +233,7 @@ export const createModel = (data) => {
       if (C.fr[i] >= 0) { fr.push(C.fr[i]); if (C.fr[i] < 30) f30++; if (C.fr[i] < 120) f120++; }
       if (OPEN[i]) { open++; if (SNAP - C.rep[i] > 30 * DAY) open30++; } else { done++; if (C.fl[i] & NO_RESOLUTION) noRes++; }
       if (!C.k3[i]) noCat++;
-      if (!DESC[i]) noDesc++;
+      if (!C.de[i]) noDesc++;
       if (C.pr[i] === CRIT) crit++; else if (C.pr[i] === HIGH) hi++;
       if (C.vt[i]) vend++;
       if (C.np[i]) pend++;
@@ -283,7 +269,7 @@ export const createModel = (data) => {
   };
 
   return {
-    data, C, DI, N, BASE, SNAP, LASTM, SLA, PRIOS, slaLabel, MONTH, DOW, HOUR, OPEN, TEAM, SIDE, DESCL, DIMS, S, STYPE,
+    data, C, DI, N, BASE, SNAP, LASTM, SLA, PRIOS, slaLabel, MONTH, DOW, HOUR, OPEN, TEAM, SIDE, DIMS, S, STYPE,
     CMP, CO, NAMES, refilter, rows, pool, today, toggle, isSel, group, bySide, byMonth, trend, stats, periodSlots, clock,
     carry: (list) => carry(list, C, shiftType), shiftWork: (list) => shiftWork(list, C, (i) => OPEN[i], shiftType),
   };

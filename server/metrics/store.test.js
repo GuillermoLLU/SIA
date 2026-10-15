@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createMetricsStore } from './store.js';
-import { REQUIRED } from './dataset.js';
+import { REQUIRED, FORMAT } from './dataset.js';
 
 const csv = (...rows) => [REQUIRED.join(','), ...rows.map((r) => REQUIRED.map((c) => r[c] ?? '').join(','))].join('\n');
 const ISSUE = { INCIDENTNUMBER: 'INC000000000007', ASSIGNEDGROUP: 'AYS SOPORTE', ASSIGNEE: 'ANA LOPEZ', STATUS: 'CLOSED', REPORTEDDATE: '2026-02-01 10:00:00' };
@@ -16,10 +16,17 @@ test('sin datos: null', () => {
   assert.equal(createMetricsStore('/no/existe', { year: 2026 }).load(), null);
 });
 
+test('unos datos de otro formato no valen: null, hasta que se cargue de nuevo el CSV', () => {
+  const dir = tmp();
+  fs.writeFileSync(path.join(dir, 'datos.json'), JSON.stringify({ meta: { file: 'viejo.csv' }, cols: {} }));
+  assert.equal(createMetricsStore(dir, { year: 2026 }).load(), null);
+  fs.rmSync(dir, { recursive: true });
+});
+
 test('carga el CSV por trozos, guarda lo calculado y lo vuelve a leer', async () => {
   const dir = tmp();
   const meta = await createMetricsStore(dir, { year: 2026, now }).importCsv(chunks(csv(ISSUE)), 'issues.csv');
-  assert.deepEqual({ ...meta, snapshot: undefined }, { file: 'issues.csv', year: 2026, group: 'AYS SOPORTE', rows: 1, total: 1, snapshot: undefined, generated: '2026-10-14T08:00:00.000Z' });
+  assert.deepEqual({ ...meta, snapshot: undefined }, { format: FORMAT, file: 'issues.csv', year: 2026, group: 'AYS SOPORTE', rows: 1, total: 1, snapshot: undefined, generated: '2026-10-14T08:00:00.000Z' });
   const again = createMetricsStore(dir, { year: 2026 }).load();
   assert.deepEqual(again.cols.id, [7]);
   assert.deepEqual(fs.readdirSync(dir), ['datos.json']);

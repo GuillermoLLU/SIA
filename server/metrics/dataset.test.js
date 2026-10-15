@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createDataset, REQUIRED, CsvError } from './dataset.js';
-import { themesOf, THEME_NAMES } from './themes.js';
+import { themesOf, readTitle, problemKey, THEME_NAMES } from './themes.js';
 
 const row = (o = {}) => ({ ...Object.fromEntries(REQUIRED.map((c) => [c, ''])),
   INCIDENTNUMBER: 'INC000000000001', ASSIGNEDGROUP: 'AYS SOPORTE', ASSIGNEE: 'ANA LOPEZ', STATUS: 'CLOSED', PRIORITY: 'HIGH',
@@ -55,4 +55,30 @@ test('temas: varios a la vez; el aviso automático, solo el suyo', () => {
   assert.ok(m & (1 << THEME_NAMES.indexOf('Etiquetas e impresión')));
   assert.ok(m & (1 << THEME_NAMES.indexOf('Packing y empaquetado')));
   assert.equal(themesOf('nada que ver'), 0);
+});
+
+test('el problema es lo que va tras « - »; los temas se buscan solo ahí, no en la cabecera del centro', () => {
+  const t = readTitle(' 100632 Low ECOM ZARA POLONIA STRYKOW PACKING - [TEC] Error etiqueta 12. ');
+  assert.equal(t.problem, '[tec] error etiqueta #');
+  assert.ok(t.themes & (1 << THEME_NAMES.indexOf('Etiquetas e impresión')));
+  assert.equal(t.themes & (1 << THEME_NAMES.indexOf('Packing y empaquetado')), 0);
+  assert.deepEqual(readTitle('100632 Low ECOM ZARA PACKING'), { problem: '', themes: 0 });   // sin descripción
+  assert.equal(readTitle('No arranca la PDA').problem, 'no arranca la pda');                   // sin cabecera: todo
+  assert.deepEqual(readTitle('100001 High INCIDENCIA RUTA Y/O ETIQUETA: pedido #3'), { problem: 'pedido ##', themes: 1 });
+});
+
+test('problema: sin etiquetas entre corchetes y en singular, para juntar las formas de escribir lo mismo', () => {
+  assert.equal(problemKey('[tec] error etiquetas'), problemKey('error etiqueta'));
+  assert.equal(problemKey('cancelar pedidos'), problemKey('cancelar pedido'));
+  assert.notEqual(problemKey('permisos de usuario sisu'), problemKey('permisos de usuario'));
+  assert.equal(problemKey('[pos]'), '');
+});
+
+test('cada issue con su problema; se enseña la forma más escrita', () => {
+  const ds = createDataset({ year: 2026 });
+  const titles = ['100001 High X - Cancelar pedidos', '100001 High X - Cancelar pedido', '100001 High X - Cancelar pedidos', '100001 High X', '100001 High X - Otro'];
+  titles.forEach((SUMMARY, n) => ds.add(row({ INCIDENTNUMBER: `INC00000000003${n}`, SUMMARY })));
+  const { cols, dict } = ds.build({ file: 'x', generated: 'y' });
+  assert.deepEqual(cols.de, [1, 1, 1, 0, 2]);
+  assert.deepEqual(dict.problem, ['', 'cancelar pedidos', 'otro']);
 });

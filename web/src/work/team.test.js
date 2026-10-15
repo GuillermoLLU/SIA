@@ -14,11 +14,11 @@ const n = issues.length, col = (f) => issues.map(f), zeros = () => col(() => 0);
 const data = () => ({
   meta: { file: 'x.csv', year: 2026, group: 'AYS SOPORTE', rows: n, total: n, snapshot: 100000, generated: 'g' },
   dict: { status: ['', 'CLOSED'], reason: [''], prio: ['', 'HIGH'], svc: [''], person: ['', 'ANA', 'PEPE', 'LUIS'], centre: [''], op: [''], module: [''],
-    cat: [''], vtype: [''], vproj: [''], vkey: [''], resol: [''] },
+    cat: [''], vtype: [''], vproj: [''], vkey: [''], resol: [''], problem: [''] },
   themes: [], company: [2, 0, 0, 1],
   cols: { id: col((_, i) => i + 1), rep: col((x) => x.rep), res: col((x) => x.res), st: col(() => 1), rs: zeros(), pr: col(() => 1), sv: zeros(),
     as: col((x) => x.as), ce: zeros(), op: zeros(), mo: zeros(), k3: zeros(), sc: zeros(), fl: zeros(), vt: zeros(), vp: zeros(), vk: zeros(),
-    fr: col((x) => x.fr), ip: col((x) => x.ip), tA: zeros(), tI: zeros(), tPc: zeros(), tPv: zeros(), tPo: zeros(), nb: zeros(), np: zeros(), th: zeros(), rz: zeros(),
+    fr: col((x) => x.fr), ip: col((x) => x.ip), tA: zeros(), tI: zeros(), tPc: zeros(), tPv: zeros(), tPo: zeros(), nb: zeros(), np: zeros(), th: zeros(), rz: zeros(), de: zeros(),
     su: col(() => 'título') },
 });
 

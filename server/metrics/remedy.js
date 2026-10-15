@@ -3,7 +3,7 @@
 //
 // Los tiempos van en minutos desde el 1 de enero del año analizado, con la
 // hora tal cual viene en el dato (sin convertir zona horaria); -1 = no hay.
-import { themesOf } from './themes.js';
+import { readTitle } from './themes.js';
 
 // Marcas de una issue (bits de `flags`). La web las nombra con los mismos bits.
 export const FLAG = {
@@ -161,7 +161,7 @@ export const readIssue = (r, base) => {
     vendor: vendorOf(r.VENDORTICKETNUMBER),
     first: h.first, start: h.start, time: h.time, bounces: h.bounces, pendings: h.pendings,
     resolvedBy: h.resolvedBy,
-    themes: themesOf(norm(r.SUMMARY)),
+    ...readTitle(r.SUMMARY),   // problem y themes
     // texto de resolución sin números, para ver cuáles se repiten
     resolution: [...norm(r.RESOLUTION).replace(/\d+/g, '#')].slice(0, 90).join(''),
     title: r.SUMMARY.trim(),
