@@ -338,5 +338,10 @@
 /* Mapas de calor con el título dentro: la fila de cabecera es una franja de fondo suave, con el título en la
    esquina («Centro × Módulo») y los nombres de las columnas, todo en una unidad con la tabla */
 .mt-view table.mt-hm-titled thead th { padding-top: 8px; padding-bottom: 8px; background: var(--mt-soft); border-bottom: 2px solid var(--mt-line); }
-.mt-view table.mt-hm-titled th.mt-hm-title { font-size: 13px; font-weight: 650; text-align: left; vertical-align: bottom; color: var(--text); }
+.mt-view table.mt-hm-titled th.mt-hm-title { padding-left: 14px; font-size: 13px; font-weight: 650; text-align: left; vertical-align: bottom; color: var(--text);
+  background: color-mix(in srgb, var(--mt-c0) 22%, var(--mt-card)); box-shadow: inset 3px 0 0 var(--mt-c0); }
+/* la tarjeta sin título es un bloque: la tabla llega a los bordes y los nombres de las filas no pegan al borde */
+.mt-card.mt-flush { padding: 0; overflow: hidden; }
+.mt-view .mt-flush table.mt-hm-titled tbody th.mt-r { padding-left: 14px; }
+.mt-view .mt-flush table.mt-hm-titled td.mt-total, .mt-view .mt-flush table.mt-hm-titled thead th:last-child { padding-right: 12px; }
 .mt-view table.mt-hm-titled th.mt-hm-title i { margin: 0 7px; font-style: normal; font-weight: 400; color: var(--mt-c0); }
