@@ -385,3 +385,11 @@
 .mt-kpi-s i { flex: none; width: 8px; height: 8px; }
 .mt-kpi-s span { flex: 1; min-width: 0; overflow: hidden; color: var(--mt-low); text-overflow: ellipsis; white-space: nowrap; }
 .mt-kpi-s b { font-weight: 600; font-variant-numeric: tabular-nums; }
+/* Mes a mes comparando: dos columnas por dato (una por lado); en verde, el lado que va mejor */
+.mt-view table.mt-led2 th.mt-led-m { text-align: center; padding-right: 8px; }
+.mt-view table.mt-led2 th.mt-led-side { padding: 0 8px 5px; text-align: right; }
+.mt-view table.mt-led2 th.mt-led-side i { display: inline-block; width: 18px; height: 4px; }
+.mt-view table.mt-led2 td.mt-num { padding-right: 8px; }
+.mt-view table.mt-led2 td.mt-msep { border-left: 1px dashed var(--mt-line); }
+.mt-view table.mt-led2 td.mt-gsep { border-left: 1px solid var(--mt-line); }
+.mt-view table.mt-led2 td.mt-better { font-weight: 650; color: var(--mt-good); background: color-mix(in srgb, var(--mt-good) 9%, transparent); }

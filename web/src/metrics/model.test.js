@@ -197,3 +197,17 @@ test('comparando con personas, una empresa es todo su equipo: quien tuvo activid
   assert.equal(m2.heads(1).size, 0);
   assert.deepEqual(m2.bySide(m2.rows())[1], []);
 });
+
+test('Mes a mes comparando: entre empresas, en relación a lo que entra; persona frente a su empresa, con la media del equipo', () => {
+  const m = createModel(data()), ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  m.S.sides = [{ company: 0 }, { company: 1 }]; m.refilter();
+  let h = tabs.render('entrada', m.rows());
+  assert.match(h, /mt-led2/);
+  assert.match(h, /Resueltas por cada 100 recibidas/);
+  assert.doesNotMatch(h, /undefined|NaN/);
+  m.S.sides = [{ people: new Set([1]) }, { company: 0 }]; m.refilter();
+  h = tabs.render('entrada', m.rows());
+  assert.match(h, /Media de Indra/);
+  assert.match(h, /Pendientes al cierre/);
+  assert.doesNotMatch(h, /undefined|NaN/);
+});

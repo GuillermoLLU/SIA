@@ -226,6 +226,50 @@ export const createTabs = (m, ch, ui) => {
     ['Con más de 15 días', (s) => num(s.old), (s) => s.old, 'low', 'De las pendientes al cierre, las que ya llevaban más de 15 días abiertas: si sube, el backlog envejece.'],
   ];
   const OLD = 15 * 1440;
+  // Comparando: cada dato en dos columnas, una por lado, con su valor (no la diferencia). Entre empresas, lo que
+  // depende de cuánto entra va en relación a lo que entra, para poder compararlo; con personas, el volumen es la
+  // media por persona (la de la empresa, de todo su equipo: model.js, heads) y los % no cambian. En verde, el lado
+  // que va mejor, solo en lo que tiene un mejor. Cada dato: [nombre, valor, tipo (p %, n número, v volumen), mejor, nota].
+  const LEDGER_CMP = {
+    co: [['Lo recibido ese mes', [
+      ['Recibidas', (s) => s.in, 'n', null, 'Issues abiertas en ese mes.'],
+      ['% cerrado en el mes', (s) => (s.in ? s.same / s.in : null), 'p', 'high', 'De las recibidas en ese mes, las cerradas antes de acabar el mismo mes.'],
+      ['% cerrado hasta hoy', (s) => (s.in ? s.closed / s.in : null), 'p', 'high', 'De las recibidas en ese mes, las que ya están resueltas, cerradas o canceladas hoy.']]],
+    ['Lo que pasó en el mes', [
+      ['Resueltas por cada 100 recibidas', (s) => (s.in ? s.out / s.in * 100 : null), 'n', 'high', 'Más de 100: se resolvió más de lo que entró y la pila bajó; menos de 100, creció.'],
+      ['% de meses anteriores', (s) => (s.out ? s.prev / s.out : null), 'p', null, 'De lo resuelto en el mes, lo que se abrió en un mes anterior: el esfuerzo en sacar backlog.'],
+      ['% pendientes con más de 15 días', (s) => (s.open ? s.old / s.open : null), 'p', 'low', 'De lo pendiente al acabar el mes, lo que ya llevaba más de 15 días abierto: si sube, el backlog envejece.']]]],
+    pp: [['Lo recibido ese mes', [
+      ['Recibidas', (s) => s.in, 'v', null, 'Issues abiertas en ese mes.'],
+      ['% cerrado en el mes', (s) => (s.in ? s.same / s.in : null), 'p', 'high', 'De las recibidas en ese mes, las cerradas antes de acabar el mismo mes.']]],
+    ['Lo que pasó en el mes', [
+      ['Resueltas', (s) => s.out, 'v', null, 'Lo resuelto en el mes, se abriera cuando se abriera.'],
+      ['De meses anteriores', (s) => s.prev, 'v', null, 'De lo resuelto en el mes, lo que se abrió en un mes anterior.'],
+      ['Pendientes al cierre', (s) => s.open, 'v', null, 'Lo que seguía abierto al acabar el mes.'],
+      ['Con más de 15 días', (s) => s.old, 'v', null, 'De las pendientes al cierre, las que ya llevaban más de 15 días abiertas.']]]],
+  };
+  const ledgerCmp = (units, per, day) => {
+    const pp = m.perHead(), H = [0, 1].map((k) => (pp ? m.heads(k).size || 1 : 1)), groups = LEDGER_CMP[pp ? 'pp' : 'co'];
+    const dayText = (t) => (day ? t.replace('pasó en el mes', 'pasó en el día').replace('ese mes', 'ese día').replace('en el mes', 'el mismo día').replace('meses anteriores', 'días anteriores').replace('acabar el mes', 'acabar el día').replace('el mismo mes', 'el mismo día') : t);
+    const value = (d, x, k) => { const v = d[1](x); return v != null && d[2] === 'v' ? v / H[k] : v; };
+    const show = (d, v, k) => (v == null ? '—' : d[2] === 'p' ? pct(v) : d[2] === 'n' || H[k] === 1 ? num(Math.round(v)) : dec(v));
+    const sideName = (k) => (pp && !S.sides[k].people ? `Media de ${COMPANIES[S.sides[k].company]}` : name(k));
+    const defs = groups.flatMap(([, d]) => d);
+    const cells = (j) => defs.map((d, c) => {
+      const v = [0, 1].map((k) => value(d, per[k][j], k)), t = v.map((x, k) => show(d, x, k));
+      const best = d[3] && v[0] != null && v[1] != null && t[0] !== t[1] ? ((d[3] === 'high') === (v[0] > v[1]) ? 0 : 1) : -1;
+      const first = groups.some(([, g]) => g[0] === d);
+      return [0, 1].map((k) => `<td class="mt-num ${k ? '' : first ? 'mt-gsep' : 'mt-msep'} ${best === k ? 'mt-better' : ''}">${t[k]}</td>`).join('');
+    }).join('');
+    const row = (label, j, attrs = '') => `<tr ${attrs}><td>${label}</td>${cells(j)}</tr>`;
+    // los nombres, en una leyenda encima; en la cabecera, solo el color de cada lado (el nombre, al pasar el ratón)
+    const side = (k) => `<th class="mt-led-side" data-tip="${esc(sideName(k))}"><i class="mt-c${k}"></i></th>`;
+    return `<div class="mt-legend">${[0, 1].map((k) => `<span><i class="mt-c${k}"></i>${esc(sideName(k))}</span>`).join('')}</div><div class="mt-tablewrap"><table class="mt-fixed mt-led2"><colgroup><col class="mt-first">${'<col>'.repeat(defs.length * 2)}</colgroup><thead>
+      <tr class="mt-cgrp"><th></th>${groups.map(([l, d]) => `<th colspan="${d.length * 2}">${dayText(l)}</th>`).join('')}</tr>
+      <tr><th rowspan="2">${day ? 'Día' : 'Mes'}</th>${defs.map((d) => `<th class="mt-num mt-led-m" colspan="2" data-tip="${esc(dayText(d[4]))}">${dayText(d[0])}</th>`).join('')}</tr>
+      <tr>${defs.map(() => side(0) + side(1)).join('')}</tr></thead><tbody>
+      ${units.map((u, j) => row(u.label, j, u.f ? `class="mt-clk" data-f="${u.f}"` : u.after ? 'class="mt-mut"' : '')).join('')}${row('Total', units.length, 'class="mt-tot"')}</tbody></table></div>`;
+  };
   const ledger = (A) => {
     const T = bySide(A), day = S.from === S.to, units = flowUnits();
     // si el periodo acaba antes de la foto, lo resuelto después también cuenta: así «resueltas» suma las
@@ -250,6 +294,7 @@ export const createTabs = (m, ch, ui) => {
       tot.open = last.open; tot.old = last.old;
       return [...rowsK, tot].map((x) => ({ ...x, n: x.in + x.out + x.open }));
     });
+    if (CMP()) return ledgerCmp(units, per, day);
     const row = (label, j, attrs = '') => `<tr ${attrs}><td>${label}</td>${defs.map((d) => `<td class="mt-num">${cell([per[0][j], per[1][j]], d)}</td>`).join('')}</tr>`;
     const groups = LEDGER_GROUPS.map(([l, n]) => [day ? l.replace('mes', 'día') : l, n]);
     return table(day ? 'Día' : 'Mes', defs, units.map((u, j) => row(u.label, j, u.f ? `class="mt-clk" data-f="${u.f}"` : u.after ? 'class="mt-mut"' : '')).join('') + row('Total', units.length, 'class="mt-tot"'), groups);
@@ -385,7 +430,7 @@ export const createTabs = (m, ch, ui) => {
           ...PRIOS.map((p) => kpiCo(`% ${PLURAL[DI.prio[p]] || nice(DI.prio[p])}`, ST.map((s) => ({ n: s.n, v: s.n ? s.prio[p] / s.n : null })), sharePct, { val: (s) => s.v, note: `SLA de inicio: ${slaLabel(p).split(' · ')[1]}` })),
           kpiCo('% Peticiones', shareOf(T, (i) => C.sv[i] === REQ), sharePct, { val: (s) => s.v, note: 'de usuario' })),
         card(S.from === S.to ? 'Día a día: lo que entra, lo que se cierra y lo que queda' : 'Mes a mes: lo que entra, lo que se cierra y lo que queda', ledger(A),
-          { span: 's12', sub: `«Por cerrar»: de lo recibido cada mes, lo que sigue abierto hoy; su total son las pendientes de la pestaña Backlog. Pasa el ratón por una cabecera para ver qué cuenta.${S.from === S.to ? '' : ' Clic en un mes para filtrar; con un solo mes, día a día.'}` }),
+          { span: 's12', sub: CMP() ? '' : `«Por cerrar»: de lo recibido cada mes, lo que sigue abierto hoy; su total son las pendientes de la pestaña Backlog. Pasa el ratón por una cabecera para ver qué cuenta.${S.from === S.to ? '' : ' Clic en un mes para filtrar; con un solo mes, día a día.'}` }),
         card('Qué entra cada mes', matrix(inRows, months, A, { total: true, share: true, foot: { label: 'Recibidas', test: () => true }, footTop: true, corner: 'Mes de apertura →' }),
           { span: 's12', sub: 'Recibidas de cada tipo cada mes; cada bloque suma las recibidas (salvo Tarjeta, donde una PRIO cuenta dos veces). * mes incompleto. Clic en una celda para filtrar.' }));
     },
