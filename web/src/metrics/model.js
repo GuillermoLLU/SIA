@@ -40,6 +40,7 @@ export const SLA_NAMES = ['Dentro del SLA', 'Hasta el doble del SLA', 'Del doble
   'Sin iniciar y ya fuera de plazo', 'Sin iniciar, aún en plazo', 'Cerrada sin pasar por En curso', 'Prioridad sin SLA'];
 
 const DAY = 1440;
+export const ACTIVE_DAYS = 60;   // para la media por persona: quien ha tenido actividad en estos días
 
 const quant = (arr, p) => { if (!arr.length) return null; const a = Float64Array.from(arr).sort(); return a[Math.min(a.length - 1, Math.floor(a.length * p))]; };
 const mean = (arr) => { if (!arr.length) return null; let t = 0; for (const x of arr) t += x; return t / arr.length; };
@@ -197,6 +198,21 @@ export const createModel = (data) => {
     for (let i = 0; i < N; i++) if (!(MASK[i] & ~allow)) out.push(i);
     return (CACHE[key] = out);
   };
+  // Al comparar con alguna persona, el volumen de cada lado es la media por persona (perHead). Cuentan las personas
+  // del lado con actividad (una de sus issues se abre, empieza o resuelve) en los ACTIVE_DAYS días antes del final
+  // del periodo, o de la foto si es antes: así no cuenta quien ya no está, aunque haya trabajado poco sí.
+  const heads = (k) => {
+    const key = `heads${k}`;
+    if (CACHE[key]) return CACHE[key];
+    const end = Math.min(SNAP, Date.UTC(meta.year, S.to + 1, 1) / 6e4 - BASE / 6e4), from = end - ACTIVE_DAYS * DAY, out = new Set();
+    const near = (t) => t >= from && t <= end;
+    for (let i = 0; i < N; i++) {
+      if (SIDE[i] !== k || !C.as[i] || out.has(C.as[i])) continue;
+      if (near(C.rep[i]) || (C.ip[i] >= 0 && near(C.rep[i] + C.ip[i])) || (C.res[i] >= 0 && near(C.res[i]))) out.add(C.as[i]);
+    }
+    return (CACHE[key] = out);
+  };
+  const perHead = () => CMP() && S.sides.some((s) => s?.people);
   const toggle = (dim, k) => { const s = S.f[dim] || (S.f[dim] = new Set()); if (s.has(k)) s.delete(k); else s.add(k); };
   const isSel = (dim, k) => !!S.f[dim]?.has(k);
 
@@ -275,6 +291,6 @@ export const createModel = (data) => {
   return {
     data, C, DI, N, BASE, SNAP, LASTM, SLA, PRIOS, slaLabel, MONTH, DOW, HOUR, OPEN, TEAM, SIDE, DIMS, S, STYPE,
     CMP, CO, NAMES, refilter, rows, pool, today, toggle, isSel, group, bySide, byMonth, trend, stats, periodSlots, clock,
-    carry: (list) => carry(list, C, shiftType), shiftWork: (list) => shiftWork(list, C, (i) => OPEN[i], shiftType),
+    heads, perHead, carry: (list) => carry(list, C, shiftType), shiftWork: (list) => shiftWork(list, C, (i) => OPEN[i], shiftType),
   };
 };

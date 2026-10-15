@@ -5,7 +5,7 @@
 // respecto a B.
 import { esc } from '../ui/html.js';
 import { num, dec, pct, dur, nice, title, dateOf, MONTHS, DOWS } from './format.js';
-import { CARDS, MAJOR, IA_MARKS, SITUATIONS, share } from './model.js';
+import { CARDS, MAJOR, IA_MARKS, SITUATIONS, ACTIVE_DAYS, share } from './model.js';
 import { SHIFTS, SHIFT_HOURS, DAYS, MIN_ACTIONS } from './shifts.js';
 
 export const TABS = [['resumen', 'Resumen'], ['hoy', 'Foto de hoy'], ['entrada', 'Entrada'], ['backlog', 'Backlog'], ['modulos', 'Módulos y focos'],
@@ -194,8 +194,17 @@ export const createTabs = (m, ch, ui) => {
   // lo cerrado dentro del periodo, por lado, se abriera cuando se abriera
   const closedInPeriod = () => {
     const y = m.data.meta.year, from = minOf(y, S.from), to = minOf(y, S.to + 1);
-    return bySide(m.today()).map((l) => l.filter((i) => { const r = resAt(i); return r != null && r >= from && r < to; }).length);
+    return bySide(m.today()).map((l) => l.filter((i) => { const r = resAt(i); return r != null && r >= from && r < to; }));
   };
+  // El volumen de cada lado ({ n, v }, para kpiCo): su total o, comparando con alguna persona, la media por persona
+  // (model.js, heads): lo de sus personas con actividad reciente entre cuántas son. per: el divisor que se le añade
+  // (los días, para «al día»).
+  const volume = (lists, per = 1) => lists.slice(0, 2).map((l, k) => {
+    if (!m.perHead()) return { n: l.length, v: l.length / per };
+    const H = m.heads(k), c = l.filter((i) => H.has(C.as[i])).length;
+    return { n: H.size, v: H.size ? c / H.size / per : null };
+  });
+  const headsNote = () => (m.perHead() ? ` · por persona: lo de cada lado entre sus personas con actividad en los últimos ${ACTIVE_DAYS} días (${[0, 1].map((k) => `${name(k)}: ${m.heads(k).size}`).join(' · ')})` : '');
 
   // Mes a mes (o día a día con un solo mes): de lo recibido en cada tramo, cuánto se ha cerrado y cuánto
   // sigue abierto (por cerrar), y el movimiento del tramo: lo resuelto en él,
@@ -261,7 +270,7 @@ export const createTabs = (m, ch, ui) => {
           answer(['entrada', 'backlog'], [
             fig('Recibidas', ST, (s) => num(s.n), sv('n')),
             fig('Entran al día', ST.map((s) => ({ n: s.n, v: s.n / d })), (s) => dec(s.v), sv('v'), null, 'Recibidas entre los días naturales del periodo.'),
-            fig('Cerramos al día', closedIn.map((v, k) => ({ n: v + ST[k].n, v: v / d })), (s) => dec(s.v), sv('v'), 'high', 'Todo lo cerrado en el periodo, entre sus días naturales.'),
+            fig('Cerramos al día', closedIn.map((l, k) => ({ n: l.length + ST[k].n, v: l.length / d })), (s) => dec(s.v), sv('v'), 'high', 'Todo lo cerrado en el periodo, entre sus días naturales.'),
             ...(vsPrev ? [fig(`${MONTHS[vsPrev[0]]} frente a ${MONTHS[vsPrev[0] - 1]}`, vsPrev[1], (s) => opt((v) => `${v > 0 ? '+' : ''}${pct(v)}`)(s.v), sv('v'), null, 'Variación de las recibidas en el último mes completo del periodo respecto al anterior.')] : []),
             fig('Pendientes', ST, (s) => num(s.open), sv('open'), 'low', 'Lo recibido en el periodo que sigue sin resolver.'),
             fig('Fuera de plazo', ST, (s) => num(s.waitKo), sv('waitKo'), 'low', 'Pendientes que nunca han pasado a En curso y ya superan el plazo de su prioridad.')], '¿Qué tenemos?'),
@@ -359,7 +368,7 @@ export const createTabs = (m, ch, ui) => {
     // cada una con su total, y los totales iguales a las cifras de arriba.
     entrada(A) {
       const T = bySide(A), ST = T.map(stats), d = days() || 1, sharePct = (s) => opt(pct)(s.v);
-      const closedIn = closedInPeriod();
+      const closedIn = closedInPeriod(), each = m.perHead() ? ' por persona' : '';
       // lo que entra, mes a mes, por prioridad, tipo de servicio, tarjeta y tipo de operación
       const months = monthsIn().map((k) => ({ label: MONTHS[k] + (k === LASTM ? '*' : ''), test: (i) => MONTH[i] === k, f: `month:${k}` }));
       const inRows = [
@@ -369,9 +378,9 @@ export const createTabs = (m, ch, ui) => {
         { head: 'Tipo de operación' }, ...topRows('op', A, 7),
       ];
       return grid(ask('entrada'),
-        kpis(kpiCo('Recibidas', ST, (s) => num(s.n), { val: (s) => s.n, note: 'abiertas en el periodo' }),
-          kpiCo('Entran al día', ST.map((s) => ({ n: s.n, v: s.n / d })), (s) => dec(s.v), { val: (s) => s.v, note: 'de media, en días naturales' }),
-          kpiCo('Cerramos al día', closedIn.map((v, k) => ({ n: v + ST[k].n, v: v / d })), (s) => dec(s.v), { val: (s) => s.v, note: 'de media, todo lo cerrado en el periodo' }),
+        kpis(kpiCo(`Recibidas${each}`, volume(T), (s) => num(Math.round(s.v)), { val: (s) => Math.round(s.v), note: `abiertas en el periodo${headsNote()}` }),
+          kpiCo(`Entran al día${each}`, volume(T, d), (s) => dec(s.v), { val: (s) => s.v, note: `de media, en días naturales${headsNote()}` }),
+          kpiCo(`Cerramos al día${each}`, volume(closedIn, d), (s) => dec(s.v), { val: (s) => s.v, note: `de media, todo lo cerrado en el periodo${headsNote()}` }),
           ...PRIOS.map((p) => kpiCo(`% ${PLURAL[DI.prio[p]] || nice(DI.prio[p])}`, ST.map((s) => ({ n: s.n, v: s.n ? s.prio[p] / s.n : null })), sharePct, { val: (s) => s.v, note: `SLA de inicio: ${slaLabel(p).split(' · ')[1]}` })),
           kpiCo('% Peticiones', shareOf(T, (i) => C.sv[i] === REQ), sharePct, { val: (s) => s.v, note: 'de usuario' })),
         card(S.from === S.to ? 'Día a día: lo que entra, lo que se cierra y lo que queda' : 'Mes a mes: lo que entra, lo que se cierra y lo que queda', ledger(A),

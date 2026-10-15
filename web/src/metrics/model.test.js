@@ -180,3 +180,16 @@ test('ficha con filas que se despliegan: el tema, en sus problemas; «Otros» su
   assert.match(h, /Otros 1 problemas/);
   assert.equal((h.match(/mt-sc-kid/g) || []).length, 2);
 });
+
+test('media por persona: solo al comparar con personas; cuenta quien tuvo actividad en los últimos días del periodo', () => {
+  const d = data(); d.cols.rep[0] = SNAP - 100 * 1440;   // ANA (1): su issue 1, hace 100 días; la 3, hace nada
+  const m = createModel(d);
+  m.S.sides = [{ company: 0 }, { company: 1 }]; m.refilter();
+  assert.equal(m.perHead(), false);
+  m.S.sides = [{ people: new Set([2]) }, { company: 0 }]; m.refilter();   // LUIS frente a Indra (ANA)
+  assert.equal(m.perHead(), true);
+  assert.deepEqual([...m.heads(1)], [1]);
+  d.cols.rep[2] = SNAP - 100 * 1440; d.cols.res[3] = 5100;   // ANA, sin nada en los últimos 60 días
+  const m2 = createModel(d); m2.S.sides = [{ people: new Set([2]) }, { company: 0 }]; m2.refilter();
+  assert.equal(m2.heads(1).size, 0);
+});
