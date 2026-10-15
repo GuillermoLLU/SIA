@@ -177,37 +177,41 @@ export const createTabs = (m, ch, ui) => {
   const late = (i) => { const l = m.SLA[C.pr[i]]; return OPEN[i] && C.ip[i] < 0 && l >= 0 && m.SNAP - C.rep[i] > l; };
 
   // Mes a mes (o día a día con un solo mes): de lo recibido en cada tramo, cuánto se ha cerrado y cuánto
-  // sigue abierto (recibidas = cerradas + siguen abiertas), y el movimiento del tramo: lo resuelto en él,
+  // sigue abierto (por cerrar), y el movimiento del tramo: lo resuelto en él,
   // el saldo y lo que quedaba pendiente al cerrarlo. La fila Total cuadra con las cifras de arriba.
   const LEDGER = [
     ['Recibidas', (s) => num(s.in), (s) => s.in, null, 'Issues abiertas en ese mes (o día).'],
-    ['Ya cerradas', (s) => num(s.closed), (s) => s.closed, null, 'De las recibidas en ese mes, las que ya están resueltas, cerradas o canceladas.'],
-    ['Siguen abiertas', (s) => num(s.still), (s) => s.still, 'low', 'De las recibidas en ese mes, las que siguen sin resolver hoy. Su total es el backlog del periodo.'],
-    ['% cerrado', (s) => (s.in ? pct(s.closed / s.in, 1) : '—'), (s) => (s.in ? s.closed / s.in : null), 'high', 'Ya cerradas entre recibidas.'],
+    ['Por cerrar', (s) => num(s.still), (s) => s.still, 'low', 'De las recibidas en ese mes, las que siguen sin resolver hoy. Su total es el backlog del periodo.'],
+    ['% cerrado', (s) => (s.in ? pct(s.closed / s.in, 1) : '—'), (s) => (s.in ? s.closed / s.in : null), 'high', 'De las recibidas en ese mes, las que ya están resueltas, cerradas o canceladas, hasta hoy. En los meses pasados tiende al 100 %.'],
+    ['% cerrado en el mes', (s) => (s.in ? pct(s.same / s.in, 1) : '—'), (s) => (s.in ? s.same / s.in : null), 'high', 'De las recibidas en ese mes, las que se cerraron antes de acabar el mismo mes. Se puede comparar entre meses: cuanto más bajo, más se queda para después.'],
     ['Resueltas en el mes', (s) => num(s.out), (s) => s.out, 'high', 'Lo que se resolvió dentro de ese mes (o día), se abriera cuando se abriera dentro del periodo.'],
     ['Saldo', (s) => `${s.out - s.in > 0 ? '+' : ''}${num(s.out - s.in)}`, (s) => s.out - s.in, 'high', 'Resueltas en el mes menos recibidas: en positivo, la pila baja; en negativo, crece.'],
     ['Pendientes al cierre', (s) => num(s.open), (s) => s.open, 'low', 'De lo recibido desde el inicio del periodo, lo que seguía abierto al acabar el mes (o el día).'],
+    ['De ellas, > 15 días', (s) => num(s.old), (s) => s.old, 'low', 'De las pendientes al cierre, las que ya llevaban más de 15 días abiertas: si sube, el backlog envejece.'],
   ];
+  const OLD = 15 * 1440;
   const ledger = (A) => {
     const T = bySide(A), day = S.from === S.to, units = flowUnits();
     // si el periodo acaba antes de la foto, lo resuelto después también cuenta: así «resueltas» suma las
     // ya cerradas y «pendientes al cierre» acaba en lo que sigue abierto hoy
     const end = units.length ? units[units.length - 1].to : 0;
     if (end <= m.SNAP) units.push({ label: 'Después del periodo, hasta hoy', from: end, to: Infinity, after: true });
-    const defs = day ? LEDGER.map((d) => (d[0] === 'Resueltas en el mes' ? ['Resueltas ese día', ...d.slice(1)] : d)) : LEDGER;
+    const DAY_NAMES = { 'Resueltas en el mes': 'Resueltas ese día', '% cerrado en el mes': '% cerrado el mismo día' };
+    const defs = day ? LEDGER.map((d) => (DAY_NAMES[d[0]] ? [DAY_NAMES[d[0]], ...d.slice(1)] : d)) : LEDGER;
     const per = [0, 1].map((k) => {
-      const rowsK = units.map(() => ({ in: 0, closed: 0, still: 0, out: 0, open: 0 }));
+      const rowsK = units.map(() => ({ in: 0, closed: 0, still: 0, same: 0, out: 0, open: 0, old: 0 }));
       for (const i of T[k]) {
         const r = resAt(i);
         units.forEach((u, j) => {
           const x = rowsK[j];
-          if (C.rep[i] >= u.from && C.rep[i] < u.to) { x.in++; if (OPEN[i]) x.still++; else x.closed++; }
+          if (C.rep[i] >= u.from && C.rep[i] < u.to) { x.in++; if (OPEN[i]) x.still++; else x.closed++; if (r != null && r < u.to) x.same++; }
           if (r != null && r >= u.from && r < u.to) x.out++;
-          if (C.rep[i] < u.to && (r == null || r >= u.to)) x.open++;
+          if (C.rep[i] < u.to && (r == null || r >= u.to)) { x.open++; if (Math.min(u.to, m.SNAP) - C.rep[i] > OLD) x.old++; }
         });
       }
-      const tot = rowsK.reduce((a, x) => ({ in: a.in + x.in, closed: a.closed + x.closed, still: a.still + x.still, out: a.out + x.out }), { in: 0, closed: 0, still: 0, out: 0 });
-      tot.open = rowsK.length ? rowsK[rowsK.length - 1].open : 0;
+      const tot = rowsK.reduce((a, x) => ({ in: a.in + x.in, closed: a.closed + x.closed, still: a.still + x.still, same: a.same + x.same, out: a.out + x.out }), { in: 0, closed: 0, still: 0, same: 0, out: 0 });
+      const last = rowsK[rowsK.length - 1] || { open: 0, old: 0 };
+      tot.open = last.open; tot.old = last.old;
       return [...rowsK, tot].map((x) => ({ ...x, n: x.in + x.out + x.open }));
     });
     const row = (label, j, attrs = '') => `<tr ${attrs}><td>${label}</td>${defs.map((d) => `<td class="mt-num">${cell([per[0][j], per[1][j]], d)}</td>`).join('')}</tr>`;
@@ -384,7 +388,7 @@ export const createTabs = (m, ch, ui) => {
           ...PRIOS.map((p) => kpiCo(`% ${PLURAL[DI.prio[p]] || nice(DI.prio[p])}`, ST.map((s) => ({ n: s.n, v: s.n ? s.prio[p] / s.n : null })), sharePct, { val: (s) => s.v, note: `SLA de inicio: ${slaLabel(p).split(' · ')[1]}` })),
           kpiCo('% Peticiones', shareOf(T, (i) => C.sv[i] === REQ), sharePct, { val: (s) => s.v, note: 'de usuario' })),
         card(S.from === S.to ? 'Día a día: lo que entra, lo que se cierra y lo que queda' : 'Mes a mes: lo que entra, lo que se cierra y lo que queda', ledger(A),
-          { span: 's12', sub: `Recibidas = ya cerradas + siguen abiertas. El total de «siguen abiertas» son las pendientes de abajo. Pasa el ratón por una cabecera para ver qué cuenta.${S.from === S.to ? '' : ' Clic en un mes para filtrar; con un solo mes, día a día.'}` }),
+          { span: 's12', sub: `«Por cerrar»: de lo recibido cada mes, lo que sigue abierto hoy; su total son las pendientes de abajo. Pasa el ratón por una cabecera para ver qué cuenta.${S.from === S.to ? '' : ' Clic en un mes para filtrar; con un solo mes, día a día.'}` }),
         card('Qué entra cada mes', matrix(inRows, months, A, { total: true, share: true, foot: recibidas, footTop: true }),
           { span: 's12', sub: 'Recibidas de cada tipo cada mes; cada bloque suma las recibidas (salvo Tarjeta, donde una PRIO cuenta dos veces). * mes incompleto. Clic en una celda para filtrar.' }),
 
