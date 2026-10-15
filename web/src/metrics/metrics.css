@@ -250,6 +250,8 @@
 .mt-view .mt-mx tr.mt-grp th, .mt-view .mt-mx tr.mt-grp td { font-weight: 700; color: var(--text); background: var(--mt-soft); border-bottom: 2px solid var(--mt-line); }
 .mt-view .mt-mx tr.mt-grp td { text-transform: none; letter-spacing: 0; font-size: 12px; cursor: default; }
 .mt-view .mt-mx td.mt-hot .mt-mut { color: inherit; opacity: .8; }
+.mt-view tr.mt-cgrp th { padding-bottom: 4px; font-size: 11px; font-weight: 650; letter-spacing: .4px; text-align: center; text-transform: uppercase; color: var(--mt-low); border-bottom: 2px solid var(--mt-line); }
+.mt-view tr.mt-cgrp th + th + th { border-left: 12px solid transparent; }
 .mt-view tr.mt-tot td { font-weight: 700; background: var(--mt-soft); border-top: 2px solid var(--mt-line); }
 
 .mt-view .mt-hm .mt-shift { border-left: 2px solid var(--mt-low); }

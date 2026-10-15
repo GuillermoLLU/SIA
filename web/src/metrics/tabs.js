@@ -61,7 +61,8 @@ export const createTabs = (m, ch, ui) => {
     vend: ['Con ticket de tercero', (s) => pct(s.vend), (s) => s.vend], pend: ['Pasan por pendiente', (s) => pct(s.pend), (s) => s.pend], crit: ['Críticas', (s) => pct(s.crit, 1), (s) => s.crit],
   };
   const cell = (st, [, f, v, bt]) => (CMP() ? diff(st[0], st[1], f, v, bt) : (st[CO()[0]].n ? f(st[CO()[0]]) : '—'));
-  const table = (first, defs, rowsHtml) => `<div class="mt-tablewrap"><table><thead><tr><th>${first}</th>${defs.map((d) => `<th class="mt-num" ${d[4] ? `data-tip="${esc(d[4])}"` : ''}>${d[0]}</th>`).join('')}</tr></thead><tbody>${rowsHtml}</tbody></table></div>`;
+  // groups: [título, columnas] de una fila de cabecera por encima, para agrupar columnas
+  const table = (first, defs, rowsHtml, groups) => `<div class="mt-tablewrap"><table><thead>${groups ? `<tr class="mt-cgrp"><th></th>${groups.map(([l, n]) => `<th colspan="${n}">${l}</th>`).join('')}</tr>` : ''}<tr><th>${first}</th>${defs.map((d) => `<th class="mt-num" ${d[4] ? `data-tip="${esc(d[4])}"` : ''}>${d[0]}</th>`).join('')}</tr></thead><tbody>${rowsHtml}</tbody></table></div>`;
   const slices = (first, defs, A, cols) => table(first, cols.map((c) => SLICE[c]), defs.map(([label, test, f]) => {
     const st = bySide(A.filter(test)).map(stats);
     return `<tr ${f ? `class="mt-clk" data-f${f.includes('|') ? '2' : ''}="${f}"` : ''}><td>${label}</td>${cols.map((c) => `<td class="mt-num">${cell(st, SLICE[c])}</td>`).join('')}</tr>`;
@@ -103,7 +104,7 @@ export const createTabs = (m, ch, ui) => {
       for (const i of T[k]) {
         const r = resAt(i);
         if (C.rep[i] >= u.from && C.rep[i] < u.to) x.in++;
-        if (r != null && r >= u.from && r < u.to) x.out++;
+        if (r != null && r >= u.from && r < u.to) { x.out++; if (C.rep[i] < u.from) x.prev++; }
         if (C.rep[i] < u.to && (r == null || r >= u.to)) x.open++;
       }
       return { ...x, n: x.in + x.out + x.open };
@@ -179,15 +180,20 @@ export const createTabs = (m, ch, ui) => {
   // Mes a mes (o día a día con un solo mes): de lo recibido en cada tramo, cuánto se ha cerrado y cuánto
   // sigue abierto (por cerrar), y el movimiento del tramo: lo resuelto en él,
   // el saldo y lo que quedaba pendiente al cerrarlo. La fila Total cuadra con las cifras de arriba.
+  // En dos bloques, de izquierda a derecha: lo recibido ese mes y qué ha sido de ello (cuánto se cerró
+  // en el propio mes, cuánto hasta hoy y qué queda), y lo que pasó en el mes (lo resuelto, cuánto era de
+  // meses anteriores, el saldo y la pila que quedó, con lo envejecido).
+  const LEDGER_GROUPS = [['Lo recibido ese mes', 4], ['Lo que pasó en el mes', 5]];
   const LEDGER = [
     ['Recibidas', (s) => num(s.in), (s) => s.in, null, 'Issues abiertas en ese mes (o día).'],
-    ['Por cerrar', (s) => num(s.still), (s) => s.still, 'low', 'De las recibidas en ese mes, las que siguen sin resolver hoy. Su total es el backlog del periodo.'],
-    ['% cerrado', (s) => (s.in ? pct(s.closed / s.in, 1) : '—'), (s) => (s.in ? s.closed / s.in : null), 'high', 'De las recibidas en ese mes, las que ya están resueltas, cerradas o canceladas, hasta hoy. En los meses pasados tiende al 100 %.'],
     ['% cerrado en el mes', (s) => (s.in ? pct(s.same / s.in, 1) : '—'), (s) => (s.in ? s.same / s.in : null), 'high', 'De las recibidas en ese mes, las que se cerraron antes de acabar el mismo mes. Se puede comparar entre meses: cuanto más bajo, más se queda para después.'],
-    ['Resueltas en el mes', (s) => num(s.out), (s) => s.out, 'high', 'Lo que se resolvió dentro de ese mes (o día), se abriera cuando se abriera dentro del periodo.'],
-    ['Saldo', (s) => `${s.out - s.in > 0 ? '+' : ''}${num(s.out - s.in)}`, (s) => s.out - s.in, 'high', 'Resueltas en el mes menos recibidas: en positivo, la pila baja; en negativo, crece.'],
+    ['% cerrado hasta hoy', (s) => (s.in ? pct(s.closed / s.in, 1) : '—'), (s) => (s.in ? s.closed / s.in : null), 'high', 'De las recibidas en ese mes, las que ya están resueltas, cerradas o canceladas hoy. En los meses pasados tiende al 100 %.'],
+    ['Por cerrar', (s) => num(s.still), (s) => s.still, 'low', 'De las recibidas en ese mes, las que siguen sin resolver hoy. Su total es el backlog del periodo.'],
+    ['Resueltas', (s) => num(s.out), (s) => s.out, 'high', 'Lo que se resolvió dentro de ese mes (o día), se abriera cuando se abriera dentro del periodo.'],
+    ['De meses anteriores', (s) => num(s.prev), (s) => s.prev, null, 'De las resueltas en el mes, las que se abrieron en un mes anterior: el esfuerzo que se va en sacar backlog.'],
+    ['Saldo', (s) => `${s.out - s.in > 0 ? '+' : ''}${num(s.out - s.in)}`, (s) => s.out - s.in, 'high', 'Resueltas menos recibidas en el mes: en positivo, la pila baja; en negativo, crece.'],
     ['Pendientes al cierre', (s) => num(s.open), (s) => s.open, 'low', 'De lo recibido desde el inicio del periodo, lo que seguía abierto al acabar el mes (o el día).'],
-    ['De ellas, > 15 días', (s) => num(s.old), (s) => s.old, 'low', 'De las pendientes al cierre, las que ya llevaban más de 15 días abiertas: si sube, el backlog envejece.'],
+    ['Con más de 15 días', (s) => num(s.old), (s) => s.old, 'low', 'De las pendientes al cierre, las que ya llevaban más de 15 días abiertas: si sube, el backlog envejece.'],
   ];
   const OLD = 15 * 1440;
   const ledger = (A) => {
@@ -196,26 +202,27 @@ export const createTabs = (m, ch, ui) => {
     // ya cerradas y «pendientes al cierre» acaba en lo que sigue abierto hoy
     const end = units.length ? units[units.length - 1].to : 0;
     if (end <= m.SNAP) units.push({ label: 'Después del periodo, hasta hoy', from: end, to: Infinity, after: true });
-    const DAY_NAMES = { 'Resueltas en el mes': 'Resueltas ese día', '% cerrado en el mes': '% cerrado el mismo día' };
+    const DAY_NAMES = { '% cerrado en el mes': '% cerrado el mismo día', 'De meses anteriores': 'De días anteriores' };
     const defs = day ? LEDGER.map((d) => (DAY_NAMES[d[0]] ? [DAY_NAMES[d[0]], ...d.slice(1)] : d)) : LEDGER;
     const per = [0, 1].map((k) => {
-      const rowsK = units.map(() => ({ in: 0, closed: 0, still: 0, same: 0, out: 0, open: 0, old: 0 }));
+      const rowsK = units.map(() => ({ in: 0, closed: 0, still: 0, same: 0, out: 0, prev: 0, open: 0, old: 0 }));
       for (const i of T[k]) {
         const r = resAt(i);
         units.forEach((u, j) => {
           const x = rowsK[j];
           if (C.rep[i] >= u.from && C.rep[i] < u.to) { x.in++; if (OPEN[i]) x.still++; else x.closed++; if (r != null && r < u.to) x.same++; }
-          if (r != null && r >= u.from && r < u.to) x.out++;
+          if (r != null && r >= u.from && r < u.to) { x.out++; if (C.rep[i] < u.from) x.prev++; }
           if (C.rep[i] < u.to && (r == null || r >= u.to)) { x.open++; if (Math.min(u.to, m.SNAP) - C.rep[i] > OLD) x.old++; }
         });
       }
-      const tot = rowsK.reduce((a, x) => ({ in: a.in + x.in, closed: a.closed + x.closed, still: a.still + x.still, same: a.same + x.same, out: a.out + x.out }), { in: 0, closed: 0, still: 0, same: 0, out: 0 });
+      const tot = rowsK.reduce((a, x) => ({ in: a.in + x.in, closed: a.closed + x.closed, still: a.still + x.still, same: a.same + x.same, out: a.out + x.out, prev: a.prev + x.prev }), { in: 0, closed: 0, still: 0, same: 0, out: 0, prev: 0 });
       const last = rowsK[rowsK.length - 1] || { open: 0, old: 0 };
       tot.open = last.open; tot.old = last.old;
       return [...rowsK, tot].map((x) => ({ ...x, n: x.in + x.out + x.open }));
     });
     const row = (label, j, attrs = '') => `<tr ${attrs}><td>${label}</td>${defs.map((d) => `<td class="mt-num">${cell([per[0][j], per[1][j]], d)}</td>`).join('')}</tr>`;
-    return table(day ? 'Día' : 'Mes', defs, units.map((u, j) => row(u.label, j, u.f ? `class="mt-clk" data-f="${u.f}"` : u.after ? 'class="mt-mut"' : '')).join('') + row('Total', units.length, 'class="mt-tot"'));
+    const groups = LEDGER_GROUPS.map(([l, n]) => [day ? l.replace('mes', 'día') : l, n]);
+    return table(day ? 'Día' : 'Mes', defs, units.map((u, j) => row(u.label, j, u.f ? `class="mt-clk" data-f="${u.f}"` : u.after ? 'class="mt-mut"' : '')).join('') + row('Total', units.length, 'class="mt-tot"'), groups);
   };
 
   const VIEWS = {
