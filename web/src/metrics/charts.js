@@ -296,7 +296,7 @@ export const createCharts = (m, ui) => {
     };
     const fj = all.length - 1;
     // el total: arriba (footTop) encabeza la tabla y lo de debajo es su desglose; abajo, la cierra
-    const foot = o.foot ? `<tr class="mt-lead"><th class="mt-r" ${span}>${esc(o.foot.label)}</th>${cols.map((c, k) => `<td class="mt-num" ${filt({}, c)}>${show(cnt[fj][k])}</td>`).join('')}${tail(rt[fj])}</tr>` : '';
+    const foot = o.foot ? `<tr class="mt-lead ${o.footTop ? '' : 'mt-lead-end'}"><th class="mt-r" ${span}>${esc(o.foot.label)}</th>${cols.map((c, k) => `<td class="mt-num" ${filt({}, c)}>${show(cnt[fj][k])}</td>`).join('')}${tail(rt[fj])}</tr>` : '';
     const wide = cols.length > 8, widths = grouped ? [wide ? 12 : 15, wide ? 17 : 20] : [wide ? 20 : 27];
     const body = blocks.map((b) => b.rows.map((r, k) => row(r, b, k === 0)).join('')).join('');
     return `${CMP() ? `<p class="mt-small mt-mut">Cada celda: ${esc(name(0))} / ${esc(name(1))}.</p>` : ''}<div class="mt-tablewrap"><table class="mt-hm mt-mx"><colgroup>${widths.map((w) => `<col style="width:${w}%">`).join('')}${'<col>'.repeat(cols.length + (o.total ? 1 : 0) + (o.share ? 1 : 0))}</colgroup>

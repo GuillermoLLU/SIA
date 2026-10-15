@@ -372,3 +372,5 @@
 .mt-view .mt-sc tr.mt-sc-kid th.mt-r { padding-left: 32px; font-weight: 450; }
 .mt-view .mt-sc tr.mt-sc-others th, .mt-view .mt-sc tr.mt-sc-others td { font-style: italic; color: var(--mt-low); }
 .mt-view .mt-sc col.mt-sc-same { width: 9%; }
+/* el total al final de una tabla dinámica, como la fila de total de las fichas */
+.mt-view .mt-mx tr.mt-lead-end th, .mt-view .mt-mx tr.mt-lead-end td { border-top: 2px solid var(--mt-line); }
