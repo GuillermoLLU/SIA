@@ -192,8 +192,8 @@ export const createCharts = (m, ui) => {
     const head = (c) => `<th class="mt-num ${srt[0] === c ? 'mt-srt' : ''}" ${SC[c][2] ? `data-sort="${id}:${c}"` : ''} data-tip="${esc(SC[c][3])}">${SC[c][0]}${srt[0] === c ? (srt[1] < 0 ? ' ↓' : ' ↑') : ''}</th>`;
     const colgroup = `<colgroup><col class="mt-sc-first">${groups.map(([, c]) => c.map((x, j) => `<col class="${j ? '' : 'mt-gsep'} mt-sc-${x}">`).join('')).join('')}</colgroup>`;
     const row = (label, r, attrs = '', isRef = false) => `<tr ${attrs}><th class="mt-r" title="${esc(label)}">${esc(label)}</th>${cols.map((c) => cell(c, r, isRef)).join('')}</tr>`;
-    return `${cmp ? `<p class="mt-small mt-mut">Cifras de ${esc(name(0))}; debajo, la diferencia con ${esc(name(1))}.</p>` : ''}<div class="mt-tablewrap"><table class="mt-sc">${colgroup}
-      <thead><tr class="mt-cgrp"><th></th>${groups.map(([t, c]) => `<th colspan="${c.length}">${t}</th>`).join('')}</tr><tr><th>${DIMS[dim].name}</th>${cols.map(head).join('')}</tr></thead><tbody>
+    return `${cmp ? `<p class="mt-small mt-mut mt-sc-cmp">Cifras de ${esc(name(0))}; debajo, la diferencia con ${esc(name(1))}.</p>` : ''}<div class="mt-tablewrap"><table class="mt-sc">${colgroup}
+      <thead><tr class="mt-cgrp"><th rowspan="2" class="mt-sc-title">${o.title ? `${esc(o.title)}${o.note ? `<small>${esc(o.note)}</small>` : ''}` : DIMS[dim].name}</th>${groups.map(([t, c]) => `<th colspan="${c.length}">${t}</th>`).join('')}</tr><tr>${cols.map(head).join('')}</tr></thead><tbody>
       ${shown.map((r) => row(DIMS[dim].label(r.k), r, `class="mt-clk ${isSel(dim, r.k) ? 'mt-sel' : ''}" data-f="${dim}:${r.k}"`)).join('')}
       ${rest ? row(`Resto (${data.length - shown.length})`, rest, 'class="mt-sc-rest"') : ''}
       ${row(o.refLabel || 'Todos', ref, 'class="mt-sc-ref"', true)}

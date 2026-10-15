@@ -410,8 +410,8 @@ export const createTabs = (m, ch, ui) => {
       let acc = 0, k80 = 0;
       for (const x of gc) { acc += x.n; k80++; if (acc >= tc * 0.8) break; }
       return grid(ask('modulos'),
-        card(`Centros: de dónde viene el trabajo <small>${k80} de ${gc.length} concentran el 80 % de las issues</small>`, scorecard('ce', CE_GROUPS, { id: 'md-ce', skip: noK, refLabel: 'Todos los centros', extra: centreExtra }), { span: 's12' }),
-        card('Módulos: cuánto pesa cada uno y cómo se atiende', scorecard('mo', MOD_GROUPS, { id: 'md-mo', skip: noK, refLabel: 'Todos los módulos' }), { span: 's12' }),
+        card('', scorecard('ce', CE_GROUPS, { id: 'md-ce', skip: noK, refLabel: 'Todos los centros', extra: centreExtra, title: 'Centros', note: `${k80} de ${gc.length} hacen el 80 % de las issues` }), { span: 's12' }),
+        card('', scorecard('mo', MOD_GROUPS, { id: 'md-mo', skip: noK, refLabel: 'Todos los módulos', title: 'Módulos' }), { span: 's12' }),
         card('', heat('ce', 'mo', 18, 14, { skipR: noK, skipC: noK, title: true }), { span: 's12' }),
         card('', heat('th', 'mo', 16, 14, { skipR: noTheme, skipC: noK, title: true }), { span: 's12' }),
         card('', heat('pr', 'mo', 4, 14, { skipR: noK, skipC: noK, orderR: PRIOS, title: true }), { span: 's12' }),

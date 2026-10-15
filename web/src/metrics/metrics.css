@@ -321,15 +321,24 @@
 
 /* Ficha por módulo (scorecard): bloques de columnas, la referencia arriba y lo que va peor en ocre */
 .mt-view table.mt-sc { table-layout: fixed; }
-.mt-view .mt-sc col.mt-sc-first { width: 19%; } .mt-view .mt-sc col.mt-sc-n { width: 22%; }
+.mt-view .mt-sc col.mt-sc-first { width: 19%; } .mt-view .mt-sc col.mt-sc-n { width: 17%; }
 .mt-view .mt-sc col.mt-gsep { border-left: 1px solid var(--mt-line); }
-.mt-view .mt-sc td, .mt-view .mt-sc th { padding: 7px 10px; }
+.mt-view .mt-sc td, .mt-view .mt-sc th { padding: 4px 10px; font-size: 12.5px; }
+.mt-view .mt-sc thead th { padding-top: 6px; padding-bottom: 6px; background: var(--mt-soft); }
+/* el título, dentro de la tabla: la esquina de la cabecera, en el tono del panel, como en los mapas de calor */
+.mt-view .mt-sc th.mt-sc-title { padding-left: 14px; font-size: 13px; font-weight: 650; text-align: left; vertical-align: bottom; text-transform: none; letter-spacing: 0; color: var(--text);
+  background: color-mix(in srgb, var(--mt-c0) 22%, var(--mt-card)); box-shadow: inset 3px 0 0 var(--mt-c0); }
+.mt-view .mt-sc th.mt-sc-title small { display: block; margin-top: 2px; font-size: 11.5px; font-weight: 400; color: var(--mt-low); }
+.mt-view .mt-flush .mt-sc tbody th.mt-r { padding-left: 14px; }
+.mt-view .mt-flush .mt-sc td:last-child, .mt-view .mt-flush .mt-sc th:last-child { padding-right: 14px; }
+.mt-flush > .mt-more { margin: 6px 14px 10px; }
+.mt-flush > .mt-sc-cmp { margin: 8px 14px; }
 .mt-view .mt-sc th.mt-r { overflow: hidden; font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
 .mt-view .mt-sc thead th { white-space: normal; vertical-align: bottom; }
 .mt-view .mt-sc td small { display: block; font-size: 11.5px; }
 .mt-sc-vol { display: flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; }
 .mt-sc-vol b { min-width: 46px; text-align: right; font-weight: 600; } .mt-sc-vol em { min-width: 48px; font-size: 12px; font-style: normal; text-align: right; color: var(--mt-low); }
-.mt-sc-bar { flex: 1; height: 9px; background: var(--mt-track); } .mt-sc-bar i { display: block; height: 100%; background: var(--mt-c0); }
+.mt-sc-bar { flex: 1; height: 8px; background: var(--mt-track); } .mt-sc-bar i { display: block; height: 100%; background: var(--mt-c0); }
 .mt-view .mt-sc tr.mt-sc-ref th, .mt-view .mt-sc tr.mt-sc-ref td { font-weight: 700; background: var(--mt-sel); border-top: 2px solid var(--mt-line); }
 .mt-view .mt-sc tr.mt-sc-rest th, .mt-view .mt-sc tr.mt-sc-rest td { color: var(--mt-low); font-style: italic; }
 .mt-view .mt-sc td.mt-worse { font-weight: 650; color: color-mix(in srgb, #c98a2b 70%, var(--text)); background: color-mix(in srgb, #c98a2b 16%, var(--mt-card)); }
