@@ -139,13 +139,13 @@ export const createCharts = (m, ui) => {
     const head = (c) => `<th class="mt-num ${srt[0] === c ? 'mt-srt' : ''}" data-sort="${id}:${c}">${COLS[c][0]}${srt[0] === c ? (srt[1] < 0 ? ' ↓' : ' ↑') : ''}</th>`;
     return `<div class="mt-tablewrap ${all ? 'mt-scroll' : ''}"><table><thead><tr><th>${DIMS[dim].name}</th>${cols.map(head).join('')}</tr></thead><tbody>
       ${shown.map((s) => `<tr class="mt-clk ${isSel(dim, s.k) ? 'mt-sel' : ''}" data-f="${dim}:${s.k}"><td>${esc(DIMS[dim].label(s.k))}</td>${cols.map((c) => `<td class="mt-num">${cell(s, c)}</td>`).join('')}</tr>`).join('')}
-      </tbody></table></div>${more(id, data.length, top)}`;
+      </tbody></table></div>`;
   };
 
   // Ficha por valor de una dimensión (módulos, centros…), para leerla de un vistazo: columnas en bloques con su
   // título; abajo, el total (todos), que es la referencia; en ocre, lo que va claramente peor que ella (un 15 % o más,
   // solo con al menos SC_MIN issues, para no marcar lo que dice poco). Las o.top primeras y «Resto», para que
-  // sume el total; «Ver todos» las enseña todas. Clic en una cabecera ordena; en una fila, filtra. Comparando,
+  // sume el total; un clic en «Resto» las enseña todas. Clic en una cabecera ordena; en una fila, filtra. Comparando,
   // cada cifra es la del primer lado con su diferencia respecto al otro.
   const SC_MIN = 30;
   const SC = {
@@ -193,11 +193,12 @@ export const createCharts = (m, ui) => {
     const colgroup = `<colgroup><col class="mt-sc-first">${groups.map(([, c]) => c.map((x, j) => `<col class="${j ? '' : 'mt-gsep'} mt-sc-${x}">`).join('')).join('')}</colgroup>`;
     const row = (label, r, attrs = '', isRef = false) => `<tr ${attrs}><th class="mt-r" title="${esc(label)}">${esc(label)}</th>${cols.map((c) => cell(c, r, isRef)).join('')}</tr>`;
     return `${cmp ? `<p class="mt-small mt-mut mt-sc-cmp">Cifras de ${esc(name(0))}; debajo, la diferencia con ${esc(name(1))}.</p>` : ''}<div class="mt-tablewrap"><table class="mt-sc">${colgroup}
-      <thead><tr class="mt-cgrp"><th rowspan="2" class="mt-sc-title">${o.title ? `${esc(o.title)}${o.note ? `<small>${esc(o.note)}</small>` : ''}` : DIMS[dim].name}</th>${groups.map(([t, c]) => `<th colspan="${c.length}">${t}</th>`).join('')}</tr><tr>${cols.map(head).join('')}</tr></thead><tbody>
+      <thead><tr class="mt-cgrp"><th rowspan="2" class="mt-sc-title">${esc(o.title || DIMS[dim].name)}</th>${groups.map(([t, c]) => `<th colspan="${c.length}">${t}</th>`).join('')}</tr><tr>${cols.map(head).join('')}</tr></thead><tbody>
       ${shown.map((r) => row(DIMS[dim].label(r.k), r, `class="mt-clk ${isSel(dim, r.k) ? 'mt-sel' : ''}" data-f="${dim}:${r.k}"`)).join('')}
-      ${rest ? row(`Resto (${data.length - shown.length})`, rest, 'class="mt-sc-rest"') : ''}
+      ${rest ? row(`Resto (${data.length - shown.length})`, rest, `class="mt-sc-rest" data-exp="${id}" data-tip="Ver todos"`) : ''}
+      ${open && data.length > top ? `<tr class="mt-sc-less" data-exp="${id}"><th class="mt-r" colspan="${cols.length + 1}">Ver menos</th></tr>` : ''}
       ${row(o.refLabel || 'Todos', ref, 'class="mt-sc-ref"', true)}
-      </tbody></table></div>${more(id, data.length, top)}`;
+      </tbody></table></div>`;
   };
 
   // Perfil comparado: qué parte de lo de cada lado cae en cada valor. Con uno solo, barras normales.

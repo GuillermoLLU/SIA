@@ -326,12 +326,15 @@
 .mt-view .mt-sc td, .mt-view .mt-sc th { padding: 4px 10px; font-size: 12.5px; }
 .mt-view .mt-sc thead th { padding-top: 6px; padding-bottom: 6px; background: var(--mt-soft); }
 /* el título, dentro de la tabla: la esquina de la cabecera, en el tono del panel, como en los mapas de calor */
-.mt-view .mt-sc th.mt-sc-title { padding-left: 14px; font-size: 13px; font-weight: 650; text-align: left; vertical-align: bottom; text-transform: none; letter-spacing: 0; color: var(--text);
+.mt-view .mt-sc th.mt-sc-title { font-size: 16px; font-weight: 700; text-align: center; vertical-align: middle; text-transform: uppercase; letter-spacing: .08em; color: var(--text);
   background: color-mix(in srgb, var(--mt-c0) 22%, var(--mt-card)); box-shadow: inset 3px 0 0 var(--mt-c0); }
-.mt-view .mt-sc th.mt-sc-title small { display: block; margin-top: 2px; font-size: 11.5px; font-weight: 400; color: var(--mt-low); }
 .mt-view .mt-flush .mt-sc tbody th.mt-r { padding-left: 14px; }
 .mt-view .mt-flush .mt-sc td:last-child, .mt-view .mt-flush .mt-sc th:last-child { padding-right: 14px; }
-.mt-flush > .mt-more { margin: 6px 14px 10px; }
+.mt-view .mt-sc tr.mt-sc-rest, .mt-view .mt-sc tr.mt-sc-less { cursor: pointer; }
+.mt-view .mt-sc tr.mt-sc-rest:hover th, .mt-view .mt-sc tr.mt-sc-rest:hover td, .mt-view .mt-sc tr.mt-sc-less:hover th { background: var(--mt-soft); }
+.mt-view .mt-sc tr.mt-sc-rest th.mt-r::after { content: '  ▾'; font-style: normal; color: var(--accent); }
+.mt-view .mt-sc tr.mt-sc-less th { font-style: normal; font-weight: 600; color: var(--accent); }
+.mt-view .mt-sc tr.mt-sc-less th::after { content: '  ▴'; }
 .mt-flush > .mt-sc-cmp { margin: 8px 14px; }
 .mt-view .mt-sc th.mt-r { overflow: hidden; font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
 .mt-view .mt-sc thead th { white-space: normal; vertical-align: bottom; }
