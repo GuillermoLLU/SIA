@@ -175,15 +175,14 @@ export const createCharts = (m, ui) => {
     const data = all.map((x) => ({ ...full(x.rows), k: x.k })).sort((a, b) => few(a) - few(b) || (key(a) - key(b)) * srt[1] || b.n - a.n);
     const top = o.top || 12, open = ui.exp[id], shown = open ? data : data.slice(0, top);
     const rest = !open && data.length > top ? full(all.filter((x) => !shown.some((r) => r.k === x.k)).flatMap((x) => x.rows)) : null;
-    const nmax = Math.max(1, ...data.map((r) => r.n));
     const worse = (c, r) => {
       const b = SC[c][1], v = SC[c][2](r), w = SC[c][2](ref);
       if (!b || r.n < SC_MIN || v == null || w == null) return false;
       return b === 'low' ? v > w * 1.15 : v < w * 0.85;
     };
-    // la barra, frente al mayor; el total, entera; «Resto» suma muchos y no lleva barra
-    const cell = (c, r, isRef, isRest) => {
-      if (c === 'n') return `<td><div class="mt-sc-vol"><em>${pct(r.n / T, 1)}</em><span class="mt-sc-bar">${isRest ? '' : `<i style="width:${isRef ? 100 : (r.n / nmax * 100).toFixed(1)}%"></i>`}</span><b>${num(r.n)}</b></div></td>`;
+    // la barra, su parte real del total (el total, entera; «Resto», lo que suma)
+    const cell = (c, r, isRef) => {
+      if (c === 'n') return `<td><div class="mt-sc-vol"><em>${pct(r.n / T, 1)}</em><span class="mt-sc-bar"><i style="width:${(r.n / T * 100).toFixed(1)}%"></i></span><b>${num(r.n)}</b></div></td>`;
       if (c === 'top') return `<td class="mt-sc-top">${r.top ? `<span data-tip="${esc(`${r.top.label}\n${pct(r.top.share, 1)} de sus issues`)}">${esc(r.top.label)}</span><em>${pct(r.top.share)}</em>` : ''}</td>`;
       if (c === 'dl') return `<td class="mt-num" data-tip="${esc(`Últimos 90 días: ${num(r.tr.now)}\n90 anteriores: ${num(r.tr.prev)}`)}">${delta(r.tr)}</td>`;
       const v = SC[c][2](r), shown = v == null ? '—' : SC_FMT[c](v);
@@ -192,11 +191,11 @@ export const createCharts = (m, ui) => {
     };
     const head = (c) => `<th class="mt-num ${srt[0] === c ? 'mt-srt' : ''}" ${SC[c][2] ? `data-sort="${id}:${c}"` : ''} data-tip="${esc(SC[c][3])}">${SC[c][0]}${srt[0] === c ? (srt[1] < 0 ? ' ↓' : ' ↑') : ''}</th>`;
     const colgroup = `<colgroup><col class="mt-sc-first">${groups.map(([, c]) => c.map((x, j) => `<col class="${j ? '' : 'mt-gsep'} mt-sc-${x}">`).join('')).join('')}</colgroup>`;
-    const row = (label, r, attrs = '', isRef = false, isRest = false) => `<tr ${attrs}><th class="mt-r" title="${esc(label)}">${esc(label)}</th>${cols.map((c) => cell(c, r, isRef, isRest)).join('')}</tr>`;
+    const row = (label, r, attrs = '', isRef = false) => `<tr ${attrs}><th class="mt-r" title="${esc(label)}">${esc(label)}</th>${cols.map((c) => cell(c, r, isRef)).join('')}</tr>`;
     return `${cmp ? `<p class="mt-small mt-mut">Cifras de ${esc(name(0))}; debajo, la diferencia con ${esc(name(1))}.</p>` : ''}<div class="mt-tablewrap"><table class="mt-sc">${colgroup}
       <thead><tr class="mt-cgrp"><th></th>${groups.map(([t, c]) => `<th colspan="${c.length}">${t}</th>`).join('')}</tr><tr><th>${DIMS[dim].name}</th>${cols.map(head).join('')}</tr></thead><tbody>
       ${shown.map((r) => row(DIMS[dim].label(r.k), r, `class="mt-clk ${isSel(dim, r.k) ? 'mt-sel' : ''}" data-f="${dim}:${r.k}"`)).join('')}
-      ${rest ? row(`Resto (${data.length - shown.length})`, rest, 'class="mt-sc-rest"', false, true) : ''}
+      ${rest ? row(`Resto (${data.length - shown.length})`, rest, 'class="mt-sc-rest"') : ''}
       ${row(o.refLabel || 'Todos', ref, 'class="mt-sc-ref"', true)}
       </tbody></table></div>${more(id, data.length, top)}`;
   };
