@@ -204,6 +204,8 @@ test('Mes a mes comparando: entre empresas, en relación a lo que entra; persona
   let h = tabs.render('entrada', m.rows());
   assert.match(h, /mt-led2/);
   assert.match(h, /Resueltas por cada 100 recibidas/);
+  assert.match(h, /Qué recibe cada uno/);   // y Qué entra, sin meses: lo que recibe cada lado
+  assert.doesNotMatch(h, /Qué entra cada mes/);
   assert.doesNotMatch(h, /undefined|NaN/);
   m.S.sides = [{ people: new Set([1]) }, { company: 0 }]; m.refilter();
   h = tabs.render('entrada', m.rows());

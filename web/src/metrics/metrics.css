@@ -395,3 +395,13 @@
 .mt-view table.mt-led2 td.mt-gsep { border-left: 1px solid var(--mt-line); }
 .mt-view table.mt-led2 td.mt-better { font-weight: 650; color: var(--mt-good); background: color-mix(in srgb, var(--mt-good) 9%, transparent); }
 .mt-view table.mt-led2 td.mt-warn { font-weight: 650; color: color-mix(in srgb, #c98a2b 70%, var(--text)); background: color-mix(in srgb, #c98a2b 16%, var(--mt-card)); }
+/* Qué recibe cada uno (comparando): por lado, issues, % de lo suyo y una barra a la misma escala en los dos */
+.mt-view table.mt-mix2 { table-layout: fixed; }
+.mt-view table.mt-mix2 col.mt-mix-cn { width: 9%; } .mt-view table.mt-mix2 col.mt-mix-cp { width: 7%; }
+.mt-view table.mt-mix2 th.mt-mix-side { padding: 6px 10px; font-size: 12px; font-weight: 650; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mt-view table.mt-mix2 th.mt-mix-side i { display: inline-block; width: 9px; height: 9px; margin-right: 6px; }
+.mt-view table.mt-mix2 .mt-gsep { border-left: 1px solid var(--mt-line); } .mt-view table.mt-mix2 .mt-msep { border-left: 1px solid var(--mt-line); }
+.mt-view table.mt-mix2 td.mt-mix-p { color: var(--mt-low); }
+.mt-view table.mt-mix2 td.mt-mix-bar { padding-right: 14px; }
+.mt-view table.mt-mix2 td.mt-mix-bar i { display: block; height: 10px; min-width: 1px; }
+.mt-view table.mt-mix2 tr.mt-lead td.mt-mix-p { color: var(--text); }
