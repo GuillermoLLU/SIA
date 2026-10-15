@@ -118,18 +118,39 @@ export const createTabs = (m, ch, ui) => {
   const AGES = [0, 1, 2, 3, 4].map((k) => ({ label: m.DIMS.age.label(k), test: (i) => m.DIMS.age.get(i) === k, f: `age:${k}` }));
   // lo que no tiene a nadie: abierto, de las tarjetas del equipo (SGA, SISU o PRIO) y del periodo, con los filtros
   const orphansIn = () => m.today(true).filter((i) => OPEN[i] && !C.as[i] && inPeriod(i) && cardsOf(i).some((k) => k < 3));
-  // Las cifras de lo pendiente: el total, su situación (en curso, sin empezar y en espera suman el total) y,
-  // aparte, lo que no ha pasado nunca a En curso y ya supera su SLA, lo escalado y lo que no tiene a nadie.
-  const stockKpis = (T, ST) => {
-    const openCount = (test) => T.map((l) => ({ n: l.length, v: l.filter((i) => OPEN[i] && test(i)).length }));
-    const v = { val: (s) => s.v }, people = S.sides.some((s) => s?.people);
-    return kpis(kpiCo('Pendientes', ST, (s) => num(s.open), { val: (s) => s.open, note: CMP() ? '' : `el backlog: sin resolver, de ${num(ST[CO()[0]].n)} recibidas en el periodo` }),
-      kpiCo('En curso', openCount(SITUATION[0].test), (s) => num(s.v), { ...v, note: 'alguien trabajando en ellas' }),
-      kpiCo('Sin empezar', openCount(SITUATION[1].test), (s) => num(s.v), { ...v, note: 'en Asignada: nadie las está trabajando' }),
-      kpiCo('En espera', openCount((i) => C.st[i] === PENDING), (s) => num(s.v), { ...v, note: 'en Pendiente: de un tercero, del cliente…' }),
-      kpiCo('Fuera de plazo', ST, (s) => num(s.waitKo), { val: (s) => s.waitKo, better: 'low', note: 'sin iniciar: nunca han pasado a En curso y ya superan su SLA' }),
-      kpiCo('Escaladas', openCount((i) => C.vt[i]), (s) => num(s.v), { ...v, note: 'con ticket de tercero' }),
-      people ? '' : kpi('Sin responsable', num(orphansIn().length), 'SGA, SISU o PRIO, sin nadie asignado', 'mt-t2'));
+  // Lo pendiente, de un vistazo y en orden: el total; en qué punto está (en curso, sin empezar y en espera de
+  // un tercero, del cliente u otro motivo, que suman el total), en una barra; lo que conviene vigilar dentro
+  // (se solapa: no se suma) y, aparte, lo de nuestras tarjetas que no tiene a nadie (no está en el total).
+  const stockPanel = (T, ST) => {
+    const cos = CO(), cmp = CMP(), people = S.sides.some((s) => s?.people), CRITICAL = DI.prio.indexOf('CRITICAL');
+    const open = T.map((l) => l.filter((i) => OPEN[i]));
+    const count = (test) => open.map((l) => ({ n: l.length, v: l.filter(test).length }));
+    const fig = (st, better) => `<b>${num(st[cos[0]].v)}</b>${cmp ? diff(st[0], st[1], (x) => num(x.v), (x) => x.v, better) : ''}`;
+    // las situaciones que hay; k, su color (el mismo siempre, aunque falte alguna)
+    const sit = SITUATION.map((x, k) => ({ ...x, k, st: count(x.test) })).filter((x) => x.st.some((y) => y.v));
+    const share = (x, side) => (open[side].length ? x.st[side].v / open[side].length : 0);
+    const bar = (side) => `<div class="mt-st-track">${sit.map((x) => {
+      const p = share(x, side);
+      return p ? `<i class="mt-sit${x.k}" style="width:${(p * 100).toFixed(2)}%" ${x.f ? `data-f="${x.f}"` : ''} data-tip="${esc(`${x.label}${cmp ? ` · ${name(side)}` : ''}\n${num(x.st[side].v)} de ${num(open[side].length)} (${pct(p)})\n${x.tip}`)}">${p >= 0.07 ? pct(p) : ''}</i>` : '';
+    }).join('')}</div>`;
+    const watch = [
+      ['Fuera de plazo', count(late), 'Nunca han pasado a En curso y ya superan el plazo de su prioridad.', 'sl:4', 'low'],
+      ['Con más de 15 días', count((i) => m.SNAP - C.rep[i] > OLD), 'Llevan más de 15 días abiertas: si sube, el backlog envejece.', '', 'low'],
+      ['Escaladas', count((i) => C.vt[i] > 0), 'Con ticket de tercero, estén en el estado que estén (por eso no coincide con «espera tercero»: algunas ya se están trabajando o están en cola).', '', null],
+      ['Críticas', count((i) => C.pr[i] === CRITICAL), 'De prioridad crítica.', `pr:${CRITICAL}`, 'low'],
+      ['PRIO', count((i) => cardsOf(i).includes(2)), 'Priorizadas por negocio.', 'tj:2', 'low'],
+    ];
+    const side = (k) => (cmp ? `<span class="mt-st-side"><i class="mt-sw mt-c${k}"></i>${esc(name(k))}</span>` : '');
+    const total = `<section class="mt-st mt-st-total"><h4>Pendientes</h4><div class="mt-st-big">${fig(ST.map((x) => ({ n: x.n, v: x.open })), 'low')}</div>
+      <p>${cmp ? 'sin resolver de lo recibido en el periodo' : `sin resolver, de ${num(ST[cos[0]].n)} recibidas en el periodo`}</p></section>`;
+    const where = `<section class="mt-st mt-st-where"><h4>¿En qué punto están?<small>suman las pendientes</small></h4>
+      ${cos.map((k) => `<div class="mt-st-row">${side(k)}${bar(k)}</div>`).join('')}
+      <div class="mt-st-legend">${sit.map((x) => `<div ${x.f ? `class="mt-clk" data-f="${x.f}"` : ''} data-tip="${esc(x.tip)}"><span><i class="mt-sit${x.k}"></i>${x.label}</span>${fig(x.st)}<em>${pct(share(x, cos[0]))}</em></div>`).join('')}</div></section>`;
+    const watchHtml = `<section class="mt-st mt-st-watch"><h4>A vigilar<small>dentro de las pendientes; se solapan</small></h4>
+      ${watch.map(([l, st, tip, f, better]) => `<div class="mt-st-item ${f ? 'mt-clk' : ''}" ${f ? `data-f="${f}"` : ''} data-tip="${esc(tip)}"><span>${l}</span>${fig(st, better)}</div>`).join('')}</section>`;
+    const apart = people ? '' : `<section class="mt-st mt-st-apart"><h4>Aparte</h4><div class="mt-st-big"><b>${num(orphansIn().length)}</b></div>
+      <p><b>Sin responsable</b>: de SGA, SISU o PRIO y sin nadie asignado. No están en las pendientes.</p></section>`;
+    return `<div class="mt-stock ${people ? 'mt-st-noapart' : ''}">${total}${where}${watchHtml}${apart}</div>`;
   };
   const PLURAL = { CRITICAL: 'Críticas', HIGH: 'Altas', MEDIUM: 'Medias', LOW: 'Bajas' };
   const late = (i) => { const l = m.SLA[C.pr[i]]; return OPEN[i] && C.ip[i] < 0 && l >= 0 && m.SNAP - C.rep[i] > l; };
@@ -365,7 +386,7 @@ export const createTabs = (m, ch, ui) => {
           { span: 's12', sub: 'Recibidas de cada tipo cada mes; cada bloque suma las recibidas (salvo Tarjeta, donde una PRIO cuenta dos veces). * mes incompleto. Clic en una celda para filtrar.' }),
 
         section('Lo que queda pendiente', 'lo recibido en el periodo que sigue sin resolver'),
-        stockKpis(T, ST),
+        stockPanel(T, ST),
         card('En qué situación está y desde cuándo', matrix(stateRows, AGES, [...op, ...orphans], { ...st, share: true, of: op.length, corner: 'Antigüedad →' }),
           { span: 's6', sub: 'Las situaciones suman las pendientes. Debajo, lo que conviene vigilar dentro de ellas, y aparte lo que no tiene responsable. Clic en una celda para filtrar.' }),
         card('Por prioridad y tarjeta', matrix(prioRows, SIT, op, { ...st, corner: 'Situación →' }), { span: 's6', sub: 'En qué situación está lo pendiente de cada prioridad y tarjeta.' }),
