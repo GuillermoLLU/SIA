@@ -29,10 +29,15 @@ export const createCharts = (m, ui) => {
     const f = compareFigure(a, b, fmt, val, better);
     return f ? `<b class="mt-diff ${f.cls}" data-cmp="${esc([f.a, f.other, f.b, f.cls].join('¦'))}">${f.main}</b>` : '<span class="mt-mut">—</span>';
   };
-  // Indicador de cabecera: con un lado, su valor; con los dos, la diferencia.
+  // Indicador de cabecera: con un lado, su valor; con los dos, en grande la diferencia del primero respecto al
+  // segundo (en verde o rojo si tiene un sentido mejor; en puntos si es un %, que es lo que se lee al mirar los dos
+  // valores) y debajo el valor de cada uno. La nota, al pasar el ratón.
   const kpiCo = (label, ST, fmt, o = {}) => {
     if (!CMP()) { const k = CO()[0]; return kpi(label, fmt(ST[k]), o.note || '', `mt-t${k}`); }
-    return kpi(label, diff(ST[0], ST[1], fmt, o.val, o.better), `${esc(name(0))} respecto a ${esc(name(1))}${o.note ? ` · ${o.note}` : ''}`);
+    const f = compareFigure(ST[0], ST[1], fmt, o.val, o.better);
+    const side = (k) => `<div class="mt-kpi-s"><i class="mt-c${k}"></i><span title="${esc(name(k))}">${esc(name(k))}</span><b>${ST[k].n ? fmt(ST[k]) : '—'}</b></div>`;
+    return `<div class="mt-kpi mt-kpi-co"><div class="mt-kpi-l" ${o.note ? `data-tip="${esc(o.note)}"` : ''}>${label}</div>
+      <div class="mt-kpi-v ${f ? `mt-diff ${f.cls}` : 'mt-mut'}">${f ? (f.pts || f.main) : '—'}</div>${side(0)}${side(1)}</div>`;
   };
 
   // Barras horizontales de una dimensión, partidas por lado.

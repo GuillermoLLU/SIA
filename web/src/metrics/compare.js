@@ -24,5 +24,8 @@ export const compareFigure = (a, b, fmt, val, better) => {
   const cls = better && !same ? verdict(x, y, better === 'low') : '';
   const rel = y ? `${sign}${m / y < 0.01 ? dec(m / y * 100) : num(m / y * 100)} %` : '';
   const [main, other] = same ? ['=', '='] : isPct && rel ? [rel, sign + mag] : [sign + mag, rel || '—'];
-  return { main, other, cls, a: shown, b: fmt(b) };
+  // pts: la diferencia en puntos de un porcentaje, entre los valores tal como se ven («41 %» y «53 %»: «−12 pts»)
+  const seen = (t) => Number(t.replace(/[^\d,−-]/g, '').replace(',', '.').replace('−', '-'));
+  const p = seen(shown) - seen(fmt(b)), pts = !p ? '=' : `${p > 0 ? '+' : '−'}${/,\d %$/.test(shown) ? dec(Math.abs(p)) : num(Math.abs(p))} pts`;
+  return { main, other, cls, a: shown, b: fmt(b), pts: isPct ? pts : null };
 };

@@ -371,7 +371,7 @@ export const createTabs = (m, ch, ui) => {
       return grid(ask('entrada'),
         kpis(kpiCo('Recibidas', ST, (s) => num(s.n), { val: (s) => s.n, note: 'abiertas en el periodo' }),
           kpiCo('Entran al día', ST.map((s) => ({ n: s.n, v: s.n / d })), (s) => dec(s.v), { val: (s) => s.v, note: 'de media, en días naturales' }),
-          kpiCo('Cerramos al día', closedIn.map((v, k) => ({ n: v + ST[k].n, v: v / d })), (s) => dec(s.v), { val: (s) => s.v, better: 'high', note: 'de media, todo lo cerrado en el periodo' }),
+          kpiCo('Cerramos al día', closedIn.map((v, k) => ({ n: v + ST[k].n, v: v / d })), (s) => dec(s.v), { val: (s) => s.v, note: 'de media, todo lo cerrado en el periodo' }),
           ...PRIOS.map((p) => kpiCo(`% ${PLURAL[DI.prio[p]] || nice(DI.prio[p])}`, ST.map((s) => ({ n: s.n, v: s.n ? s.prio[p] / s.n : null })), sharePct, { val: (s) => s.v, note: `SLA de inicio: ${slaLabel(p).split(' · ')[1]}` })),
           kpiCo('% Peticiones', shareOf(T, (i) => C.sv[i] === REQ), sharePct, { val: (s) => s.v, note: 'de usuario' })),
         card(S.from === S.to ? 'Día a día: lo que entra, lo que se cierra y lo que queda' : 'Mes a mes: lo que entra, lo que se cierra y lo que queda', ledger(A),
