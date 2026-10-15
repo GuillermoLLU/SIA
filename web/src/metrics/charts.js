@@ -15,7 +15,8 @@ export const createCharts = (m, ui) => {
   const { DIMS, LASTM, CO, CMP, NAMES, isSel, rows, group, stats, bySide, byMonth, trend, SIDE, MONTH } = m;
   const name = (k) => NAMES()[k];   // el nombre de cada lado: una empresa, una persona o «N personas»
 
-  const card = (t, body, o = {}) => `<section class="mt-card ${o.span ? `mt-${o.span}` : ''}"><h3>${t}</h3>${o.sub ? `<p class="mt-sub">${o.sub}</p>` : ''}${body}</section>`;
+  // o.cross: [filas, columnas] de un mapa de calor; el título va centrado, «filas × columnas»
+  const card = (t, body, o = {}) => `<section class="mt-card ${o.span ? `mt-${o.span}` : ''} ${o.cross ? 'mt-cross' : ''}"><h3>${o.cross ? `${esc(o.cross[0])}<i>×</i>${esc(o.cross[1])}` : t}</h3>${o.sub ? `<p class="mt-sub">${o.sub}</p>` : ''}${body}</section>`;
   const legend = () => `<div class="mt-legend">${CO().map((k) => `<span><i class="mt-c${k}"></i>${esc(name(k))}</span>`).join('')}</div>`;
   const kpi = (l, v, d = '', cls = '') => `<div class="mt-kpi ${cls}"><div class="mt-kpi-l">${l}</div><div class="mt-kpi-v">${v}</div><div class="mt-kpi-d">${d}</div></div>`;
   const kpis = (...k) => `<div class="mt-kpis">${k.join('')}</div>`;
