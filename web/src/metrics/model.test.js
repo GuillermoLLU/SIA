@@ -63,6 +63,17 @@ test('tarjetas: SGA y SISU por el ámbito, PRIO por la etiqueta (además de su S
   assert.deepEqual([0, 1, 3].map(m.DIMS.tj.get), [[0, 2], [1], [3]]);
 });
 
+test('situación de cada issue: en curso, sin empezar, en espera de un tercero, del cliente u otro motivo, o cerrada; y si está escalada', () => {
+  const d = data();
+  d.dict.status = ['', 'CLOSED', 'ASSIGNED', 'IN_PROGRESS', 'PENDING'];
+  d.dict.reason = ['', 'THIRD_PARTY_VENDOR_ACTION_REQD', 'CUSTOMER_FOLLOW_UP_REQUIRED', 'FUTURE_ENHANCEMENT'];
+  d.cols.st = [3, 2, 4, 4, 4]; d.cols.rs = [0, 0, 1, 2, 3];
+  const m = createModel(d);
+  assert.deepEqual([0, 1, 2, 3, 4].map(m.DIMS.sit.get), [0, 1, 2, 3, 4]);
+  assert.equal(createModel(data()).DIMS.sit.get(0), 5);   // cerrada
+  assert.deepEqual([0, 1].map(m.DIMS.es.get), [1, 0]);    // la 1 tiene ticket de tercero
+});
+
 test('la foto de hoy no mira el periodo; con anySide, tampoco el lado', () => {
   const m = createModel(data());
   m.S.from = m.S.to = 2; m.refilter();   // solo marzo: la 3

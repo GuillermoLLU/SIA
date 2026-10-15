@@ -21,6 +21,11 @@ const PRIO = 2;
 // etiqueta de priorizada por negocio, que va además de su SGA o SISU. 3: sin tarjeta.
 export const CARDS = ['SGA', 'SISU', 'PRIO', 'Sin tarjeta'];
 
+// Situación de cada issue, como la mira el equipo: abierta en curso, sin empezar (Asignada) o en espera
+// (Pendiente) de un tercero, del cliente o por otro motivo; o cerrada.
+export const SITUATIONS = ['En curso', 'Sin empezar', 'Espera tercero', 'Espera cliente', 'Espera otro motivo', 'Cerrada'];
+const VENDOR_REASON = 'THIRD_PARTY_VENDOR_ACTION_REQD', CLIENT_REASONS = ['CLIENT_ACTION_REQUIRED', 'CUSTOMER_FOLLOW_UP_REQUIRED'];
+
 // Tramos de tiempo de resolución y de antigüedad (minutos).
 const TTR_NAMES = ['< 1 h', '1–4 h', '4–8 h', '8–24 h', '1–3 días', '3–7 días', '7–30 días', '> 30 días', 'Sin resolver'];
 const TTR_LIMITS = [60, 240, 480, 1440, 4320, 10080, 43200, Infinity];
@@ -59,6 +64,9 @@ export const createModel = (data) => {
   const PRIOS = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map((p) => DI.prio.indexOf(p)).filter((k) => k > 0);
   const slaLabel = (p) => `${nice(DI.prio[p])} · ${SLA[p] < 60 ? `${SLA[p]} min` : `${SLA[p] / 60} h`}`;
   const OPEN_ST = new Set(['ASSIGNED', 'IN_PROGRESS', 'PENDING'].map((s) => DI.status.indexOf(s)));
+  const [ASSIGNED, IN_PROGRESS] = ['ASSIGNED', 'IN_PROGRESS'].map((x) => DI.status.indexOf(x));
+  const VENDOR = DI.reason.indexOf(VENDOR_REASON), CLIENT = CLIENT_REASONS.map((r) => DI.reason.indexOf(r)).filter((k) => k > 0);
+  const situation = (i) => (!OPEN[i] ? 5 : C.st[i] === IN_PROGRESS ? 0 : C.st[i] === ASSIGNED ? 1 : C.rs[i] === VENDOR ? 2 : CLIENT.includes(C.rs[i]) ? 3 : 4);
   const shiftType = typeOf(weekendOf(BASE));   // tipo del turno de un instante (shifts.js): 0–2 laborables, 3–5 fin de semana
 
   // --- lo que se deriva de cada issue
@@ -100,6 +108,8 @@ export const createModel = (data) => {
     hour: { name: 'Hora', get: (i) => HOUR[i], label: (k) => `${k} h` },
     tj: { name: 'Tarjeta', multi: true, label: (k) => CARDS[k],
       get: (i) => { const o = []; if (C.sc[i] === SCOPE.SGA) o.push(0); if (C.sc[i] === SCOPE.SISU) o.push(1); if (C.fl[i] & PRIO) o.push(2); return o.length ? o : [3]; } },
+    sit: { name: 'Situación', get: situation, label: (k) => SITUATIONS[k] },
+    es: { name: 'Escalada', get: (i) => (C.vt[i] ? 1 : 0), label: (k) => (k ? 'Con ticket de tercero' : 'Sin ticket de tercero') },
     tu: { name: 'Turno', get: (i) => STYPE[i] % 3, label: (k) => `${SHIFTS[k]} (${SHIFT_HOURS[k]})` },
     we: { name: 'Días', get: (i) => (STYPE[i] < 3 ? 0 : 1), label: (k) => DAYS[k] },
     age: { name: 'Antigüedad', get: (i) => AGE_LIMITS.findIndex((l) => SNAP - C.rep[i] < l), label: (k) => AGE_NAMES[k] },

@@ -5,7 +5,7 @@
 // respecto a B.
 import { esc } from '../ui/html.js';
 import { num, dec, pct, dur, nice, title, dateOf, MONTHS, DOWS } from './format.js';
-import { CARDS, MAJOR, IA_MARKS, share } from './model.js';
+import { CARDS, MAJOR, IA_MARKS, SITUATIONS, share } from './model.js';
 import { SHIFTS, SHIFT_HOURS, DAYS, MIN_ACTIONS } from './shifts.js';
 
 export const TABS = [['resumen', 'Resumen'], ['hoy', 'Foto de hoy'], ['entrada', 'Entrada'], ['backlog', 'Backlog'], ['modulos', 'Módulos y focos'],
@@ -109,17 +109,13 @@ export const createTabs = (m, ch, ui) => {
     })];
   };
 
-  // --- Lo pendiente. Su situación: en curso, sin empezar (Asignada) o en espera (Pendiente) de un tercero,
-  // del cliente o por otro motivo; las cinco suman todo lo abierto.
-  const ST_ = (s) => DI.status.indexOf(s), [ASSIGNED, IN_PROGRESS, PENDING] = ['ASSIGNED', 'IN_PROGRESS', 'PENDING'].map(ST_);
-  const R_ = (r) => DI.reason.indexOf(r), VENDOR = R_('THIRD_PARTY_VENDOR_ACTION_REQD'), CLIENT = [R_('CLIENT_ACTION_REQUIRED'), R_('CUSTOMER_FOLLOW_UP_REQUIRED')];
-  const SITUATION = [
-    { label: 'En curso', test: (i) => C.st[i] === IN_PROGRESS, f: `st:${IN_PROGRESS}`, tip: 'Alguien está trabajando en ellas.' },
-    { label: 'Sin empezar', test: (i) => C.st[i] === ASSIGNED, f: `st:${ASSIGNED}`, tip: 'En Asignada: nadie las está trabajando.' },
-    { label: 'Espera tercero', test: (i) => C.st[i] === PENDING && C.rs[i] === VENDOR, f: `rs:${VENDOR}`, tip: 'En Pendiente por una acción de un tercero (desarrollo, proveedor…).' },
-    { label: 'Espera cliente', test: (i) => C.st[i] === PENDING && CLIENT.includes(C.rs[i]), tip: 'En Pendiente por una acción o respuesta del centro o del cliente.' },
-    { label: 'Espera otro motivo', test: (i) => C.st[i] === PENDING && C.rs[i] !== VENDOR && !CLIENT.includes(C.rs[i]), tip: 'En Pendiente con otro motivo o sin motivo informado.' },
-  ];
+  // --- Lo pendiente. Su situación (model.js, SITUATIONS): en curso, sin empezar (Asignada) o en espera (Pendiente)
+  // de un tercero, del cliente o por otro motivo; las cinco suman todo lo abierto.
+  const SIT_TIPS = ['Alguien está trabajando en ellas.', 'En Asignada: nadie las está trabajando.', 'En Pendiente por una acción de un tercero (desarrollo, proveedor…).',
+    'En Pendiente por una acción o respuesta del centro o del cliente.', 'En Pendiente con otro motivo o sin motivo informado.'];
+  const SITUATION = SIT_TIPS.map((tip, k) => ({ label: SITUATIONS[k], test: (i) => m.DIMS.sit.get(i) === k, f: `sit:${k}`, tip }));
+  // los dos tramos de antigüedad de más de 15 días, para filtrar con un clic
+  const OLD15 = 'age:3|age:4';
   const AGES = [0, 1, 2, 3, 4].map((k) => ({ label: m.DIMS.age.label(k), test: (i) => m.DIMS.age.get(i) === k, f: `age:${k}` }));
   // filas de una dimensión: las n con más issues en `list` y, si hay más, «Resto» (así la tabla suma el total)
   const topRows = (dim, list, n) => {
@@ -146,8 +142,8 @@ export const createTabs = (m, ch, ui) => {
     }).join('')}</div>`;
     const watch = [
       ['Fuera de plazo', count(late), 'Nunca han pasado a En curso y ya superan el plazo de su prioridad.', 'sl:4', 'low'],
-      ['Con más de 15 días', count((i) => m.SNAP - C.rep[i] > OLD), 'Llevan más de 15 días abiertas: si sube, el backlog envejece.', '', 'low'],
-      ['Escaladas', count((i) => C.vt[i] > 0), 'Con ticket de tercero, estén en el estado que estén (por eso no coincide con «espera tercero»: algunas ya se están trabajando o están en cola).', '', null],
+      ['Con más de 15 días', count((i) => m.SNAP - C.rep[i] > OLD), 'Llevan más de 15 días abiertas: si sube, el backlog envejece.', OLD15, 'low'],
+      ['Escaladas', count((i) => C.vt[i] > 0), 'Con ticket de tercero, estén en el estado que estén (por eso no coincide con «espera tercero»: algunas ya se están trabajando o están en cola).', 'es:1', null],
       ['Críticas', count((i) => C.pr[i] === CRITICAL), 'De prioridad crítica.', `pr:${CRITICAL}`, 'low'],
       ['PRIO', count((i) => cardsOf(i).includes(2)), 'Priorizadas por negocio.', 'tj:2', 'low'],
     ];
@@ -158,7 +154,7 @@ export const createTabs = (m, ch, ui) => {
       ${cos.map((k) => `<div class="mt-st-row">${side(k)}${bar(k)}</div>`).join('')}
       <div class="mt-st-legend">${sit.map((x) => `<div ${x.f ? `class="mt-clk" data-f="${x.f}"` : ''} data-tip="${esc(x.tip)}"><span><i class="mt-sit${x.k}"></i>${x.label}</span>${fig(x.st)}<em>${pct(share(x, cos[0]))}</em></div>`).join('')}</div></section>`;
     const watchHtml = `<section class="mt-st mt-st-watch"><h4>A vigilar<small>dentro de las pendientes; se solapan</small></h4>
-      ${watch.map(([l, st, tip, f, better]) => `<div class="mt-st-item ${f ? 'mt-clk' : ''}" ${f ? `data-f="${f}"` : ''} data-tip="${esc(tip)}"><span>${l}</span>${fig(st, better)}</div>`).join('')}</section>`;
+      ${watch.map(([l, st, tip, f, better]) => `<div class="mt-st-item ${f ? 'mt-clk' : ''}" ${f ? `data-f${f.includes('|') ? '2' : ''}="${f}"` : ''} data-tip="${esc(tip)}"><span>${l}</span>${fig(st, better)}</div>`).join('')}</section>`;
     const apart = people ? '' : `<section class="mt-st mt-st-apart"><h4>Aparte</h4><div class="mt-st-big"><b>${num(orphansIn().length)}</b></div>
       <p><b>Sin responsable</b>: de SGA, SISU o PRIO y sin nadie asignado. No están en las pendientes.</p></section>`;
     return `<div class="mt-stock ${people ? 'mt-st-noapart' : ''}">${total}${where}${watchHtml}${apart}</div>`;
@@ -281,13 +277,11 @@ export const createTabs = (m, ch, ui) => {
     hoy() {
       const L = m.today(), op = L.filter((i) => OPEN[i]), T = bySide(op), cos = CO(), now = m.SNAP;
       const people = S.sides.some((x) => x?.people), one = S.sides.some((x) => x?.people?.size === 1) && !CMP();
-      const R = (r) => DI.reason.indexOf(r);
-      const VENDOR = R('THIRD_PARTY_VENDOR_ACTION_REQD'), CLIENT = [R('CLIENT_ACTION_REQUIRED'), R('CUSTOMER_FOLLOW_UP_REQUIRED')];
       const CRITICAL = DI.prio.indexOf('CRITICAL'), lm = C.lm, days = (min) => Math.floor(min / 1440);
       const idle = (i) => (lm ? now - lm[i] : null);   // sin ningún cambio desde hace (minutos); null con datos de antes de guardar el último cambio
       const IDLE = 5 * 1440;
       const late = (i) => { const l = m.SLA[C.pr[i]]; return C.ip[i] < 0 && l >= 0 && now - C.rep[i] > l; };
-      const waits = (i) => (C.rs[i] === VENDOR ? 'v' : CLIENT.includes(C.rs[i]) ? 'c' : '');
+      const waits = (i) => { const k = m.DIMS.sit.get(i); return k === 2 ? 'v' : k === 3 ? 'c' : ''; };
       const count = (test) => T.map((l) => ({ n: l.length || 1, v: l.filter(test).length }));
       // una lista de issues: cada fila con su enlace a Remedy
       const list = (id, rowsIn, o = {}) => {
@@ -377,8 +371,8 @@ export const createTabs = (m, ch, ui) => {
         { head: 'Situación', note: 'Suman las pendientes.' },
         ...SIT.map((s) => ({ ...s, test: (i) => inA(i) && s.test(i) })),
         { head: 'A vigilar', note: 'Dentro de las pendientes.' },
-        { label: 'Fuera de plazo', tip: 'Sin iniciar: nunca han pasado a En curso y ya superan su SLA.', test: (i) => inA(i) && late(i) },
-        { label: 'Escaladas', tip: 'Con ticket de tercero.', test: (i) => inA(i) && C.vt[i] > 0 },
+        { label: 'Fuera de plazo', tip: 'Sin iniciar: nunca han pasado a En curso y ya superan su SLA.', test: (i) => inA(i) && late(i), f: 'sl:4' },
+        { label: 'Escaladas', tip: 'Con ticket de tercero.', test: (i) => inA(i) && C.vt[i] > 0, f: 'es:1' },
         { label: 'PRIO', test: (i) => inA(i) && cardsOf(i).includes(2), f: 'tj:2' },
         { label: 'Críticas', test: (i) => inA(i) && C.pr[i] === CRITICAL, f: `pr:${CRITICAL}` },
         ...(orphans.length ? [{ head: 'Aparte', note: 'SGA, SISU o PRIO sin nadie asignado.' }, { label: 'Sin responsable', test: (i) => !C.as[i] }] : []),
