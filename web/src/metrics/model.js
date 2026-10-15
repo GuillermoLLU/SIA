@@ -200,14 +200,16 @@ export const createModel = (data) => {
   };
   // Al comparar con alguna persona, el volumen de cada lado es la media por persona (perHead). Cuentan las personas
   // del lado con actividad (una de sus issues se abre, empieza o resuelve) en los ACTIVE_DAYS días antes del final
-  // del periodo, o de la foto si es antes: así no cuenta quien ya no está, aunque haya trabajado poco sí.
+  // del periodo, o de la foto si es antes: así no cuenta quien ya no está, aunque haya trabajado poco sí. Un lado
+  // que es una empresa es todo su equipo, también quien está en el otro lado: la media es la de todo el equipo.
+  const inTeam = (k) => { const s = S.sides[k]; return s.people ? (i) => SIDE[i] === k : (i) => TEAM[i] === s.company; };
   const heads = (k) => {
     const key = `heads${k}`;
     if (CACHE[key]) return CACHE[key];
     const end = Math.min(SNAP, Date.UTC(meta.year, S.to + 1, 1) / 6e4 - BASE / 6e4), from = end - ACTIVE_DAYS * DAY, out = new Set();
-    const near = (t) => t >= from && t <= end;
+    const near = (t) => t >= from && t <= end, mine = inTeam(k);
     for (let i = 0; i < N; i++) {
-      if (SIDE[i] !== k || !C.as[i] || out.has(C.as[i])) continue;
+      if (!C.as[i] || out.has(C.as[i]) || !mine(i)) continue;
       if (near(C.rep[i]) || (C.ip[i] >= 0 && near(C.rep[i] + C.ip[i])) || (C.res[i] >= 0 && near(C.res[i]))) out.add(C.as[i]);
     }
     return (CACHE[key] = out);
@@ -291,6 +293,6 @@ export const createModel = (data) => {
   return {
     data, C, DI, N, BASE, SNAP, LASTM, SLA, PRIOS, slaLabel, MONTH, DOW, HOUR, OPEN, TEAM, SIDE, DIMS, S, STYPE,
     CMP, CO, NAMES, refilter, rows, pool, today, toggle, isSel, group, bySide, byMonth, trend, stats, periodSlots, clock,
-    heads, perHead, carry: (list) => carry(list, C, shiftType), shiftWork: (list) => shiftWork(list, C, (i) => OPEN[i], shiftType),
+    heads, perHead, inTeam, carry: (list) => carry(list, C, shiftType), shiftWork: (list) => shiftWork(list, C, (i) => OPEN[i], shiftType),
   };
 };

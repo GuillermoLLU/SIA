@@ -192,4 +192,8 @@ test('media por persona: solo al comparar con personas; cuenta quien tuvo activi
   d.cols.rep[2] = SNAP - 100 * 1440; d.cols.res[3] = 5100;   // ANA, sin nada en los últimos 60 días
   const m2 = createModel(d); m2.S.sides = [{ people: new Set([2]) }, { company: 0 }]; m2.refilter();
   assert.equal(m2.heads(1).size, 0);
+  // una persona de Indra frente a Indra: la media es la de todo el equipo, ella incluida
+  const m3 = createModel(data()); m3.S.sides = [{ people: new Set([1]) }, { company: 0 }]; m3.refilter();
+  assert.deepEqual([...m3.heads(1)], [1]);
+  assert.equal(m3.inTeam(1)(0), true);   // su issue cuenta en el equipo aunque esté en el otro lado
 });

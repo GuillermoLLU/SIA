@@ -5,7 +5,7 @@
 // respecto a B.
 import { esc } from '../ui/html.js';
 import { num, dec, pct, dur, nice, title, dateOf, MONTHS, DOWS } from './format.js';
-import { CARDS, MAJOR, IA_MARKS, SITUATIONS, ACTIVE_DAYS, share } from './model.js';
+import { COMPANIES, CARDS, MAJOR, IA_MARKS, SITUATIONS, ACTIVE_DAYS, share } from './model.js';
 import { SHIFTS, SHIFT_HOURS, DAYS, MIN_ACTIONS } from './shifts.js';
 
 export const TABS = [['resumen', 'Resumen'], ['hoy', 'Foto de hoy'], ['entrada', 'Entrada'], ['backlog', 'Backlog'], ['modulos', 'Módulos y focos'],
@@ -197,14 +197,16 @@ export const createTabs = (m, ch, ui) => {
     return bySide(m.today()).map((l) => l.filter((i) => { const r = resAt(i); return r != null && r >= from && r < to; }));
   };
   // El volumen de cada lado ({ n, v }, para kpiCo): su total o, comparando con alguna persona, la media por persona
-  // (model.js, heads): lo de sus personas con actividad reciente entre cuántas son. per: el divisor que se le añade
-  // (los días, para «al día»).
+  // (model.js, heads): lo de sus personas con actividad reciente entre cuántas son; una empresa, con todo su equipo
+  // (también quien está en el otro lado). per: el divisor que se le añade (los días, para «al día»).
+  // teamNames: el nombre de cada lado en esas cifras («Media de Indra» en vez de «Resto de Indra»).
   const volume = (lists, per = 1) => lists.slice(0, 2).map((l, k) => {
     if (!m.perHead()) return { n: l.length, v: l.length / per };
-    const H = m.heads(k), c = l.filter((i) => H.has(C.as[i])).length;
+    const H = m.heads(k), mine = m.inTeam(k), c = lists.slice(0, 2).flat().filter((i) => mine(i) && H.has(C.as[i])).length;
     return { n: H.size, v: H.size ? c / H.size / per : null };
   });
-  const headsNote = () => (m.perHead() ? ` · por persona: lo de cada lado entre sus personas con actividad en los últimos ${ACTIVE_DAYS} días (${[0, 1].map((k) => `${name(k)}: ${m.heads(k).size}`).join(' · ')})` : '');
+  const teamNames = () => (m.perHead() ? [0, 1].map((k) => (S.sides[k].people ? name(k) : `Media de ${COMPANIES[S.sides[k].company]}`)) : null);
+  const headsNote = () => (m.perHead() ? ` · por persona: lo de cada lado entre sus personas con actividad en los últimos ${ACTIVE_DAYS} días (${[0, 1].map((k) => `${teamNames()[k]}: ${m.heads(k).size}`).join(' · ')})` : '');
 
   // Mes a mes (o día a día con un solo mes): de lo recibido en cada tramo, cuánto se ha cerrado y cuánto
   // sigue abierto (por cerrar), y el movimiento del tramo: lo resuelto en él,
@@ -378,9 +380,9 @@ export const createTabs = (m, ch, ui) => {
         { head: 'Tipo de operación' }, ...topRows('op', A, 7),
       ];
       return grid(ask('entrada'),
-        kpis(kpiCo(`Recibidas${each}`, volume(T), (s) => num(Math.round(s.v)), { val: (s) => Math.round(s.v), note: `abiertas en el periodo${headsNote()}` }),
-          kpiCo(`Entran al día${each}`, volume(T, d), (s) => dec(s.v), { val: (s) => s.v, note: `de media, en días naturales${headsNote()}` }),
-          kpiCo(`Cerramos al día${each}`, volume(closedIn, d), (s) => dec(s.v), { val: (s) => s.v, note: `de media, todo lo cerrado en el periodo${headsNote()}` }),
+        kpis(kpiCo(`Recibidas${each}`, volume(T), (s) => num(Math.round(s.v)), { val: (s) => Math.round(s.v), note: `abiertas en el periodo${headsNote()}`, names: teamNames() }),
+          kpiCo(`Entran al día${each}`, volume(T, d), (s) => dec(s.v), { val: (s) => s.v, note: `de media, en días naturales${headsNote()}`, names: teamNames() }),
+          kpiCo(`Cerramos al día${each}`, volume(closedIn, d), (s) => dec(s.v), { val: (s) => s.v, note: `de media, todo lo cerrado en el periodo${headsNote()}`, names: teamNames() }),
           ...PRIOS.map((p) => kpiCo(`% ${PLURAL[DI.prio[p]] || nice(DI.prio[p])}`, ST.map((s) => ({ n: s.n, v: s.n ? s.prio[p] / s.n : null })), sharePct, { val: (s) => s.v, note: `SLA de inicio: ${slaLabel(p).split(' · ')[1]}` })),
           kpiCo('% Peticiones', shareOf(T, (i) => C.sv[i] === REQ), sharePct, { val: (s) => s.v, note: 'de usuario' })),
         card(S.from === S.to ? 'Día a día: lo que entra, lo que se cierra y lo que queda' : 'Mes a mes: lo que entra, lo que se cierra y lo que queda', ledger(A),

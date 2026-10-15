@@ -35,7 +35,8 @@ export const createCharts = (m, ui) => {
   const kpiCo = (label, ST, fmt, o = {}) => {
     if (!CMP()) { const k = CO()[0]; return kpi(label, fmt(ST[k]), o.note || '', `mt-t${k}`); }
     const f = compareFigure(ST[0], ST[1], fmt, o.val, o.better);
-    const side = (k) => `<div class="mt-kpi-s"><i class="mt-c${k}"></i><span title="${esc(name(k))}">${esc(name(k))}</span><b>${ST[k].n ? fmt(ST[k]) : '—'}</b></div>`;
+    const nm = (k) => o.names?.[k] || name(k);   // o.names: otro nombre para cada lado en esta cifra
+    const side = (k) => `<div class="mt-kpi-s"><i class="mt-c${k}"></i><span title="${esc(nm(k))}">${esc(nm(k))}</span><b>${ST[k].n ? fmt(ST[k]) : '—'}</b></div>`;
     return `<div class="mt-kpi mt-kpi-co"><div class="mt-kpi-l" ${o.note ? `data-tip="${esc(o.note)}"` : ''}>${label}</div>
       <div class="mt-kpi-v ${f ? `mt-diff ${f.cls}` : 'mt-mut'}">${f ? (f.pts || f.main) : '—'}</div>${side(0)}${side(1)}</div>`;
   };
