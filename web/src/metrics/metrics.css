@@ -112,8 +112,12 @@
 .mt-up { color: var(--mt-bad); } .mt-down { color: var(--mt-good); }
 
 /* indicadores */
-.mt-kpis { grid-column: span 12; display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
-.mt-kpi { padding: 13px 16px; background: var(--mt-card); border: 1px solid var(--mt-line); box-shadow: var(--mt-shadow); }
+.mt-kpis { grid-column: span 12; display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; row-gap: 12px; }
+/* las cifras de una fila comparten las alturas de sus partes (subgrid): si un título ocupa dos líneas, todos los
+   números de la fila bajan igual y quedan alineados */
+.mt-kpi { display: grid; grid-row: span 3; grid-template-rows: subgrid; row-gap: 0; align-items: start; padding: 13px 16px; background: var(--mt-card); border: 1px solid var(--mt-line); box-shadow: var(--mt-shadow); }
+.mt-kpi.mt-kpi-co { grid-row: span 4; }
+.mt-kpi-v { align-self: end; }
 .mt-kpi.mt-t0 { border-top: 3px solid var(--mt-c0); } .mt-kpi.mt-t1 { border-top: 3px solid var(--mt-c1); } .mt-kpi.mt-t2 { border-top: 3px solid var(--mt-c2); }
 .mt-kpi-l { font-size: 12.5px; color: var(--mt-low); }
 .mt-kpi-v { margin: 2px 0; font-size: 25px; font-weight: 650; letter-spacing: -.3px; font-variant-numeric: tabular-nums; }
