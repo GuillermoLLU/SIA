@@ -402,12 +402,11 @@ export const createTabs = (m, ch, ui) => {
       const gc = group('ce', A).filter((x) => x.k), tc = gc.reduce((a, x) => a + x.n, 0);
       let acc = 0, k80 = 0;
       for (const x of gc) { acc += x.n; k80++; if (acc >= tc * 0.8) break; }
-      const sub = 'Cuanto más oscuro, más issues. Clic en una celda para filtrar por ambos.';
       return grid(ask('modulos'),
         card('Módulos: cuánto pesa cada uno y cómo se atiende', scorecard('mo', MOD_GROUPS, { id: 'md-mo', skip: noK, refLabel: 'Todos los módulos' }), { span: 's12' }),
-        card('Centro × módulo', heat('ce', 'mo', 18, 14, { skipR: noK, skipC: noK }), { span: 's12', sub: `Los 18 centros y 14 módulos con más issues. ${sub}` }),
-        card('Tema × módulo', heat('th', 'mo', 16, 14, { skipR: noTheme, skipC: noK }), { span: 's12', sub: `Temas detectados por palabras clave en el título; una issue puede estar en varios. ${sub}` }),
-        card('Prioridad × módulo', heat('pr', 'mo', 4, 14, { skipR: noK, skipC: noK, orderR: PRIOS }), { span: 's12', sub }),
+        card('Centro × módulo', heat('ce', 'mo', 18, 14, { skipR: noK, skipC: noK }), { span: 's12' }),
+        card('Tema × módulo', heat('th', 'mo', 16, 14, { skipR: noTheme, skipC: noK }), { span: 's12' }),
+        card('Prioridad × módulo', heat('pr', 'mo', 4, 14, { skipR: noK, skipC: noK, orderR: PRIOS }), { span: 's12' }),
         card('Centros', ranking('ce', ['n', 'sh', 'mix', 'crit', 'avg', 'vend', 'tr', 'dl'], { skip: noK, top: 15 }), { span: 's12', sub: `${k80} centros de ${gc.length} concentran el 80 % del volumen. Clic en una cabecera para ordenar; clic en un centro para ver todas las métricas solo de ese centro.` }),
         card('Problemas que más se repiten', ranking('de', ['n', 'sh', 'avg', 'd1', 'reop', 'vend', 'tr'], { id: 'md-de', skip: noK, min: 5, top: 15 }), { span: 's12', sub: 'Mismo título tras quitar centro, criticidad y números: lo que vuelve una y otra vez y cuánto cuesta resolverlo. Clic en uno para ver todas las métricas solo de ese problema.' }),
         card('Módulos que suben y bajan', movers('mo', { skip: noK }), { sub: 'Últimos 90 días de la foto frente a los 90 anteriores.' }),
