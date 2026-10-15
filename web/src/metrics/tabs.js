@@ -72,7 +72,7 @@ export const createTabs = (m, ch, ui) => {
   const cardsOf = (i) => m.DIMS.tj.get(i);
   const byCard = (A, cols) => slices('Tarjeta', CARDS.map((c, k) => [c, (i) => cardsOf(i).includes(k), `tj:${k}`]), A, cols);
   // la ficha de los módulos: bloques de columnas (charts.js, scorecard)
-  const MOD_GROUPS = [['Volumen', ['n', 'tr', 'dl']], ['Cómo se atiende', ['sla', 'avg', 'd1', 'reop']], ['Qué trae', ['crit', 'vend']], ['Hoy', ['open']]];
+  const MOD_GROUPS = [['Volumen', ['n', 'dl']], ['Cómo se atiende', ['sla', 'avg', 'd1', 'reop']], ['Qué trae', ['crit', 'vend']], ['Hoy', ['open']]];
   const CARD_NOTE = 'SGA y SISU, por los filtros de Remedy del equipo; PRIO, priorizada por negocio, cuenta además en su SGA o SISU.';
 
   // Mapa de calor día de la semana × hora de un instante de cada issue (la apertura, la resolución…).
@@ -404,8 +404,7 @@ export const createTabs = (m, ch, ui) => {
       for (const x of gc) { acc += x.n; k80++; if (acc >= tc * 0.8) break; }
       const sub = 'Cuanto más oscuro, más issues. Clic en una celda para filtrar por ambos.';
       return grid(ask('modulos'),
-        card('Módulos: cuánto pesa cada uno y cómo se atiende', scorecard('mo', MOD_GROUPS, { id: 'md-mo', skip: noK, refLabel: 'Todos los módulos' }),
-          { span: 's12', sub: 'Módulo = categoría de producto 3. Arriba, la referencia de todos; en ocre, lo que va claramente peor que ella (un 15 % o más, en módulos con al menos 30 issues). Clic en una cabecera para ordenar; en un módulo, para ver todo solo de él.' }),
+        card('Módulos: cuánto pesa cada uno y cómo se atiende', scorecard('mo', MOD_GROUPS, { id: 'md-mo', skip: noK, refLabel: 'Todos los módulos' }), { span: 's12' }),
         card('Centro × módulo', heat('ce', 'mo', 18, 14, { skipR: noK, skipC: noK }), { span: 's12', sub: `Los 18 centros y 14 módulos con más issues. ${sub}` }),
         card('Tema × módulo', heat('th', 'mo', 16, 14, { skipR: noTheme, skipC: noK }), { span: 's12', sub: `Temas detectados por palabras clave en el título; una issue puede estar en varios. ${sub}` }),
         card('Prioridad × módulo', heat('pr', 'mo', 4, 14, { skipR: noK, skipC: noK, orderR: PRIOS }), { span: 's12', sub }),

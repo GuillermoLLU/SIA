@@ -141,14 +141,13 @@ export const createCharts = (m, ui) => {
   };
 
   // Ficha por valor de una dimensión (módulos, centros…), para leerla de un vistazo: columnas en bloques con su
-  // título; arriba, la fila de referencia (todos); en ocre, lo que va claramente peor que ella (un 15 % o más,
+  // título; abajo, el total (todos), que es la referencia; en ocre, lo que va claramente peor que ella (un 15 % o más,
   // solo con al menos SC_MIN issues, para no marcar lo que dice poco). Las o.top primeras y «Resto», para que
   // sume el total; «Ver todos» las enseña todas. Clic en una cabecera ordena; en una fila, filtra. Comparando,
   // cada cifra es la del primer lado con su diferencia respecto al otro.
   const SC_MIN = 30;
   const SC = {
     n: ['Issues', null, (s) => s.n, 'Issues recibidas en el periodo y su parte del total.'],
-    tr: ['Mes a mes', null, (s) => s.tr.now - s.tr.prev, 'Issues recibidas cada mes.'],
     dl: ['90 días', null, (s) => (s.tr.prev ? (s.tr.now - s.tr.prev) / s.tr.prev : 0), 'Últimos 90 días de la foto frente a los 90 anteriores.'],
     sla: ['En SLA', 'high', (s) => s.sla, 'Empezadas (paso a En curso) dentro del plazo de su prioridad.'],
     avg: ['Media resol.', 'low', (s) => s.avg, 'Tiempo medio de la apertura a la resolución.'],
@@ -162,7 +161,7 @@ export const createCharts = (m, ui) => {
   const scorecard = (dim, groups, o = {}) => {
     const id = o.id || `sc-${dim}`, list = o.rows || rows(dim), cmp = CMP(), cols = groups.flatMap(([, c]) => c);
     const side = (l) => (cmp ? l.filter((i) => SIDE[i] === 0) : l), other = (l) => l.filter((i) => SIDE[i] === 1);
-    const full = (l) => { const st = stats(side(l)); st.m = byMonth(side(l)); st.tr = trend(side(l)); if (cmp) st.b = stats(other(l)); return st; };
+    const full = (l) => { const st = stats(side(l)); st.tr = trend(side(l)); if (cmp) st.b = stats(other(l)); return st; };
     const all = group(dim, list, true).filter((x) => !(o.skip && o.skip(x.k)));
     const ref = full(list), T = ref.n || 1;
     const srt = ui.sort[id] || ['n', -1], key = (r) => SC[srt[0]][2](r) ?? -Infinity;
@@ -178,8 +177,7 @@ export const createCharts = (m, ui) => {
       return b === 'low' ? v > w * 1.15 : v < w * 0.85;
     };
     const cell = (c, r, isRef) => {
-      if (c === 'n') return `<td><div class="mt-sc-vol"><span class="mt-sc-bar"><i style="width:${isRef ? 100 : (r.n / nmax * 100).toFixed(1)}%"></i></span><b>${num(r.n)}</b><em>${pct(r.n / T, 1)}</em></div></td>`;
-      if (c === 'tr') return `<td class="mt-sc-spark">${spark(r.m)}</td>`;
+      if (c === 'n') return `<td><div class="mt-sc-vol"><em>${pct(r.n / T, 1)}</em><span class="mt-sc-bar"><i style="width:${isRef ? 100 : (r.n / nmax * 100).toFixed(1)}%"></i></span><b>${num(r.n)}</b></div></td>`;
       if (c === 'dl') return `<td class="mt-num" data-tip="${esc(`Últimos 90 días: ${num(r.tr.now)}\n90 anteriores: ${num(r.tr.prev)}`)}">${delta(r.tr)}</td>`;
       const v = SC[c][2](r), shown = v == null ? '—' : SC_FMT[c](v);
       const d = cmp && r.b ? diff(r, r.b, (x) => SC_FMT[c](SC[c][2](x)), (x) => SC[c][2](x), SC[c][1]) : '';
@@ -190,9 +188,9 @@ export const createCharts = (m, ui) => {
     const row = (label, r, attrs = '', isRef = false) => `<tr ${attrs}><th class="mt-r" title="${esc(label)}">${esc(label)}</th>${cols.map((c) => cell(c, r, isRef)).join('')}</tr>`;
     return `${cmp ? `<p class="mt-small mt-mut">Cifras de ${esc(name(0))}; debajo, la diferencia con ${esc(name(1))}.</p>` : ''}<div class="mt-tablewrap"><table class="mt-sc">${colgroup}
       <thead><tr class="mt-cgrp"><th></th>${groups.map(([t, c]) => `<th colspan="${c.length}">${t}</th>`).join('')}</tr><tr><th>${DIMS[dim].name}</th>${cols.map(head).join('')}</tr></thead><tbody>
-      ${row(o.refLabel || 'Todos', ref, 'class="mt-sc-ref"', true)}
       ${shown.map((r) => row(DIMS[dim].label(r.k), r, `class="mt-clk ${isSel(dim, r.k) ? 'mt-sel' : ''}" data-f="${dim}:${r.k}"`)).join('')}
       ${rest ? row(`Resto (${data.length - shown.length})`, rest, 'class="mt-sc-rest"') : ''}
+      ${row(o.refLabel || 'Todos', ref, 'class="mt-sc-ref"', true)}
       </tbody></table></div>${more(id, data.length, top)}`;
   };
 
