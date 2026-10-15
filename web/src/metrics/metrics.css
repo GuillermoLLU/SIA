@@ -361,3 +361,7 @@
 .mt-sc-top span { display: inline-block; max-width: calc(100% - 42px); overflow: hidden; vertical-align: bottom; text-overflow: ellipsis; white-space: nowrap; }
 .mt-sc-top em { margin-left: 6px; font-size: 12px; font-style: normal; color: var(--mt-low); }
 .mt-card h3 small { margin-left: 8px; font-size: 12px; font-weight: 400; letter-spacing: 0; text-transform: none; }
+/* con algo marcado en una ficha, lo no marcado queda apagado (se puede seguir pulsando para añadirlo) */
+.mt-view .mt-sc tr.mt-off th, .mt-view .mt-sc tr.mt-off td { opacity: .42; }
+.mt-view .mt-sc tr.mt-off:hover th, .mt-view .mt-sc tr.mt-off:hover td { opacity: .8; }
+.mt-view .mt-sc tr.mt-sel th.mt-r { background: var(--mt-sel); box-shadow: inset 3px 0 0 var(--accent); }

@@ -173,7 +173,10 @@ export const createCharts = (m, ui) => {
     // al ordenar por cómo se atiende, lo que tiene pocas issues va al final: su cifra dice poco
     const few = (r) => (SC[srt[0]][1] && r.n < SC_MIN ? 1 : 0);
     const data = all.map((x) => ({ ...full(x.rows), k: x.k })).sort((a, b) => few(a) - few(b) || (key(a) - key(b)) * srt[1] || b.n - a.n);
-    const top = o.top || 12, open = ui.exp[id], shown = open ? data : data.slice(0, top);
+    // lo marcado (filtrado) va primero y siempre a la vista, aunque estuviera en «Resto»; lo demás, apagado
+    const picked = data.filter((r) => isSel(dim, r.k)), any = picked.length > 0;
+    const ordered = any ? [...picked, ...data.filter((r) => !isSel(dim, r.k))] : data;
+    const top = Math.max(o.top || 12, picked.length), open = ui.exp[id], shown = open ? ordered : ordered.slice(0, top);
     const rest = !open && data.length > top ? full(all.filter((x) => !shown.some((r) => r.k === x.k)).flatMap((x) => x.rows)) : null;
     const worse = (c, r) => {
       const b = SC[c][1], v = SC[c][2](r), w = SC[c][2](ref);
@@ -194,8 +197,8 @@ export const createCharts = (m, ui) => {
     const row = (label, r, attrs = '', isRef = false) => `<tr ${attrs}><th class="mt-r" title="${esc(label)}">${esc(label)}</th>${cols.map((c) => cell(c, r, isRef)).join('')}</tr>`;
     return `${cmp ? `<p class="mt-small mt-mut mt-sc-cmp">Cifras de ${esc(name(0))}; debajo, la diferencia con ${esc(name(1))}.</p>` : ''}<div class="mt-tablewrap"><table class="mt-sc">${colgroup}
       <thead><tr class="mt-cgrp"><th rowspan="2" class="mt-sc-title">${esc(o.title || DIMS[dim].name)}</th>${groups.map(([t, c]) => `<th colspan="${c.length}">${t}</th>`).join('')}</tr><tr>${cols.map(head).join('')}</tr></thead><tbody>
-      ${shown.map((r) => row(DIMS[dim].label(r.k), r, `class="mt-clk ${isSel(dim, r.k) ? 'mt-sel' : ''}" data-f="${dim}:${r.k}"`)).join('')}
-      ${rest ? row(`Resto (${data.length - shown.length})`, rest, `class="mt-sc-rest" data-exp="${id}" data-tip="Ver todos"`) : ''}
+      ${shown.map((r) => row(DIMS[dim].label(r.k), r, `class="mt-clk ${isSel(dim, r.k) ? 'mt-sel' : any ? 'mt-off' : ''}" data-f="${dim}:${r.k}"`)).join('')}
+      ${rest ? row(`Resto (${data.length - shown.length})`, rest, `class="mt-sc-rest ${any ? 'mt-off' : ''}" data-exp="${id}" data-tip="Ver todos"`) : ''}
       ${open && data.length > top ? `<tr class="mt-sc-less" data-exp="${id}"><th class="mt-r" colspan="${cols.length + 1}">Ver menos</th></tr>` : ''}
       ${row(o.refLabel || 'Todos', ref, 'class="mt-sc-ref"', true)}
       </tbody></table></div>`;
