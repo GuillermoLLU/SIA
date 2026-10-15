@@ -246,14 +246,13 @@
 .mt-view .mt-mx td { text-align: right; padding-right: 9px; }
 .mt-view .mt-mx th.mt-h { text-align: right; padding-right: 9px; }
 .mt-view .mt-mx th.mt-r[data-f], .mt-view .mt-mx td[data-f] { cursor: pointer; }
-/* el título de cada bloque: una franja a lo ancho, separada del bloque anterior, con su marca a la izquierda */
-.mt-view .mt-mx tr.mt-mhead th { padding: 7px 10px; font-size: 11.5px; font-weight: 700; letter-spacing: .5px; text-align: left; text-transform: uppercase;
-  color: var(--text); background: var(--mt-sel); border-top: 12px solid var(--mt-card); border-bottom: 1px solid var(--mt-line); box-shadow: inset 3px 0 0 var(--mt-c0); }
-.mt-view .mt-mx tr.mt-grp th, .mt-view .mt-mx tr.mt-grp td { font-weight: 700; color: var(--text); background: var(--mt-soft); border-bottom: 2px solid var(--mt-line); }
-.mt-view .mt-mx tr.mt-grp.mt-lead th, .mt-view .mt-mx tr.mt-grp.mt-lead td { padding-top: 8px; padding-bottom: 8px; font-size: 13.5px; color: var(--text);
-  background: color-mix(in srgb, var(--mt-c0) 30%, var(--mt-card)); border-bottom: 2px solid var(--mt-c0); }
-.mt-view .mt-mx tr.mt-lead th { box-shadow: inset 3px 0 0 var(--mt-c0); }
-.mt-view .mt-mx tr.mt-grp td { text-transform: none; letter-spacing: 0; font-size: 12px; cursor: default; }
+/* tabla dinámica: cabecera de columnas marcada, el total debajo y cada bloque con su nombre a la izquierda */
+.mt-view .mt-mx thead th { padding: 8px 9px; font-size: 12px; font-weight: 650; color: var(--text); background: var(--mt-soft); border-bottom: 2px solid var(--mt-line); }
+.mt-view .mt-mx thead th.mt-corner { font-size: 11px; font-weight: 600; text-align: left; color: var(--mt-low); }
+.mt-view .mt-mx tr.mt-lead th, .mt-view .mt-mx tr.mt-lead td { padding-top: 8px; padding-bottom: 8px; font-size: 13px; font-weight: 700; color: var(--text); background: var(--mt-sel); cursor: default; }
+.mt-view .mt-mx th.mt-gl { padding: 9px 10px; font-size: 11px; font-weight: 700; letter-spacing: .4px; text-align: left; vertical-align: top; text-transform: uppercase; white-space: normal; color: var(--text); background: var(--mt-soft); }
+.mt-view .mt-mx th.mt-gl small { display: block; margin-top: 4px; font-size: 11px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--mt-low); white-space: normal; }
+.mt-view .mt-mx tr.mt-gfirst > * { border-top: 3px solid var(--mt-line); }
 .mt-view .mt-mx td.mt-hot .mt-mut { color: inherit; opacity: .8; }
 .mt-view tr.mt-cgrp th { padding-bottom: 4px; font-size: 11px; font-weight: 650; letter-spacing: .4px; text-align: center; text-transform: uppercase; color: var(--mt-low); border-bottom: 2px solid var(--mt-line); }
 .mt-view table.mt-fixed { table-layout: fixed; }

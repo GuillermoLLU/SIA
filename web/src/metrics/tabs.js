@@ -364,28 +364,29 @@ export const createTabs = (m, ch, ui) => {
       // lo que entra, mes a mes, por prioridad, tipo de servicio, tarjeta y tipo de operación
       const months = monthsIn().map((k) => ({ label: MONTHS[k] + (k === LASTM ? '*' : ''), test: (i) => MONTH[i] === k, f: `month:${k}` }));
       const inRows = [
-        { head: 'Por prioridad' }, ...PRIOS.map((p) => ({ label: nice(DI.prio[p]), test: (i) => C.pr[i] === p, f: `pr:${p}` })),
-        { head: 'Por tipo de servicio' }, ...topRows('sv', A, 4),
-        { head: 'Por tarjeta · una PRIO cuenta también en su SGA o SISU' }, ...CARDS.map((c, k) => ({ label: c, test: (i) => cardsOf(i).includes(k), f: `tj:${k}` })),
-        { head: 'Por tipo de operación' }, ...topRows('op', A, 7),
+        { head: 'Prioridad' }, ...PRIOS.map((p) => ({ label: nice(DI.prio[p]), test: (i) => C.pr[i] === p, f: `pr:${p}` })),
+        { head: 'Tipo de servicio' }, ...topRows('sv', A, 4),
+        { head: 'Tarjeta', note: 'Una PRIO cuenta también en su SGA o SISU.' }, ...CARDS.map((c, k) => ({ label: c, test: (i) => cardsOf(i).includes(k), f: `tj:${k}` })),
+        { head: 'Tipo de operación' }, ...topRows('op', A, 7),
       ];
-      const recibidas = { label: 'Recibidas en el mes', test: () => true };
+      const recibidas = { label: 'Recibidas', test: () => true };
 
       // lo pendiente: su situación y, aparte, lo que hay que vigilar
       // solo las situaciones que hay (una sin ninguna issue no aporta y quita sitio)
       const SIT = SITUATION.filter((x) => op.some(x.test));
       const pend = { label: 'Pendientes', test: inA };
       const stateRows = [
+        { head: 'Situación', note: 'Suman las pendientes.' },
         ...SIT.map((s) => ({ ...s, test: (i) => inA(i) && s.test(i) })),
-        { head: 'De lo pendiente, lo que conviene vigilar' },
+        { head: 'A vigilar', note: 'Dentro de las pendientes.' },
         { label: 'Fuera de plazo', tip: 'Sin iniciar: nunca han pasado a En curso y ya superan su SLA.', test: (i) => inA(i) && late(i) },
         { label: 'Escaladas', tip: 'Con ticket de tercero.', test: (i) => inA(i) && C.vt[i] > 0 },
         { label: 'PRIO', test: (i) => inA(i) && cardsOf(i).includes(2), f: 'tj:2' },
         { label: 'Críticas', test: (i) => inA(i) && C.pr[i] === CRITICAL, f: `pr:${CRITICAL}` },
-        ...(orphans.length ? [{ head: 'Aparte: SGA, SISU o PRIO sin nadie asignado' }, { label: 'Sin responsable', test: (i) => !C.as[i] }] : []),
+        ...(orphans.length ? [{ head: 'Aparte', note: 'SGA, SISU o PRIO sin nadie asignado.' }, { label: 'Sin responsable', test: (i) => !C.as[i] }] : []),
       ];
-      const prioRows = [{ head: 'Por prioridad' }, ...PRIOS.map((p) => ({ label: nice(DI.prio[p]), test: (i) => C.pr[i] === p, f: `pr:${p}` })),
-        { head: 'Por tarjeta · una PRIO cuenta también en su SGA o SISU' }, ...CARDS.map((c, k) => ({ label: c, test: (i) => cardsOf(i).includes(k), f: `tj:${k}` }))];
+      const prioRows = [{ head: 'Prioridad' }, ...PRIOS.map((p) => ({ label: nice(DI.prio[p]), test: (i) => C.pr[i] === p, f: `pr:${p}` })),
+        { head: 'Tarjeta', note: 'Una PRIO cuenta también en su SGA o SISU.' }, ...CARDS.map((c, k) => ({ label: c, test: (i) => cardsOf(i).includes(k), f: `tj:${k}` }))];
       const modRows = topRows('mo', op, 12), esc3 = op.filter((i) => C.vt[i]);
       const st = { total: true, foot: pend, footTop: true };
 
@@ -398,19 +399,19 @@ export const createTabs = (m, ch, ui) => {
           kpiCo('% Peticiones', shareOf(T, (i) => C.sv[i] === REQ), sharePct, { val: (s) => s.v, note: 'de usuario' })),
         card(S.from === S.to ? 'Día a día: lo que entra, lo que se cierra y lo que queda' : 'Mes a mes: lo que entra, lo que se cierra y lo que queda', ledger(A),
           { span: 's12', sub: `«Por cerrar»: de lo recibido cada mes, lo que sigue abierto hoy; su total son las pendientes de abajo. Pasa el ratón por una cabecera para ver qué cuenta.${S.from === S.to ? '' : ' Clic en un mes para filtrar; con un solo mes, día a día.'}` }),
-        card('Qué entra cada mes', matrix(inRows, months, A, { total: true, share: true, foot: recibidas, footTop: true }),
+        card('Qué entra cada mes', matrix(inRows, months, A, { total: true, share: true, foot: recibidas, footTop: true, corner: 'Mes de apertura →' }),
           { span: 's12', sub: 'Recibidas de cada tipo cada mes; cada bloque suma las recibidas (salvo Tarjeta, donde una PRIO cuenta dos veces). * mes incompleto. Clic en una celda para filtrar.' }),
 
         section('Lo que queda pendiente', 'lo recibido en el periodo que sigue sin resolver'),
         stockKpis(T, ST),
-        card('En qué situación está y desde cuándo', matrix(stateRows, AGES, [...op, ...orphans], { ...st, share: true, of: op.length }),
+        card('En qué situación está y desde cuándo', matrix(stateRows, AGES, [...op, ...orphans], { ...st, share: true, of: op.length, corner: 'Antigüedad →' }),
           { span: 's6', sub: 'Las situaciones suman las pendientes. Debajo, lo que conviene vigilar dentro de ellas, y aparte lo que no tiene responsable. Clic en una celda para filtrar.' }),
-        card('Por prioridad y tarjeta', matrix(prioRows, SIT, op, st), { span: 's6', sub: 'En qué situación está lo pendiente de cada prioridad y tarjeta.' }),
-        card('Por módulo: en qué situación', matrix(modRows, SIT, op, st), { span: 's6', sub: 'Los 12 módulos con más pendientes; «Resto», los demás. Clic en una celda para filtrar.' }),
-        card('Por módulo: desde cuándo', matrix(modRows, AGES, op, st), { span: 's6', sub: 'Los mismos módulos, por lo que lleva abierto lo suyo.' }),
-        card('Escaladas: a quién y desde cuándo', esc3.length ? matrix(topRows('vt', esc3, 10), AGES, esc3, { total: true, foot: { label: 'Escaladas', test: () => true }, footTop: true }) : '<p class="mt-mut mt-small">Nada escalado.</p>',
+        card('Por prioridad y tarjeta', matrix(prioRows, SIT, op, { ...st, corner: 'Situación →' }), { span: 's6', sub: 'En qué situación está lo pendiente de cada prioridad y tarjeta.' }),
+        card('Por módulo: en qué situación', matrix(modRows, SIT, op, { ...st, corner: 'Módulo · situación →' }), { span: 's6', sub: 'Los 12 módulos con más pendientes; «Resto», los demás. Clic en una celda para filtrar.' }),
+        card('Por módulo: desde cuándo', matrix(modRows, AGES, op, { ...st, corner: 'Módulo · antigüedad →' }), { span: 's6', sub: 'Los mismos módulos, por lo que lleva abierto lo suyo.' }),
+        card('Escaladas: a quién y desde cuándo', esc3.length ? matrix(topRows('vt', esc3, 10), AGES, esc3, { total: true, foot: { label: 'Escaladas', test: () => true }, footTop: true, corner: 'Destino · antigüedad →' }) : '<p class="mt-mut mt-small">Nada escalado.</p>',
           { span: 's6', sub: 'Lo pendiente con ticket de tercero, por destino del escalado (prefijo del ticket).' }),
-        card('Por centro: desde cuándo', matrix(topRows('ce', op, 10), AGES, op, st), { span: 's6', sub: 'Los 10 centros con más pendientes; «Resto», los demás.' }));
+        card('Por centro: desde cuándo', matrix(topRows('ce', op, 10), AGES, op, { ...st, corner: 'Centro · antigüedad →' }), { span: 's6', sub: 'Los 10 centros con más pendientes; «Resto», los demás.' }));
     },
 
     backlog(A) {

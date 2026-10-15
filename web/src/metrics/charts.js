@@ -168,14 +168,8 @@ export const createCharts = (m, ui) => {
     };
     // cabeceras en vertical solo si son muchas y largas (módulos, centros…); meses, tramos o pocas, en horizontal
     const v = Cc.length > 6 && Cc.some((c) => dc.label(c.k).length > 12) ? 'mt-v' : 'mt-h';
-    // o.foot: fila de totales por columna (de las filas que se ven; con o.rest, también lo que no cabe)
-    const colSum = (j) => mt.reduce((a, r) => a + tot(r[j]), 0);
-    // arriba (footTop), el total encabeza la tabla y lo de debajo es su desglose; abajo, cierra la tabla
-    const foot = o.foot ? `<tr class="mt-grp ${o.footTop ? 'mt-lead' : ''}"><th class="mt-r">Total</th>${Cc.map((c, j) => `<td class="mt-num">${num(colSum(j))}</td>`).join('')}<td class="mt-num">${num(R.reduce((a, r) => a + r.n, 0))}</td></tr>` : '';
-    const hidden = group(rd, list).filter((x) => !(o.skipR && o.skipR(x.k))).length - R.length;
     return `<div class="mt-tablewrap"><table class="mt-hm"><thead><tr><th></th>${Cc.map((c) => `<th class="${v}">${esc(dc.label(c.k))}</th>`).join('')}<th class="${v}">Total</th></tr></thead><tbody>
-      ${R.map((r, i) => `<tr><th class="mt-r" title="${esc(dr.label(r.k))}">${esc(dr.label(r.k))}</th>${mt[i].map((t, j) => cell(t, i, j)).join('')}<td class="mt-mut mt-total">${num(r.n)}</td></tr>`).join('')}${foot}</tbody></table></div>`
-      + (o.foot && hidden > 0 ? `<p class="mt-mut mt-small">El total es de las ${R.length} filas que se ven; hay ${hidden} más con menos issues.</p>` : '');
+      ${R.map((r, i) => `<tr><th class="mt-r" title="${esc(dr.label(r.k))}">${esc(dr.label(r.k))}</th>${mt[i].map((t, j) => cell(t, i, j)).join('')}<td class="mt-mut mt-total">${num(r.n)}</td></tr>`).join('')}</tbody></table></div>`;
   };
 
   // Tabla de recuentos para cuadrar cuentas: filas y columnas son condiciones ({ label, test, f }); una
@@ -205,18 +199,25 @@ export const createCharts = (m, ui) => {
       return `<td class="mt-num ${a > 50 ? 'mt-hot' : ''}" ${shade ? `style="--mt-a:${a}%"` : ''} ${filt(r, c)} data-tip="${esc(tip(`${r.label} · ${c.label}`, cnt[j][k]))}">${show(cnt[j][k])}</td>`;
     };
     if (CMP()) o = { ...o, share: false };   // comparando, un % sobre los dos lados juntos no dice nada
-    const ncol = cols.length + 1 + (o.total ? 1 : 0) + (o.share ? 1 : 0);
-    const row = (r) => {
-      if (r.head) return `<tr class="mt-mhead"><th colspan="${ncol}">${esc(r.head)}</th></tr>`;
-      const j = ri.get(r);
-      return `<tr><th class="mt-r" ${r.tip ? `data-tip="${esc(r.tip)}"` : `title="${esc(r.label)}"`} ${filt(r)}>${esc(r.label)}</th>${cols.map((c, k) => cell(r, j, c, k, o.shade !== false)).join('')}`
-        + `${o.total ? `<td class="mt-num mt-total" ${filt(r)} data-tip="${esc(tip(r.label, rt[j]))}">${show(rt[j])}</td>` : ''}${o.share ? `<td class="mt-num mt-mut">${pct(tot(rt[j]) / (of || 1), 1)}</td>` : ''}</tr>`;
+    // Las filas, por bloques: cada { head, note } abre uno y su nombre va en una columna a la izquierda que
+    // abarca todas sus filas (como en una tabla dinámica). Las filas antes del primero, sin bloque.
+    const blocks = [];
+    for (const r of rowsDef) { if (r.head) blocks.push({ head: r.head, note: r.note, rows: [] }); else { if (!blocks.length) blocks.push({ rows: [] }); blocks[blocks.length - 1].rows.push(r); } }
+    const grouped = blocks.some((b) => b.head), span = grouped ? 'colspan="2"' : '';
+    const tail = (t, r = {}) => `${o.total ? `<td class="mt-num mt-total" ${filt(r)} data-tip="${esc(tip(r.label || 'Total', t))}">${show(t)}</td>` : ''}${o.share ? `<td class="mt-num mt-mut">${pct(tot(t) / (of || 1), 1)}</td>` : ''}`;
+    const row = (r, b, first) => {
+      const j = ri.get(r), lab = `<th class="mt-r" ${r.tip ? `data-tip="${esc(r.tip)}"` : `title="${esc(r.label)}"`} ${filt(r)}>${esc(r.label)}</th>`;
+      const gl = !grouped ? lab : !b.head ? lab.replace('<th ', `<th ${span} `) : (first ? `<th class="mt-gl" rowspan="${b.rows.length}">${esc(b.head)}${b.note ? `<small>${esc(b.note)}</small>` : ''}</th>` : '') + lab;
+      return `<tr class="${first ? 'mt-gfirst' : ''}">${gl}${cols.map((c, k) => cell(r, j, c, k, o.shade !== false)).join('')}${tail(rt[j], r)}</tr>`;
     };
     const fj = all.length - 1;
-    // arriba (footTop), el total encabeza la tabla y lo de debajo es su desglose; abajo, cierra la tabla
-    const foot = o.foot ? `<tr class="mt-grp ${o.footTop ? 'mt-lead' : ''}"><th class="mt-r">${esc(o.foot.label)}</th>${cols.map((c, k) => `<td class="mt-num" ${filt({}, c)}>${show(cnt[fj][k])}</td>`).join('')}${o.total ? `<td class="mt-num">${show(rt[fj])}</td>` : ''}${o.share ? `<td class="mt-num mt-mut">${pct(tot(rt[fj]) / (of || 1), 1)}</td>` : ''}</tr>` : '';
-    return `${CMP() ? `<p class="mt-small mt-mut">Cada celda: ${esc(name(0))} / ${esc(name(1))}.</p>` : ''}<div class="mt-tablewrap"><table class="mt-hm mt-mx"><colgroup><col style="width:${cols.length > 8 ? 20 : 27}%">${'<col>'.repeat(ncol - 1)}</colgroup><thead><tr><th></th>${cols.map((c) => `<th class="mt-h" ${c.tip ? `data-tip="${esc(c.tip)}"` : ''}>${esc(c.label)}</th>`).join('')}${o.total ? '<th class="mt-h">Total</th>' : ''}${o.share ? '<th class="mt-h">%</th>' : ''}</tr></thead><tbody>
-      ${o.footTop ? foot : ''}${rowsDef.map(row).join('')}${o.footTop ? '' : foot}</tbody></table></div>`;
+    // el total: arriba (footTop) encabeza la tabla y lo de debajo es su desglose; abajo, la cierra
+    const foot = o.foot ? `<tr class="mt-lead"><th class="mt-r" ${span}>${esc(o.foot.label)}</th>${cols.map((c, k) => `<td class="mt-num" ${filt({}, c)}>${show(cnt[fj][k])}</td>`).join('')}${tail(rt[fj])}</tr>` : '';
+    const wide = cols.length > 8, widths = grouped ? [wide ? 12 : 15, wide ? 17 : 20] : [wide ? 20 : 27];
+    const body = blocks.map((b) => b.rows.map((r, k) => row(r, b, k === 0)).join('')).join('');
+    return `${CMP() ? `<p class="mt-small mt-mut">Cada celda: ${esc(name(0))} / ${esc(name(1))}.</p>` : ''}<div class="mt-tablewrap"><table class="mt-hm mt-mx"><colgroup>${widths.map((w) => `<col style="width:${w}%">`).join('')}${'<col>'.repeat(cols.length + (o.total ? 1 : 0) + (o.share ? 1 : 0))}</colgroup>
+      <thead><tr><th class="mt-corner" ${span}>${esc(o.corner || '')}</th>${cols.map((c) => `<th class="mt-h" ${c.tip ? `data-tip="${esc(c.tip)}"` : ''}>${esc(c.label)}</th>`).join('')}${o.total ? '<th class="mt-h">Total</th>' : ''}${o.share ? '<th class="mt-h">%</th>' : ''}</tr></thead><tbody>
+      ${o.footTop ? foot : ''}${body}${o.footTop ? '' : foot}</tbody></table></div>`;
   };
 
   // Barra única repartida en tramos: dónde se va el tiempo de vida de las issues.
