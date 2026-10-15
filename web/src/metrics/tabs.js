@@ -173,6 +173,7 @@ export const createTabs = (m, ch, ui) => {
       kpiCo('Escaladas', openCount((i) => C.vt[i]), (s) => num(s.v), { ...v, note: 'con ticket de tercero' }),
       people ? '' : kpi('Sin responsable', num(orphansIn().length), 'SGA, SISU o PRIO, sin nadie asignado', 'mt-t2'));
   };
+  const PLURAL = { CRITICAL: 'Críticas', HIGH: 'Altas', MEDIUM: 'Medias', LOW: 'Bajas' };
   const late = (i) => { const l = m.SLA[C.pr[i]]; return OPEN[i] && C.ip[i] < 0 && l >= 0 && m.SNAP - C.rep[i] > l; };
 
   // Mes a mes (o día a día con un solo mes): de lo recibido en cada tramo, cuánto se ha cerrado y cuánto
@@ -334,7 +335,10 @@ export const createTabs = (m, ch, ui) => {
     // cada una con su total, y los totales iguales a las cifras de arriba.
     carga(A) {
       const T = bySide(A), ST = T.map(stats), d = days() || 1, sharePct = (s) => opt(pct)(s.v);
-      const vsPrev = monthVsPrev(), inA = (i) => SIDE[i] < 2;
+      const inA = (i) => SIDE[i] < 2;
+      // lo que se cierra dentro del periodo, de cada lado, se abriera cuando se abriera
+      const y = m.data.meta.year, from = minOf(y, S.from), to = minOf(y, S.to + 1);
+      const closedIn = bySide(m.today()).map((l) => l.filter((i) => { const r = resAt(i); return r != null && r >= from && r < to; }).length);
       const op = A.filter((i) => OPEN[i]), people = S.sides.some((s) => s?.people), orphans = people ? [] : orphansIn();
       const CRITICAL = DI.prio.indexOf('CRITICAL');
       // filas de una dimensión: las n con más issues en `list` y, si hay más, «Resto» (así la tabla suma el total)
@@ -374,11 +378,11 @@ export const createTabs = (m, ch, ui) => {
 
       return grid(ask('carga'),
         section('Lo que entra', 'issues abiertas en el periodo'),
-        kpis(kpiCo('Recibidas', ST, (s) => num(s.n), { val: (s) => s.n }),
-          kpiCo('Al día', ST.map((s) => ({ n: s.n, v: s.n / d })), (s) => dec(s.v), { val: (s) => s.v, note: 'días naturales del periodo' }),
-          ...(vsPrev ? [kpiCo(`${MONTHS[vsPrev[0]]} frente a ${MONTHS[vsPrev[0] - 1]}`, vsPrev[1], (s) => opt((v) => `${v > 0 ? '+' : ''}${pct(v)}`)(s.v), { val: (s) => s.v, note: 'recibidas en el último mes completo' })] : []),
-          kpiCo('Críticas o altas', ST, (s) => pct(s.crit + s.hi), { val: (s) => s.crit + s.hi }),
-          kpiCo('Peticiones de usuario', shareOf(T, (i) => C.sv[i] === REQ), sharePct, { val: (s) => s.v })),
+        kpis(kpiCo('Recibidas', ST, (s) => num(s.n), { val: (s) => s.n, note: 'abiertas en el periodo' }),
+          kpiCo('Entran al día', ST.map((s) => ({ n: s.n, v: s.n / d })), (s) => dec(s.v), { val: (s) => s.v, note: 'de media, en días naturales' }),
+          kpiCo('Cerramos al día', closedIn.map((v, k) => ({ n: v + ST[k].n, v: v / d })), (s) => dec(s.v), { val: (s) => s.v, better: 'high', note: 'de media, todo lo cerrado en el periodo' }),
+          ...PRIOS.map((p) => kpiCo(`% ${PLURAL[DI.prio[p]] || nice(DI.prio[p])}`, ST.map((s) => ({ n: s.n, v: s.n ? s.prio[p] / s.n : null })), sharePct, { val: (s) => s.v, note: `SLA de inicio: ${slaLabel(p).split(' · ')[1]}` })),
+          kpiCo('% Peticiones', shareOf(T, (i) => C.sv[i] === REQ), sharePct, { val: (s) => s.v, note: 'de usuario' })),
         card(S.from === S.to ? 'Día a día: lo que entra, lo que se cierra y lo que queda' : 'Mes a mes: lo que entra, lo que se cierra y lo que queda', ledger(A),
           { span: 's12', sub: `Recibidas = ya cerradas + siguen abiertas. El total de «siguen abiertas» son las pendientes de abajo. Pasa el ratón por una cabecera para ver qué cuenta.${S.from === S.to ? '' : ' Clic en un mes para filtrar; con un solo mes, día a día.'}` }),
         card('Qué entra cada mes', matrix(inRows, months, A, { total: true, share: true, foot: recibidas, footTop: true }),
