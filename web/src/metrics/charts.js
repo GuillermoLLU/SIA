@@ -170,7 +170,8 @@ export const createCharts = (m, ui) => {
     const v = Cc.length > 6 && Cc.some((c) => dc.label(c.k).length > 12) ? 'mt-v' : 'mt-h';
     // o.foot: fila de totales por columna (de las filas que se ven; con o.rest, también lo que no cabe)
     const colSum = (j) => mt.reduce((a, r) => a + tot(r[j]), 0);
-    const foot = o.foot ? `<tr class="mt-grp"><th class="mt-r">Total</th>${Cc.map((c, j) => `<td class="mt-num">${num(colSum(j))}</td>`).join('')}<td class="mt-num">${num(R.reduce((a, r) => a + r.n, 0))}</td></tr>` : '';
+    // arriba (footTop), el total encabeza la tabla y lo de debajo es su desglose; abajo, cierra la tabla
+    const foot = o.foot ? `<tr class="mt-grp ${o.footTop ? 'mt-lead' : ''}"><th class="mt-r">Total</th>${Cc.map((c, j) => `<td class="mt-num">${num(colSum(j))}</td>`).join('')}<td class="mt-num">${num(R.reduce((a, r) => a + r.n, 0))}</td></tr>` : '';
     const hidden = group(rd, list).filter((x) => !(o.skipR && o.skipR(x.k))).length - R.length;
     return `<div class="mt-tablewrap"><table class="mt-hm"><thead><tr><th></th>${Cc.map((c) => `<th class="${v}">${esc(dc.label(c.k))}</th>`).join('')}<th class="${v}">Total</th></tr></thead><tbody>
       ${R.map((r, i) => `<tr><th class="mt-r" title="${esc(dr.label(r.k))}">${esc(dr.label(r.k))}</th>${mt[i].map((t, j) => cell(t, i, j)).join('')}<td class="mt-mut mt-total">${num(r.n)}</td></tr>`).join('')}${foot}</tbody></table></div>`
@@ -212,7 +213,8 @@ export const createCharts = (m, ui) => {
         + `${o.total ? `<td class="mt-num mt-total" ${filt(r)} data-tip="${esc(tip(r.label, rt[j]))}">${show(rt[j])}</td>` : ''}${o.share ? `<td class="mt-num mt-mut">${pct(tot(rt[j]) / (of || 1), 1)}</td>` : ''}</tr>`;
     };
     const fj = all.length - 1;
-    const foot = o.foot ? `<tr class="mt-grp"><th class="mt-r">${esc(o.foot.label)}</th>${cols.map((c, k) => `<td class="mt-num" ${filt({}, c)}>${show(cnt[fj][k])}</td>`).join('')}${o.total ? `<td class="mt-num">${show(rt[fj])}</td>` : ''}${o.share ? `<td class="mt-num mt-mut">${pct(tot(rt[fj]) / (of || 1), 1)}</td>` : ''}</tr>` : '';
+    // arriba (footTop), el total encabeza la tabla y lo de debajo es su desglose; abajo, cierra la tabla
+    const foot = o.foot ? `<tr class="mt-grp ${o.footTop ? 'mt-lead' : ''}"><th class="mt-r">${esc(o.foot.label)}</th>${cols.map((c, k) => `<td class="mt-num" ${filt({}, c)}>${show(cnt[fj][k])}</td>`).join('')}${o.total ? `<td class="mt-num">${show(rt[fj])}</td>` : ''}${o.share ? `<td class="mt-num mt-mut">${pct(tot(rt[fj]) / (of || 1), 1)}</td>` : ''}</tr>` : '';
     return `${CMP() ? `<p class="mt-small mt-mut">Cada celda: ${esc(name(0))} / ${esc(name(1))}.</p>` : ''}<div class="mt-tablewrap"><table class="mt-hm mt-mx"><colgroup><col style="width:${cols.length > 8 ? 20 : 27}%">${'<col>'.repeat(ncol - 1)}</colgroup><thead><tr><th></th>${cols.map((c) => `<th class="mt-h" ${c.tip ? `data-tip="${esc(c.tip)}"` : ''}>${esc(c.label)}</th>`).join('')}${o.total ? '<th class="mt-h">Total</th>' : ''}${o.share ? '<th class="mt-h">%</th>' : ''}</tr></thead><tbody>
       ${o.footTop ? foot : ''}${rowsDef.map(row).join('')}${o.footTop ? '' : foot}</tbody></table></div>`;
   };

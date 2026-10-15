@@ -364,12 +364,12 @@ export const createTabs = (m, ch, ui) => {
       // lo que entra, mes a mes, por prioridad, tipo de servicio, tarjeta y tipo de operación
       const months = monthsIn().map((k) => ({ label: MONTHS[k] + (k === LASTM ? '*' : ''), test: (i) => MONTH[i] === k, f: `month:${k}` }));
       const inRows = [
-        { head: 'Prioridad' }, ...PRIOS.map((p) => ({ label: nice(DI.prio[p]), test: (i) => C.pr[i] === p, f: `pr:${p}` })),
-        { head: 'Tipo de servicio' }, ...topRows('sv', A, 4),
-        { head: 'Tarjeta · una PRIO cuenta también en su SGA o SISU' }, ...CARDS.map((c, k) => ({ label: c, test: (i) => cardsOf(i).includes(k), f: `tj:${k}` })),
-        { head: 'Tipo de operación' }, ...topRows('op', A, 7),
+        { head: 'Por prioridad' }, ...PRIOS.map((p) => ({ label: nice(DI.prio[p]), test: (i) => C.pr[i] === p, f: `pr:${p}` })),
+        { head: 'Por tipo de servicio' }, ...topRows('sv', A, 4),
+        { head: 'Por tarjeta · una PRIO cuenta también en su SGA o SISU' }, ...CARDS.map((c, k) => ({ label: c, test: (i) => cardsOf(i).includes(k), f: `tj:${k}` })),
+        { head: 'Por tipo de operación' }, ...topRows('op', A, 7),
       ];
-      const recibidas = { label: 'Recibidas', test: () => true };
+      const recibidas = { label: 'Recibidas en el mes', test: () => true };
 
       // lo pendiente: su situación y, aparte, lo que hay que vigilar
       // solo las situaciones que hay (una sin ninguna issue no aporta y quita sitio)
@@ -384,8 +384,8 @@ export const createTabs = (m, ch, ui) => {
         { label: 'Críticas', test: (i) => inA(i) && C.pr[i] === CRITICAL, f: `pr:${CRITICAL}` },
         ...(orphans.length ? [{ head: 'Aparte: SGA, SISU o PRIO sin nadie asignado' }, { label: 'Sin responsable', test: (i) => !C.as[i] }] : []),
       ];
-      const prioRows = [{ head: 'Prioridad' }, ...PRIOS.map((p) => ({ label: nice(DI.prio[p]), test: (i) => C.pr[i] === p, f: `pr:${p}` })),
-        { head: 'Tarjeta · una PRIO cuenta también en su SGA o SISU' }, ...CARDS.map((c, k) => ({ label: c, test: (i) => cardsOf(i).includes(k), f: `tj:${k}` }))];
+      const prioRows = [{ head: 'Por prioridad' }, ...PRIOS.map((p) => ({ label: nice(DI.prio[p]), test: (i) => C.pr[i] === p, f: `pr:${p}` })),
+        { head: 'Por tarjeta · una PRIO cuenta también en su SGA o SISU' }, ...CARDS.map((c, k) => ({ label: c, test: (i) => cardsOf(i).includes(k), f: `tj:${k}` }))];
       const modRows = topRows('mo', op, 12), esc3 = op.filter((i) => C.vt[i]);
       const st = { total: true, foot: pend, footTop: true };
 
