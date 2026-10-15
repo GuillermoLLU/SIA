@@ -30,7 +30,7 @@ const opt = (f) => (v) => (v == null ? '—' : f(v));
 export const createTabs = (m, ch, ui) => {
   const { C, DI, N, S, BASE, LASTM, PRIOS, slaLabel, MONTH, DOW, OPEN, SIDE, STYPE, CMP, CO, NAMES, isSel, stats, group, bySide, clock } = m;
   const name = (k) => NAMES()[k];
-  const { card, legend, kpi, kpis, kpiCo, diff, bars, orderedBars, monthly, lines, ranking, compare, heat, matrix, timeBars, movers, mini, day, split } = ch;
+  const { card, legend, kpi, kpis, kpiCo, diff, bars, orderedBars, monthly, lines, ranking, compare, heat, matrix, scorecard, timeBars, movers, mini, day, split } = ch;
   const noK = (k) => k === 0;
   const noTheme = (k) => k === m.data.themes.length;
   const REQ = DI.svc.indexOf('USER_SERVICE_REQUEST');
@@ -71,6 +71,8 @@ export const createTabs = (m, ch, ui) => {
   const byPrio = (A, cols, label = (p) => nice(DI.prio[p]), first = 'Prioridad') => slices(first, PRIOS.map((p) => [label(p), (i) => C.pr[i] === p, `pr:${p}`]), A, cols);
   const cardsOf = (i) => m.DIMS.tj.get(i);
   const byCard = (A, cols) => slices('Tarjeta', CARDS.map((c, k) => [c, (i) => cardsOf(i).includes(k), `tj:${k}`]), A, cols);
+  // la ficha de los módulos: bloques de columnas (charts.js, scorecard)
+  const MOD_GROUPS = [['Volumen', ['n', 'tr', 'dl']], ['Cómo se atiende', ['sla', 'avg', 'd1', 'reop']], ['Qué trae', ['crit', 'vend']], ['Hoy', ['open']]];
   const CARD_NOTE = 'SGA y SISU, por los filtros de Remedy del equipo; PRIO, priorizada por negocio, cuenta además en su SGA o SISU.';
 
   // Mapa de calor día de la semana × hora de un instante de cada issue (la apertura, la resolución…).
@@ -402,7 +404,8 @@ export const createTabs = (m, ch, ui) => {
       for (const x of gc) { acc += x.n; k80++; if (acc >= tc * 0.8) break; }
       const sub = 'Cuanto más oscuro, más issues. Clic en una celda para filtrar por ambos.';
       return grid(ask('modulos'),
-        card('Módulos / sistemas', ranking('mo', ['n', 'sh', 'mix', 'crit', 'sla', 'fr', 'avg', 'p90', 'd1', 'reop', 'vend', 'open', 'tr'], { id: 'md-mo', skip: noK, top: 15 }), { span: 's12', sub: 'Categoría de producto 3. Clic en una cabecera para ordenar; clic en un módulo para ver todas las métricas solo de ese módulo.' }),
+        card('Módulos: cuánto pesa cada uno y cómo se atiende', scorecard('mo', MOD_GROUPS, { id: 'md-mo', skip: noK, refLabel: 'Todos los módulos' }),
+          { span: 's12', sub: 'Módulo = categoría de producto 3. Arriba, la referencia de todos; en ocre, lo que va claramente peor que ella (un 15 % o más, en módulos con al menos 30 issues). Clic en una cabecera para ordenar; en un módulo, para ver todo solo de él.' }),
         card('Centro × módulo', heat('ce', 'mo', 18, 14, { skipR: noK, skipC: noK }), { span: 's12', sub: `Los 18 centros y 14 módulos con más issues. ${sub}` }),
         card('Tema × módulo', heat('th', 'mo', 16, 14, { skipR: noTheme, skipC: noK }), { span: 's12', sub: `Temas detectados por palabras clave en el título; una issue puede estar en varios. ${sub}` }),
         card('Prioridad × módulo', heat('pr', 'mo', 4, 14, { skipR: noK, skipC: noK, orderR: PRIOS }), { span: 's12', sub }),
