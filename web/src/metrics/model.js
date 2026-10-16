@@ -248,13 +248,14 @@ export const createModel = (data) => {
   // Indicadores de un grupo de issues. Tiempos en minutos; proporciones de 0 a 1.
   const stats = (list) => {
     const ttr = [], fr = [], ip = [];
-    let w7 = 0, crit = 0, hi = 0, vend = 0, pend = 0, reop = 0, bounce = 0, open = 0, open30 = 0, d1 = 0, h4 = 0, d3 = 0, f30 = 0, f120 = 0;
+    let w7 = 0, d7 = 0, d15 = 0, mx = null, crit = 0, hi = 0, vend = 0, pend = 0, reop = 0, bounce = 0, open = 0, open30 = 0, d1 = 0, h4 = 0, d3 = 0, f30 = 0, f120 = 0;
     let noCat = 0, noDesc = 0, noRes = 0, done = 0, slaOk = 0, slaKo = 0, noIp = 0, waitKo = 0;
     let doneSla = 0, doneSlaOk = 0, doneIa = 0, started = 0, sameShift = 0, resSameShift = 0;
     const time = [0, 0, 0, 0, 0], rt = [0, 0, 0, 0, 0], t = [0, 0, 0], prio = new Array(DI.prio.length).fill(0), days = new Set(), inDays = new Set();
     for (const i of list) {
       if (TTR[i] >= 0) {
         ttr.push(TTR[i]); if (TTR[i] < DAY) d1++; if (TTR[i] < 240) h4++; if (TTR[i] < 3 * DAY) d3++; if (TTR[i] > 7 * DAY) w7++;
+        if (TTR[i] >= DAY && TTR[i] <= 7 * DAY) d7++; else if (TTR[i] > 7 * DAY && TTR[i] <= 15 * DAY) d15++; if (mx == null || TTR[i] > mx) mx = TTR[i];
         rt[0] += C.tA[i]; rt[1] += C.tI[i]; rt[2] += C.tPc[i]; rt[3] += C.tPv[i]; rt[4] += C.tPo[i];
         // de las resueltas: si empezaron dentro del SLA, si llevan marca de IA y qué días se resolvieron
         if (SLA[C.pr[i]] >= 0) { doneSla++; if (C.ip[i] >= 0 && C.ip[i] <= SLA[C.pr[i]]) doneSlaOk++; }
@@ -287,7 +288,7 @@ export const createModel = (data) => {
     const n = list.length || 1, R = ttr.length || 1, F = fr.length || 1;
     return {
       n: list.length, t, open, open30, resolved: ttr.length,
-      avg: mean(ttr), p90: quant(ttr, 0.9), d1: ttr.length ? d1 / ttr.length : 0, h4: h4 / R, d3: d3 / R, w7: w7 / R,
+      avg: mean(ttr), p90: quant(ttr, 0.9), d1: ttr.length ? d1 / ttr.length : 0, h4: h4 / R, d3: d3 / R, w7: w7 / R, d7: d7 / R, d15: d15 / R, mx,
       fr: mean(fr), f30: f30 / F, f120: f120 / F,
       sla: slaOk + slaKo ? slaOk / (slaOk + slaKo) : null, slaKo, waitKo, noIp: noIp / n, ip: mean(ip), ip90: quant(ip, 0.9),
       crit: crit / n, hi: hi / n, vend: vend / n, pend: pend / n, reop: reop / n, bounce: bounce / n,

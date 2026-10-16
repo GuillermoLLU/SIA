@@ -234,10 +234,12 @@ test('Módulos con personas: qué toca cada uno, sin las fichas', () => {
   assert.doesNotMatch(html, /Quién lleva cada módulo|no compara empresas/);
 });
 
-test('de lo resuelto: más de 7 días y el tiempo en cada estado, solo de las resueltas', () => {
+test('de lo resuelto: los tramos de tiempo, el máximo y el tiempo en cada estado, solo de las resueltas', () => {
   const m = createModel(data());
   const s = m.stats([0, 1, 2]);   // 1 y 2 resueltas; 3 abierta (su tiempo no cuenta)
   assert.equal(s.w7, 0);
+  assert.equal(s.d1, 0.5); assert.equal(s.d7, 0.5); assert.equal(s.d15, 0);   // una en menos de 1 día y otra de 1 a 7
+  assert.ok(s.mx >= 1440 && s.mx > s.avg);
   assert.deepEqual(s.rt, [110, 2950, 0, 0, 0]);
   assert.deepEqual(s.time, [310, 2950, 0, 0, 0]);
 });
