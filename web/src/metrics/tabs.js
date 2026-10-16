@@ -140,9 +140,9 @@ export const createTabs = (m, ch, ui) => {
   const AGES = [0, 1, 2, 3, 4].map((k) => ({ label: m.DIMS.age.label(k), test: (i) => m.DIMS.age.get(i) === k, f: `age:${k}` }));
   // filas de una dimensión: las n con más issues en `list` y, si hay más, «Resto» (así la tabla suma el total)
   const topRows = (dim, list, n) => {
-    const g = group(dim, list), top = g.slice(0, n), keys = new Set(top.map((x) => x.k));
-    const rows = top.map((x) => ({ label: m.DIMS[dim].label(x.k), test: (i) => C[dim][i] === x.k, f: `${dim}:${x.k}` }));
-    return g.length > n ? [...rows, { label: `Resto (${g.length - n})`, test: (i) => !keys.has(C[dim][i]) }] : rows;
+    const { get, label } = m.DIMS[dim], g = group(dim, list), top = g.slice(0, n), keys = new Set(top.map((x) => x.k));
+    const rows = top.map((x) => ({ label: label(x.k), test: (i) => get(i) === x.k, f: `${dim}:${x.k}` }));
+    return g.length > n ? [...rows, { label: `Resto (${g.length - n})`, test: (i) => !keys.has(get(i)) }] : rows;
   };
   // lo que no tiene a nadie: abierto, de las tarjetas del equipo (SGA, SISU o PRIO) y del periodo, con los filtros
   const orphansIn = () => m.today(true).filter((i) => OPEN[i] && !C.as[i] && inPeriod(i) && cardsOf(i).some((k) => k < 3));
@@ -287,7 +287,7 @@ export const createTabs = (m, ch, ui) => {
     }).join('');
     const sel = (f) => { const [d, k] = f.split(':'); return isSel(d, +k); };   // «Resto» no lleva filtro
     const body = blocks.map((b) => b.rows.map((r, j) => `<tr class="${r.f ? 'mt-clk' : ''} ${j ? '' : 'mt-gfirst'} ${r.f && sel(r.f) ? 'mt-sel' : ''}" ${r.f ? `data-f="${r.f}"` : ''}>
-      ${j ? '' : `<th class="mt-gl" rowspan="${b.rows.length}">${esc(b.head)}${b.note ? `<small>${esc(b.note)}</small>` : ''}</th>`}<th class="mt-r">${esc(r.label)}</th>${cells(r.test, r.label)}</tr>`).join('')).join('');
+      ${j ? '' : `<th class="mt-gl" rowspan="${b.rows.length}">${esc(b.head)}${b.note ? `<small>${esc(b.note)}</small>` : ''}</th>`}<th class="mt-r" data-tip="${esc(r.label)}">${esc(r.label)}</th>${cells(r.test, r.label)}</tr>`).join('')).join('');
     const head = (k) => `<th colspan="3" class="mt-mix-side ${k ? '' : 'mt-gsep'}"><i class="mt-c${k}"></i>${esc(sideName(k))}</th>`;
     return `<div class="mt-tablewrap"><table class="mt-mx mt-mix2"><colgroup><col style="width:13%"><col style="width:21%">${'<col class="mt-mix-cn"><col class="mt-mix-cp"><col>'.repeat(2)}</colgroup>
       <thead><tr><th colspan="2"></th>${head(0)}${head(1)}</tr><tr><th colspan="2"></th>${'<th class="mt-num">Issues</th><th class="mt-num">%</th><th></th>'.repeat(2)}</tr></thead><tbody>
@@ -387,6 +387,34 @@ export const createTabs = (m, ch, ui) => {
     const row = (label, j, attrs = '') => `<tr ${attrs}><td>${label}</td>${defs.map((d) => `<td class="mt-num">${cell([per[0][j], per[1][j]], d)}</td>`).join('')}</tr>`;
     const groups = LEDGER_GROUPS.map(([l, n]) => [day ? l.replace('mes', 'día') : l, n]);
     return table(day ? 'Día' : 'Mes', defs, units.map((u, j) => row(u.label, j, u.f ? `class="mt-clk" data-f="${u.f}"` : u.after ? 'class="mt-mut"' : '')).join('') + row('Total', units.length, 'class="mt-tot"'), groups);
+  };
+
+  // ¿De quién dependemos en cada módulo? Los 15 módulos con más issues: cuántas personas lo tocan, cuántas hacen
+  // falta para llevar el 80 % (de la que más lleva a la que menos) y las tres que más llevan.
+  const owners = (A) => {
+    const g = group('mo', A.filter((i) => C.as[i]), true).filter((x) => x.k).slice(0, 15);
+    const body = g.map((x) => {
+      const by = group('as', x.rows);
+      let sum = 0, n80 = 0;
+      for (const p of by) { sum += p.n; n80++; if (sum >= 0.8 * x.n) break; }
+      const top = by.slice(0, 3).map((p) => `<span class="mt-own ${isSel('as', p.k) ? 'mt-sel' : ''}" data-f="as:${p.k}" data-tip="${esc(`${m.DIMS.as.label(p.k)}\n${num(p.n)} de ${num(x.n)} issues de ${m.DIMS.mo.label(x.k)}`)}">${esc(m.DIMS.as.label(p.k))} <b>${pct(p.n / x.n)}</b></span>`).join('');
+      return `<tr class="mt-clk ${isSel('mo', x.k) ? 'mt-sel' : ''}" data-f="mo:${x.k}"><td>${esc(m.DIMS.mo.label(x.k))}</td><td class="mt-num">${num(x.n)}</td><td class="mt-num">${by.length}</td><td class="mt-num">${n80}</td><td class="mt-owns">${top}</td></tr>`;
+    }).join('');
+    return g.length ? `<div class="mt-tablewrap"><table class="mt-owners"><thead><tr><th>Módulo</th><th class="mt-num">Issues</th><th class="mt-num" data-tip="Personas con alguna issue del módulo.">Personas</th>
+      <th class="mt-num" data-tip="Cuántas personas, de la que más lleva a la que menos, suman el 80 % de las issues del módulo.">Llevan el 80 %</th><th>Quién lleva más</th></tr></thead><tbody>${body}</tbody></table></div>` : '<p class="mt-mut mt-small">Sin datos con estos filtros.</p>';
+  };
+
+  // Módulos y focos de un solo lado; note: un aviso arriba
+  const modulesView = (A, note = '') => {
+    const team = !S.sides[0].people;
+    return grid(ask('modulos'), note,
+      card('', scorecard('ce', CE_GROUPS, { id: 'md-ce', skip: noK, refLabel: 'Todos los centros', extra: centreExtra, title: 'Centros' }), { span: 's12' }),
+      card('', scorecard('mo', MOD_GROUPS, { id: 'md-mo', skip: noK, refLabel: 'Todos los módulos', title: 'Módulos' }), { span: 's12' }),
+      team ? card('Quién lleva cada módulo', owners(A), { span: 's12', sub: 'De lo recibido en el periodo con responsable: cuántas personas tocan cada módulo, cuántas llevan entre todas el 80 % y quién lleva más. Si lo llevan pocas, el conocimiento está concentrado en ellas. Clic en un módulo o en una persona para filtrar.' }) : '',
+      card('', heat('ce', 'mo', 18, 14, { skipR: noK, skipC: noK, title: true }), { span: 's12' }),
+      card('', heat('tp', 'mo', 16, 14, { skipR: noTheme, skipC: noK, title: true }), { span: 's12' }),
+      card('', heat('pr', 'mo', 4, 14, { skipR: noK, skipC: noK, orderR: PRIOS, title: true }), { span: 's12' }),
+      card('', scorecard('tp', PB_GROUPS, { id: 'md-pb', refLabel: 'Todos los problemas', extra: problemExtra, title: 'Problemas', top: 14, child: { dim: 'de', top: 8, noun: 'problemas' } }), { span: 's12' }));
   };
 
   const VIEWS = {
@@ -561,16 +589,17 @@ export const createTabs = (m, ch, ui) => {
         card('Por centro: desde cuándo', matrix(topRows('ce', op, 10), AGES, op, { ...st, corner: 'Centro · antigüedad →' }), { span: 's6', sub: 'Los 10 centros con más pendientes; «Resto», los demás.' }));
     },
 
+    // Módulos y focos no compara empresas: cada una recibe trabajo distinto y no comparten backlog. Comparando
+    // empresas, se ve solo la primera; con personas, qué toca cada uno (en qué se ha especializado frente al equipo).
     modulos(A) {
-      return grid(ask('modulos'),
-        card('', scorecard('ce', CE_GROUPS, { id: 'md-ce', skip: noK, refLabel: 'Todos los centros', extra: centreExtra, title: 'Centros' }), { span: 's12' }),
-        card('', scorecard('mo', MOD_GROUPS, { id: 'md-mo', skip: noK, refLabel: 'Todos los módulos', title: 'Módulos' }), { span: 's12' }),
-        card('', heat('ce', 'mo', 18, 14, { skipR: noK, skipC: noK, title: true }), { span: 's12' }),
-        card('', heat('tp', 'mo', 16, 14, { skipR: noTheme, skipC: noK, title: true }), { span: 's12' }),
-        card('', heat('pr', 'mo', 4, 14, { skipR: noK, skipC: noK, orderR: PRIOS, title: true }), { span: 's12' }),
-        card('', scorecard('tp', PB_GROUPS, { id: 'md-pb', refLabel: 'Todos los problemas', extra: problemExtra, title: 'Problemas', top: 14, child: { dim: 'de', top: 8, noun: 'problemas' } }), { span: 's12' }));
+      if (CMP() && !m.perHead()) return m.alone((A1) => modulesView(A1, `<p class="mt-note">Esta pestaña no compara empresas: cada una recibe trabajo distinto. Se ve solo ${esc(name(0))}.</p>`));
+      if (CMP()) {
+        const rowsDef = [{ head: 'Módulo' }, ...topRows('mo', A, 12), { head: 'Centro' }, ...topRows('ce', A, 8), { head: 'Tema', note: 'El principal del título.' }, ...topRows('tp', A, 8)];
+        return grid(ask('modulos'), card('Qué toca cada uno', mixCmp(rowsDef, A, 'Issues'),
+          { span: 's12', sub: `En qué se ha especializado cada uno: sus issues de cada módulo, centro y tema y qué parte son de lo suyo${m.perHead() && S.sides.some((x) => !x.people) ? '; las de la empresa, la media por persona de su equipo' : ''}. Clic en una fila para filtrar.` }));
+      }
+      return modulesView(A);
     },
-
     resolucion(A) {
       const ST = bySide(A).map(stats), tot = (s) => s.time.reduce((x, y) => x + y, 0) || 1;
       const known = group('vk', A, true).filter((x) => x.k && x.n >= 5);

@@ -214,6 +214,12 @@ export const createModel = (data) => {
     return (CACHE[key] = out);
   };
   const perHead = () => CMP() && S.sides.some((s) => s?.people);
+  // lo que da fn mirando solo el primer lado, como si no se comparara (para las pestañas que no comparan empresas)
+  const alone = (fn) => {
+    const b = S.sides[1];
+    S.sides[1] = null; refilter();
+    try { return fn(rows()); } finally { S.sides[1] = b; refilter(); }
+  };
   const toggle = (dim, k) => { const s = S.f[dim] || (S.f[dim] = new Set()); if (s.has(k)) s.delete(k); else s.add(k); };
   const isSel = (dim, k) => !!S.f[dim]?.has(k);
 
@@ -298,6 +304,6 @@ export const createModel = (data) => {
   return {
     data, C, DI, N, BASE, SNAP, LASTM, SLA, PRIOS, slaLabel, MONTH, DOW, HOUR, OPEN, TEAM, SIDE, DIMS, S, STYPE,
     CMP, CO, NAMES, refilter, rows, pool, today, toggle, isSel, group, bySide, byMonth, trend, stats, periodSlots, clock,
-    heads, perHead, carry: (list) => carry(list, C, shiftType), shiftWork: (list) => shiftWork(list, C, (i) => OPEN[i], shiftType),
+    heads, perHead, alone, carry: (list) => carry(list, C, shiftType), shiftWork: (list) => shiftWork(list, C, (i) => OPEN[i], shiftType),
   };
 };

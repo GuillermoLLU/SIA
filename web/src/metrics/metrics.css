@@ -405,3 +405,9 @@
 .mt-view table.mt-mix2 td.mt-mix-bar i { display: block; height: 10px; min-width: 1px; }
 .mt-view table.mt-mix2 tr.mt-lead td.mt-mix-p { color: var(--text); }
 .mt-view table.mt-pend2 td.mt-better { font-weight: 650; color: var(--mt-good); background: color-mix(in srgb, var(--mt-good) 9%, transparent); }
+
+/* Quién lleva cada módulo: las tres personas que más llevan, cada una con su parte */
+.mt-view table.mt-owners td.mt-owns { white-space: normal; }
+.mt-own { display: inline-block; margin: 1px 6px 1px 0; padding: 1px 7px; font-size: 12px; color: var(--text); background: var(--mt-soft); cursor: pointer; }
+.mt-own b { font-weight: 650; color: var(--mt-low); }
+.mt-own:hover, .mt-own.mt-sel { background: var(--mt-sel); }

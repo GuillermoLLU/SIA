@@ -213,3 +213,23 @@ test('Mes a mes comparando: entre empresas, en relación a lo que entra; persona
   assert.match(h, /Pendientes al cierre/);
   assert.doesNotMatch(h, /undefined|NaN/);
 });
+
+test('Módulos no compara empresas: se pinta solo la primera y el lado de comparar se queda como estaba', () => {
+  const m = createModel(data());
+  m.S.sides[1] = { company: 1 }; m.refilter();
+  assert.deepEqual(m.alone((A) => A), [0, 2, 3]);
+  assert.deepEqual(m.S.sides[1], { company: 1 });
+  assert.deepEqual(m.rows(), [0, 1, 2, 3]);
+  const html = createTabs(m, createCharts(m, { exp: {}, sort: {} }), { exp: {}, sort: {} }).render('modulos', m.rows());
+  assert.match(html, /no compara empresas/);
+  assert.match(html, /Quién lleva cada módulo/);
+  assert.doesNotMatch(html, /Qué toca cada uno/);
+});
+
+test('Módulos con personas: qué toca cada uno, sin las fichas', () => {
+  const m = createModel(data());
+  m.S.sides = [{ people: new Set([1]) }, { people: new Set([2]) }]; m.refilter();
+  const html = createTabs(m, createCharts(m, { exp: {}, sort: {} }), { exp: {}, sort: {} }).render('modulos', m.rows());
+  assert.match(html, /Qué toca cada uno/);
+  assert.doesNotMatch(html, /Quién lleva cada módulo|no compara empresas/);
+});
