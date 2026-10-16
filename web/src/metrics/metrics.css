@@ -166,8 +166,6 @@
 .mt-line { fill: none; stroke-width: 2.2; }
 .mt-s0 { stroke: var(--mt-c0); } .mt-s1 { stroke: var(--mt-c1); } .mt-s2 { stroke: var(--mt-c2); }
 .mt-f0 { fill: var(--mt-c0); } .mt-f1 { fill: var(--mt-c1); } .mt-f2 { fill: var(--mt-c2); }
-.mt-spark polyline { fill: none; stroke: var(--mt-c0); stroke-width: 1.4; }
-.mt-spark .mt-spark-last { stroke: var(--mt-c2); stroke-dasharray: 2 2; }
 
 /* tablas */
 .mt-tablewrap { overflow: auto; }

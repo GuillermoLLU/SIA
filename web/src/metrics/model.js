@@ -257,7 +257,6 @@ export const createModel = (data) => {
     if (perHead()) for (const k of [0, 1]) if (!S.sides[k].people) { const H = heads(k); t[k] = list.filter((i) => TEAM[i] === S.sides[k].company && H.has(C.as[i])); }
     return t;
   };
-  const byMonth = (list) => { const a = new Array(12).fill(0); for (const i of list) a[MONTH[i]]++; return a; };
   // últimos 90 días de la foto frente a los 90 anteriores
   // día de la semana (0 = lunes) y hora de un instante
   const clock = (min) => { const d = new Date(BASE + min * 6e4); return [(d.getUTCDay() + 6) % 7, d.getUTCHours()]; };
@@ -268,7 +267,7 @@ export const createModel = (data) => {
   // Indicadores de un grupo de issues. Tiempos en minutos; proporciones de 0 a 1.
   const stats = (list) => {
     const ttr = [], fr = [], ip = [];
-    let w7 = 0, d7 = 0, d15 = 0, mx = null, crit = 0, hi = 0, vend = 0, pend = 0, reop = 0, bounce = 0, open = 0, open30 = 0, d1 = 0, f30 = 0, f120 = 0;
+    let w7 = 0, d7 = 0, d15 = 0, mx = null, crit = 0, hi = 0, vend = 0, pend = 0, reop = 0, bounce = 0, open = 0, open30 = 0, d1 = 0;
     let noCat = 0, noDesc = 0, noRes = 0, done = 0, slaOk = 0, slaKo = 0, noIp = 0, waitKo = 0, escDone = 0, escNoPend = 0;
     let doneSla = 0, doneSlaOk = 0, doneIa = 0, started = 0, sameShift = 0, resSameShift = 0;
     const time = [0, 0, 0, 0, 0], rt = [0, 0, 0, 0, 0], t = [0, 0, 0], prio = new Array(DI.prio.length).fill(0), days = new Set(), inDays = new Set();
@@ -285,7 +284,7 @@ export const createModel = (data) => {
       }
       prio[C.pr[i]]++;
       inDays.add(Math.floor(C.rep[i] / DAY));
-      if (C.fr[i] >= 0) { fr.push(C.fr[i]); if (C.fr[i] < 30) f30++; if (C.fr[i] < 120) f120++; }
+      if (C.fr[i] >= 0) fr.push(C.fr[i]);
       if (OPEN[i]) { open++; if (SNAP - C.rep[i] > 30 * DAY) open30++; } else { done++; if (C.fl[i] & NO_RESOLUTION) noRes++; if (C.vt[i]) { escDone++; if (!C.np[i]) escNoPend++; } }
       if (!C.k3[i]) noCat++;
       if (!C.de[i]) noDesc++;
@@ -305,12 +304,12 @@ export const createModel = (data) => {
       time[0] += C.tA[i]; time[1] += C.tI[i]; time[2] += C.tPc[i]; time[3] += C.tPv[i]; time[4] += C.tPo[i];
       t[SIDE[i]]++;
     }
-    const n = list.length || 1, R = ttr.length || 1, F = fr.length || 1;
+    const n = list.length || 1, R = ttr.length || 1;
     return {
       n: list.length, t, open, open30, resolved: ttr.length,
       avg: mean(ttr), p90: quant(ttr, 0.9), d1: ttr.length ? d1 / ttr.length : 0, w7: w7 / R, d7: d7 / R, d15: d15 / R, mx,
-      fr: mean(fr), f30: f30 / F, f120: f120 / F,
-      sla: slaOk + slaKo ? slaOk / (slaOk + slaKo) : null, slaKo, waitKo, noIp: noIp / n, ip: mean(ip), ip90: quant(ip, 0.9),
+      fr: mean(fr),
+      sla: slaOk + slaKo ? slaOk / (slaOk + slaKo) : null, slaKo, waitKo, ip: mean(ip),
       crit: crit / n, hi: hi / n, vend: vend / n, pend: pend / n, reop: reop / n, bounce: bounce / n,
       noCat: noCat / n, noDesc: noDesc / n, noRes: noRes / (done || 1), time, done,
       noIpDone: done ? noIp / done : null,                  // de las cerradas, las que no pasaron por En curso
@@ -328,7 +327,7 @@ export const createModel = (data) => {
 
   return {
     data, C, DI, N, BASE, SNAP, LASTM, SLA, PRIOS, slaLabel, MONTH, DOW, HOUR, OPEN, TEAM, SIDE, DIMS, S, STYPE,
-    CMP, CO, NAMES, refilter, rows, pool, today, toggle, isSel, group, bySide, byMonth, trend, stats, periodSlots, clock,
+    CMP, CO, NAMES, refilter, rows, pool, today, toggle, isSel, group, bySide, trend, stats, periodSlots, clock,
     heads, perHead, alone, carry: (list) => carry(list, C, shiftType), shiftWork: (list) => shiftWork(list, C, (i) => OPEN[i], shiftType),
   };
 };

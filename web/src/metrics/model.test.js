@@ -125,7 +125,7 @@ test('SLA de inicio: dentro, fuera, sin iniciar y fuera de plazo, cerrada sin pa
   const [indra, other] = m.bySide(m.rows()).map(m.stats);
   assert.equal(indra.sla, 0.5);       // la 1 a tiempo; la 3, abierta sin iniciar y vencida
   assert.equal(indra.waitKo, 1);
-  assert.equal(indra.noIp, 1 / 3);    // la 4
+  assert.equal(indra.noIpDone, 1 / 2);    // de las cerradas (la 1 y la 4), la 4
   assert.equal(other.sla, 0);         // la 2, a los 100 min con 45 de plazo
   assert.deepEqual([0, 1, 2, 3].map(m.DIMS.sl.get), [0, 2, 4, 6]);
 });
@@ -264,7 +264,7 @@ test('SLA y calidad: tramos de paso a En curso que caen en los plazos y marcas d
   }
   const s = m.stats(all);
   assert.ok(s.noIpDone === null || (s.noIpDone >= 0 && s.noIpDone <= 1));
-  const html = createTabs(m, createCharts(m, { exp: {}, sort: {} }), { exp: {}, sort: {} }).render('sla2', all);
+  const html = createTabs(m, createCharts(m, { exp: {}, sort: {} }), { exp: {}, sort: {} }).render('sla', all);
   assert.match(html, /Cuándo pasan a En curso/);
   assert.match(html, /Por prioridad y tarjeta/);
   assert.doesNotMatch(html, /undefined|NaN/);

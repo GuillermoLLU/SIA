@@ -9,7 +9,7 @@ import { COMPANIES, CARDS, MAJOR, IA_MARKS, SITUATIONS, ACTIVE_DAYS, START_LIMIT
 import { SHIFTS, SHIFT_HOURS, DAYS, MIN_ACTIONS } from './shifts.js';
 
 export const TABS = [['resumen', 'Resumen'], ['hoy', 'Foto de hoy'], ['entrada', 'Entrada'], ['backlog', 'Backlog'], ['modulos', 'Módulos y focos'],
-  ['resolucion', 'Resolución y escalados'], ['sla', 'SLA y calidad'], ['sla2', 'SLA y calidad (propuesta)'], ['ia', 'IA'], ['turnos', 'Turnos']];
+  ['resolucion', 'Resolución y escalados'], ['sla', 'SLA y calidad'], ['ia', 'IA'], ['turnos', 'Turnos']];
 const QUESTIONS = {
   resumen: ['¿Cómo vamos?', 'Cada bloque responde a una pregunta con sus cifras clave; el detalle, en su pestaña.'],
   hoy: ['¿Qué hay que mover hoy?', 'Lo abierto ahora mismo, sea del mes que sea (no depende del periodo), en listas para actuar: lo urgente, lo que espera y lo que está parado.'],
@@ -17,8 +17,7 @@ const QUESTIONS = {
   backlog: ['¿Qué tenemos pendiente?', 'Lo recibido en el periodo que sigue sin resolver: en qué punto está, desde cuándo y qué conviene vigilar.'],
   modulos: ['¿De dónde viene?', 'Los módulos, centros y problemas que concentran el trabajo, y lo que se repite.'],
   resolucion: ['¿Cómo lo resolvemos?', 'Cuánto tardamos, en qué se va el tiempo, qué módulos tardan más y qué escalamos y a quién. Tiempos de lo resuelto, en tiempo natural.'],
-  sla: ['¿Cómo de bien lo resolvemos?', 'Si empezamos a tiempo y si el trabajo queda bien hecho.'],
-  sla2: ['¿Cómo de bien lo hacemos?', 'Si empezamos a tiempo (SLA de inicio: de la apertura al primer paso a En curso, en tiempo natural; crítica 15 min, alta 45 min, media 2 h, baja 8 h), si el trabajo queda bien hecho y si queda bien registrado.'],
+  sla: ['¿Cómo de bien lo hacemos?', 'Si empezamos a tiempo (SLA de inicio: de la apertura al primer paso a En curso, en tiempo natural; crítica 15 min, alta 45 min, media 2 h, baja 8 h), si el trabajo queda bien hecho y si queda bien registrado.'],
   ia: ['¿Cuánta IA usamos?', 'Dónde interviene ya la IA y el trabajo repetitivo en el que podría entrar.'],
   turnos: ['¿Cuándo entra y cuándo lo trabajamos?', `Por turnos: ${SHIFTS.map((s, k) => `${s.toLowerCase()} de ${SHIFT_HOURS[k]}`).join(', ')}. El turno se cuenta por la hora en que empieza: la noche del domingo es de fin de semana.`],
 };
@@ -31,7 +30,7 @@ const opt = (f) => (v) => (v == null ? '—' : f(v));
 export const createTabs = (m, ch, ui) => {
   const { C, DI, N, S, BASE, LASTM, PRIOS, slaLabel, MONTH, DOW, OPEN, SIDE, STYPE, CMP, CO, NAMES, isSel, stats, group, bySide, clock } = m;
   const name = (k) => NAMES()[k];
-  const { card, legend, kpi, kpis, kpiCo, diff, bars, orderedBars, monthly, lines, ranking, compare, heat, matrix, scorecard, day, split } = ch;
+  const { card, legend, kpi, kpis, kpiCo, diff, bars, monthly, lines, ranking, heat, matrix, scorecard, day, split } = ch;
   const noK = (k) => k === 0;
   const noTheme = (k) => k === m.data.themes.length;
   const REQ = DI.svc.indexOf('USER_SERVICE_REQUEST');
@@ -47,15 +46,8 @@ export const createTabs = (m, ch, ui) => {
 
   // Tabla de cortes fijos (prioridad, ámbito, turno, día…): una fila por corte; la diferencia entre los lados o el valor del único que se mira.
   const SLICE = {
-    n: ['Issues', (s) => num(s.n), (s) => s.n], fr: ['1.ª actuación (media)', (s) => dur(s.fr), (s) => s.fr, 'low'],
-    f30: ['1.ª act. en < 30 min', (s) => pct(s.f30), (s) => s.f30, 'high'], f120: ['1.ª act. en < 2 h', (s) => pct(s.f120), (s) => s.f120, 'high'],
-    avg: ['Media resol.', (s) => dur(s.avg), (s) => s.avg, 'low'],
-    reop: ['Reabiertas', (s) => pct(s.reop, 1), (s) => s.reop, 'low'], bounce: ['Devueltas a cola', (s) => pct(s.bounce, 1), (s) => s.bounce, 'low'],
-    noCat: ['Sin tipología', (s) => pct(s.noCat, 1), (s) => s.noCat, 'low'], noDesc: ['Título sin descripción', (s) => pct(s.noDesc, 1), (s) => s.noDesc, 'low'],
-    noRes: ['Sin texto de resolución', (s) => pct(s.noRes, 1), (s) => s.noRes, 'low'],
-    sla: ['Dentro de SLA', slaPct, (s) => s.sla, 'high'], ip: ['Media hasta En curso', (s) => dur(s.ip), (s) => s.ip, 'low'], ip90: ['El 90 %, En curso en menos de', (s) => dur(s.ip90), (s) => s.ip90, 'low'],
-    slaKo: ['Fuera de SLA', (s) => num(s.slaKo), (s) => s.slaKo], waitKo: ['Sin iniciar y fuera de plazo', (s) => num(s.waitKo), (s) => s.waitKo],
-    noIp: ['Cerradas sin pasar por En curso', (s) => pct(s.noIp, 1), (s) => s.noIp],
+    n: ['Issues', (s) => num(s.n), (s) => s.n], avg: ['Media resol.', (s) => dur(s.avg), (s) => s.avg, 'low'],
+    sla: ['Dentro de SLA', slaPct, (s) => s.sla, 'high'], ip: ['Media hasta En curso', (s) => dur(s.ip), (s) => s.ip, 'low'],
     inShift: ['Empezadas en su turno', (s) => opt(pct)(s.inShift), (s) => s.inShift, 'high'],
   };
   const cell = (st, [, f, v, bt]) => (CMP() ? diff(st[0], st[1], f, v, bt) : (st[CO()[0]].n ? f(st[CO()[0]]) : '—'));
@@ -67,9 +59,7 @@ export const createTabs = (m, ch, ui) => {
     const st = bySide(A.filter(test)).map(stats);
     return `<tr ${f ? `class="mt-clk" data-f${f.includes('|') ? '2' : ''}="${f}"` : ''}><td>${label}</td>${cols.map((c) => `<td class="mt-num">${cell(st, SLICE[c])}</td>`).join('')}</tr>`;
   }).join(''));
-  const byPrio = (A, cols, label = (p) => nice(DI.prio[p]), first = 'Prioridad') => slices(first, PRIOS.map((p) => [label(p), (i) => C.pr[i] === p, `pr:${p}`]), A, cols);
   const cardsOf = (i) => m.DIMS.tj.get(i);
-  const byCard = (A, cols) => slices('Tarjeta', CARDS.map((c, k) => [c, (i) => cardsOf(i).includes(k), `tj:${k}`]), A, cols);
   // la ficha de los módulos: bloques de columnas (charts.js, scorecard)
   const MOD_GROUPS = [['Volumen', ['n', 'dl']], ['Cómo se atiende', ['sla', 'avg', 'd1', 'reop']], ['Qué trae', ['crit', 'vend']], ['Hoy', ['open']]];
   // y la de los centros: lo que más les falla (su módulo con más issues) y sus major incidents
@@ -89,7 +79,6 @@ export const createTabs = (m, ch, ui) => {
     st.nce = ce.size;
     st.same = done && l.every((i) => C.de[i] === C.de[l[0]]) ? Math.max(0, ...rz.values()) / done : null;
   };
-  const CARD_NOTE = 'SGA y SISU, por los filtros de Remedy del equipo; PRIO, priorizada por negocio, cuenta además en su SGA o SISU.';
 
   // Mapa de calor día de la semana × hora de un instante de cada issue (la apertura, la resolución…).
   const clockHeat = (list, at, clickable) => {
@@ -676,9 +665,9 @@ export const createTabs = (m, ch, ui) => {
       card('Un mismo ticket, muchas incidencias', ticketTable(A), { span: 's12', sub: 'Tickets de tercero con 5 o más incidencias ligadas: arriba, los que aún tienen alguna abierta. Clic en uno para filtrar.' }));
   };
 
-  // --- SLA y calidad (propuesta). Tres preguntas: si empezamos a tiempo, si el trabajo queda bien hecho y si queda
+  // --- SLA y calidad. Tres preguntas: si empezamos a tiempo, si el trabajo queda bien hecho y si queda
   // bien registrado. Las tablas, como las de Resolución: una fila por corte con su total al final y, en ocre, lo que va
-  // un 15 % o más peor que el total (con al menos MIN_RES issues). Por ahora, de un solo lado.
+  // un 15 % o más peor que el total (con al menos MIN_RES issues). 
   const P1 = (v) => pct(v, 1);
   // un 15 % o más peor que el total y, en los %, al menos un punto (0,7 % frente a 0,5 % no se marca)
   const clearlyWorse = (v, w, better) => (better === 'low' ? v > w * 1.15 : v < w * 0.85) && (w > 1 || Math.abs(v - w) >= 0.01);
@@ -759,7 +748,7 @@ export const createTabs = (m, ch, ui) => {
   const CARD_ROWS = () => CARDS.map((c, k) => [c, (i) => cardsOf(i).includes(k), `tj:${k}`]);
   const slaView = (A, note = '') => {
     const s = stats(A);
-    return grid(ask('sla2'), note,
+    return grid(ask('sla'), note,
       kpis(kpi('Dentro del SLA', slaPct(s), 'todas las prioridades'), kpi('Fuera de SLA', num(s.slaKo), 'empezadas tarde o sin empezar pasado el plazo'),
         kpi('Media hasta En curso', s.ip == null ? '—' : `${dec(s.ip / 1440)} días`, 'de la apertura al primer paso'), kpi('Reabiertas', s.n ? P1(s.reop) : '—', 'volvieron de Resuelta a abierta'),
         kpi('Devueltas a cola', s.n ? P1(s.bounce) : '—', 'de En curso a Asignada'), kpi('Cerradas sin En curso', s.noIpDone == null ? '—' : P1(s.noIpDone), 'de las cerradas'),
@@ -967,36 +956,15 @@ export const createTabs = (m, ch, ui) => {
       }
       return modulesView(A);
     },
-    sla2(A) {
-      if (CMP()) return m.alone((A1) => slaView(A1, `<p class="mt-note">Esta propuesta aún no compara: se ve solo ${esc(name(0))}.</p>`));
+    sla(A) {
+      if (CMP()) return m.alone((A1) => slaView(A1, `<p class="mt-note">Esta pestaña aún no compara: se ve solo ${esc(name(0))}.</p>`));
       return slaView(A);
     },
+
     resolucion(A) {
       if (CMP() && !m.perHead()) return m.alone((A1) => resolutionView(A1, `<p class="mt-note">Esta pestaña no compara empresas: cada una recibe trabajo distinto. Se ve solo ${esc(name(0))}.</p>`));
       if (CMP()) return resolutionCmp(A);
       return resolutionView(A);
-    },
-
-    sla(A) {
-      const ST = bySide(A).map(stats), byP = (p) => bySide(A.filter((i) => C.pr[i] === p)).map(stats);
-      return grid(ask('sla'),
-        kpis(kpiCo('Empezadas dentro del SLA', ST, slaPct, { val: (s) => s.sla, better: 'high', note: 'todas las prioridades' }),
-          ...PRIOS.map((p) => kpiCo(slaLabel(p), byP(p), slaPct, { val: (s) => s.sla, better: 'high', note: 'dentro del SLA' })),
-          kpiCo('Reabiertas', ST, (s) => pct(s.reop, 1), { val: (s) => s.reop, better: 'low' }),
-          kpiCo('Cerradas sin explicar la solución', ST, (s) => pct(s.noRes, 1), { val: (s) => s.noRes, better: 'low' })),
-        section('Empezar a tiempo'),
-        card('SLA de inicio por prioridad', byPrio(A, ['n', 'sla', 'ip', 'ip90', 'slaKo', 'waitKo', 'noIp'], slaLabel, 'Prioridad y SLA'), { span: 's12', sub: 'De la apertura de la issue al primer paso a En curso, en tiempo natural. «Fuera de SLA» suma las iniciadas tarde y las abiertas que siguen sin iniciar pasado el plazo; las cerradas sin pasar por En curso no entran en el %.' }),
-        card('Cómo se inician respecto al SLA', legend() + orderedBars('sl', [0, 1, 2, 3, 4, 5, 6]), { sub: 'Cuánto tarda cada issue en pasar a En curso comparado con el plazo de su prioridad. Clic en un tramo para filtrar.' }),
-        card('Evolución del % dentro del SLA', legend() + lines(A, (s) => s.sla, (v) => pct(v)), { sub: MONTH_NOTE }),
-        card('Primera actuación por prioridad', byPrio(A, ['n', 'fr', 'f30', 'f120']), { span: 's12', sub: 'Primera actuación: el primer cambio de estado real desde la apertura.' }),
-        section('Trabajo bien hecho'),
-        card('Calidad por prioridad', byPrio(A, ['n', 'reop', 'bounce', 'noCat', 'noDesc', 'noRes']), { span: 's12', sub: 'Reabiertas: volvieron de Resuelta a abierta. Devueltas: pasaron de En curso a Asignada.' }),
-        card('Evolución de las reabiertas', legend() + lines(A, (s) => s.reop, (v) => pct(v, 1)), { sub: MONTH_NOTE }),
-        card('Evolución de las cerradas sin explicar la solución', legend() + lines(A, (s) => s.noRes, (v) => pct(v, 1)), { sub: MONTH_NOTE }),
-        card('Por tarjeta', byCard(A, ['n', 'sla', 'fr', 'reop', 'bounce', 'noRes']), { span: 's12', sub: CARD_NOTE }),
-        card('Por módulo / sistema', ranking('mo', ['n', 'mix', 'sla', 'slaKo', 'fr', 'reop', 'bounce', 'noCat', 'noRes'], { id: 'sla-mo', skip: noK, min: 30, sort: 'slaKo', top: 15 }), { span: 's12', sub: 'Módulos con al menos 30 issues, de más a menos fuera de SLA. Clic en una cabecera para ordenar.' }),
-        card('Cómo se tipifica', compare('k3', { top: 12 }), { sub: 'Categorización 3 de Remedy, tal cual está informada.' }),
-        card('Resoluciones que más se repiten', bars('rz', { top: 12, skip: noK }), { sub: 'Textos de resolución idénticos (salvo números) usados 4 veces o más.' }));
     },
 
     ia(A) {
