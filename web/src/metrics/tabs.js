@@ -411,7 +411,7 @@ export const createTabs = (m, ch, ui) => {
     return grid(ask('modulos'), note,
       card('', scorecard('ce', CE_GROUPS, { id: 'md-ce', skip: noK, refLabel: 'Todos los centros', extra: centreExtra, title: 'Centros' }), { span: 's12' }),
       card('', scorecard('mo', MOD_GROUPS, { id: 'md-mo', skip: noK, refLabel: 'Todos los módulos', title: 'Módulos' }), { span: 's12' }),
-      team ? card('Quién lleva cada módulo', owners(A), { span: 's12', sub: 'De lo recibido en el periodo con responsable: cuántas personas tocan cada módulo, cuántas llevan entre todas el 80 % y quién lleva más. Si lo llevan pocas, el conocimiento está concentrado en ellas. Clic en un módulo o en una persona para filtrar.' }) : '',
+      team ? card('Quién lleva cada módulo', owners(A), { span: 's12', sub: 'De lo recibido en el periodo con responsable: cuántas personas tocan cada módulo, cuántas llevan entre todas el 80 % y quién lleva más. Clic en un módulo o en una persona para filtrar.' }) : '',
       card('', heat('ce', 'mo', 18, 14, { skipR: noK, skipC: noK, title: true }), { span: 's12' }),
       card('', heat('tp', 'mo', 16, 14, { skipR: noTheme, skipC: noK, title: true }), { span: 's12' }),
       card('', heat('pr', 'mo', 4, 14, { skipR: noK, skipC: noK, orderR: PRIOS, title: true }), { span: 's12' }),
@@ -461,9 +461,7 @@ export const createTabs = (m, ch, ui) => {
     };
     const body = blocks.map(([head, note, rowsB]) => rowsB.filter(([, t]) => R.some(t)).map(([label, t, f], j, arr) => `<tr class="mt-clk ${j ? '' : 'mt-gfirst'} ${isSel(...f.split(':').map((x, n) => (n ? +x : x))) ? 'mt-sel' : ''}" data-f="${f}">
       ${j ? '' : `<th class="mt-gl" rowspan="${arr.length}">${head}${note ? `<small>${note}</small>` : ''}</th>`}<th class="mt-r">${esc(label)}</th>${cells(R.filter(t))}</tr>`).join('')).join('');
-    const e = R.filter(escd), noPv = e.length ? e.filter((i) => !C.tPv[i]).length / e.length : 0, noIp = R.length ? R.filter((i) => C.ip[i] < 0).length / R.length : 0;
-    return `<p class="mt-note">Ojo al leerla: el ${pct(noPv)} de lo escalado nunca pasa a Pendiente de un tercero, así que su espera cuenta como cola; y el ${pct(noIp)} de lo resuelto nunca pasa por En curso, así que su trabajo también cuenta como cola.</p>
-      <div class="mt-legend">${STATES.map(([l, t], k) => `<span data-tip="${esc(t)}"><i class="mt-time${k}"></i>${l}</span>`).join('')}</div>
+    return `<div class="mt-legend">${STATES.map(([l, t], k) => `<span data-tip="${esc(t)}"><i class="mt-time${k}"></i>${l}</span>`).join('')}</div>
       <div class="mt-tablewrap"><table class="mt-mx mt-restime"><colgroup><col style="width:10%"><col style="width:12%"><col style="width:7%"><col style="width:8%">${'<col style="width:8%">'.repeat(5)}<col></colgroup>
       <thead><tr><th colspan="2"></th><th class="mt-num">Resueltas</th><th class="mt-num" data-tip="De la apertura a la resolución.">Media</th>${STATES.map(([l, t]) => `<th class="mt-num" data-tip="${esc(`${t} Media por resuelta.`)}">${l}</th>`).join('')}<th>Reparto del tiempo</th></tr></thead>
       <tbody>${body}<tr class="mt-lead mt-lead-end"><th class="mt-r" colspan="2">Todas las resueltas</th>${cells(R)}</tr></tbody></table></div>`;
@@ -493,12 +491,11 @@ export const createTabs = (m, ch, ui) => {
     return known.length ? `<div class="mt-tablewrap ${all ? 'mt-scroll' : ''}"><table><thead><tr><th>Ticket</th><th class="mt-num">Incidencias</th><th class="mt-num">Abiertas</th><th class="mt-num">Centros</th><th>Primera</th><th>Última</th><th class="mt-num">Media resol.</th><th>Problema más habitual</th></tr></thead><tbody>${body}</tbody></table></div>
       ${known.length > 15 ? `<button class="mt-more" data-exp="rs-known">${all ? 'Ver menos' : `Ver todos (${num(known.length)})`}</button>` : ''}` : '<p class="mt-mut mt-small">Ninguno con estos filtros.</p>';
   };
-  const noPvExtra = (st, l) => { const r = l.filter(solved); st.noPv = r.length ? r.filter((i) => !C.tPv[i]).length / r.length : null; };
   const resolutionView = (A, note = '') => {
     const s = stats(A), R = A.filter(solved), rtTot = s.rt.reduce((a, b) => a + b, 0) || 1, on = s.resolved > 0;
     return grid(ask('resolucion2'), note,
       kpis(kpi('Resueltas', num(s.resolved), `de ${num(s.n)} recibidas`), kpi('Media de resolución', avgOf(s), 'de la apertura a la resolución'),
-        kpi('Resueltas en < 24 h', on ? pct(s.d1) : '—'), kpi('Más de 7 días', on ? pct(s.w7) : '—', 'lo lento: pesa mucho en la media'),
+        kpi('Resueltas en < 24 h', on ? pct(s.d1) : '—'), kpi('Más de 7 días', on ? pct(s.w7) : '—', 'de las resueltas'),
         kpi('El 90 %, en menos de', optDur(on ? s.p90 : null)), kpi('Escaladas', on ? pct(R.filter(escd).length / R.length) : '—', 'de las resueltas, con ticket de tercero'),
         kpi('Esperando a terceros', on ? pct(s.rt[3] / rtTot) : '—', 'del tiempo de vida de lo resuelto')),
       section('¿Cuánto tardamos?'),
@@ -510,9 +507,9 @@ export const createTabs = (m, ch, ui) => {
       card('', scorecard('mo', [['Volumen', ['n']], ['Cuánto tarda', ['avg', 'd1', 'w7', 'p90']], ['En qué se va', ['tq', 'tc', 'tv']], ['Escalado', ['vend']]],
         { id: 'rs-mo', rows: m.rows('mo').filter(solved), skip: noK, refLabel: 'Todos los módulos', title: 'Módulos', n: ['Resueltas', 'Issues resueltas y su parte del total.'] }), { span: 's12' }),
       section('¿Qué escalamos y a quién?'),
-      card('', scorecard('vt', [['Volumen', ['n']], ['Cuánto tarda', ['avg', 'w7']], ['La espera', ['tv', 'noPv']], ['Hoy', ['open']]],
-        { id: 'rs-vt', rows: m.rows('vt').filter(escd), extra: noPvExtra, refLabel: 'Todo lo escalado', title: 'A quién escalamos', n: ['Escaladas', 'Issues con ticket de tercero y su parte de lo escalado.'], child: { dim: 'vp', top: 8, noun: 'proyectos Jira' } }), { span: 's12' }),
-      card('Unas veces se escala y otras no', mixedEsc(), { span: 's12', sub: 'Problemas con al menos 20 resueltas que se escalan entre el 20 % y el 80 % de las veces: el mismo problema se trata de dos formas. Candidatos a un procedimiento común o a la IA. Clic en uno para filtrar.' }),
+      card('', scorecard('vt', [['Volumen', ['n']], ['Cuánto tarda', ['avg', 'w7', 'tv']], ['Hoy', ['open']]],
+        { id: 'rs-vt', rows: m.rows('vt').filter(escd), refLabel: 'Todo lo escalado', title: 'A quién escalamos', n: ['Escaladas', 'Issues con ticket de tercero y su parte de lo escalado.'], child: { dim: 'vp', top: 8, noun: 'proyectos Jira' } }), { span: 's12' }),
+      card('Unas veces se escala y otras no', mixedEsc(), { span: 's12', sub: 'Problemas con al menos 20 resueltas que se escalan entre el 20 % y el 80 % de las veces: con lo que tarda escalado y sin escalar. Clic en uno para filtrar.' }),
       card('Un mismo ticket, muchas incidencias', ticketTable(A), { span: 's12', sub: 'Tickets de tercero con 5 o más incidencias ligadas; arriba, los que aún tienen alguna abierta. Clic en uno para filtrar.' }));
   };
 

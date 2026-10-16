@@ -413,7 +413,6 @@
 .mt-own:hover, .mt-own.mt-sel { background: var(--mt-sel); }
 
 /* Resolución (propuesta) */
-.mt-card .mt-note { margin-bottom: 12px; }
 .mt-view table.mt-restime td.mt-tbar { padding-right: 14px; }
 .mt-view table.mt-restime td.mt-tbar .mt-hbar { height: 12px; margin: 0; }
 .mt-view table.mt-mixesc .mt-sc-vol em { flex: 0 0 38px; font-style: normal; text-align: right; }

@@ -175,14 +175,12 @@ export const createCharts = (m, ui) => {
     res: ['Resueltas', null, (s) => s.resolved, 'Issues resueltas, de las recibidas en el periodo.'],
     p90: ['El 90 %', 'low', (s) => (s.resolved ? s.p90 : null), 'El 90 % de las resueltas se resolvió en menos de esto.'],
     w7: ['> 7 días', 'low', (s) => (s.resolved ? s.w7 : null), 'De las resueltas, las que tardaron más de 7 días.'],
-    tq: ['En cola', 'low', (s) => (s.resolved ? s.rt[0] / s.resolved : null), 'Tiempo medio en Asignada. Incluye lo que espera a otros sin pasar a Pendiente.'],
+    tq: ['En cola', 'low', (s) => (s.resolved ? s.rt[0] / s.resolved : null), 'Tiempo medio en Asignada.'],
     tc: ['Espera cliente', null, (s) => (s.resolved ? s.rt[2] / s.resolved : null), 'Tiempo medio en Pendiente del centro o del cliente.'],
     tv: ['Espera tercero', null, (s) => (s.resolved ? s.rt[3] / s.resolved : null), 'Tiempo medio en Pendiente de un tercero.'],
-    // con o.extra: noPv, de las escaladas resueltas, las que nunca pasaron a Pendiente de un tercero
-    noPv: ['Nunca en Pendiente', 'low', (s) => s.noPv, 'De las resueltas, las que nunca pasaron a Pendiente de un tercero: su espera cuenta como cola.'],
     same: ['Mismo cierre', null, (s) => s.same, 'De las resueltas, la parte cerrada con el mismo texto de resolución (el más usado). Si es alta, se resuelve siempre igual: se puede automatizar o llevar a la IA.'],
   };
-  const SC_FMT = { sla: (v) => (v == null ? '—' : pct(v)), avg: dur, d1: (v) => pct(v), reop: (v) => pct(v, 1), crit: (v) => pct(v), vend: (v) => pct(v), open: num, mi: (v) => (v ? num(v) : ''), nce: num, same: pct, res: num, p90: dur, w7: (v) => pct(v), tq: dur, tc: dur, tv: dur, noPv: (v) => (v == null ? '—' : pct(v)) };
+  const SC_FMT = { sla: (v) => (v == null ? '—' : pct(v)), avg: dur, d1: (v) => pct(v), reop: (v) => pct(v, 1), crit: (v) => pct(v), vend: (v) => pct(v), open: num, mi: (v) => (v ? num(v) : ''), nce: num, same: pct, res: num, p90: dur, w7: (v) => pct(v), tq: dur, tc: dur, tv: dur };
   const scorecard = (dim, groups, o = {}) => {
     const id = o.id || `sc-${dim}`, list = o.rows || rows(dim), cmp = CMP(), cols = groups.flatMap(([, c]) => c);
     const side = (l) => (cmp ? bySide(l)[0] : l), other = (l) => bySide(l)[1];
