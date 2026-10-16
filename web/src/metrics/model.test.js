@@ -252,6 +252,24 @@ test('Resolución no compara empresas; con personas, módulo a módulo y la medi
   assert.doesNotMatch(h, /frente a sus módulos|undefined|NaN/);
 });
 
+test('SLA y calidad: tramos de paso a En curso que caen en los plazos y marcas de calidad y registro', () => {
+  const m = createModel(data());
+  const all = m.rows();
+  for (const i of all) {
+    const k = m.DIMS.ini.get(i), v = m.C.ip[i];
+    if (v >= 0) assert.ok(k <= 6 && (k === 0 ? v <= 15 : v > [15, 45, 120, 480, 1440, 10080][k - 1]));
+    else assert.equal(k, m.OPEN[i] ? 7 : 8);
+    const q = m.DIMS.q.get(i);
+    assert.ok(q.length && (q.includes(7) ? q.length === 1 : true));
+  }
+  const s = m.stats(all);
+  assert.ok(s.noIpDone === null || (s.noIpDone >= 0 && s.noIpDone <= 1));
+  const html = createTabs(m, createCharts(m, { exp: {}, sort: {} }), { exp: {}, sort: {} }).render('sla2', all);
+  assert.match(html, /Cuándo pasan a En curso/);
+  assert.match(html, /Por prioridad y tarjeta/);
+  assert.doesNotMatch(html, /undefined|NaN/);
+});
+
 test('de lo resuelto: los tramos de tiempo, el máximo y el tiempo en cada estado, solo de las resueltas', () => {
   const m = createModel(data());
   const s = m.stats([0, 1, 2]);   // 1 y 2 resueltas; 3 abierta (su tiempo no cuenta)

@@ -428,7 +428,7 @@
 .mt-view table.mt-ttr .mt-gsep { border-left: 2px solid var(--mt-line); }
 .mt-view table.mt-ttr td.mt-ttr-sub, .mt-view table.mt-ttr th.mt-ttr-sub { font-weight: 650; background: var(--mt-soft); }
 .mt-view table.mt-ttr tr.mt-tot > * { border-top: 2px solid var(--mt-line); font-weight: 650; }
-.mt-view .mt-res-month .mt-worse { font-weight: 650; color: color-mix(in srgb, #c98a2b 70%, var(--text)); background: color-mix(in srgb, #c98a2b 16%, var(--mt-card)); }
+.mt-view .mt-res-month .mt-worse, .mt-view table.mt-qpivot td.mt-worse { font-weight: 650; color: color-mix(in srgb, #c98a2b 70%, var(--text)); background: color-mix(in srgb, #c98a2b 16%, var(--mt-card)); }
 .mt-view table.mt-ttr tr.mt-tot td { background: none; }
 /* Cuánto tardan, comparando: una fila por lado (el nombre, recortado; entero al pasar el ratón) */
 .mt-view table.mt-ttr th.mt-ttr-who { overflow: hidden; color: var(--mt-low); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
@@ -438,3 +438,12 @@
 .mt-view table.mt-ttr td.mt-better { color: var(--mt-good); background: color-mix(in srgb, var(--mt-good) 9%, transparent); }
 .mt-view table.mt-respair col.mt-first { width: 15%; }
 .mt-view table.mt-respair td.mt-r { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* SLA y calidad (propuesta): los tramos dentro del plazo de cada prioridad, en verde; las cifras de calidad, con clic */
+.mt-view .mt-hm td.mt-insla { background: color-mix(in srgb, var(--mt-good) calc(var(--mt-a, 0%) * .8 + 8%), var(--mt-soft)); }
+.mt-view table.mt-qpivot { table-layout: fixed; }
+.mt-view table.mt-qpivot .mt-gsep { border-left: 1px solid var(--mt-line); }
+.mt-view table.mt-qpivot td.mt-clkc { cursor: pointer; }
+.mt-view table.mt-qpivot td.mt-clkc:hover { text-decoration: underline; }
+.mt-view table.mt-qpivot th.mt-r { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mt-view table.mt-qpivot thead th { white-space: normal; vertical-align: bottom; }

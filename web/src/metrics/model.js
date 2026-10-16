@@ -39,6 +39,14 @@ const SLA_MINUTES = { CRITICAL: 15, HIGH: 45, MEDIUM: 120, LOW: 480 };
 export const SLA_NAMES = ['Dentro del SLA', 'Hasta el doble del SLA', 'Del doble a 5 veces el SLA', 'Más de 5 veces el SLA',
   'Sin iniciar y ya fuera de plazo', 'Sin iniciar, aún en plazo', 'Cerrada sin pasar por En curso', 'Prioridad sin SLA'];
 
+// Cuándo pasa a En curso, en tramos que caen justo en los plazos del SLA (15 min, 45 min, 2 h y 8 h): lo dentro del
+// plazo de una prioridad son los tramos hasta el suyo. Sin pasar a En curso: abierta (sin empezar) o ya cerrada.
+export const START_NAMES = ['≤ 15 min', '15–45 min', '45 min–2 h', '2–8 h', '8–24 h', '1–7 días', '> 7 días', 'Sin empezar', 'Cerrada sin En curso'];
+export const START_LIMITS = [15, 45, 120, 480, 1440, 10080, Infinity];
+// Calidad del trabajo y del registro: lo que se marca de cada issue (puede tener varias o ninguna).
+export const QUALITY_NAMES = ['Reabierta', 'Devuelta a cola', 'Cerrada sin pasar por En curso', 'Escalada sin pasar por Pendiente',
+  'Sin tipología', 'Título sin descripción', 'Cerrada sin texto de resolución', 'Ninguna'];
+
 const DAY = 1440;
 export const ACTIVE_DAYS = 30;   // el equipo de una empresa, comparando con personas: quien ha tenido actividad en estos días antes de la foto
 
@@ -115,6 +123,18 @@ export const createModel = (data) => {
     tp: { name: 'Tema', label: (k) => data.themes[k] || 'Sin tema detectado',
       get: (i) => { const t = C.th[i]; return t ? 31 - Math.clz32(t & -t) : data.themes.length; } },
     fl: { name: 'Marca', multi: true, label: (k) => FLAGS[k][1], get: (i) => { const f = C.fl[i], o = []; for (let j = 0; j < FLAGS.length; j++) if (f & FLAGS[j][0]) o.push(j); return o; } },
+    ini: { name: 'Paso a En curso', label: (k) => START_NAMES[k], get: (i) => (C.ip[i] >= 0 ? START_LIMITS.findIndex((l) => C.ip[i] <= l) : OPEN[i] ? 7 : 8) },
+    q: { name: 'Calidad y registro', multi: true, label: (k) => QUALITY_NAMES[k], get: (i) => {
+      const o = [], done = !OPEN[i];
+      if (C.fl[i] & REOPENED) o.push(0);
+      if (C.nb[i]) o.push(1);
+      if (done && C.ip[i] < 0) o.push(2);
+      if (done && C.vt[i] && !C.np[i]) o.push(3);
+      if (!C.k3[i]) o.push(4);
+      if (!C.de[i]) o.push(5);
+      if (done && C.fl[i] & NO_RESOLUTION) o.push(6);
+      return o.length ? o : [7];
+    } },
     // cómo se inició respecto a su SLA
     sl: { name: 'SLA de inicio', label: (k) => SLA_NAMES[k], get: (i) => {
       const l = SLA[C.pr[i]], v = C.ip[i];
@@ -249,7 +269,7 @@ export const createModel = (data) => {
   const stats = (list) => {
     const ttr = [], fr = [], ip = [];
     let w7 = 0, d7 = 0, d15 = 0, mx = null, crit = 0, hi = 0, vend = 0, pend = 0, reop = 0, bounce = 0, open = 0, open30 = 0, d1 = 0, f30 = 0, f120 = 0;
-    let noCat = 0, noDesc = 0, noRes = 0, done = 0, slaOk = 0, slaKo = 0, noIp = 0, waitKo = 0;
+    let noCat = 0, noDesc = 0, noRes = 0, done = 0, slaOk = 0, slaKo = 0, noIp = 0, waitKo = 0, escDone = 0, escNoPend = 0;
     let doneSla = 0, doneSlaOk = 0, doneIa = 0, started = 0, sameShift = 0, resSameShift = 0;
     const time = [0, 0, 0, 0, 0], rt = [0, 0, 0, 0, 0], t = [0, 0, 0], prio = new Array(DI.prio.length).fill(0), days = new Set(), inDays = new Set();
     for (const i of list) {
@@ -266,7 +286,7 @@ export const createModel = (data) => {
       prio[C.pr[i]]++;
       inDays.add(Math.floor(C.rep[i] / DAY));
       if (C.fr[i] >= 0) { fr.push(C.fr[i]); if (C.fr[i] < 30) f30++; if (C.fr[i] < 120) f120++; }
-      if (OPEN[i]) { open++; if (SNAP - C.rep[i] > 30 * DAY) open30++; } else { done++; if (C.fl[i] & NO_RESOLUTION) noRes++; }
+      if (OPEN[i]) { open++; if (SNAP - C.rep[i] > 30 * DAY) open30++; } else { done++; if (C.fl[i] & NO_RESOLUTION) noRes++; if (C.vt[i]) { escDone++; if (!C.np[i]) escNoPend++; } }
       if (!C.k3[i]) noCat++;
       if (!C.de[i]) noDesc++;
       if (C.pr[i] === CRIT) crit++; else if (C.pr[i] === HIGH) hi++;
@@ -292,7 +312,9 @@ export const createModel = (data) => {
       fr: mean(fr), f30: f30 / F, f120: f120 / F,
       sla: slaOk + slaKo ? slaOk / (slaOk + slaKo) : null, slaKo, waitKo, noIp: noIp / n, ip: mean(ip), ip90: quant(ip, 0.9),
       crit: crit / n, hi: hi / n, vend: vend / n, pend: pend / n, reop: reop / n, bounce: bounce / n,
-      noCat: noCat / n, noDesc: noDesc / n, noRes: noRes / (done || 1), time,
+      noCat: noCat / n, noDesc: noDesc / n, noRes: noRes / (done || 1), time, done,
+      noIpDone: done ? noIp / done : null,                  // de las cerradas, las que no pasaron por En curso
+      escNoPend: escDone ? escNoPend / escDone : null,       // de las cerradas escaladas, las que no pasaron por Pendiente
       rt,                                                    // el tiempo en cada estado, como time, solo de las resueltas
       prio,                                                  // cuántas de cada prioridad (por índice de DI.prio)
       slaDone: doneSla ? doneSlaOk / doneSla : null, slaDoneOk: doneSlaOk,   // de las resueltas, las que empezaron en plazo

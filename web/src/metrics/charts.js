@@ -180,9 +180,17 @@ export const createCharts = (m, ui) => {
     tq: ['En cola', 'low', (s) => (s.resolved ? s.rt[0] / s.resolved : null), 'Tiempo medio en Asignada.'],
     tc: ['Espera cliente', null, (s) => (s.resolved ? s.rt[2] / s.resolved : null), 'Tiempo medio en Pendiente del centro o del cliente.'],
     tv: ['Espera tercero', null, (s) => (s.resolved ? s.rt[3] / s.resolved : null), 'Tiempo medio en Pendiente de un tercero.'],
+    // SLA y calidad
+    slaKo: ['Fuera de SLA', null, (s) => s.slaKo, 'Empezadas tarde y abiertas que siguen sin empezar pasado el plazo.'],
+    ip: ['Hasta En curso', 'low', (s) => s.ip, 'Media de la apertura al primer paso a En curso.'],
+    bounce: ['Devueltas', 'low', (s) => (s.n ? s.bounce : null), 'Pasaron de En curso a Asignada.'],
+    noIpDone: ['Sin En curso', 'low', (s) => s.noIpDone, 'De las cerradas, las que nunca pasaron por En curso.'],
+    escNoPend: ['Esc. sin Pendiente', 'low', (s) => s.escNoPend, 'De las cerradas con ticket de tercero, las que nunca pasaron a Pendiente.'],
+    noCat: ['Sin tipología', 'low', (s) => (s.n ? s.noCat : null), 'Sin categorización 3 de Remedy.'],
+    noDesc: ['Sin descripción', 'low', (s) => (s.n ? s.noDesc : null), 'El título no dice cuál es el problema.'],
     same: ['Mismo cierre', null, (s) => s.same, 'De las resueltas, la parte cerrada con el mismo texto de resolución (el más usado). Si es alta, se resuelve siempre igual: se puede automatizar o llevar a la IA.'],
   };
-  const SC_FMT = { sla: (v) => (v == null ? '—' : pct(v)), avg: dur, d1: (v) => pct(v), reop: (v) => pct(v, 1), crit: (v) => pct(v), vend: (v) => pct(v), open: num, mi: (v) => (v ? num(v) : ''), nce: num, same: pct, res: num, w7: (v) => pct(v), d7: (v) => pct(v), d15: (v) => pct(v), mx: dur, tq: dur, tc: dur, tv: dur };
+  const SC_FMT = { sla: (v) => (v == null ? '—' : pct(v)), avg: dur, d1: (v) => pct(v), reop: (v) => pct(v, 1), crit: (v) => pct(v), vend: (v) => pct(v), open: num, mi: (v) => (v ? num(v) : ''), nce: num, same: pct, res: num, w7: (v) => pct(v), d7: (v) => pct(v), d15: (v) => pct(v), mx: dur, tq: dur, tc: dur, tv: dur, slaKo: num, ip: dur, bounce: (v) => pct(v, 1), noIpDone: (v) => pct(v, 1), escNoPend: (v) => pct(v, 1), noCat: (v) => pct(v, 1), noDesc: (v) => pct(v, 1) };
   const scorecard = (dim, groups, o = {}) => {
     const id = o.id || `sc-${dim}`, list = o.rows || rows(dim), cmp = CMP(), cols = groups.flatMap(([, c]) => c);
     const side = (l) => (cmp ? bySide(l)[0] : l), other = (l) => bySide(l)[1];
