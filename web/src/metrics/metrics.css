@@ -419,3 +419,11 @@
 .mt-view table.mt-mixesc .mt-sc-vol .mt-bt { flex: 1; height: 10px; }
 .mt-view td.mt-warnc { font-weight: 650; color: color-mix(in srgb, #c98a2b 70%, var(--text)); }
 .mt-view table.mt-restime thead th { white-space: normal; }
+/* Cuánto tardan: tabla de reparto por tramos, con el total de cada bloque */
+.mt-view table.mt-ttr { table-layout: fixed; }
+.mt-view table.mt-ttr th.mt-r { text-align: left; }
+.mt-view table.mt-ttr .mt-gsep { border-left: 2px solid var(--mt-line); }
+.mt-view table.mt-ttr td.mt-ttr-sub, .mt-view table.mt-ttr th.mt-ttr-sub { font-weight: 650; background: var(--mt-soft); }
+.mt-view table.mt-ttr tr.mt-tot > * { border-top: 2px solid var(--mt-line); font-weight: 650; }
+.mt-view .mt-res-month .mt-worse { font-weight: 650; color: color-mix(in srgb, #c98a2b 70%, var(--text)); background: color-mix(in srgb, #c98a2b 16%, var(--mt-card)); }
+.mt-view table.mt-ttr tr.mt-tot td { background: none; }

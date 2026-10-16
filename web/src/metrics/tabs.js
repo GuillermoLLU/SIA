@@ -426,27 +426,61 @@ export const createTabs = (m, ch, ui) => {
     ['Espera cliente', 'En Pendiente del centro o del cliente.'], ['Espera tercero', 'En Pendiente de un tercero.'], ['Otro motivo', 'En Pendiente por otro motivo o sin motivo.']];
   const optDur = (v) => (v == null ? '—' : dur(v));
   const avgOf = (s) => optDur(s.resolved ? s.avg : null);
-  // cuánto tardan: un tramo por fila, partido en sin escalar y escaladas, a la misma escala
-  const ttrSplit = (list) => {
-    const by = Array.from({ length: 8 }, () => [0, 0]);
-    let n = 0;
-    for (const i of list) { const k = m.DIMS.tb.get(i); if (k < 8) { by[k][escd(i) ? 1 : 0]++; n++; } }
-    const max = Math.max(1, ...by.map(([a, b]) => a + b)), w = (v) => (v / max * 100).toFixed(2), sh = (v) => v / (n || 1);
-    return `<div class="mt-legend"><span><i class="mt-c0"></i>Sin escalar</span><span><i class="mt-time3"></i>Escaladas</span></div>${by.map(([a, b], k) => `<div class="mt-br ${isSel('tb', k) ? 'mt-sel' : ''}" data-f="tb:${k}"
-      data-tip="${esc(`${m.DIMS.tb.label(k)}\n${num(a + b)} resueltas (${pct(sh(a + b), 1)})\nSin escalar: ${num(a)} · Escaladas: ${num(b)}`)}"><span class="mt-bl">${m.DIMS.tb.label(k)}</span>
-      <span class="mt-bt"><i class="mt-c0" style="width:${w(a)}%"></i><i class="mt-time3" style="width:${w(b)}%"></i></span><span class="mt-bv">${num(a + b)}</span><span class="mt-bp">${pct(sh(a + b))}</span></div>`).join('')}`;
+  // Cuánto tardan: lo resuelto sin escalar, escalado y todo, cada fila repartida entre los tramos de tiempo (suma el
+  // 100 %), con más color cuanto mayor su parte. Los tramos, en tres bloques (menos de 24 h, de 1 a 7 días y más de 7),
+  // cada uno con su total. Clic en una celda filtra ese tramo (y si está escalada o no).
+  const TTR_GROUPS = [['Menos de 24 h', [0, 1, 2, 3]], ['De 1 a 7 días', [4, 5]], ['Más de 7 días', [6, 7]]];
+  const ttrTable = (list) => {
+    const R = list.filter(solved);
+    const lines = [['Sin escalar', (i) => !escd(i), 'es:0'], ['Escaladas', escd, 'es:1'], ['Todas las resueltas', null, null]].map(([label, t, f]) => {
+      const l = t ? R.filter(t) : R, c = new Array(8).fill(0);
+      for (const i of l) c[m.DIMS.tb.get(i)]++;
+      return { label, f, n: l.length, c, s: stats(l) };
+    });
+    const share = (x, v) => v / (x.n || 1), max = Math.max(0.01, ...lines.flatMap((x) => x.c.map((v) => share(x, v))));
+    const sum = (x, ks) => ks.reduce((t, k) => t + x.c[k], 0);
+    // la fila de todas, sin color: es la suma de las otras dos
+    const cellsOf = (x, last) => TTR_GROUPS.map(([g, ks]) => ks.map((k, j) => {
+      const sh = share(x, x.c[k]), a = x.c[k] && !last ? Math.round(6 + 94 * sh / max) : 0, f = x.f ? `data-f2="${x.f}|tb:${k}"` : `data-f="tb:${k}"`;
+      return `<td class="${j ? '' : 'mt-gsep'} ${a > 50 ? 'mt-hot' : ''}" style="--mt-a:${a}%" ${f} data-tip="${esc(`${x.label} · ${m.DIMS.tb.label(k)}\n${num(x.c[k])} de ${num(x.n)} (${pct(sh, 1)})`)}">${x.c[k] ? pct(sh) : ''}</td>`;
+    }).join('') + `<td class="mt-total mt-ttr-sub" data-tip="${esc(`${x.label} · ${g.toLowerCase()}\n${num(sum(x, ks))} de ${num(x.n)}`)}">${pct(share(x, sum(x, ks)))}</td>`).join('');
+    const row = (x, last) => `<tr class="${last ? 'mt-tot' : ''}"><th class="mt-r ${x.f ? 'mt-clk' : ''}" ${x.f ? `data-f="${x.f}"` : ''}>${x.label}</th><td class="mt-total mt-num">${num(x.n)}</td><td class="mt-total mt-num"><b>${avgOf(x.s)}</b></td>${cellsOf(x, last)}</tr>`;
+    return `<div class="mt-tablewrap"><table class="mt-hm mt-ttr"><colgroup><col style="width:14%"><col style="width:7%"><col style="width:8%">${TTR_GROUPS.map(([, ks]) => '<col>'.repeat(ks.length) + '<col class="mt-ttr-subc">').join('')}</colgroup><thead>
+      <tr class="mt-cgrp"><th colspan="3"></th>${TTR_GROUPS.map(([g, ks]) => `<th colspan="${ks.length + 1}">${g}</th>`).join('')}</tr>
+      <tr><th></th><th class="mt-num">Resueltas</th><th class="mt-num" data-tip="De la apertura a la resolución.">Media</th>${TTR_GROUPS.map(([, ks]) => ks.map((k, j) => `<th class="${j ? '' : 'mt-gsep'}">${m.DIMS.tb.label(k)}</th>`).join('') + '<th class="mt-ttr-sub">Total</th>').join('')}</tr></thead>
+      <tbody>${lines.map((x, j) => row(x, j === lines.length - 1)).join('')}</tbody></table></div>`;
   };
-  // mes a mes (por mes de apertura): lo resuelto de lo que entró ese mes, cuánto tardó y cuánto se escaló
-  const RES_MONTH = [['Resueltas', 'De las recibidas ese mes, las ya resueltas.'], ['Media', 'De la apertura a la resolución.'], ['En < 24 h', 'De las resueltas, las resueltas en menos de 24 horas.'],
-    ['> 7 días', 'De las resueltas, las que tardaron más de 7 días.'], ['% escaladas', 'De las resueltas, las que tienen ticket de tercero.'], ['Media sin escalar', ''], ['Media escaladas', '']];
+  // Mes a mes (por mes de apertura): lo resuelto de lo recibido ese mes y cuánto tardó, todo, sin escalar y escalado.
+  // En ocre, lo que va claramente peor que el total (como en las fichas: un 15 % o más, con al menos MIN_RES resueltas).
+  // Cada dato: [nombre, parte (a todo, n sin escalar, e escalado), valor, formato, mejor, nota].
+  const MIN_RES = 30;
+  const RES_MONTH = [
+    ['Volumen', [['Resueltas', 'a', (s) => s.resolved, num, null, 'De las recibidas ese mes, las ya resueltas.'],
+      ['% escaladas', 'a', (s) => s.escShare, (v) => pct(v), null, 'De las resueltas, las que tienen ticket de tercero.']]],
+    ['Media de resolución', [['Todas', 'a', (s) => s.avg, dur, 'low', 'De la apertura a la resolución.'], ['Sin escalar', 'n', (s) => s.avg, dur, 'low', ''], ['Escaladas', 'e', (s) => s.avg, dur, 'low', '']]],
+    ['Resueltas en < 24 h', [['Sin escalar', 'n', (s) => s.d1, (v) => pct(v), 'high', ''], ['Escaladas', 'e', (s) => s.d1, (v) => pct(v), 'high', '']]],
+    ['Más de 7 días', [['Sin escalar', 'n', (s) => s.w7, (v) => pct(v), 'low', ''], ['Escaladas', 'e', (s) => s.w7, (v) => pct(v), 'low', '']]],
+  ];
   const resMonthly = (A) => {
-    const cells = (l) => {
-      const s = stats(l), r = l.filter(solved), e = r.filter(escd), on = s.resolved > 0;
-      return [num(s.resolved), avgOf(s), on ? pct(s.d1) : '—', on ? pct(s.w7) : '—', on ? pct(e.length / r.length) : '—', avgOf(stats(r.filter((i) => !escd(i)))), avgOf(stats(e))]
-        .map((v, j) => `<td class="mt-num">${j === 1 ? `<b>${v}</b>` : v}</td>`).join('');
+    const parts = (l) => {
+      const r = l.filter(solved), e = r.filter(escd), a = stats(l);
+      a.escShare = r.length ? e.length / r.length : null;
+      return { a, n: stats(r.filter((i) => !escd(i))), e: stats(e) };
     };
-    const body = monthsIn().map((k) => `<tr class="mt-clk ${isSel('month', k) ? 'mt-sel' : ''}" data-f="month:${k}"><td>${MONTHS[k]}${k === LASTM ? '*' : ''}</td>${cells(A.filter((i) => MONTH[i] === k))}</tr>`).join('');
-    return table('Mes de apertura', RES_MONTH.map(([l, t]) => [l, 0, 0, 0, t]), `${body}<tr class="mt-tot"><td>Total</td>${cells(A)}</tr>`);
+    const defs = RES_MONTH.flatMap(([, d]) => d), firsts = new Set(RES_MONTH.map(([, d]) => d[0]));
+    const val = (x, d) => { const s = x[d[1]]; return s.resolved ? d[2](s) : null; };
+    const tot = parts(A);
+    const worse = (x, d, v) => {
+      const w = val(tot, d);
+      if (!d[4] || v == null || w == null || x[d[1]].resolved < MIN_RES) return false;
+      return d[4] === 'low' ? v > w * 1.15 : v < w * 0.85;
+    };
+    const cells = (x, isTot) => defs.map((d) => {
+      const v = val(x, d), bad = !isTot && worse(x, d, v);
+      return `<td class="mt-num ${firsts.has(d) ? 'mt-gsep' : ''} ${bad ? 'mt-worse' : ''}" ${bad ? `data-tip="${esc(`Peor que el total: ${d[3](val(tot, d))}`)}"` : ''}>${v == null ? '—' : d[3](v)}</td>`;
+    }).join('');
+    const body = monthsIn().map((k) => `<tr class="mt-clk ${isSel('month', k) ? 'mt-sel' : ''}" data-f="month:${k}"><td>${MONTHS[k]}${k === LASTM ? '*' : ''}</td>${cells(parts(A.filter((i) => MONTH[i] === k)))}</tr>`).join('');
+    return `<div class="mt-res-month">${table('Mes de apertura', defs.map((d) => [d[0], 0, 0, 0, d[5]]), `${body}<tr class="mt-tot"><td>Total</td>${cells(tot, true)}</tr>`, RES_MONTH.map(([g, d]) => [g, d.length]))}</div>`;
   };
   // en qué se va el tiempo: por prioridad, escalada o no y tarjeta, la media y su reparto entre estados
   const timeTable = (A) => {
@@ -499,8 +533,8 @@ export const createTabs = (m, ch, ui) => {
         kpi('El 90 %, en menos de', optDur(on ? s.p90 : null)), kpi('Escaladas', on ? pct(R.filter(escd).length / R.length) : '—', 'de las resueltas, con ticket de tercero'),
         kpi('Esperando a terceros', on ? pct(s.rt[3] / rtTot) : '—', 'del tiempo de vida de lo resuelto')),
       section('¿Cuánto tardamos?'),
-      card('Cuánto tardan', ttrSplit(m.rows('tb')), { span: 's5', sub: 'Resueltas por lo que tardaron, de la apertura a la resolución. Clic en un tramo para filtrar.' }),
-      card('Mes a mes', resMonthly(A), { span: 's7', sub: `${MONTH_NOTE} Clic en un mes para filtrar.` }),
+      card('Cuánto tardan', ttrTable(m.rows('tb')), { span: 's12', sub: 'Lo resuelto sin escalar, escalado y todo, repartido según lo que tardó (cada fila suma el 100 %); cada bloque, con su total. Clic en una celda para filtrar.' }),
+      card('Mes a mes', resMonthly(A), { span: 's12', sub: `${MONTH_NOTE} En ocre, lo que va un 15 % o más peor que el total (con al menos ${MIN_RES} resueltas). Clic en un mes para filtrar.` }),
       section('¿En qué se va el tiempo?'),
       card('Por prioridad, escalado y tarjeta', timeTable(A), { span: 's12', sub: 'Lo que pasa de media cada resuelta en cada estado, según el historial de cambios. Clic en una fila para filtrar.' }),
       section('¿Qué módulos tardan más?'),
