@@ -557,13 +557,13 @@ export const createTabs = (m, ch, ui) => {
   // problema (en qué se va el tiempo por tarjeta, escalados), que no dice cómo trabaja cada uno.
   const BETTER_MIN = 10;   // resueltas que necesita cada lado en una fila para marcar quién va mejor
   // Tabla de dos columnas por dato, una por lado (como Mes a mes en Entrada): los nombres en una leyenda encima, en la
-  // cabecera solo el color. defs: [nombre, valor (x), formato (v, x), mejor, nota]; rows: { label, attrs, cls, x:
+  // cabecera solo el color. defs: [nombre, valor (x), formato (v, x), mejor, nota, cuántas cuentan para marcar (x; si no, base)]; rows: { label, attrs, cls, x:
   // [lado 0, lado 1] }. En verde, el lado que va mejor, si los dos tienen al menos BETTER_MIN resueltas.
-  const pairTable = (first, defs, rows) => {
+  const pairTable = (first, defs, rows, base = (x) => x.resolved) => {
     const names = teamNames() || [name(0), name(1)];
     const cells = (r) => defs.map((d, c) => {
       const v = [0, 1].map((k) => d[1](r.x[k])), t = v.map((x, k) => (x == null ? '—' : d[2](x, r.x[k])));
-      const ok = d[3] && r.x.every((x) => x.resolved >= BETTER_MIN) && v.every((x) => x != null) && t[0] !== t[1];
+      const ok = d[3] && r.x.every((x) => (d[5] || base)(x) >= BETTER_MIN) && v.every((x) => x != null) && t[0] !== t[1];
       const mark = ok ? ((d[3] === 'low') === (v[0] < v[1]) ? 0 : 1) : -1;
       return [0, 1].map((k) => `<td class="mt-num ${k ? 'mt-msep' : c ? 'mt-gsep' : ''} ${mark === k ? 'mt-better' : ''}">${t[k]}</td>`).join('');
     }).join('');
@@ -673,29 +673,43 @@ export const createTabs = (m, ch, ui) => {
   const clearlyWorse = (v, w, better) => (better === 'low' ? v > w * 1.15 : v < w * 0.85) && (w > 1 || Math.abs(v - w) >= 0.01);
   const INI = m.DIMS.ini.label;
   // Cuándo pasan a En curso, por prioridad: cada fila repartida entre los tramos (suma el 100 %); los tramos que caen
-  // dentro del plazo de esa prioridad, en verde. Clic en una celda filtra esa prioridad y ese tramo.
+  // dentro del plazo de esa prioridad, en verde. Clic en una celda filtra esa prioridad y ese tramo. Comparando, una
+  // fila por lado (con personas, las issues de la empresa, por persona) y, en verde, quien empieza más a tiempo y antes
+  // (con al menos BETTER_MIN issues cada uno).
   const startTable = (list) => {
-    const GROUPS = [['Pasan a En curso en…', [0, 1, 2, 3, 4, 5, 6]], ['Sin pasar a En curso', [7, 8]]];
-    const line = (label, l, f, p) => {
+    const cmp = CMP(), GROUPS = [['Pasan a En curso en…', [0, 1, 2, 3, 4, 5, 6]], [cmp ? 'Sin En curso' : 'Sin pasar a En curso', [7, 8]]];
+    const P = cmp ? bySide(list).slice(0, 2) : [list], H = [0, 1].map((k) => (cmp && m.perHead() ? m.heads(k).size || 1 : 1));
+    const line = (label, l, f, p, k) => {
       const c = new Array(9).fill(0);
       for (const i of l) c[m.DIMS.ini.get(i)]++;
-      return { label, f, n: l.length, c, s: stats(l), lim: p == null ? -1 : START_LIMITS.indexOf(m.SLA[p]) };
+      return { label, f, k, n: l.length, c, s: stats(l), lim: p == null ? -1 : START_LIMITS.indexOf(m.SLA[p]) };
     };
-    const lines = [...PRIOS.filter((p) => list.some((i) => C.pr[i] === p)).map((p) => line(slaLabel(p), list.filter((i) => C.pr[i] === p), `pr:${p}`, p)), line('Todas', list, null, null)];
-    const share = (x, v) => v / (x.n || 1), max = Math.max(0.01, ...lines.slice(0, -1).flatMap((x) => x.c.map((v) => share(x, v))));
+    const blocks = [...PRIOS.filter((p) => list.some((i) => C.pr[i] === p)).map((p) => P.map((l, k) => line(slaLabel(p), l.filter((i) => C.pr[i] === p), `pr:${p}`, p, k))),
+      P.map((l, k) => line('Todas', l, null, null, k))];
+    const share = (x, v) => v / (x.n || 1), max = Math.max(0.01, ...blocks.slice(0, -1).flat().flatMap((x) => x.c.map((v) => share(x, v))));
+    const who = (x) => (cmp ? ` · ${name(x.k)}` : '');
     const cells = (x, last) => GROUPS.map(([, ks]) => ks.map((k, j) => {
       const sh = share(x, x.c[k]), a = x.c[k] && !last ? Math.round(6 + 94 * sh / max) : 0, ok = k <= x.lim;
       const f = x.f ? `data-f2="${x.f}|ini:${k}"` : `data-f="ini:${k}"`;
-      return `<td class="${j ? '' : 'mt-gsep'} ${ok ? 'mt-insla' : ''} ${a > 50 ? 'mt-hot' : ''}" style="--mt-a:${a}%" ${f} data-tip="${esc(`${x.label} · ${INI(k)}${ok ? ' (dentro del SLA)' : ''}\n${num(x.c[k])} de ${num(x.n)} (${pct(sh, 1)})`)}">${x.c[k] ? pct(sh) : ''}</td>`;
+      return `<td class="${j ? '' : 'mt-gsep'} ${ok ? 'mt-insla' : ''} ${a > 50 ? 'mt-hot' : ''}" style="--mt-a:${a}%" ${f} data-tip="${esc(`${x.label}${who(x)} · ${INI(k)}${ok ? ' (dentro del SLA)' : ''}\n${num(x.c[k])} de ${num(x.n)} (${pct(sh, 1)})`)}">${x.c[k] ? pct(sh) : ''}</td>`;
     }).join('')).join('');
-    const row = (x, last) => `<tr class="${last ? 'mt-tot' : ''}"><th class="mt-r ${x.f ? 'mt-clk' : ''}" ${x.f ? `data-f="${x.f}"` : ''}>${x.label}</th><td class="mt-total mt-num">${num(x.n)}</td>
-      <td class="mt-total mt-num"><b>${slaPct(x.s)}</b></td><td class="mt-total mt-num">${num(x.s.slaKo)}</td><td class="mt-total mt-num">${optDur(x.s.ip)}</td>${cells(x, last)}</tr>`;
-    return `<div class="mt-tablewrap"><table class="mt-hm mt-ttr mt-start"><colgroup><col style="width:12%"><col style="width:6%"><col style="width:7%"><col style="width:6%"><col style="width:8%">${'<col>'.repeat(9)}</colgroup><thead>
-      <tr class="mt-cgrp"><th></th><th colspan="4">SLA de inicio</th>${GROUPS.map(([g, ks]) => `<th colspan="${ks.length}">${g}</th>`).join('')}</tr>
-      <tr><th>Prioridad y plazo</th><th class="mt-num">Issues</th><th class="mt-num" data-tip="Empezadas dentro del plazo, de las empezadas y de las que siguen sin empezar pasado el plazo. Las cerradas sin pasar por En curso no cuentan.">Dentro</th>
+    // el lado que va mejor en una cifra (low: menos es mejor), comparando lo que se ve
+    const better = (x, o, v, fmt, low) => cmp && o && x.n >= BETTER_MIN && o.n >= BETTER_MIN && v(x) != null && v(o) != null && fmt(x) !== fmt(o) && (low ? v(x) < v(o) : v(x) > v(o));
+    const vol = (x, v) => (H[x.k] > 1 ? dec(v / H[x.k]) : num(v));
+    const head = (x, n) => (cmp ? `${x.k ? '' : `<th class="mt-r ${x.f ? 'mt-clk' : ''}" rowspan="${n}" ${x.f ? `data-f="${x.f}"` : ''}>${x.label}</th>`}<th class="mt-r mt-ttr-who" data-tip="${esc(name(x.k))}"><i class="mt-sw mt-c${x.k}"></i>${esc(name(x.k))}</th>`
+      : `<th class="mt-r ${x.f ? 'mt-clk' : ''}" ${x.f ? `data-f="${x.f}"` : ''}>${x.label}</th>`);
+    const body = blocks.map((pair, b) => pair.map((x) => {
+      const last = b === blocks.length - 1, o = pair[1 - x.k];
+      return `<tr class="${last && !x.k ? 'mt-tot' : last ? 'mt-tot2' : ''} ${cmp && !x.k ? 'mt-gfirst' : ''}">${head(x, pair.length)}<td class="mt-total mt-num">${vol(x, x.n)}</td>
+        <td class="mt-total mt-num ${better(x, o, (y) => y.s.sla, (y) => slaPct(y.s)) ? 'mt-better' : ''}"><b>${slaPct(x.s)}</b></td><td class="mt-total mt-num">${vol(x, x.s.slaKo)}</td>
+        <td class="mt-total mt-num ${better(x, o, (y) => y.s.ip, (y) => optDur(y.s.ip), true) ? 'mt-better' : ''}">${optDur(x.s.ip)}</td>${cells(x, last)}</tr>`;
+    }).join('')).join('');
+    return `<div class="mt-tablewrap"><table class="mt-hm mt-ttr mt-start"><colgroup>${cmp ? '<col style="width:9%"><col style="width:10%">' : '<col style="width:12%">'}<col style="width:6%"><col style="width:7%"><col style="width:6%"><col style="width:8%">${'<col>'.repeat(9)}</colgroup><thead>
+      <tr class="mt-cgrp"><th colspan="${cmp ? 2 : 1}"></th><th colspan="4">SLA de inicio</th>${GROUPS.map(([g, ks]) => `<th colspan="${ks.length}">${g}</th>`).join('')}</tr>
+      <tr><th colspan="${cmp ? 2 : 1}">Prioridad y plazo</th><th class="mt-num">Issues</th><th class="mt-num" data-tip="Empezadas dentro del plazo, de las empezadas y de las que siguen sin empezar pasado el plazo. Las cerradas sin pasar por En curso no cuentan.">Dentro</th>
       <th class="mt-num" data-tip="Empezadas tarde y abiertas que siguen sin empezar pasado el plazo.">Fuera</th><th class="mt-num" data-tip="Media de la apertura al primer paso a En curso.">Media</th>
       ${GROUPS.map(([, ks]) => ks.map((k, j) => `<th class="${j ? '' : 'mt-gsep'}">${k === 7 ? 'Abiertas' : k === 8 ? 'Cerradas' : INI(k)}</th>`).join('')).join('')}</tr></thead>
-      <tbody>${lines.map((x, j) => row(x, j === lines.length - 1)).join('')}</tbody></table></div>`;
+      <tbody>${body}</tbody></table></div>`;
   };
   // Tabla dinámica de calidad: bloques de filas (cada fila, [nombre, prueba, filtro]) por grupos de columnas (cada una,
   // [nombre, valor de stats, formato, mejor, nota, marca de calidad para el clic]), con el total al final. En ocre, lo
@@ -733,7 +747,7 @@ export const createTabs = (m, ch, ui) => {
     ['Fuera de SLA', [['Issues', (s) => s.slaKo, num, null, 'Empezadas tarde y abiertas que siguen sin empezar pasado el plazo.'], ['Media hasta En curso', (s) => s.ip, dur, 'low', 'Media de la apertura al primer paso a En curso.']]],
   ];
   // stats con el % dentro del SLA de cada prioridad (byP)
-  const slaStats = (l) => { const s = stats(l); s.byP = []; for (const p of PRIOS) s.byP[p] = stats(l.filter((i) => C.pr[i] === p)).sla; return s; };
+  const slaStats = (l) => { const s = stats(l); s.byP = []; s.nP = []; for (const p of PRIOS) { const t = stats(l.filter((i) => C.pr[i] === p)); s.byP[p] = t.sla; s.nP[p] = t.n; } return s; };
   // mes a mes: filas por mes de apertura, con las columnas que se le pasen ([grupo, defs] como en qualityPivot)
   const monthPivot = (A, groups, st = stats) => {
     const defs = groups.flatMap(([, d]) => d), firsts = new Set(groups.map(([, d]) => d[0])), tot = st(A);
@@ -771,6 +785,98 @@ export const createTabs = (m, ch, ui) => {
         { id: 'sq-mo', skip: noK, refLabel: 'Todos los módulos', title: 'Módulos' }), { span: 's12' }),
       card('', scorecard('ce', [['Volumen', ['n']], ['Empezar a tiempo', ['sla', 'slaKo', 'ip']], ['Trabajo', ['reop', 'bounce']], ['Registro', ['noIpDone', 'escNoPend', 'noCat', 'noDesc']]],
         { id: 'sq-ce', skip: noK, refLabel: 'Todos los centros', title: 'Centros' }), { span: 's12' }));
+  };
+
+  // --- SLA y calidad, comparando. Entre empresas, cómo atiende cada servicio el mismo tipo de trabajo (cada una
+  // recibe trabajo distinto: el SLA, por prioridad, y también con el mismo trabajo); entre personas, cómo trabaja
+  // cada uno (una persona frente a su equipo, ella incluida, o frente a otra). Todo cuenta a la persona responsable
+  // actual de la issue.
+  // si se empezó dentro del SLA (1), fuera (0) o no cuenta (null): lo mismo que stats (sla)
+  const slaHit = (i) => {
+    const l = m.SLA[C.pr[i]];
+    if (l < 0) return null;
+    if (C.ip[i] >= 0) return C.ip[i] <= l ? 1 : 0;
+    return OPEN[i] && m.SNAP - C.rep[i] > l ? 0 : null;
+  };
+  // lo que cumpliría ref con el trabajo de work: su % dentro del SLA en cada prioridad y módulo (con menos de 5, el de
+  // la prioridad), con el peso que tiene cada uno en work
+  const slaWith = (work, ref) => {
+    const cell = new Map(), prio = new Map(), add = (mp, k, v) => { const x = mp.get(k) || [0, 0]; x[0] += v; x[1]++; mp.set(k, x); };
+    for (const i of ref) { const v = slaHit(i); if (v != null) { add(cell, `${C.pr[i]}:${C.mo[i]}`, v); add(prio, C.pr[i], v); } }
+    let t = 0, n = 0;
+    for (const i of work) {
+      if (slaHit(i) == null) continue;
+      const c = cell.get(`${C.pr[i]}:${C.mo[i]}`), x = c && c[1] >= 5 ? c : prio.get(C.pr[i]);
+      if (x) { t += x[0] / x[1]; n++; }
+    }
+    return n ? t / n : null;
+  };
+  // «con el mismo trabajo»: el primer lado (o la persona, frente a su empresa) frente a lo que cumpliría el otro con su trabajo
+  const sameWork = (A) => {
+    const pp = m.perHead();
+    const p = pp ? (S.sides[0].people ? 0 : 1) : 0, t = 1 - p;
+    if (pp && (!S.sides[p].people || S.sides[t].people)) return '';
+    const T = bySide(A), v = [], names = [];
+    v[p] = { n: T[p].length, v: stats(T[p]).sla }; v[t] = { n: T[t].length, v: slaWith(T[p], T[t]) };
+    names[p] = name(p); names[t] = `${name(t)}, con ese trabajo`;
+    return kpiCo('Dentro del SLA, con el mismo trabajo', v, (s) => opt(pct)(s.v), { val: (s) => s.v, better: 'high', names,
+      note: `Lo que cumpliría ${name(t)} con el trabajo de ${name(p)}: su % dentro del SLA en cada prioridad y módulo, con el peso que tiene cada uno en lo de ${name(p)}.` });
+  };
+  // stats de cada lado de una lista, con las issues por persona (comparando con personas, una empresa entre su equipo)
+  const slaPair = (lists) => {
+    const H = [0, 1].map((k) => (m.perHead() ? m.heads(k).size || 1 : 1));
+    return [0, 1].map((k) => { const s = slaStats(lists[k]); s.vol = s.n / H[k]; s.H = H[k]; return s; });
+  };
+  const PAIR_VOL = ['Issues', (s) => s.vol, (v, s) => (s.H > 1 ? dec(v) : num(v)), null, ''];
+  const PAIR_SLA = [['Dentro del SLA (altas)', (s) => s.byP[PRIOS[1]] ?? null, (v) => pct(v), 'high', slaLabel(PRIOS[1]), (s) => s.nP[PRIOS[1]]],
+    ['Dentro del SLA (todas)', (s) => s.sla, (v) => pct(v), 'high', 'Todas las prioridades.'],
+    ['Media hasta En curso', (s) => s.ip, dur, 'low', 'Media de la apertura al primer paso a En curso.']];
+  const qualityDefs = (co) => QUALITY_COLS.flatMap(([, d]) => d).filter((d) => !co || d[5] !== 5).map((d) => d.slice(0, 5));
+  // filas de una tabla por lado: [nombre, prueba, filtro]; la última, el total
+  const pairRows = (A, defs, total = 'Todas') => {
+    const T = bySide(A);
+    return [...defs.filter(([, t]) => A.some(t)).map(([label, t, f]) => ({ label, x: slaPair(T.map((l) => l.filter(t))), cls: `mt-clk ${isSel(...f.split(':').map((x, n) => (n ? +x : x))) ? 'mt-sel' : ''}`, attrs: `data-f="${f}"` })),
+      { label: total, x: slaPair(T), cls: 'mt-tot' }];
+  };
+  const BY_N = (x) => x.n;
+  const slaCmp = (A) => {
+    const pp = m.perHead(), co = !pp, T = bySide(A), ST = T.map(slaStats), names = teamNames();
+    const fig = (label, f, fmt, better, note) => kpiCo(label, ST.map((s) => ({ n: s.n, v: f(s) })), (s) => (s.v == null ? '—' : fmt(s.v)), { val: (s) => s.v, better, note });
+    const team = pp && S.sides.some((x) => !x.people), perNote = team ? ' Las issues de la empresa, por persona de su equipo.' : '';
+    const greenNote = `En verde, quien va mejor (con al menos ${BETTER_MIN} issues cada uno).`;
+    const months = monthsIn().map((k) => [`${MONTHS[k]}${k === LASTM ? '*' : ''}`, (i) => MONTH[i] === k, `month:${k}`]);
+    const kp = co
+      ? [...PRIOS.map((p) => fig(`Dentro del SLA · ${nice(DI.prio[p])}`, (s) => s.byP[p], (v) => pct(v), 'high', slaLabel(p))), sameWork(A),
+        fig('Reabiertas', (s) => (s.n ? s.reop : null), (v) => pct(v), 'low', 'Volvieron de Resuelta a abierta.'),
+        fig('Cerradas sin En curso', (s) => s.noIpDone, (v) => pct(v), 'low', 'De las cerradas, las que nunca pasaron por En curso.'),
+        fig('Escaladas sin Pendiente', (s) => s.escNoPend, (v) => pct(v), 'low', 'De las cerradas con ticket de tercero, las que nunca pasaron a Pendiente.')]
+      : [fig('Dentro del SLA', (s) => s.sla, (v) => pct(v), 'high', 'Todas las prioridades.'), fig('Dentro del SLA · Alta', (s) => s.byP[PRIOS[1]], (v) => pct(v), 'high', slaLabel(PRIOS[1])), sameWork(A),
+        fig('Hasta En curso, en días', (s) => (s.ip == null ? null : s.ip / 1440), dec, 'low', 'Media de la apertura al primer paso a En curso.'),
+        fig('Reabiertas', (s) => (s.n ? s.reop : null), (v) => pct(v), 'low', 'Volvieron de Resuelta a abierta.'),
+        fig('Devueltas a cola', (s) => (s.n ? s.bounce : null), (v) => pct(v), 'low', 'Pasaron de En curso a Asignada.'),
+        fig('Cerradas sin En curso', (s) => s.noIpDone, (v) => pct(v), 'low', 'De las cerradas, las que nunca pasaron por En curso.'),
+        fig('Escaladas sin Pendiente', (s) => s.escNoPend, (v) => pct(v), 'low', 'De las cerradas con ticket de tercero, las que nunca pasaron a Pendiente.')];
+    const common = () => {
+      const g = group('mo', A, true).filter((x) => x.k).map((x) => ({ ...x, both: T.slice(0, 2).every((l) => l.filter((i) => C.mo[i] === x.k).length >= BETTER_MIN) })).filter((x) => x.both).slice(0, 15);
+      return g.map((x) => [m.DIMS.mo.label(x.k), (i) => C.mo[i] === x.k, `mo:${x.k}`]);
+    };
+    return grid(ask('sla'),
+      kpis(...kp.filter(Boolean)),
+      section('¿Empezamos a tiempo?'),
+      card('Cuándo pasan a En curso', startTable(m.rows('ini')), { span: 's12', sub: `Por prioridad, una fila por cada uno: el SLA de inicio y cómo se reparte (cada fila suma el 100 %) lo que tarda en pasar a En curso; en verde, los tramos dentro del plazo. ${greenNote}${perNote}${pp ? ' Cuenta a la persona responsable actual de la issue.' : ''} Clic en una celda para filtrar.` }),
+      card('Mes a mes', pairTable('Mes de apertura', [PAIR_VOL, ...PAIR_SLA, ...(pp ? qualityDefs(false).filter((d) => ['Cerradas sin En curso', 'Escaladas sin Pendiente'].includes(d[0])) : [])], pairRows(A, months, 'Total'), BY_N),
+        { span: 's12', sub: `${MONTH_NOTE} ${greenNote}${perNote} Clic en un mes para filtrar.` }),
+      co ? card('Por turno y día de entrada', pairTable('Cuándo entra', [PAIR_VOL, ['Dentro del SLA (críticas)', (s) => s.byP[PRIOS[0]] ?? null, (v) => pct(v), 'high', slaLabel(PRIOS[0]), (s) => s.nP[PRIOS[0]]], ...PAIR_SLA,
+        ['En su turno', (s) => s.inShift, (v) => pct(v), 'high', 'De las empezadas, las que pasaron a En curso en el mismo turno en que entraron.']],
+        pairRows(A, [...[0, 1, 2].map((k) => [m.DIMS.tu.label(k), (i) => m.DIMS.tu.get(i) === k, `tu:${k}`]), ...[0, 1].map((k) => [m.DIMS.we.label(k), (i) => m.DIMS.we.get(i) === k, `we:${k}`])]), BY_N),
+        { span: 's12', sub: `Según cuándo se abrió. ${greenNote} Clic en una fila para filtrar.` }) : '',
+      section('¿Queda bien hecho y bien registrado?'),
+      card(co ? 'Por prioridad y tarjeta' : 'Por prioridad', pairTable(co ? 'Prioridad y tarjeta' : 'Prioridad', qualityDefs(co),
+        pairRows(A, [...PRIO_ROWS(), ...(co ? CARD_ROWS() : [])]), BY_N),
+        { span: 's12', sub: `Trabajo: reabiertas y devueltas a cola. Registro: lo que falta o no se movió en Remedy.${co ? ' Sin «Título sin descripción»: se detecta con el diccionario de problemas de Indra, hecho con sus títulos.' : ''} ${greenNote} Clic en una fila para filtrar.` }),
+      co ? section('¿Dónde?') : '',
+      co ? card('Módulo a módulo', pairTable('Módulo', [PAIR_VOL, ...PAIR_SLA, qualityDefs(true)[0], qualityDefs(true)[2]], pairRows(A, common()), BY_N),
+        { span: 's12', sub: `Los 15 módulos con más issues de los que tienen al menos ${BETTER_MIN} cada uno. ${greenNote} Clic en un módulo para filtrar.` }) : '');
   };
 
   const VIEWS = {
@@ -957,7 +1063,7 @@ export const createTabs = (m, ch, ui) => {
       return modulesView(A);
     },
     sla(A) {
-      if (CMP()) return m.alone((A1) => slaView(A1, `<p class="mt-note">Esta pestaña aún no compara: se ve solo ${esc(name(0))}.</p>`));
+      if (CMP()) return slaCmp(A);
       return slaView(A);
     },
 

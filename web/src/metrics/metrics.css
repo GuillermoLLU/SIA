@@ -445,3 +445,4 @@
 .mt-view table.mt-qpivot td.mt-clkc:hover { text-decoration: underline; }
 .mt-view table.mt-qpivot th.mt-r { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mt-view table.mt-qpivot thead th { white-space: normal; vertical-align: bottom; }
+.mt-view table.mt-start thead th { white-space: normal; }

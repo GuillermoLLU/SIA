@@ -270,6 +270,21 @@ test('SLA y calidad: tramos de paso a En curso que caen en los plazos y marcas d
   assert.doesNotMatch(html, /undefined|NaN/);
 });
 
+test('SLA y calidad comparando: entre empresas, por prioridad y con el mismo trabajo; con personas, sin turnos ni módulos', () => {
+  const m = createModel(data()), ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  m.S.sides = [{ company: 0 }, { company: 1 }]; m.refilter();
+  let h = tabs.render('sla', m.rows());
+  assert.match(h, /Dentro del SLA, con el mismo trabajo/);
+  assert.match(h, /Por turno y día de entrada/);
+  assert.match(h, /Módulo a módulo/);
+  assert.doesNotMatch(h, />Título sin descripción<|undefined|NaN/);   // la columna, no la nota
+  m.S.sides = [{ people: new Set([1]) }, { company: 0 }]; m.refilter();   // ANA frente a Indra
+  h = tabs.render('sla', m.rows());
+  assert.match(h, /Indra, con ese trabajo/);
+  assert.match(h, />Título sin descripción</);
+  assert.doesNotMatch(h, /Por turno y día de entrada|Módulo a módulo|undefined|NaN/);
+});
+
 test('de lo resuelto: los tramos de tiempo, el máximo y el tiempo en cada estado, solo de las resueltas', () => {
   const m = createModel(data());
   const s = m.stats([0, 1, 2]);   // 1 y 2 resueltas; 3 abierta (su tiempo no cuenta)
