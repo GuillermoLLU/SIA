@@ -149,33 +149,30 @@ export const createTabs = (m, ch, ui) => {
   // Lo pendiente, de un vistazo y en orden: el total; en qué punto está (en curso, sin tocar, devuelta y en espera de
   // un tercero, del cliente u otro motivo, que suman el total), en una barra; lo que conviene vigilar dentro
   // (se solapa: no se suma) y, aparte, lo de nuestras tarjetas que no tiene a nadie (no está en el total).
+  // Solo con un lado: comparando, backlogCmp.
   const stockPanel = (T, ST) => {
-    const cos = CO(), cmp = CMP(), people = S.sides.some((s) => s?.people), CRITICAL = DI.prio.indexOf('CRITICAL');
-    const open = T.map((l) => l.filter((i) => OPEN[i]));
-    const count = (test) => open.map((l) => ({ n: l.length, v: l.filter(test).length }));
-    const fig = (st, better) => `<b>${num(st[cos[0]].v)}</b>${cmp ? diff(st[0], st[1], (x) => num(x.v), (x) => x.v, better) : ''}`;
-    // las situaciones que hay; k, su color (el mismo siempre, aunque falte alguna)
-    const sit = SITUATION.map((x, k) => ({ ...x, k, st: count(x.test) })).filter((x) => x.st.some((y) => y.v));
-    const share = (x, side) => (open[side].length ? x.st[side].v / open[side].length : 0);
-    const bar = (side) => `<div class="mt-st-track">${sit.map((x) => {
-      const p = share(x, side);
-      return p ? `<i class="mt-sit${x.k}" style="width:${(p * 100).toFixed(2)}%" ${x.f ? `data-f="${x.f}"` : ''} data-tip="${esc(`${x.label}${cmp ? ` · ${name(side)}` : ''}\n${num(x.st[side].v)} de ${num(open[side].length)} (${pct(p)})\n${x.tip}`)}">${p >= 0.07 ? pct(p) : ''}</i>` : '';
+    const k0 = CO()[0], people = S.sides.some((s) => s?.people), CRITICAL = DI.prio.indexOf('CRITICAL');
+    const open = T[k0].filter((i) => OPEN[i]), count = (test) => open.filter(test).length;
+    const sit = SITUATION.map((x, k) => ({ ...x, k, v: count(x.test) })).filter((x) => x.v);
+    const share = (x) => (open.length ? x.v / open.length : 0);
+    const bar = `<div class="mt-st-track">${sit.map((x) => {
+      const p = share(x);
+      return `<i class="mt-sit${x.k}" style="width:${(p * 100).toFixed(2)}%" data-f="${x.f}" data-tip="${esc(`${x.label}\n${num(x.v)} de ${num(open.length)} (${pct(p)})\n${x.tip}`)}">${p >= 0.07 ? pct(p) : ''}</i>`;
     }).join('')}</div>`;
     const watch = [
-      ['Fuera de plazo', count(late), 'Nunca han pasado a En curso y ya superan el plazo de su prioridad.', 'sl:4', 'low'],
-      ['Con más de 15 días', count((i) => m.SNAP - C.rep[i] > OLD), 'Llevan más de 15 días abiertas: si sube, el backlog envejece.', OLD15, 'low'],
-      ['Escaladas', count((i) => C.vt[i] > 0), 'Con ticket de tercero, estén en el estado que estén (por eso no coincide con «espera tercero»: algunas ya se están trabajando o han vuelto a la cola).', 'es:1', null],
-      ['Críticas', count((i) => C.pr[i] === CRITICAL), 'De prioridad crítica.', `pr:${CRITICAL}`, 'low'],
-      ['PRIO', count((i) => cardsOf(i).includes(2)), 'Priorizadas por negocio.', 'tj:2', 'low'],
+      ['Fuera de plazo', count(late), 'Nunca han pasado a En curso y ya superan el plazo de su prioridad.', 'sl:4'],
+      ['Con más de 15 días', count((i) => m.SNAP - C.rep[i] > OLD), 'Llevan más de 15 días abiertas: si sube, el backlog envejece.', OLD15],
+      ['Escaladas', count((i) => C.vt[i] > 0), 'Con ticket de tercero, estén en el estado que estén (por eso no coincide con «espera tercero»: algunas ya se están trabajando o han vuelto a la cola).', 'es:1'],
+      ['Críticas', count((i) => C.pr[i] === CRITICAL), 'De prioridad crítica.', `pr:${CRITICAL}`],
+      ['PRIO', count((i) => cardsOf(i).includes(2)), 'Priorizadas por negocio.', 'tj:2'],
     ];
-    const side = (k) => (cmp ? `<span class="mt-st-side"><i class="mt-sw mt-c${k}"></i>${esc(name(k))}</span>` : '');
-    const total = `<section class="mt-st mt-st-total"><h4>Pendientes</h4><div class="mt-st-big">${fig(ST.map((x) => ({ n: x.n, v: x.open })), 'low')}</div>
-      <p>${cmp ? 'sin resolver de lo recibido en el periodo' : `sin resolver, de ${num(ST[cos[0]].n)} recibidas en el periodo`}</p></section>`;
+    const total = `<section class="mt-st mt-st-total"><h4>Pendientes</h4><div class="mt-st-big"><b>${num(ST[k0].open)}</b></div>
+      <p>sin resolver, de ${num(ST[k0].n)} recibidas en el periodo</p></section>`;
     const where = `<section class="mt-st mt-st-where"><h4>¿En qué punto están?<small>suman las pendientes</small></h4>
-      ${cos.map((k) => `<div class="mt-st-row">${side(k)}${bar(k)}</div>`).join('')}
-      <div class="mt-st-legend">${sit.map((x) => `<div ${x.f ? `class="mt-clk" data-f="${x.f}"` : ''} data-tip="${esc(x.tip)}"><span><i class="mt-sit${x.k}"></i>${x.label}</span>${fig(x.st)}<em>${pct(share(x, cos[0]))}</em></div>`).join('')}</div></section>`;
+      <div class="mt-st-row">${bar}</div>
+      <div class="mt-st-legend">${sit.map((x) => `<div class="mt-clk" data-f="${x.f}" data-tip="${esc(x.tip)}"><span><i class="mt-sit${x.k}"></i>${x.label}</span><b>${num(x.v)}</b><em>${pct(share(x))}</em></div>`).join('')}</div></section>`;
     const watchHtml = `<section class="mt-st mt-st-watch"><h4>A vigilar<small>dentro de las pendientes; se solapan</small></h4>
-      ${watch.map(([l, st, tip, f, better]) => `<div class="mt-st-item ${f ? 'mt-clk' : ''}" ${f ? `data-f${f.includes('|') ? '2' : ''}="${f}"` : ''} data-tip="${esc(tip)}"><span>${l}</span>${fig(st, better)}</div>`).join('')}</section>`;
+      ${watch.map(([l, v, tip, f]) => `<div class="mt-st-item mt-clk" data-f${f.includes('|') ? '2' : ''}="${f}" data-tip="${esc(tip)}"><span>${l}</span><b>${num(v)}</b></div>`).join('')}</section>`;
     const apart = people ? '' : `<section class="mt-st mt-st-apart"><h4>Aparte</h4><div class="mt-st-big"><b>${num(orphansIn().length)}</b></div>
       <p><b>Sin responsable</b>: de SGA, SISU o PRIO y sin nadie asignado. No están en las pendientes.</p></section>`;
     return `<div class="mt-stock ${people ? 'mt-st-noapart' : ''}">${total}${where}${watchHtml}${apart}</div>`;
@@ -278,7 +275,7 @@ export const createTabs = (m, ch, ui) => {
   // cada lado (persona frente a empresa: la media por persona del equipo, model.js heads) y qué parte es de lo suyo,
   // con una barra a la misma escala en los dos. Sin verde ni rojo: recibir una cosa u otra no es mejor ni peor, es el
   // contexto para leer lo demás. rowsDef: los bloques y filas de la tabla dinámica de Qué entra cada mes.
-  const mixCmp = (rowsDef, A) => {
+  const mixCmp = (rowsDef, A, lead = 'Recibidas') => {
     const T = bySide(A), pp = m.perHead(), H = [0, 1].map((k) => (pp ? m.heads(k).size || 1 : 1));
     const sideName = (k) => (pp && !S.sides[k].people ? `Media de ${COMPANIES[S.sides[k].company]}` : name(k));
     const blocks = [];
@@ -294,7 +291,73 @@ export const createTabs = (m, ch, ui) => {
     const head = (k) => `<th colspan="3" class="mt-mix-side ${k ? '' : 'mt-gsep'}"><i class="mt-c${k}"></i>${esc(sideName(k))}</th>`;
     return `<div class="mt-tablewrap"><table class="mt-mx mt-mix2"><colgroup><col style="width:13%"><col style="width:21%">${'<col class="mt-mix-cn"><col class="mt-mix-cp"><col>'.repeat(2)}</colgroup>
       <thead><tr><th colspan="2"></th>${head(0)}${head(1)}</tr><tr><th colspan="2"></th>${'<th class="mt-num">Issues</th><th class="mt-num">%</th><th></th>'.repeat(2)}</tr></thead><tbody>
-      <tr class="mt-lead"><th class="mt-r" colspan="2">Recibidas${pp ? ' (por persona)' : ''}</th>${cells(null, 'Recibidas')}</tr>${body}</tbody></table></div>`;
+      <tr class="mt-lead"><th class="mt-r" colspan="2">${lead}${pp ? ' (por persona)' : ''}</th>${cells(null, lead)}</tr>${body}</tbody></table></div>`;
+  };
+  // Lo pendiente, comparando: no cuánto hay (depende de lo que entra), sino cómo está. Cada fila, por lado: sus issues
+  // (con personas, la media por persona del equipo), qué parte son de sus pendientes y cuánto llevan abiertas de media.
+  // En verde, el lado que va mejor solo en lo que depende de él (r.better): entre empresas, por el %; con personas, por
+  // las issues (con 8–10 pendientes, una sola mueve el % diez puntos). Lo que espera a otros, sin color. La fila de las
+  // pendientes, al final, como en el resto de tablas.
+  const pendCmp = (rowsDef, op) => {
+    const T = bySide(op), pp = m.perHead(), H = [0, 1].map((k) => (pp ? m.heads(k).size || 1 : 1));
+    const sideName = (k) => (pp && !S.sides[k].people ? `Media de ${COMPANIES[S.sides[k].company]}` : name(k));
+    const ageOf = (l) => (l.length ? l.reduce((a, i) => a + m.SNAP - C.rep[i], 0) / l.length / 1440 : null);   // en días
+    // el lado con menos (el que va mejor), o -1 si se ven iguales o falta uno
+    const lower = (a, b, same) => (a == null || b == null || same(a) === same(b) ? -1 : a < b ? 0 : 1);
+    const blocks = [];
+    for (const r of rowsDef) { if (r.head) blocks.push({ head: r.head, note: r.note, rows: [] }); else blocks[blocks.length - 1].rows.push(r); }
+    const cells = (r) => {
+      const v = [0, 1].map((k) => { const l = r.test ? T[k].filter(r.test) : T[k]; return { c: l.length / H[k], sh: T[k].length ? l.length / T[k].length : null, age: ageOf(l) }; });
+      const main = r.better ? (pp ? lower(v[0].c, v[1].c, (x) => Math.round(x * 10)) : lower(v[0].sh, v[1].sh, (x) => Math.round(x * 100))) : -1;
+      const old = r.better || !r.test ? lower(v[0].age, v[1].age, (x) => Math.round(x * 10)) : -1;
+      const ok = (on) => (on ? 'mt-better' : '');
+      return [0, 1].map((k) => `<td class="mt-num ${k ? 'mt-msep' : 'mt-gsep'} ${ok(pp && main === k)}">${H[k] > 1 ? dec(v[k].c) : num(v[k].c)}</td>
+        <td class="mt-num mt-mix-p ${ok(!pp && main === k)}">${v[k].sh == null ? '—' : pct(v[k].sh)}</td><td class="mt-num ${ok(old === k)}">${v[k].age == null ? '—' : dec(v[k].age)}</td>`).join('');
+    };
+    const attrs = (r) => (r.f ? `data-f${r.f.includes('|') ? '2' : ''}="${r.f}" ${r.tip ? `data-tip="${esc(r.tip)}"` : ''}` : '');
+    const sel = (f) => !f.includes('|') && isSel(f.split(':')[0], +f.split(':')[1]);
+    const body = blocks.map((b) => b.rows.map((r, j) => `<tr class="${r.f ? 'mt-clk' : ''} ${j ? '' : 'mt-gfirst'} ${r.f && sel(r.f) ? 'mt-sel' : ''}" ${attrs(r)}>
+      ${j ? '' : `<th class="mt-gl" rowspan="${b.rows.length}">${esc(b.head)}${b.note ? `<small>${esc(b.note)}</small>` : ''}</th>`}<th class="mt-r">${esc(r.label)}</th>${cells(r)}</tr>`).join('')).join('');
+    const head = (k) => `<th colspan="3" class="mt-mix-side ${k ? '' : 'mt-gsep'}"><i class="mt-c${k}"></i>${esc(sideName(k))}</th>`;
+    return `<div class="mt-tablewrap"><table class="mt-mx mt-mix2 mt-pend2"><colgroup><col style="width:13%"><col style="width:21%">${'<col class="mt-mix-cn"><col class="mt-mix-cp"><col>'.repeat(2)}</colgroup>
+      <thead><tr><th colspan="2"></th>${head(0)}${head(1)}</tr><tr><th colspan="2"></th>${'<th class="mt-num">Issues</th><th class="mt-num">%</th><th class="mt-num" data-tip="Lo que llevan abiertas, de media, en días.">Antigüedad (días)</th>'.repeat(2)}</tr></thead><tbody>
+      ${body}<tr class="mt-lead mt-lead-end"><th class="mt-r" colspan="2">Pendientes${pp ? ' (por persona)' : ''}</th>${cells({})}</tr></tbody></table></div>`;
+  };
+  // Backlog, comparando: las cifras de arriba, cómo está lo pendiente de cada uno y qué tiene pendiente. Sin lo que no
+  // tiene responsable (no es de nadie: no hay con qué compararlo) ni las tablas de detalle por módulo, centro y escalado
+  // (son para gestionar el propio backlog; para comparar un módulo o un centro, se filtra).
+  const backlogCmp = (A) => {
+    const T = bySide(A), P = T.map((l) => l.filter((i) => OPEN[i])), op = A.filter((i) => OPEN[i]), pp = m.perHead(), d = days() || 1;
+    const H = [0, 1].map((k) => (pp ? m.heads(k).size || 1 : 1)), each = pp ? ' por persona' : '', names = teamNames();
+    const CRITICAL = DI.prio.indexOf('CRITICAL'), old = (i) => m.SNAP - C.rep[i] > OLD, sit = (k) => (i) => m.DIMS.sit.get(i) === k;
+    // lo que cumple algo, por lado: con personas, issues por persona; entre empresas, qué parte es de sus pendientes
+    const part = (test) => [0, 1].map((k) => { const c = P[k].filter(test).length; return { n: P[k].length, v: pp ? c / H[k] : P[k].length ? c / P[k].length : null }; });
+    const partFig = (label, test, better, note) => kpiCo(pp ? `${label}${each}` : `% ${label.toLowerCase()}`, part(test), pp ? (s) => dec(s.v) : (s) => pct(s.v), { val: (s) => s.v, better, note: `${note}${headsNote()}`, names });
+    const age = [0, 1].map((k) => ({ n: P[k].length, v: P[k].length ? P[k].reduce((a, i) => a + m.SNAP - C.rep[i], 0) / P[k].length / 1440 : null }));
+    const stock = [0, 1].map((k) => ({ n: T[k].length, v: P[k].length / (T[k].length / d) }));
+    const pendRows = [
+      { head: 'Situación', note: 'Suman las pendientes.' },
+      ...SITUATION.map((x, k) => ({ ...x, better: k === 1 || k === 2 ? 'low' : null })).filter((x) => op.some(x.test)),
+      { head: 'A vigilar', note: 'Dentro de las pendientes; se solapan.' },
+      { label: 'Fuera de plazo', test: late, f: 'sl:4', better: 'low', tip: 'Nunca han pasado a En curso y ya superan el plazo de su prioridad.' },
+      { label: 'Con más de 15 días', test: old, f: OLD15, better: 'low', tip: 'Llevan más de 15 días abiertas.' },
+      { label: 'Escaladas', test: (i) => C.vt[i] > 0, f: 'es:1', tip: 'Con ticket de tercero, estén en el estado que estén.' },
+      { label: 'Críticas', test: (i) => C.pr[i] === CRITICAL, f: `pr:${CRITICAL}` },
+      { label: 'PRIO', test: (i) => cardsOf(i).includes(2), f: 'tj:2', tip: 'Priorizadas por negocio.' },
+    ];
+    const mixRows = [{ head: 'Prioridad' }, ...PRIOS.map((p) => ({ label: nice(DI.prio[p]), test: (i) => C.pr[i] === p, f: `pr:${p}` })),
+      { head: 'Tarjeta', note: 'Una PRIO cuenta también en su SGA o SISU.' }, ...CARDS.map((c, k) => ({ label: c, test: (i) => cardsOf(i).includes(k), f: `tj:${k}` })),
+      { head: 'Módulo' }, ...topRows('mo', op, 8)];
+    return grid(ask('backlog'),
+      kpis(kpiCo(`Pendientes${each}`, volume(P), pp ? (s) => dec(s.v) : (s) => num(s.v), { val: (s) => s.v, note: `sin resolver, de lo recibido en el periodo${headsNote()}`, names }),
+        kpiCo('Días de entrada acumulados', stock, (s) => dec(s.v), { val: (s) => s.v, better: 'low', note: 'Las pendientes entre lo que entra al día: cuántos días de trabajo tiene acumulados cada uno. Así se compara quien recibe mucho con quien recibe poco.' }),
+        kpiCo('Antigüedad media, en días', age, (s) => dec(s.v), { val: (s) => s.v, better: 'low', note: 'Lo que llevan abiertas las pendientes, de media.' }),
+        partFig('Sin tocar', sit(1), 'low', 'En Asignada y sin ningún movimiento desde que se abrieron'),
+        partFig('Fuera de plazo', late, 'low', 'Nunca han pasado a En curso y ya superan el plazo de su prioridad'),
+        partFig('Con más de 15 días', old, 'low', 'Llevan más de 15 días abiertas'),
+        partFig('Escaladas', (i) => C.vt[i] > 0, null, 'Con ticket de tercero: dependen de otros')),
+      card('Cómo está lo pendiente', pendCmp(pendRows, op), { span: 's12', sub: `${pp ? 'Issues de cada uno; las de la empresa, la media por persona de su equipo.' : 'Qué parte de sus pendientes está en cada situación.'} En verde, quien va mejor en lo que depende de él; lo que espera a otros, sin color. Clic en una fila para filtrar.` }),
+      card('Qué tiene pendiente cada uno', mixCmp(mixRows, op, 'Pendientes'), { span: 's12', sub: 'Los 8 módulos con más pendientes; «Resto», los demás. Clic en una fila para filtrar.' }));
   };
   const ledger = (A) => {
     const T = bySide(A), day = S.from === S.to, units = flowUnits();
@@ -463,6 +526,7 @@ export const createTabs = (m, ch, ui) => {
     },
 
     backlog(A) {
+      if (CMP()) return backlogCmp(A);
       const T = bySide(A), ST = T.map(stats), inA = (i) => SIDE[i] < 2;
       const op = A.filter((i) => OPEN[i]), people = S.sides.some((s) => s?.people), orphans = people ? [] : orphansIn();
       const CRITICAL = DI.prio.indexOf('CRITICAL');

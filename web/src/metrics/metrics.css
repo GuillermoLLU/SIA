@@ -297,7 +297,6 @@
 .mt-st-apart { border-top: 3px solid var(--mt-c2); background: var(--mt-soft); }
 .mt-st-apart p b { font-size: inherit; color: var(--text); }
 .mt-st-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
-.mt-st-side { flex: 0 0 auto; width: 110px; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .mt-st-track { display: flex; flex: 1; height: 30px; overflow: hidden; background: var(--mt-track); }
 .mt-st-track i { display: flex; align-items: center; justify-content: center; font-size: 12px; font-style: normal; font-weight: 650; color: #fff; text-shadow: 0 0 2px rgba(0, 0, 0, .35); cursor: pointer; }
 .mt-st-track i + i { border-left: 2px solid var(--mt-card); }
@@ -405,3 +404,4 @@
 .mt-view table.mt-mix2 td.mt-mix-bar { padding-right: 14px; }
 .mt-view table.mt-mix2 td.mt-mix-bar i { display: block; height: 10px; min-width: 1px; }
 .mt-view table.mt-mix2 tr.mt-lead td.mt-mix-p { color: var(--text); }
+.mt-view table.mt-pend2 td.mt-better { font-weight: 650; color: var(--mt-good); background: color-mix(in srgb, var(--mt-good) 9%, transparent); }
