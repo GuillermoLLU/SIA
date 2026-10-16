@@ -9,15 +9,14 @@ import { COMPANIES, CARDS, MAJOR, IA_MARKS, SITUATIONS, ACTIVE_DAYS, share } fro
 import { SHIFTS, SHIFT_HOURS, DAYS, MIN_ACTIONS } from './shifts.js';
 
 export const TABS = [['resumen', 'Resumen'], ['hoy', 'Foto de hoy'], ['entrada', 'Entrada'], ['backlog', 'Backlog'], ['modulos', 'Módulos y focos'],
-  ['resolucion', 'Resolución y escalados'], ['resolucion2', 'Resolución (propuesta)'], ['sla', 'SLA y calidad'], ['ia', 'IA'], ['turnos', 'Turnos']];
+  ['resolucion', 'Resolución y escalados'], ['sla', 'SLA y calidad'], ['ia', 'IA'], ['turnos', 'Turnos']];
 const QUESTIONS = {
   resumen: ['¿Cómo vamos?', 'Cada bloque responde a una pregunta con sus cifras clave; el detalle, en su pestaña.'],
   hoy: ['¿Qué hay que mover hoy?', 'Lo abierto ahora mismo, sea del mes que sea (no depende del periodo), en listas para actuar: lo urgente, lo que espera y lo que está parado.'],
   entrada: ['¿Qué nos entra?', 'Cuánto entra, cuánto se cierra y de qué tipo, mes a mes. Cada tabla lleva su total y los totales cuadran con las cifras de arriba.'],
   backlog: ['¿Qué tenemos pendiente?', 'Lo recibido en el periodo que sigue sin resolver: en qué punto está, desde cuándo y qué conviene vigilar.'],
   modulos: ['¿De dónde viene?', 'Los módulos, centros y problemas que concentran el trabajo, y lo que se repite.'],
-  resolucion: ['¿Cómo lo resolvemos?', 'Cuánto tardamos, en qué se va el tiempo y qué escalamos a terceros.'],
-  resolucion2: ['¿Cómo lo resolvemos?', 'Cuánto tardamos, en qué se va el tiempo, qué módulos tardan más y qué escalamos y a quién. Tiempos de lo resuelto, en tiempo natural.'],
+  resolucion: ['¿Cómo lo resolvemos?', 'Cuánto tardamos, en qué se va el tiempo, qué módulos tardan más y qué escalamos y a quién. Tiempos de lo resuelto, en tiempo natural.'],
   sla: ['¿Cómo de bien lo resolvemos?', 'Si empezamos a tiempo y si el trabajo queda bien hecho.'],
   ia: ['¿Cuánta IA usamos?', 'Dónde interviene ya la IA y el trabajo repetitivo en el que podría entrar.'],
   turnos: ['¿Cuándo entra y cuándo lo trabajamos?', `Por turnos: ${SHIFTS.map((s, k) => `${s.toLowerCase()} de ${SHIFT_HOURS[k]}`).join(', ')}. El turno se cuenta por la hora en que empieza: la noche del domingo es de fin de semana.`],
@@ -31,7 +30,7 @@ const opt = (f) => (v) => (v == null ? '—' : f(v));
 export const createTabs = (m, ch, ui) => {
   const { C, DI, N, S, BASE, LASTM, PRIOS, slaLabel, MONTH, DOW, OPEN, SIDE, STYPE, CMP, CO, NAMES, isSel, stats, group, bySide, clock } = m;
   const name = (k) => NAMES()[k];
-  const { card, legend, kpi, kpis, kpiCo, diff, bars, orderedBars, monthly, lines, ranking, compare, heat, matrix, scorecard, timeBars, mini, day, split } = ch;
+  const { card, legend, kpi, kpis, kpiCo, diff, bars, orderedBars, monthly, lines, ranking, compare, heat, matrix, scorecard, day, split } = ch;
   const noK = (k) => k === 0;
   const noTheme = (k) => k === m.data.themes.length;
   const REQ = DI.svc.indexOf('USER_SERVICE_REQUEST');
@@ -49,8 +48,7 @@ export const createTabs = (m, ch, ui) => {
   const SLICE = {
     n: ['Issues', (s) => num(s.n), (s) => s.n], fr: ['1.ª actuación (media)', (s) => dur(s.fr), (s) => s.fr, 'low'],
     f30: ['1.ª act. en < 30 min', (s) => pct(s.f30), (s) => s.f30, 'high'], f120: ['1.ª act. en < 2 h', (s) => pct(s.f120), (s) => s.f120, 'high'],
-    avg: ['Media resol.', (s) => dur(s.avg), (s) => s.avg, 'low'], p90: ['El 90 %, en menos de', (s) => dur(s.p90), (s) => s.p90, 'low'],
-    h4: ['Resueltas en < 4 h', (s) => pct(s.h4), (s) => s.h4, 'high'], d1: ['en < 24 h', (s) => pct(s.d1), (s) => s.d1, 'high'], d3: ['en < 72 h', (s) => pct(s.d3), (s) => s.d3, 'high'],
+    avg: ['Media resol.', (s) => dur(s.avg), (s) => s.avg, 'low'],
     reop: ['Reabiertas', (s) => pct(s.reop, 1), (s) => s.reop, 'low'], bounce: ['Devueltas a cola', (s) => pct(s.bounce, 1), (s) => s.bounce, 'low'],
     noCat: ['Sin tipología', (s) => pct(s.noCat, 1), (s) => s.noCat, 'low'], noDesc: ['Título sin descripción', (s) => pct(s.noDesc, 1), (s) => s.noDesc, 'low'],
     noRes: ['Sin texto de resolución', (s) => pct(s.noRes, 1), (s) => s.noRes, 'low'],
@@ -58,7 +56,6 @@ export const createTabs = (m, ch, ui) => {
     slaKo: ['Fuera de SLA', (s) => num(s.slaKo), (s) => s.slaKo], waitKo: ['Sin iniciar y fuera de plazo', (s) => num(s.waitKo), (s) => s.waitKo],
     noIp: ['Cerradas sin pasar por En curso', (s) => pct(s.noIp, 1), (s) => s.noIp],
     inShift: ['Empezadas en su turno', (s) => opt(pct)(s.inShift), (s) => s.inShift, 'high'],
-    vend: ['Con ticket de tercero', (s) => pct(s.vend), (s) => s.vend], pend: ['Pasan por pendiente', (s) => pct(s.pend), (s) => s.pend], crit: ['Críticas', (s) => pct(s.crit, 1), (s) => s.crit],
   };
   const cell = (st, [, f, v, bt]) => (CMP() ? diff(st[0], st[1], f, v, bt) : (st[CO()[0]].n ? f(st[CO()[0]]) : '—'));
   // groups: [título, columnas] de una fila de cabecera por encima, para agrupar columnas; entonces las
@@ -527,7 +524,7 @@ export const createTabs = (m, ch, ui) => {
   };
   const resolutionView = (A, note = '') => {
     const s = stats(A), R = A.filter(solved), rtTot = s.rt.reduce((a, b) => a + b, 0) || 1, on = s.resolved > 0;
-    return grid(ask('resolucion2'), note,
+    return grid(ask('resolucion'), note,
       kpis(kpi('Resueltas', num(s.resolved), `de ${num(s.n)} recibidas`), kpi('Media de resolución', avgOf(s), 'de la apertura a la resolución'),
         kpi('En < 24 h', on ? pct(s.d1) : '—', 'de las resueltas'), kpi('De 1 a 7 días', on ? pct(s.d7) : '—', 'de las resueltas'),
         kpi('De 7 a 15 días', on ? pct(s.d15) : '—', 'de las resueltas'), kpi('La que más tardó', on ? `${dec(s.mx / 1440)} días` : '—', 'la resuelta más lenta'), kpi('Escaladas', on ? pct(R.filter(escd).length / R.length) : '—', 'de las resueltas, con ticket de tercero'),
@@ -731,36 +728,7 @@ export const createTabs = (m, ch, ui) => {
       return modulesView(A);
     },
     resolucion(A) {
-      const ST = bySide(A).map(stats), tot = (s) => s.time.reduce((x, y) => x + y, 0) || 1;
-      const known = group('vk', A, true).filter((x) => x.k && x.n >= 5);
-      const kt = `<div class="mt-tablewrap ${ui.exp.known ? 'mt-scroll' : ''}"><table><thead><tr><th>Ticket</th><th class="mt-num">Incidencias</th><th class="mt-num">Centros</th>${CMP() ? '<th>Reparto</th>' : ''}<th>Primera</th><th>Última</th><th class="mt-num">Media resol.</th><th>Título más habitual</th></tr></thead><tbody>${known.slice(0, ui.exp.known ? 200 : 15).map((x) => {
-        const ce = new Set(x.rows.map((i) => C.ce[i])).size, f = Math.min(...x.rows.map((i) => C.rep[i])), l = Math.max(...x.rows.map((i) => C.rep[i]));
-        const ti = group('de', x.rows).find((y) => y.k);   // el título más habitual
-        return `<tr class="mt-clk ${isSel('vk', x.k) ? 'mt-sel' : ''}" data-f="vk:${x.k}"><td><b>${esc(DI.vkey[x.k])}</b></td><td class="mt-num">${x.n}</td><td class="mt-num">${ce}</td>${CMP() ? `<td>${mini(x.t)}</td>` : ''}<td>${dateOf(BASE, f).slice(0, 5)}</td><td>${dateOf(BASE, l).slice(0, 5)}</td><td class="mt-num">${dur(stats(x.rows).avg)}</td><td class="mt-mut">${ti ? esc(DI.problem[ti.k]) : ''}</td></tr>`;
-      }).join('')}</tbody></table></div>${known.length > 15 ? `<button class="mt-more" data-exp="known">${ui.exp.known ? 'Ver menos' : `Ver todos (${num(known.length)})`}</button>` : ''}`;
-      const cols = ['n', 'avg', 'p90', 'd1', 'vend', 'pend'];
-      return grid(ask('resolucion'),
-        kpis(kpiCo('Media de resolución', ST, (s) => dur(s.avg), { val: (s) => s.avg, better: 'low' }),
-          kpiCo('El 90 %, en menos de', ST, (s) => dur(s.p90), { val: (s) => s.p90, better: 'low' }),
-          kpiCo('Resueltas en < 4 h', ST, (s) => pct(s.h4), { val: (s) => s.h4, better: 'high' }),
-          kpiCo('Resueltas en < 24 h', ST, (s) => pct(s.d1), { val: (s) => s.d1, better: 'high' }),
-          kpiCo('Con ticket de tercero', ST, (s) => pct(s.vend), { val: (s) => s.vend }),
-          kpiCo('Tiempo esperando a terceros', ST, (s) => pct(s.time[3] / tot(s)), { val: (s) => s.time[3] / tot(s), note: 'del tiempo de vida' })),
-        card('Cuánto tardan en resolverse', legend() + orderedBars('tb', [0, 1, 2, 3, 4, 5, 6, 7, 8]), { sub: 'Desde la apertura hasta la última resolución, en tiempo natural (cuenta noches y fines de semana). Clic en un tramo para filtrar.' }),
-        card('En qué se va el tiempo', `${timeBars(ST)}<p class="mt-mut mt-small">Suma del tiempo que las issues pasan en cada estado hasta resolverse, según el historial de cambios. «En cola» incluye el tiempo que vuelven a estar asignadas tras un pendiente. Todo el tiempo de una issue se cuenta a su responsable actual.</p>`, { sub: 'Reparto del tiempo total de vida de las issues por estado.' }),
-        card('Por prioridad', byPrio(A, cols)),
-        card('Con y sin ticket de tercero', slices('', [['Con ticket de tercero', (i) => C.vt[i]], ['Sin ticket', (i) => !C.vt[i]]], A, ['n', 'avg', 'p90', 'd1', 'pend']), { sub: 'Lo que se escala tarda más: aquí, cuánto.' }),
-        card('Evolución de la media de resolución', legend() + lines(A, (s) => s.avg, dur), { sub: MONTH_NOTE }),
-        card('Por tarjeta', byCard(A, cols), { sub: CARD_NOTE }),
-        card('Por módulo / sistema', ranking('mo', ['n', 'mix', 'avg', 'p90', 'h4', 'd1', 'vend', 'pend'], { id: 'rv-mo', skip: noK, min: 30, top: 15 }), { span: 's12', sub: 'Módulos con al menos 30 issues. Clic en una cabecera para ordenar.' }),
-        section('Escalados a terceros'),
-        card('A quién se escala', legend() + bars('vt', { top: 12, skip: noK }), { span: 's5', sub: 'Prefijo escrito en el campo «Vendor Ticket Number», tal cual. Solo issues con ticket.' }),
-        card('Proyectos Jira que reciben más', ranking('vp', ['n', 'mix', 'crit', 'avg', 'p90', 'pend'], { skip: noK, top: 12 }), { span: 's7', sub: 'Por la clave que aparece en el ticket de tercero (p. ej. SGAEWMSAP-7037 → SGAEWMSAP).' }),
-        card('Un mismo ticket, muchas incidencias', kt, { span: 's12', sub: 'Tickets de desarrollo a los que se han ligado 5 o más incidencias. Clic en uno para ver esas incidencias en todas las métricas.' }));
-    },
-
-    resolucion2(A) {
-      if (CMP()) return m.alone((A1) => resolutionView(A1, `<p class="mt-note">Esta propuesta aún no compara: se ve solo ${esc(name(0))}.</p>`));
+      if (CMP()) return m.alone((A1) => resolutionView(A1, `<p class="mt-note">Esta pestaña aún no compara: se ve solo ${esc(name(0))}.</p>`));
       return resolutionView(A);
     },
 

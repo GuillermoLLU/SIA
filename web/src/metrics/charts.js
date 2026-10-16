@@ -105,10 +105,10 @@ export const createCharts = (m, ui) => {
   // Al comparar, las de DUO salen como diferencia entre los dos lados.
   const COLS = {
     n: ['Issues', (s) => num(s.n), (s) => s.n], sh: ['% total', (s, T) => pct(s.n / T, 1), (s) => s.n], mix: ['Reparto', (s) => mini(s.t), (s) => s.t[0] / (s.n || 1)],
-    crit: ['% críticas', (s) => pct(s.crit), (s) => s.crit], avg: ['Media resol.', (s) => dur(s.avg), (s) => s.avg ?? -1, 'low'], p90: ['El 90 %, en menos de', (s) => dur(s.p90), (s) => s.p90 ?? -1, 'low'],
-    fr: ['1.ª actuación', (s) => dur(s.fr), (s) => s.fr ?? -1, 'low'], vend: ['% a terceros', (s) => pct(s.vend), (s) => s.vend], pend: ['% pasa por pendiente', (s) => pct(s.pend), (s) => s.pend],
+    crit: ['% críticas', (s) => pct(s.crit), (s) => s.crit], avg: ['Media resol.', (s) => dur(s.avg), (s) => s.avg ?? -1, 'low'],
+    fr: ['1.ª actuación', (s) => dur(s.fr), (s) => s.fr ?? -1, 'low'], vend: ['% a terceros', (s) => pct(s.vend), (s) => s.vend],
     reop: ['% reabiertas', (s) => pct(s.reop, 1), (s) => s.reop, 'low'], open: ['Abiertas', (s) => num(s.open), (s) => s.open], d1: ['% en < 24 h', (s) => pct(s.d1), (s) => s.d1, 'high'],
-    f30: ['1.ª act. < 30 min', (s) => pct(s.f30), (s) => s.f30, 'high'], f120: ['1.ª act. < 2 h', (s) => pct(s.f120), (s) => s.f120, 'high'], h4: ['% en < 4 h', (s) => pct(s.h4), (s) => s.h4, 'high'],
+    f30: ['1.ª act. < 30 min', (s) => pct(s.f30), (s) => s.f30, 'high'], f120: ['1.ª act. < 2 h', (s) => pct(s.f120), (s) => s.f120, 'high'],
     bounce: ['% devueltas a cola', (s) => pct(s.bounce, 1), (s) => s.bounce, 'low'], noCat: ['% sin tipología', (s) => pct(s.noCat, 1), (s) => s.noCat, 'low'],
     noDesc: ['% título sin descripción', (s) => pct(s.noDesc, 1), (s) => s.noDesc, 'low'], noRes: ['% sin texto de resolución', (s) => pct(s.noRes, 1), (s) => s.noRes, 'low'],
     sla: ['Empezadas dentro del SLA', (s) => (s.sla == null ? '—' : pct(s.sla)), (s) => s.sla ?? -1, 'high'], ip: ['Media hasta En curso', (s) => dur(s.ip), (s) => s.ip ?? -1, 'low'],
@@ -116,7 +116,7 @@ export const createCharts = (m, ui) => {
     req: ['% peticiones', (s) => pct(s.req), (s) => s.req], rep: ['% resolución repetida', (s) => pct(s.rep), (s) => s.rep],
     tr: ['Tendencia', (s) => spark(s.m), (s) => s.tr.now - s.tr.prev], dl: ['Últ. 90 d vs. 90 ant.', (s) => `${num(s.tr.now)} / ${num(s.tr.prev)} ${delta(s.tr)}`, (s) => s.tr.now - s.tr.prev],
   };
-  const DUO = new Set(['sla', 'ip', 'crit', 'avg', 'p90', 'fr', 'vend', 'pend', 'reop', 'd1', 'req', 'rep', 'f30', 'f120', 'h4', 'bounce', 'noCat', 'noDesc', 'noRes']);
+  const DUO = new Set(['sla', 'ip', 'crit', 'avg', 'fr', 'vend', 'reop', 'd1', 'req', 'rep', 'f30', 'f120', 'bounce', 'noCat', 'noDesc', 'noRes']);
 
   // Tabla ordenable con indicadores por valor de una dimensión. Clic en una fila = filtrar.
   const ranking = (dim, cols, o = {}) => {
@@ -173,7 +173,6 @@ export const createCharts = (m, ui) => {
     nce: ['Centros', null, (s) => s.nce, 'En cuántos centros distintos ha pasado. En uno, es algo local; en muchos, del sistema.'],
     // Resolución: lo resuelto, cuánto tarda y en qué se le va el tiempo (de media por resuelta: model.js, stats rt)
     res: ['Resueltas', null, (s) => s.resolved, 'Issues resueltas, de las recibidas en el periodo.'],
-    p90: ['El 90 %', 'low', (s) => (s.resolved ? s.p90 : null), 'El 90 % de las resueltas se resolvió en menos de esto.'],
     d7: ['1 a 7 días', null, (s) => (s.resolved ? s.d7 : null), 'De las resueltas, las que tardaron de 1 a 7 días.'],
     d15: ['7 a 15 días', 'low', (s) => (s.resolved ? s.d15 : null), 'De las resueltas, las que tardaron de 7 a 15 días.'],
     mx: ['Máximo', null, (s) => (s.resolved ? s.mx : null), 'Lo que tardó la resuelta más lenta.'],
@@ -183,7 +182,7 @@ export const createCharts = (m, ui) => {
     tv: ['Espera tercero', null, (s) => (s.resolved ? s.rt[3] / s.resolved : null), 'Tiempo medio en Pendiente de un tercero.'],
     same: ['Mismo cierre', null, (s) => s.same, 'De las resueltas, la parte cerrada con el mismo texto de resolución (el más usado). Si es alta, se resuelve siempre igual: se puede automatizar o llevar a la IA.'],
   };
-  const SC_FMT = { sla: (v) => (v == null ? '—' : pct(v)), avg: dur, d1: (v) => pct(v), reop: (v) => pct(v, 1), crit: (v) => pct(v), vend: (v) => pct(v), open: num, mi: (v) => (v ? num(v) : ''), nce: num, same: pct, res: num, p90: dur, w7: (v) => pct(v), d7: (v) => pct(v), d15: (v) => pct(v), mx: dur, tq: dur, tc: dur, tv: dur };
+  const SC_FMT = { sla: (v) => (v == null ? '—' : pct(v)), avg: dur, d1: (v) => pct(v), reop: (v) => pct(v, 1), crit: (v) => pct(v), vend: (v) => pct(v), open: num, mi: (v) => (v ? num(v) : ''), nce: num, same: pct, res: num, w7: (v) => pct(v), d7: (v) => pct(v), d15: (v) => pct(v), mx: dur, tq: dur, tc: dur, tv: dur };
   const scorecard = (dim, groups, o = {}) => {
     const id = o.id || `sc-${dim}`, list = o.rows || rows(dim), cmp = CMP(), cols = groups.flatMap(([, c]) => c);
     const side = (l) => (cmp ? bySide(l)[0] : l), other = (l) => bySide(l)[1];
@@ -322,15 +321,6 @@ export const createCharts = (m, ui) => {
       ${o.footTop ? foot : ''}${body}${o.footTop ? '' : foot}</tbody></table></div>`;
   };
 
-  // Barra única repartida en tramos: dónde se va el tiempo de vida de las issues.
-  const TIME_NAMES = ['En cola (asignada, sin coger)', 'En curso', 'Pendiente del centro / cliente', 'Pendiente de un tercero', 'Pendiente (otros motivos)'];
-  const timeBar = (t) => {
-    const total = t.reduce((a, b) => a + b, 0) || 1;
-    return `<div class="mt-hbar">${t.map((v, i) => `<i class="mt-time${i}" style="width:${v / total * 100}%" data-tip="${TIME_NAMES[i]}\n${pct(v / total, 1)} del tiempo · ${num(v / 60)} h"></i>`).join('')}</div>`;
-  };
-  const timeBars = (ST) => `<div class="mt-legend">${TIME_NAMES.map((n, i) => `<span><i class="mt-time${i}"></i>${n}</span>`).join('')}</div>`
-    + CO().map((k) => `<p class="mt-small"><span class="mt-sw mt-c${k}"></span><b>${esc(name(k))}</b></p>${timeBar(ST[k].time)}`).join('');
-
   // Un día en 24 horas: una línea por serie ({ label, cls, v: 24 valores }) sobre los turnos, de fondo.
   const day = (series, fmt = num) => {
     const W = 1100, H = 260, L = 46, R = 12, T = 22, B = 24, x = (h) => L + (h + 0.5) * (W - L - R) / 24;
@@ -352,5 +342,5 @@ export const createCharts = (m, ui) => {
       return `<div class="mt-split"><span class="mt-split-l">${r.k != null && CMP() ? `<i class="mt-sw mt-c${r.k}"></i>` : ''}${esc(r.label)}</span><span class="mt-hbar mt-split-b">${t ? r.v.map((v, j) => `<i class="mt-part${j}" style="width:${v / t * 100}%" data-tip="${esc(`${r.label}${r.k != null && CMP() ? ` · ${name(r.k)}` : ''}\n${names[j]}: ${num(v)} (${pct(v / t)})`)}">${v / t >= 0.08 ? pct(v / t) : ''}</i>`).join('') : ''}</span><span class="mt-split-n">${num(t)}</span></div>`;
     }).join('');
 
-  return { card, legend, kpi, kpis, kpiCo, diff, bars, orderedBars, monthly, lines, ranking, compare, heat, matrix, scorecard, timeBars, mini, day, split };
+  return { card, legend, kpi, kpis, kpiCo, diff, bars, orderedBars, monthly, lines, ranking, compare, heat, matrix, scorecard, day, split };
 };
