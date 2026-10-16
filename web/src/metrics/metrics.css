@@ -411,3 +411,12 @@
 .mt-own { display: inline-block; margin: 1px 6px 1px 0; padding: 1px 7px; font-size: 12px; color: var(--text); background: var(--mt-soft); cursor: pointer; }
 .mt-own b { font-weight: 650; color: var(--mt-low); }
 .mt-own:hover, .mt-own.mt-sel { background: var(--mt-sel); }
+
+/* Resolución (propuesta) */
+.mt-card .mt-note { margin-bottom: 12px; }
+.mt-view table.mt-restime td.mt-tbar { padding-right: 14px; }
+.mt-view table.mt-restime td.mt-tbar .mt-hbar { height: 12px; margin: 0; }
+.mt-view table.mt-mixesc .mt-sc-vol em { flex: 0 0 38px; font-style: normal; text-align: right; }
+.mt-view table.mt-mixesc .mt-sc-vol .mt-bt { flex: 1; height: 10px; }
+.mt-view td.mt-warnc { font-weight: 650; color: color-mix(in srgb, #c98a2b 70%, var(--text)); }
+.mt-view table.mt-restime thead th { white-space: normal; }

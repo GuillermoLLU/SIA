@@ -171,16 +171,25 @@ export const createCharts = (m, ui) => {
     mi: ['Major inc.', null, (s) => s.mi, 'Issues con la etiqueta de major incident en sus notas de trabajo.'],
     // con o.extra: nce, en cuántos centros pasa; same, de las resueltas, la parte cerrada con el texto más usado
     nce: ['Centros', null, (s) => s.nce, 'En cuántos centros distintos ha pasado. En uno, es algo local; en muchos, del sistema.'],
+    // Resolución: lo resuelto, cuánto tarda y en qué se le va el tiempo (de media por resuelta: model.js, stats rt)
+    res: ['Resueltas', null, (s) => s.resolved, 'Issues resueltas, de las recibidas en el periodo.'],
+    p90: ['El 90 %', 'low', (s) => (s.resolved ? s.p90 : null), 'El 90 % de las resueltas se resolvió en menos de esto.'],
+    w7: ['> 7 días', 'low', (s) => (s.resolved ? s.w7 : null), 'De las resueltas, las que tardaron más de 7 días.'],
+    tq: ['En cola', 'low', (s) => (s.resolved ? s.rt[0] / s.resolved : null), 'Tiempo medio en Asignada. Incluye lo que espera a otros sin pasar a Pendiente.'],
+    tc: ['Espera cliente', null, (s) => (s.resolved ? s.rt[2] / s.resolved : null), 'Tiempo medio en Pendiente del centro o del cliente.'],
+    tv: ['Espera tercero', null, (s) => (s.resolved ? s.rt[3] / s.resolved : null), 'Tiempo medio en Pendiente de un tercero.'],
+    // con o.extra: noPv, de las escaladas resueltas, las que nunca pasaron a Pendiente de un tercero
+    noPv: ['Nunca en Pendiente', 'low', (s) => s.noPv, 'De las resueltas, las que nunca pasaron a Pendiente de un tercero: su espera cuenta como cola.'],
     same: ['Mismo cierre', null, (s) => s.same, 'De las resueltas, la parte cerrada con el mismo texto de resolución (el más usado). Si es alta, se resuelve siempre igual: se puede automatizar o llevar a la IA.'],
   };
-  const SC_FMT = { sla: (v) => (v == null ? '—' : pct(v)), avg: dur, d1: (v) => pct(v), reop: (v) => pct(v, 1), crit: (v) => pct(v), vend: (v) => pct(v), open: num, mi: (v) => (v ? num(v) : ''), nce: num, same: pct };
+  const SC_FMT = { sla: (v) => (v == null ? '—' : pct(v)), avg: dur, d1: (v) => pct(v), reop: (v) => pct(v, 1), crit: (v) => pct(v), vend: (v) => pct(v), open: num, mi: (v) => (v ? num(v) : ''), nce: num, same: pct, res: num, p90: dur, w7: (v) => pct(v), tq: dur, tc: dur, tv: dur, noPv: (v) => (v == null ? '—' : pct(v)) };
   const scorecard = (dim, groups, o = {}) => {
     const id = o.id || `sc-${dim}`, list = o.rows || rows(dim), cmp = CMP(), cols = groups.flatMap(([, c]) => c);
     const side = (l) => (cmp ? bySide(l)[0] : l), other = (l) => bySide(l)[1];
     const full = (l) => { const st = stats(side(l)); st.tr = trend(side(l)); o.extra?.(st, side(l)); if (cmp) { st.b = stats(other(l)); o.extra?.(st.b, other(l)); } return st; };
     const all = group(dim, list, true).filter((x) => !(o.skip && o.skip(x.k)));
     const ref = full(list), T = ref.n || 1;
-    const srt = ui.sort[id] || ['n', -1], key = (r) => SC[srt[0]][2](r) ?? -Infinity;
+    const srt = ui.sort[id] || [o.sort || 'n', -1], key = (r) => SC[srt[0]][2](r) ?? -Infinity;
     // al ordenar por cómo se atiende, lo que tiene pocas issues va al final: su cifra dice poco
     const few = (r) => (SC[srt[0]][1] && r.n < SC_MIN ? 1 : 0);
     const order = (a, b) => few(a) - few(b) || (key(a) - key(b)) * srt[1] || b.n - a.n;
@@ -204,7 +213,9 @@ export const createCharts = (m, ui) => {
       const d = cmp && r.b ? diff(r, r.b, (x) => SC_FMT[c](SC[c][2](x)), (x) => SC[c][2](x), SC[c][1]) : '';
       return `<td class="mt-num ${!isRef && worse(c, r) ? 'mt-worse' : ''}" ${!isRef && worse(c, r) ? `data-tip="${esc(`Peor que la media de todos: ${SC_FMT[c](SC[c][2](ref))}`)}"` : ''}>${shown}${d ? `<small>${d}</small>` : ''}</td>`;
     };
-    const head = (c) => `<th class="mt-num ${srt[0] === c ? 'mt-srt' : ''}" ${SC[c][2] ? `data-sort="${id}:${c}"` : ''} data-tip="${esc(SC[c][3])}">${SC[c][0]}${srt[0] === c ? (srt[1] < 0 ? ' ↓' : ' ↑') : ''}</th>`;
+    // o.n: [nombre, nota] de la columna del volumen, si no son issues recibidas (lo resuelto, lo escalado…)
+    const def = (c) => (c === 'n' && o.n ? [o.n[0], null, SC.n[2], o.n[1]] : SC[c]);
+    const head = (c) => `<th class="mt-num ${srt[0] === c ? 'mt-srt' : ''}" ${SC[c][2] ? `data-sort="${id}:${c}"` : ''} data-tip="${esc(def(c)[3])}">${def(c)[0]}${srt[0] === c ? (srt[1] < 0 ? ' ↓' : ' ↑') : ''}</th>`;
     const colgroup = `<colgroup><col class="mt-sc-first">${groups.map(([, c]) => c.map((x, j) => `<col class="${j ? '' : 'mt-gsep'} mt-sc-${x}">`).join('')).join('')}</colgroup>`;
     const row = (label, r, attrs = '', isRef = false, lead = '') => `<tr ${attrs}><th class="mt-r" title="${esc(label)}">${lead}${esc(label)}</th>${cols.map((c) => cell(c, r, isRef)).join('')}</tr>`;
     const ch = o.child, cd = ch && DIMS[ch.dim], kidAny = ch && m.S.f[ch.dim]?.size > 0;
@@ -215,7 +226,7 @@ export const createCharts = (m, ui) => {
         + (others ? row(`Otros ${num(g.length - top.length)} ${ch.noun}`, others, `class="mt-sc-kid mt-sc-others ${any || kidAny ? 'mt-off' : ''}"`) : '');
     };
     const parent = (r) => {
-      const ek = `${id}:${r.k}`, tog = ch ? `<button class="mt-sc-tog" data-exp="${ek}" data-tip="${ui.exp[ek] ? 'Recoger' : 'Ver sus problemas'}">${ui.exp[ek] ? '▾' : '▸'}</button>` : '';
+      const ek = `${id}:${r.k}`, tog = ch ? `<button class="mt-sc-tog" data-exp="${ek}" data-tip="${ui.exp[ek] ? 'Recoger' : `Ver sus ${ch.noun}`}">${ui.exp[ek] ? '▾' : '▸'}</button>` : '';
       return row(DIMS[dim].label(r.k), r, `class="mt-clk ${isSel(dim, r.k) ? 'mt-sel' : any ? 'mt-off' : ''} ${ch && ui.exp[ek] ? 'mt-sc-open' : ''}" data-f="${dim}:${r.k}"`, false, tog) + (ch && ui.exp[ek] ? kids(r) : '');
     };
     return `${cmp ? `<p class="mt-small mt-mut mt-sc-cmp">Cifras de ${esc(name(0))}; debajo, la diferencia con ${esc(name(1))}.</p>` : ''}<div class="mt-tablewrap"><table class="mt-sc">${colgroup}

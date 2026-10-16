@@ -9,7 +9,7 @@ import { COMPANIES, CARDS, MAJOR, IA_MARKS, SITUATIONS, ACTIVE_DAYS, share } fro
 import { SHIFTS, SHIFT_HOURS, DAYS, MIN_ACTIONS } from './shifts.js';
 
 export const TABS = [['resumen', 'Resumen'], ['hoy', 'Foto de hoy'], ['entrada', 'Entrada'], ['backlog', 'Backlog'], ['modulos', 'Módulos y focos'],
-  ['resolucion', 'Resolución y escalados'], ['sla', 'SLA y calidad'], ['ia', 'IA'], ['turnos', 'Turnos']];
+  ['resolucion', 'Resolución y escalados'], ['resolucion2', 'Resolución (propuesta)'], ['sla', 'SLA y calidad'], ['ia', 'IA'], ['turnos', 'Turnos']];
 const QUESTIONS = {
   resumen: ['¿Cómo vamos?', 'Cada bloque responde a una pregunta con sus cifras clave; el detalle, en su pestaña.'],
   hoy: ['¿Qué hay que mover hoy?', 'Lo abierto ahora mismo, sea del mes que sea (no depende del periodo), en listas para actuar: lo urgente, lo que espera y lo que está parado.'],
@@ -17,6 +17,7 @@ const QUESTIONS = {
   backlog: ['¿Qué tenemos pendiente?', 'Lo recibido en el periodo que sigue sin resolver: en qué punto está, desde cuándo y qué conviene vigilar.'],
   modulos: ['¿De dónde viene?', 'Los módulos, centros y problemas que concentran el trabajo, y lo que se repite.'],
   resolucion: ['¿Cómo lo resolvemos?', 'Cuánto tardamos, en qué se va el tiempo y qué escalamos a terceros.'],
+  resolucion2: ['¿Cómo lo resolvemos?', 'Cuánto tardamos, en qué se va el tiempo, qué módulos tardan más y qué escalamos y a quién. Tiempos de lo resuelto, en tiempo natural.'],
   sla: ['¿Cómo de bien lo resolvemos?', 'Si empezamos a tiempo y si el trabajo queda bien hecho.'],
   ia: ['¿Cuánta IA usamos?', 'Dónde interviene ya la IA y el trabajo repetitivo en el que podría entrar.'],
   turnos: ['¿Cuándo entra y cuándo lo trabajamos?', `Por turnos: ${SHIFTS.map((s, k) => `${s.toLowerCase()} de ${SHIFT_HOURS[k]}`).join(', ')}. El turno se cuenta por la hora en que empieza: la noche del domingo es de fin de semana.`],
@@ -417,6 +418,104 @@ export const createTabs = (m, ch, ui) => {
       card('', scorecard('tp', PB_GROUPS, { id: 'md-pb', refLabel: 'Todos los problemas', extra: problemExtra, title: 'Problemas', top: 14, child: { dim: 'de', top: 8, noun: 'problemas' } }), { span: 's12' }));
   };
 
+  // --- Resolución (propuesta). Una pregunta por bloque: cuánto tardamos, en qué se va el tiempo, qué módulos tardan
+  // más y qué escalamos y a quién. Los tiempos, de lo resuelto y en tiempo natural; el de cada estado, la media por
+  // resuelta (model.js, stats rt). Por ahora, de un solo lado: comparando, se ve el primero.
+  const solved = (i) => m.DIMS.tb.get(i) < 8, escd = (i) => C.vt[i] > 0;
+  const STATES = [['En cola', 'En Asignada: sin coger o de vuelta a la cola. Incluye lo que espera a otros sin pasar a Pendiente.'], ['En curso', 'En En curso.'],
+    ['Espera cliente', 'En Pendiente del centro o del cliente.'], ['Espera tercero', 'En Pendiente de un tercero.'], ['Otro motivo', 'En Pendiente por otro motivo o sin motivo.']];
+  const optDur = (v) => (v == null ? '—' : dur(v));
+  const avgOf = (s) => optDur(s.resolved ? s.avg : null);
+  // cuánto tardan: un tramo por fila, partido en sin escalar y escaladas, a la misma escala
+  const ttrSplit = (list) => {
+    const by = Array.from({ length: 8 }, () => [0, 0]);
+    let n = 0;
+    for (const i of list) { const k = m.DIMS.tb.get(i); if (k < 8) { by[k][escd(i) ? 1 : 0]++; n++; } }
+    const max = Math.max(1, ...by.map(([a, b]) => a + b)), w = (v) => (v / max * 100).toFixed(2), sh = (v) => v / (n || 1);
+    return `<div class="mt-legend"><span><i class="mt-c0"></i>Sin escalar</span><span><i class="mt-time3"></i>Escaladas</span></div>${by.map(([a, b], k) => `<div class="mt-br ${isSel('tb', k) ? 'mt-sel' : ''}" data-f="tb:${k}"
+      data-tip="${esc(`${m.DIMS.tb.label(k)}\n${num(a + b)} resueltas (${pct(sh(a + b), 1)})\nSin escalar: ${num(a)} · Escaladas: ${num(b)}`)}"><span class="mt-bl">${m.DIMS.tb.label(k)}</span>
+      <span class="mt-bt"><i class="mt-c0" style="width:${w(a)}%"></i><i class="mt-time3" style="width:${w(b)}%"></i></span><span class="mt-bv">${num(a + b)}</span><span class="mt-bp">${pct(sh(a + b))}</span></div>`).join('')}`;
+  };
+  // mes a mes (por mes de apertura): lo resuelto de lo que entró ese mes, cuánto tardó y cuánto se escaló
+  const RES_MONTH = [['Resueltas', 'De las recibidas ese mes, las ya resueltas.'], ['Media', 'De la apertura a la resolución.'], ['En < 24 h', 'De las resueltas, las resueltas en menos de 24 horas.'],
+    ['> 7 días', 'De las resueltas, las que tardaron más de 7 días.'], ['% escaladas', 'De las resueltas, las que tienen ticket de tercero.'], ['Media sin escalar', ''], ['Media escaladas', '']];
+  const resMonthly = (A) => {
+    const cells = (l) => {
+      const s = stats(l), r = l.filter(solved), e = r.filter(escd), on = s.resolved > 0;
+      return [num(s.resolved), avgOf(s), on ? pct(s.d1) : '—', on ? pct(s.w7) : '—', on ? pct(e.length / r.length) : '—', avgOf(stats(r.filter((i) => !escd(i)))), avgOf(stats(e))]
+        .map((v, j) => `<td class="mt-num">${j === 1 ? `<b>${v}</b>` : v}</td>`).join('');
+    };
+    const body = monthsIn().map((k) => `<tr class="mt-clk ${isSel('month', k) ? 'mt-sel' : ''}" data-f="month:${k}"><td>${MONTHS[k]}${k === LASTM ? '*' : ''}</td>${cells(A.filter((i) => MONTH[i] === k))}</tr>`).join('');
+    return table('Mes de apertura', RES_MONTH.map(([l, t]) => [l, 0, 0, 0, t]), `${body}<tr class="mt-tot"><td>Total</td>${cells(A)}</tr>`);
+  };
+  // en qué se va el tiempo: por prioridad, escalada o no y tarjeta, la media y su reparto entre estados
+  const timeTable = (A) => {
+    const R = A.filter(solved);
+    const blocks = [['Prioridad', '', PRIOS.map((p) => [nice(DI.prio[p]), (i) => C.pr[i] === p, `pr:${p}`])],
+      ['Escalado', '', [['Sin escalar', (i) => !escd(i), 'es:0'], ['Escaladas', escd, 'es:1']]],
+      ['Tarjeta', 'Una PRIO cuenta también en su SGA o SISU.', CARDS.map((c, k) => [c, (i) => cardsOf(i).includes(k), `tj:${k}`])]];
+    const cells = (l) => {
+      const s = stats(l), tot = s.rt.reduce((a, b) => a + b, 0) || 1;
+      return `<td class="mt-num">${num(s.resolved)}</td><td class="mt-num"><b>${avgOf(s)}</b></td>${STATES.map((_, k) => `<td class="mt-num">${optDur(s.resolved ? s.rt[k] / s.resolved : null)}</td>`).join('')}
+        <td class="mt-tbar">${s.resolved ? `<div class="mt-hbar">${s.rt.map((v, k) => `<i class="mt-time${k}" style="width:${(v / tot * 100).toFixed(1)}%" data-tip="${esc(`${STATES[k][0]}: ${pct(v / tot, 1)} del tiempo`)}"></i>`).join('')}</div>` : ''}</td>`;
+    };
+    const body = blocks.map(([head, note, rowsB]) => rowsB.filter(([, t]) => R.some(t)).map(([label, t, f], j, arr) => `<tr class="mt-clk ${j ? '' : 'mt-gfirst'} ${isSel(...f.split(':').map((x, n) => (n ? +x : x))) ? 'mt-sel' : ''}" data-f="${f}">
+      ${j ? '' : `<th class="mt-gl" rowspan="${arr.length}">${head}${note ? `<small>${note}</small>` : ''}</th>`}<th class="mt-r">${esc(label)}</th>${cells(R.filter(t))}</tr>`).join('')).join('');
+    const e = R.filter(escd), noPv = e.length ? e.filter((i) => !C.tPv[i]).length / e.length : 0, noIp = R.length ? R.filter((i) => C.ip[i] < 0).length / R.length : 0;
+    return `<p class="mt-note">Ojo al leerla: el ${pct(noPv)} de lo escalado nunca pasa a Pendiente de un tercero, así que su espera cuenta como cola; y el ${pct(noIp)} de lo resuelto nunca pasa por En curso, así que su trabajo también cuenta como cola.</p>
+      <div class="mt-legend">${STATES.map(([l, t], k) => `<span data-tip="${esc(t)}"><i class="mt-time${k}"></i>${l}</span>`).join('')}</div>
+      <div class="mt-tablewrap"><table class="mt-mx mt-restime"><colgroup><col style="width:10%"><col style="width:12%"><col style="width:7%"><col style="width:8%">${'<col style="width:8%">'.repeat(5)}<col></colgroup>
+      <thead><tr><th colspan="2"></th><th class="mt-num">Resueltas</th><th class="mt-num" data-tip="De la apertura a la resolución.">Media</th>${STATES.map(([l, t]) => `<th class="mt-num" data-tip="${esc(`${t} Media por resuelta.`)}">${l}</th>`).join('')}<th>Reparto del tiempo</th></tr></thead>
+      <tbody>${body}<tr class="mt-lead mt-lead-end"><th class="mt-r" colspan="2">Todas las resueltas</th>${cells(R)}</tr></tbody></table></div>`;
+  };
+  // unas veces se escala y otras no: problemas con al menos 20 resueltas, escalados entre el 20 % y el 80 % de las veces
+  const mixedEsc = () => {
+    const g = group('de', m.rows('de').filter(solved), true).filter((x) => x.k && x.n >= 20)
+      .map((x) => ({ ...x, e: x.rows.filter(escd) })).filter((x) => x.e.length >= 0.2 * x.n && x.e.length <= 0.8 * x.n);
+    const all = ui.exp['rs-mixed'], shown = all ? g : g.slice(0, 12);
+    const body = shown.map((x) => {
+      const mo = group('mo', x.rows).find((y) => y.k), sh = x.e.length / x.n;
+      return `<tr class="mt-clk ${isSel('de', x.k) ? 'mt-sel' : ''}" data-f="de:${x.k}"><td>${esc(DI.problem[x.k])}</td><td class="mt-mut">${mo ? esc(m.DIMS.mo.label(mo.k)) : ''}</td><td class="mt-num">${num(x.n)}</td>
+        <td><div class="mt-sc-vol"><em>${pct(sh)}</em><span class="mt-bt"><i class="mt-time3" style="width:${(sh * 100).toFixed(1)}%"></i></span></div></td>
+        <td class="mt-num">${avgOf(stats(x.rows.filter((i) => !escd(i))))}</td><td class="mt-num">${avgOf(stats(x.e))}</td></tr>`;
+    }).join('');
+    return g.length ? `<div class="mt-tablewrap"><table class="mt-mixesc"><thead><tr><th>Problema</th><th>Módulo principal</th><th class="mt-num">Resueltas</th><th>Escaladas</th><th class="mt-num">Media sin escalar</th><th class="mt-num">Media escaladas</th></tr></thead><tbody>${body}</tbody></table></div>
+      ${g.length > 12 ? `<button class="mt-more" data-exp="rs-mixed">${all ? 'Ver menos' : `Ver todos (${num(g.length)})`}</button>` : ''}` : '<p class="mt-mut mt-small">Ninguno con estos filtros.</p>';
+  };
+  // tickets de tercero con muchas incidencias: primero los que aún tienen alguna abierta
+  const ticketTable = (A) => {
+    const known = group('vk', A, true).filter((x) => x.k && x.n >= 5).map((x) => ({ ...x, open: x.rows.filter((i) => OPEN[i]).length })).sort((a, b) => (b.open > 0) - (a.open > 0) || b.n - a.n);
+    const all = ui.exp['rs-known'];
+    const body = known.slice(0, all ? 200 : 15).map((x) => {
+      const ce = new Set(x.rows.map((i) => C.ce[i])).size, f = Math.min(...x.rows.map((i) => C.rep[i])), l = Math.max(...x.rows.map((i) => C.rep[i])), ti = group('de', x.rows).find((y) => y.k);
+      return `<tr class="mt-clk ${isSel('vk', x.k) ? 'mt-sel' : ''}" data-f="vk:${x.k}"><td><b>${esc(DI.vkey[x.k])}</b></td><td class="mt-num">${x.n}</td><td class="mt-num ${x.open ? 'mt-warnc' : ''}">${x.open || ''}</td><td class="mt-num">${ce}</td><td>${dateOf(BASE, f).slice(0, 5)}</td><td>${dateOf(BASE, l).slice(0, 5)}</td><td class="mt-num">${avgOf(stats(x.rows))}</td><td class="mt-mut">${ti ? esc(DI.problem[ti.k]) : ''}</td></tr>`;
+    }).join('');
+    return known.length ? `<div class="mt-tablewrap ${all ? 'mt-scroll' : ''}"><table><thead><tr><th>Ticket</th><th class="mt-num">Incidencias</th><th class="mt-num">Abiertas</th><th class="mt-num">Centros</th><th>Primera</th><th>Última</th><th class="mt-num">Media resol.</th><th>Problema más habitual</th></tr></thead><tbody>${body}</tbody></table></div>
+      ${known.length > 15 ? `<button class="mt-more" data-exp="rs-known">${all ? 'Ver menos' : `Ver todos (${num(known.length)})`}</button>` : ''}` : '<p class="mt-mut mt-small">Ninguno con estos filtros.</p>';
+  };
+  const noPvExtra = (st, l) => { const r = l.filter(solved); st.noPv = r.length ? r.filter((i) => !C.tPv[i]).length / r.length : null; };
+  const resolutionView = (A, note = '') => {
+    const s = stats(A), R = A.filter(solved), rtTot = s.rt.reduce((a, b) => a + b, 0) || 1, on = s.resolved > 0;
+    return grid(ask('resolucion2'), note,
+      kpis(kpi('Resueltas', num(s.resolved), `de ${num(s.n)} recibidas`), kpi('Media de resolución', avgOf(s), 'de la apertura a la resolución'),
+        kpi('Resueltas en < 24 h', on ? pct(s.d1) : '—'), kpi('Más de 7 días', on ? pct(s.w7) : '—', 'lo lento: pesa mucho en la media'),
+        kpi('El 90 %, en menos de', optDur(on ? s.p90 : null)), kpi('Escaladas', on ? pct(R.filter(escd).length / R.length) : '—', 'de las resueltas, con ticket de tercero'),
+        kpi('Esperando a terceros', on ? pct(s.rt[3] / rtTot) : '—', 'del tiempo de vida de lo resuelto')),
+      section('¿Cuánto tardamos?'),
+      card('Cuánto tardan', ttrSplit(m.rows('tb')), { span: 's5', sub: 'Resueltas por lo que tardaron, de la apertura a la resolución. Clic en un tramo para filtrar.' }),
+      card('Mes a mes', resMonthly(A), { span: 's7', sub: `${MONTH_NOTE} Clic en un mes para filtrar.` }),
+      section('¿En qué se va el tiempo?'),
+      card('Por prioridad, escalado y tarjeta', timeTable(A), { span: 's12', sub: 'Lo que pasa de media cada resuelta en cada estado, según el historial de cambios. Clic en una fila para filtrar.' }),
+      section('¿Qué módulos tardan más?'),
+      card('', scorecard('mo', [['Volumen', ['n']], ['Cuánto tarda', ['avg', 'd1', 'w7', 'p90']], ['En qué se va', ['tq', 'tc', 'tv']], ['Escalado', ['vend']]],
+        { id: 'rs-mo', rows: m.rows('mo').filter(solved), skip: noK, refLabel: 'Todos los módulos', title: 'Módulos', n: ['Resueltas', 'Issues resueltas y su parte del total.'] }), { span: 's12' }),
+      section('¿Qué escalamos y a quién?'),
+      card('', scorecard('vt', [['Volumen', ['n']], ['Cuánto tarda', ['avg', 'w7']], ['La espera', ['tv', 'noPv']], ['Hoy', ['open']]],
+        { id: 'rs-vt', rows: m.rows('vt').filter(escd), extra: noPvExtra, refLabel: 'Todo lo escalado', title: 'A quién escalamos', n: ['Escaladas', 'Issues con ticket de tercero y su parte de lo escalado.'], child: { dim: 'vp', top: 8, noun: 'proyectos Jira' } }), { span: 's12' }),
+      card('Unas veces se escala y otras no', mixedEsc(), { span: 's12', sub: 'Problemas con al menos 20 resueltas que se escalan entre el 20 % y el 80 % de las veces: el mismo problema se trata de dos formas. Candidatos a un procedimiento común o a la IA. Clic en uno para filtrar.' }),
+      card('Un mismo ticket, muchas incidencias', ticketTable(A), { span: 's12', sub: 'Tickets de tercero con 5 o más incidencias ligadas; arriba, los que aún tienen alguna abierta. Clic en uno para filtrar.' }));
+  };
+
   const VIEWS = {
     resumen(A) {
       const T = bySide(A), ST = T.map(stats), d = days() || 1, sv = (v) => (s) => s[v];
@@ -627,6 +726,11 @@ export const createTabs = (m, ch, ui) => {
         card('A quién se escala', legend() + bars('vt', { top: 12, skip: noK }), { span: 's5', sub: 'Prefijo escrito en el campo «Vendor Ticket Number», tal cual. Solo issues con ticket.' }),
         card('Proyectos Jira que reciben más', ranking('vp', ['n', 'mix', 'crit', 'avg', 'p90', 'pend'], { skip: noK, top: 12 }), { span: 's7', sub: 'Por la clave que aparece en el ticket de tercero (p. ej. SGAEWMSAP-7037 → SGAEWMSAP).' }),
         card('Un mismo ticket, muchas incidencias', kt, { span: 's12', sub: 'Tickets de desarrollo a los que se han ligado 5 o más incidencias. Clic en uno para ver esas incidencias en todas las métricas.' }));
+    },
+
+    resolucion2(A) {
+      if (CMP()) return m.alone((A1) => resolutionView(A1, `<p class="mt-note">Esta propuesta aún no compara: se ve solo ${esc(name(0))}.</p>`));
+      return resolutionView(A);
     },
 
     sla(A) {

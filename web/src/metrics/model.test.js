@@ -233,3 +233,11 @@ test('Módulos con personas: qué toca cada uno, sin las fichas', () => {
   assert.match(html, /Qué toca cada uno/);
   assert.doesNotMatch(html, /Quién lleva cada módulo|no compara empresas/);
 });
+
+test('de lo resuelto: más de 7 días y el tiempo en cada estado, solo de las resueltas', () => {
+  const m = createModel(data());
+  const s = m.stats([0, 1, 2]);   // 1 y 2 resueltas; 3 abierta (su tiempo no cuenta)
+  assert.equal(s.w7, 0);
+  assert.deepEqual(s.rt, [110, 2950, 0, 0, 0]);
+  assert.deepEqual(s.time, [310, 2950, 0, 0, 0]);
+});
