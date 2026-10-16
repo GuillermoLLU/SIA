@@ -417,6 +417,9 @@
 .mt-view table.mt-restime td.mt-tbar .mt-hbar { height: 12px; margin: 0; }
 .mt-view table.mt-mixesc .mt-sc-vol em { flex: 0 0 38px; font-style: normal; text-align: right; }
 .mt-view table.mt-mixesc .mt-sc-vol .mt-bt { flex: 1; height: 10px; }
+.mt-view table.mt-mixesc, .mt-view table.mt-tickets { table-layout: fixed; }
+.mt-view table.mt-mixesc th.mt-r, .mt-view table.mt-tickets th.mt-r, .mt-view table.mt-tickets td.mt-mut { overflow: hidden; text-align: left; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.mt-view table.mt-mixesc .mt-gsep, .mt-view table.mt-tickets .mt-gsep { border-left: 1px solid var(--mt-line); }
 .mt-view td.mt-warnc { font-weight: 650; color: color-mix(in srgb, #c98a2b 70%, var(--text)); }
 .mt-view table.mt-restime thead th { white-space: normal; }
 /* Cuánto tardan: tabla de reparto por tramos, con el total de cada bloque */

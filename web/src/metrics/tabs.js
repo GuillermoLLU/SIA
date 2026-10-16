@@ -508,30 +508,58 @@ export const createTabs = (m, ch, ui) => {
       <thead><tr><th colspan="2"></th><th class="mt-num">Resueltas</th><th class="mt-num" data-tip="De la apertura a la resolución.">Media</th>${STATES.map(([l, t]) => `<th class="mt-num" data-tip="${esc(`${t} Media por resuelta.`)}">${l}</th>`).join('')}<th>Reparto del tiempo</th></tr></thead>
       <tbody>${body}<tr class="mt-lead mt-lead-end"><th class="mt-r" colspan="2">Todas las resueltas</th>${cells(R)}</tr></tbody></table></div>`;
   };
-  // unas veces se escala y otras no: problemas con al menos 20 resueltas, escalados entre el 20 % y el 80 % de las veces
+  // la diferencia entre dos tiempos, con signo
+  const durDiff = (a, b) => (a == null || b == null ? '—' : `${a >= b ? '+' : '−'}${dur(Math.abs(a - b))}`);
+  // Unas veces se escala y otras no: problemas con al menos 20 resueltas, escalados entre el 20 % y el 80 % de las
+  // veces, agrupados por su módulo principal (el módulo, de más a menos resueltas entre sus problemas). Por problema:
+  // cuántas, qué parte se escala y lo que tarda sin escalar y escalado.
   const mixedEsc = () => {
     const g = group('de', m.rows('de').filter(solved), true).filter((x) => x.k && x.n >= 20)
       .map((x) => ({ ...x, e: x.rows.filter(escd) })).filter((x) => x.e.length >= 0.2 * x.n && x.e.length <= 0.8 * x.n);
+    if (!g.length) return '<p class="mt-mut mt-small">Ninguno con estos filtros.</p>';
     const all = ui.exp['rs-mixed'], shown = all ? g : g.slice(0, 12);
-    const body = shown.map((x) => {
-      const mo = group('mo', x.rows).find((y) => y.k), sh = x.e.length / x.n;
-      return `<tr class="mt-clk ${isSel('de', x.k) ? 'mt-sel' : ''}" data-f="de:${x.k}"><td>${esc(DI.problem[x.k])}</td><td class="mt-mut">${mo ? esc(m.DIMS.mo.label(mo.k)) : ''}</td><td class="mt-num">${num(x.n)}</td>
-        <td><div class="mt-sc-vol"><em>${pct(sh)}</em><span class="mt-bt"><i class="mt-time3" style="width:${(sh * 100).toFixed(1)}%"></i></span></div></td>
-        <td class="mt-num">${avgOf(stats(x.rows.filter((i) => !escd(i))))}</td><td class="mt-num">${avgOf(stats(x.e))}</td></tr>`;
-    }).join('');
-    return g.length ? `<div class="mt-tablewrap"><table class="mt-mixesc"><thead><tr><th>Problema</th><th>Módulo principal</th><th class="mt-num">Resueltas</th><th>Escaladas</th><th class="mt-num">Media sin escalar</th><th class="mt-num">Media escaladas</th></tr></thead><tbody>${body}</tbody></table></div>
-      ${g.length > 12 ? `<button class="mt-more" data-exp="rs-mixed">${all ? 'Ver menos' : `Ver todos (${num(g.length)})`}</button>` : ''}` : '<p class="mt-mut mt-small">Ninguno con estos filtros.</p>';
+    const byMo = new Map();
+    for (const x of shown) { const mo = group('mo', x.rows).find((y) => y.k)?.k ?? 0; if (!byMo.has(mo)) byMo.set(mo, []); byMo.get(mo).push(x); }
+    const mods = [...byMo].sort((a, b) => b[1].reduce((t, x) => t + x.n, 0) - a[1].reduce((t, x) => t + x.n, 0));
+    const cells = (rows, e) => {
+      const n = stats(rows.filter((i) => !escd(i))), s = stats(e), sh = e.length / (rows.length || 1);
+      return `<td class="mt-num mt-gsep">${num(rows.length)}</td>
+        <td class="mt-gsep"><div class="mt-sc-vol"><em>${pct(sh)}</em><span class="mt-bt"><i class="mt-time3" style="width:${(sh * 100).toFixed(1)}%"></i></span></div></td>
+        <td class="mt-num mt-gsep">${avgOf(n)}</td><td class="mt-num">${avgOf(s)}</td><td class="mt-num mt-mut">${durDiff(s.resolved ? s.avg : null, n.resolved ? n.avg : null)}</td>
+        <td class="mt-num mt-gsep">${n.resolved ? pct(n.d1) : '—'}</td><td class="mt-num">${s.resolved ? pct(s.d1) : '—'}</td>`;
+    };
+    const body = mods.map(([mo, xs]) => xs.map((x, j) => `<tr class="mt-clk ${j ? '' : 'mt-gfirst'} ${isSel('de', x.k) ? 'mt-sel' : ''}" data-f="de:${x.k}">
+      ${j ? '' : `<th class="mt-gl" rowspan="${xs.length}">${esc(mo ? m.DIMS.mo.label(mo) : 'Sin módulo')}</th>`}<th class="mt-r" data-tip="${esc(DI.problem[x.k])}">${esc(DI.problem[x.k])}</th>${cells(x.rows, x.e)}</tr>`).join('')).join('');
+    const allRows = shown.flatMap((x) => x.rows);
+    return `<div class="mt-tablewrap"><table class="mt-mx mt-mixesc"><colgroup><col style="width:13%"><col style="width:21%"><col style="width:8%"><col style="width:15%"><col style="width:10%"><col style="width:10%"><col style="width:9%"><col style="width:7%"><col style="width:7%"></colgroup><thead>
+      <tr class="mt-cgrp"><th colspan="2"></th><th colspan="2">Volumen</th><th colspan="3">Media de resolución</th><th colspan="2">En < 24 h</th></tr>
+      <tr><th>Módulo principal</th><th>Problema</th><th class="mt-num">Resueltas</th><th data-tip="De las resueltas, las que tienen ticket de tercero.">Escaladas</th><th class="mt-num">Sin escalar</th><th class="mt-num">Escaladas</th><th class="mt-num" data-tip="Lo que tardan de más (o de menos) las escaladas.">Diferencia</th><th class="mt-num">Sin escalar</th><th class="mt-num">Escaladas</th></tr></thead>
+      <tbody>${body}<tr class="mt-lead mt-lead-end"><th class="mt-r" colspan="2">${all || g.length <= 12 ? 'Todos estos problemas' : `Estos ${shown.length} problemas`}</th>${cells(allRows, allRows.filter(escd))}</tr></tbody></table></div>
+      ${g.length > 12 ? `<button class="mt-more" data-exp="rs-mixed">${all ? 'Ver menos' : `Ver todos (${num(g.length)})`}</button>` : ''}`;
   };
-  // tickets de tercero con muchas incidencias: primero los que aún tienen alguna abierta
+  // Un mismo ticket, muchas incidencias: tickets de tercero con 5 o más incidencias ligadas, en dos bloques: con
+  // alguna abierta y ya cerrados (de más a menos incidencias). Cuándo: la primera y la última incidencia y los días
+  // entre una y otra (0: todas el mismo día).
   const ticketTable = (A) => {
     const known = group('vk', A, true).filter((x) => x.k && x.n >= 5).map((x) => ({ ...x, open: x.rows.filter((i) => OPEN[i]).length })).sort((a, b) => (b.open > 0) - (a.open > 0) || b.n - a.n);
-    const all = ui.exp['rs-known'];
-    const body = known.slice(0, all ? 200 : 15).map((x) => {
+    if (!known.length) return '<p class="mt-mut mt-small">Ninguno con estos filtros.</p>';
+    const all = ui.exp['rs-known'], shown = known.slice(0, all ? 200 : 15);
+    const row = (x, j, n, head) => {
       const ce = new Set(x.rows.map((i) => C.ce[i])).size, f = Math.min(...x.rows.map((i) => C.rep[i])), l = Math.max(...x.rows.map((i) => C.rep[i])), ti = group('de', x.rows).find((y) => y.k);
-      return `<tr class="mt-clk ${isSel('vk', x.k) ? 'mt-sel' : ''}" data-f="vk:${x.k}"><td><b>${esc(DI.vkey[x.k])}</b></td><td class="mt-num">${x.n}</td><td class="mt-num ${x.open ? 'mt-warnc' : ''}">${x.open || ''}</td><td class="mt-num">${ce}</td><td>${dateOf(BASE, f).slice(0, 5)}</td><td>${dateOf(BASE, l).slice(0, 5)}</td><td class="mt-num">${avgOf(stats(x.rows))}</td><td class="mt-mut">${ti ? esc(DI.problem[ti.k]) : ''}</td></tr>`;
-    }).join('');
-    return known.length ? `<div class="mt-tablewrap ${all ? 'mt-scroll' : ''}"><table><thead><tr><th>Ticket</th><th class="mt-num">Incidencias</th><th class="mt-num">Abiertas</th><th class="mt-num">Centros</th><th>Primera</th><th>Última</th><th class="mt-num">Media resol.</th><th>Problema más habitual</th></tr></thead><tbody>${body}</tbody></table></div>
-      ${known.length > 15 ? `<button class="mt-more" data-exp="rs-known">${all ? 'Ver menos' : `Ver todos (${num(known.length)})`}</button>` : ''}` : '<p class="mt-mut mt-small">Ninguno con estos filtros.</p>';
+      const span = Math.floor(l / 1440) - Math.floor(f / 1440);
+      return `<tr class="mt-clk ${j ? '' : 'mt-gfirst'} ${isSel('vk', x.k) ? 'mt-sel' : ''}" data-f="vk:${x.k}">${j ? '' : `<th class="mt-gl" rowspan="${n}">${head}</th>`}<th class="mt-r"><b>${esc(DI.vkey[x.k])}</b></th>
+        <td class="mt-num mt-gsep">${num(x.n)}</td><td class="mt-num ${x.open ? 'mt-warnc' : ''}">${x.open || ''}</td><td class="mt-num">${num(ce)}</td>
+        <td class="mt-num mt-gsep">${dateOf(BASE, f).slice(0, 5)}</td><td class="mt-num">${dateOf(BASE, l).slice(0, 5)}</td><td class="mt-num">${span ? num(span) : 'el mismo'}</td>
+        <td class="mt-num mt-gsep">${avgOf(stats(x.rows))}</td><td class="mt-gsep mt-mut" data-tip="${ti ? esc(DI.problem[ti.k]) : ''}">${ti ? esc(DI.problem[ti.k]) : ''}</td></tr>`;
+    };
+    const parts = [['Con alguna abierta', shown.filter((x) => x.open)], ['Cerrados', shown.filter((x) => !x.open)]].filter(([, xs]) => xs.length);
+    const body = parts.map(([head, xs]) => xs.map((x, j) => row(x, j, xs.length, head)).join('')).join('');
+    const sum = (f) => shown.reduce((t, x) => t + f(x), 0);
+    return `<div class="mt-tablewrap ${all ? 'mt-scroll' : ''}"><table class="mt-mx mt-tickets"><colgroup><col style="width:11%"><col style="width:15%"><col style="width:8%"><col style="width:7%"><col style="width:7%"><col style="width:7%"><col style="width:7%"><col style="width:7%"><col style="width:9%"><col></colgroup><thead>
+      <tr class="mt-cgrp"><th colspan="2"></th><th colspan="3">Volumen</th><th colspan="3">Cuándo</th><th colspan="2">Resolución</th></tr>
+      <tr><th>Estado</th><th>Ticket</th><th class="mt-num">Incidencias</th><th class="mt-num">Abiertas</th><th class="mt-num" data-tip="Centros distintos con alguna de esas incidencias.">Centros</th><th class="mt-num">Primera</th><th class="mt-num">Última</th><th class="mt-num" data-tip="Días entre la primera y la última incidencia.">Días</th><th class="mt-num">Media resol.</th><th>Problema más habitual</th></tr></thead>
+      <tbody>${body}<tr class="mt-lead mt-lead-end"><th class="mt-r" colspan="2">${shown.length === known.length ? `Todos (${num(shown.length)} tickets)` : `Estos ${num(shown.length)} tickets`}</th><td class="mt-num mt-gsep">${num(sum((x) => x.n))}</td><td class="mt-num">${num(sum((x) => x.open)) || ''}</td><td colspan="6" class="mt-gsep"></td></tr></tbody></table></div>
+      ${known.length > 15 ? `<button class="mt-more" data-exp="rs-known">${all ? 'Ver menos' : `Ver todos (${num(known.length)})`}</button>` : ''}`;
   };
   // --- Resolución, comparando personas: una persona frente a su equipo (ella incluida: model.js heads) o frente a
   // otra. Lo que tarda depende mucho del módulo, así que la tabla principal compara módulo a módulo y la media se pone
@@ -643,8 +671,8 @@ export const createTabs = (m, ch, ui) => {
       section('¿Qué escalamos y a quién?'),
       card('', scorecard('vt', [['Volumen', ['n']], ['Cuánto tarda', ['avg', 'w7', 'tv']], ['Hoy', ['open']]],
         { id: 'rs-vt', rows: m.rows('vt').filter(escd), refLabel: 'Todo lo escalado', title: 'A quién escalamos', n: ['Escaladas', 'Issues con ticket de tercero y su parte de lo escalado.'], child: { dim: 'vp', top: 8, noun: 'proyectos Jira' } }), { span: 's12' }),
-      card('Unas veces se escala y otras no', mixedEsc(), { span: 's12', sub: 'Problemas con al menos 20 resueltas que se escalan entre el 20 % y el 80 % de las veces: con lo que tarda escalado y sin escalar. Clic en uno para filtrar.' }),
-      card('Un mismo ticket, muchas incidencias', ticketTable(A), { span: 's12', sub: 'Tickets de tercero con 5 o más incidencias ligadas; arriba, los que aún tienen alguna abierta. Clic en uno para filtrar.' }));
+      card('Unas veces se escala y otras no', mixedEsc(), { span: 's12', sub: 'Problemas con al menos 20 resueltas que se escalan entre el 20 % y el 80 % de las veces, agrupados por su módulo principal: lo que tardan sin escalar y escalados. Clic en uno para filtrar.' }),
+      card('Un mismo ticket, muchas incidencias', ticketTable(A), { span: 's12', sub: 'Tickets de tercero con 5 o más incidencias ligadas: arriba, los que aún tienen alguna abierta. Clic en uno para filtrar.' }));
   };
 
   const VIEWS = {
