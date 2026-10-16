@@ -285,6 +285,16 @@ test('SLA y calidad comparando: entre empresas, por prioridad y con el mismo tra
   assert.doesNotMatch(h, /Por turno y día de entrada|Módulo a módulo|undefined|NaN/);
 });
 
+test('IA: uso de cada issue por sus marcas (con fallo manda sobre revisada OK) y la pestaña sin huecos', () => {
+  const d = data();
+  d.cols.fl[0] = 32 | 2048 | 4096; d.cols.fl[1] = 2048 | 4096 | 8192; d.cols.fl[2] = 2048;
+  const m = createModel(d);
+  assert.deepEqual([0, 1, 2, 3].map(m.DIMS.ia.get), [0, 1, 2, 3]);
+  const html = createTabs(m, createCharts(m, { exp: {}, sort: {} }), { exp: {}, sort: {} }).render('ia2', m.rows());
+  assert.match(html, /Mismo problema, con IA y sin IA/);
+  assert.doesNotMatch(html, /undefined|NaN/);
+});
+
 test('de lo resuelto: los tramos de tiempo, el máximo y el tiempo en cada estado, solo de las resueltas', () => {
   const m = createModel(data());
   const s = m.stats([0, 1, 2]);   // 1 y 2 resueltas; 3 abierta (su tiempo no cuenta)

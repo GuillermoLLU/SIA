@@ -161,6 +161,12 @@ export const createCharts = (m, ui) => {
     tq: ['En cola', 'low', (s) => (s.resolved ? s.rt[0] / s.resolved : null), 'Tiempo medio en Asignada.'],
     tc: ['Espera cliente', null, (s) => (s.resolved ? s.rt[2] / s.resolved : null), 'Tiempo medio en Pendiente del centro o del cliente.'],
     tv: ['Espera tercero', null, (s) => (s.resolved ? s.rt[3] / s.resolved : null), 'Tiempo medio en Pendiente de un tercero.'],
+    // IA (con o.extra: tabs.js, iaView)
+    iaN: ['Issues', null, (s) => s.iaN, 'Con alguna marca de IA.'],
+    iaShare: ['% de las suyas', null, (s) => s.iaShare, 'De lo recibido, lo que tiene alguna marca de IA.'],
+    // el 5.º: sobre cuántas se marca si va peor (si no, sus issues)
+    iaOk: ['Revisadas OK', 'high', (s) => s.iaOk, 'De las de IA, con revisión humana OK y sin fallo.', (s) => s.iaN],
+    iaFail: ['Con fallo', 'low', (s) => s.iaFail, 'De las de IA, con alguna marca de fallo o de revisión no OK.', (s) => s.iaN],
     // SLA y calidad
     slaKo: ['Fuera de SLA', null, (s) => s.slaKo, 'Empezadas tarde y abiertas que siguen sin empezar pasado el plazo.'],
     ip: ['Hasta En curso', 'low', (s) => s.ip, 'Media de la apertura al primer paso a En curso.'],
@@ -171,7 +177,7 @@ export const createCharts = (m, ui) => {
     noDesc: ['Sin descripción', 'low', (s) => (s.n ? s.noDesc : null), 'El título no dice cuál es el problema.'],
     same: ['Mismo cierre', null, (s) => s.same, 'De las resueltas, la parte cerrada con el mismo texto de resolución (el más usado). Si es alta, se resuelve siempre igual: se puede automatizar o llevar a la IA.'],
   };
-  const SC_FMT = { sla: (v) => (v == null ? '—' : pct(v)), avg: dur, d1: (v) => pct(v), reop: (v) => pct(v, 1), crit: (v) => pct(v), vend: (v) => pct(v), open: num, mi: (v) => (v ? num(v) : ''), nce: num, same: pct, res: num, w7: (v) => pct(v), d7: (v) => pct(v), d15: (v) => pct(v), mx: dur, tq: dur, tc: dur, tv: dur, slaKo: num, ip: dur, bounce: (v) => pct(v, 1), noIpDone: (v) => pct(v, 1), escNoPend: (v) => pct(v, 1), noCat: (v) => pct(v, 1), noDesc: (v) => pct(v, 1) };
+  const SC_FMT = { sla: (v) => (v == null ? '—' : pct(v)), avg: dur, d1: (v) => pct(v), reop: (v) => pct(v, 1), crit: (v) => pct(v), vend: (v) => pct(v), open: num, mi: (v) => (v ? num(v) : ''), nce: num, same: pct, res: num, w7: (v) => pct(v), d7: (v) => pct(v), d15: (v) => pct(v), mx: dur, tq: dur, tc: dur, tv: dur, iaN: (v) => (v ? num(v) : ''), iaShare: (v) => (v ? pct(v, 1) : ''), iaOk: (v) => (v == null ? '' : pct(v)), iaFail: (v) => (v == null ? '' : pct(v)), slaKo: num, ip: dur, bounce: (v) => pct(v, 1), noIpDone: (v) => pct(v, 1), escNoPend: (v) => pct(v, 1), noCat: (v) => pct(v, 1), noDesc: (v) => pct(v, 1) };
   const scorecard = (dim, groups, o = {}) => {
     const id = o.id || `sc-${dim}`, list = o.rows || rows(dim), cmp = CMP(), cols = groups.flatMap(([, c]) => c);
     const side = (l) => (cmp ? bySide(l)[0] : l), other = (l) => bySide(l)[1];
@@ -190,7 +196,7 @@ export const createCharts = (m, ui) => {
     const rest = !open && data.length > top ? full(all.filter((x) => !shown.some((r) => r.k === x.k)).flatMap((x) => x.rows)) : null;
     const worse = (c, r) => {
       const b = SC[c][1], v = SC[c][2](r), w = SC[c][2](ref);
-      if (!b || r.n < SC_MIN || v == null || w == null) return false;
+      if (!b || (SC[c][4] ? SC[c][4](r) : r.n) < SC_MIN || v == null || w == null) return false;
       return b === 'low' ? v > w * 1.15 : v < w * 0.85;
     };
     // la barra, su parte real del total (el total, entera; «Resto», lo que suma)

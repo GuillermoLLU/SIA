@@ -9,7 +9,7 @@ import { COMPANIES, CARDS, MAJOR, IA_MARKS, SITUATIONS, ACTIVE_DAYS, START_LIMIT
 import { SHIFTS, SHIFT_HOURS, DAYS, MIN_ACTIONS } from './shifts.js';
 
 export const TABS = [['resumen', 'Resumen'], ['hoy', 'Foto de hoy'], ['entrada', 'Entrada'], ['backlog', 'Backlog'], ['modulos', 'Módulos y focos'],
-  ['resolucion', 'Resolución y escalados'], ['sla', 'SLA y calidad'], ['ia', 'IA'], ['turnos', 'Turnos']];
+  ['resolucion', 'Resolución y escalados'], ['sla', 'SLA y calidad'], ['ia', 'IA'], ['ia2', 'IA (propuesta)'], ['turnos', 'Turnos']];
 const QUESTIONS = {
   resumen: ['¿Cómo vamos?', 'Cada bloque responde a una pregunta con sus cifras clave; el detalle, en su pestaña.'],
   hoy: ['¿Qué hay que mover hoy?', 'Lo abierto ahora mismo, sea del mes que sea (no depende del periodo), en listas para actuar: lo urgente, lo que espera y lo que está parado.'],
@@ -19,6 +19,7 @@ const QUESTIONS = {
   resolucion: ['¿Cómo lo resolvemos?', 'Cuánto tardamos, en qué se va el tiempo, qué módulos tardan más y qué escalamos y a quién. Tiempos de lo resuelto, en tiempo natural.'],
   sla: ['¿Cómo de bien lo hacemos?', 'Si empezamos a tiempo (SLA de inicio: de la apertura al primer paso a En curso, en tiempo natural; crítica 15 min, alta 45 min, media 2 h, baja 8 h), si el trabajo queda bien hecho y si queda bien registrado.'],
   ia: ['¿Cuánta IA usamos?', 'Dónde interviene ya la IA y el trabajo repetitivo en el que podría entrar.'],
+  ia2: ['¿Cuánto usamos la IA y cómo sale?', 'Por las marcas de IA de Remedy: en TAGS (IA_SOLVED…, IA_FAIL) y en las notas ([ACT IA], [INFORME IA], notas del agente de IA, [HITL_REVIEW_OK], [HITL_REVIEW_NOT_OK], [IA_FAIL]…). Una issue con IA puede estar revisada OK, con fallo o sin revisar.'],
   turnos: ['¿Cuándo entra y cuándo lo trabajamos?', `Por turnos: ${SHIFTS.map((s, k) => `${s.toLowerCase()} de ${SHIFT_HOURS[k]}`).join(', ')}. El turno se cuenta por la hora en que empieza: la noche del domingo es de fin de semana.`],
 };
 
@@ -879,6 +880,94 @@ export const createTabs = (m, ch, ui) => {
         { span: 's12', sub: `Los 15 módulos con más issues de los que tienen al menos ${BETTER_MIN} cada uno. ${greenNote} Clic en un módulo para filtrar.` }) : '');
   };
 
+  // --- IA (propuesta). Cuánto la usamos, dónde, cómo sale (lo que tarda frente al mismo problema sin IA), quién la
+  // usa y qué se repite. Por las marcas de IA de cada issue (model.js, dimensión ia).
+  const IA_OK = 0, IA_FAIL = 1, IA_NONE = 3, iaOf = (i) => m.DIMS.ia.get(i), withIa = (i) => iaOf(i) !== IA_NONE;
+  // las cifras de IA de una lista: con IA, resueltas con la IA (IA_SOLVED), revisadas OK y con fallo (sobre las de IA)
+  const iaStats = (l) => {
+    let ia = 0, solved = 0, ok = 0, fail = 0;
+    for (const i of l) { const k = iaOf(i); if (k === IA_NONE) continue; ia++; if (C.fl[i] & 32) solved++; if (k === IA_OK) ok++; else if (k === IA_FAIL) fail++; }
+    return { n: l.length, ia, solved, ok, fail, share: l.length ? ia / l.length : null, okShare: ia ? ok / ia : null, failShare: ia ? fail / ia : null };
+  };
+  // mismo problema con IA y sin IA: los problemas con al menos 5 resueltas de cada; y su media ponderada por lo de IA
+  const IA_MIN = 5;
+  const iaPairs = (A) => group('de', A.filter(solved), true).filter((x) => x.k)
+    .map((x) => ({ ...x, w: x.rows.filter(withIa), o: x.rows.filter((i) => !withIa(i)) })).filter((x) => x.w.length >= IA_MIN && x.o.length >= IA_MIN)
+    .sort((a, b) => b.w.length - a.w.length);
+  const iaSame = (pairs) => {
+    let n = 0, w = 0, o = 0;
+    for (const x of pairs) { const k = x.w.length; n += k; w += stats(x.w).avg * k; o += stats(x.o).avg * k; }
+    return n ? { n, w: w / n, o: o / n } : null;
+  };
+  const iaSameTable = (pairs) => {
+    if (!pairs.length) return `<p class="mt-mut mt-small">Ningún problema con al menos ${IA_MIN} resueltas con IA y ${IA_MIN} sin IA.</p>`;
+    const all = ui.exp['ia-same'], shown = all ? pairs : pairs.slice(0, 12);
+    const row = (label, w, o, attrs, cls = '') => {
+      const a = stats(w), b = stats(o);
+      return `<tr class="${cls}" ${attrs}><th class="mt-r" data-tip="${esc(label)}">${esc(label)}</th><td class="mt-num mt-gsep">${num(w.length)}</td><td class="mt-num">${num(o.length)}</td>
+        <td class="mt-num mt-gsep">${avgOf(a)}</td><td class="mt-num">${avgOf(b)}</td><td class="mt-num mt-mut">${durDiff(a.resolved ? a.avg : null, b.resolved ? b.avg : null)}</td>
+        <td class="mt-num mt-gsep">${pct(a.d1)}</td><td class="mt-num">${pct(b.d1)}</td><td class="mt-num mt-gsep">${P1(a.reop)}</td><td class="mt-num">${P1(b.reop)}</td></tr>`;
+    };
+    const body = shown.map((x) => row(DI.problem[x.k], x.w, x.o, `data-f="de:${x.k}"`, `mt-clk ${isSel('de', x.k) ? 'mt-sel' : ''}`)).join('');
+    const W = shown.flatMap((x) => x.w), O = shown.flatMap((x) => x.o);
+    return `<div class="mt-tablewrap"><table class="mt-mx mt-qpivot mt-iasame"><colgroup><col style="width:22%">${'<col>'.repeat(9)}</colgroup><thead>
+      <tr class="mt-cgrp"><th></th><th colspan="2">Resueltas</th><th colspan="3">Media de resolución</th><th colspan="2">En < 24 h</th><th colspan="2">Reabiertas</th></tr>
+      <tr><th>Problema</th>${'<th class="mt-num">Con IA</th><th class="mt-num">Sin IA</th>'.repeat(1)}<th class="mt-num">Con IA</th><th class="mt-num">Sin IA</th><th class="mt-num" data-tip="Lo que tardan de más (o de menos) las de IA.">Diferencia</th>${'<th class="mt-num">Con IA</th><th class="mt-num">Sin IA</th>'.repeat(2)}</tr></thead>
+      <tbody>${body}${row(shown.length === pairs.length ? 'Todos estos problemas' : `Estos ${shown.length} problemas`, W, O, '', 'mt-lead mt-lead-end')}</tbody></table></div>
+      ${pairs.length > 12 ? `<button class="mt-more" data-exp="ia-same">${all ? 'Ver menos' : `Ver todos (${num(pairs.length)})`}</button>` : ''}`;
+  };
+  // quién la usa: las personas del equipo (o las que tienen issues), con lo suyo con IA y cómo sale
+  const iaPeople = (A) => {
+    const g = group('as', A, true).filter((x) => x.k).map((x) => ({ ...x, s: iaStats(x.rows) })).sort((a, b) => b.s.ia - a.s.ia || b.n - a.n);
+    if (!g.length) return '<p class="mt-mut mt-small">Sin issues con responsable.</p>';
+    const all = ui.exp['ia-who'], shown = all ? g : g.slice(0, 15);
+    const cells = (s) => `<td class="mt-num mt-gsep">${num(s.n)}</td><td class="mt-num mt-gsep">${s.ia ? num(s.ia) : ''}</td><td class="mt-num">${s.ia ? pct(s.share, 1) : ''}</td>
+      <td class="mt-num mt-gsep">${s.ia ? num(s.solved) : ''}</td><td class="mt-num">${s.ia ? pct(s.okShare) : ''}</td><td class="mt-num">${s.ia ? pct(s.failShare) : ''}</td>`;
+    const tot = iaStats(A.filter((i) => C.as[i]));
+    return `<div class="mt-tablewrap"><table class="mt-mx mt-qpivot"><colgroup><col style="width:24%">${'<col>'.repeat(6)}</colgroup><thead>
+      <tr class="mt-cgrp"><th></th><th>Volumen</th><th colspan="2">Con IA</th><th colspan="3">Cómo sale</th></tr>
+      <tr><th>Persona</th><th class="mt-num">Issues</th><th class="mt-num">Issues</th><th class="mt-num">% de las suyas</th><th class="mt-num" data-tip="Con la etiqueta IA_SOLVED… en TAGS.">Resueltas con IA</th>
+      <th class="mt-num" data-tip="De las de IA, con revisión humana OK y sin fallo.">Revisadas OK</th><th class="mt-num" data-tip="De las de IA, con alguna marca de fallo o de revisión no OK.">Con fallo</th></tr></thead>
+      <tbody>${shown.map((x) => `<tr class="mt-clk ${isSel('as', x.k) ? 'mt-sel' : ''}" data-f="as:${x.k}"><th class="mt-r" data-tip="${esc(m.DIMS.as.label(x.k))}">${esc(m.DIMS.as.label(x.k))}</th>${cells(x.s)}</tr>`).join('')}
+      <tr class="mt-lead mt-lead-end"><th class="mt-r">Todas</th>${cells(tot)}</tr></tbody></table></div>
+      ${g.length > 15 ? `<button class="mt-more" data-exp="ia-who">${all ? 'Ver menos' : `Ver todas (${num(g.length)})`}</button>` : ''}`;
+  };
+  const IA_MONTH = [['Volumen', [['Recibidas', (s) => s.n, num, null, '']]],
+    ['Con IA', [['Issues', (s) => s.ia, num, null, 'Con alguna marca de IA.'], ['% de lo recibido', (s) => s.share, (v) => pct(v, 1), null, '']]],
+    ['Cómo sale', [['Resueltas con IA', (s) => s.solved, num, null, 'Con la etiqueta IA_SOLVED… en TAGS.'], ['Revisadas OK', (s) => s.okShare, (v) => pct(v), null, 'De las de IA, con revisión humana OK y sin fallo.'],
+      ['Con fallo', (s) => s.failShare, (v) => pct(v), null, 'De las de IA, con alguna marca de fallo o de revisión no OK.']]]];
+  const iaView = (A, note = '') => {
+    const s = iaStats(A), pairs = iaPairs(A), same = iaSame(pairs), R = A.filter(solved), withR = stats(R.filter(withIa));
+    const users = new Set(A.filter((i) => withIa(i) && C.as[i]).map((i) => C.as[i])).size, people = new Set(A.filter((i) => C.as[i]).map((i) => C.as[i])).size;
+    const extra = (st, l) => { const x = iaStats(l); st.iaN = x.ia; st.iaShare = x.share; st.iaOk = x.okShare; st.iaFail = x.failShare; st.req = share(l, (i) => C.sv[i] === REQ); st.rep = share(l, (i) => C.rz[i] > 0); };
+    const days = (v) => (v == null ? '—' : `${dec(v / 1440)} días`);
+    return grid(ask('ia2'), note,
+      kpis(kpi('Con IA', num(s.ia), s.n ? `${pct(s.share, 1)} de lo recibido` : ''), kpi('Resueltas con IA', num(s.solved), 'con IA_SOLVED… en TAGS'),
+        kpi('Revisadas OK', s.ia ? pct(s.okShare) : '—', 'de las de IA'), kpi('Con fallo', s.ia ? pct(s.failShare) : '—', 'de las de IA'),
+        kpi('Personas que la usan', `${num(users)} de ${num(people)}`, 'con alguna issue con IA'),
+        kpi('Media con IA', withR.resolved ? days(withR.avg) : '—', 'de las resueltas con IA'),
+        kpi('Mismo problema, sin IA', same ? days(same.o) : '—', same ? `con IA: ${days(same.w)} (${num(same.n)} resueltas)` : `sin problemas con ${IA_MIN} y ${IA_MIN}`)),
+      section('¿Cuánto la usamos?'),
+      card('Mes a mes', monthPivot(A, IA_MONTH, iaStats), { span: 's12', sub: 'Por mes de apertura. Clic en un mes para filtrar.' }),
+      section('¿Dónde?'),
+      card('', scorecard('mo', [['Volumen', ['n']], ['Con IA', ['iaN', 'iaShare']], ['Cómo sale', ['iaOk', 'iaFail']], ['Resolución', ['avg', 'd1']]],
+        { id: 'ia-mo', skip: noK, refLabel: 'Todos los módulos', title: 'Módulos', extra, sort: 'iaN' }), { span: 's12' }),
+      card('', scorecard('tp', [['Volumen', ['n']], ['Con IA', ['iaN', 'iaShare']], ['Cómo sale', ['iaOk', 'iaFail']], ['Resolución', ['avg', 'd1']]],
+        { id: 'ia-tp', refLabel: 'Todos los temas', title: 'Temas', extra, sort: 'iaN', top: 14 }), { span: 's12' }),
+      section('¿Cómo sale?'),
+      card('Según cómo sale', qualityPivot(R, [['Con IA', '', [0, 1, 2].map((k) => [m.DIMS.ia.label(k), (i) => iaOf(i) === k, `ia:${k}`])], ['Sin IA', '', [['Sin IA', (i) => iaOf(i) === IA_NONE, `ia:${IA_NONE}`]]]],
+        [['Volumen', [['Resueltas', (x) => x.resolved, num, null, '']]], ['Resolución', [['Media', (x) => (x.resolved ? x.avg : null), dur, 'low', 'De la apertura a la resolución.'], ['En < 24 h', (x) => (x.resolved ? x.d1 : null), (v) => pct(v), 'high', '']]],
+          ['Después', [['Reabiertas', (x) => (x.n ? x.reop : null), P1, 'low', 'Volvieron de Resuelta a abierta.'], ['Escaladas', (x) => (x.n ? x.vend : null), (v) => pct(v), null, 'Con ticket de tercero.']]]]),
+        { span: 's12', sub: `Lo resuelto, según sus marcas de IA. En ocre, lo que va un 15 % o más peor que el total (con al menos ${MIN_RES} issues). Clic en una fila para filtrar.` }),
+      card('Mismo problema, con IA y sin IA', iaSameTable(pairs), { span: 's12', sub: `Problemas con al menos ${IA_MIN} resueltas con IA y ${IA_MIN} sin IA: lo que tardan unas y otras. Clic en uno para filtrar.` }),
+      section('¿Quién la usa?'),
+      card('Por persona', iaPeople(A), { span: 's12', sub: 'Lo de cada responsable, de más a menos issues con IA. Clic en una persona para filtrar.' }),
+      section('¿Qué se repite?'),
+      card('Temas: volumen, rapidez y repetición', ranking('th', ['n', 'mix', 'req', 'rep', 'avg', 'd1', 'vend'], { id: 'ia-rep-th', extra, top: 27 }),
+        { span: 's12', sub: '«% peticiones»: tipo de servicio Petición de usuario. «% resolución repetida»: issues cuyo texto de resolución se ha usado 4 veces o más.' }),
+      card('Resoluciones que más se repiten', bars('rz', { id: 'ia-rep-rz', top: 15, skip: noK }), { span: 's12', sub: 'Textos de resolución idénticos (salvo números) usados 4 veces o más. Clic en uno para filtrar.' }));
+  };
+
   const VIEWS = {
     resumen(A) {
       const T = bySide(A), ST = T.map(stats), d = days() || 1, sv = (v) => (s) => s[v];
@@ -1095,6 +1184,11 @@ export const createTabs = (m, ch, ui) => {
         card('Tipología: volumen, rapidez y repetición', ranking('k3', ['n', 'mix', 'req', 'rep', 'avg', 'd1', 'vend'], { id: 'rep-k3', extra, top: 15, min: 50 }), { span: 's12' }),
         card('Títulos que más se repiten', bars('de', { id: 'rep-de', top: 15, skip: noK })),
         card('Resoluciones que más se repiten', bars('rz', { id: 'rep-rz', top: 15, skip: noK })));
+    },
+
+    ia2(A) {
+      if (CMP()) return m.alone((A1) => iaView(A1, `<p class="mt-note">Esta propuesta aún no compara: se ve solo ${esc(name(0))}.</p>`));
+      return iaView(A);
     },
 
     turnos(A) {
