@@ -234,6 +234,24 @@ test('Módulos con personas: qué toca cada uno, sin las fichas', () => {
   assert.doesNotMatch(html, /Quién lleva cada módulo|no compara empresas/);
 });
 
+test('Resolución no compara empresas; con personas, módulo a módulo y la media frente a sus mismos módulos', () => {
+  const m = createModel(data()), ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  m.S.sides = [{ company: 0 }, { company: 1 }]; m.refilter();
+  let h = tabs.render('resolucion', m.rows());
+  assert.match(h, /no compara empresas/);
+  assert.match(h, /Un mismo ticket/);
+  m.S.sides = [{ people: new Set([1]) }, { company: 0 }]; m.refilter();   // ANA frente a Indra
+  h = tabs.render('resolucion', m.rows());
+  assert.match(h, /Módulo a módulo/);
+  assert.match(h, /Media frente a sus módulos/);
+  assert.match(h, /Indra, en sus módulos/);
+  assert.doesNotMatch(h, /Un mismo ticket|En qué se va el tiempo|no compara/);
+  m.S.sides = [{ people: new Set([2]) }, { people: new Set([1]) }]; m.refilter();   // dos personas: sin la referencia del equipo
+  h = tabs.render('resolucion', m.rows());
+  assert.match(h, /Módulo a módulo/);
+  assert.doesNotMatch(h, /frente a sus módulos|undefined|NaN/);
+});
+
 test('de lo resuelto: los tramos de tiempo, el máximo y el tiempo en cada estado, solo de las resueltas', () => {
   const m = createModel(data());
   const s = m.stats([0, 1, 2]);   // 1 y 2 resueltas; 3 abierta (su tiempo no cuenta)

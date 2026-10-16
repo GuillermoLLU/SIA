@@ -425,27 +425,38 @@ export const createTabs = (m, ch, ui) => {
   const avgOf = (s) => optDur(s.resolved ? s.avg : null);
   // Cuánto tardan: lo resuelto sin escalar, escalado y todo, cada fila repartida entre los tramos de tiempo (suma el
   // 100 %), con más color cuanto mayor su parte. Los tramos, en tres bloques (menos de 24 h, de 1 a 7 días y más de 7),
-  // cada uno con su total. Clic en una celda filtra ese tramo (y si está escalada o no).
-  const TTR_GROUPS = [['Menos de 24 h', [0, 1, 2, 3]], ['De 1 a 7 días', [4, 5]], ['Más de 7 días', [6, 7]]];
+  // cada uno con su total. Clic en una celda filtra ese tramo (y si está escalada o no). Comparando, una fila por lado
+  // y, en verde, quien resuelve más en menos de 24 h y menos en más de 7 días (en los totales de esos bloques).
+  const TTR_GROUPS = [['Menos de 24 h', [0, 1, 2, 3], 'high'], ['De 1 a 7 días', [4, 5], null], ['Más de 7 días', [6, 7], 'low']];
   const ttrTable = (list) => {
-    const R = list.filter(solved);
-    const lines = [['Sin escalar', (i) => !escd(i), 'es:0'], ['Escaladas', escd, 'es:1'], ['Todas las resueltas', null, null]].map(([label, t, f]) => {
-      const l = t ? R.filter(t) : R, c = new Array(8).fill(0);
+    const R = list.filter(solved), cmp = CMP(), P = cmp ? bySide(R).slice(0, 2) : [R];
+    const KINDS = [['Sin escalar', (i) => !escd(i), 'es:0'], ['Escaladas', escd, 'es:1'], ['Todas las resueltas', null, null]];
+    const blocks = KINDS.map(([label, t, f]) => P.map((L, k) => {
+      const l = t ? L.filter(t) : L, c = new Array(8).fill(0);
       for (const i of l) c[m.DIMS.tb.get(i)]++;
-      return { label, f, n: l.length, c, s: stats(l) };
-    });
+      return { label, f, k, n: l.length, c, s: stats(l) };
+    }));
+    const lines = blocks.flat();
     const share = (x, v) => v / (x.n || 1), max = Math.max(0.01, ...lines.flatMap((x) => x.c.map((v) => share(x, v))));
     const sum = (x, ks) => ks.reduce((t, k) => t + x.c[k], 0);
+    const shown = (x, ks) => Math.round(share(x, sum(x, ks)) * 100);
+    const best = (x, o, ks, better) => cmp && better && x.n && o.n && shown(x, ks) !== shown(o, ks) && (better === 'high') === (shown(x, ks) > shown(o, ks));
+    const who = (x) => (cmp ? ` · ${name(x.k)}` : '');
     // la fila de todas, sin color: es la suma de las otras dos
-    const cellsOf = (x, last) => TTR_GROUPS.map(([g, ks]) => ks.map((k, j) => {
+    const cellsOf = (x, o, last) => TTR_GROUPS.map(([g, ks, better]) => ks.map((k, j) => {
       const sh = share(x, x.c[k]), a = x.c[k] && !last ? Math.round(6 + 94 * sh / max) : 0, f = x.f ? `data-f2="${x.f}|tb:${k}"` : `data-f="tb:${k}"`;
-      return `<td class="${j ? '' : 'mt-gsep'} ${a > 50 ? 'mt-hot' : ''}" style="--mt-a:${a}%" ${f} data-tip="${esc(`${x.label} · ${m.DIMS.tb.label(k)}\n${num(x.c[k])} de ${num(x.n)} (${pct(sh, 1)})`)}">${x.c[k] ? pct(sh) : ''}</td>`;
-    }).join('') + `<td class="mt-total mt-ttr-sub" data-tip="${esc(`${x.label} · ${g.toLowerCase()}\n${num(sum(x, ks))} de ${num(x.n)}`)}">${pct(share(x, sum(x, ks)))}</td>`).join('');
-    const row = (x, last) => `<tr class="${last ? 'mt-tot' : ''}"><th class="mt-r ${x.f ? 'mt-clk' : ''}" ${x.f ? `data-f="${x.f}"` : ''}>${x.label}</th><td class="mt-total mt-num">${num(x.n)}</td><td class="mt-total mt-num"><b>${avgOf(x.s)}</b></td>${cellsOf(x, last)}</tr>`;
-    return `<div class="mt-tablewrap"><table class="mt-hm mt-ttr"><colgroup><col style="width:14%"><col style="width:7%"><col style="width:8%">${TTR_GROUPS.map(([, ks]) => '<col>'.repeat(ks.length) + '<col class="mt-ttr-subc">').join('')}</colgroup><thead>
-      <tr class="mt-cgrp"><th colspan="3"></th>${TTR_GROUPS.map(([g, ks]) => `<th colspan="${ks.length + 1}">${g}</th>`).join('')}</tr>
-      <tr><th></th><th class="mt-num">Resueltas</th><th class="mt-num" data-tip="De la apertura a la resolución.">Media</th>${TTR_GROUPS.map(([, ks]) => ks.map((k, j) => `<th class="${j ? '' : 'mt-gsep'}">${m.DIMS.tb.label(k)}</th>`).join('') + '<th class="mt-ttr-sub">Total</th>').join('')}</tr></thead>
-      <tbody>${lines.map((x, j) => row(x, j === lines.length - 1)).join('')}</tbody></table></div>`;
+      return `<td class="${j ? '' : 'mt-gsep'} ${a > 50 ? 'mt-hot' : ''}" style="--mt-a:${a}%" ${f} data-tip="${esc(`${x.label}${who(x)} · ${m.DIMS.tb.label(k)}\n${num(x.c[k])} de ${num(x.n)} (${pct(sh, 1)})`)}">${x.c[k] ? pct(sh) : ''}</td>`;
+    }).join('') + `<td class="mt-total mt-ttr-sub ${best(x, o, ks, better) ? 'mt-better' : ''}" data-tip="${esc(`${x.label}${who(x)} · ${g.toLowerCase()}\n${num(sum(x, ks))} de ${num(x.n)}`)}">${pct(share(x, sum(x, ks)))}</td>`).join('');
+    const head = (x, k, n) => (cmp ? `${k ? '' : `<th class="mt-r ${x.f ? 'mt-clk' : ''}" rowspan="${n}" ${x.f ? `data-f="${x.f}"` : ''}>${x.label}</th>`}<th class="mt-r mt-ttr-who" data-tip="${esc(name(k))}"><i class="mt-sw mt-c${k}"></i>${esc(name(k))}</th>`
+      : `<th class="mt-r ${x.f ? 'mt-clk' : ''}" ${x.f ? `data-f="${x.f}"` : ''}>${x.label}</th>`);
+    const body = blocks.map((pair, b) => pair.map((x, k) => {
+      const last = b === blocks.length - 1;
+      return `<tr class="${last && !k ? 'mt-tot' : last ? 'mt-tot2' : ''} ${cmp && !k ? 'mt-gfirst' : ''}">${head(x, k, pair.length)}<td class="mt-total mt-num">${num(x.n)}</td><td class="mt-total mt-num"><b>${avgOf(x.s)}</b></td>${cellsOf(x, pair[1 - k] || x, last)}</tr>`;
+    }).join('')).join('');
+    return `<div class="mt-tablewrap"><table class="mt-hm mt-ttr"><colgroup>${cmp ? '<col style="width:10%"><col style="width:11%">' : '<col style="width:14%">'}<col style="width:7%"><col style="width:8%">${TTR_GROUPS.map(([, ks]) => '<col>'.repeat(ks.length) + '<col class="mt-ttr-subc">').join('')}</colgroup><thead>
+      <tr class="mt-cgrp"><th colspan="${cmp ? 4 : 3}"></th>${TTR_GROUPS.map(([g, ks]) => `<th colspan="${ks.length + 1}">${g}</th>`).join('')}</tr>
+      <tr><th colspan="${cmp ? 2 : 1}"></th><th class="mt-num">Resueltas</th><th class="mt-num" data-tip="De la apertura a la resolución.">Media</th>${TTR_GROUPS.map(([, ks]) => ks.map((k, j) => `<th class="${j ? '' : 'mt-gsep'}">${m.DIMS.tb.label(k)}</th>`).join('') + '<th class="mt-ttr-sub">Total</th>').join('')}</tr></thead>
+      <tbody>${body}</tbody></table></div>`;
   };
   // Mes a mes (por mes de apertura): lo resuelto de lo recibido ese mes y cuánto tardó, todo, sin escalar y escalado.
   // En ocre, lo que va claramente peor que el total (como en las fichas: un 15 % o más, con al menos MIN_RES resueltas).
@@ -521,6 +532,98 @@ export const createTabs = (m, ch, ui) => {
     }).join('');
     return known.length ? `<div class="mt-tablewrap ${all ? 'mt-scroll' : ''}"><table><thead><tr><th>Ticket</th><th class="mt-num">Incidencias</th><th class="mt-num">Abiertas</th><th class="mt-num">Centros</th><th>Primera</th><th>Última</th><th class="mt-num">Media resol.</th><th>Problema más habitual</th></tr></thead><tbody>${body}</tbody></table></div>
       ${known.length > 15 ? `<button class="mt-more" data-exp="rs-known">${all ? 'Ver menos' : `Ver todos (${num(known.length)})`}</button>` : ''}` : '<p class="mt-mut mt-small">Ninguno con estos filtros.</p>';
+  };
+  // --- Resolución, comparando personas: una persona frente a su equipo (ella incluida: model.js heads) o frente a
+  // otra. Lo que tarda depende mucho del módulo, así que la tabla principal compara módulo a módulo y la media se pone
+  // también frente a lo que tarda el equipo en esos mismos módulos. Sin lo que habla del tercero o del tipo de
+  // problema (en qué se va el tiempo por tarjeta, escalados), que no dice cómo trabaja cada uno.
+  const BETTER_MIN = 10;   // resueltas que necesita cada lado en una fila para marcar quién va mejor
+  // Tabla de dos columnas por dato, una por lado (como Mes a mes en Entrada): los nombres en una leyenda encima, en la
+  // cabecera solo el color. defs: [nombre, valor (x), formato (v, x), mejor, nota]; rows: { label, attrs, cls, x:
+  // [lado 0, lado 1] }. En verde, el lado que va mejor, si los dos tienen al menos BETTER_MIN resueltas.
+  const pairTable = (first, defs, rows) => {
+    const names = teamNames() || [name(0), name(1)];
+    const cells = (r) => defs.map((d, c) => {
+      const v = [0, 1].map((k) => d[1](r.x[k])), t = v.map((x, k) => (x == null ? '—' : d[2](x, r.x[k])));
+      const ok = d[3] && r.x.every((x) => x.resolved >= BETTER_MIN) && v.every((x) => x != null) && t[0] !== t[1];
+      const mark = ok ? ((d[3] === 'low') === (v[0] < v[1]) ? 0 : 1) : -1;
+      return [0, 1].map((k) => `<td class="mt-num ${k ? 'mt-msep' : c ? 'mt-gsep' : ''} ${mark === k ? 'mt-better' : ''}">${t[k]}</td>`).join('');
+    }).join('');
+    const side = (k) => `<th class="mt-led-side" data-tip="${esc(names[k])}"><i class="mt-c${k}"></i></th>`;
+    return `<div class="mt-legend">${[0, 1].map((k) => `<span><i class="mt-c${k}"></i>${esc(names[k])}</span>`).join('')}</div><div class="mt-tablewrap"><table class="mt-fixed mt-led2 mt-respair"><colgroup><col class="mt-first">${'<col>'.repeat(defs.length * 2)}</colgroup><thead>
+      <tr><th rowspan="2">${first}</th>${defs.map((d) => `<th class="mt-num mt-led-m" colspan="2" ${d[4] ? `data-tip="${esc(d[4])}"` : ''}>${d[0]}</th>`).join('')}</tr>
+      <tr>${defs.map(() => side(0) + side(1)).join('')}</tr></thead><tbody>
+      ${rows.map((r) => `<tr class="${r.cls || ''}" ${r.attrs || ''}><td class="mt-r" data-tip="${esc(r.label)}">${esc(r.label)}</td>${cells(r)}</tr>`).join('')}</tbody></table></div>`;
+  };
+  // lo resuelto de cada lado en una lista, con el volumen (comparando con personas, una empresa por persona)
+  const resPair = (lists) => {
+    const H = [0, 1].map((k) => (m.perHead() ? m.heads(k).size || 1 : 1));
+    return [0, 1].map((k) => { const s = stats(lists[k]); s.vol = s.resolved / H[k]; s.H = H[k]; return s; });
+  };
+  const RES_VOL = ['Resueltas', (s) => s.vol, (v, s) => (s.H > 1 ? dec(v) : num(v)), null, ''];
+  const RES_PAIR = [
+    ['Media', (s) => (s.resolved ? s.avg : null), dur, 'low', 'De la apertura a la resolución.'],
+    ['En < 24 h', (s) => (s.resolved ? s.d1 : null), (v) => pct(v), 'high', 'De las resueltas, las resueltas en menos de 24 horas.'],
+  ];
+  const resModulesCmp = (A) => {
+    const R = A.filter(solved), T = bySide(R), lead = S.sides[0].people || !S.sides[1].people ? 0 : 1, mine = new Set(T[lead]);
+    const g = group('mo', R, true).filter((x) => x.k).map((x) => ({ ...x, own: x.rows.filter((i) => mine.has(i)).length }))
+      .filter((x) => x.own).sort((a, b) => b.own - a.own || b.n - a.n);
+    const top = g.slice(0, 15), restL = g.slice(15).flatMap((x) => x.rows);
+    const split = (l) => { const set = new Set(l); return resPair(T.map((t) => t.filter((i) => set.has(i)))); };
+    const rows = top.map((x) => ({ label: m.DIMS.mo.label(x.k), x: split(x.rows), cls: `mt-clk ${isSel('mo', x.k) ? 'mt-sel' : ''}`, attrs: `data-f="mo:${x.k}"` }));
+    if (restL.length) rows.push({ label: `Resto (${g.length - 15})`, x: split(restL), cls: 'mt-mut' });
+    rows.push({ label: 'Todas las resueltas', x: resPair(T), cls: 'mt-tot' });
+    return pairTable('Módulo', [RES_VOL, ...RES_PAIR,
+      ['1 a 7 días', (s) => (s.resolved ? s.d7 : null), (v) => pct(v), null, 'De las resueltas, las que tardaron de 1 a 7 días.'],
+      ['7 a 15 días', (s) => (s.resolved ? s.d15 : null), (v) => pct(v), 'low', 'De las resueltas, las que tardaron de 7 a 15 días.'],
+      ['Escaladas', (s) => (s.resolved ? s.vend : null), (v) => pct(v), null, 'De las resueltas, las que tienen ticket de tercero.']], rows);
+  };
+  const resMonthlyCmp = (A) => {
+    const T = bySide(A.filter(solved)), month = (k) => resPair(T.map((l) => l.filter((i) => MONTH[i] === k)));
+    const rows = monthsIn().map((k) => ({ label: `${MONTHS[k]}${k === LASTM ? '*' : ''}`, x: month(k), cls: `mt-clk ${isSel('month', k) ? 'mt-sel' : ''}`, attrs: `data-f="month:${k}"` }));
+    rows.push({ label: 'Total', x: resPair(T), cls: 'mt-tot' });
+    return pairTable('Mes de apertura', [RES_VOL, ...RES_PAIR,
+      ['Más de 7 días', (s) => (s.resolved ? s.w7 : null), (v) => pct(v), 'low', 'De las resueltas, las que tardaron más de 7 días.'],
+      ['Escaladas', (s) => (s.resolved ? s.vend : null), (v) => pct(v), null, 'De las resueltas, las que tienen ticket de tercero.']], rows);
+  };
+  // La media de una persona frente a lo que tardaría su equipo con sus mismos módulos: la media del equipo en cada
+  // módulo, con el peso que ese módulo tiene en lo suyo. Solo persona frente a empresa.
+  // las medias de las fichas, en días con un decimal: «+1 día 6 h» no cabe en una ficha estrecha
+  const inDays = (v) => (v == null ? null : v / 1440), days1 = (s) => (s.v == null ? '—' : dec(s.v));
+  const sameModules = (A) => {
+    const p = S.sides[0].people ? 0 : 1, t = 1 - p;
+    if (!S.sides[p].people || S.sides[t].people) return null;
+    const R = bySide(A.filter(solved)), mean = new Map(group('mo', R[t], true).map((x) => [x.k, stats(x.rows).avg]));
+    const own = group('mo', R[p]), all = stats(R[t]).avg;
+    const exp = own.length ? own.reduce((a, x) => a + x.n * (mean.get(x.k) ?? all), 0) / R[p].length : null;
+    const out = [];
+    out[p] = { n: R[p].length, v: R[p].length ? inDays(stats(R[p]).avg) : null }; out[t] = { n: R[t].length, v: inDays(exp) };
+    const names = [];
+    names[p] = name(p); names[t] = `${COMPANIES[S.sides[t].company]}, en sus módulos`;
+    return kpiCo('Media frente a sus módulos, en días', out, days1, { val: (s) => s.v, better: 'low', names,
+      note: `Lo que tardaría ${COMPANIES[S.sides[t].company]} con los mismos módulos que ${name(p)}: la media del equipo en cada módulo, con el peso que ese módulo tiene en lo suyo.` });
+  };
+  const resolutionCmp = (A) => {
+    const T = bySide(A), R = T.map((l) => l.filter(solved)), ST = T.map(stats), team = S.sides.some((x) => !x.people), each = team ? ' por persona' : '';
+    const part = (f) => ST.map((s) => ({ n: s.resolved, v: s.resolved ? f(s) : null }));
+    const wait = ST.map((s) => { const t = s.rt.reduce((a, b) => a + b, 0); return { n: s.resolved, v: t ? s.rt[3] / t : null }; });
+    const esc1 = R.map((l) => ({ n: l.length, v: l.length ? l.filter(escd).length / l.length : null }));
+    const P = (s) => opt(pct)(s.v), names = teamNames();
+    return grid(ask('resolucion'),
+      kpis(kpiCo(`Resueltas${each}`, volume(R), team ? (s) => dec(s.v) : (s) => num(s.v), { val: (s) => s.v, note: `de lo recibido en el periodo${team ? headsNote() : ''}`, names }),
+        kpiCo('Media de resolución, en días', part((s) => inDays(s.avg)), days1, { val: (s) => s.v, better: 'low', note: 'De la apertura a la resolución.' }),
+        sameModules(A) || '',
+        kpiCo('En < 24 h', part((s) => s.d1), P, { val: (s) => s.v, better: 'high', note: 'De las resueltas.' }),
+        kpiCo('De 1 a 7 días', part((s) => s.d7), P, { val: (s) => s.v, note: 'De las resueltas.' }),
+        kpiCo('De 7 a 15 días', part((s) => s.d15), P, { val: (s) => s.v, better: 'low', note: 'De las resueltas.' }),
+        kpiCo('Escaladas', esc1, P, { val: (s) => s.v, note: 'De las resueltas, con ticket de tercero.' }),
+        kpiCo('Esperando a terceros', wait, P, { val: (s) => s.v, note: 'Del tiempo de vida de lo resuelto, en Pendiente de un tercero.' })),
+      section('¿Cuánto tardamos?'),
+      card('Cuánto tardan', ttrTable(m.rows('tb')), { span: 's12', sub: 'Lo resuelto de cada uno, sin escalar, escalado y todo, repartido según lo que tardó (cada fila suma el 100 %). En verde, quien resuelve más en menos de 24 h y menos en más de 7 días. Clic en una celda para filtrar.' }),
+      card('Mes a mes', resMonthlyCmp(A), { span: 's12', sub: `${MONTH_NOTE} En verde, quien va mejor (con al menos ${BETTER_MIN} resueltas cada uno).${m.perHead() && S.sides.some((x) => !x.people) ? ' Las resueltas de la empresa, la media por persona de su equipo.' : ''} Clic en un mes para filtrar.` }),
+      section('¿Qué módulos tardan más?'),
+      card('Módulo a módulo', resModulesCmp(A), { span: 's12', sub: `Los 15 módulos con más resueltas de ${esc(name(S.sides[0].people || !S.sides[1].people ? 0 : 1))}; cada uno, frente al otro en el mismo módulo. En verde, quien va mejor (con al menos ${BETTER_MIN} resueltas cada uno). Clic en un módulo para filtrar.` }));
   };
   const resolutionView = (A, note = '') => {
     const s = stats(A), R = A.filter(solved), rtTot = s.rt.reduce((a, b) => a + b, 0) || 1, on = s.resolved > 0;
@@ -728,7 +831,8 @@ export const createTabs = (m, ch, ui) => {
       return modulesView(A);
     },
     resolucion(A) {
-      if (CMP()) return m.alone((A1) => resolutionView(A1, `<p class="mt-note">Esta pestaña aún no compara: se ve solo ${esc(name(0))}.</p>`));
+      if (CMP() && !m.perHead()) return m.alone((A1) => resolutionView(A1, `<p class="mt-note">Esta pestaña no compara empresas: cada una recibe trabajo distinto. Se ve solo ${esc(name(0))}.</p>`));
+      if (CMP()) return resolutionCmp(A);
       return resolutionView(A);
     },
 
