@@ -466,3 +466,4 @@
 .mt-iarank .mt-bt { grid-column: 1 / -1; height: 5px; }
 .mt-iarank b { font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
 .mt-iarank em { font-size: 12px; font-style: normal; text-align: right; color: var(--mt-low); font-variant-numeric: tabular-nums; }
+.mt-view .mt-sc td.mt-tbar .mt-iabar { height: 12px; margin: 0; background: var(--mt-track); }

@@ -167,6 +167,11 @@ export const createCharts = (m, ui) => {
     // el 5.º: sobre cuántas se marca si va peor (si no, sus issues)
     iaOk: ['Revisadas OK', 'high', (s) => s.iaOk, 'De las de IA, con revisión humana OK y sin fallo.', (s) => s.iaN],
     iaFail: ['Con fallo', 'low', (s) => s.iaFail, 'De las de IA, con alguna marca de fallo o de revisión no OK.', (s) => s.iaN],
+    iaUnrev: ['Sin revisar', null, (s) => s.iaUnrev, 'De las de IA, sin revisión ni fallo.'],
+    // con o.cell: la celda la pinta quien llama (el reparto de las de IA en una barra)
+    iaMix: ['Reparto', null, null, 'Revisadas OK, con fallo y sin revisar.'],
+    req: ['% peticiones', null, (s) => s.req, 'Tipo de servicio Petición de usuario.'],
+    rep: ['Resol. repetida', null, (s) => s.rep, 'Issues cuyo texto de resolución se ha usado 4 veces o más.'],
     // SLA y calidad
     slaKo: ['Fuera de SLA', null, (s) => s.slaKo, 'Empezadas tarde y abiertas que siguen sin empezar pasado el plazo.'],
     ip: ['Hasta En curso', 'low', (s) => s.ip, 'Media de la apertura al primer paso a En curso.'],
@@ -177,7 +182,7 @@ export const createCharts = (m, ui) => {
     noDesc: ['Sin descripción', 'low', (s) => (s.n ? s.noDesc : null), 'El título no dice cuál es el problema.'],
     same: ['Mismo cierre', null, (s) => s.same, 'De las resueltas, la parte cerrada con el mismo texto de resolución (el más usado). Si es alta, se resuelve siempre igual: se puede automatizar o llevar a la IA.'],
   };
-  const SC_FMT = { sla: (v) => (v == null ? '—' : pct(v)), avg: dur, d1: (v) => pct(v), reop: (v) => pct(v, 1), crit: (v) => pct(v), vend: (v) => pct(v), open: num, mi: (v) => (v ? num(v) : ''), nce: num, same: pct, res: num, w7: (v) => pct(v), d7: (v) => pct(v), d15: (v) => pct(v), mx: dur, tq: dur, tc: dur, tv: dur, iaN: (v) => (v ? num(v) : ''), iaShare: (v) => (v ? pct(v, 1) : ''), iaOk: (v) => (v == null ? '' : pct(v)), iaFail: (v) => (v == null ? '' : pct(v)), slaKo: num, ip: dur, bounce: (v) => pct(v, 1), noIpDone: (v) => pct(v, 1), escNoPend: (v) => pct(v, 1), noCat: (v) => pct(v, 1), noDesc: (v) => pct(v, 1) };
+  const SC_FMT = { sla: (v) => (v == null ? '—' : pct(v)), avg: dur, d1: (v) => pct(v), reop: (v) => pct(v, 1), crit: (v) => pct(v), vend: (v) => pct(v), open: num, mi: (v) => (v ? num(v) : ''), nce: num, same: pct, res: num, w7: (v) => pct(v), d7: (v) => pct(v), d15: (v) => pct(v), mx: dur, tq: dur, tc: dur, tv: dur, iaN: (v) => (v ? num(v) : ''), iaShare: (v) => (v ? pct(v, 1) : ''), iaOk: (v) => (v == null ? '' : pct(v)), iaFail: (v) => (v == null ? '' : pct(v)), iaUnrev: (v) => (v == null ? '' : pct(v)), req: (v) => pct(v), rep: (v) => pct(v), slaKo: num, ip: dur, bounce: (v) => pct(v, 1), noIpDone: (v) => pct(v, 1), escNoPend: (v) => pct(v, 1), noCat: (v) => pct(v, 1), noDesc: (v) => pct(v, 1) };
   const scorecard = (dim, groups, o = {}) => {
     const id = o.id || `sc-${dim}`, list = o.rows || rows(dim), cmp = CMP(), cols = groups.flatMap(([, c]) => c);
     const side = (l) => (cmp ? bySide(l)[0] : l), other = (l) => bySide(l)[1];
@@ -203,13 +208,15 @@ export const createCharts = (m, ui) => {
     const cell = (c, r, isRef) => {
       if (c === 'n') return `<td><div class="mt-sc-vol"><em>${pct(r.n / T, 1)}</em><span class="mt-sc-bar"><i style="width:${(r.n / T * 100).toFixed(1)}%"></i></span><b>${num(r.n)}</b></div></td>`;
       if (c === 'top') return `<td class="mt-sc-top">${r.top ? `<span data-tip="${esc(`${r.top.label}\n${pct(r.top.share, 1)} de sus issues`)}">${esc(r.top.label)}</span><em>${pct(r.top.share)}</em>` : ''}</td>`;
+      if (o.cell?.[c]) return `<td class="mt-tbar">${o.cell[c](r)}</td>`;
       if (c === 'dl') return `<td class="mt-num" data-tip="${esc(`Últimos 90 días: ${num(r.tr.now)}\n90 anteriores: ${num(r.tr.prev)}`)}">${delta(r.tr)}</td>`;
       const v = SC[c][2](r), shown = v == null ? '—' : SC_FMT[c](v);
       const d = cmp && r.b ? diff(r, r.b, (x) => SC_FMT[c](SC[c][2](x)), (x) => SC[c][2](x), SC[c][1]) : '';
       return `<td class="mt-num ${!isRef && worse(c, r) ? 'mt-worse' : ''}" ${!isRef && worse(c, r) ? `data-tip="${esc(`Peor que la media de todos: ${SC_FMT[c](SC[c][2](ref))}`)}"` : ''}>${shown}${d ? `<small>${d}</small>` : ''}</td>`;
     };
     // o.n: [nombre, nota] de la columna del volumen, si no son issues recibidas (lo resuelto, lo escalado…)
-    const def = (c) => (c === 'n' && o.n ? [o.n[0], null, SC.n[2], o.n[1]] : SC[c]);
+    // o.heads: { columna: [nombre, nota] } para cambiar el nombre de una columna en esta ficha
+    const def = (c) => (c === 'n' && o.n ? [o.n[0], null, SC.n[2], o.n[1]] : o.heads?.[c] ? [o.heads[c][0], SC[c][1], SC[c][2], o.heads[c][1]] : SC[c]);
     const head = (c) => `<th class="mt-num ${srt[0] === c ? 'mt-srt' : ''}" ${SC[c][2] ? `data-sort="${id}:${c}"` : ''} data-tip="${esc(def(c)[3])}">${def(c)[0]}${srt[0] === c ? (srt[1] < 0 ? ' ↓' : ' ↑') : ''}</th>`;
     const colgroup = `<colgroup><col class="mt-sc-first">${groups.map(([, c]) => c.map((x, j) => `<col class="${j ? '' : 'mt-gsep'} mt-sc-${x}">`).join('')).join('')}</colgroup>`;
     const row = (label, r, attrs = '', isRef = false, lead = '') => `<tr ${attrs}><th class="mt-r" title="${esc(label)}">${lead}${esc(label)}</th>${cols.map((c) => cell(c, r, isRef)).join('')}</tr>`;

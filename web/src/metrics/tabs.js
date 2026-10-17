@@ -900,22 +900,6 @@ export const createTabs = (m, ch, ui) => {
   // el reparto de las de IA en una barra: revisadas OK, con fallo y sin revisar
   const IA_SPLIT = [['Revisada OK', 'ok', 'mt-ia0'], ['Con fallo', 'fail', 'mt-ia1'], ['Sin revisar', 'unrev', 'mt-ia2']];
   const iaBar = (s) => (s.ia ? `<div class="mt-hbar mt-iabar">${IA_SPLIT.map(([l, k, c]) => (s[k] ? `<i class="${c}" style="width:${(s[k] / s.ia * 100).toFixed(1)}%" data-tip="${esc(`${l}: ${num(s[k])} de ${num(s.ia)} (${pct(s[k] / s.ia, 1)})`)}"></i>` : '')).join('')}</div>` : '');
-  // quién la usa: las personas del equipo (o las que tienen issues), con lo suyo con IA y cómo sale
-  const iaPeople = (A) => {
-    const g = group('as', A, true).filter((x) => x.k).map((x) => ({ ...x, s: iaStats(x.rows) })).sort((a, b) => b.s.ia - a.s.ia || b.n - a.n);
-    if (!g.length) return '<p class="mt-mut mt-small">Sin issues con responsable.</p>';
-    const all = ui.exp['ia-who'], shown = all ? g : g.slice(0, 15);
-    const cells = (s) => `<td class="mt-num mt-gsep">${num(s.n)}</td><td class="mt-num mt-gsep">${s.ia ? num(s.ia) : ''}</td><td class="mt-num">${s.ia ? pct(s.share, 1) : ''}</td>
-      <td class="mt-num mt-gsep">${s.ia ? num(s.solved) : ''}</td><td class="mt-num">${s.ia ? pct(s.okShare) : ''}</td><td class="mt-num">${s.ia ? pct(s.failShare) : ''}</td>`;
-    const tot = iaStats(A.filter((i) => C.as[i]));
-    return `<div class="mt-tablewrap"><table class="mt-mx mt-qpivot"><colgroup><col style="width:24%">${'<col>'.repeat(6)}</colgroup><thead>
-      <tr class="mt-cgrp"><th></th><th>Volumen</th><th colspan="2">Con IA</th><th colspan="3">Cómo sale</th></tr>
-      <tr><th>Persona</th><th class="mt-num">Issues</th><th class="mt-num">Issues</th><th class="mt-num">% de las suyas</th><th class="mt-num" data-tip="Con la etiqueta IA_SOLVED… en TAGS.">Resueltas con IA</th>
-      <th class="mt-num" data-tip="De las de IA, con revisión humana OK y sin fallo.">Revisadas OK</th><th class="mt-num" data-tip="De las de IA, con alguna marca de fallo o de revisión no OK.">Con fallo</th></tr></thead>
-      <tbody>${shown.map((x) => `<tr class="mt-clk ${isSel('as', x.k) ? 'mt-sel' : ''}" data-f="as:${x.k}"><th class="mt-r" data-tip="${esc(m.DIMS.as.label(x.k))}">${esc(m.DIMS.as.label(x.k))}</th>${cells(x.s)}</tr>`).join('')}
-      <tr class="mt-lead mt-lead-end"><th class="mt-r">Todas</th>${cells(tot)}</tr></tbody></table></div>
-      ${g.length > 15 ? `<button class="mt-more" data-exp="ia-who">${all ? 'Ver menos' : `Ver todas (${num(g.length)})`}</button>` : ''}`;
-  };
   // Las cifras de arriba, una caja por pregunta: cuánto la usamos, cómo sale, quién la usa y dónde. Cada caja, su cifra
   // grande y debajo el detalle.
   const iaBox = (label, value, lines, extra = '') => `<div class="mt-iabox"><div class="mt-kpi-l">${label}</div><div class="mt-kpi-v">${value}</div>${extra}
@@ -981,7 +965,13 @@ export const createTabs = (m, ch, ui) => {
   };
   const iaView = (A, note = '') => {
     const s = iaStats(A), R = A.filter(solved);
-    const extra = (st, l) => { const x = iaStats(l); st.iaN = x.ia; st.iaShare = x.share; st.iaOk = x.okShare; st.iaFail = x.failShare; st.req = share(l, (i) => C.sv[i] === REQ); st.rep = share(l, (i) => C.rz[i] > 0); };
+    const extra = (st, l) => {
+      const x = iaStats(l); st.iaS = x; st.iaN = x.ia; st.iaShare = x.share; st.iaOk = x.okShare; st.iaFail = x.failShare; st.iaUnrev = x.unrevShare;
+      st.req = share(l, (i) => C.sv[i] === REQ); st.rep = share(l, (i) => C.rz[i] > 0);
+    };
+    // de cada resolución, además, el módulo en el que más se usa
+    const rzExtra = (st, l) => { extra(st, l); const g = group('mo', l).filter((x) => x.k); st.top = g.length ? { label: m.DIMS.mo.label(g[0].k), share: g[0].n / (l.length || 1) } : null; };
+    const mix = { iaMix: (r) => iaBar(r.iaS) };
     return grid(ask('ia2'), note,
       iaHead(A, s),
       section('¿Cuánto la usamos?'),
@@ -997,11 +987,15 @@ export const createTabs = (m, ch, ui) => {
           ['Después', [['Reabiertas', (x) => (x.n ? x.reop : null), P1, 'low', 'Volvieron de Resuelta a abierta.'], ['Escaladas', (x) => (x.n ? x.vend : null), (v) => pct(v), null, 'Con ticket de tercero.']]]]),
         { span: 's12', sub: `Lo resuelto, según sus marcas de IA. En ocre, lo que va un 15 % o más peor que el total (con al menos ${MIN_RES} issues). Clic en una fila para filtrar.` }),
       section('¿Quién la usa?'),
-      card('Por persona', iaPeople(A), { span: 's12', sub: 'Lo de cada responsable, de más a menos issues con IA. Clic en una persona para filtrar.' }),
+      card('', scorecard('as', [['Volumen', ['n']], ['Con IA', ['iaN', 'iaShare']], ['Cómo sale', ['iaMix', 'iaOk', 'iaFail', 'iaUnrev']], ['Resolución', ['avg', 'd1']]],
+        { id: 'ia-as', skip: noK, refLabel: 'Todas las personas', title: 'Personas', extra, sort: 'iaN', top: 15, cell: mix }), { span: 's12' }),
       section('¿Qué se repite?'),
-      card('Temas: volumen, rapidez y repetición', ranking('th', ['n', 'mix', 'req', 'rep', 'avg', 'd1', 'vend'], { id: 'ia-rep-th', extra, top: 27 }),
-        { span: 's12', sub: '«% peticiones»: tipo de servicio Petición de usuario. «% resolución repetida»: issues cuyo texto de resolución se ha usado 4 veces o más.' }),
-      card('Resoluciones que más se repiten', bars('rz', { id: 'ia-rep-rz', top: 15, skip: noK }), { span: 's12', sub: 'Textos de resolución idénticos (salvo números) usados 4 veces o más. Clic en uno para filtrar.' }));
+      card('', scorecard('tp', [['Volumen', ['n']], ['Qué es', ['req']], ['Repetición', ['rep']], ['Con IA', ['iaN', 'iaShare']], ['Resolución', ['avg', 'd1', 'vend']]],
+        { id: 'ia-rep', refLabel: 'Todos los temas', title: 'Temas', extra, top: 14, child: { dim: 'de', top: 8, noun: 'problemas' } }), { span: 's12' }),
+      card('', scorecard('rz', [['Volumen', ['n']], ['Dónde', ['top']], ['Con IA', ['iaN', 'iaShare']], ['Resolución', ['avg', 'd1']]],
+        { id: 'ia-rz', skip: noK, refLabel: 'Todas las resoluciones repetidas', title: 'Resoluciones', extra: rzExtra, top: 15,
+          rows: m.rows('rz').filter((i) => C.rz[i] > 0),
+          n: ['Veces', 'Issues cerradas con este texto (idéntico salvo números, usado 4 veces o más) y su parte de todas las repetidas.'], heads: { top: ['Módulo principal', 'El módulo con más issues cerradas con este texto y su parte.'] } }), { span: 's12' }));
   };
 
   const VIEWS = {
