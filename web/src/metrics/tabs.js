@@ -302,7 +302,8 @@ export const createTabs = (m, ch, ui) => {
   };
   // Backlog, comparando: las cifras de arriba, cómo está lo pendiente de cada uno y qué tiene pendiente. Sin lo que no
   // tiene responsable (no es de nadie: no hay con qué compararlo) ni las tablas de detalle por módulo, centro y escalado
-  // (son para gestionar el propio backlog; para comparar un módulo o un centro, se filtra).
+  // (son para gestionar el propio backlog; para comparar un módulo o un centro, se filtra). Sin tarjetas: cada empresa
+  // las usa a su manera.
   const backlogCmp = (A) => {
     const T = bySide(A), P = T.map((l) => l.filter((i) => OPEN[i])), op = A.filter((i) => OPEN[i]), pp = m.perHead(), d = days() || 1;
     const H = [0, 1].map((k) => (pp ? m.heads(k).size || 1 : 1)), each = pp ? ' por persona' : '', names = teamNames();
@@ -320,10 +321,8 @@ export const createTabs = (m, ch, ui) => {
       { label: 'Con más de 15 días', test: old, f: OLD15, better: 'low', tip: 'Llevan más de 15 días abiertas.' },
       { label: 'Escaladas', test: (i) => C.vt[i] > 0, f: 'es:1', tip: 'Con ticket de tercero, estén en el estado que estén.' },
       { label: 'Críticas', test: (i) => C.pr[i] === CRITICAL, f: `pr:${CRITICAL}` },
-      { label: 'PRIO', test: (i) => cardsOf(i).includes(2), f: 'tj:2', tip: 'Priorizadas por negocio.' },
     ];
     const mixRows = [{ head: 'Prioridad' }, ...PRIOS.map((p) => ({ label: nice(DI.prio[p]), test: (i) => C.pr[i] === p, f: `pr:${p}` })),
-      { head: 'Tarjeta', note: 'Una PRIO cuenta también en su SGA o SISU.' }, ...CARDS.map((c, k) => ({ label: c, test: (i) => cardsOf(i).includes(k), f: `tj:${k}` })),
       { head: 'Módulo' }, ...topRows('mo', op, 8)];
     return grid(ask('backlog'),
       kpis(kpiCo(`Pendientes${each}`, volume(P), pp ? (s) => dec(s.v) : (s) => num(s.v), { val: (s) => s.v, note: `sin resolver, de lo recibido en el periodo${headsNote()}`, names }),
@@ -1169,12 +1168,13 @@ export const createTabs = (m, ch, ui) => {
     entrada(A) {
       const T = bySide(A), ST = T.map(stats), d = days() || 1, sharePct = (s) => opt(pct)(s.v);
       const closedIn = closedInPeriod(), each = m.perHead() ? ' por persona' : '';
-      // lo que entra, mes a mes, por prioridad, tipo de servicio, tarjeta y tipo de operación
+      // lo que entra, mes a mes, por prioridad, tipo de servicio, tarjeta y tipo de operación; comparando, sin tarjeta
+      // (cada empresa las usa a su manera: no se comparan)
       const months = monthsIn().map((k) => ({ label: MONTHS[k] + (k === LASTM ? '*' : ''), test: (i) => MONTH[i] === k, f: `month:${k}` }));
       const inRows = [
         { head: 'Prioridad' }, ...PRIOS.map((p) => ({ label: nice(DI.prio[p]), test: (i) => C.pr[i] === p, f: `pr:${p}` })),
         { head: 'Tipo de servicio' }, ...topRows('sv', A, 4),
-        { head: 'Tarjeta', note: 'Una PRIO cuenta también en su SGA o SISU.' }, ...CARDS.map((c, k) => ({ label: c, test: (i) => cardsOf(i).includes(k), f: `tj:${k}` })),
+        ...(CMP() ? [] : [{ head: 'Tarjeta', note: 'Una PRIO cuenta también en su SGA o SISU.' }, ...CARDS.map((c, k) => ({ label: c, test: (i) => cardsOf(i).includes(k), f: `tj:${k}` }))]),
         { head: 'Tipo de operación' }, ...topRows('op', A, 7),
       ];
       return grid(ask('entrada'),

@@ -214,6 +214,14 @@ test('Mes a mes comparando: entre empresas, en relación a lo que entra; persona
   assert.doesNotMatch(h, /undefined|NaN/);
 });
 
+test('Entrada y Backlog comparando, sin tarjetas (cada empresa las usa a su manera); sin comparar, Entrada sí las tiene', () => {
+  const m = createModel(data()), ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  m.refilter();
+  assert.match(tabs.render('entrada', m.rows()), />Tarjeta</);
+  m.S.sides = [{ company: 0 }, { company: 1 }]; m.refilter();
+  for (const tab of ['entrada', 'backlog']) assert.doesNotMatch(tabs.render(tab, m.rows()), />Tarjeta<|>PRIO<|undefined|NaN/);
+});
+
 test('Módulos no compara empresas: se pinta solo la primera y el lado de comparar se queda como estaba', () => {
   const m = createModel(data());
   m.S.sides[1] = { company: 1 }; m.refilter();
