@@ -842,8 +842,7 @@ export const createTabs = (m, ch, ui) => {
       card('Mes a mes', pairTable('Mes de apertura', [PAIR_VOL, ...PAIR_SLA, ...(pp ? qualityDefs(false).filter((d) => ['Cerradas sin En curso', 'Escaladas sin Pendiente'].includes(d[0])) : [])], pairRows(A, months, 'Total'), BY_N),
         { span: 's12', sub: `${MONTH_NOTE} ${greenNote}${perNote} Clic en un mes para filtrar.` }),
       section('¿Queda bien hecho y bien registrado?'),
-      card(co ? 'Por prioridad y tarjeta' : 'Por prioridad', pairTable(co ? 'Prioridad y tarjeta' : 'Prioridad', qualityDefs(co),
-        pairRows(A, [...PRIO_ROWS(), ...(co ? CARD_ROWS() : [])]), BY_N),
+      card('Por prioridad', pairTable('Prioridad', qualityDefs(co), pairRows(A, PRIO_ROWS()), BY_N),
         { span: 's12', sub: `Trabajo: reabiertas y devueltas a cola. Registro: lo que falta o no se movió en Remedy.${co ? ' Sin «Título sin descripción»: se detecta con el diccionario de problemas de Indra, hecho con sus títulos.' : ''} ${greenNote} Clic en una fila para filtrar.` }),
       co ? section('¿Dónde?') : '',
       co ? card('Módulo a módulo', pairTable('Módulo', [PAIR_VOL, ...PAIR_SLA, qualityDefs(true)[0], qualityDefs(true)[2]], pairRows(A, common()), BY_N),
@@ -955,10 +954,10 @@ export const createTabs = (m, ch, ui) => {
           n: ['Veces', 'Issues cerradas con este texto (idéntico salvo números, usado 4 veces o más) y su parte de todas las repetidas.'], heads: { top: ['Módulo principal', 'El módulo con más issues cerradas con este texto y su parte.'] } }), { span: 's12' }));
   };
 
-  // --- IA, comparando. Entre empresas, cuánto usa la IA cada servicio, cómo le sale, dónde y cuánta gente la usa;
-  // entre personas (una frente a su equipo, ella incluida, o frente a otra), lo mismo de cada una, módulo a módulo en lo
-  // suyo. Más uso, más revisadas OK y menos fallos, en verde; lo que no tiene un mejor, sin color. Entre empresas no se
-  // comparan tiempos de resolución (como en Resolución: cada una recibe trabajo distinto).
+  // --- IA, comparando. Entre empresas, cuánto usa la IA cada servicio, en qué trabajo, cómo le sale y cuánta gente la
+  // usa; entre personas (una frente a su equipo, ella incluida, o frente a otra), lo mismo de cada una, módulo a módulo
+  // en lo suyo y lo que tarda. Más uso, más revisadas OK y menos fallos, en verde; lo que no tiene un mejor, sin color.
+  // Entre empresas no se comparan tiempos (como en Resolución: cada una recibe trabajo distinto).
   // las cifras de IA de cada lado de una lista, con el volumen por persona (comparando con personas, la empresa entre su equipo)
   const iaPair = (lists) => {
     const H = [0, 1].map((k) => (m.perHead() ? m.heads(k).size || 1 : 1));
@@ -1031,13 +1030,13 @@ export const createTabs = (m, ch, ui) => {
       fig('Revisadas OK', (s) => s.okShare, P, 'high', 'De las de IA, con revisión humana OK y sin fallo.', (s) => s.ia),
       fig('Con fallo', (s) => s.failShare, P, 'low', 'De las de IA, con alguna marca de fallo o de revisión no OK.', (s) => s.ia),
       fig('Sin revisar', (s) => s.unrevShare, P, null, 'De las de IA, sin revisión ni fallo.', (s) => s.ia),
-      fig('Media con IA, en días', (s) => (s.avg == null ? null : s.avg / 1440), dec, 'low', 'De las resueltas con IA, de la apertura a la resolución.', (s) => s.r.resolved),
+      pp ? fig('Media con IA, en días', (s) => (s.avg == null ? null : s.avg / 1440), dec, 'low', 'De las resueltas con IA, de la apertura a la resolución.', (s) => s.r.resolved) : '',
       co ? fig('Personas que la usan', users, P, 'high', 'De las personas con issues en el periodo, las que tienen alguna con IA.', (s) => s.people) : '',
       co ? kpiCo('Módulos donde se usa', mods.map((v) => ({ n: 1, v })), (x) => num(x.v), { val: (x) => x.v, note: 'Módulos con alguna issue con IA.' }) : ''];
     return grid(ask('ia2'),
       kpis(...kp.filter(Boolean)),
       section('¿Cuánto la usamos?'),
-      card('Mes a mes', pairTable('Mes de apertura', [D.vol, D.ia, D.share, D.ok, D.fail, D.avg], iaRows(A, months), IA_N, [['Volumen', 1], ['Uso de IA', 2], ['Cómo sale, de las de IA', 2], ['Resolución', 1]]),
+      card('Mes a mes', pairTable('Mes de apertura', [D.vol, D.ia, D.share, D.ok, D.fail, ...(pp ? [D.avg] : [])], iaRows(A, months), IA_N, [['Volumen', 1], ['Uso de IA', 2], ['Cómo sale, de las de IA', 2], ...(pp ? [['Resolución', 1]] : [])]),
         { span: 's12', sub: `${MONTH_NOTE} ${greenNote}${perNote} Clic en un mes para filtrar.` }),
       section('¿En qué trabajo la usamos?'),
       card('En qué trabajo', pairTable('Corte', [D.vol, D.ia, D.share, D.part, D.ok, D.fail], iaWorkRows(A), IA_N, IA_GROUPS),
