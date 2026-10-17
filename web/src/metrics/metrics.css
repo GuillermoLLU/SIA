@@ -434,8 +434,8 @@
 .mt-view table.mt-ttr tr.mt-tot2 > * { font-weight: 650; }
 .mt-view table.mt-ttr tr.mt-tot2 td { background: none; }
 .mt-view table.mt-ttr td.mt-better { color: var(--mt-good); background: color-mix(in srgb, var(--mt-good) 9%, transparent); }
-.mt-view table.mt-respair col.mt-first { width: 15%; }
-.mt-view table.mt-respair td.mt-r { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mt-view table.mt-pair col.mt-first { width: 15%; }
+.mt-view table.mt-pair td.mt-r { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* SLA y calidad (propuesta): los tramos dentro del plazo de cada prioridad, en verde; las cifras de calidad, con clic */
 .mt-view .mt-hm td.mt-insla { background: color-mix(in srgb, var(--mt-good) calc(var(--mt-a, 0%) * .8 + 8%), var(--mt-soft)); }
@@ -469,6 +469,12 @@
 .mt-iarank em { font-size: 12px; font-style: normal; text-align: right; color: var(--mt-low); font-variant-numeric: tabular-nums; }
 .mt-view .mt-sc td.mt-tbar .mt-iabar { height: 12px; margin: 0; background: var(--mt-track); }
 /* tablas por lado con bloques de filas: la fila de título de cada bloque */
-.mt-view table.mt-led2 td.mt-gstart { border-left: 2px solid var(--mt-line); }
-.mt-view table.mt-led2 tr.mt-cgrp th + th { border-left: 2px solid var(--mt-line); }
-.mt-view table.mt-led2 th.mt-corner { vertical-align: bottom; text-align: left; font-size: 11px; font-weight: 600; color: var(--mt-low); text-transform: none; letter-spacing: 0; }
+/* la tabla de comparar (pair-table.js): las líneas de cada dato también en la cabecera y, con bloques, el título del
+   bloque a la izquierda, como en las tablas de Qué recibe cada uno */
+.mt-view table.mt-pair th.mt-gsep { border-left: 1px solid var(--mt-line); }
+.mt-view table.mt-pair th.mt-msep { border-left: 1px dashed var(--mt-line); }
+.mt-view table.mt-pair tr.mt-cgrp th + th { border-left: 1px solid var(--mt-line); }
+.mt-view table.mt-pair-b col.mt-first:first-child { width: 110px; } .mt-view table.mt-pair-b col.mt-first + col.mt-first { width: 19%; }
+.mt-view table.mt-pair th.mt-gl { padding: 9px 10px; font-size: 11px; font-weight: 700; letter-spacing: .4px; text-align: left; vertical-align: top; text-transform: uppercase; white-space: normal; color: var(--text); background: var(--mt-soft); }
+.mt-view table.mt-pair th.mt-gl small { display: block; margin-top: 4px; font-size: 11px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--mt-low); }
+.mt-view table.mt-pair tr.mt-gfirst > * { border-top: 3px solid var(--mt-line); }

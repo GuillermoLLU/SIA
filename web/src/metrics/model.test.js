@@ -270,14 +270,13 @@ test('SLA y calidad: tramos de paso a En curso que caen en los plazos y marcas d
   assert.doesNotMatch(html, /undefined|NaN/);
 });
 
-test('SLA y calidad comparando: entre empresas, por prioridad y con el mismo trabajo; con personas, sin turnos ni módulos', () => {
+test('SLA y calidad comparando: entre empresas, por prioridad y con el mismo trabajo, sin turnos; con personas, sin módulos', () => {
   const m = createModel(data()), ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
   m.S.sides = [{ company: 0 }, { company: 1 }]; m.refilter();
   let h = tabs.render('sla', m.rows());
   assert.match(h, /Dentro del SLA, con el mismo trabajo/);
-  assert.match(h, /Por turno y día de entrada/);
   assert.match(h, /Módulo a módulo/);
-  assert.doesNotMatch(h, />Título sin descripción<|undefined|NaN/);   // la columna, no la nota
+  assert.doesNotMatch(h, /Por turno y día de entrada|>Título sin descripción<|undefined|NaN/);   // la columna, no la nota
   m.S.sides = [{ people: new Set([1]) }, { company: 0 }]; m.refilter();   // ANA frente a Indra
   h = tabs.render('sla', m.rows());
   assert.match(h, /Indra, con ese trabajo/);
@@ -293,6 +292,23 @@ test('IA: uso de cada issue por sus marcas (con fallo manda sobre revisada OK) y
   const html = createTabs(m, createCharts(m, { exp: {}, sort: {} }), { exp: {}, sort: {} }).render('ia2', m.rows());
   assert.match(html, /Módulos donde se usa/);
   assert.doesNotMatch(html, /undefined|NaN/);
+});
+
+test('IA comparando: entre empresas, en qué trabajo (sin turnos ni tarjetas) y personas según su uso; con personas, módulo a módulo', () => {
+  const d = data();
+  d.cols.fl[0] = 2048 | 4096; d.cols.fl[1] = 2048 | 64;
+  const m = createModel(d), ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  m.S.sides = [{ company: 0 }, { company: 1 }]; m.refilter();
+  let h = tabs.render('ia2', m.rows());
+  assert.match(h, /En qué trabajo/);
+  for (const block of ['Prioridad', 'Tipo de servicio', 'Escalado']) assert.match(h, new RegExp(`<th class="mt-gl"[^>]*>${block}`));
+  assert.match(h, /Personas según su uso/);
+  assert.doesNotMatch(h, /Turno|Tarjeta|Módulo a módulo|undefined|NaN/);
+  m.S.sides = [{ people: new Set([1]) }, { company: 0 }]; m.refilter();   // ANA frente a Indra
+  h = tabs.render('ia2', m.rows());
+  assert.match(h, /Módulo a módulo/);
+  assert.match(h, /Según cómo sale/);
+  assert.doesNotMatch(h, /Personas según su uso|undefined|NaN/);
 });
 
 test('de lo resuelto: los tramos de tiempo, el máximo y el tiempo en cada estado, solo de las resueltas', () => {

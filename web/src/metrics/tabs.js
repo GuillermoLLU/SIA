@@ -5,8 +5,10 @@
 // respecto a B.
 import { esc } from '../ui/html.js';
 import { num, dec, pct, dur, nice, title, dateOf, MONTHS, DOWS } from './format.js';
-import { COMPANIES, CARDS, MAJOR, IA_MARKS, SITUATIONS, ACTIVE_DAYS, START_LIMITS, share } from './model.js';
+import { COMPANIES, CARDS, MAJOR, SITUATIONS, ACTIVE_DAYS, START_LIMITS, share } from './model.js';
+import { IA_MARKS, IA_NONE, iaStats as iaStatsOf, iaUse } from './ia.js';
 import { SHIFTS, SHIFT_HOURS, DAYS, MIN_ACTIONS } from './shifts.js';
+import { pairTable as pairTableOf, BETTER_MIN } from './pair-table.js';
 
 export const TABS = [['resumen', 'Resumen'], ['hoy', 'Foto de hoy'], ['entrada', 'Entrada'], ['backlog', 'Backlog'], ['modulos', 'Módulos y focos'],
   ['resolucion', 'Resolución y escalados'], ['sla', 'SLA y calidad'], ['ia', 'IA'], ['ia2', 'IA (propuesta)'], ['turnos', 'Turnos']];
@@ -238,27 +240,13 @@ export const createTabs = (m, ch, ui) => {
   const ledgerCmp = (units, per, day) => {
     const pp = m.perHead(), H = [0, 1].map((k) => (pp ? m.heads(k).size || 1 : 1)), groups = LEDGER_CMP[pp ? 'pp' : 'co'];
     const dayText = (t) => (day ? t.replace('pasó en el mes', 'pasó en el día').replace('ese mes', 'ese día').replace('en el mes', 'el mismo día').replace('meses anteriores', 'días anteriores').replace('acabar el mes', 'acabar el día').replace('el mismo mes', 'el mismo día') : t);
-    const value = (d, x, k) => { const v = d[1](x); return v != null && d[2] === 'v' ? v / H[k] : v; };
-    const show = (d, v, k) => (v == null ? '—' : d[2] === 'p' ? pct(v) : d[2] === 'n' || H[k] === 1 ? num(Math.round(v)) : dec(v));
-    const sideName = (k) => (pp && !S.sides[k].people ? `Media de ${COMPANIES[S.sides[k].company]}` : name(k));
-    const defs = groups.flatMap(([, d]) => d);
-    const cells = (j) => defs.map((d, c) => {
-      const v = [0, 1].map((k) => value(d, per[k][j], k)), t = v.map((x, k) => show(d, x, k));
-      // el lado marcado: el que va mejor (verde) o, en 'warn', el más alto (naranja)
-      // (comparando los valores redondeados como se ven: «0» y «0,0» son iguales)
-      const r = (x) => Math.round(x * (d[2] === 'p' ? 100 : 10));
-      const mark = d[3] && v[0] != null && v[1] != null && r(v[0]) !== r(v[1]) ? ((d[3] === 'low') === (v[0] < v[1]) ? 0 : 1) : -1;
-      const cls = d[3] === 'warn' ? 'mt-warn' : 'mt-better', first = groups.some(([, g]) => g[0] === d);
-      return [0, 1].map((k) => `<td class="mt-num ${k ? '' : first ? 'mt-gsep' : 'mt-msep'} ${mark === k ? cls : ''}">${t[k]}</td>`).join('');
-    }).join('');
-    const row = (label, j, attrs = '') => `<tr ${attrs}><td>${label}</td>${cells(j)}</tr>`;
-    // los nombres, en una leyenda encima; en la cabecera, solo el color de cada lado (el nombre, al pasar el ratón)
-    const side = (k) => `<th class="mt-led-side" data-tip="${esc(sideName(k))}"><i class="mt-c${k}"></i></th>`;
-    return `<div class="mt-legend">${[0, 1].map((k) => `<span><i class="mt-c${k}"></i>${esc(sideName(k))}</span>`).join('')}</div><div class="mt-tablewrap"><table class="mt-fixed mt-led2"><colgroup><col class="mt-first">${'<col>'.repeat(defs.length * 2)}</colgroup><thead>
-      <tr class="mt-cgrp"><th></th>${groups.map(([l, d]) => `<th colspan="${d.length * 2}">${dayText(l)}</th>`).join('')}</tr>
-      <tr><th rowspan="2">${day ? 'Día' : 'Mes'}</th>${defs.map((d) => `<th class="mt-num mt-led-m" colspan="2" data-tip="${esc(dayText(d[4]))}">${dayText(d[0])}</th>`).join('')}</tr>
-      <tr>${defs.map(() => side(0) + side(1)).join('')}</tr></thead><tbody>
-      ${units.map((u, j) => row(u.label, j, u.f ? `class="mt-clk" data-f="${u.f}"` : u.after ? 'class="mt-mut"' : '')).join('')}${row('Total', units.length, 'class="mt-tot"')}</tbody></table></div>`;
+    // los volúmenes ('v'), por persona; el resto, tal cual. En ocre ('warn'), el que más saca de meses anteriores.
+    const defs = groups.flatMap(([, d]) => d).map(([l, f, type, better, note]) => [dayText(l),
+      (x) => { const v = f(x.s); return v != null && type === 'v' ? v / x.H : v; },
+      (v, x) => (type === 'p' ? pct(v) : type === 'n' || x.H === 1 ? num(Math.round(v)) : dec(v)), better, dayText(note)]);
+    const row = (label, j, u = {}) => ({ label, x: [0, 1].map((k) => ({ s: per[k][j], H: H[k] })), cls: u.f ? 'mt-clk' : u.after ? 'mt-mut' : '', attrs: u.f ? `data-f="${u.f}"` : '' });
+    return pairTable(day ? 'Día' : 'Mes', defs, [...units.map((u, j) => row(u.label, j, u)), { ...row('Total', units.length), cls: 'mt-tot' }],
+      () => Infinity, groups.map(([l, d]) => [dayText(l), d.length]));
   };
   // Qué entra, comparando: sin meses (eso está en Mes a mes), si los dos reciben lo mismo. Cada fila, cuántas tiene
   // cada lado (persona frente a empresa: la media por persona del equipo, model.js heads) y qué parte es de lo suyo,
@@ -556,28 +544,10 @@ export const createTabs = (m, ch, ui) => {
   // otra. Lo que tarda depende mucho del módulo, así que la tabla principal compara módulo a módulo y la media se pone
   // también frente a lo que tarda el equipo en esos mismos módulos. Sin lo que habla del tercero o del tipo de
   // problema (en qué se va el tiempo por tarjeta, escalados), que no dice cómo trabaja cada uno.
-  const BETTER_MIN = 10;   // resueltas que necesita cada lado en una fila para marcar quién va mejor
-  // Tabla de dos columnas por dato, una por lado (como Mes a mes en Entrada): los nombres en una leyenda encima, en la
-  // cabecera solo el color. defs: [nombre, valor (x), formato (v, x), mejor, nota, cuántas cuentan para marcar (x; si no, base)]; rows: { label, attrs, cls, x:
-  // [lado 0, lado 1] } o { head } (una fila de título que abre un bloque); groups (opcional): [título, nº de datos], una
-  // fila encima que agrupa los datos por concepto. En verde, el lado que va mejor, si los dos tienen al menos BETTER_MIN
-  // resueltas.
-  const pairTable = (first, defs, rows, base = (x) => x.resolved, groups = null) => {
-    const starts = new Set((groups || []).reduce((a, [, n]) => [...a, a[a.length - 1] + n], [0]));
-    const names = teamNames() || [name(0), name(1)];
-    const cells = (r) => defs.map((d, c) => {
-      const v = [0, 1].map((k) => d[1](r.x[k])), t = v.map((x, k) => (x == null ? '—' : d[2](x, r.x[k])));
-      const ok = d[3] && r.x.every((x) => (d[5] || base)(x) >= BETTER_MIN) && v.every((x) => x != null) && t[0] !== t[1];
-      const mark = ok ? ((d[3] === 'low') === (v[0] < v[1]) ? 0 : 1) : -1;
-      return [0, 1].map((k) => `<td class="mt-num ${k ? 'mt-msep' : c ? (groups && starts.has(c) ? 'mt-gstart' : 'mt-gsep') : ''} ${mark === k ? 'mt-better' : ''}">${t[k]}</td>`).join('');
-    }).join('');
-    const side = (k) => `<th class="mt-led-side" data-tip="${esc(names[k])}"><i class="mt-c${k}"></i></th>`;
-    return `<div class="mt-legend">${[0, 1].map((k) => `<span><i class="mt-c${k}"></i>${esc(names[k])}</span>`).join('')}</div><div class="mt-tablewrap"><table class="mt-fixed mt-led2 mt-respair"><colgroup><col class="mt-first">${'<col>'.repeat(defs.length * 2)}</colgroup><thead>
-      ${groups ? `<tr class="mt-cgrp"><th rowspan="3" class="mt-corner">${first}</th>${groups.map(([g, n]) => `<th colspan="${n * 2}">${g}</th>`).join('')}</tr>` : ''}
-      <tr>${groups ? '' : `<th rowspan="2">${first}</th>`}${defs.map((d) => `<th class="mt-num mt-led-m" colspan="2" ${d[4] ? `data-tip="${esc(d[4])}"` : ''}>${d[0]}</th>`).join('')}</tr>
-      <tr>${defs.map(() => side(0) + side(1)).join('')}</tr></thead><tbody>
-      ${rows.map((r) => `<tr class="${r.cls || ''}" ${r.attrs || ''}><td class="mt-r" data-tip="${esc(r.label)}">${esc(r.label)}</td>${cells(r)}</tr>`).join('')}</tbody></table></div>`;
-  };
+  // La tabla de comparar de todas las pestañas (pair-table.js), con el nombre de cada lado. base: lo que cuenta para
+  // marcar quién va mejor, si el dato no dice otra cosa (aquí, las resueltas).
+  const pairTable = (first, defs, rows, base = (x) => x.resolved, groups = null) =>
+    pairTableOf({ names: teamNames() || [name(0), name(1)], first, defs, rows, base, groups });
   // lo resuelto de cada lado en una lista, con el volumen (comparando con personas, una empresa por persona)
   const resPair = (lists) => {
     const H = [0, 1].map((k) => (m.perHead() ? m.heads(k).size || 1 : 1));
@@ -871,10 +841,6 @@ export const createTabs = (m, ch, ui) => {
       card('Cuándo pasan a En curso', startTable(m.rows('ini')), { span: 's12', sub: `Por prioridad, una fila por cada uno: el SLA de inicio y cómo se reparte (cada fila suma el 100 %) lo que tarda en pasar a En curso; en verde, los tramos dentro del plazo. ${greenNote}${perNote}${pp ? ' Cuenta a la persona responsable actual de la issue.' : ''} Clic en una celda para filtrar.` }),
       card('Mes a mes', pairTable('Mes de apertura', [PAIR_VOL, ...PAIR_SLA, ...(pp ? qualityDefs(false).filter((d) => ['Cerradas sin En curso', 'Escaladas sin Pendiente'].includes(d[0])) : [])], pairRows(A, months, 'Total'), BY_N),
         { span: 's12', sub: `${MONTH_NOTE} ${greenNote}${perNote} Clic en un mes para filtrar.` }),
-      co ? card('Por turno y día de entrada', pairTable('Cuándo entra', [PAIR_VOL, ['Dentro del SLA (críticas)', (s) => s.byP[PRIOS[0]] ?? null, (v) => pct(v), 'high', slaLabel(PRIOS[0]), (s) => s.nP[PRIOS[0]]], ...PAIR_SLA,
-        ['En su turno', (s) => s.inShift, (v) => pct(v), 'high', 'De las empezadas, las que pasaron a En curso en el mismo turno en que entraron.']],
-        pairRows(A, [...[0, 1, 2].map((k) => [m.DIMS.tu.label(k), (i) => m.DIMS.tu.get(i) === k, `tu:${k}`]), ...[0, 1].map((k) => [m.DIMS.we.label(k), (i) => m.DIMS.we.get(i) === k, `we:${k}`])]), BY_N),
-        { span: 's12', sub: `Según cuándo se abrió. ${greenNote} Clic en una fila para filtrar.` }) : '',
       section('¿Queda bien hecho y bien registrado?'),
       card(co ? 'Por prioridad y tarjeta' : 'Por prioridad', pairTable(co ? 'Prioridad y tarjeta' : 'Prioridad', qualityDefs(co),
         pairRows(A, [...PRIO_ROWS(), ...(co ? CARD_ROWS() : [])]), BY_N),
@@ -884,23 +850,10 @@ export const createTabs = (m, ch, ui) => {
         { span: 's12', sub: `Los 15 módulos con más issues de los que tienen al menos ${BETTER_MIN} cada uno. ${greenNote} Clic en un módulo para filtrar.` }) : '');
   };
 
-  // --- IA (propuesta). Cuánto la usamos, dónde, cómo sale (lo que tarda frente al mismo problema sin IA), quién la
-  // usa y qué se repite. Por las marcas de IA de cada issue (model.js, dimensión ia).
-  const IA_OK = 0, IA_FAIL = 1, IA_NONE = 3, iaOf = (i) => m.DIMS.ia.get(i), withIa = (i) => iaOf(i) !== IA_NONE;
-  // las cifras de IA de una lista: con IA, resueltas con la IA (IA_SOLVED), revisadas OK, con fallo y sin revisar (sobre
-  // las de IA), y cuántas personas tienen issues y cuántas alguna con IA
-  const iaStats = (l) => {
-    let ia = 0, solved = 0, ok = 0, fail = 0;
-    const users = new Set(), people = new Set();
-    for (const i of l) {
-      if (C.as[i]) people.add(C.as[i]);
-      const k = iaOf(i); if (k === IA_NONE) continue;
-      ia++; if (C.as[i]) users.add(C.as[i]); if (C.fl[i] & 32) solved++; if (k === IA_OK) ok++; else if (k === IA_FAIL) fail++;
-    }
-    const of = (v) => (ia ? v / ia : null);
-    return { n: l.length, ia, solved, ok, fail, unrev: ia - ok - fail, users: users.size, people: people.size,
-      share: l.length ? ia / l.length : null, okShare: of(ok), failShare: of(fail), unrevShare: of(ia - ok - fail) };
-  };
+  // --- IA (propuesta). Cuánto la usamos, dónde, cómo sale, quién la usa y qué se repite. Por las marcas de IA de cada
+  // issue (ia.js; en model.js, la dimensión ia).
+  const iaOf = (i) => m.DIMS.ia.get(i), withIa = (i) => iaOf(i) !== IA_NONE;
+  const iaStats = (l) => iaStatsOf(l, C);
   // el reparto de las de IA en una barra: revisadas OK, con fallo y sin revisar
   const IA_SPLIT = [['Revisada OK', 'ok', 'mt-ia0'], ['Con fallo', 'fail', 'mt-ia1'], ['Sin revisar', 'unrev', 'mt-ia2']];
   const iaBar = (s) => (s.ia ? `<div class="mt-hbar mt-iabar">${IA_SPLIT.map(([l, k, c]) => (s[k] ? `<i class="${c}" style="width:${(s[k] / s.ia * 100).toFixed(1)}%" data-tip="${esc(`${l}: ${num(s[k])} de ${num(s.ia)} (${pct(s[k] / s.ia, 1)})`)}"></i>` : '')).join('')}</div>` : '');
@@ -1031,32 +984,31 @@ export const createTabs = (m, ch, ui) => {
     return [...defs.filter(([, t]) => A.some(t)).map(([label, t, f]) => ({ label, x: iaPair(T.map((l) => l.filter(t))), cls: `mt-clk ${f && isSel(...f.split(':').map((x, n) => (n ? +x : x))) ? 'mt-sel' : ''}`, attrs: f ? `data-f="${f}"` : '' })),
       { label: total, x: iaPair(T), cls: 'mt-tot' }];
   };
-  // En qué trabajo la usamos: un corte por tabla (prioridad, tipo de servicio, escalado), con el total al final. Sin
-  // turnos, día de entrada ni tarjetas: cada empresa los organiza a su manera y no se comparan.
-  const iaWork = (A) => {
+  // En qué trabajo la usamos: una tabla con un bloque por corte (prioridad, tipo de servicio, escalado), como Qué recibe
+  // cada uno, y el total al final. Sin turnos, día de entrada ni tarjetas: cada empresa los organiza a su manera y no se
+  // comparan. part: de todas las de IA de cada lado, las de la fila.
+  const iaWorkRows = (A) => {
+    const T = bySide(A), all = iaPair(T);
     const sv = group('sv', A).filter((x) => x.k != null && DI.svc[x.k]).slice(0, 4).map((x) => [m.DIMS.sv.label(x.k), (i) => C.sv[i] === x.k, `sv:${x.k}`]);
-    return [['Por prioridad', 'Prioridad', PRIOS.map((p) => [nice(DI.prio[p]), (i) => C.pr[i] === p, `pr:${p}`])],
-      ['Por tipo de servicio', 'Tipo de servicio', sv, 'Los cuatro tipos con más issues.'],
-      ['Escaladas o no', 'Escalado', [['Sin escalar', (i) => !escd(i), 'es:0'], ['Escaladas', escd, 'es:1']], 'Escalada: con ticket de tercero.']]
-      .map(([title, first, defs, note]) => {
-        const T = bySide(A), all = iaPair(T), r = defs.filter(([, t]) => A.some(t));
-        const rows = r.map(([label, t, f]) => {
-          const x = iaPair(T.map((l) => l.filter(t))); x.forEach((y, k) => { y.part = all[k].ia ? y.ia / all[k].ia : null; });
-          return { label, x, cls: `mt-clk ${isSel(...f.split(':').map((v, n) => (n ? +v : v))) ? 'mt-sel' : ''}`, attrs: `data-f="${f}"` };
-        });
-        all.forEach((y) => { y.part = y.ia ? 1 : null; });
-        return r.length ? { title, first, note, rows: [...rows, { label: 'Todo', x: all, cls: 'mt-tot' }] } : null;
-      }).filter(Boolean);
+    const row = ([label, t, f]) => {
+      const x = iaPair(T.map((l) => l.filter(t))); x.forEach((y, k) => { y.part = all[k].ia ? y.ia / all[k].ia : null; });
+      return { label, x, cls: `mt-clk ${isSel(...f.split(':').map((v, n) => (n ? +v : v))) ? 'mt-sel' : ''}`, attrs: `data-f="${f}"` };
+    };
+    const blocks = [['Prioridad', PRIOS.map((p) => [nice(DI.prio[p]), (i) => C.pr[i] === p, `pr:${p}`])],
+      ['Tipo de servicio', sv, 'Los cuatro con más issues.'],
+      ['Escalado', [['Sin escalar', (i) => !escd(i), 'es:0'], ['Escaladas', escd, 'es:1']], 'Con ticket de tercero.']]
+      .map(([head, defs, note]) => ({ head, note, rows: defs.filter(([, t]) => A.some(t)).map(row) })).filter((b) => b.rows.length);
+    all.forEach((y) => { y.part = y.ia ? 1 : null; });
+    return [...blocks, { label: 'Todo', x: all, cls: 'mt-tot' }];
   };
-  // personas de cada lado según qué parte de sus issues lleva IA (solo entre empresas)
-  const IA_USE = [['Sin IA', (s) => !s.ia], ['Menos del 5 %', (s) => s.ia && s.share < 0.05], ['Del 5 al 15 %', (s) => s.share >= 0.05 && s.share < 0.15], ['El 15 % o más', (s) => s.share >= 0.15]];
+  // personas de cada lado según qué parte de sus issues lleva IA (ia.js, iaUse; solo entre empresas)
   const iaUseTable = (A) => {
-    const P = bySide(A).slice(0, 2).map((l) => group('as', l.filter((i) => C.as[i]), true).filter((x) => x.k).map((x) => iaStats(x.rows)));
-    const row = (label, t) => ({ label, x: P.map((ps) => ({ n: ps.length, c: ps.filter(t).length, ia: ps.filter(t).reduce((a, s) => a + s.ia, 0), all: ps.reduce((a, s) => a + s.ia, 0) })) });
+    const U = bySide(A).slice(0, 2).map((l) => iaUse(group('as', l.filter((i) => C.as[i]), true).filter((x) => x.k).map((x) => iaStats(x.rows))));
+    const tot = U.map((u) => ({ n: u[0].n, c: u[0].n, ia: u[0].all, all: u[0].all }));
     return pairTable('Parte de sus issues con IA', [['Personas', (x) => x.c, num, null, 'Personas con issues en el periodo.'],
       ['% de la gente', (x) => (x.n ? x.c / x.n : null), (v) => pct(v), null, 'De las personas con issues, las de este tramo.'],
       ['% de las de IA', (x) => (x.all ? x.ia / x.all : null), (v) => pct(v), null, 'De todas las issues con IA, las que llevan las personas de este tramo.']],
-      [...IA_USE.map(([l, t]) => row(l, t)), { ...row('Todas', () => true), cls: 'mt-tot' }], (x) => x.n);
+      [...U[0].map((u, j) => ({ label: u.label, x: [u, U[1][j]] })), { label: 'Todas', x: tot, cls: 'mt-tot' }], (x) => x.n);
   };
   const iaCmp = (A) => {
     const pp = m.perHead(), co = !pp, T = bySide(A), ST = iaPair(T), names = teamNames(), team = pp && S.sides.some((x) => !x.people);
@@ -1088,8 +1040,8 @@ export const createTabs = (m, ch, ui) => {
       card('Mes a mes', pairTable('Mes de apertura', [D.vol, D.ia, D.share, D.ok, D.fail, D.avg], iaRows(A, months), IA_N, [['Volumen', 1], ['Uso de IA', 2], ['Cómo sale, de las de IA', 2], ['Resolución', 1]]),
         { span: 's12', sub: `${MONTH_NOTE} ${greenNote}${perNote} Clic en un mes para filtrar.` }),
       section('¿En qué trabajo la usamos?'),
-      ...iaWork(A).map((w) => card(w.title, pairTable(w.first, [D.vol, D.ia, D.share, D.part, D.ok, D.fail], w.rows, IA_N, IA_GROUPS),
-        { span: 's12', sub: `${w.note ? `${w.note} ` : ''}«% de su IA»: de todas las issues con IA de cada uno, las de esta fila. ${greenNote}${perNote} Clic en una fila para filtrar.` })),
+      card('En qué trabajo', pairTable('Corte', [D.vol, D.ia, D.share, D.part, D.ok, D.fail], iaWorkRows(A), IA_N, IA_GROUPS),
+        { span: 's12', sub: `«% de su IA»: de todas las issues con IA de cada uno, las de esta fila (cada bloque suma el 100 %). ${greenNote}${perNote} Clic en una fila para filtrar.` }),
       pp && mr.length ? card('Módulo a módulo', pairTable('Módulo', [D.vol, D.ia, D.share, D.ok, D.fail, D.avg], iaRows(A, mr, 'Todo'), IA_N, [['Volumen', 1], ['Uso de IA', 2], ['Cómo sale, de las de IA', 2], ['Resolución', 1]]),
         { span: 's12', sub: `Los 15 módulos con más issues de ${esc(name(lead))}; cada uno, frente al otro en el mismo módulo. ${greenNote}${perNote} Clic en un módulo para filtrar.` }) : '',
       pp ? section('¿Cómo sale?') : '',

@@ -3,6 +3,7 @@
 // y los indicadores de cualquier grupo de issues.
 import { MONTHS, DOWS, nice, title } from './format.js';
 import { SHIFTS, SHIFT_HOURS, DAYS, slotOf, weekendOf, typeOf, slotsIn, carry, shiftWork } from './shifts.js';
+import { IA_MARKS, IA_NAMES, iaKind } from './ia.js';
 
 export const COMPANIES = ['Indra', 'T-Systems', 'Sin asignar / fuera'];
 // ámbitos (server/metrics/remedy.js, SCOPE): los filtros de Remedy con los que el equipo de Indra ve su backlog
@@ -15,11 +16,6 @@ export const FLAGS = [[1, 'SISUINC (abierta desde SISU)'], [2, 'PRIO (priorizada
   [16384, 'Marcada como recurrencia'], [32768, 'Sin texto de resolución']];
 export const MAJOR = 256;
 const REOPENED = 512, NO_RESOLUTION = 32768;
-export const IA_MARKS = 32 | 64 | 2048 | 4096 | 8192;
-// Uso de la IA en una issue, por sus marcas: con alguna marca de fallo (aunque también tenga revisión OK), con
-// revisión humana OK, con IA pero sin revisión ni fallo, o sin IA.
-export const IA_NAMES = ['Revisada OK', 'Con fallo', 'Sin revisar', 'Sin IA'];
-const IA_FAILS = 64 | 8192, HITL_OK = 4096;
 const PRIO = 2;
 // Tarjetas: como reconoce el equipo su trabajo. SGA y SISU, por los filtros de Remedy (ámbito); PRIO, por la
 // etiqueta de priorizada por negocio, que va además de su SGA o SISU. 3: sin tarjeta.
@@ -139,7 +135,7 @@ export const createModel = (data) => {
       if (done && C.fl[i] & NO_RESOLUTION) o.push(6);
       return o.length ? o : [7];
     } },
-    ia: { name: 'Uso de IA', label: (k) => IA_NAMES[k], get: (i) => { const f = C.fl[i]; return !(f & IA_MARKS) ? 3 : f & IA_FAILS ? 1 : f & HITL_OK ? 0 : 2; } },
+    ia: { name: 'Uso de IA', label: (k) => IA_NAMES[k], get: (i) => iaKind(C.fl[i]) },
     // cómo se inició respecto a su SLA
     sl: { name: 'SLA de inicio', label: (k) => SLA_NAMES[k], get: (i) => {
       const l = SLA[C.pr[i]], v = C.ip[i];
