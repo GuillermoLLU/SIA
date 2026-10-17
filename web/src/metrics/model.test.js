@@ -291,7 +291,7 @@ test('IA: uso de cada issue por sus marcas (con fallo manda sobre revisada OK) y
   const m = createModel(d);
   assert.deepEqual([0, 1, 2, 3].map(m.DIMS.ia.get), [0, 1, 2, 3]);
   const html = createTabs(m, createCharts(m, { exp: {}, sort: {} }), { exp: {}, sort: {} }).render('ia2', m.rows());
-  assert.match(html, /Mismo problema, con IA y sin IA/);
+  assert.match(html, /Módulos donde se usa/);
   assert.doesNotMatch(html, /undefined|NaN/);
 });
 
