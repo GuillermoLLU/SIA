@@ -906,7 +906,7 @@ export const createTabs = (m, ch, ui) => {
     ${lines.map(([l, v, c]) => `<div class="mt-kpi-s">${c ? `<i class="${c}"></i>` : ''}<span>${l}</span><b>${v}</b></div>`).join('')}</div>`;
   // Quién y dónde: cuántos la usan de cuántos (con su barra) y los tres que más issues con IA tienen, cada uno con su
   // barra: la parte que lleva de todas las issues con IA.
-  const iaRank = (label, dim, A, all, noun, of, title, tip) => {
+  const iaRank = (label, dim, A, all, noun, of, tip) => {
     const by = group(dim, A.filter((i) => withIa(i) && m.DIMS[dim].get(i))), n = by.reduce((t, x) => t + x.n, 0);
     const sh = all ? by.length / all : 0;
     const rows = by.slice(0, 3).map((x) => {
@@ -916,7 +916,7 @@ export const createTabs = (m, ch, ui) => {
     }).join('');
     return `<div class="mt-iabox"><div class="mt-kpi-l">${label}</div><div class="mt-kpi-v">${num(by.length)} <small>de ${num(all)} ${noun}</small></div>
       <div class="mt-iause"><span class="mt-bt"><i class="mt-ia0" style="width:${(sh * 100).toFixed(1)}%"></i></span><em>${pct(sh)} ${of}</em></div>
-      ${by.length ? `<div class="mt-iarank-h"><span>${title}</span><span>Issues con IA</span></div>${rows}` : '<div class="mt-kpi-s"><span>Ninguna issue con IA</span></div>'}</div>`;
+      ${by.length ? `<div class="mt-iarank-h"></div>${rows}` : '<div class="mt-kpi-s"><span>Ninguna issue con IA</span></div>'}</div>`;
   };
   const iaHead = (A, s) => {
     const full = monthsIn().filter((k) => k !== LASTM), last = full.slice(-2).reverse();
@@ -928,8 +928,8 @@ export const createTabs = (m, ch, ui) => {
     const how = iaBox(`Cómo sale, de las ${num(s.ia)} con IA`, s.ia ? `${pct(s.okShare)} OK` : '—',
       [...IA_SPLIT.map(([l, k, c]) => [l, s.ia ? `${pct(s[`${k}Share`])} · ${num(s[k])}` : '—', c]), ['Resueltas por la IA (IA_SOLVED)', num(s.solved)]], iaBar(s));
     const mods = new Set(A.map((i) => C.mo[i]).filter(Boolean)).size;
-    const who = iaRank('Personas que la usan', 'as', A, s.people, 'personas', 'del equipo', 'Las que más la usan');
-    const where = iaRank('Módulos donde se usa', 'mo', A, mods, 'módulos', 'de los módulos', 'Donde más se usa',
+    const who = iaRank('Personas que la usan', 'as', A, s.people, 'personas', 'del equipo');
+    const where = iaRank('Módulos donde se usa', 'mo', A, mods, 'módulos', 'de los módulos',
       (x) => { const t = A.filter((i) => C.mo[i] === x.k).length; return `${pct(x.n / t, 1)} de las ${num(t)} issues del módulo`; });
     return `<div class="mt-iaboxes">${use}${how}${who}${where}</div>`;
   };
