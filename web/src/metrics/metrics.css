@@ -446,3 +446,16 @@
 .mt-view table.mt-qpivot th.mt-r { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mt-view table.mt-qpivot thead th { white-space: normal; vertical-align: bottom; }
 .mt-view table.mt-start thead th { white-space: normal; }
+
+/* IA: las cajas de arriba (una por pregunta) y el reparto revisadas OK / con fallo / sin revisar */
+.mt-ia0 { background: var(--mt-c0); } .mt-ia1 { background: color-mix(in srgb, #b5524a 80%, var(--text)); } .mt-ia2 { background: var(--mt-c2); }
+.mt-iaboxes { grid-column: span 12; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.mt-iabox { display: flex; flex-direction: column; padding: 13px 16px; background: var(--mt-card); border: 1px solid var(--mt-line); box-shadow: var(--mt-shadow); }
+.mt-iabox .mt-kpi-v { margin-bottom: 8px; }
+.mt-iabox .mt-iabar { height: 10px; margin: 0 0 8px; background: var(--mt-track); }
+.mt-iabox .mt-kpi-s span { white-space: normal; }
+.mt-view table.mt-iamonth td.mt-tbar .mt-iabar { height: 12px; margin: 0; background: var(--mt-track); }
+.mt-view table.mt-iamonth .mt-sc-vol em { flex: 0 0 44px; }
+.mt-view table.mt-iamonth .mt-sc-vol .mt-bt { flex: 1; height: 10px; }
+@media (max-width: 1100px) { .mt-iaboxes { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.mt-iabox .mt-kpi-v { align-self: start; }

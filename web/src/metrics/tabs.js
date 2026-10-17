@@ -883,12 +883,24 @@ export const createTabs = (m, ch, ui) => {
   // --- IA (propuesta). Cuánto la usamos, dónde, cómo sale (lo que tarda frente al mismo problema sin IA), quién la
   // usa y qué se repite. Por las marcas de IA de cada issue (model.js, dimensión ia).
   const IA_OK = 0, IA_FAIL = 1, IA_NONE = 3, iaOf = (i) => m.DIMS.ia.get(i), withIa = (i) => iaOf(i) !== IA_NONE;
-  // las cifras de IA de una lista: con IA, resueltas con la IA (IA_SOLVED), revisadas OK y con fallo (sobre las de IA)
+  // las cifras de IA de una lista: con IA, resueltas con la IA (IA_SOLVED), revisadas OK, con fallo y sin revisar (sobre
+  // las de IA), y cuántas personas tienen issues y cuántas alguna con IA
   const iaStats = (l) => {
     let ia = 0, solved = 0, ok = 0, fail = 0;
-    for (const i of l) { const k = iaOf(i); if (k === IA_NONE) continue; ia++; if (C.fl[i] & 32) solved++; if (k === IA_OK) ok++; else if (k === IA_FAIL) fail++; }
-    return { n: l.length, ia, solved, ok, fail, share: l.length ? ia / l.length : null, okShare: ia ? ok / ia : null, failShare: ia ? fail / ia : null };
+    const users = new Set(), people = new Set();
+    for (const i of l) {
+      if (C.as[i]) people.add(C.as[i]);
+      const k = iaOf(i); if (k === IA_NONE) continue;
+      ia++; if (C.as[i]) users.add(C.as[i]); if (C.fl[i] & 32) solved++; if (k === IA_OK) ok++; else if (k === IA_FAIL) fail++;
+    }
+    const of = (v) => (ia ? v / ia : null);
+    return { n: l.length, ia, solved, ok, fail, unrev: ia - ok - fail, users: users.size, people: people.size,
+      share: l.length ? ia / l.length : null, okShare: of(ok), failShare: of(fail), unrevShare: of(ia - ok - fail) };
   };
+  // el reparto de las de IA en una barra: revisadas OK, con fallo y sin revisar
+  const IA_SPLIT = [['Revisada OK', 'ok', 'mt-ia0'], ['Con fallo', 'fail', 'mt-ia1'], ['Sin revisar', 'unrev', 'mt-ia2']];
+  const iaBar = (s) => (s.ia ? `<div class="mt-hbar mt-iabar">${IA_SPLIT.map(([l, k, c]) => (s[k] ? `<i class="${c}" style="width:${(s[k] / s.ia * 100).toFixed(1)}%" data-tip="${esc(`${l}: ${num(s[k])} de ${num(s.ia)} (${pct(s[k] / s.ia, 1)})`)}"></i>` : '')).join('')}</div>` : '');
+  const iaLegend = () => `<div class="mt-legend">${IA_SPLIT.map(([l, , c]) => `<span><i class="${c}"></i>${l}</span>`).join('')}</div>`;
   // mismo problema con IA y sin IA: los problemas con al menos 5 resueltas de cada; y su media ponderada por lo de IA
   const IA_MIN = 5;
   const iaPairs = (A) => group('de', A.filter(solved), true).filter((x) => x.k)
@@ -932,23 +944,68 @@ export const createTabs = (m, ch, ui) => {
       <tr class="mt-lead mt-lead-end"><th class="mt-r">Todas</th>${cells(tot)}</tr></tbody></table></div>
       ${g.length > 15 ? `<button class="mt-more" data-exp="ia-who">${all ? 'Ver menos' : `Ver todas (${num(g.length)})`}</button>` : ''}`;
   };
-  const IA_MONTH = [['Volumen', [['Recibidas', (s) => s.n, num, null, '']]],
-    ['Con IA', [['Issues', (s) => s.ia, num, null, 'Con alguna marca de IA.'], ['% de lo recibido', (s) => s.share, (v) => pct(v, 1), null, '']]],
-    ['Cómo sale', [['Resueltas con IA', (s) => s.solved, num, null, 'Con la etiqueta IA_SOLVED… en TAGS.'], ['Revisadas OK', (s) => s.okShare, (v) => pct(v), null, 'De las de IA, con revisión humana OK y sin fallo.'],
-      ['Con fallo', (s) => s.failShare, (v) => pct(v), null, 'De las de IA, con alguna marca de fallo o de revisión no OK.']]]];
+  // Las cifras de arriba, una caja por pregunta: cuánto la usamos, cómo sale, quién la usa y el mismo problema con IA y
+  // sin IA. Cada caja, su cifra grande y debajo el detalle.
+  const iaBox = (label, value, lines, extra = '', tip = '') => `<div class="mt-iabox"><div class="mt-kpi-l" ${tip ? `data-tip="${esc(tip)}"` : ''}>${label}</div><div class="mt-kpi-v">${value}</div>${extra}
+    ${lines.map(([l, v, c]) => `<div class="mt-kpi-s">${c ? `<i class="${c}"></i>` : ''}<span>${l}</span><b>${v}</b></div>`).join('')}</div>`;
+  const iaHead = (A, s, pairs) => {
+    const full = monthsIn().filter((k) => k !== LASTM), last = full.slice(-2).reverse();
+    const monthShare = (k) => iaStats(A.filter((i) => MONTH[i] === k));
+    const first = monthsIn().find((k) => A.some((i) => MONTH[i] === k && withIa(i)));
+    const use = iaBox('Con IA, de lo recibido', s.share == null ? '—' : pct(s.share, 1), [['Issues con IA', num(s.ia)],
+      ...last.map((k, j) => [`${j ? 'Mes anterior' : 'Último mes completo'} (${MONTHS[k]})`, opt((v) => pct(v, 1))(monthShare(k).share)]),
+      ['Primer mes con IA', first == null ? '—' : MONTHS[first]]]);
+    const how = iaBox(`Cómo sale, de las ${num(s.ia)} con IA`, s.ia ? `${pct(s.okShare)} OK` : '—',
+      [...IA_SPLIT.map(([l, k, c]) => [l, s.ia ? `${pct(s[`${k}Share`])} · ${num(s[k])}` : '—', c]), ['Resueltas por la IA (IA_SOLVED)', num(s.solved)]], iaBar(s));
+    const by = group('as', A.filter((i) => withIa(i) && C.as[i])), top3 = by.slice(0, 3).reduce((t, x) => t + x.n, 0);
+    const iaAs = by.reduce((t, x) => t + x.n, 0);
+    const who = iaBox('Personas que la usan', `${num(s.users)} de ${num(s.people)}`, [['Con alguna issue con IA', s.people ? pct(s.users / s.people) : '—'],
+      ['Issues con IA por persona que la usa', s.users ? dec(iaAs / s.users) : '—'], ['Las 3 que más la usan', iaAs ? `${pct(top3 / iaAs)} de las de IA` : '—']]);
+    const W = pairs.flatMap((x) => x.w), O = pairs.flatMap((x) => x.o), same = iaSame(pairs), a = stats(W), b = stats(O);
+    const days = (v) => `${dec(v / 1440)} días`;
+    const cmp = iaBox('Mismo problema, con IA y sin IA', same ? `${same.w <= same.o ? '−' : '+'}${dec(Math.abs(same.w - same.o) / 1440)} días` : '—',
+      same ? [['Media con IA', days(same.w), 'mt-ia0'], ['Media sin IA', days(same.o), 'mt-ia2'],
+        ['Reabiertas con IA / sin IA', `${P1(a.reop)} / ${P1(b.reop)}`], ['Problemas comparados', `${num(pairs.length)} (${num(same.n)} con IA)`]]
+        : [[`Ningún problema con ${IA_MIN} resueltas con IA y ${IA_MIN} sin IA`, '']], '',
+      `Problemas con al menos ${IA_MIN} resueltas con IA y ${IA_MIN} sin IA. La media sin IA de cada problema cuenta con el peso que tienen en él las de IA.`);
+    return `<div class="mt-iaboxes">${use}${how}${who}${cmp}</div>`;
+  };
+  // Mes a mes, por mes de apertura: cuánto se usa (issues, % de lo recibido y personas), cómo sale (reparto en barra y %)
+  // y lo resuelto con IA (media, < 24 h y reabiertas). En ocre, lo que va un 15 % o más peor que el total, con al menos
+  // MIN_RES issues con IA. Los meses sin IA, solo con lo recibido.
+  const iaMonthly = (A) => {
+    const part = (l) => { const s = iaStats(l), r = stats(l.filter(withIa)); return { s, r }; };
+    const tot = part(A);
+    const mark = (x, v, w, better) => x.s.ia >= MIN_RES && v != null && w != null && clearlyWorse(v, w, better);
+    const td = (v, fmt, cls = '', bad = false, w = null) => `<td class="mt-num ${cls} ${bad ? 'mt-worse' : ''}" ${bad ? `data-tip="${esc(`Peor que el total: ${fmt(w)}`)}"` : ''}>${v == null ? '' : fmt(v)}</td>`;
+    const row = (x, isTot) => {
+      const { s, r } = x, T = tot.s, R = tot.r, on = s.ia > 0, bad = (v, w, b) => !isTot && mark(x, v, w, b);
+      const share = s.share ?? 0;
+      return `<td class="mt-num mt-gsep">${num(s.n)}</td>
+        <td class="mt-num mt-gsep ${on ? '' : 'mt-mut'}">${num(s.ia)}</td>
+        <td>${on ? `<div class="mt-sc-vol"><em>${pct(share, 1)}</em><span class="mt-bt"><i class="mt-ia0" style="width:${(share * 100).toFixed(1)}%"></i></span></div>` : ''}</td>
+        ${td(on ? s.users : null, num)}
+        <td class="mt-gsep mt-tbar">${iaBar(s)}</td>
+        ${td(on ? s.okShare : null, (v) => pct(v))}${td(on ? s.failShare : null, (v) => pct(v), '', on && bad(s.failShare, T.failShare, 'low'), T.failShare)}${td(on ? s.unrevShare : null, (v) => pct(v))}
+        ${td(on ? r.resolved : null, num, 'mt-gsep')}${td(r.resolved ? r.avg : null, dur, '', r.resolved > 0 && bad(r.avg, R.avg, 'low'), R.avg)}
+        ${td(r.resolved ? r.d1 : null, (v) => pct(v), '', r.resolved > 0 && bad(r.d1, R.d1, 'high'), R.d1)}${td(on ? r.reop : null, P1, '', on && bad(r.reop, R.reop, 'low'), R.reop)}`;
+    };
+    const body = monthsIn().map((k) => `<tr class="mt-clk ${isSel('month', k) ? 'mt-sel' : ''}" data-f="month:${k}"><th class="mt-r">${MONTHS[k]}${k === LASTM ? '*' : ''}</th>${row(part(A.filter((i) => MONTH[i] === k)))}</tr>`).join('');
+    const th = (l, tip = '', cls = 'mt-num') => `<th class="${cls}" ${tip ? `data-tip="${esc(tip)}"` : ''}>${l}</th>`;
+    return `${iaLegend()}<div class="mt-tablewrap"><table class="mt-mx mt-iamonth"><colgroup><col style="width:6%"><col style="width:7%"><col style="width:6%"><col style="width:11%"><col style="width:7%"><col style="width:11%"><col span="3" style="width:6%"><col style="width:7%"><col style="width:9%"><col style="width:6%"><col style="width:8%"></colgroup><thead>
+      <tr class="mt-cgrp"><th></th><th>Volumen</th><th colspan="3">Uso de la IA</th><th colspan="4">Cómo sale, de las de IA</th><th colspan="4">Lo resuelto con IA</th></tr>
+      <tr><th>Mes</th>${th('Recibidas')}${th('Con IA', 'Issues con alguna marca de IA.')}${th('% de lo recibido', '', '')}${th('Personas', 'Personas con alguna issue con IA ese mes.')}
+      ${th('Reparto', 'Revisadas OK, con fallo y sin revisar.', '')}${th('OK', 'Con revisión humana OK y sin fallo.')}${th('Con fallo', 'Con alguna marca de fallo o de revisión no OK.')}${th('Sin revisar', 'Con marca de IA, sin revisión ni fallo.')}
+      ${th('Resueltas')}${th('Media', 'De la apertura a la resolución.')}${th('En < 24 h')}${th('Reabiertas', 'De las de IA, las que volvieron de Resuelta a abierta.')}</tr></thead>
+      <tbody>${body}<tr class="mt-lead mt-lead-end"><th class="mt-r">Total</th>${row(tot, true)}</tr></tbody></table></div>`;
+  };
   const iaView = (A, note = '') => {
-    const s = iaStats(A), pairs = iaPairs(A), same = iaSame(pairs), R = A.filter(solved), withR = stats(R.filter(withIa));
-    const users = new Set(A.filter((i) => withIa(i) && C.as[i]).map((i) => C.as[i])).size, people = new Set(A.filter((i) => C.as[i]).map((i) => C.as[i])).size;
+    const s = iaStats(A), pairs = iaPairs(A), R = A.filter(solved);
     const extra = (st, l) => { const x = iaStats(l); st.iaN = x.ia; st.iaShare = x.share; st.iaOk = x.okShare; st.iaFail = x.failShare; st.req = share(l, (i) => C.sv[i] === REQ); st.rep = share(l, (i) => C.rz[i] > 0); };
-    const days = (v) => (v == null ? '—' : `${dec(v / 1440)} días`);
     return grid(ask('ia2'), note,
-      kpis(kpi('Con IA', num(s.ia), s.n ? `${pct(s.share, 1)} de lo recibido` : ''), kpi('Resueltas con IA', num(s.solved), 'con IA_SOLVED… en TAGS'),
-        kpi('Revisadas OK', s.ia ? pct(s.okShare) : '—', 'de las de IA'), kpi('Con fallo', s.ia ? pct(s.failShare) : '—', 'de las de IA'),
-        kpi('Personas que la usan', `${num(users)} de ${num(people)}`, 'con alguna issue con IA'),
-        kpi('Media con IA', withR.resolved ? days(withR.avg) : '—', 'de las resueltas con IA'),
-        kpi('Mismo problema, sin IA', same ? days(same.o) : '—', same ? `con IA: ${days(same.w)} (${num(same.n)} resueltas)` : `sin problemas con ${IA_MIN} y ${IA_MIN}`)),
+      iaHead(A, s, pairs),
       section('¿Cuánto la usamos?'),
-      card('Mes a mes', monthPivot(A, IA_MONTH, iaStats), { span: 's12', sub: 'Por mes de apertura. Clic en un mes para filtrar.' }),
+      card('Mes a mes', iaMonthly(A), { span: 's12', sub: `Por mes de apertura: cuánto se usa, cómo sale y cómo se resuelve lo que lleva IA. En ocre, lo que va un 15 % o más peor que el total (con al menos ${MIN_RES} issues con IA). Clic en un mes para filtrar.` }),
       section('¿Dónde?'),
       card('', scorecard('mo', [['Volumen', ['n']], ['Con IA', ['iaN', 'iaShare']], ['Cómo sale', ['iaOk', 'iaFail']], ['Resolución', ['avg', 'd1']]],
         { id: 'ia-mo', skip: noK, refLabel: 'Todos los módulos', title: 'Módulos', extra, sort: 'iaN' }), { span: 's12' }),
