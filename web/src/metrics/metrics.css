@@ -469,4 +469,6 @@
 .mt-iarank em { font-size: 12px; font-style: normal; text-align: right; color: var(--mt-low); font-variant-numeric: tabular-nums; }
 .mt-view .mt-sc td.mt-tbar .mt-iabar { height: 12px; margin: 0; background: var(--mt-track); }
 /* tablas por lado con bloques de filas: la fila de título de cada bloque */
-.mt-view table.mt-led2 tr.mt-pair-h td { padding: 8px 6px 3px; font-size: 11.5px; font-weight: 650; text-transform: uppercase; letter-spacing: .05em; color: var(--mt-low); border-top: 1px solid var(--mt-line); }
+.mt-view table.mt-led2 td.mt-gstart { border-left: 2px solid var(--mt-line); }
+.mt-view table.mt-led2 tr.mt-cgrp th + th { border-left: 2px solid var(--mt-line); }
+.mt-view table.mt-led2 th.mt-corner { vertical-align: bottom; text-align: left; font-size: 11px; font-weight: 600; color: var(--mt-low); text-transform: none; letter-spacing: 0; }
