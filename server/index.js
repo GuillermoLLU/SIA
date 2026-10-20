@@ -11,6 +11,9 @@ import { headerValue, siaHeaders } from './shared/credentials.js';
 import { permsFromRow } from './shared/perms.js';
 import { schemaOk } from './base/diagnose.js';
 import { json, readBody } from './shared/http.js';
+import { createConfigStore } from './config/store.js';
+import { cleanTheme, userEnv, cleanEnv } from './config/config.js';
+import { configRoutes } from './config/routes.js';
 import { createAuth } from './auth/service.js';
 import { authRoutes } from './auth/routes.js';
 import { liveSessions } from './auth/sessions.js';
@@ -497,36 +500,17 @@ const applyBase = async () => {
   await syncAllSkills();
 };
 
-/* ── Per-user config (~/.sia/config.json) ─────────────────────────
-   Personal credentials (e.g. Jira token) live OUTSIDE the project, per
-   machine. They are injected as env vars into new PTY sessions so the
-   CLIs can use them without the secret ever entering the conversation. */
-const USER_CONFIG = path.join(os.homedir(), '.sia', 'config.json');
-const readUserConfig = () => {
-  try { return JSON.parse(fs.readFileSync(USER_CONFIG, 'utf8')); } catch { return {}; }
-};
-const writeUserConfig = (cfg) => {
-  fs.mkdirSync(path.dirname(USER_CONFIG), { recursive: true });
-  fs.writeFileSync(USER_CONFIG, JSON.stringify(cfg, null, 2), { mode: 0o600 });
-};
+// La config personal (server/config/): Jira, claves de GitHub, tema, sesiones
+// guardadas y candado, en ~/.sia/config.json.
+const config = createConfigStore(path.join(os.homedir(), '.sia', 'config.json'));
 
 /* ── Tema compartido ─────────────────────────────────────────────────
    El tema se elige en el ordenador y un móvil emparejado es otro navegador:
    sin esto arrancaba siempre con el tema por defecto. La web del escritorio
    deja aquí su tema (id + colores de la interfaz) y el bridge se lo da a los
    móviles: en el ping —también antes de emparejar, para que la pantalla del
-   PIN ya salga con él— y por el socket cuando cambia. Solo se aceptan
-   colores hexadecimales: acaban como variables CSS en otro dispositivo. */
-const cleanTheme = (t) => {
-  if (!t || typeof t.id !== 'string' || !/^[a-z0-9-]{1,40}$/i.test(t.id) || typeof t.ui !== 'object' || !t.ui) return null;
-  const ui = {};
-  for (const k of ['bg', 'surface', 'border', 'text', 'textLow', 'accent', 'scrollbar']) {
-    if (typeof t.ui[k] !== 'string' || !/^#[0-9a-f]{3,8}$/i.test(t.ui[k])) return null;
-    ui[k] = t.ui[k];
-  }
-  return { id: t.id, ui };
-};
-let UI_THEME = cleanTheme(readUserConfig().theme);
+   PIN ya salga con él— y por el socket cuando cambia. */
+let UI_THEME = cleanTheme(config.read().theme);
 
 /* ── Bloqueo de pantalla (escritorio) ────────────────────────────────
    Un candado para dejar SIA abierto y trabajando sin que nadie curiosee: la
@@ -547,7 +531,7 @@ let UI_THEME = cleanTheme(readUserConfig().theme);
 // sola al llenar la última.
 const LOCK_PIN_LEN = 4;
 const LOCK_PIN = /^\d{4}$/;
-const lockCfg = () => readUserConfig().lock || {};
+const lockCfg = () => config.read().lock || {};
 const lockDerive = (key, salt) => scryptSync(String(key), Buffer.from(salt, 'hex'), 32);
 // Hay PIN si están la derivada, la sal y el largo es el de la puerta. Cualquier
 // otra cosa (una clave de texto o un PIN de otro largo, de versiones de
@@ -559,7 +543,7 @@ const lockMatches = (key) => {
   const a = lockDerive(key, l.salt), b = Buffer.from(l.hash, 'hex');
   return a.length === b.length && timingSafeEqual(a, b);
 };
-const lockSave = (patch) => writeUserConfig({ ...readUserConfig(), lock: { ...lockCfg(), ...patch } });
+const lockSave = (patch) => config.patch({ lock: { ...lockCfg(), ...patch } });
 let SCREEN_LOCKED = lockHasKey() && lockCfg().locked === true; // en memoria: se consulta en cada petición
 const lockSet = (on) => { SCREEN_LOCKED = on; lockSave({ locked: on }); };
 const lockFails = { n: 0, until: 0 };
@@ -576,7 +560,7 @@ const lockTry = (key) => {
    y usuarios (server/users/). Se entra con la cuenta de Supabase Auth de la
    instancia; el fetch de Node verifica TLS (a diferencia de supaFetch). ── */
 const platform = createPlatformClient({ ...(loadPlatformConfig(ROOT) || { url: '', key: '' }), fetch });
-const auth = createAuth({ platform, readConfig: readUserConfig, writeConfig: writeUserConfig });
+const auth = createAuth({ platform, readConfig: config.read, writeConfig: config.write });
 const users = createUserAdmin({ platform });
 // Los grupos de acceso de la base (access_groups: uno por proyecto) con la
 // clave del dueño; fetch de Node, con TLS verificado (viaja una clave de
@@ -626,70 +610,6 @@ const clearAssigned = async () => {
   assigned = { base: null };
   await applyBase();
 };
-// Del inicio de sesión local anterior: fuera los usuarios y sus sesiones.
-{
-  const cfg = readUserConfig();
-  if (cfg.users || (cfg.sessions || []).some((s) => !s?.refreshToken)) {
-    delete cfg.users;
-    cfg.sessions = liveSessions(cfg.sessions);
-    writeUserConfig(cfg);
-    console.log('[sia] usuarios locales retirados: se entra con la cuenta de la instancia');
-  }
-}
-
-/* Claves de GitHub: se guardan varias (trabajo, personal…) y solo UNA está
-   activa; es la que viaja a los chats que se abran a partir de ese momento.
-   `GH_TOKEN` es una variable de entorno, así que un chat solo puede llevar
-   una — cambiar la activa no toca los chats ya abiertos. */
-// Formato antiguo ({ github: { token } }) → una entrada «Principal», activa.
-{
-  const cfg = readUserConfig();
-  const g = cfg.github;
-  if (g?.token && !Array.isArray(g.keys)) {
-    cfg.github = { keys: [{ id: 'gh1', name: 'Principal', token: g.token }], activeId: 'gh1' };
-    writeUserConfig(cfg);
-    console.log('[sia] clave de GitHub migrada a la lista de claves («Principal»)');
-  }
-}
-const activeGithubToken = () => {
-  const g = readUserConfig().github || {};
-  const keys = Array.isArray(g.keys) ? g.keys : [];
-  return keys.find((k) => k.id === g.activeId)?.token || '';
-};
-// Saneado de lo que llega de la UI: entradas completas y acotadas, y la activa
-// tiene que existir de verdad (si no, ninguna).
-const cleanGithub = (g) => {
-  const keys = (Array.isArray(g?.keys) ? g.keys : [])
-    .filter((k) => k && typeof k.token === 'string' && k.token.trim())
-    .slice(0, 20)
-    .map((k, i) => ({
-      id: String(k.id || `gh${i + 1}`).slice(0, 40),
-      name: String(k.name || '').trim().slice(0, 24) || `Clave ${i + 1}`,
-      token: k.token.trim(),
-    }));
-  return { keys, activeId: keys.some((k) => k.id === g?.activeId) ? g.activeId : null };
-};
-
-const userEnv = () => {
-  const env = {};
-  const { jira } = readUserConfig();
-  if (jira?.baseUrl) env.JIRA_BASE_URL = jira.baseUrl;
-  if (jira?.token) env.JIRA_API_TOKEN = jira.token;
-  const gh = activeGithubToken();
-  if (gh) { env.GH_TOKEN = gh; env.GITHUB_TOKEN = gh; }
-  return env;
-};
-
-// Limpia del entorno heredado las marcas de "estoy dentro de Claude Code", para
-// que el CLI lanzado por SIA no se niegue por sesión anidada, y los tokens de
-// GitHub: quién manda ahí es la clave activa (userEnv), no lo que llevara puesto
-// el proceso que arrancó el bridge — si no hay ninguna marcada, el chat va sin.
-const cleanEnv = (env) => {
-  const e = { ...env };
-  for (const k of ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SSE_PORT', 'GH_TOKEN', 'GITHUB_TOKEN']) delete e[k];
-  return e;
-};
-
 // Acceso al conocimiento: los tokens de la persona → proyectos
 // permitidos (unión de lo que concede cada token). Default-deny: sin tokens
 // válidos, no se ve nada. La base aplica la misma regla por su cuenta (los
@@ -763,6 +683,9 @@ const walkDir = (dir, base = '') => fs.readdirSync(dir, { withFileTypes: true })
   e.isDirectory() ? walkDir(path.join(dir, e.name), path.join(base, e.name))
     : [{ path: path.join(base, e.name), content: fs.readFileSync(path.join(dir, e.name), 'utf8') }]);
 
+const configRoute = configRoutes(config, { json, readBody, version: APP_VERSION, onTheme: (theme) => {
+  if (JSON.stringify(theme) !== JSON.stringify(UI_THEME)) { UI_THEME = theme; broadcastTheme(); }
+} });
 const authRoute = authRoutes(auth, { json, readBody, onSession: loadAssigned, onLogout: clearAssigned, platform });
 const syncKeys = (jwt, userId, opts) => knowledge.syncPeople(jwt, userId ? [userId] : null, opts);
 const usersRoute = usersRoutes(users, auth, { json, readBody, syncKeys, assignKnowledge: (jwt, userId, ids) => knowledge.setProjects(jwt, userId, ids) });
@@ -1221,29 +1144,7 @@ const apiServer = http.createServer(async (req, res) => {
       return json(res, 404, { error: 'no encontrado' });
     }
 
-    // ── config personal (sin gate: es de cada usuario, no de admin) ──
-    // la clave del bloqueo de pantalla (derivada) no sale ni entra por aquí: va por /api/lock
-    // La config personal por la API: solo lo que la web lee y escribe (Jira,
-    // claves de GitHub y tema). Sesiones, bases, candado… no salen ni entran
-    // por aquí: cada cosa tiene su ruta.
-    if (parts[1] === 'config' && req.method === 'GET') {
-      const { jira, github } = readUserConfig();
-      return json(res, 200, { jira, github, version: APP_VERSION });
-    }
-    if (parts[1] === 'config' && req.method === 'PUT') {
-      const body = await readBody(req);
-      const patch = {};
-      if (body.jira !== undefined) patch.jira = { baseUrl: String(body.jira?.baseUrl || '').trim(), token: String(body.jira?.token || '').trim() };
-      if (body.github !== undefined) patch.github = cleanGithub(body.github);
-      // el tema del escritorio: se guarda y se avisa a los móviles conectados
-      const theme = body.theme !== undefined ? cleanTheme(body.theme) : null;
-      if (theme) {
-        patch.theme = theme;
-        if (JSON.stringify(theme) !== JSON.stringify(UI_THEME)) { UI_THEME = theme; broadcastTheme(); }
-      }
-      writeUserConfig({ ...readUserConfig(), ...patch });
-      return json(res, 200, { ok: true });
-    }
+    if (parts[1] === 'config') return configRoute(req, res);
     // proyectos accesibles para los tokens del usuario (selector de fuentes,
     // siempre fresco — no depende del WS)
     if (parts[1] === 'access' && parts[2] === 'projects' && req.method === 'GET') {
@@ -1632,7 +1533,7 @@ const handleConnection = (ws, req) => {
           // cleanEnv poda el entorno heredado (CLAUDECODE/*, tokens de GitHub) y
           // userEnv() pone encima las credenciales personales (Jira, la clave de
           // GitHub activa), leídas frescas en cada sesión — ese orden importa.
-          env: { ...cleanEnv({ ...process.env, SHELL_SESSIONS_DISABLE: '1' }), ...userEnv() },
+          env: { ...cleanEnv({ ...process.env, SHELL_SESSIONS_DISABLE: '1' }), ...userEnv(config.read()) },
         });
       } catch (err) {
         send(ws, { type: 'error', message: `No se pudo lanzar: ${err.message}` });
