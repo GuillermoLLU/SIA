@@ -1,0 +1,56 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { chatSessions, chromeVisible, nextActive, isImageName, fileExt, toAsset, missingAssets, reconcile, dropBefore } from './sessions.js';
+
+const local = (o) => ({ id: 1, remoteId: 's1', passive: false, linkLost: false, launched: true, label: 'Chat 1', color: null, assets: [], ...o });
+
+test('chatSessions: fuera los chats de issues; chrome solo con un chat real', () => {
+  assert.deepEqual(chatSessions([{ id: 'a' }, { id: 'b', issue: 'INC1' }]).map((r) => r.id), ['a']);
+  assert.equal(chromeVisible([{ launched: false, passive: false }]), false);
+  assert.equal(chromeVisible([{ launched: true }]), true);
+  assert.equal(chromeVisible([{}, {}]), true);
+  assert.equal(nextActive([1, 2, 3]), 3);
+  assert.equal(nextActive([]), null);
+});
+
+test('adjuntos: imagen por extensión, URL del bridge y los que faltan', () => {
+  assert.equal(isImageName('foto.JPG'), true);
+  assert.equal(isImageName('log.txt'), false);
+  assert.equal(fileExt('a.tar.gz'), 'GZ');
+  assert.equal(fileExt('sinext'), 'SINEX');
+  assert.deepEqual(toAsset({ name: 'a b.png', absPath: '/x' }, '/api'), { name: 'a b.png', absPath: '/x', url: '/api/uploads/a%20b.png', isImage: true });
+  assert.deepEqual(missingAssets([{ name: 'a' }], [{ name: 'a' }, { name: 'b' }]).map((a) => a.name), ['b']);
+});
+
+test('reconcile: el chat ya no está en el bridge', () => {
+  const { actions } = reconcile([local({ passive: true }), local({ id: 2, remoteId: 's2', linkLost: true }), local({ id: 3, remoteId: 's3' })], []);
+  assert.deepEqual(actions, [{ id: 1, do: 'remove' }, { id: 2, do: 'dead' }, { id: 3, do: 'keep' }]);
+});
+
+test('reconcile: perdido el socket, vuelve solo si está libre o queda pasivo si lo tiene otro', () => {
+  const { actions } = reconcile([local({ linkLost: true }), local({ id: 2, remoteId: 's2', linkLost: true })],
+    [{ id: 's1', attached: false }, { id: 's2', attached: true }]);
+  assert.deepEqual(actions.map((a) => a.do), ['reattach', 'passive']);
+});
+
+test('reconcile: una pasiva refleja el nombre y el color del otro dispositivo; los adjuntos nuevos llegan', () => {
+  const { actions } = reconcile([local({ passive: true, assets: [{ name: 'a' }] })], [{ id: 's1', label: 'Otro', color: '#f00', assets: [{ name: 'a' }, { name: 'b' }] }]);
+  assert.deepEqual(actions, [{ id: 1, do: 'keep', assets: [{ name: 'b' }], label: 'Otro', color: '#f00' }]);
+  const same = reconcile([local({ passive: true, label: 'Otro', color: '#f00' })], [{ id: 's1', label: 'Otro', color: '#f00' }]).actions[0];
+  assert.equal('label' in same, false);
+});
+
+test('reconcile: los chats nuevos de otro dispositivo se crean, salvo con un lanzamiento a medias', () => {
+  const r = reconcile([local({ remoteId: null, launched: false })], [{ id: 's9' }, { id: 'i1', issue: 'INC1' }]);
+  assert.deepEqual(r.create.map((x) => x.id), ['s9']);
+  assert.equal(r.hold, false);
+  const held = reconcile([local({ remoteId: null, launched: true })], [{ id: 's9' }]);
+  assert.deepEqual([held.create, held.hold], [[], true]);
+});
+
+test('dropBefore: la primera pestaña con el centro a la derecha del cursor', () => {
+  const boxes = [{ el: 'a', left: 0, width: 100 }, { el: 'b', left: 100, width: 100 }, { el: 'c', left: 200, width: 100 }];
+  assert.equal(dropBefore(120, boxes), 'b');
+  assert.equal(dropBefore(260, boxes), null);
+  assert.equal(dropBefore(10, boxes), 'a');
+});

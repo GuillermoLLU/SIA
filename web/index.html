@@ -50,15 +50,15 @@
         <button class="nav-btn" id="nav-issues" title="Issues" aria-label="Issues" hidden></button>
         <button class="nav-btn" id="nav-work" title="Equipo soporte" aria-label="Equipo soporte" hidden></button>
         <button class="nav-btn" id="nav-metrics" title="Métricas" aria-label="Métricas" hidden></button>
-        <!-- Laboratorio (solo power users) -->
+        <!-- Laboratorio (con la vista y el permiso lab de la base) -->
         <button class="nav-btn" id="nav-lab" title="Laboratorio de skills" aria-label="Laboratorio" hidden>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v6.5L4.8 17a3 3 0 0 0 2.6 4.5h9.2a3 3 0 0 0 2.6-4.5L14 8.5V2"/><path d="M8.5 2h7"/><path d="M7 15h10"/></svg>
         </button>
-        <!-- Enlaces rápidos (todos ven; solo admin gestiona) -->
+        <!-- Enlaces rápidos (con la vista; editar exige el permiso links) -->
         <button class="nav-btn" id="nav-links" title="Enlaces rápidos" aria-label="Enlaces rápidos" hidden>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
         </button>
-        <!-- Administración (solo superadmin) -->
+        <!-- Administración (con la vista y el permiso admin de la base) -->
         <button class="nav-btn" id="nav-admin" title="Administración" aria-label="Administración" hidden>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9v.01M9 12v.01M9 15v.01M9 18v.01"/></svg>
         </button>
@@ -212,7 +212,6 @@
         </div>
       </div>
 
-      <!-- ── Vista ADMINISTRACIÓN (solo superadmin) ── -->
       <!-- ── Vista PERSONAS (web/src/users/) ── -->
       <div class="window view" id="view-users" hidden></div>
       <div class="window view iss-view" id="view-issues" hidden></div>
@@ -385,7 +384,7 @@
       <!-- Aviso temporal abajo a la derecha (éxitos breves) -->
       <div class="toast" id="toast" hidden></div>
 
-      <!-- Diálogo genérico (sustituye a alert/prompt/confirm) -->
+      <!-- Diálogo genérico (ui/dialog.js) -->
       <div class="modal-overlay" id="dialog-overlay" hidden>
         <div class="modal dialog">
           <header class="modal-head"><span class="modal-title" id="dialog-title"></span></header>

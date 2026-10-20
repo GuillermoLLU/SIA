@@ -4,6 +4,7 @@
 // de la issue como primer mensaje. Salir de la issue no lo cierra: solo suelta
 // el socket (dispose); el chat sigue vivo en el bridge.
 import { renderChooser } from '../chat/chooser.js';
+import { msg, parse, sendOn } from '../chat/protocol.js';
 import { esc } from '../ui/html.js';
 
 // host: el hueco del chat · wsUrl(): socket del bridge · loadProjects(): las fuentes
@@ -14,8 +15,7 @@ export const mountIssueChat = (host, { issueId, wsUrl, loadProjects, makeTermina
   const termHost = host.querySelector('.term-host');
   let ws = null, term = null, fit = null, ro = null, disposed = false;
 
-  const send = (m) => { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(m)); };
-  const resize = () => { if (!term || termHost.hidden) return; try { fit.fit(); send({ type: 'resize', cols: term.cols, rows: term.rows }); } catch { /* aún sin tamaño */ } };
+  const resize = () => { if (!term || termHost.hidden) return; try { fit.fit(); sendOn(ws, msg.resize(term.cols, term.rows)); } catch { /* aún sin tamaño */ } };
 
   const showTerminal = () => {
     if (term) return;
@@ -23,7 +23,7 @@ export const mountIssueChat = (host, { issueId, wsUrl, loadProjects, makeTermina
     termHost.hidden = false;
     ({ term, fit } = makeTerminal());
     term.open(termHost);
-    term.onData((data) => send({ type: 'input', data }));
+    term.onData((data) => sendOn(ws, msg.input(data)));
     ro = new ResizeObserver(resize);
     ro.observe(termHost);
     requestAnimationFrame(resize);
@@ -34,7 +34,7 @@ export const mountIssueChat = (host, { issueId, wsUrl, loadProjects, makeTermina
     // medir antes de arrancar: el CLI nace con el ancho real
     requestAnimationFrame(() => requestAnimationFrame(() => {
       try { fit.fit(); } catch { /* sin tamaño */ }
-      send({ type: 'start', launcher: launcher.id, knowledge, projects, issue: issueId, cols: term.cols, rows: term.rows });
+      sendOn(ws, msg.start(launcher.id, knowledge, projects, term.cols, term.rows, issueId));
     }));
   };
 
@@ -49,11 +49,11 @@ export const mountIssueChat = (host, { issueId, wsUrl, loadProjects, makeTermina
 
   ws = new WebSocket(wsUrl());
   ws.onmessage = (e) => {
-    let m;
-    try { m = JSON.parse(e.data); } catch { return; }
+    const m = parse(e.data);
+    if (!m) return;
     if (m.type === 'launchers') {
       const open = (m.sessions || []).find((r) => r.issue === issueId);
-      if (open) { showTerminal(); send({ type: 'attach', sessionId: open.id }); return; }
+      if (open) { showTerminal(); sendOn(ws, msg.attach(open.id)); return; }
       renderChooser(chooser, { launchers: m.list, loadProjects, onLaunch: launch, title: '¿Con qué agente abrimos el chat de esta issue?' });
     } else if ((m.type === 'history' || m.type === 'data') && term) {
       if (m.type === 'history') term.reset();
