@@ -1,10 +1,10 @@
 // La IA de las Métricas (sin DOM): las marcas de IA de cada issue y las cifras de una lista.
-// Las marcas vienen de Remedy (model.js, FLAGS): en TAGS (IA_SOLVED…, IA_FAIL) y en las notas ([ACT IA], [INFORME IA],
+// Las marcas vienen de Remedy (server/metrics/remedy.js, FLAG): en TAGS (IA_SOLVED…, IA_FAIL) y en las notas ([ACT IA], [INFORME IA],
 // [HITL_REVIEW_OK], [HITL_REVIEW_NOT_OK], [IA_FAIL]…).
 export const IA_MARKS = 32 | 64 | 2048 | 4096 | 8192;
 const IA_SOLVED = 32, IA_FAILS = 64 | 8192, HITL_OK = 4096;
 export const IA_NAMES = ['Revisada OK', 'Con fallo', 'Sin revisar', 'Sin IA'];
-export const IA_OK = 0, IA_FAIL = 1, IA_UNREVIEWED = 2, IA_NONE = 3;
+export const IA_OK = 0, IA_FAIL = 1, IA_UNREVIEWED = 2, IA_NONE = 3;   // lo que da iaKind, en el orden de IA_NAMES
 
 // cómo sale una issue según sus marcas: con alguna marca de fallo (aunque también tenga revisión OK), con revisión
 // humana OK, con IA pero sin revisión ni fallo, o sin IA
@@ -30,7 +30,7 @@ export const iaStats = (list, C) => {
 };
 
 // las personas según qué parte de sus issues lleva IA
-export const IA_USE = [['Sin IA', (s) => !s.ia], ['Menos del 5 %', (s) => s.ia > 0 && s.share < 0.05],
+const IA_USE = [['Sin IA', (s) => !s.ia], ['Menos del 5 %', (s) => s.ia > 0 && s.share < 0.05],
   ['Del 5 al 15 %', (s) => s.share >= 0.05 && s.share < 0.15], ['El 15 % o más', (s) => s.share >= 0.15]];
 
 // de unas personas (sus iaStats), las de cada tramo de IA_USE: cuántas son (c) de todas (n), y cuántas issues con IA
@@ -41,4 +41,19 @@ export const iaUse = (people) => {
     const ps = people.filter(t);
     return { label, n: people.length, c: ps.length, ia: ps.reduce((a, s) => a + s.ia, 0), all };
   });
+};
+
+// Las cifras de arriba de la pestaña IA (m: el modelo; A: lo que se mira): la parte con IA del último mes completo y
+// del anterior (si están en el periodo) y el primer mes con alguna issue con IA.
+export const iaMonths = (m, A, monthsIn) => {
+  const withIa = (i) => iaKind(m.C.fl[i]) !== IA_NONE, months = monthsIn(m.S), full = months.filter((k) => k !== m.LASTM);
+  const share = (k) => { const l = A.filter((i) => m.MONTH[i] === k); return l.length ? l.filter(withIa).length / l.length : null; };
+  return { last: full.slice(-2).reverse().map((k) => ({ k, share: share(k) })), first: months.find((k) => A.some((i) => m.MONTH[i] === k && withIa(i))) ?? null };
+};
+
+// Quién y dónde se usa: de una dimensión (personas, módulos), cuántos valores tienen alguna issue con IA de cuántos
+// (all) y los tres con más, cada uno con su parte de todas las de IA.
+export const iaTop = (m, A, dim, all) => {
+  const by = m.group(dim, A.filter((i) => iaKind(m.C.fl[i]) !== IA_NONE && m.DIMS[dim].get(i))), n = by.reduce((t, x) => t + x.n, 0);
+  return { count: by.length, all, share: all ? by.length / all : 0, top: by.slice(0, 3).map((x) => ({ k: x.k, n: x.n, p: x.n / n })) };
 };

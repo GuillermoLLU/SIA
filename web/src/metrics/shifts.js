@@ -14,7 +14,7 @@ const START = 7 * 60, LEN = 8 * 60, DAY = 1440;
 export const MIN_ACTIONS = 3;
 
 export const slotOf = (min) => Math.floor((min - START) / LEN);
-export const kindOf = (slot) => ((slot % 3) + 3) % 3;
+const kindOf = (slot) => ((slot % 3) + 3) % 3;
 const startOf = (slot) => START + slot * LEN;
 
 // base: el 1 de enero del año, en ms (UTC). Devuelve si un turno es de fin de semana.

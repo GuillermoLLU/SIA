@@ -11,6 +11,7 @@
 //           snapshot: el último minuto con movimiento (la «hora de la foto»).
 //   dict    textos por columna; el 0 es siempre ''.
 //   themes  nombres de los temas (bit i de `th`).
+//   reasons los motivos de Pendiente que son esperar al cliente o a un tercero (states.js), para la situación.
 //   company empresa de cada persona de dict.person (companies.js).
 //   cols    una lista por columna, una posición por issue:
 //           id número · rep/res abierta y resuelta · lm último cambio (minutos desde el 1 de enero; -1 no hay)
@@ -24,16 +25,17 @@
 import { readIssue, FLAG } from './remedy.js';
 import { loginsOf, companyOf } from './companies.js';
 import { THEME_NAMES, problemKey } from './themes.js';
+import { PENDING } from './states.js';
 
-export const GROUP = 'AYS SOPORTE';
-export const FORMAT = 2;
+const GROUP = 'AYS SOPORTE';
+export const FORMAT = 3;
 
 export const REQUIRED = ['INCIDENTNUMBER', 'ASSIGNEDGROUP', 'ASSIGNEE', 'SUMMARY', 'PRIORITY', 'STATUS', 'STATUSREASON', 'SERVICETYPE', 'TAGS',
   'REPORTEDDATE', 'LASTRESOLUTIONDATE', 'LASTMODIFIEDDATE', 'RESOLUTION', 'VENDORTICKETNUMBER', 'PRODUCTCATEGORIZATIONTIER1',
   'PRODUCTCATEGORIZATIONTIER2', 'PRODUCTCATEGORIZATIONTIER3', 'CATEGORIZATIONTIER3', 'AUDIT_DETAIL', 'WORKLOG_DETAIL'];
 
 // El CSV no es el de la consulta (status 400 para la ruta).
-export class CsvError extends Error {
+class CsvError extends Error {
   constructor(message) { super(message); this.status = 400; }
 }
 
@@ -51,7 +53,7 @@ const dictionary = () => {
 const COLS = ['id', 'rep', 'res', 'lm', 'st', 'rs', 'pr', 'sv', 'as', 'ce', 'op', 'mo', 'k3', 'sc', 'fl', 'vt', 'vp', 'vk',
   'fr', 'ip', 'tA', 'tI', 'tPc', 'tPv', 'tPo', 'nb', 'np', 'th', 'su', 'de'];
 
-export const createDataset = ({ year, group = GROUP }) => {
+export const createDataset = ({ year }) => {
   const base = Date.UTC(year, 0, 1), yearEnd = (Date.UTC(year + 1, 0, 1) - base) / 60000;
   const D = Object.fromEntries(['status', 'reason', 'prio', 'svc', 'person', 'centre', 'op', 'module', 'cat', 'vtype', 'vproj', 'vkey', 'resol', 'problem'].map((k) => [k, dictionary()]));
   const cols = Object.fromEntries(COLS.map((c) => [c, []]));
@@ -66,7 +68,7 @@ export const createDataset = ({ year, group = GROUP }) => {
       checked = true;
     }
     total++;
-    if (r.ASSIGNEDGROUP.trim() !== group) return;
+    if (r.ASSIGNEDGROUP.trim() !== GROUP) return;
     const i = readIssue(r, base);
     if (i.reported < 0 || i.reported >= yearEnd) return;
     snapshot = Math.max(snapshot, i.reported, i.modified);
@@ -92,7 +94,7 @@ export const createDataset = ({ year, group = GROUP }) => {
   };
 
   const build = ({ file, generated }) => {
-    if (!cols.id.length) throw new CsvError(`Ese CSV no tiene issues del grupo ${group} abiertas en ${year}.`);
+    if (!cols.id.length) throw new CsvError(`Ese CSV no tiene issues del grupo ${GROUP} abiertas en ${year}.`);
     cols.rz = resolutions.map((z) => (z && resolutionCount.get(z) >= 4 ? D.resol.id(z) : 0));
     const logins = new Map();
     for (const [login, name] of loginsOf(resolvers)) logins.set(name, [...(logins.get(name) || []), login]);
@@ -100,9 +102,10 @@ export const createDataset = ({ year, group = GROUP }) => {
     const dict = Object.fromEntries(Object.entries(D).map(([k, d]) => [k, d.values]));
     dict.problem = dict.problem.map((k, n) => (n ? [...spellings[n]].reduce((a, b) => (b[1] > a[1] ? b : a))[0] : ''));
     return {
-      meta: { format: FORMAT, file, year, group, rows: cols.id.length, total, snapshot, generated },
+      meta: { format: FORMAT, file, year, group: GROUP, rows: cols.id.length, total, snapshot, generated },
       dict,
       themes: THEME_NAMES,
+      reasons: PENDING,
       company: people.map((name) => companyOf(name, logins.get(name) || [])),
       cols,
     };

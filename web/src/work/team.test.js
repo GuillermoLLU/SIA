@@ -2,9 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createModel } from '../metrics/model.js';
 import { createCharts } from '../metrics/charts.js';
-import { teamPanel, MIN } from './team.js';
+import { teamPanel } from './team.js';
 
-// 2 personas de Indra (ANA, rápida; PEPE, lenta) con MIN issues cada una y 1 de T-Systems (LUIS, con 1 issue), que no sale.
+// 2 personas de Indra (ANA, rápida; PEPE, lenta) con MIN (10) issues cada una y 1 de T-Systems (LUIS, con 1 issue), que no sale.
+const MIN = 10;   // team.js: con menos issues, los % de una persona dicen poco
 const issues = [
   ...Array.from({ length: MIN }, (_, i) => ({ as: 1, rep: 1000 + i, res: 1060 + i, ip: 5, fr: 5 })),
   ...Array.from({ length: MIN }, (_, i) => ({ as: 2, rep: 2000 + i, res: 9000 + i, ip: 300, fr: 300 })),
@@ -15,7 +16,7 @@ const data = () => ({
   meta: { file: 'x.csv', year: 2026, group: 'AYS SOPORTE', rows: n, total: n, snapshot: 100000, generated: 'g' },
   dict: { status: ['', 'CLOSED'], reason: [''], prio: ['', 'HIGH'], svc: [''], person: ['', 'ANA', 'PEPE', 'LUIS'], centre: [''], op: [''], module: [''],
     cat: [''], vtype: [''], vproj: [''], vkey: [''], resol: [''], problem: [''] },
-  themes: [], company: [2, 0, 0, 1],
+  themes: [], reasons: { client: [], vendor: [] }, company: [2, 0, 0, 1],
   cols: { id: col((_, i) => i + 1), rep: col((x) => x.rep), res: col((x) => x.res), st: col(() => 1), rs: zeros(), pr: col(() => 1), sv: zeros(),
     as: col((x) => x.as), ce: zeros(), op: zeros(), mo: zeros(), k3: zeros(), sc: zeros(), fl: zeros(), vt: zeros(), vp: zeros(), vk: zeros(),
     fr: col((x) => x.fr), ip: col((x) => x.ip), tA: zeros(), tI: zeros(), tPc: zeros(), tPv: zeros(), tPo: zeros(), nb: zeros(), np: zeros(), th: zeros(), rz: zeros(), de: zeros(),

@@ -7,10 +7,10 @@
 // Con menos de MIN issues en el periodo, sus porcentajes y medias dicen poco:
 // al ordenar por ellos, esas personas van al final.
 import { esc } from '../ui/html.js';
-import { SCOPE } from '../metrics/model.js';
+import { SCOPE, slaText } from '../metrics/model.js';
 import { num, dec, pct, dur, MONTHS } from '../metrics/format.js';
 
-export const MIN = 10;
+const MIN = 10;
 
 const donePct = (s) => (s.slaDone == null ? '—' : pct(s.slaDone));
 
@@ -20,7 +20,7 @@ const COLS = {
   n: ['Issues', (s) => num(s.n), (s) => s.n, null, 'Issues que tiene asignadas, creadas en el periodo.'],
   open: ['Pendientes', (s) => num(s.open), (s) => s.open, null, 'Las que tiene asignadas y siguen sin resolver.'],
   sla: ['SLA cumplido', donePct, (s) => s.slaDone, 'high',
-    'De las que ha resuelto, el % que pasó a En curso dentro del plazo de su prioridad: crítica 15 min, alta 45 min, media 2 h y baja 8 h.'],
+    `De las que ha resuelto, el % que pasó a En curso dentro del plazo de su prioridad: ${slaText()}.`],
   day: ['Resueltas por día', (s) => (s.perDay == null ? '—' : dec(s.perDay)), (s) => s.perDay, 'high',
     'Media de issues que resuelve al día, contando solo los días en que resolvió alguna. En la fila del equipo, la media de sus personas.'],
   avg: ['Resolución media', (s) => dur(s.avg), (s) => s.avg, 'low', 'Tiempo medio desde que se abre la issue hasta que se resuelve, en horas y días naturales.'],

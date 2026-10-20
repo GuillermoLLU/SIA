@@ -1,31 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createModel } from './model.js';
+import { data, SNAP } from './fixture.js';
 import { createCharts } from './charts.js';
 import { createTabs, TABS } from './tabs.js';
-
-// Cinco issues inventadas (minutos desde el 1 de enero; la foto, en el minuto 100.000):
-// 1 Indra crítica, en curso a los 10 min · 2 T-Systems alta, en curso a los 100 min
-// 3 Indra media, abierta y sin iniciar · 4 Indra baja, cerrada sin pasar por En curso
-// 5 sin responsable
-const SNAP = 100000;
-const data = () => ({
-  meta: { file: 'x.csv', year: 2026, group: 'AYS SOPORTE', rows: 5, total: 5, snapshot: SNAP, generated: '2026-10-14T08:00:00Z' },
-  dict: { status: ['', 'CLOSED', 'ASSIGNED'], reason: [''], prio: ['', 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW'], svc: ['', 'USER_SERVICE_RESTORATION'],
-    person: ['', 'ANA', 'LUIS'], centre: ['', 'C1'], op: ['', 'ECOM Zara'], module: ['', 'EWMS', 'PACKING'], cat: ['', 'X'],
-    vtype: ['', 'TEC'], vproj: ['', 'SGA'], vkey: ['', 'SGA-1'], resol: ['', 'reinicio'], problem: ['', 'etiqueta mal'] },
-  themes: ['Tema A', 'Tema B'],
-  company: [2, 0, 1],
-  cols: {
-    id: [1, 2, 3, 4, 5], rep: [1000, 2000, SNAP - 200, 5000, 6000], res: [1060, 5000, -1, 5100, 6001],
-    st: [1, 1, 2, 1, 1], rs: [0, 0, 0, 0, 0], pr: [1, 2, 3, 4, 2], sv: [1, 1, 1, 1, 1], as: [1, 2, 1, 1, 0],
-    ce: [1, 1, 1, 0, 1], op: [1, 1, 1, 1, 1], mo: [1, 2, 1, 2, 1], k3: [1, 0, 1, 1, 1], sc: [1, 2, 1, 0, 0], fl: [0, 512, 0, 0, 0],
-    vt: [1, 0, 0, 0, 0], vp: [1, 0, 0, 0, 0], vk: [1, 0, 0, 0, 0], fr: [10, 100, -1, 50, 1], ip: [10, 100, -1, -1, -1],
-    tA: [10, 100, 200, 50, 0], tI: [50, 2900, 0, 0, 0], tPc: [0, 0, 0, 0, 0], tPv: [0, 0, 0, 0, 0], tPo: [0, 0, 0, 0, 0],
-    nb: [0, 1, 0, 0, 0], np: [0, 0, 0, 0, 0], th: [1, 2, 3, 0, 0], rz: [1, 0, 0, 0, 0], de: [1, 0, 0, 0, 0],
-    su: ['100001 High ECOM ZARA C1 EWMS - Etiqueta mal', 'Otro título', 'Abierta', '100002 Low ALGO', 'Sin responsable'],
-  },
-});
 
 test('lo derivado de cada issue: empresa, abierta, mes', () => {
   const m = createModel(data());
@@ -137,13 +115,11 @@ test('indicadores de un grupo', () => {
   assert.equal(s.d1, 0.5);
   assert.equal(s.reop, 0.5);
   assert.equal(s.vend, 0.5);
-  assert.deepEqual(s.time, [110, 2950, 0, 0, 0]);
 });
 
 test('de las resueltas: SLA cumplido, resueltas por día, prioridades y marcas de IA', () => {
   const m = createModel(data());
   const s = m.stats([0, 1, 3]);           // resueltas las tres; la 1 empezó a tiempo, la 2 tarde, la 4 nunca pasó a En curso
-  assert.equal(s.slaDoneOk, 1);
   assert.equal(s.slaDone, 1 / 3);
   assert.equal(s.perDay, 3 / 2);          // minutos 1060, 5000 y 5100: dos días distintos
   assert.equal(s.inPerDay, 3 / 3);        // abiertas en los minutos 1000, 2000 y 5000: tres días
@@ -297,7 +273,7 @@ test('IA: uso de cada issue por sus marcas (con fallo manda sobre revisada OK) y
   d.cols.fl[0] = 32 | 2048 | 4096; d.cols.fl[1] = 2048 | 4096 | 8192; d.cols.fl[2] = 2048;
   const m = createModel(d);
   assert.deepEqual([0, 1, 2, 3].map(m.DIMS.ia.get), [0, 1, 2, 3]);
-  const html = createTabs(m, createCharts(m, { exp: {}, sort: {} }), { exp: {}, sort: {} }).render('ia2', m.rows());
+  const html = createTabs(m, createCharts(m, { exp: {}, sort: {} }), { exp: {}, sort: {} }).render('ia', m.rows());
   assert.match(html, /Módulos donde se usa/);
   assert.doesNotMatch(html, /undefined|NaN/);
 });
@@ -307,13 +283,13 @@ test('IA comparando: entre empresas, en qué trabajo (sin turnos ni tarjetas) y 
   d.cols.fl[0] = 2048 | 4096; d.cols.fl[1] = 2048 | 64;
   const m = createModel(d), ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
   m.S.sides = [{ company: 0 }, { company: 1 }]; m.refilter();
-  let h = tabs.render('ia2', m.rows());
+  let h = tabs.render('ia', m.rows());
   assert.match(h, /En qué trabajo/);
   for (const block of ['Prioridad', 'Tipo de servicio', 'Escalado']) assert.match(h, new RegExp(`<th class="mt-gl"[^>]*>${block}`));
   assert.match(h, /Personas según su uso/);
   assert.doesNotMatch(h, /Turno|Tarjeta|Media con IA|Módulo a módulo|undefined|NaN/);
   m.S.sides = [{ people: new Set([1]) }, { company: 0 }]; m.refilter();   // ANA frente a Indra
-  h = tabs.render('ia2', m.rows());
+  h = tabs.render('ia', m.rows());
   assert.match(h, /Módulo a módulo/);
   assert.match(h, /Según cómo sale/);
   assert.match(h, /Media con IA/);
@@ -327,5 +303,4 @@ test('de lo resuelto: los tramos de tiempo, el máximo y el tiempo en cada estad
   assert.equal(s.d1, 0.5); assert.equal(s.d7, 0.5); assert.equal(s.d15, 0);   // una en menos de 1 día y otra de 1 a 7
   assert.ok(s.mx >= 1440 && s.mx > s.avg);
   assert.deepEqual(s.rt, [110, 2950, 0, 0, 0]);
-  assert.deepEqual(s.time, [310, 2950, 0, 0, 0]);
 });

@@ -5,16 +5,16 @@
 //  - rows: filas { label, x: [lado 0, lado 1], cls, attrs } y bloques { head, note, rows } (como en Qué recibe cada
 //    uno: el título del bloque a la izquierda). Las filas sueltas tras los bloques (el total) ocupan las dos columnas.
 //  - groups: [título, nº de datos], una fila encima que agrupa los datos por concepto.
-// Se marca un lado si los dos tienen al menos `min` en lo que cuenta ese dato y no se ven iguales al redondeo.
+// Se marca un lado si los dos tienen al menos BETTER_MIN en lo que cuenta ese dato y no se ven iguales al redondeo.
 import { esc } from '../ui/html.js';
-
-export const BETTER_MIN = 10;
+import { BETTER_MIN } from './rules.js';
+import { blockHead } from './pieces.js';
 
 // el lado marcado de un dato en una fila (0, 1) o -1
-export const pairMark = (d, x, base, min = BETTER_MIN) => {
+const pairMark = (d, x, base) => {
   if (!d[3]) return -1;
   const v = x.map((s) => d[1](s));
-  if (v.some((y) => y == null) || x.some((s) => (d[5] || base)(s) < min)) return -1;
+  if (v.some((y) => y == null) || x.some((s) => (d[5] || base)(s) < BETTER_MIN)) return -1;
   if (d[2](v[0], x[0]) === d[2](v[1], x[1])) return -1;
   return (d[3] === 'low') === (v[0] < v[1]) ? 0 : 1;
 };
@@ -27,16 +27,16 @@ const seps = (defs, groups) => {
   return defs.map((_, c) => (starts.has(c) ? 'mt-gsep' : 'mt-msep'));
 };
 
-export const pairTable = ({ names, first, defs, rows, base = () => Infinity, groups = null, min = BETTER_MIN }) => {
+export const pairTable = ({ names, first, defs, rows, base = () => Infinity, groups = null }) => {
   const sep = seps(defs, groups), blocks = rows.some((r) => r.head);
   const cells = (r) => defs.map((d, c) => {
-    const mark = pairMark(d, r.x, base, min), cls = d[3] === 'warn' ? 'mt-warn' : 'mt-better';
+    const mark = pairMark(d, r.x, base), cls = d[3] === 'warn' ? 'mt-warn' : 'mt-better';
     return [0, 1].map((k) => { const v = d[1](r.x[k]); return `<td class="mt-num ${k ? '' : sep[c]} ${mark === k ? cls : ''}">${v == null ? '—' : d[2](v, r.x[k])}</td>`; }).join('');
   }).join('');
   // head: la celda del título del bloque, en su primera fila; inBlock: las demás filas del bloque
   const row = (r, head = '', inBlock = false) => `<tr class="${r.cls || ''}" ${r.attrs || ''}>${head}<td class="mt-r" ${blocks && !head && !inBlock ? 'colspan="2"' : ''} data-tip="${esc(r.label)}">${esc(r.label)}</td>${cells(r)}</tr>`;
   const block = (b) => b.rows.map((x, j) => row({ ...x, cls: `${x.cls || ''} ${j ? '' : 'mt-gfirst'}` },
-    j ? '' : `<th class="mt-gl" rowspan="${b.rows.length}">${esc(b.head)}${b.note ? `<small>${esc(b.note)}</small>` : ''}</th>`, true)).join('');
+    j ? '' : blockHead(b.head, b.note, b.rows.length), true)).join('');
   const body = rows.map((r) => (r.head ? block(r) : row(r))).join('');
   const lead = blocks ? 2 : 1;
   const side = (k, cls = '') => `<th class="mt-led-side ${cls}" data-tip="${esc(names[k])}"><i class="mt-c${k}"></i></th>`;

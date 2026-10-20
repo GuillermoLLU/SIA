@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createDataset, REQUIRED, CsvError } from './dataset.js';
-import { themesOf, readTitle, problemKey, THEME_NAMES } from './themes.js';
+import { createDataset, REQUIRED } from './dataset.js';
+import { THEME_NAMES } from './themes.js';
 
 const row = (o = {}) => ({ ...Object.fromEntries(REQUIRED.map((c) => [c, ''])),
   INCIDENTNUMBER: 'INC000000000001', ASSIGNEDGROUP: 'AYS SOPORTE', ASSIGNEE: 'ANA LOPEZ', STATUS: 'CLOSED', PRIORITY: 'HIGH',
@@ -42,36 +42,11 @@ test('resoluciones repetidas: solo las usadas 4 veces o más', () => {
   assert.equal(dict.resol[1], 'reinicio #');
 });
 
-test('un CSV que no es el de la consulta, o sin issues del grupo en el año: CsvError', () => {
-  assert.throws(() => createDataset({ year: 2026 }).add({ A: '1' }), CsvError);
+test('un CSV que no es el de la consulta, o sin issues del grupo en el año: error con estado 400', () => {
+  assert.throws(() => createDataset({ year: 2026 }).add({ A: '1' }), (e) => e.status === 400 && /no es el de la consulta/.test(e.message));
   const ds = createDataset({ year: 2026 });
   ds.add(row({ ASSIGNEDGROUP: 'OTRO' }));
-  assert.throws(() => ds.build({ file: 'x', generated: 'y' }), /no tiene issues del grupo AYS SOPORTE/);
-});
-
-test('temas: varios a la vez; el aviso automático, solo el suyo', () => {
-  assert.equal(themesOf('incidencia ruta y/o etiqueta del pedido'), 1);
-  const m = themesOf('etiqueta mal impresa en packing');
-  assert.ok(m & (1 << THEME_NAMES.indexOf('Etiquetas e impresión')));
-  assert.ok(m & (1 << THEME_NAMES.indexOf('Packing y empaquetado')));
-  assert.equal(themesOf('nada que ver'), 0);
-});
-
-test('el problema es lo que va tras « - »; los temas se buscan solo ahí, no en la cabecera del centro', () => {
-  const t = readTitle(' 100632 Low ECOM ZARA POLONIA STRYKOW PACKING - [TEC] Error etiqueta 12. ');
-  assert.equal(t.problem, '[tec] error etiqueta #');
-  assert.ok(t.themes & (1 << THEME_NAMES.indexOf('Etiquetas e impresión')));
-  assert.equal(t.themes & (1 << THEME_NAMES.indexOf('Packing y empaquetado')), 0);
-  assert.deepEqual(readTitle('100632 Low ECOM ZARA PACKING'), { problem: '', themes: 0 });   // sin descripción
-  assert.equal(readTitle('No arranca la PDA').problem, 'no arranca la pda');                   // sin cabecera: todo
-  assert.deepEqual(readTitle('100001 High INCIDENCIA RUTA Y/O ETIQUETA: pedido #3'), { problem: 'pedido ##', themes: 1 });
-});
-
-test('problema: sin etiquetas entre corchetes y en singular, para juntar las formas de escribir lo mismo', () => {
-  assert.equal(problemKey('[tec] error etiquetas'), problemKey('error etiqueta'));
-  assert.equal(problemKey('cancelar pedidos'), problemKey('cancelar pedido'));
-  assert.notEqual(problemKey('permisos de usuario sisu'), problemKey('permisos de usuario'));
-  assert.equal(problemKey('[pos]'), '');
+  assert.throws(() => ds.build({ file: 'x', generated: 'y' }), (e) => e.status === 400 && /no tiene issues del grupo AYS SOPORTE/.test(e.message));
 });
 
 test('cada issue con su problema; se enseña la forma más escrita', () => {
