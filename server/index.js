@@ -10,7 +10,10 @@ import { fetch as undiciFetch, Agent as UndiciAgent } from 'undici';
 import { createBaseAccess, noDbClient, fetchAll, NO_DB_MSG } from './base/client.js';
 import { createBaseAccess as createKnowledgeBaseAccess } from './knowledge/base-access.js';
 import { updatesRoutes } from './updates/routes.js';
-import { json, readBody } from './shared/http.js';
+import { json, readBody, sendFile } from './shared/http.js';
+import { linksRoutes } from './links/routes.js';
+import { uploadsRoutes } from './uploads/routes.js';
+import { projectsRoutes } from './projects/routes.js';
 import { createConfigStore } from './config/store.js';
 import { cleanTheme, userEnv, cleanEnv } from './config/config.js';
 import { configRoutes } from './config/routes.js';
@@ -265,39 +268,6 @@ const accessTokens = (base = currentBase()) => (base ? base.tokens : []);
    persona se la da la instancia según sus vistas (server/knowledge/
    person-keys.js; con Administración, la del dueño). permisos:
    server/shared/perms.js */
-// Validación de un enlace rápido. La imagen viaja como data URI para que viva
-// en la base y no dependa de un servidor ajeno; se acota el tamaño porque es
-// una miniatura, no una foto.
-// La UI reescala a 256 px antes de enviar, así que una imagen normal llega en
-// decenas de KB. Este tope no es un límite de uso: es una red por si alguien
-// llama a la API a mano, para que una imagen suelta no lastre el listado —
-// que devuelve las imágenes incrustadas.
-const LINK_IMAGE_CAP = 3_000_000; // ~2,2 MB de imagen real una vez en base64
-const linkFields = ({ title, url, image, notes }) => {
-  const t = String(title ?? '').trim();
-  const u = String(url ?? '').trim();
-  if (!t) return { error: 'el título no puede estar vacío' };
-  if (t.length > 120) return { error: 'el título no puede pasar de 120 caracteres' };
-  if (!/^https?:\/\/./i.test(u)) return { error: 'la URL tiene que empezar por http:// o https://' };
-  const img = image ? String(image) : null;
-  if (img && !/^data:image\/(png|jpeg|gif|webp|svg\+xml);base64,/.test(img)) {
-    return { error: 'la imagen no es válida' };
-  }
-  if (img && img.length > LINK_IMAGE_CAP) return { error: 'la imagen pesa demasiado (máx. ~2 MB)' };
-  return { value: { title: t, url: u, image: img, notes: notes ? String(notes) : null } };
-};
-
-const authRoute = authRoutes(auth, { json, readBody, onSession: loadAssigned, onLogout: clearAssigned, platform });
-const syncKeys = (jwt, userId, opts) => knowledge.syncPeople(jwt, userId ? [userId] : null, opts);
-const usersRoute = usersRoutes(users, auth, { json, readBody, syncKeys, assignKnowledge: (jwt, userId, ids) => knowledge.setProjects(jwt, userId, ids) });
-const knowledgeRoute = knowledgeRoutes(knowledge, auth, { json, readBody, syncKeys, onChange: loadAssigned });
-// Issues: de momento, el CSV más reciente que se deje en <workspace>/issues.
-const issuesSource = createIssuesSource(workspace.issuesDir);
-const issuesRoute = issuesRoutes(issuesSource, auth, platform, { json, readBody });
-// Métricas: calculadas desde el CSV completo de Remedy que carga cada persona; de momento, solo 2026.
-const metricsRoute = metricsRoutes(createMetricsStore(workspace.metricsDir, { year: 2026 }), { json });
-let uploadSeq = 0;
-
 /* ── Acceso público: quick tunnel de Cloudflare ─────────────────────
    `cloudflared tunnel --url` sin cuenta ni credenciales: da una URL
    https://xxx.trycloudflare.com aleatoria que muere con el proceso. Encima
@@ -664,146 +634,15 @@ const apiServer = http.createServer(async (req, res) => {
       }
       return json(res, 404, { error: 'no encontrado' });
     }
-    if (parts[1] === 'admin' && parts[2] === 'check') {
-      // qué abre en la base la clave de poder de quien ha iniciado sesión
-      return json(res, 200, { base: { perms } });
-    }
-
-    if (parts[1] === 'admin' && parts[2] && parts[2] !== 'check') {
-      if (!perms?.admin) return json(res, 403, { error: 'Tu clave de poder no abre la Administración.' });
-      // proyectos: lo único que se gestiona (server/projects/)
-      if (parts[2] === 'projects') {
-        try {
-          if (!parts[3] && req.method === 'GET') return json(res, 200, await projects.list(db));
-          if (!parts[3] && req.method === 'POST') return json(res, 200, await projects.create(db, (await readBody(req)).name));
-          if (parts[3] && req.method === 'DELETE') {
-            await projects.remove(db, Number(parts[3]));
-            await skillSync.sync(knowledgeBase); // las skills de su token se van con él: fuera de la copia local
-            return json(res, 200, { ok: true });
-          }
-        } catch (e) { return json(res, e.status || 500, { error: e.message }); }
-      }
-      // entradas (entries) de un proyecto — capa de contextos oculta para la UI
-      if (parts[2] === 'entries' && req.method === 'GET') {
-        const pid = Number(new URL(req.url, 'http://localhost').searchParams.get('project'));
-        const { data: ctxs } = await db.from('contexts').select('id').eq('project_id', pid);
-        const ids = (ctxs || []).map((c) => c.id);
-        if (!ids.length) return json(res, 200, []);
-        const { data, error } = await fetchAll(() => db.from('context_entries').select('id, content, source_type, created_at').in('context_id', ids).order('id'));
-        if (error) return json(res, 500, { error: error.message });
-        return json(res, 200, data || []);
-      }
-      if (parts[2] === 'entries' && req.method === 'DELETE' && parts[3]) {
-        const id = Number(parts[3]);
-        await db.from('context_chunks').delete().eq('entry_id', id);
-        const { error } = await db.from('context_entries').delete().eq('id', id);
-        if (error) return json(res, 500, { error: error.message });
-        return json(res, 200, { ok: true });
-      }
-      return json(res, 404, { error: 'no encontrado' });
-    }
-
+    if (parts[1] === 'admin') return projectsRoute(req, res, parts.slice(2), url.searchParams, { db, perms });
     if (parts[1] === 'config') return configRoute(req, res);
     // proyectos accesibles para los tokens del usuario (selector de fuentes,
     // siempre fresco — no depende del WS)
     if (parts[1] === 'access' && parts[2] === 'projects' && req.method === 'GET') {
       return json(res, 200, await accessibleProjects(knowledgeBase));
     }
-    /* ── Enlaces rápidos por proyecto ────────────────────────────────
-       Compartidos con todo el equipo. LEER puede cualquiera, acotado a los
-       proyectos que dan sus tokens (mismo techo que el conocimiento, y misma
-       regla de default-deny). CREAR / EDITAR / BORRAR exige rol admin — el
-       mismo gate que publicar skills. */
-    if (parts[1] === 'links') {
-      const allowed = (await accessibleProjects(knowledgeBase)).map((p) => p.id);
-
-      if (req.method === 'GET' && !parts[2]) {
-        if (!allowed.length) return json(res, 200, []);
-        const { data, error } = await db
-          .from('project_links')
-          .select('id, project_id, title, url, image, notes, created_at')
-          .in('project_id', allowed)
-          .order('title');
-        if (error) return json(res, 500, { error: error.message });
-        return json(res, 200, data || []);
-      }
-
-      // a partir de aquí se escribe: permiso «links»
-      if (!perms?.links) return json(res, 403, { error: 'Tu clave de poder no permite editar enlaces.' });
-
-      // el proyecto destino tiene que estar dentro del techo del token
-      const inReach = (id) => allowed.includes(Number(id));
-
-      if (req.method === 'POST' && !parts[2]) {
-        const { project_id, title, url, image, notes } = await readBody(req);
-        if (!inReach(project_id)) return json(res, 403, { error: 'Sin acceso a ese conocimiento.' });
-        const clean = linkFields({ title, url, image, notes });
-        if (clean.error) return json(res, 400, { error: clean.error });
-        const { data, error } = await db
-          .from('project_links')
-          .insert({ project_id: Number(project_id), ...clean.value })
-          .select('id, project_id, title, url, image, notes, created_at')
-          .single();
-        if (error) return json(res, 500, { error: error.message });
-        return json(res, 200, data);
-      }
-
-      if (req.method === 'PUT' && parts[2]) {
-        const body = await readBody(req);
-        const { project_id } = body;
-        const { data: cur } = await db
-          .from('project_links').select('project_id, title, url, image, notes').eq('id', parts[2]).maybeSingle();
-        if (!cur || !inReach(cur.project_id)) return json(res, 403, { error: 'Sin acceso a ese enlace.' });
-        if (project_id !== undefined && !inReach(project_id)) return json(res, 403, { error: 'Sin acceso a ese conocimiento.' });
-        // fusión: lo que no venga en el cuerpo se conserva. Un PUT parcial no
-        // debe borrar las notas ni la imagen de un enlace que ya existía.
-        const merged = { title: cur.title, url: cur.url, image: cur.image, notes: cur.notes };
-        for (const k of ['title', 'url', 'image', 'notes']) if (body[k] !== undefined) merged[k] = body[k];
-        const clean = linkFields(merged);
-        if (clean.error) return json(res, 400, { error: clean.error });
-        const patch = { ...clean.value, updated_at: new Date().toISOString() };
-        if (project_id !== undefined) patch.project_id = Number(project_id);
-        const { data, error } = await db
-          .from('project_links')
-          .update(patch)
-          .eq('id', parts[2])
-          .select('id, project_id, title, url, image, notes, created_at')
-          .single();
-        if (error) return json(res, 500, { error: error.message });
-        return json(res, 200, data);
-      }
-
-      if (req.method === 'DELETE' && parts[2]) {
-        const { data: cur } = await db.from('project_links').select('project_id').eq('id', parts[2]).maybeSingle();
-        if (!cur) return json(res, 404, { error: 'ese enlace ya no existe' });
-        if (!inReach(cur.project_id)) return json(res, 403, { error: 'Sin acceso a ese enlace.' });
-        const { error } = await db.from('project_links').delete().eq('id', parts[2]);
-        if (error) return json(res, 500, { error: error.message });
-        return json(res, 200, { ok: true });
-      }
-
-      return json(res, 404, { error: 'no encontrado' });
-    }
-
-    // ── imágenes adjuntas (subir + servir; sin gate) ──
-    if (parts[1] === 'upload' && req.method === 'POST') {
-      const { name, data } = await readBody(req);
-      if (typeof data !== 'string' || !data) return json(res, 400, { error: 'payload inválido' });
-      const ext = ((path.extname(name || '') || '.png').toLowerCase().replace(/[^.a-z0-9]/g, '')) || '.png';
-      const base = path.basename(name || 'imagen', path.extname(name || '')).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40) || 'imagen';
-      const fname = `${++uploadSeq}-${base}${ext}`;
-      fs.writeFileSync(path.join(workspace.uploadsDir, fname), Buffer.from(data, 'base64'));
-      return json(res, 200, { ok: true, name: fname, absPath: path.join(workspace.uploadsDir, fname) });
-    }
-    if (parts[1] === 'uploads' && req.method === 'GET' && parts[2]) {
-      const fname = path.basename(decodeURIComponent(parts[2]));
-      const fp = path.join(workspace.uploadsDir, fname);
-      if (!fs.existsSync(fp)) return json(res, 404, { error: 'no encontrado' });
-      const MIME = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.pdf': 'application/pdf', '.txt': 'text/plain; charset=utf-8', '.md': 'text/plain; charset=utf-8', '.csv': 'text/csv; charset=utf-8', '.json': 'application/json' };
-      res.writeHead(200, { 'Content-Type': MIME[path.extname(fname).toLowerCase()] || 'application/octet-stream' });
-      return res.end(fs.readFileSync(fp));
-    }
-
+    if (parts[1] === 'links') return linksRoute(req, res, parts.slice(2), { db, perms, projects: await accessibleProjects(knowledgeBase) });
+    if (parts[1] === 'upload' || parts[1] === 'uploads') return uploadsRoute(req, res, parts.slice(1));
     if (['skills', 'drafts', 'groups'].includes(parts[1])) return skillsRoute(req, res, parts.slice(1), { db, base: knowledgeBase, perms });
     return json(res, 404, { error: 'no encontrado' });
   } catch (err) {

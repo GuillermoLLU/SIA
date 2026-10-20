@@ -8,7 +8,7 @@
 
 const fail = (status, message) => Object.assign(new Error(message), { status });
 
-export const projectToken = (id) => `prj-${id}`;
+const projectToken = (id) => `prj-${id}`;
 
 export const projectName = (raw) => {
   const name = String(raw ?? '').trim();
@@ -64,5 +64,22 @@ export const createProjects = ({ newId, fetchAll }) => ({
     }
     const { error: e2 } = await db.from('projects').delete().eq('id', id);
     if (e2) throw fail(500, e2.message);
+  },
+
+  // Las entradas de un proyecto (las de todos sus contextos), por id.
+  async entries(db, projectId) {
+    const { data: ctxs } = await db.from('contexts').select('id').eq('project_id', projectId);
+    const ids = (ctxs || []).map((c) => c.id);
+    if (!ids.length) return [];
+    const { data, error } = await fetchAll(() => db.from('context_entries').select('id, content, source_type, created_at').in('context_id', ids).order('id'));
+    if (error) throw fail(500, error.message);
+    return data || [];
+  },
+
+  // Fuera una entrada con sus trozos vectorizados.
+  async removeEntry(db, id) {
+    await db.from('context_chunks').delete().eq('entry_id', id);
+    const { error } = await db.from('context_entries').delete().eq('id', id);
+    if (error) throw fail(500, error.message);
   },
 });
