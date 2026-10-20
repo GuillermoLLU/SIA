@@ -14,6 +14,9 @@ import { json, readBody } from './shared/http.js';
 import { createConfigStore } from './config/store.js';
 import { cleanTheme, userEnv, cleanEnv } from './config/config.js';
 import { configRoutes } from './config/routes.js';
+import { createLock } from './lock/service.js';
+import { lockRoutes } from './lock/routes.js';
+import { isPin } from './lock/lock.js';
 import { createAuth } from './auth/service.js';
 import { authRoutes } from './auth/routes.js';
 import { liveSessions } from './auth/sessions.js';
@@ -37,7 +40,7 @@ import path from 'node:path';
 import http from 'node:http';
 import net from 'node:net';
 import { spawn } from 'node:child_process';
-import { randomUUID, randomBytes, timingSafeEqual, scryptSync } from 'node:crypto';
+import { randomUUID, randomBytes } from 'node:crypto';
 
 import { fileURLToPath } from 'node:url';
 
@@ -512,49 +515,8 @@ const config = createConfigStore(path.join(os.homedir(), '.sia', 'config.json'))
    PIN ya salga con él— y por el socket cuando cambia. */
 let UI_THEME = cleanTheme(config.read().theme);
 
-/* ── Bloqueo de pantalla (escritorio) ────────────────────────────────
-   Un candado para dejar SIA abierto y trabajando sin que nadie curiosee: la
-   ventana queda tapada hasta dar el PIN, y los chats siguen corriendo porque
-   viven aquí, en el bridge, no en la ventana.
-   - El PIN se guarda derivado (scrypt + sal) en la config personal, nunca en
-     claro, y se comprueba aquí: la web no lo tiene.
-   - El estado «bloqueado» también se guarda, para que recargar la ventana o
-     cerrar y reabrir la app no lo salte.
-   - Mientras está echado, la API local solo responde a ping y a lo del propio
-     candado (423 a lo demás) y no se aceptan sockets nuevos desde esta
-     máquina; los que ya estaban abiertos siguen, que son los chats.
-   - Cinco PIN fallados seguidos imponen 30 s de espera.
-   No es una barrera frente a quien tenga tu sesión del sistema (puede leer
-   ~/.sia o matar la app): es una cortina. Si se olvida el PIN, se borra
-   el bloque "lock" de ~/.sia/config.json. */
-// El PIN son siempre 4 dígitos: la puerta pinta cuatro casillas y comprueba
-// sola al llenar la última.
-const LOCK_PIN_LEN = 4;
-const LOCK_PIN = /^\d{4}$/;
-const lockCfg = () => config.read().lock || {};
-const lockDerive = (key, salt) => scryptSync(String(key), Buffer.from(salt, 'hex'), 32);
-// Hay PIN si están la derivada, la sal y el largo es el de la puerta. Cualquier
-// otra cosa (una clave de texto o un PIN de otro largo, de versiones de
-// desarrollo anteriores) se trata como si no hubiera, y el candado pide elegir uno.
-const lockHasKey = () => { const l = lockCfg(); return !!(l.hash && l.salt && l.len === LOCK_PIN_LEN); };
-const lockMatches = (key) => {
-  const l = lockCfg();
-  if (!l.hash || !l.salt || typeof key !== 'string' || !key) return false;
-  const a = lockDerive(key, l.salt), b = Buffer.from(l.hash, 'hex');
-  return a.length === b.length && timingSafeEqual(a, b);
-};
-const lockSave = (patch) => config.patch({ lock: { ...lockCfg(), ...patch } });
-let SCREEN_LOCKED = lockHasKey() && lockCfg().locked === true; // en memoria: se consulta en cada petición
-const lockSet = (on) => { SCREEN_LOCKED = on; lockSave({ locked: on }); };
-const lockFails = { n: 0, until: 0 };
-// Comprueba una clave con el freno anti fuerza bruta. → { ok } | { wait: segundos }
-const lockTry = (key) => {
-  const now = Date.now();
-  if (now < lockFails.until) return { ok: false, wait: Math.ceil((lockFails.until - now) / 1000) };
-  if (lockMatches(key)) { lockFails.n = 0; return { ok: true }; }
-  if (++lockFails.n >= 5) { lockFails.n = 0; lockFails.until = now + 30_000; return { ok: false, wait: 30 }; }
-  return { ok: false };
-};
+// El candado del escritorio (server/lock/): PIN y estado en la config personal.
+const lock = createLock({ config });
 
 /* ── Base de la instancia (server/platform/), inicio de sesión (server/auth/)
    y usuarios (server/users/). Se entra con la cuenta de Supabase Auth de la
@@ -683,6 +645,7 @@ const walkDir = (dir, base = '') => fs.readdirSync(dir, { withFileTypes: true })
   e.isDirectory() ? walkDir(path.join(dir, e.name), path.join(base, e.name))
     : [{ path: path.join(base, e.name), content: fs.readFileSync(path.join(dir, e.name), 'utf8') }]);
 
+const lockRoute = lockRoutes(lock, { json, readBody });
 const configRoute = configRoutes(config, { json, readBody, version: APP_VERSION, onTheme: (theme) => {
   if (JSON.stringify(theme) !== JSON.stringify(UI_THEME)) { UI_THEME = theme; broadcastTheme(); }
 } });
@@ -896,48 +859,19 @@ const apiServer = http.createServer(async (req, res) => {
       // de desarrollo lo usa para preferirlo frente al de una app instalada abierta.
       // pin: si hay PIN de bloqueo, para que el candado del móvil sepa si puede
       // bloquear ya o tiene que pedir antes que se elija uno
-      return json(res, 200, { sia: true, version: APP_VERSION, dev: !process.versions.electron, ws: PORT, api: API_PORT, theme: UI_THEME, ...(s ? { mode: s.mode, pin: lockHasKey() } : {}) });
+      return json(res, 200, { sia: true, version: APP_VERSION, dev: !process.versions.electron, ws: PORT, api: API_PORT, theme: UI_THEME, ...(s ? { mode: s.mode, pin: lock.hasPin() } : {}) });
     }
 
     if (parts[1] === 'auth') return authRoute(req, res, parts[2]);
 
-    /* ── Bloqueo de pantalla (solo desde esta máquina) ── */
+    // el candado del escritorio: solo desde esta máquina
     if (parts[1] === 'lock') {
       if (!isLoopback(req)) return json(res, 403, { error: 'no disponible en remoto' });
-      if (!parts[2] && req.method === 'GET') return json(res, 200, { hasKey: lockHasKey(), locked: SCREEN_LOCKED, len: LOCK_PIN_LEN });
-      // poner o cambiar el PIN; si ya hay uno, hace falta el actual
-      if (parts[2] === 'key' && req.method === 'PUT') {
-        if (SCREEN_LOCKED) return json(res, 423, { error: 'pantalla bloqueada', locked: true });
-        const { key, current } = await readBody(req);
-        if (lockHasKey()) {
-          const t = lockTry(current);
-          if (t.wait) return json(res, 429, { error: `Demasiados intentos. Espera ${t.wait} s.`, wait: t.wait });
-          if (!t.ok) return json(res, 403, { error: 'El PIN actual no es correcto.' });
-        }
-        if (typeof key !== 'string' || !LOCK_PIN.test(key)) return json(res, 400, { error: 'El PIN son 4 dígitos.' });
-        const salt = randomBytes(16).toString('hex');
-        lockSave({ salt, hash: lockDerive(key, salt).toString('hex'), len: key.length, locked: false });
-        return json(res, 200, { ok: true, hasKey: true, len: key.length });
-      }
-      if (parts[2] === 'on' && req.method === 'POST') {
-        if (!lockHasKey()) return json(res, 409, { error: 'Aún no hay PIN de bloqueo.', hasKey: false });
-        lockSet(true);
-        return json(res, 200, { locked: true });
-      }
-      if (parts[2] === 'off' && req.method === 'POST') {
-        if (!SCREEN_LOCKED) return json(res, 200, { locked: false });
-        const { key } = await readBody(req);
-        const t = lockTry(key);
-        if (t.wait) return json(res, 429, { error: `Demasiados intentos. Espera ${t.wait} s.`, wait: t.wait });
-        if (!t.ok) return json(res, 403, { error: 'PIN incorrecto.' });
-        lockSet(false);
-        return json(res, 200, { locked: false });
-      }
-      return json(res, 404, { error: 'no encontrado' });
+      return lockRoute(req, res, parts[2]);
     }
     // con el candado echado, esta máquina no ve nada más (el móvil emparejado
     // va por su propio candado, arriba, en el cortafuegos)
-    if (SCREEN_LOCKED && isLoopback(req)) return json(res, 423, { error: 'pantalla bloqueada', locked: true });
+    if (lock.locked() && isLoopback(req)) return json(res, 423, { error: 'pantalla bloqueada', locked: true });
 
     // ── Sesión: desde esta máquina, toda la API exige haber iniciado sesión
     // (el móvil entra con su llave de emparejamiento: cortafuegos de arriba).
@@ -1009,7 +943,7 @@ const apiServer = http.createServer(async (req, res) => {
         const s = t ? LAN.sessions.get(t) : null;
         // solo si hay PIN de bloqueo, que es con lo que se desbloquea: sin PIN
         // no se bloquea, porque no habría forma de volver a entrar
-        if (s && lockHasKey()) lockSession(t, s);
+        if (s && lock.hasPin()) lockSession(t, s);
         return json(res, 200, { ok: true, locked: !!s?.locked });
       }
       // elegir el PIN de bloqueo desde el móvil emparejado: SOLO si aún no hay
@@ -1017,11 +951,10 @@ const apiServer = http.createServer(async (req, res) => {
       if (parts[2] === 'pin' && req.method === 'PUT') {
         const t = req.headers['x-sia-lan'] || url.searchParams.get('t');
         if (!t || !LAN.sessions.get(t)) return json(res, 403, { error: 'acceso no autorizado' });
-        if (lockHasKey()) return json(res, 409, { error: 'Ya hay un PIN de bloqueo: se cambia en el ordenador.' });
+        if (lock.hasPin()) return json(res, 409, { error: 'Ya hay un PIN de bloqueo: se cambia en el ordenador.' });
         const { key } = await readBody(req);
-        if (typeof key !== 'string' || !LOCK_PIN.test(key)) return json(res, 400, { error: 'El PIN son 4 dígitos.' });
-        const salt = randomBytes(16).toString('hex');
-        lockSave({ salt, hash: lockDerive(key, salt).toString('hex'), len: key.length });
+        if (!isPin(key)) return json(res, 400, { error: 'El PIN son 4 dígitos.' });
+        lock.setPin(key);
         return json(res, 200, { ok: true });
       }
       // desbloquear: con el PIN de bloqueo, el mismo del candado del escritorio,
@@ -1033,7 +966,7 @@ const apiServer = http.createServer(async (req, res) => {
         const s = t ? LAN.sessions.get(t) : null;
         if (!s) return json(res, 410, { error: 'sesión revocada — vuelve a emparejar desde el ordenador' });
         const { key } = await readBody(req);
-        const good = lockMatches(String(key || ''));
+        const good = lock.matches(String(key || ''));
         if (!good) {
           s.unlockAttempts = (s.unlockAttempts || 0) + 1;
           if (s.unlockAttempts >= 5) {
@@ -1064,7 +997,7 @@ const apiServer = http.createServer(async (req, res) => {
         if (mode === 'public') {
           // el móvil por túnel se bloquea solo y se desbloquea con el PIN de
           // bloqueo: sin PIN no se abre nada a internet
-          if (!lockHasKey()) return json(res, 409, { error: 'Antes de abrir el acceso público elige tu PIN de bloqueo.', needsPin: true });
+          if (!lock.hasPin()) return json(res, 409, { error: 'Antes de abrir el acceso público elige tu PIN de bloqueo.', needsPin: true });
           PUBLIC.error = null;
           if (PUBLIC.proc && PUBLIC.url) { // túnel ya vivo: solo un QR nuevo
             LAN.pairing = { token: newToken(), pin: newPin(), expiresAt: Date.now() + 5 * 60 * 1000, mode: 'public' };
@@ -1444,7 +1377,7 @@ const handleConnection = (ws, req) => {
     ws._siaLan = true;   // marcado para poder revocarlo al apagar el acceso
     ws._siaToken = t;    // y para tirar sus sockets al echar el candado
     s.lastSeen = Date.now();
-  } else if (SCREEN_LOCKED) {
+  } else if (lock.locked()) {
     // pantalla bloqueada: nada de sockets NUEVOS desde esta máquina (una ventana
     // recargada no puede engancharse a los chats hasta dar la clave); los que
     // ya estaban abiertos siguen, que es lo que mantiene los chats a la vista
