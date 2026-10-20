@@ -236,6 +236,7 @@ export const createModel = (data) => {
   };
   const toggle = (dim, k) => { const s = S.f[dim] || (S.f[dim] = new Set()); if (s.has(k)) s.delete(k); else s.add(k); };
   const isSel = (dim, k) => !!S.f[dim]?.has(k);
+  const anySel = (dim) => !!S.f[dim]?.size;   // si hay algún valor marcado en una dimensión
 
   // --- agregación
   const group = (dim, list, keep) => {
@@ -319,7 +320,7 @@ export const createModel = (data) => {
 
   return {
     data, C, DI, N, BASE, SNAP, LASTM, SLA, PRIOS, CRIT, slaLabel, MONTH, DOW, OPEN, TEAM, SIDE, DIMS, S, STYPE,
-    CMP, CO, NAMES, refilter, rows, pool, today, toggle, isSel, group, bySide, trend, stats, periodSlots, clock,
+    CMP, CO, NAMES, refilter, rows, pool, today, toggle, isSel, anySel, group, bySide, trend, stats, periodSlots, clock,
     heads, perHead, alone, carry: (list) => carry(list, C, shiftType), shiftWork: (list) => shiftWork(list, C, (i) => OPEN[i], shiftType),
   };
 };

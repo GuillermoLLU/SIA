@@ -11,10 +11,11 @@ import { compareFigure } from './compare.js';
 import { SHIFTS } from './shifts.js';
 import { MIN_ISSUES, clearlyWorse, trendDelta, shadeSoft, HOT } from './rules.js';
 import { blockHead, blocksOf } from './pieces.js';
+import { monthSeries, lineScale, dayScale, scorecardOrder, shownRows, heatCounts, matrixCounts, groupMax, LINE_MIN } from './plot.js';
 
 // ui: { exp: {id: true}, sort: {id: [columna, ±1]} }, lo que la persona ha desplegado y ordenado.
 export const createCharts = (m, ui) => {
-  const { DIMS, LASTM, CO, CMP, NAMES, isSel, rows, group, stats, bySide, trend, SIDE, MONTH } = m;
+  const { DIMS, LASTM, CO, CMP, NAMES, isSel, anySel, rows, group, stats, bySide, trend, SIDE } = m;
   const name = (k) => NAMES()[k];   // el nombre de cada lado: una empresa, una persona o «N personas»
 
   // sin título (t vacío), la tarjeta es solo su contenido, de borde a borde: p. ej. un mapa de calor que lleva el
@@ -43,13 +44,13 @@ export const createCharts = (m, ui) => {
       <div class="mt-kpi-v ${f ? `mt-diff ${f.cls}` : 'mt-mut'}">${f ? (f.pts || f.main) : '—'}</div>${side(0)}${side(1)}</div>`;
   };
 
-  // Líneas por mes, una por lado. f(indicadores del mes) da el valor. o.height y o.left: alto del
-  // dibujo y margen para las etiquetas del eje (para gráficas pequeñas, con letra más grande).
+  // Líneas por mes, una por lado (plot.js: un mes con menos de LINE_MIN issues no se pinta). f(indicadores del mes)
+  // da el valor. o.height y o.left: alto del dibujo y margen para las etiquetas del eje (para gráficas pequeñas, con
+  // letra más grande).
   const lines = (A, f, fmt, o = {}) => {
     const W = 620, H = o.height || 190, L = o.left || 74, R = 12, T = 12, B = 26, cos = CO();
-    const per = cos.map((k) => { const mt = Array.from({ length: LASTM + 1 }, () => []); for (const i of A) if (SIDE[i] === k) mt[MONTH[i]].push(i); return mt.map((l) => (l.length >= 10 ? f(stats(l)) : null)); });
-    const max = Math.max(1e-9, ...per.flat().filter((v) => v != null)) * 1.1;
-    const x = (i) => L + i * (W - L - R) / Math.max(LASTM, 1), y = (v) => T + (H - T - B) * (1 - v / max);
+    const per = monthSeries(m, A, f, cos);
+    const { max, x, y } = lineScale(per.flat(), LASTM, { W, H, L, R, T, B });
     const grid = [0, 0.5, 1].map((p) => `<line x1="${L}" x2="${W - R}" y1="${y(max * p)}" y2="${y(max * p)}" class="mt-gridline"/><text x="${L - 6}" y="${y(max * p) + 4}" text-anchor="end" class="mt-axis">${fmt(max * p)}</text>`).join('');
     const xs = MONTHS.slice(0, LASTM + 1).map((mm, i) => `<text x="${x(i)}" y="${H - 6}" text-anchor="middle" class="mt-axis">${mm}${i === LASTM ? '*' : ''}</text>`).join('');
     const ser = per.map((v, s) => {
@@ -125,16 +126,13 @@ export const createCharts = (m, ui) => {
     const full = (l) => { const st = stats(side(l)); st.tr = trend(side(l)); o.extra?.(st, side(l)); if (cmp) { st.b = stats(other(l)); o.extra?.(st.b, other(l)); } return st; };
     const all = group(dim, list, true).filter((x) => !(o.skip && o.skip(x.k)));
     const ref = full(list), T = ref.n || 1;
-    const srt = ui.sort[id] || [o.sort || 'n', -1], key = (r) => SC[srt[0]][2](r) ?? -Infinity;
-    // al ordenar por cómo se atiende, lo que tiene pocas issues va al final: su cifra dice poco
-    const few = (r) => (SC[srt[0]][1] && r.n < MIN_ISSUES ? 1 : 0);
-    const order = (a, b) => few(a) - few(b) || (key(a) - key(b)) * srt[1] || b.n - a.n;
+    const srt = ui.sort[id] || [o.sort || 'n', -1];
+    // al ordenar por cómo se atiende (la columna tiene un mejor), lo que tiene pocas issues va al final (plot.js)
+    const order = scorecardOrder((r) => SC[srt[0]][2](r) ?? -Infinity, srt[1], !!SC[srt[0]][1]);
     const data = all.map((x) => ({ ...full(x.rows), k: x.k, rows: x.rows })).sort(order);
     // lo marcado (filtrado) va primero y siempre a la vista, aunque estuviera en «Resto»; lo demás, apagado
-    const picked = data.filter((r) => isSel(dim, r.k)), any = picked.length > 0;
-    const ordered = any ? [...picked, ...data.filter((r) => !isSel(dim, r.k))] : data;
-    const top = Math.max(o.top || 12, picked.length), open = ui.exp[id], shown = open ? ordered : ordered.slice(0, top);
-    const rest = !open && data.length > top ? full(all.filter((x) => !shown.some((r) => r.k === x.k)).flatMap((x) => x.rows)) : null;
+    const open = ui.exp[id], { shown, any, rest: hidden, more: hasMore } = shownRows(data, (r) => isSel(dim, r.k), o.top || 12, open);
+    const rest = hidden.length ? full(hidden.flatMap((x) => x.rows)) : null;
     const worse = (c, r) => (SC[c][4] ? SC[c][4](r) : r.n) >= MIN_ISSUES && clearlyWorse(SC[c][2](r), SC[c][2](ref), SC[c][1]);
     // la barra, su parte real del total (el total, entera; «Resto», lo que suma)
     const cell = (c, r, isRef) => {
@@ -152,7 +150,7 @@ export const createCharts = (m, ui) => {
     const head = (c) => `<th class="mt-num ${srt[0] === c ? 'mt-srt' : ''}" ${SC[c][2] ? `data-sort="${id}:${c}"` : ''} data-tip="${esc(def(c)[3])}">${def(c)[0]}${srt[0] === c ? (srt[1] < 0 ? ' ↓' : ' ↑') : ''}</th>`;
     const colgroup = `<colgroup><col class="mt-sc-first">${groups.map(([, c]) => c.map((x, j) => `<col class="${j ? '' : 'mt-gsep'} mt-sc-${x}">`).join('')).join('')}</colgroup>`;
     const row = (label, r, attrs = '', isRef = false, lead = '') => `<tr ${attrs}><th class="mt-r" title="${esc(label)}">${lead}${esc(label)}</th>${cols.map((c) => cell(c, r, isRef)).join('')}</tr>`;
-    const ch = o.child, cd = ch && DIMS[ch.dim], kidAny = ch && m.S.f[ch.dim]?.size > 0;
+    const ch = o.child, cd = ch && DIMS[ch.dim], kidAny = ch && anySel(ch.dim);
     const kids = (r) => {
       const g = group(ch.dim, r.rows, true).map((x) => ({ ...full(x.rows), k: x.k, rows: x.rows })).sort(order), top = g.slice(0, ch.top || 8);
       const others = g.length > top.length ? full(g.slice(top.length).flatMap((x) => x.rows)) : null;
@@ -166,8 +164,8 @@ export const createCharts = (m, ui) => {
     return `${cmp ? `<p class="mt-small mt-mut mt-sc-cmp">Cifras de ${esc(name(0))}; debajo, la diferencia con ${esc(name(1))}.</p>` : ''}<div class="mt-tablewrap"><table class="mt-sc">${colgroup}
       <thead><tr class="mt-cgrp"><th rowspan="2" class="mt-sc-title">${esc(o.title || DIMS[dim].name)}</th>${groups.map(([t, c]) => `<th colspan="${c.length}">${t}</th>`).join('')}</tr><tr>${cols.map(head).join('')}</tr></thead><tbody>
       ${shown.map(parent).join('')}
-      ${rest ? row(`Resto (${data.length - shown.length})`, rest, `class="mt-sc-rest ${any ? 'mt-off' : ''}" data-exp="${id}" data-tip="Ver todos"`) : ''}
-      ${open && data.length > top ? `<tr class="mt-sc-less" data-exp="${id}"><th class="mt-r" colspan="${cols.length + 1}">Ver menos</th></tr>` : ''}
+      ${rest ? row(`Resto (${hidden.length})`, rest, `class="mt-sc-rest ${any ? 'mt-off' : ''}" data-exp="${id}" data-tip="Ver todos"`) : ''}
+      ${open && hasMore ? `<tr class="mt-sc-less" data-exp="${id}"><th class="mt-r" colspan="${cols.length + 1}">Ver menos</th></tr>` : ''}
       ${row(o.refLabel || 'Todos', ref, 'class="mt-sc-ref"', true)}
       </tbody></table></div>`;
   };
@@ -179,11 +177,9 @@ export const createCharts = (m, ui) => {
     if (!R.length || !Cc.length) return empty;
     if (o.orderR) R.sort((x, y) => o.orderR.indexOf(x.k) - o.orderR.indexOf(y.k));
     if (o.orderC) Cc.sort((x, y) => o.orderC.indexOf(x.k) - o.orderC.indexOf(y.k));
-    const ri = new Map(R.map((x, i) => [x.k, i])), ci = new Map(Cc.map((x, i) => [x.k, i])), mt = R.map(() => Cc.map(() => [0, 0, 0]));
-    for (const i of list) for (const a of keys(dr, i)) { const r = ri.get(a); if (r == null) continue; for (const b of keys(dc, i)) { const c = ci.get(b); if (c != null) mt[r][c][SIDE[i]]++; } }
-    const tot = (t) => t[0] + t[1] + t[2], max = Math.max(1, ...mt.flat().map(tot));
+    const { mt, max } = heatCounts(R, Cc, list, (i) => keys(dr, i), (i) => keys(dc, i), SIDE);
     const cell = (t, r, c) => {
-      const v = tot(t), a = shadeSoft(v, max);
+      const v = t[0] + t[1] + t[2], a = shadeSoft(v, max);
       return `<td class="${a > HOT ? 'mt-hot' : ''}" style="--mt-a:${a}%" data-f2="${rd}:${R[r].k}|${cd}:${Cc[c].k}" data-tip="${esc(`${dr.label(R[r].k)} × ${dc.label(Cc[c].k)}\n${num(v)} issues\n${CO().map((k) => `${name(k)}: ${num(t[k])}`).join(' · ')}`)}">${v || ''}</td>`;
     };
     // cabeceras en horizontal; si son muchas (módulos, centros…), columnas iguales y el nombre cortado con «…» (entero al pasar el ratón)
@@ -201,24 +197,15 @@ export const createCharts = (m, ui) => {
   // { label, test } de totales. Clic en una celda o fila con `f` = filtrar.
   const matrix = (rowsDef, cols, list, o = {}) => {
     const R = rowsDef.filter((r) => !r.head), ri = new Map(R.map((r, j) => [r, j]));
-    const all = o.foot ? [...R, o.foot] : R, cnt = all.map(() => cols.map(() => [0, 0, 0])), rt = all.map(() => [0, 0, 0]);
-    for (const i of list) {
-      for (let r = 0; r < all.length; r++) {
-        if (!all[r].test(i)) continue;
-        rt[r][SIDE[i]]++;
-        for (let c = 0; c < cols.length; c++) if (cols[c].test(i)) cnt[r][c][SIDE[i]]++;
-      }
-    }
+    const all = o.foot ? [...R, o.foot] : R, { cnt, rt } = matrixCounts(all, cols, list, SIDE);
     const tot = (t) => t[0] + t[1] + t[2], of = o.of ?? list.length;
     // comparando, cada celda lleva lo de los dos lados: «A / B» (lo que no es de ninguno, tal cual)
     const show = (t) => (!CMP() || (!t[0] && !t[1]) ? (tot(t) ? num(tot(t)) : '') : `${num(t[0])}<span class="mt-mut"> / ${num(t[1])}</span>`);
-    // el máximo de cada grupo, para el color
-    const gmax = new Map(); let g = 0;
-    for (const r of rowsDef) { if (r.head) { g++; continue; } const j = ri.get(r); gmax.set(g, Math.max(gmax.get(g) || 1, ...cnt[j].map(tot))); r.g = g; }
+    const gmax = groupMax(rowsDef, cnt, (r) => ri.get(r));   // el máximo de cada bloque, para el color
     const tip = (label, t) => `${label}\n${num(tot(t))} issues${CMP() ? `\n${CO().map((k) => `${name(k)}: ${num(t[k])}`).join(' · ')}` : ''}`;
     const filt = (r, c) => (r.f && c?.f ? `data-f2="${r.f}|${c.f}"` : r.f && !c ? `data-f="${r.f}"` : c?.f && !r.f ? `data-f="${c.f}"` : '');
     const cell = (r, j, c, k) => {
-      const v = tot(cnt[j][k]), a = shadeSoft(v, gmax.get(r.g));
+      const v = tot(cnt[j][k]), a = shadeSoft(v, gmax.get(r));
       return `<td class="mt-num ${a > HOT ? 'mt-hot' : ''}" style="--mt-a:${a}%" ${filt(r, c)} data-tip="${esc(tip(`${r.label} · ${c.label}`, cnt[j][k]))}">${show(cnt[j][k])}</td>`;
     };
     if (CMP()) o = { ...o, share: false };   // comparando, un % sobre los dos lados juntos no dice nada
@@ -244,11 +231,11 @@ export const createCharts = (m, ui) => {
 
   // Un día en 24 horas: una línea por serie ({ label, cls, v: 24 valores }) sobre los turnos, de fondo.
   const day = (series, fmt = num) => {
-    const W = 1100, H = 260, L = 46, R = 12, T = 22, B = 24, x = (h) => L + (h + 0.5) * (W - L - R) / 24;
-    const max = Math.max(1, ...series.flatMap((s) => s.v)) * 1.1, y = (v) => T + (H - T - B) * (1 - v / max);
-    const band = (from, to, k) => `<rect x="${(L + from * (W - L - R) / 24).toFixed(1)}" y="${T}" width="${((to - from) * (W - L - R) / 24).toFixed(1)}" height="${H - T - B}" class="mt-band${k}"/>`;
+    const W = 1100, H = 260, L = 46, R = 12, T = 22, B = 24;
+    const { max, x, edge, y, band: bandOf } = dayScale(series, { W, H, L, R, T, B });
+    const band = (from, to, k) => { const b = bandOf(from, to); return `<rect x="${b.x.toFixed(1)}" y="${T}" width="${b.width.toFixed(1)}" height="${H - T - B}" class="mt-band${k}"/>`; };
     const bands = band(0, 7, 2) + band(7, 15, 0) + band(15, 23, 1) + band(23, 24, 2)
-      + [[3.5, 2], [11, 0], [19, 1]].map(([h, k]) => `<text x="${(L + h * (W - L - R) / 24).toFixed(1)}" y="${T - 8}" text-anchor="middle" class="mt-axis">${SHIFTS[k]}</text>`).join('');
+      + [[3.5, 2], [11, 0], [19, 1]].map(([h, k]) => `<text x="${edge(h).toFixed(1)}" y="${T - 8}" text-anchor="middle" class="mt-axis">${SHIFTS[k]}</text>`).join('');
     const grid = [0, 0.5, 1].map((p) => `<line x1="${L}" x2="${W - R}" y1="${y(max * p)}" y2="${y(max * p)}" class="mt-gridline"/><text x="${L - 6}" y="${y(max * p) + 4}" text-anchor="end" class="mt-axis">${fmt(max * p)}</text>`).join('');
     const xs = [0, 3, 6, 9, 12, 15, 18, 21].map((h) => `<text x="${x(h)}" y="${H - 6}" text-anchor="middle" class="mt-axis">${h} h</text>`).join('');
     const ser = series.map((s) => `<polyline class="mt-line ${s.cls}" points="${s.v.map((v, h) => `${x(h).toFixed(1)},${y(v).toFixed(1)}`).join(' ')}"/>`
