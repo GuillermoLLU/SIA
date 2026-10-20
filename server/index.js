@@ -18,6 +18,7 @@ import { createTunnel } from './remote/tunnel.js';
 import { createRemote } from './remote/service.js';
 import { lanRoutes } from './remote/routes.js';
 import { isLoopback, lanToken, openWithoutSession, remoteReach, openWhileLocked } from './remote/remote.js';
+import { createTerminalBridge } from './terminal/bridge.js';
 import { createConfigStore } from './config/store.js';
 import { cleanTheme, userEnv, cleanEnv } from './config/config.js';
 import { configRoutes } from './config/routes.js';
@@ -43,7 +44,6 @@ import { createKnowledge } from './knowledge/service.js';
 import { knowledgeRoutes } from './knowledge/routes.js';
 import { createIssuesSource } from './issues/source.js';
 import { issuesRoutes } from './issues/routes.js';
-import { issueContext } from './issues/context.js';
 import { createMetricsStore } from './metrics/store.js';
 import { metricsRoutes } from './metrics/routes.js';
 import os from 'node:os';
@@ -211,7 +211,17 @@ const accessTokens = (base = currentBase()) => (base ? base.tokens : []);
 // Acceso desde el móvil (server/remote/): emparejamiento QR+PIN, su candado
 // y el túnel público.
 const tunnel = createTunnel({ binDir: workspace.binDir, apiPort: API_PORT, resolve: launchers.resolve, fetch: undiciFetch, insecureFetch: supaFetch, isWin });
-const remote = createRemote({ lock, tunnel, apiPort: API_PORT, wsClients: () => allWsClients(), idleMs: Number(process.env.SIA_LOCK_IDLE_MS) || undefined });
+const remote = createRemote({ lock, tunnel, apiPort: API_PORT, wsClients: () => bridge.clients(), idleMs: Number(process.env.SIA_LOCK_IDLE_MS) || undefined });
+// Los chats (server/terminal/): un PTY por sesión, que sobrevive a la conexión.
+const bridge = createTerminalBridge({
+  pty, launchers, workspace, remote, lock, isLoopback, skillSync,
+  // SHELL_SESSIONS_DISABLE quita el aviso «Restored session…» de macOS. cleanEnv
+  // poda el entorno heredado y userEnv pone encima las credenciales personales,
+  // leídas frescas en cada sesión: ese orden importa.
+  env: () => ({ ...cleanEnv({ ...process.env, SHELL_SESSIONS_DISABLE: '1' }), ...userEnv(config.read()) }),
+  issues: { find: (id) => issuesSource.load().issues.find((i) => i.id === id) || null },
+  accessibleProjects, currentBase, skillsOf, theme: () => UI_THEME,
+});
 const lanRoute = lanRoutes(remote, lock, { json, readBody });
 setInterval(() => remote.lockIdle(), 15_000).unref();
 // que no quede un túnel huérfano apuntando a este equipo al salir
@@ -361,188 +371,6 @@ apiServer.on('upgrade', (req, socket, head) => {
     wssPath.handleUpgrade(req, socket, head, (ws) => wssPath.emit('connection', ws, req));
   });
 });
-const allWsClients = () => [...wss.clients, ...wssPath.clients];
+bridge.attach(wss);
+bridge.attach(wssPath);
 console.log(`[sia] terminal bridge listening on ws://localhost:${PORT} (y /ws en la API)`);
-
-/* ── Sesiones PERSISTENTES ──────────────────────────────────────────
-   El PTY vive en el bridge: si el navegador se recarga o se cae el
-   WebSocket, la sesión sigue; el cliente se re-engancha con `attach` y
-   recibe el scrollback. Cerrar la pestaña manda `kill` explícito.
-   Protocolo (todo JSON): bridge→cliente: launchers/started/history/data/
-   exit/gone/error · cliente→bridge: start/attach/input/resize/meta/kill */
-const SESSIONS = new Map(); // id -> { id, term, buffer, meta, ws }
-let sessionSeq = 0;
-const BUFFER_CAP = 400_000; // ~400 KB de scrollback por sesión
-
-// `attached`: algún dispositivo tiene esta sesión enganchada ahora mismo. Los
-// clientes lo usan para ofrecer "usar los chats aquí" en vez de robarla.
-const sessionList = () => [...SESSIONS.values()].map((s) => ({ id: s.id, ...s.meta, assets: s.assets, attached: !!s.ws }));
-const send = (ws, obj) => { if (ws && ws.readyState === ws.OPEN) ws.send(JSON.stringify(obj)); };
-// Sincroniza la lista de chats en TODOS los dispositivos conectados (escritorio
-// y móviles): se emite en cada cambio (crear, matar, renombrar, engancharse…).
-const broadcastTheme = () => {
-  const msg = JSON.stringify({ type: 'theme', theme: UI_THEME });
-  for (const c of allWsClients()) { if (c.readyState === c.OPEN) c.send(msg); }
-};
-const broadcastSessions = () => {
-  const msg = JSON.stringify({ type: 'sessions', sessions: sessionList() });
-  for (const c of allWsClients()) { if (c.readyState === c.OPEN) c.send(msg); }
-};
-
-const handleConnection = (ws, req) => {
-  // ── Cortafuegos: un socket remoto exige llave de sesión válida ──
-  if (!isLoopback(req)) {
-    const t = new URL(req.url, 'http://localhost').searchParams.get('t');
-    const s = remote.session(t);
-    if (!s) { try { ws.close(4403, 'no autorizado'); } catch {} return; }
-    if (s.locked) { try { ws.close(4423, 'bloqueado'); } catch {} return; } // candado echado
-    ws._siaLan = true;   // marcado para poder revocarlo al apagar el acceso
-    ws._siaToken = t;    // y para tirar sus sockets al echar el candado
-    remote.touch(t);
-  } else if (lock.locked()) {
-    // pantalla bloqueada: nada de sockets NUEVOS desde esta máquina (una ventana
-    // recargada no puede engancharse a los chats hasta dar la clave); los que
-    // ya estaban abiertos siguen, que es lo que mantiene los chats a la vista
-    // al desbloquear
-    try { ws.close(4423, 'bloqueado'); } catch {}
-    return;
-  }
-  let sess = null; // sesión enganchada a ESTE socket
-  skillSync.maybe(currentBase()); // la copia local al día en segundo plano (el siguiente chat lo ve)
-
-  accessibleProjects().then((projects) =>
-    send(ws, { type: 'launchers', list: launchers.list(), skills: skillsOf(currentBase()), sessions: sessionList(), accessProjects: projects }));
-
-  const bind = (s) => {
-    // Un socket por sesión. 4409 = "otro dispositivo tomó los chats": el cliente
-    // saliente lo distingue de una caída de red y pasa a modo pasivo (con botón
-    // de recuperarlos) en vez de marcar la pestaña como muerta.
-    if (s.ws && s.ws !== ws) { try { s.ws.close(4409, 'handoff'); } catch {} }
-    s.ws = ws;
-    sess = s;
-    broadcastSessions();
-  };
-
-  let starting = false;
-  // `issueId`: el chat de una issue (uno por issue, vive hasta que se cierre).
-  // Arranca con sus datos como primer mensaje y no sale en las pestañas del Chat.
-  const start = async (launcherId, knowledge, projects, cols, rows, issueId) => {
-    if (sess || starting) return;
-    starting = true;
-    try {
-      let issue = null;
-      if (issueId !== undefined && issueId !== null) {
-        issue = /^INC\d+$/.test(String(issueId)) ? issuesSource.load().issues.find((i) => i.id === issueId) : null;
-        if (!issue) { send(ws, { type: 'error', message: 'Esa issue ya no está en la foto.' }); return; }
-        const open = [...SESSIONS.values()].find((x) => x.meta.issue === issue.id);
-        if (open) { bind(open); send(ws, { type: 'started', sessionId: open.id }); send(ws, { type: 'history', data: open.buffer }); return; }
-      }
-      const def = launchers.byId(launcherId);
-      if (!launchers.installed(def)) {
-        send(ws, { type: 'error', message: `"${def.cmd}" no está instalado.` });
-        return;
-      }
-      const mode = knowledge === 'demand' ? 'demand' : 'auto';
-      const sessionId = `s${++sessionSeq}`;
-
-      // acceso: techo del token ∩ selección del chat
-      const base = currentBase();
-      const ceiling = (await accessibleProjects(base)).map((p) => p.id);
-      const picked = Array.isArray(projects) && projects.length ? ceiling.filter((id) => projects.includes(id)) : ceiling;
-      const spawn = launchers.prepare(def, sessionId, picked, base, issue ? issueContext(issue) : null);
-
-      let term;
-      try {
-        term = pty.spawn(spawn.cmd, spawn.args, {
-          name: 'xterm-color',
-          cols: cols > 0 ? cols : 80,
-          rows: rows > 0 ? rows : 24,
-          cwd: workspace.modeDirFor(mode, base),
-          // SHELL_SESSIONS_DISABLE removes macOS's "Restored session…" banner.
-          // cleanEnv poda el entorno heredado (CLAUDECODE/*, tokens de GitHub) y
-          // userEnv() pone encima las credenciales personales (Jira, la clave de
-          // GitHub activa), leídas frescas en cada sesión — ese orden importa.
-          env: { ...cleanEnv({ ...process.env, SHELL_SESSIONS_DISABLE: '1' }), ...userEnv(config.read()) },
-        });
-      } catch (err) {
-        send(ws, { type: 'error', message: `No se pudo lanzar: ${err.message}` });
-        return;
-      }
-
-      const s = {
-        id: sessionId,
-        term,
-        buffer: '',
-        meta: { launcher: def.id, knowledge: mode, label: issue ? issue.id : def.label, color: null, ...(issue ? { issue: issue.id } : {}) },
-        assets: [], // adjuntos compartidos en esta sesión (persisten con ella)
-        ws: null,
-      };
-      SESSIONS.set(s.id, s);
-      bind(s);
-      send(ws, { type: 'started', sessionId: s.id });
-      console.log(`[sia] session open (${def.id}${issue ? `, issue ${issue.id}` : ''}, conocimiento ${mode}, base ${base?.name || '-'}, proyectos [${picked.join(',')}], id ${s.id}, pid ${term.pid})`);
-
-      term.onData((data) => {
-        s.buffer += data;
-        if (s.buffer.length > BUFFER_CAP) s.buffer = s.buffer.slice(-Math.floor(BUFFER_CAP * 0.75));
-        send(s.ws, { type: 'data', data });
-      });
-      term.onExit(() => {
-        console.log(`[sia] session ended (id ${s.id})`);
-        SESSIONS.delete(s.id);
-        launchers.cleanup(s.id);
-        send(s.ws, { type: 'exit' });
-        if (s.ws) { try { s.ws.close(); } catch {} }
-        broadcastSessions(); // el chat desaparece en todos los dispositivos
-      });
-    } finally {
-      starting = false;
-    }
-  };
-
-  ws.on('message', (raw) => {
-    let msg;
-    try { msg = JSON.parse(raw.toString()); } catch { return; }
-    if (ws._siaToken) remote.touch(ws._siaToken); // actividad real del móvil: pospone el candado por inactividad
-    if (msg.type === 'start') {
-      start(msg.launcher, msg.knowledge, msg.projects, msg.cols, msg.rows, msg.issue);
-    } else if (msg.type === 'attach') {
-      const s = SESSIONS.get(msg.sessionId);
-      if (!s) { send(ws, { type: 'gone' }); return; }
-      bind(s);
-      send(ws, { type: 'history', data: s.buffer });
-    } else if (msg.type === 'input' && sess) {
-      sess.term.write(msg.data);
-    } else if (msg.type === 'resize' && sess && msg.cols > 0 && msg.rows > 0) {
-      try { sess.term.resize(msg.cols, msg.rows); } catch { /* ignore transient resize errors */ }
-    } else if (msg.type === 'asset' && sess && msg.asset?.name && msg.asset?.absPath) {
-      if (sess.assets.length < 100) {
-        sess.assets.push({ name: String(msg.asset.name).slice(0, 80), absPath: String(msg.asset.absPath) });
-        broadcastSessions(); // el adjunto aparece en el resto de dispositivos (p. ej. una foto subida desde el móvil)
-      }
-    } else if (msg.type === 'meta' && sess) {
-      if (typeof msg.label === 'string' && msg.label.trim()) sess.meta.label = msg.label.trim().slice(0, 40);
-      sess.meta.color = typeof msg.color === 'string' ? msg.color : null;
-      broadcastSessions(); // nombre/color visibles en el resto de dispositivos
-    } else if (msg.type === 'kill') {
-      // Con sessionId se puede matar un chat aunque lo tenga otro dispositivo
-      // (la X de una pestaña pasiva); sin él, el enganchado a este socket.
-      const target = sess || SESSIONS.get(msg.sessionId);
-      if (target) { try { target.term.kill(); } catch {} } // onExit limpia y notifica
-    }
-  });
-
-  // recarga / pérdida de conexión: la sesión queda viva, solo se desengancha.
-  // El broadcast avisa al resto de dispositivos de que quedó libre (podrán
-  // ofrecer "usar los chats aquí" para recuperarla).
-  ws.on('close', () => {
-    if (sess && sess.ws === ws) {
-      sess.ws = null;
-      console.log(`[sia] detached (id ${sess.id}, la sesión sigue viva)`);
-      broadcastSessions();
-    }
-  });
-  ws.on('error', () => { if (sess && sess.ws === ws) { sess.ws = null; broadcastSessions(); } });
-};
-wss.on('connection', handleConnection);
-wssPath.on('connection', handleConnection);

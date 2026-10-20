@@ -1,0 +1,143 @@
+// El bridge de los chats: cada WebSocket es un cliente, cada sesión un PTY con
+// el CLI elegido, y las sesiones sobreviven a las conexiones (sessions.js).
+// Todo lo demás llega inyectado: pty, los CLIs (launchers/), el workspace,
+// el entorno personal, las issues (para el chat de una issue), el acceso a
+// la base, el acceso remoto y el candado.
+//   deps: pty, launchers, workspace, env() → entorno de los chats,
+//         issues.find(id), accessibleProjects(base), currentBase(), skillsOf(base),
+//         skillSync, remote, lock, theme() → el tema del escritorio, isLoopback(req)
+import { CLOSE, MAX_ASSETS, appendBuffer, sessionList, pickMode, pickProjects, isIssueId, assetFrom, metaPatch } from './sessions.js';
+import { issueContext } from '../issues/context.js';
+
+export const createTerminalBridge = ({ pty, launchers, workspace, env, issues, accessibleProjects, currentBase, skillsOf, skillSync, remote, lock, theme, isLoopback }) => {
+  const sessions = new Map(); // id → { id, term, buffer, meta, assets, ws }
+  const servers = [];         // los WebSocketServer que entran por aquí
+  let seq = 0;
+
+  const clients = () => servers.flatMap((s) => [...s.clients]);
+  const send = (ws, obj) => { if (ws && ws.readyState === ws.OPEN) ws.send(JSON.stringify(obj)); };
+  const broadcast = (obj) => { const msg = JSON.stringify(obj); for (const c of clients()) if (c.readyState === c.OPEN) c.send(msg); };
+  // la lista de chats en TODOS los dispositivos: en cada cambio (crear, matar, renombrar, engancharse…)
+  const broadcastSessions = () => broadcast({ type: 'sessions', sessions: sessionList(sessions) });
+  const closeQuietly = (ws, code, reason) => { try { ws.close(code, reason); } catch { /* ya cerrado */ } };
+
+  const spawnSession = async (ws, { launcherId, knowledge, projects, cols, rows, issue }) => {
+    const def = launchers.byId(launcherId);
+    if (!launchers.installed(def)) return send(ws, { type: 'error', message: `"${def.cmd}" no está instalado.` });
+    const mode = pickMode(knowledge);
+    const id = `s${++seq}`;
+    const base = currentBase();
+    const picked = pickProjects((await accessibleProjects(base)).map((p) => p.id), projects);
+    const spawn = launchers.prepare(def, id, picked, base, issue ? issueContext(issue) : null);
+    let term;
+    try {
+      term = pty.spawn(spawn.cmd, spawn.args, { name: 'xterm-color', cols: cols > 0 ? cols : 80, rows: rows > 0 ? rows : 24, cwd: workspace.modeDirFor(mode, base), env: env() });
+    } catch (err) {
+      return send(ws, { type: 'error', message: `No se pudo lanzar: ${err.message}` });
+    }
+    const s = { id, term, buffer: '', meta: { launcher: def.id, knowledge: mode, label: issue ? issue.id : def.label, color: null, ...(issue ? { issue: issue.id } : {}) }, assets: [], ws: null };
+    sessions.set(id, s);
+    console.log(`[sia] session open (${def.id}${issue ? `, issue ${issue.id}` : ''}, conocimiento ${mode}, base ${base?.name || '-'}, proyectos [${picked.join(',')}], id ${id}, pid ${term.pid})`);
+    term.onData((data) => { s.buffer = appendBuffer(s.buffer, data); send(s.ws, { type: 'data', data }); });
+    term.onExit(() => {
+      console.log(`[sia] session ended (id ${id})`);
+      sessions.delete(id);
+      launchers.cleanup(id);
+      send(s.ws, { type: 'exit' });
+      if (s.ws) closeQuietly(s.ws);
+      broadcastSessions(); // el chat desaparece en todos los dispositivos
+    });
+    return s;
+  };
+
+  const handleConnection = (ws, req) => {
+    // ── Cortafuegos: un socket remoto exige llave de sesión válida ──
+    if (!isLoopback(req)) {
+      const t = new URL(req.url, 'http://localhost').searchParams.get('t');
+      const s = remote.session(t);
+      if (!s) return closeQuietly(ws, CLOSE.UNAUTHORIZED, 'no autorizado');
+      if (s.locked) return closeQuietly(ws, CLOSE.LOCKED, 'bloqueado');
+      ws._siaLan = true;   // marcado para poder revocarlo al apagar el acceso
+      ws._siaToken = t;    // y para tirar sus sockets al echar el candado
+      remote.touch(t);
+    } else if (lock.locked()) {
+      // pantalla bloqueada: nada de sockets NUEVOS desde esta máquina (una ventana
+      // recargada no puede engancharse a los chats hasta dar la clave); los que ya
+      // estaban abiertos siguen, que es lo que mantiene los chats a la vista
+      return closeQuietly(ws, CLOSE.LOCKED, 'bloqueado');
+    }
+    let sess = null; // la sesión enganchada a ESTE socket
+    skillSync.maybe(currentBase()); // la copia local al día en segundo plano (el siguiente chat lo ve)
+    accessibleProjects(currentBase()).then((projects) =>
+      send(ws, { type: 'launchers', list: launchers.list(), skills: skillsOf(currentBase()), sessions: sessionList(sessions), accessProjects: projects }));
+
+    // Un socket por sesión: el que la tenía recibe 4409 y pasa a pasivo.
+    const bind = (s) => {
+      if (s.ws && s.ws !== ws) closeQuietly(s.ws, CLOSE.HANDOFF, 'handoff');
+      s.ws = ws;
+      sess = s;
+      broadcastSessions();
+    };
+
+    let starting = false;
+    // El chat de una issue es uno por issue y vive hasta que se cierre: arranca
+    // con sus datos como primer mensaje y no sale en las pestañas del Chat.
+    const start = async (msg) => {
+      if (sess || starting) return;
+      starting = true;
+      try {
+        let issue = null;
+        if (msg.issue !== undefined && msg.issue !== null) {
+          issue = isIssueId(msg.issue) ? issues.find(msg.issue) : null;
+          if (!issue) return send(ws, { type: 'error', message: 'Esa issue ya no está en la foto.' });
+          const open = [...sessions.values()].find((x) => x.meta.issue === issue.id);
+          if (open) { bind(open); send(ws, { type: 'started', sessionId: open.id }); return send(ws, { type: 'history', data: open.buffer }); }
+        }
+        const s = await spawnSession(ws, { launcherId: msg.launcher, knowledge: msg.knowledge, projects: msg.projects, cols: msg.cols, rows: msg.rows, issue });
+        if (!s) return;
+        bind(s);
+        send(ws, { type: 'started', sessionId: s.id });
+      } finally {
+        starting = false;
+      }
+    };
+
+    ws.on('message', (raw) => {
+      let msg;
+      try { msg = JSON.parse(raw.toString()); } catch { return; }
+      if (ws._siaToken) remote.touch(ws._siaToken); // actividad real del móvil: pospone el candado por inactividad
+      if (msg.type === 'start') start(msg);
+      else if (msg.type === 'attach') {
+        const s = sessions.get(msg.sessionId);
+        if (!s) return send(ws, { type: 'gone' });
+        bind(s);
+        send(ws, { type: 'history', data: s.buffer });
+      } else if (msg.type === 'input' && sess) sess.term.write(msg.data);
+      else if (msg.type === 'resize' && sess && msg.cols > 0 && msg.rows > 0) { try { sess.term.resize(msg.cols, msg.rows); } catch { /* cambio de tamaño a destiempo */ } }
+      else if (msg.type === 'asset' && sess) {
+        const asset = assetFrom(msg.asset);
+        if (asset && sess.assets.length < MAX_ASSETS) { sess.assets.push(asset); broadcastSessions(); } // p. ej. una foto subida desde el móvil
+      } else if (msg.type === 'meta' && sess) { sess.meta = metaPatch(sess.meta, msg); broadcastSessions(); }
+      else if (msg.type === 'kill') {
+        // con sessionId se puede matar un chat aunque lo tenga otro dispositivo
+        // (la X de una pestaña pasiva); sin él, el enganchado a este socket
+        const target = sess || sessions.get(msg.sessionId);
+        if (target) { try { target.term.kill(); } catch { /* ya muerto */ } } // onExit limpia y notifica
+      }
+    });
+
+    // recarga o pérdida de conexión: la sesión queda viva, solo se desengancha,
+    // y el resto de dispositivos sabe que quedó libre
+    const detach = () => { if (sess && sess.ws === ws) { sess.ws = null; broadcastSessions(); } };
+    ws.on('close', detach);
+    ws.on('error', detach);
+  };
+
+  return {
+    handleConnection,
+    broadcastTheme: () => broadcast({ type: 'theme', theme: theme() }),
+    clients,
+    // un WebSocketServer más por el que entran clientes
+    attach(server) { servers.push(server); server.on('connection', handleConnection); },
+  };
+};
