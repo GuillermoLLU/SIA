@@ -7,9 +7,9 @@ import { WebSocketServer, WebSocket as WSClient } from 'ws';
 import * as pty from 'node-pty';
 import { createClient } from '@supabase/supabase-js';
 import { fetch as undiciFetch, Agent as UndiciAgent } from 'undici';
-import { headerValue, siaHeaders } from './shared/credentials.js';
-import { permsFromRow } from './shared/perms.js';
-import { schemaOk } from './base/diagnose.js';
+import { createBaseAccess, noDbClient, fetchAll, NO_DB_MSG } from './base/client.js';
+import { createBaseAccess as createKnowledgeBaseAccess } from './knowledge/base-access.js';
+import { updatesRoutes } from './updates/routes.js';
 import { json, readBody } from './shared/http.js';
 import { createConfigStore } from './config/store.js';
 import { cleanTheme, userEnv, cleanEnv } from './config/config.js';
@@ -96,13 +96,6 @@ if (process.env.SIA_PORT) {
 }
 // la app Electron lee aquí los puertos elegidos para pasárselos a la UI
 globalThis.__SIA_PORTS = { ws: PORT, api: API_PORT };
-
-// ¿`a` es una versión posterior a `b`? (semver simple major.minor.patch)
-const isNewer = (a, b) => {
-  const pa = String(a).split('.').map(Number), pb = String(b).split('.').map(Number);
-  for (let i = 0; i < 3; i++) { if ((pa[i] || 0) > (pb[i] || 0)) return true; if ((pa[i] || 0) < (pb[i] || 0)) return false; }
-  return false;
-};
 
 /* ── Acceso desde otro dispositivo (móvil) ──────────────────────────
    El bridge ya escucha en todas las interfaces, así que por defecto
@@ -229,20 +222,6 @@ if (typeof globalThis.WebSocket === 'undefined') globalThis.WebSocket = WSClient
 const insecureAgent = new UndiciAgent({ connect: { rejectUnauthorized: false } });
 const supaFetch = (url, opts = {}) => undiciFetch(url, { ...opts, dispatcher: insecureAgent });
 
-/* ── La base de conocimiento es DE LA INSTANCIA ─────────────────────
-   Una sola, la misma para todo el mundo, y la fija la instancia
-   (platform.set_knowledge_base): ahí viven el RAG, las skills, los proyectos
-   y los enlaces. Nada de conexiones en la config ni valores en el código.
-
-   QUIÉN VE QUÉ lo decide la base, no este bridge: todas sus tablas están
-   cerradas con Row Level Security y las políticas leen dos cabeceras que
-   SIA manda en cada petición — x-sia-tokens (los tokens de sus proyectos) y
-   x-sia-power (clave de poder). Con la clave publishable a secas no se ve
-   nada. Las comprobaciones que quedan aquí (techo de proyectos, permisos de
-   cada vista) son para dar mensajes claros, no la barrera. La clave secret
-   del proyecto nunca entra en SIA. */
-const NO_DB_MSG = 'Sin base de conocimiento: la instancia aún no tiene la suya o no has iniciado sesión.';
-
 /* ── La base de conocimiento ──────────────────────────────────────
    Una por instancia y la misma para todo el mundo: la asigna la plataforma a
    quien inicia sesión en este bridge (el último que entra), con sus tokens de
@@ -251,48 +230,10 @@ const NO_DB_MSG = 'Sin base de conocimiento: la instancia aún no tiene la suya 
 let assigned = { base: null };
 // Lo que puede el móvil emparejado (entra sin sesión, con su llave).
 const currentBase = () => assigned.base;
-// Un cliente por base (se reutiliza mientras no cambien conexión, tokens ni
-// clave de poder): lleva en cada petición las cabeceras con las que la base
-// decide qué dejar ver. `powerKey` fuerza otra clave de poder (dev/pruebas).
-const clientCache = new Map();
-const clientFor = (base, powerKey = base.powerKey) => {
-  const headers = siaHeaders(base.tokens, powerKey);
-  const k = `${base.url}|${base.key}|${JSON.stringify(headers)}`;
-  if (!clientCache.has(k)) clientCache.set(k, createClient(base.url, base.key, { global: { fetch: supaFetch, headers } }));
-  return clientCache.get(k);
-};
-// Sin conexión: un cliente "hueco" que acepta cualquier cadena de llamadas
-// (from().select().eq()…, rpc()…) y resuelve siempre con el mismo error. Los
-// puntos que usan supabase ya tratan `error`, así que no necesitan comprobar
-// nada; la API además corta antes (guard NO_DB) con un 503 claro para la UI.
-const noDbClient = (() => {
-  const result = { data: null, error: { message: NO_DB_MSG, code: 'NO_DB' }, count: null };
-  const chain = new Proxy(() => {}, {
-    get: (_, p) => (p === 'then' ? (res, rej) => Promise.resolve(result).then(res, rej) : () => chain),
-    apply: () => chain,
-  });
-  return chain;
-})();
-
-const safeRelPath = (p) => {
-  const n = path.normalize(p);
-  return n && !n.startsWith('..') && !path.isAbsolute(n) ? n : null;
-};
-
-// Supabase (PostgREST) devuelve como mucho 1000 filas por consulta, sin avisar:
-// una lectura que pueda pasar de ahí se pide por tandas hasta agotarla. `build`
-// crea la consulta cada vez y debe llevar un orden estable (sin él, las tandas
-// podrían solaparse o saltarse filas). Devuelve {data, error} como supabase-js.
-const PAGE_ROWS = 1000;
-const fetchAll = async (build) => {
-  const out = [];
-  for (let from = 0; ; from += PAGE_ROWS) {
-    const { data, error } = await build().range(from, from + PAGE_ROWS - 1);
-    if (error) return { data: null, error };
-    out.push(...(data || []));
-    if (!data || data.length < PAGE_ROWS) return { data: out, error: null };
-  }
-};
+// Hablar con la base de conocimiento (server/base/client.js).
+const baseAccess = createBaseAccess({ createClient, fetch: supaFetch });
+const { clientFor, needsSchema, permsFor } = baseAccess;
+const accessibleProjects = (base = currentBase()) => baseAccess.accessibleProjects(base);
 
 const projects = createProjects({ newId: randomUUID, fetchAll });
 
@@ -344,7 +285,7 @@ const maybeSyncSkills = () => {
 // anterior y, como son otras skills, vaciar la copia local y volver a traerlas.
 const applyBase = async () => {
   const b = currentBase();
-  statusCache.clear();
+  baseAccess.clearStatus();
   lastSyncByBase.clear();
   console.log(b ? `[sia] base de conocimiento en uso: ${b.name}` : '[sia] sin base de conocimiento en uso');
   await syncAllSkills();
@@ -371,30 +312,8 @@ const lock = createLock({ config });
 const platform = createPlatformClient({ ...(loadPlatformConfig(ROOT) || { url: '', key: '' }), fetch });
 const auth = createAuth({ platform, readConfig: config.read, writeConfig: config.write });
 const users = createUserAdmin({ platform });
-// Los grupos de acceso de la base (access_groups: uno por proyecto) con la
-// clave del dueño; fetch de Node, con TLS verificado (viaja una clave de
-// poder). Antes, la base dice qué abre esa clave (sia_status): tiene que
-// abrir la Administración. Si no, la base no da error, solo una lista vacía.
-const readGroups = async ({ url, key, powerKey }) => {
-  const db = createClient(url, key, { global: { fetch, headers: siaHeaders([], powerKey) }, auth: { persistSession: false } });
-  const { data: status, error: e1 } = await db.rpc('sia_status');
-  if (e1 || !permsFromRow(status?.me)?.admin) throw new Error('esa clave de poder no abre la Administración de la base');
-  const { data, error } = await db.from('access_groups').select('token, name').order('name');
-  if (error) throw new Error(error.message);
-  return data || [];
-};
-// Claves de poder de las personas en una base (power_keys), con la clave de
-// la instancia en ella: solo el dueño las gestiona, así que tiene que ser la suya.
-const baseKeys = (() => {
-  const keys = ({ url, key, powerKey }) => createClient(url, key, { global: { fetch, headers: siaHeaders([], powerKey) }, auth: { persistSession: false } }).from('power_keys');
-  const ok = (error) => { if (error) throw new Error(`La base no deja gestionar claves de poder (${error.message}): la instancia tiene que tener la clave del dueño.`); };
-  return {
-    async list(c) { const { data, error } = await keys(c).select('key, name').eq('owner', false); ok(error); return data; },
-    async create(c, { name, perms }) { const key = randomUUID(); const { error } = await keys(c).insert({ key, name, owner: false, perms }); ok(error); return key; },
-    async update(c, key, { name, perms }) { const { data, error } = await keys(c).update({ name, perms }).eq('key', key).select('key'); ok(error); return data.length > 0; },
-    async remove(c, key) { const { error } = await keys(c).delete().eq('key', key); ok(error); },
-  };
-})();
+// Lo que el conocimiento lee y escribe en la base de conocimiento con la clave del dueño.
+const { readGroups, baseKeys } = createKnowledgeBaseAccess({ createClient, fetch, newId: randomUUID });
 const knowledge = createKnowledge({ platform, readGroups, baseKeys });
 // Lo asignado a quien inicia sesión (o abre la app con la sesión guardada).
 // Si cambia, se reconecta y se resincronizan las skills.
@@ -419,25 +338,7 @@ const clearAssigned = async () => {
   assigned = { base: null };
   await applyBase();
 };
-// Acceso al conocimiento: los tokens de la persona → proyectos
-// permitidos (unión de lo que concede cada token). Default-deny: sin tokens
-// válidos, no se ve nada. La base aplica la misma regla por su cuenta (los
-// tokens van en la cabecera): esta lectura solo devuelve lo que ella deja ver.
 const accessTokens = (base = currentBase()) => (base ? base.tokens : []);
-const accessibleProjects = async (base = currentBase()) => {
-  const tokens = accessTokens(base);
-  if (!base || !base.key || !tokens.length) return [];
-  // base sin el esquema blindado: no se usa hasta que su dueño ejecute el SQL
-  if (await needsSchema(base)) return [];
-  const { data, error } = await clientFor(base)
-    .from('access_grants')
-    .select('project_id, projects(id, name)')
-    .in('token', tokens);
-  if (error || !data) return [];
-  const byId = new Map();
-  for (const g of data) if (g.projects) byId.set(g.projects.id, g.projects.name);
-  return [...byId].map(([id, name]) => ({ id, name }));
-};
 
 /* ── Lab HTTP API (skills editor) ───────────────────────────────────
    Claves de poder: viven EN LA BASE (tabla power_keys) y es la base quien las
@@ -445,25 +346,6 @@ const accessibleProjects = async (base = currentBase()) => {
    persona se la da la instancia según sus vistas (server/knowledge/
    person-keys.js; con Administración, la del dueño). permisos:
    server/shared/perms.js */
-const statusCache = new Map(); // `${baseId}|${powerKey}` → { at, status }
-// sia_status() de una base con una clave de poder dada: { version, owner,
-// me: {name, owner, perms} | null, projects } o null si la base no responde
-// o no tiene el esquema blindado (needsSchema). Cacheado 15 s.
-const baseStatus = async (base, powerKey = base?.powerKey) => {
-  if (!base) return null;
-  const k = `${base.id}|${powerKey || ''}`;
-  const cached = statusCache.get(k);
-  if (cached && Date.now() - cached.at < 15_000) return cached.status;
-  const { data, error } = await clientFor(base, powerKey).rpc('sia_status');
-  const status = !error && data && typeof data === 'object' ? data : null;
-  statusCache.set(k, { at: Date.now(), status });
-  return status;
-};
-// ¿la base aún no tiene el esquema blindado? (sin sia_status o versión vieja)
-const needsSchema = async (base) => !schemaOk(await baseStatus(base));
-// permisos en UNA base: { name, owner, lab, admin, links } o null, según la
-// clave de poder que la instancia dio a quien ha iniciado sesión.
-const permsFor = async (base) => (base?.powerKey ? permsFromRow((await baseStatus(base))?.me) : null);
 // Validación de un enlace rápido. La imagen viaja como data URI para que viva
 // en la base y no dependa de un servidor ajeno; se acota el tamaño porque es
 // una miniatura, no una foto.
@@ -491,6 +373,7 @@ const walkDir = (dir, base = '') => fs.readdirSync(dir, { withFileTypes: true })
     : [{ path: path.join(base, e.name), content: fs.readFileSync(path.join(dir, e.name), 'utf8') }]);
 
 const lockRoute = lockRoutes(lock, { json, readBody });
+const updatesRoute = updatesRoutes(APP_VERSION, { json });
 const configRoute = configRoutes(config, { json, readBody, version: APP_VERSION, onTheme: (theme) => {
   if (JSON.stringify(theme) !== JSON.stringify(UI_THEME)) { UI_THEME = theme; broadcastTheme(); }
 } });
@@ -742,16 +625,7 @@ const apiServer = http.createServer(async (req, res) => {
     // Sin base de conocimiento solo funciona lo que no la necesita (terminal,
     // móvil, config personal, adjuntos). Lo demás: 503 con aviso claro.
     if (!knowledgeBase && !DB_FREE_ROUTES.has(parts[1])) return json(res, 503, { error: NO_DB_MSG, noDb: true });
-    // versión instalada vs. última publicada (para avisar de actualizaciones)
-    if (parts[1] === 'version' && req.method === 'GET') {
-      let latest = null;
-      try {
-        const { data } = await db.from('app_version').select('version, url, notes').eq('id', 1).single();
-        if (data) latest = data;
-      } catch { /* tabla ausente / sin red: sin aviso */ }
-      const newer = latest && isNewer(latest.version, APP_VERSION);
-      return json(res, 200, { current: APP_VERSION, latest: latest?.version || null, url: latest?.url || null, notes: latest?.notes || '', updateAvailable: !!newer });
-    }
+    if (parts[1] === 'version') return updatesRoute(req, res, db);
 
     /* ── Acceso desde el móvil (red local o túnel público) ── */
     if (parts[1] === 'lan') {
