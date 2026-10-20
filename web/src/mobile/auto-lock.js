@@ -8,14 +8,15 @@
 // solo por inactividad.
 //
 // deps: lockUrl (a la que mandar el aviso) · gate() (enseña la puerta del PIN)
+// · beacon(url) (el aviso; en el navegador, sendBeacon)
 const LOCK_GRACE_MS = 2 * 60_000;
 const LOCK_IDLE_MS = 5 * 60_000;
 
-export const installAutoLock = ({ lockUrl, gate, graceMs = LOCK_GRACE_MS, idleMs = LOCK_IDLE_MS, doc = document, now = Date.now }) => {
+export const installAutoLock = ({ lockUrl, gate, graceMs = LOCK_GRACE_MS, idleMs = LOCK_IDLE_MS, doc = document, now = Date.now, beacon = (url) => navigator.sendBeacon(url) }) => {
   let lockSent = false;
   const sendLock = () => {
     lockSent = true;
-    try { navigator.sendBeacon(lockUrl); } catch {}
+    try { beacon(lockUrl); } catch { /* sin beacon: el bridge bloquea solo por inactividad */ }
   };
   const engage = () => { if (!lockSent) sendLock(); gate(); };
   let hiddenAt = 0;

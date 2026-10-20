@@ -19,8 +19,11 @@ import { mountWorkView } from './work/work-view.js';
 import { mountMetricsView } from './metrics/metrics-view.js';
 import { createMetricsApi } from './metrics/metrics-api.js';
 import { mountProjectsView } from './projects/projects-view.js';
-import { esc, fold } from './ui/html.js';
+import { esc, fold, svg } from './ui/html.js';
 import { createApi } from './ui/api.js';
+import { createDialogs } from './ui/dialog.js';
+import { createToast, setStatus, emptyState } from './ui/dom.js';
+import { ago } from './ui/time.js';
 import { renderChooser } from './chat/chooser.js';
 import { createUsersApi } from './users/users-api.js';
 import { mountPeopleView } from './users/people-view.js';
@@ -167,7 +170,7 @@ const lanPair = (pairToken) => new Promise((resolve) => {
   const pad = pinPad(PAIR_PIN_LEN, async (code) => {
     msg.textContent = '';
     try {
-      const r = await fetch(`${API_BASE}/lan/pair`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: pairToken, pin: code }) });
+      const r = await fetch(`${API_BASE}/lan/pair`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: { token: pairToken, pin: code } });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) { msg.textContent = data.error || 'No se pudo conectar.'; pad.fail(); return; }
       localStorage.setItem('sia-lan-token', data.sessionToken);
@@ -243,7 +246,7 @@ const lockGate = ({ remote = false } = {}) => {
     };
     const pad = pinPad(LOCK_PIN_LEN, async (pin) => {
       try {
-        const r = await fetch(`${API_BASE}${remote ? '/lan/unlock' : '/lock/off'}`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(remote ? { 'X-SIA-LAN': LAN_TOKEN } : {}) }, body: JSON.stringify({ key: pin }) });
+        const r = await fetch(`${API_BASE}${remote ? '/lan/unlock' : '/lock/off'}`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(remote ? { 'X-SIA-LAN': LAN_TOKEN } : {}) }, body: { key: pin } });
         const data = await r.json().catch(() => ({}));
         if (remote && r.status === 410) { // demasiados fallos: sesión revocada, a emparejar de nuevo
           localStorage.removeItem('sia-lan-token');
@@ -1032,7 +1035,7 @@ const uploadAsset = async (s, file) => {
       r.onerror = () => reject(new Error('no se pudo leer el fichero'));
       r.readAsDataURL(file);
     });
-    const out = await api('/upload', { method: 'POST', body: JSON.stringify({ name: file.name || 'adjunto', data }) });
+    const out = await api('/upload', { method: 'POST', body: { name: file.name || 'adjunto', data } });
     const asset = { name: out.name, absPath: out.absPath, url: `${API_BASE}/uploads/${encodeURIComponent(out.name)}`, isImage: isImageName(out.name) };
     s.assets.push(asset);
     if (!IS_PHONE) s.assetsOpen = true; // en el móvil no hay panel de adjuntos: se comería media pantalla
@@ -1361,7 +1364,7 @@ const applyTheme = (id) => {
   // El tema del ordenador es también el de los móviles emparejados: se le deja
   // al bridge, que se lo da a ellos. (Con fetch: `api` aún no existe al arrancar.)
   if (!LAN_TOKEN && API_BASE) {
-    fetch(`${API_BASE}/config`, { method: 'PUT', headers: { 'Content-Type': 'application/json', ...(AUTH ? AUTH.session.headers() : {}) }, body: JSON.stringify({ theme: { id: t.id, ui: t.ui } }) }).catch(() => {});
+    fetch(`${API_BASE}/config`, { method: 'PUT', headers: { 'Content-Type': 'application/json', ...(AUTH ? AUTH.session.headers() : {}) }, body: { theme: { id: t.id, ui: t.ui } } }).catch(() => {});
   }
   themeSwitch.setAttribute('aria-checked', String(!!t.dark));
   themePicker.mark(t.id);
@@ -1411,27 +1414,15 @@ const navLab = document.getElementById('nav-lab');
 const viewChat = document.getElementById('view-chat');
 const viewLab = document.getElementById('view-lab');
 
-// el cliente de las vistas (ui/api.js): una sesión que ya no vale vuelve al
-// inicio de sesión; un 423 es el candado del bridge
-const bridgeApi = createApi(API_BASE, () => AUTH.session.headers(), { onReply: (status, data) => {
-  if (status === 401 && data.auth) location.reload();
-  if (status === 423 && data.locked) lockedGate();
-} });
-const api = async (path, opts = {}) => {
-  const r = await fetch(`${API_BASE}${path}`, {
-    ...opts,
-    headers: { 'Content-Type': 'application/json', ...(LAN_TOKEN ? { 'X-SIA-LAN': LAN_TOKEN } : {}), ...(AUTH ? AUTH.session.headers() : {}), ...(opts.headers || {}) },
-  });
-  const data = await r.json().catch(() => ({}));
-  if (r.status === 401 && data.auth) location.reload(); // la sesión ya no vale: de vuelta al inicio de sesión
-  if (!r.ok) {
-    if (r.status === 423 && (LAN_TOKEN || data.locked)) lockedGate(); // el bridge echó el candado
-    const err = new Error(data.error || `HTTP ${r.status}`);
-    err.status = r.status;
-    throw err;
-  }
-  return data;
-};
+// El cliente del bridge (ui/api.js): el móvil va con su llave, el escritorio
+// con su sesión. Una sesión que ya no vale vuelve al inicio de sesión; un 423
+// es el candado del bridge.
+const api = createApi(API_BASE, () => ({ ...(LAN_TOKEN ? { 'X-SIA-LAN': LAN_TOKEN } : {}), ...(AUTH ? AUTH.session.headers() : {}) }), {
+  onReply: (status, data) => {
+    if (status === 401 && data.auth) location.reload();
+    if (status === 423 && (LAN_TOKEN || data.locked)) lockedGate();
+  },
+});
 
 const navAdmin = document.getElementById('nav-admin');
 const viewAdmin = document.getElementById('view-admin');
@@ -1443,15 +1434,15 @@ const viewUsers = document.getElementById('view-users');
 // devuelve show(), se llama al abrirlo (Issues recarga su foto).
 const PANELS = [
   { name: 'issues', mount: (el) => AUTH && mountIssuesView(el, {
-    api: createIssuesApi(bridgeApi), me: AUTH.user, toast: (t) => toast(t),
+    api: createIssuesApi(api), me: AUTH.user, toast: (t) => toast(t),
     openChat: (host, issueId) => mountIssueChat(host, { issueId, wsUrl, loadProjects: loadAccessProjects, makeTerminal }),
   }) },
   // clic en una persona de Equipo soporte: se abre en Métricas frente al resto de su equipo
   // «Gestionar equipo» lleva a Personas (si también tiene esa vista)
-  { name: 'work', mount: (el) => AUTH && mountWorkView(el, { api: createMetricsApi(bridgeApi),
+  { name: 'work', mount: (el) => AUTH && mountWorkView(el, { api: createMetricsApi(api),
     openPerson: (person) => { PANELS.find((p) => p.name === 'metrics').ui?.focus(person); showView('metrics'); },
     onManage: canView('people') ? () => showView('users') : undefined }) },
-  { name: 'metrics', mount: (el) => AUTH && mountMetricsView(el, { api: createMetricsApi(bridgeApi), toast: (t) => toast(t) }) },
+  { name: 'metrics', mount: (el) => AUTH && mountMetricsView(el, { api: createMetricsApi(api), toast: (t) => toast(t) }) },
 ].map((p) => ({ ...p, nav: document.getElementById(`nav-${p.name}`), view: document.getElementById(`view-${p.name}`) }));
 const linksGrid = document.getElementById('links-grid');
 const linksFilters = document.getElementById('links-filters');
@@ -1490,56 +1481,9 @@ for (const p of PANELS) {
 navLab.addEventListener('click', () => showView('lab'));
 navAdmin.addEventListener('click', () => showView('admin'));
 
-/* ── Diálogos propios (nada de alert/prompt/confirm nativos) ──── */
-const dlgOverlay = document.getElementById('dialog-overlay');
-const dlgTitle = document.getElementById('dialog-title');
-const dlgBody = document.getElementById('dialog-body');
-const dlgActions = document.getElementById('dialog-actions');
-
-const openDialog = ({ title, bodyHTML = '', input = null, okLabel = 'Aceptar', cancelLabel = 'Cancelar', alertOnly = false, centered = false }) =>
-  new Promise((resolve) => {
-    dlgTitle.textContent = title;
-    dlgBody.innerHTML = bodyHTML;
-    dlgOverlay.classList.toggle('centered', centered); // centrado en vertical (por defecto cuelga de arriba)
-    let inputEl = null;
-    if (input) {
-      inputEl = document.createElement('input');
-      inputEl.className = 'settings-input';
-      inputEl.placeholder = input.placeholder || '';
-      inputEl.value = input.value || '';
-      inputEl.spellcheck = false;
-      dlgBody.appendChild(inputEl);
-    }
-    const close = (val) => {
-      dlgOverlay.hidden = true;
-      document.removeEventListener('keydown', onKey, true);
-      resolve(val);
-    };
-    const onKey = (e) => {
-      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(input ? null : false); }
-      else if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); close(input ? inputEl.value.trim() : true); }
-    };
-    dlgActions.innerHTML = '';
-    if (!alertOnly) {
-      const cancel = document.createElement('button');
-      cancel.className = 'lab-btn';
-      cancel.textContent = cancelLabel;
-      cancel.addEventListener('click', () => close(input ? null : false));
-      dlgActions.appendChild(cancel);
-    }
-    const ok = document.createElement('button');
-    ok.className = 'lab-btn primary';
-    ok.textContent = okLabel;
-    ok.addEventListener('click', () => close(input ? inputEl.value.trim() : true));
-    dlgActions.appendChild(ok);
-    document.addEventListener('keydown', onKey, true);
-    dlgOverlay.hidden = false;
-    (inputEl || ok).focus();
-  });
-
-const dlgPrompt = (title, placeholder, bodyHTML = '') => openDialog({ title, bodyHTML, input: { placeholder } });
-const dlgConfirm = (title, bodyHTML = '', okLabel = 'Confirmar') => openDialog({ title, bodyHTML, okLabel });
-const dlgAlert = (title, bodyHTML = '') => openDialog({ title, bodyHTML, alertOnly: true, okLabel: 'Entendido' });
+// Diálogos de la app (ui/dialog.js)
+const dialogs = createDialogs(document.getElementById('dialog-overlay'));
+const { open: openDialog, prompt: dlgPrompt, confirm: dlgConfirm, alert: dlgAlert } = dialogs;
 
 /* ── Configuración (modal) ────────────────────────────────────── */
 const settingsBtn = document.getElementById('settings-btn');
@@ -1664,7 +1608,6 @@ settingsBtn.addEventListener('click', async () => {
     const devicesMsg = (st) => (st.devices
       ? `${st.devices} dispositivo${st.devices === 1 ? '' : 's'} conectado${st.devices === 1 ? '' : 's'}`
       : 'Acceso abierto, sin dispositivos') + (st.mode === 'public' ? ' · público' : '');
-    const ago = (ts) => { const s = Math.max(0, Math.round((Date.now() - ts) / 1000)); return s < 60 ? 'hace un momento' : s < 3600 ? `hace ${Math.floor(s / 60)} min` : `hace ${Math.floor(s / 3600)} h`; };
     const mmss = (ms) => { const s = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 
     // Dispositivos conectados, cada uno con su botón de cerrar. Solo se repinta
@@ -1741,7 +1684,7 @@ settingsBtn.addEventListener('click', async () => {
 
     const enable = async (mode) => {
       choosing = false;
-      try { await render(await api('/lan/enable', { method: 'POST', body: JSON.stringify({ mode }) })); }
+      try { await render(await api('/lan/enable', { method: 'POST', body: { mode } })); }
       catch (e) { $('mob-error-text').textContent = e.message; show('error'); }
     };
     const disable = async () => {
@@ -1766,7 +1709,7 @@ settingsBtn.addEventListener('click', async () => {
         if (!(await api('/lock')).hasKey) {
           const pin = await askNewLockPin({ okLabel: 'Guardar y abrir', why: 'El acceso público se bloquea solo al dejar de usar el móvil y pide este PIN para seguir; es el mismo del bloqueo de pantalla.' });
           if (!pin) return;
-          await api('/lock/key', { method: 'PUT', body: JSON.stringify({ key: pin }) });
+          await api('/lock/key', { method: 'PUT', body: { key: pin } });
         }
       } catch (e) { $('mob-error-text').textContent = e.message; return show('error'); }
       enable('public');
@@ -1810,7 +1753,7 @@ const APPLIES = 'aplica a los chats que abras a partir de ahora';
 
 const saveGhKeys = async (msg) => {
   try {
-    await api('/config', { method: 'PUT', body: JSON.stringify({ github: { keys: ghKeys, activeId: ghActiveId } }) });
+    await api('/config', { method: 'PUT', body: { github: { keys: ghKeys, activeId: ghActiveId } } });
     ghSay(msg);
   } catch (err) {
     ghSay(`no se pudo guardar: ${err.message}`, false);
@@ -1862,7 +1805,7 @@ jiraSave.addEventListener('click', async () => {
   try {
     await api('/config', {
       method: 'PUT',
-      body: JSON.stringify({ jira: { baseUrl: jiraUrlInput.value.trim().replace(/\/+$/, ''), token: jiraTokenInput.value.trim() } }),
+      body: { jira: { baseUrl: jiraUrlInput.value.trim().replace(/\/+$/, ''), token: jiraTokenInput.value.trim() } },
     });
     jiraStatus.textContent = 'guardado ✓ — aplica a los chats que abras a partir de ahora';
     jiraStatus.className = 'settings-status ok';
@@ -1893,7 +1836,7 @@ wireLogout(document.getElementById('settings-session'), { ...AUTH, confirm: dlgC
 // Gestión del equipo (web/src/users/): la otra cara de Equipo soporte (se entra
 // por su icono); «Métricas equipo» vuelve a sus métricas si también tiene esa vista.
 const usersView = canView('people')
-  ? mountPeopleView(viewUsers, { usersApi: createUsersApi(bridgeApi), knowledgeApi: createKnowledgeApi(bridgeApi), me: AUTH.user, toast: (t) => toast(t),
+  ? mountPeopleView(viewUsers, { usersApi: createUsersApi(api), knowledgeApi: createKnowledgeApi(api), me: AUTH.user, toast: (t) => toast(t),
     onMetrics: canView('work') ? () => showView('work') : undefined })
   : null;
 
@@ -1947,7 +1890,7 @@ lockBtn.addEventListener('click', async () => {
     if (!st.hasKey) {
       const pin = await askNewLockPin();
       if (!pin) return;
-      await api('/lock/key', { method: 'PUT', body: JSON.stringify({ key: pin }) });
+      await api('/lock/key', { method: 'PUT', body: { key: pin } });
     }
     await api('/lock/on', { method: 'POST' });
   } catch (err) { dlgAlert('No se pudo bloquear', esc(err.message)); return; }
@@ -1968,7 +1911,7 @@ document.getElementById('lock-fab').addEventListener('click', async () => {
     if (!(await api('/ping')).pin) {
       const pin = await askNewLockPin({ remote: true });
       if (!pin) return;
-      await api('/lan/pin', { method: 'PUT', body: JSON.stringify({ key: pin }) });
+      await api('/lan/pin', { method: 'PUT', body: { key: pin } });
     }
     await api('/lan/lock', { method: 'POST' });
   } catch (err) { dlgAlert('No se pudo bloquear', esc(err.message)); return; }
@@ -1992,23 +1935,14 @@ const lockSavePin = async () => {
   const problem = lockPinProblem(lockNewInput.value, lockNew2Input.value);
   if (problem) return setStatus(lockStatus, problem, 'bad');
   try {
-    await api('/lock/key', { method: 'PUT', body: JSON.stringify({ key: lockNewInput.value, current: lockCurInput.value }) });
+    await api('/lock/key', { method: 'PUT', body: { key: lockNewInput.value, current: lockCurInput.value } });
     await lockSectionRefresh();
     toast('PIN de bloqueo guardado');
   } catch (err) { setStatus(lockStatus, err.message, 'bad'); }
 };
 lockSaveBtn.addEventListener('click', lockSavePin);
 for (const i of [lockCurInput, lockNewInput, lockNew2Input]) i.addEventListener('keydown', (e) => { if (e.key === 'Enter') lockSavePin(); });
-// aviso temporal abajo a la derecha (éxitos breves)
-const toastEl = document.getElementById('toast');
-let toastTimer = null;
-const toast = (text, ms = 3500) => {
-  toastEl.textContent = text;
-  toastEl.hidden = false;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { toastEl.hidden = true; }, ms);
-};
-const setStatus = (el, text, cls = '') => { el.textContent = text; el.className = `settings-status${cls ? ` ${cls}` : ''}`; };
+const toast = createToast(document.getElementById('toast'));
 refreshAdmin();
 
 /* ── Laboratorio de skills ────────────────────────────────────── */
@@ -2103,20 +2037,9 @@ const fillScopeSelect = (scope) => {
   if (labScopeSel.value === '' && !curPerms()?.owner && groups.length) labScopeSel.value = groups[0].token;
 };
 
-/* Estado vacío de una vista (sin skills, sin enlaces): icono, una frase y,
-   debajo, la card de crear — la misma «+» que después encabeza la rejilla, para
-   que crear lo primero y crear lo siguiente sea el mismo gesto. `action` es
-   opcional: quien no puede crear solo ve el mensaje. */
 const EMPTY_ICONS = {
-  skills: '<svg viewBox="0 0 24 24" width="38" height="38" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v6.5L4.8 17a3 3 0 0 0 2.6 4.5h9.2a3 3 0 0 0 2.6-4.5L14 8.5V2"/><path d="M8.5 2h7"/><path d="M7 15h10"/></svg>',
-  links: '<svg viewBox="0 0 24 24" width="38" height="38" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
-};
-const emptyState = (icon, text, action = null) => {
-  const box = document.createElement('div');
-  box.className = 'empty-state';
-  box.innerHTML = `${EMPTY_ICONS[icon] || ''}<p>${esc(text)}</p>`;
-  if (action) box.appendChild(action);
-  return box;
+  skills: svg('<path d="M10 2v6.5L4.8 17a3 3 0 0 0 2.6 4.5h9.2a3 3 0 0 0 2.6-4.5L14 8.5V2"/><path d="M8.5 2h7"/><path d="M7 15h10"/>', { width: 1.5, size: 38 }),
+  links: svg('<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>', { width: 1.5, size: 38 }),
 };
 
 const renderLabCards = (skills, drafts) => {
@@ -2128,7 +2051,7 @@ const renderLabCards = (skills, drafts) => {
   newCard.innerHTML = '<span class="plus">+</span><span>Nueva skill</span>';
   newCard.addEventListener('click', newSkill);
   if (!skills.length && !drafts.length) {
-    labCards.appendChild(emptyState('skills', 'No tienes aún ninguna skill definida.', newCard));
+    labCards.appendChild(emptyState(EMPTY_ICONS.skills, 'No tienes aún ninguna skill definida.', newCard));
     return;
   }
   labCards.appendChild(newCard);
@@ -2340,7 +2263,7 @@ labDelete.addEventListener('click', async () => {
 labSave.addEventListener('click', async () => {
   if (!cur) return;
   try {
-    await api(`/drafts/${cur.id}`, { method: 'PUT', body: JSON.stringify({ files: curFiles() }) });
+    await api(`/drafts/${cur.id}`, { method: 'PUT', body: { files: curFiles() } });
     cur.dirty = false; cur.isDraft = true;
     setLabState('borrador guardado');
   } catch (err) { dlgAlert('No se pudo guardar', esc(err.message)); }
@@ -2359,7 +2282,7 @@ labPublish.addEventListener('click', async () => {
   );
   if (!out) return;
   try {
-    await api('/skills/publish', { method: 'POST', body: JSON.stringify({ id: cur.id, files, scope }) });
+    await api('/skills/publish', { method: 'POST', body: { id: cur.id, files, scope } });
     if (cur.isDraft) await api(`/drafts/${cur.id}`, { method: 'DELETE' }).catch(() => {});
     cur.dirty = false; cur.isDraft = false; cur.scope = scope;
     setLabState('publicada ✓');
@@ -2367,7 +2290,7 @@ labPublish.addEventListener('click', async () => {
 });
 
 // Administración (proyectos de la base): web/src/projects/projects-view.js
-const projectsView = mountProjectsView(viewAdmin, { api, dialogs: { prompt: dlgPrompt, confirm: dlgConfirm, alert: dlgAlert }, toast });
+const projectsView = mountProjectsView(viewAdmin, { api, dialogs, toast });
 
 /* ══ Enlaces rápidos ═══════════════════════════════════════════════
    Accesos del equipo agrupados por conocimiento. Verlos puede cualquiera
@@ -2433,11 +2356,11 @@ const renderLinks = () => {
 
   if (!linksProjects.length) {
     // sin proyectos: los da quien gestiona Personas
-    linksGrid.appendChild(emptyState('links', 'Aún no tienes ningún proyecto: pídeselo a quien gestiona Personas.'));
+    linksGrid.appendChild(emptyState(EMPTY_ICONS.links, 'Aún no tienes ningún proyecto: pídeselo a quien gestiona Personas.'));
     return;
   }
   if (!list.length) {
-    linksGrid.appendChild(emptyState('links', 'No tienes aún ningún enlace definido.', canEdit ? newCard() : null));
+    linksGrid.appendChild(emptyState(EMPTY_ICONS.links, 'No tienes aún ningún enlace definido.', canEdit ? newCard() : null));
     return;
   }
 
@@ -2610,8 +2533,8 @@ document.getElementById('link-f-save').addEventListener('click', async () => {
     notes: fNotes.value.trim() || null,
   };
   try {
-    if (linkEditing) await api(`/links/${linkEditing.id}`, { method: 'PUT', body: JSON.stringify(payload) });
-    else await api('/links', { method: 'POST', body: JSON.stringify(payload) });
+    if (linkEditing) await api(`/links/${linkEditing.id}`, { method: 'PUT', body: payload });
+    else await api('/links', { method: 'POST', body: payload });
     closeEditor();
     linksRefresh();
   } catch (e) {

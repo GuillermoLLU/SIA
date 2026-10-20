@@ -1,6 +1,6 @@
 // Las vistas de SIA que se dan a cada persona (las mismas que exige el
 // bridge, server/auth/views.js). El Chat no está: lo tiene todo el mundo.
-const svg = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+import { svg } from '../ui/html.js';
 
 export const CHAT_ICON = svg('<path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.6-.8L3 21l1.9-5.4A8.38 8.38 0 0 1 4 11.5 8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z"/>');
 

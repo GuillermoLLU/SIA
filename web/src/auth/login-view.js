@@ -4,13 +4,12 @@
 // clic fuera de él lo cierra y vuelve la S.
 // Solo DOM; la sesión la lleva session.js.
 import './login.css';
-
-const escAttr = (s) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+import { esc } from '../ui/html.js';
 
 const markup = (logoHtml, lastEmail) => `<div class="login-stage">
 <button class="login-open" type="button" aria-label="Iniciar sesión">${logoHtml}</button>
 <form class="lock-card login-card" novalidate inert>
-  <input class="settings-input login-input" name="email" type="email" placeholder="Email" autocomplete="username" autocapitalize="off" spellcheck="false" value="${escAttr(lastEmail)}" />
+  <input class="settings-input login-input" name="email" type="email" placeholder="Email" autocomplete="username" autocapitalize="off" spellcheck="false" value="${esc(lastEmail)}" />
   <input class="settings-input login-input" name="password" type="password" placeholder="Contraseña" autocomplete="current-password" />
   <button class="lab-btn primary login-go" type="submit">Iniciar sesión</button>
   <div class="login-remember">

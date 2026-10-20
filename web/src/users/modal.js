@@ -1,6 +1,7 @@
 // Modales apilables de la vista Personas: uno se abre encima de otro (el de
-// una base sobre el de alta) y cerrar quita el de arriba. Escape y un clic
-// fuera también cierran el de arriba.
+// una base sobre el de alta) y cerrar quita el de arriba. Escape (la pila de
+// ui/dialog.js) y un clic fuera también cierran el de arriba.
+import { onEscape } from '../ui/dialog.js';
 
 const root = () => {
   let el = document.getElementById('people-modals');
@@ -9,7 +10,7 @@ const root = () => {
 };
 const topModal = () => root().lastElementChild;
 
-export const closeModal = () => topModal()?.remove();
+export const closeModal = () => { const top = topModal(); if (top) { top.offEscape(); top.remove(); } };
 
 // → el elemento del modal (para rellenarlo y cablearlo).
 export const openModal = ({ title, lead = '', body = '', foot = '', wide = false }) => {
@@ -22,11 +23,8 @@ export const openModal = ({ title, lead = '', body = '', foot = '', wide = false
   const p = scrim.querySelector('.pp-mh p');
   if (lead) p.textContent = lead; else p.remove();
   scrim.addEventListener('mousedown', (e) => { if (e.target === scrim) closeModal(); });
+  scrim.offEscape = onEscape(closeModal);
   root().appendChild(scrim);
   scrim.querySelector('input, [aria-checked], button')?.focus();
   return scrim.querySelector('.pp-modal');
 };
-
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && topModal()) { e.stopPropagation(); closeModal(); }
-}, true);

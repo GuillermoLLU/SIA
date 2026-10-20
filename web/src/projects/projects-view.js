@@ -1,8 +1,8 @@
 // Vista «Administración»: los proyectos de la base. Es lo único que se
 // gestiona (crear, ver sus entradas y borrar); a quién se habilita cada uno se
 // decide en Personas. Sin grupos a la vista: por dentro cada proyecto lleva su
-// propio token (server/projects/). Solo DOM: llegan inyectados api, los
-// diálogos de la app y toast.
+// propio token (server/projects/). Solo DOM: llegan inyectados el cliente del
+// bridge (ui/api.js), los diálogos de la app y toast.
 
 import { esc, fold, TRASH_ICON } from '../ui/html.js';
 
@@ -68,7 +68,7 @@ export const mountProjectsView = (root, { api, dialogs, toast }) => {
   const newProject = async () => {
     const name = await dialogs.prompt('Nuevo proyecto', 'SGA', 'Nombre del proyecto:');
     if (!name) return;
-    try { const p = await api('/admin/projects', { method: 'POST', body: JSON.stringify({ name }) }); open = p.id; await refresh(); toast(`Proyecto «${p.name}» creado`); }
+    try { const p = await api('/admin/projects', { method: 'POST', body: { name } }); open = p.id; await refresh(); toast(`Proyecto «${p.name}» creado`); }
     catch (e) { dialogs.alert('No se pudo crear', esc(e.message)); }
   };
   const deleteProject = async (p) => {

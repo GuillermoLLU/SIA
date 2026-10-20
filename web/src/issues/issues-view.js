@@ -5,7 +5,7 @@
 // trabajo (work-screen.js). La mesa se refresca sola.
 import './issues.css';
 import { esc } from '../ui/html.js';
-import { LISTS, when, age, stamp } from './format.js';
+import { LISTS, when, age, stamp, weekBars } from './format.js';
 import { sev, origin, item } from './parts.js';
 import { workScreen } from './work-screen.js';
 import { ACTIONS, actionForm, readAction } from './actions.js';
@@ -21,13 +21,10 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
   const kpi = (label, value, hint) => `<div class="iss-kpi"><span>${label}</span><b>${value}</b><small>${hint}</small></div>`;
 
   // Cogidas por semana (SGA / SISU), lo medido en SIA.
-  const weeksChart = (weeks) => {
-    const max = Math.max(5, ...weeks.map((w) => w.sga + w.sisu));
-    return `<div class="iss-bars" role="img" aria-label="Issues cogidas por semana, últimas ${weeks.length} semanas">
-      ${weeks.map(({ week, sga, sisu }) => `<div class="iss-bar" title="Semana del ${week.slice(8)}/${week.slice(5, 7)}: ${sga + sisu} (SGA ${sga}, SISU ${sisu})">
-          <small>${sga + sisu || ''}</small><i class="sisu" style="height:${sisu / max * 100}%"></i><i style="height:${sga / max * 100}%"></i><span>${+week.slice(8)}/${+week.slice(5, 7)}</span></div>`).join('')}
+  const weeksChart = (weeks) => `<div class="iss-bars" role="img" aria-label="Issues cogidas por semana, últimas ${weeks.length} semanas">
+      ${weekBars(weeks).map(({ week, sga, sisu, total, sgaPct, sisuPct }) => `<div class="iss-bar" title="Semana del ${week.slice(8)}/${week.slice(5, 7)}: ${total} (SGA ${sga}, SISU ${sisu})">
+          <small>${total || ''}</small><i class="sisu" style="height:${sisuPct}%"></i><i style="height:${sgaPct}%"></i><span>${+week.slice(8)}/${+week.slice(5, 7)}</span></div>`).join('')}
     </div>`;
-  };
 
   const renderDesk = () => {
     closeChat();
@@ -163,11 +160,14 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
   root.addEventListener('change', (e) => { if (e.target.matches('[data-rule]')) rule = e.target.value; });
 
   // Refresco: solo con la mesa a la vista (no mientras se trabaja una issue).
-  setInterval(() => {
+  const refresher = setInterval(() => {
     if (!onDesk || root.hidden || document.visibilityState !== 'visible') return;
     const y = root.scrollTop;
     api.desk().then((d) => { data = d; now = d.taken ? new Date(d.taken) : new Date(); if (onDesk) { renderDesk(); root.scrollTop = y; } }).catch(() => {});
   }, REFRESH_MS);
 
-  return { show: () => loadDesk().catch((err) => { root.innerHTML = `<div class="iss-page"><p class="iss-empty">No se pudieron cargar las issues: ${esc(err.message)}</p></div>`; }) };
+  return {
+    show: () => loadDesk().catch((err) => { root.innerHTML = `<div class="iss-page"><p class="iss-empty">No se pudieron cargar las issues: ${esc(err.message)}</p></div>`; }),
+    dispose: () => { clearInterval(refresher); closeChat(); },
+  };
 };

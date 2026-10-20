@@ -9,35 +9,18 @@ import './people.css';
 import { openModal, closeModal } from './modal.js';
 import { strongPassword } from './password.js';
 import { VIEWS, CHAT_ICON } from './views.js';
-import { esc, TRASH_ICON } from '../ui/html.js';
-
+import { viewsText, initials, knOf, filterChips, listRows, validFilter, roleName as roleNameOf, toggled } from './people.js';
+import { esc, svg, TRASH_ICON } from '../ui/html.js';
+import { ago } from '../ui/time.js';
 
 // Iconos de rol: los de serie, uno común para los creados y el de personalizado.
 const ROLE_ICON = {
-  admin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V6z"/><path d="m9 12 2 2 4-4"/></svg>',
-  agent: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="13" width="4" height="6" rx="1"/><rect x="17" y="13" width="4" height="6" rx="1"/><path d="M19 19c0 1.5-2 2.5-5 2.5"/></svg>',
-  role: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>',
-  custom: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>',
+  admin: svg('<path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V6z"/><path d="m9 12 2 2 4-4"/>', { width: 1.7 }),
+  agent: svg('<path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="13" width="4" height="6" rx="1"/><rect x="17" y="13" width="4" height="6" rx="1"/><path d="M19 19c0 1.5-2 2.5-5 2.5"/>', { width: 1.7 }),
+  role: svg('<path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/>', { width: 1.7 }),
+  custom: svg('<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>', { width: 1.7 }),
 };
 const roleIcon = (r) => ROLE_ICON[r?.builtin] || (r ? ROLE_ICON.role : ROLE_ICON.custom);
-// Las vistas de un rol en una frase («Chat, Enlaces rápidos y Laboratorio»).
-const viewsText = (views) => {
-  const names = ['Chat', ...VIEWS.filter((v) => views.includes(v.id)).map((v) => v.label)];
-  return names.length === 1 ? 'Solo el Chat' : `${names.slice(0, -1).join(', ')} y ${names.at(-1)}`;
-};
-
-const initials = (n) => String(n).split(/\s+/).filter(Boolean).map((w) => w[0]).slice(0, 2).join('').toUpperCase() || '?';
-const ago = (ts) => {
-  if (!ts) return 'nunca';
-  const min = Math.round((Date.now() - new Date(ts)) / 60000);
-  if (min < 1) return 'ahora';
-  if (min < 60) return `hace ${min} min`;
-  if (min < 24 * 60) return `hace ${Math.round(min / 60)} h`;
-  const days = Math.round(min / 1440);
-  return days === 1 ? 'ayer' : days < 30 ? `hace ${days} días` : new Date(ts).toLocaleDateString('es-ES');
-};
-// Los proyectos (ids de su token) que ve una persona.
-const knOf = (p) => (p.knowledge || []).flatMap((k) => k.groups.map((g) => g.id));
 const copyText = async (text, input, toast) => {
   try { await navigator.clipboard.writeText(text); toast('Copiado'); }
   catch { input?.select(); toast('Selecciónalo y cópialo con ⌘C'); }
@@ -55,7 +38,7 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast, onMet
   let people = [], kbase = null, roles = [], filter = 'all', query = '', selected = null;
 
   root.innerHTML = `
-    <header class="pp-head"><h2>Equipo soporte</h2>${onMetrics ? '<button class="wk-switch-view" data-metrics>Métricas equipo</button>' : ''}</header>
+    <header class="pp-head"><h2>Equipo soporte</h2>${onMetrics ? '<button class="pp-switch-view" data-metrics>Métricas equipo</button>' : ''}</header>
     <div class="pp-rule"></div>
     <div class="pp-tools">
       <input class="settings-input" data-q placeholder="Buscar por nombre o email" aria-label="Buscar persona" />
@@ -74,7 +57,7 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast, onMet
     try { [people, kbase, roles] = await Promise.all([usersApi.list(), knowledgeApi.base(), usersApi.roles()]); }
     catch (e) { $('[data-list]').innerHTML = `<div class="pp-empty">No se pudo cargar: ${esc(e.message)}</div>`; return; }
     if (selected && !people.some((p) => p.id === selected)) selected = null;
-    if (!['all', 'custom', 'none', 'off'].includes(filter) && !roles.some((r) => r.id === filter)) filter = 'all';
+    filter = validFilter(filter, roles);
     renderChips();
     renderList();
     if (selected) renderPanel(); else panel.hidden = true;
@@ -83,22 +66,19 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast, onMet
   const person = () => people.find((p) => p.id === selected);
 
   const roleById = (id) => roles.find((r) => r.id === id) || null;
-  const roleName = (p) => roleById(p.role_id)?.name || 'Personalizado';
+  const roleName = (p) => roleNameOf(roles, p);
 
   /* ── lista ── */
-  // Filtros: todas, uno por rol, personalizadas, sin conocimiento y desactivadas.
   const renderChips = () => {
-    const chips = [['all', 'Todas'], ...roles.map((r) => [r.id, r.name]), ['custom', 'Personalizado'], ['none', 'Sin conocimiento'], ['off', 'Desactivadas']];
-    $('[data-chips]').innerHTML = chips.map(([f, label]) => `<button class="pp-chip${filter === f ? ' on' : ''}" data-f="${esc(f)}">${esc(label)}</button>`).join('');
+    $('[data-chips]').innerHTML = filterChips(roles).map(([f, label]) => `<button class="pp-chip${filter === f ? ' on' : ''}" data-f="${esc(f)}">${esc(label)}</button>`).join('');
   };
-  const matches = (p) => filter === 'all' || (filter === 'off' ? !p.active : filter === 'none' ? !knOf(p).length : filter === 'custom' ? !p.role_id : p.role_id === filter);
   const knTags = (p) => {
     const names = knOf(p).map(groupName).filter(Boolean);
     return names.length ? names.map((n) => `<span class="pp-tag">${esc(n)}</span>`).join('') : '<span class="pp-tag none">Sin conocimiento</span>';
   };
   const renderList = () => {
     $('[data-body]').classList.toggle('open', !panel.hidden);
-    const rows = people.filter((p) => matches(p) && `${p.name} ${p.email}`.toLowerCase().includes(query));
+    const rows = listRows(people, filter, query);
     $('[data-list]').innerHTML = `<div class="pp-row hd"><span></span><span>Persona</span><span>Rol</span><span class="pp-kn">Conocimiento</span><span>Acceso</span></div>`
       + (rows.length ? rows.map((p) => `<div class="pp-row${p.active ? '' : ' off'}${selected === p.id ? ' current' : ''}" data-id="${esc(p.id)}">
         <span class="pp-av">${esc(initials(p.name))}</span>
@@ -283,7 +263,7 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast, onMet
     paint();
     m.querySelector('[data-rviews]').addEventListener('click', (e) => {
       const v = e.target.closest('[data-v]')?.dataset.v;
-      if (v) { views = views.includes(v) ? views.filter((x) => x !== v) : [...views, v]; paint(); }
+      if (v) { views = toggled(views, v); paint(); }
     });
     m.querySelector('[data-rname]').focus();
     wireFoot(m, async (msg) => {
@@ -326,7 +306,7 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast, onMet
     const paintKn = () => { m.querySelector('[data-kn]').innerHTML = knowledgeBlock(draft.kn); };
     m.querySelector('[data-kn]').addEventListener('click', (e) => {
       const g = e.target.closest('[data-g]')?.dataset.g;
-      if (g) { draft.kn = draft.kn.includes(g) ? draft.kn.filter((x) => x !== g) : [...draft.kn, g]; paintKn(); }
+      if (g) { draft.kn = toggled(draft.kn, g); paintKn(); }
       if (e.target.closest('[data-act="kn-copy"]')) copyModal(who(), null, (src) => { draft.kn = knOf(src); closeModal(); paintKn(); });
     });
     paintKn();
@@ -376,7 +356,7 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast, onMet
     const view = e.target.closest('.pp-panel [data-view]');
     if (view && p) {
       const v = VIEWS.find((x) => x.id === view.dataset.view), on = (p.views || []).includes(v.id);
-      const views = on ? p.views.filter((x) => x !== v.id) : [...(p.views || []), v.id];
+      const views = toggled(p.views || [], v.id);
       const custom = p.role_id ? ' (vistas personalizadas)' : '';
       return save(() => usersApi.update(p.id, { views }), `${p.name} ${on ? 'ya no ve' : 'ya ve'} ${v.label}${custom}`);
     }
@@ -386,7 +366,7 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast, onMet
     const g = e.target.closest('.pp-panel [data-g]')?.dataset.g;
     if (g && p) {
       const cur = knOf(p), on = cur.includes(g);
-      return save(() => knowledgeApi.setProjects(p.id, on ? cur.filter((x) => x !== g) : [...cur, g]), on ? `${p.name} ya no ve ${groupName(g)}` : `${p.name} ya ve ${groupName(g)}`);
+      return save(() => knowledgeApi.setProjects(p.id, toggled(cur, g)), on ? `${p.name} ya no ve ${groupName(g)}` : `${p.name} ya ve ${groupName(g)}`);
     }
   });
   $('[data-q]').addEventListener('input', (e) => { query = e.target.value.trim().toLowerCase(); renderList(); });

@@ -37,3 +37,14 @@ export const duration = (m) => (m < 60 ? `${Math.max(0, Math.round(m))} min` : m
 
 // Tiempo entre una fecha («YYYY-MM-DD HH:MM», hora local) y ahora, legible.
 export const age = (s, now) => duration((now - new Date(s.replace(' ', 'T'))) / 60000);
+
+// Qué tiempo enseña una issue en cada lista: sin moverse (esperando), cuándo
+// se resolvió, o cuánto hace que entró.
+export const since = (i, key, now) => (key === 'waiting' ? `sin moverse ${age(i.modified, now)}` : key === 'resolved' ? when(i.resolved) : `hace ${age(i.reported, now)}`);
+
+// Las barras de cogidas por semana: a qué altura (%) va cada parte, con un
+// techo mínimo de 5 para que una semana floja no llene la gráfica.
+export const weekBars = (weeks) => {
+  const max = Math.max(5, ...weeks.map((w) => w.sga + w.sisu));
+  return weeks.map((w) => ({ ...w, total: w.sga + w.sisu, sgaPct: w.sga / max * 100, sisuPct: w.sisu / max * 100 }));
+};

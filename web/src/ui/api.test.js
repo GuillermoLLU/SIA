@@ -27,8 +27,9 @@ test('con cuerpo: JSON por defecto, o tal cual con otro tipo', async () => {
   assert.equal(calls[1][1].headers['Content-Type'], 'text/csv');
 });
 
-test('error del bridge: su texto y su estado; sin texto, el HTTP', async () => {
+test('error del bridge: su texto, su estado y su cuerpo; sin texto, el HTTP', async () => {
   await assert.rejects(setup(reply(409, { error: 'Ya existe.' })).api('/users'), (e) => e.message === 'Ya existe.' && e.status === 409);
+  await assert.rejects(setup(reply(429, { error: 'Espera.', wait: 30 })).api('/lock/off'), (e) => e.data.wait === 30);
   await assert.rejects(setup(reply(502, 'no es json')).api('/x'), (e) => e.message === 'HTTP 502');
 });
 

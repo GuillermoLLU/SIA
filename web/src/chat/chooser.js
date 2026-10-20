@@ -1,31 +1,36 @@
 // Selector para abrir un chat: el agente (Claude, Copilot, Codex), cómo usa el
 // conocimiento del equipo y, con varios proyectos, qué fuentes. Lo usan el Chat
 // y el chat de cada issue. Al terminar llama a onLaunch(launcher, modo, proyectos).
+import { svg } from '../ui/html.js';
 
 const LAUNCHER_ICONS = {
-  claude: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 6l14 12M19 6L5 18"/></svg>',
-  copilot: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="10" rx="4"/><circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/><path d="M12 8V5"/></svg>',
-  codex: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z"/><path d="M12 3v18M4.2 7.5 19.8 16.5M19.8 7.5 4.2 16.5"/></svg>',
+  claude: svg('<path d="M12 3v18M5 6l14 12M19 6L5 18"/>'),
+  copilot: svg('<rect x="3" y="8" width="18" height="10" rx="4"/><circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/><path d="M12 8V5"/>'),
+  codex: svg('<path d="M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z"/><path d="M12 3v18M4.2 7.5 19.8 16.5M19.8 7.5 4.2 16.5"/>'),
 };
 
 const KNOWLEDGE_MODES = [
   {
     id: 'auto', label: 'Conocimiento autónomo',
     desc: 'Busca solo en la base del equipo cuando no sepa algo del proyecto.',
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 1 7 7c0 2.4-1.2 4.5-3 5.7V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.3C6.2 13.5 5 11.4 5 9a7 7 0 0 1 7-7z"/><path d="M9 21h6"/></svg>',
+    icon: svg('<path d="M12 2a7 7 0 0 1 7 7c0 2.4-1.2 4.5-3 5.7V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.3C6.2 13.5 5 11.4 5 9a7 7 0 0 1 7-7z"/><path d="M9 21h6"/>'),
   },
   {
     id: 'demand', label: 'Conocimiento bajo demanda',
     desc: 'Solo busca cuando tú lances la skill «Buscar en conocimiento».',
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>',
+    icon: svg('<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/>'),
   },
 ];
 
-const SOURCE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>';
+const SOURCE_ICON = svg('<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>');
+
+// Con un solo proyecto no hay nada que elegir: se abre con él. Con varios,
+// el paso de fuentes (todas incluidas de partida).
+export const launchPlan = (projects) => (projects.length > 1 ? { step: 'sources' } : { step: 'launch', projects: projects.map((p) => p.id) });
 
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; };
 
-// `el`: el contenedor; `launchers`: los del bridge; `loadProjects()`: proyectos
+// `host`: el contenedor; `launchers`: los del bridge; `loadProjects()`: proyectos
 // visibles (se piden al elegir agente: recoge los creados al vuelo).
 // `title`: la pregunta del primer paso.
 export const renderChooser = (host, { launchers, loadProjects, onLaunch, title = '¿Cómo abrimos este chat?' }) => {
@@ -35,7 +40,8 @@ export const renderChooser = (host, { launchers, loadProjects, onLaunch, title =
     for (const l of launchers) {
       const btn = el('button', 'launcher-btn');
       btn.disabled = !l.available;
-      btn.innerHTML = `<span class="launcher-ico">${LAUNCHER_ICONS[l.id] || ''}</span><span class="launcher-name">${l.label}</span>${l.available ? '' : '<span class="launcher-na">no instalado</span>'}`;
+      btn.innerHTML = `<span class="launcher-ico">${LAUNCHER_ICONS[l.id] || ''}</span><span class="launcher-name"></span>${l.available ? '' : '<span class="launcher-na">no instalado</span>'}`;
+      btn.querySelector('.launcher-name').textContent = l.label;
       if (l.available) btn.addEventListener('click', () => knowledgeStep(l));
       grid.appendChild(btn);
     }
@@ -49,7 +55,10 @@ export const renderChooser = (host, { launchers, loadProjects, onLaunch, title =
     for (const m of KNOWLEDGE_MODES) {
       const btn = el('button', 'launcher-btn wide');
       btn.innerHTML = `<span class="launcher-ico">${m.icon}</span><span class="launcher-name">${m.label}</span><span class="launcher-desc">${m.desc}</span>`;
-      btn.addEventListener('click', () => (projects.length > 1 ? sourcesStep(launcher, m.id, projects) : onLaunch(launcher, m.id, projects.map((p) => p.id))));
+      btn.addEventListener('click', () => {
+        const plan = launchPlan(projects);
+        if (plan.step === 'sources') sourcesStep(launcher, m.id, projects); else onLaunch(launcher, m.id, plan.projects);
+      });
       grid.appendChild(btn);
     }
     const back = el('button', 'launcher-back', '← elegir otro motor');
