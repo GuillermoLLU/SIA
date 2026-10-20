@@ -1,9 +1,10 @@
 # SIA
 
-Sistema de uso de IA para equipos. Es un cliente de IA local: una UI que
-conduce sesiones reales de CLI (Claude, Copilot, Codex, shell…) y las nutre con
-el **conocimiento del equipo** (RAG vectorial en Supabase) vía MCP, más un
-catálogo de skills compartido.
+La plataforma de soporte con IA del equipo. Es una aplicación local: una UI que
+conduce sesiones reales de CLI (Claude, Copilot o Codex) y las nutre con el
+**conocimiento del equipo** (RAG vectorial en Supabase) vía MCP, más un
+catálogo de skills compartido, la mesa de trabajo de las **issues** del
+servicio y las **métricas** del equipo.
 
 **Una instancia por cliente.** Cada cliente tiene su propia instancia de SIA
 con su propia **base de la instancia** (un proyecto Supabase: personas, roles y
@@ -185,29 +186,95 @@ clave secret por entorno en el momento, nunca se guarda.
 
 ## Trabajar en el repositorio
 
-- **Gitflow**: `main` es lo que está en producción y `develop` la rama de
-  integración. Cada cambio sale de `develop` en una rama `feature/<nombre>`,
-  se abre un pull request a `develop` y entra cuando el CI está en verde y
-  alguien del equipo lo ha revisado. Para publicar, `release/<versión>` desde
-  `develop` se cierra sobre `main` (con su tag `v*`) y vuelve a `develop`; un
-  arreglo urgente en producción va en `hotfix/<nombre>` desde `main` y se
-  cierra en las dos. Commits pequeños, uno por cambio, con el mensaje en
-  español explicando qué cambia y por qué.
-- **Arquitectura**: cada funcionalidad en su carpeta (`server/<slice>/`,
-  `web/src/<slice>/`) con el dominio en módulos puros, sin E/S ni DOM, y su
-  `*.test.js` al lado; la E/S y la vista reciben sus dependencias. `index.js`
-  y `main.js` solo cablean. Un helper que se repite va a `shared/` o `ui/`.
-- **Sin basura**: nada muerto, comentado, duplicado ni exportado «por si
-  acaso»; lo que deja de usarse se borra en el mismo cambio.
-- **Antes de subir**: `npm test` en verde (394 pruebas, en segundos) y
-  `cd web && npx vite build` sin errores; el CI (`.github/workflows/test.yml`)
-  lo repite en cada pull request y en cada push a `develop` y `main`. Un cambio de UI se mira en el
-  navegador contra <http://localhost:5220>. Las pruebas de SQL
-  (`npm run test:platform`, `npm run test:rls`) necesitan Docker y se lanzan a
-  mano cuando se toca la base.
-- **Conocimiento del equipo**: el RAG (contexto «SIA» del MCP `knowledge`) es
-  la referencia; cuando algo cambia, su entrada se reescribe en presente, sin
-  datos personales.
+Estas son las normas del equipo. GitHub no las impone (el repositorio es
+privado en una cuenta personal y no admite protección de ramas): las cumple
+cada uno.
 
-> **Multiplataforma:** Windows (ConPTY), macOS y Linux. App de escritorio con
-> Electron: `npm run dist` (macOS) / tag → CI (`.exe`).
+### Ramas (Gitflow)
+
+- `main` es **producción**: solo recibe cierres de `release/*` y `hotfix/*`.
+- `develop` es la rama de **integración** y la rama por defecto del
+  repositorio: de ella sale todo y a ella vuelve todo.
+- Cada cambio va en una rama `feature/<nombre-corto>` creada desde `develop`.
+- Para publicar: `release/<versión>` desde `develop`; se sube la versión en
+  `package.json`, se prueba, se cierra sobre `main` con el tag `v<versión>` (el
+  workflow `build-windows` construye el instalador) y se vuelve a mezclar en
+  `develop`.
+- Un arreglo urgente en producción: `hotfix/<nombre>` desde `main`, y se
+  cierra en `main` (con tag) y en `develop`.
+- **Nunca** un commit directo ni un `push --force` a `main` o `develop`.
+
+```bash
+git checkout develop && git pull
+git checkout -b feature/mi-cambio
+# … commits …
+git push -u origin feature/mi-cambio
+gh pr create --base develop        # o desde la web de GitHub
+```
+
+### Pull requests
+
+- Siempre a `develop` (salvo `release/*` y `hotfix/*`, que van a `main`).
+- Pequeñas y de una sola cosa: si el título necesita una «y», son dos PR.
+- Entra cuando el CI está en **verde** y **otra persona** la ha revisado y
+  aprobado. Nadie mezcla su propia PR sin revisión ni con el CI en rojo o
+  pendiente, aunque el botón lo permita.
+- Las conversaciones abiertas en la revisión se resuelven antes de mezclar.
+- Se mezcla con *merge commit* (no *squash*), para que el historial de la
+  rama se conserve, y después se borra la rama.
+- Commits pequeños, uno por cambio, con el mensaje en español: un título
+  corto y un cuerpo que explica qué cambia y por qué.
+
+### Arquitectura: VSA + dominio, KISS y SOLID
+
+- Cada funcionalidad vive en su carpeta (`server/<slice>/`,
+  `web/src/<slice>/`), con tres capas: el **dominio** en módulos puros (sin
+  E/S ni DOM, con sus reglas y sus cálculos), la **E/S** (rutas, persistencia,
+  API, WebSocket) y la **vista**. `server/index.js` y `web/src/main.js` solo
+  cablean: no se les añade lógica.
+- Las dependencias se **inyectan** (`createX({ platform, fs, now, api… })`),
+  nunca se crean dentro: así todo se prueba sin red, sin disco y sin
+  navegador.
+- Responsabilidad única y funciones pequeñas; un helper que se repite va a
+  `server/shared/` o `web/src/ui/`, no se copia.
+- **Sin basura**: nada de código muerto, comentado, duplicado, de `TODO` ni de
+  exports «por si acaso». Lo que deja de usarse se borra en el mismo cambio.
+- Comentarios en español, breves, explicando el porqué (no el qué).
+
+### Pruebas
+
+- Todo el dominio lleva su `*.test.js` al lado (`node --test`); una regla
+  nueva sin prueba no entra. Las rutas se prueban con `json`/`readBody`
+  falsos y la sesión ya resuelta.
+- Antes de subir: `npm test` en verde (en segundos) y `cd web && npx vite build`
+  sin errores. El CI (`.github/workflows/test.yml`) repite las dos cosas en
+  cada PR y en cada push a `develop` y `main`.
+- Un cambio de UI se comprueba en el navegador contra
+  <http://localhost:5220> (Playwright con el Chrome del sistema, revisando
+  capturas y la consola) antes de abrir la PR. En Métricas, cada pestaña con un
+  lado, comparando y con una persona.
+- Las pruebas de SQL (`npm run test:platform`, `npm run test:rls`) necesitan
+  Docker y se lanzan a mano cuando se toca la base.
+- Los datos de clientes (CSV de Remedy, informes) no se suben nunca al
+  repositorio ni a la base: se trabaja con ellos en local.
+
+### El conocimiento del equipo (RAG)
+
+- El RAG (contexto «SIA» del servidor MCP `knowledge`, accesible desde
+  cualquier chat de SIA) es **la referencia** de cómo está montado todo:
+  arquitectura, cada vista, cada decisión. Antes de preguntar o de suponer,
+  se busca ahí.
+- Cuando un cambio deja algo desfasado, su entrada se **reescribe en
+  presente** (no se añade una nota encima), sin datos personales y con detalle
+  suficiente para trabajar sin el historial de chats. La skill «Nutrir
+  conocimiento» guía el alta.
+
+### Entrar nuevo en el equipo
+
+1. Acceso al repositorio y una cuenta de la instancia (la crea un
+   administrador en Personas, con su rol y los proyectos que verá).
+2. Node 22 y los CLIs que vaya a usar con sesión iniciada: `claude`,
+   `copilot` o `codex`.
+3. `git clone`, `node dev.mjs`, <http://localhost:5220>, iniciar sesión.
+4. Leer este README y, en un chat de SIA, pedirle que busque en el
+   conocimiento «cómo está montado SIA»: ahí está el resto.
