@@ -29,3 +29,38 @@ test('problema: sin etiquetas entre corchetes y en singular, para juntar las for
   assert.notEqual(problemKey('permisos de usuario sisu'), problemKey('permisos de usuario'));
   assert.equal(problemKey('[pos]'), '');
 });
+
+// un título de ejemplo por tema, en el orden de THEMES
+const EXAMPLES = [
+  ['Ruta / etiqueta de pedidos (aviso automático TEC)', 'INCIDENCIA RUTA Y/O ETIQUETA: pedido 1'],
+  ['Etiquetas e impresión', 'no imprime la etiqueta'],
+  ['Permisos, usuarios y accesos', 'alta usuario sin permisos'],
+  ['Rechazos y recirculación', 'rechazos en la inducción'],
+  ['Automatismo parado o bloqueado', 'la grúa no arranca'],
+  ['Estados de pedido y discrepancias', 'discrepancia de estados de pedido'],
+  ['Cancelar / anular / retroceder', 'cancelar pedido'],
+  ['OT y cierres', 'no se puede cerrar la OT'],
+  ['Contenedores, bultos y puestos', 'contenedor sin destino'],
+  ['SKU, maestros e imágenes', 'imagen del SKU incorrecta'],
+  ['Stock e inventario', 'unidades de stock mal'],
+  ['RFID', 'lectura RFID fallida'],
+  ['Caídas, lentitud y errores generales', 'lentitud en la aplicación'],
+  ['Comunicaciones y red', 'sin conexión de red'],
+  ['Configuración', 'activar tabla de reparto'],
+  ['PDA y dispositivos', 'la PDA no enciende'],
+  ['Posiciones de almacén', 'posición sin ubicación'],
+  ['Transporte y expedición', 'expedición sin transportista'],
+  ['Entradas y recepción', 'recepción de material'],
+  ['Packing y empaquetado', 'mesa de packing sin papel'],
+  ['Picking, sorting y reparto', 'oleada de picking perdida'],
+  ['Base de datos', 'bloqueo DB2'],
+  ['Tienda (sorter, probadores, tienda-CD)', 'probadores sin servicio'],
+  ['Pedidos (pausados, custom, reprocesar)', 'pedido pausado'],
+  ['Devoluciones', 'devolución no procesada'],
+  ['Despliegues, versiones y migraciones', 'nueva versión del launcher'],
+];
+
+test('cada tema reconoce su título de ejemplo (y no hay temas sin ejemplo)', () => {
+  assert.deepEqual(EXAMPLES.map(([name]) => name), THEME_NAMES);
+  for (const [name, example] of EXAMPLES) assert.ok(has(readTitle(`100001 High X - ${example}`).themes, name), name);
+});

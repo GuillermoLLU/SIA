@@ -3,6 +3,8 @@
 // la comparación (sin responsable o personal del cliente) y T-Systems todos
 // los demás del grupo. Quien entre en el equipo de Indra, aquí.
 
+import { key } from './text.js';
+
 export const COMPANY = { INDRA: 0, OTHER: 1, OUT: 2 };
 
 const INDRA = new Set(['EMILIANOSAB', 'CONCHIBG', 'RICARDOEB', 'JAVIERED', 'JUANMFL', 'RAMONFA', 'JAVIERGSANCH', 'RUBENMU', 'MARIOPV',
@@ -22,16 +24,15 @@ export const companyOf = (person, logins) => {
 // Las cuentas de sistema no cuentan. `resolvers`: Map nombre → Map usuario → veces.
 // Devuelve Map usuario → nombre (una persona puede tener más de un usuario).
 const SYSTEM = new Set(['robot.siglo', 'AR_ESCALATOR', 'Remedy Application Service', 'ITX784_LOGISTIC_SUPPORT', 'Unknown User', 'appadmin', 'hannah_admin']);
-const plain = (s) => s.normalize('NFD').replace(/\p{Mn}/gu, '').toUpperCase();
 
 export const loginsOf = (resolvers) => {
   const byLogin = new Map();
   for (const [name, counts] of resolvers) {
     if (!name) continue;
-    const first = plain(name).trim().split(/\s+/)[0].slice(0, 5);
+    const first = key(name).split(' ')[0].slice(0, 5);
     const total = [...counts.values()].reduce((a, b) => a + b, 0);
     const cands = [...counts].filter(([l]) => !SYSTEM.has(l) && !l.startsWith('ITX')).sort((a, b) => b[1] - a[1]);
-    const pick = cands.find(([l]) => plain(l).startsWith(first)) || (cands[0]?.[1] >= 5 && cands[0][1] >= 0.6 * total ? cands[0] : null);
+    const pick = cands.find(([l]) => key(l).startsWith(first)) || (cands[0]?.[1] >= 5 && cands[0][1] >= 0.6 * total ? cands[0] : null);
     if (pick && !byLogin.has(pick[0])) byLogin.set(pick[0], name);
   }
   return byLogin;

@@ -6,16 +6,14 @@
 // readIssue es la entrada; las piezas en que se descompone (fechas, historial,
 // notas, ticket, ámbito, operación) van públicas para probarse una a una.
 import { readTitle } from './themes.js';
+import { fold, norm, key, toCode } from './text.js';
+import { OPEN_STATES, DONE_STATES, CANCELLED, PENDING } from './states.js';
 
 // Marcas de una issue (bits de `flags`). La web las nombra con los mismos bits.
 export const FLAG = {
   SISU: 1, PRIO: 2, PETREQ: 4, AUTO_NOTICE: 8, REPROCESS: 16, IA_SOLVED: 32, IA_FAIL_TAG: 64, DB2_LOCK: 128,
   MAJOR: 256, REOPENED: 512, CALL: 1024, IA: 2048, HITL_OK: 4096, IA_FAIL: 8192, RECURRENCE: 16384, NO_RESOLUTION: 32768,
 };
-
-export const fold = (s) => String(s ?? '').normalize('NFD').replace(/\p{Mn}/gu, '');
-export const norm = (s) => fold(String(s ?? '').toLowerCase()).replace(/\s+/g, ' ').trim();
-export const key = (s) => fold(s).toUpperCase().replace(/\s+/g, ' ').trim();
 
 const STAMP = /^(\d{4})-(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d)/;
 export const minutesSince = (base, s) => {
@@ -69,47 +67,42 @@ export const entries = (text) => (text || '').split(ENTRY).flatMap((e) => {
   return b < 0 ? [] : [{ at: e.slice(0, a), who: e.slice(a + 3, b), text: e.slice(b + 3) }];
 });
 
-// Motivos de «Pendiente»: esperando al centro / cliente o a un tercero.
-const PENDING_CLIENT = new Set(['Client Action Required', 'Client Hold', 'Customer Follow-Up Required', 'Local Site Action Required', 'Request information', 'Request Information']);
-const PENDING_VENDOR = new Set(['Third Party Vendor Action Reqd', 'Supplier Delivery', 'Purchase Order Approval', 'Escalated according to procedure', 'Request SSGG', 'Infrastructure Change']);
-const OPEN_STATES = ['Assigned', 'In Progress', 'Pending'];
-const DONE_STATES = ['Resolved', 'Closed'];
-
-// Recorrido del historial de estados: tiempo en cada estado, primera
-// actuación (primer cambio de estado real), primer paso a En curso (SLA de
-// inicio), devoluciones a la cola, pendientes, reapertura y quién resuelve.
+// Recorrido del historial de estados (los estados y motivos, con sus códigos: states.js): tiempo en cada estado,
+// primera actuación (primer cambio de estado real), primer paso a En curso (SLA de inicio), devoluciones a la
+// cola, pendientes, reapertura y quién resuelve.
+const [ASSIGNED, IN_PROGRESS, PENDING_ST] = OPEN_STATES, RESOLVED = DONE_STATES[0];
 export const statusHistory = (audit, { reported, modified, openNow, at }) => {
   const changes = [], reasonAt = new Map();
   for (const e of entries(audit)) {
     const arrow = e.text.indexOf(' → ');
     if (arrow < 0) continue;
-    if (e.text.startsWith('Status: ')) changes.push({ at: e.at, who: e.who, from: e.text.slice(8, arrow).trim(), to: e.text.slice(arrow + 3).trim() });
-    else if (e.text.startsWith('Status_Reason: ')) { const r = e.text.slice(arrow + 3).trim(); if (r) reasonAt.set(e.at, r); }
+    if (e.text.startsWith('Status: ')) changes.push({ at: e.at, who: e.who, from: toCode(e.text.slice(8, arrow)), to: toCode(e.text.slice(arrow + 3)) });
+    else if (e.text.startsWith('Status_Reason: ')) { const r = toCode(e.text.slice(arrow + 3)); if (r) reasonAt.set(e.at, r); }
   }
   changes.sort((x, y) => (x.at < y.at ? -1 : x.at > y.at ? 1 : 0));
   const time = { queue: 0, work: 0, client: 0, vendor: 0, other: 0 };
   const out = { first: -1, start: -1, bounces: 0, pendings: 0, reopened: false, resolvedBy: [] };
   let cur = null, since = reported, pending = 'other';
   const spend = (minutes) => {
-    if (cur === 'Assigned') time.queue += minutes;
-    else if (cur === 'In Progress') time.work += minutes;
-    else if (cur === 'Pending') time[pending] += minutes;
+    if (cur === ASSIGNED) time.queue += minutes;
+    else if (cur === IN_PROGRESS) time.work += minutes;
+    else if (cur === PENDING_ST) time[pending] += minutes;
   };
   for (const c of changes) {
     const t = at(c.at);
-    if (out.start < 0 && c.to === 'In Progress') out.start = Math.max(t - reported, 0);
+    if (out.start < 0 && c.to === IN_PROGRESS) out.start = Math.max(t - reported, 0);
     if (cur === null) { cur = c.to; since = t; continue; }
     if (c.from === c.to) continue;
     spend(Math.max(t - since, 0));
     if (out.first < 0) out.first = Math.max(t - reported, 0);
-    if (c.from === 'In Progress' && c.to === 'Assigned') out.bounces++;
-    if (DONE_STATES.includes(c.from) && ![...DONE_STATES, 'Cancelled'].includes(c.to)) out.reopened = true;
-    if (c.to === 'Pending') {
+    if (c.from === IN_PROGRESS && c.to === ASSIGNED) out.bounces++;
+    if (DONE_STATES.includes(c.from) && ![...DONE_STATES, CANCELLED].includes(c.to)) out.reopened = true;
+    if (c.to === PENDING_ST) {
       out.pendings++;
       const r = reasonAt.get(c.at) || '';
-      pending = PENDING_CLIENT.has(r) ? 'client' : PENDING_VENDOR.has(r) ? 'vendor' : 'other';
+      pending = PENDING.client.includes(r) ? 'client' : PENDING.vendor.includes(r) ? 'vendor' : 'other';
     }
-    if (c.to === 'Resolved') out.resolvedBy.push(c.who);
+    if (c.to === RESOLVED) out.resolvedBy.push(c.who);
     cur = c.to; since = t;
   }
   if (openNow && OPEN_STATES.includes(cur)) spend(Math.max(modified - since, 0)); // hasta el último movimiento conocido
@@ -146,7 +139,7 @@ export const readIssue = (r, base) => {
   const at = (s) => minutesSince(base, s);
   const reported = at(r.REPORTEDDATE), modified = at(r.LASTMODIFIEDDATE);
   const tags = new Set(r.TAGS.split(/[;,:]/).map((t) => t.trim()).filter(Boolean).map((t) => t.split('=')[0]));
-  const openNow = ['ASSIGNED', 'IN_PROGRESS', 'PENDING'].includes(r.STATUS);
+  const openNow = OPEN_STATES.includes(r.STATUS);
   const h = statusHistory(r.AUDIT_DETAIL, { reported, modified, openNow, at });
   const flags = tagFlags(tags) | noteFlags(r.WORKLOG_DETAIL) | (h.reopened ? FLAG.REOPENED : 0) | (r.RESOLUTION.trim() ? 0 : FLAG.NO_RESOLUTION);
   return {

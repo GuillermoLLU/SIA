@@ -5,7 +5,7 @@
 // Los temas se buscan solo en el problema: en la cabecera, «PACKING», «SORTING» o «RETURNS» son la zona
 // o el filtro, no lo que falla.
 //
-// Temas: palabras clave (sin tildes y en minúsculas). Es una aproximación para
+// Temas: palabras clave (sin tildes y en minúsculas: text.js, norm). Es una aproximación para
 // ver bultos, no para contar al detalle. Una issue puede caer en varios; el
 // aviso automático de ruta y etiqueta (el primero) no cuenta en ningún otro.
 
@@ -31,7 +31,7 @@ export const THEMES = [
   ['Entradas y recepción', /recepcion|entrada|inbound|\bpos?\b(?! ?\])|recibid|descarga/],
   ['Packing y empaquetado', /packing|empaquet|\bmesas?\b|\bptl\b/],
   ['Picking, sorting y reparto', /picking|sorting|sorter|reparto|olear|oleada|waves?\b|clasificad/],
-  ['Base de datos', /\bdb2\b|\bbd\b|bbdd|base de datos|database/],
+  ['Base de datos', /\bdb#|\bbd\b|bbdd|base de datos|database/],   // los números ya son «#»: «db2» llega como «db#»
   ['Tienda (sorter, probadores, tienda-CD)', /probadores|tienda|store|garment sorter|sorter prendas|selezionatore|kleidersortierer/],
   ['Pedidos (pausados, custom, reprocesar)', /pedido|\border/],
   ['Devoluciones', /devoluc|return/],
@@ -48,18 +48,19 @@ const themesOf = (text) => {
   return mask;
 };
 
-const fold = (s) => s.normalize('NFD').replace(/\p{Mn}/gu, '').toLowerCase();
+import { norm } from './text.js';
+
 const HEAD = /^(\d{6})\s+(?:(?:cr[ií]tic[ao]|critical|alta|high|m[eé]dia|medium|baja|baixa|low)\b\s*)?/i;
 
 // Título → el problema, sin tildes, en minúsculas y con los números como «#» ('' si no lo describe:
 // un título con cabecera de centro pero sin « - »), y sus temas. En el aviso automático, el problema es
 // lo que va tras «:» y el tema, solo el suyo.
 export const readTitle = (summary) => {
-  const s = summary.trim(), rest = s.replace(HEAD, ''), auto = THEMES[0][1].test(fold(s));
+  const s = summary.trim(), rest = s.replace(HEAD, ''), auto = THEMES[0][1].test(norm(s));
   let d = '';
   if (auto) d = rest.replace(/^.*?:\s*/, '');
   else { const p = rest.indexOf(' - '); if (p >= 0) d = rest.slice(p + 3); else if (!HEAD.test(s)) d = rest; }
-  const problem = fold(d).replace(/\d+/g, '#').replace(/[.\s]+$/, '').replace(/\s+/g, ' ').trim();
+  const problem = norm(d).replace(/\d+/g, '#').replace(/[.\s]+$/, '');
   return { problem, themes: auto ? 1 : themesOf(problem) };
 };
 

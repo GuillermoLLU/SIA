@@ -10,6 +10,7 @@ export const data = () => ({
     person: ['', 'ANA', 'LUIS'], centre: ['', 'C1'], op: ['', 'ECOM Zara'], module: ['', 'EWMS', 'PACKING'], cat: ['', 'X'],
     vtype: ['', 'TEC'], vproj: ['', 'SGA'], vkey: ['', 'SGA-1'], resol: ['', 'reinicio'], problem: ['', 'etiqueta mal'] },
   themes: ['Tema A', 'Tema B'],
+  reasons: { client: ['CLIENT_ACTION_REQUIRED', 'CUSTOMER_FOLLOW_UP_REQUIRED'], vendor: ['THIRD_PARTY_VENDOR_ACTION_REQD'] },
   company: [2, 0, 1],
   cols: {
     id: [1, 2, 3, 4, 5], rep: [1000, 2000, SNAP - 200, 5000, 6000], res: [1060, 5000, -1, 5100, 6001],

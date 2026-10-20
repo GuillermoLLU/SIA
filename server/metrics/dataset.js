@@ -11,6 +11,7 @@
 //           snapshot: el último minuto con movimiento (la «hora de la foto»).
 //   dict    textos por columna; el 0 es siempre ''.
 //   themes  nombres de los temas (bit i de `th`).
+//   reasons los motivos de Pendiente que son esperar al cliente o a un tercero (states.js), para la situación.
 //   company empresa de cada persona de dict.person (companies.js).
 //   cols    una lista por columna, una posición por issue:
 //           id número · rep/res abierta y resuelta · lm último cambio (minutos desde el 1 de enero; -1 no hay)
@@ -24,9 +25,10 @@
 import { readIssue, FLAG } from './remedy.js';
 import { loginsOf, companyOf } from './companies.js';
 import { THEME_NAMES, problemKey } from './themes.js';
+import { PENDING } from './states.js';
 
 const GROUP = 'AYS SOPORTE';
-export const FORMAT = 2;
+export const FORMAT = 3;
 
 export const REQUIRED = ['INCIDENTNUMBER', 'ASSIGNEDGROUP', 'ASSIGNEE', 'SUMMARY', 'PRIORITY', 'STATUS', 'STATUSREASON', 'SERVICETYPE', 'TAGS',
   'REPORTEDDATE', 'LASTRESOLUTIONDATE', 'LASTMODIFIEDDATE', 'RESOLUTION', 'VENDORTICKETNUMBER', 'PRODUCTCATEGORIZATIONTIER1',
@@ -103,6 +105,7 @@ export const createDataset = ({ year }) => {
       meta: { format: FORMAT, file, year, group: GROUP, rows: cols.id.length, total, snapshot, generated },
       dict,
       themes: THEME_NAMES,
+      reasons: PENDING,
       company: people.map((name) => companyOf(name, logins.get(name) || [])),
       cols,
     };
