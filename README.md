@@ -185,9 +185,14 @@ clave secret por entorno en el momento, nunca se guarda.
 
 ## Trabajar en el repositorio
 
-- **Trunk-based**: commits pequeños directamente en `main`, uno por cambio,
-  con el mensaje en español explicando qué cambia y por qué, y push tras cada
-  iteración probada. Nada de ramas largas.
+- **Gitflow**: `main` es lo que está en producción y `develop` la rama de
+  integración. Cada cambio sale de `develop` en una rama `feature/<nombre>`,
+  se abre un pull request a `develop` y entra cuando el CI está en verde y
+  alguien del equipo lo ha revisado. Para publicar, `release/<versión>` desde
+  `develop` se cierra sobre `main` (con su tag `v*`) y vuelve a `develop`; un
+  arreglo urgente en producción va en `hotfix/<nombre>` desde `main` y se
+  cierra en las dos. Commits pequeños, uno por cambio, con el mensaje en
+  español explicando qué cambia y por qué.
 - **Arquitectura**: cada funcionalidad en su carpeta (`server/<slice>/`,
   `web/src/<slice>/`) con el dominio en módulos puros, sin E/S ni DOM, y su
   `*.test.js` al lado; la E/S y la vista reciben sus dependencias. `index.js`
@@ -196,7 +201,7 @@ clave secret por entorno en el momento, nunca se guarda.
   acaso»; lo que deja de usarse se borra en el mismo cambio.
 - **Antes de subir**: `npm test` en verde (394 pruebas, en segundos) y
   `cd web && npx vite build` sin errores; el CI (`.github/workflows/test.yml`)
-  lo repite en cada push y pull request. Un cambio de UI se mira en el
+  lo repite en cada pull request y en cada push a `develop` y `main`. Un cambio de UI se mira en el
   navegador contra <http://localhost:5220>. Las pruebas de SQL
   (`npm run test:platform`, `npm run test:rls`) necesitan Docker y se lanzan a
   mano cuando se toca la base.

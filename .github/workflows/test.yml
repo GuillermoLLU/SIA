@@ -1,10 +1,10 @@
 name: test
 
-# Las pruebas de dominio (npm test) y la compilación de la web, en cada push y
-# en cada pull request. Lo que no pase aquí no entra en main.
+# Las pruebas de dominio (npm test) y la compilación de la web, en cada pull
+# request y en cada push a develop y main. Lo que no pase aquí no entra.
 on:
   push:
-    branches: ['main']
+    branches: ['main', 'develop']
   pull_request:
 
 jobs:
