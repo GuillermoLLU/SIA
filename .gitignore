@@ -1,5 +1,5 @@
 # dependencias y builds
-node_modules/
+node_modules
 dist-app/
 web/dist/
 
