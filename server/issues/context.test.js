@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { issueContext, promptArgs } from './context.js';
+import { issueContext } from './context.js';
 
 const issue = { id: 'INC1', text: 'PDA sin imagen', center: '100537', priority: 'HIGH', prio: true, sisu: false, status: 'ASSIGNED', reason: '', category: 'A › B', reported: '2026-10-01 10:00', notes: 'El SKU no carga', vendorTicket: '', related: '' };
 
@@ -15,10 +15,4 @@ test('contexto: los datos de la issue y lo que dice el centro', () => {
 
 test('contexto: descripción enorme, recortada', () => {
   assert.ok(issueContext({ ...issue, notes: 'x'.repeat(20000) }).length < 7000);
-});
-
-test('primer mensaje según el agente', () => {
-  assert.deepEqual(promptArgs('claude', 'hola'), ['hola']);
-  assert.deepEqual(promptArgs('codex', 'hola'), ['hola']);
-  assert.deepEqual(promptArgs('copilot', 'hola'), ['-i', 'hola']);
 });

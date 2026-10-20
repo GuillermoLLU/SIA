@@ -8,8 +8,8 @@
 import { randomBytes, createHash } from 'node:crypto';
 
 // «Mantener la sesión»: 30 días; sin marcar, 12 horas.
-export const REMEMBER_MS = 30 * 24 * 60 * 60 * 1000;
-export const SESSION_MS = 12 * 60 * 60 * 1000;
+const REMEMBER_MS = 30 * 24 * 60 * 60 * 1000;
+const SESSION_MS = 12 * 60 * 60 * 1000;
 
 const tokenHash = (token) => createHash('sha256').update(String(token)).digest('hex');
 

@@ -8,7 +8,7 @@
 // vistas o desactivada: sin clave. Con Administración tampoco: usa la del
 // dueño de la base (la instancia se la da; platform_my_knowledge).
 
-import { cleanPerms } from '../access/perms.js';
+import { cleanPerms } from '../shared/perms.js';
 
 // Vistas de SIA que son un permiso en la base (mismo nombre).
 const KEY_VIEWS = ['lab', 'links'];

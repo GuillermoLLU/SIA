@@ -11,6 +11,7 @@
 //   sola vez). El perfil se pide siempre al abrir la app y, después, como
 //   mucho cada minuto: si lo desactivan, le cambian el rol o lo borran, se
 //   nota enseguida.
+// - Las sesiones guardadas se leen del disco una vez y se escriben al cambiar.
 // - Cinco intentos fallidos seguidos imponen 30 s de espera.
 
 import { newSession, liveSessions, sessionFor } from './sessions.js';
@@ -27,19 +28,18 @@ export const createAuth = ({ platform, readConfig, writeConfig, now = Date.now }
   const inflight = new Map();  // hash → promesa de context en curso
   const fails = { n: 0, until: 0 };
 
-  const sessions = () => [...memSessions, ...liveSessions(readConfig().sessions, now())];
+  let stored = liveSessions(readConfig().sessions, now()); // las guardadas («Mantener la sesión»)
+  const sessions = () => [...memSessions, ...stored];
+  const persist = () => { stored = liveSessions(stored, now()); writeConfig({ ...readConfig(), sessions: stored }); };
   const storeRefresh = (session, refreshToken) => {
     session.refreshToken = refreshToken;
-    if (!session.remember) return;
-    const cfg = readConfig();
-    writeConfig({ ...cfg, sessions: liveSessions(cfg.sessions, now()).map((s) => (s.hash === session.hash ? { ...s, refreshToken } : s)) });
+    if (session.remember) persist();
   };
   const drop = (hash) => {
     live.delete(hash);
     const i = memSessions.findIndex((s) => s.hash === hash);
     if (i >= 0) memSessions.splice(i, 1);
-    const cfg = readConfig();
-    if (cfg.sessions?.some((s) => s.hash === hash)) writeConfig({ ...cfg, sessions: liveSessions(cfg.sessions, now()).filter((s) => s.hash !== hash) });
+    if (stored.some((s) => s.hash === hash)) { stored = stored.filter((s) => s.hash !== hash); persist(); }
   };
 
   // → { token, user } | { wait: segundos } | { error }
@@ -64,10 +64,7 @@ export const createAuth = ({ platform, readConfig, writeConfig, now = Date.now }
     }
     fails.n = 0;
     const { token, session } = newSession({ userId: user.id, refreshToken: tokens.refreshToken, remember }, t);
-    if (remember) {
-      const cfg = readConfig();
-      writeConfig({ ...cfg, sessions: [...liveSessions(cfg.sessions, t), session] });
-    } else memSessions.push(session);
+    if (remember) { stored.push(session); persist(); } else memSessions.push(session);
     live.set(session.hash, { accessToken: tokens.accessToken, expiresAt: tokens.expiresAt, user, checkedAt: t });
     return { token, user };
   };

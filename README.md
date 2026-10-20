@@ -134,10 +134,16 @@ hasta que se vuelve a ejecutar su SQL (`node server/base/schema-sql.js`).
 - `web/` — UI (Vite + xterm.js): pestañas multi-sesión, temas, lanzador,
   Laboratorio de skills, Administración, enlaces rápidos. Puerto **5220**.
 - `server/` — bridge local: un PTY por sesión expuesto por WebSocket y la API
-  HTTP. Por funcionalidad: `platform/` (cliente de la base de la instancia),
-  `auth/` (sesión y vistas), `users/` (personas), `knowledge/` (conocimiento
-  asignado y claves de cada persona), `access/` y `base/` (cabeceras,
-  permisos y esquema de la base de conocimiento). A cada CLI se le pasa el MCP de la sesión a su manera: Claude con
+  HTTP. `index.js` solo monta las piezas (`startBridge()`) y `router.js` las
+  encamina; cada funcionalidad vive en su carpeta, con su dominio puro
+  probado: `platform/` (cliente de la base de la instancia), `auth/` (sesión y
+  vistas), `users/` (personas), `knowledge/` (conocimiento asignado y claves
+  de cada persona), `base/` (cliente, permisos y esquema de la base de
+  conocimiento), `projects/` (Administración), `skills/` (Laboratorio y
+  sincronización), `links/`, `uploads/`, `issues/`, `metrics/`, `config/`
+  (config personal), `lock/` (candado), `remote/` (acceso desde el móvil y
+  túnel), `launchers/` (los CLIs y su MCP por sesión), `workspace/` (modos y
+  skills por base), `terminal/` (los chats) y `shared/` (lo común). A cada CLI se le pasa el MCP de la sesión a su manera: Claude con
   `--mcp-config`, Copilot con `--additional-mcp-config` y Codex con un
   perfil temporal (`-p`) que se borra al cerrar la sesión. Los puertos se eligen solos (pares 57413/57414 → 58527/58528 →
   59641/59642; `SIA_PORT` fuerza uno). Acceso desde el móvil por QR+PIN, en

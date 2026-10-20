@@ -1,7 +1,7 @@
-// sia — host de Electron.
-// Arranca el bridge (server/index.js) DENTRO del proceso principal y abre la
-// UI (build estático de web/). Todo lo que ya funcionaba en dev corre igual:
-// la web recibe los puertos elegidos por query string (?ws=&api=).
+// SIA: el host de Electron. Arranca el bridge (server/index.js) DENTRO del
+// proceso principal y abre la UI (build estático de web/). Todo lo que ya
+// funcionaba en dev corre igual: la web recibe los puertos elegidos por
+// query string (?ws=&api=).
 import { app, BrowserWindow, shell } from 'electron';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
@@ -26,6 +26,7 @@ const fixPath = () => {
 };
 
 let win = null;
+let ports = { ws: '', api: '' }; // los elige el bridge al arrancar
 const createWindow = () => {
   win = new BrowserWindow({
     width: 1280,
@@ -34,10 +35,7 @@ const createWindow = () => {
     backgroundColor: '#f5f6f8',
     webPreferences: { contextIsolation: true },
   });
-  const ports = globalThis.__SIA_PORTS || {};
-  win.loadFile(path.join(ROOT, 'web', 'dist', 'index.html'), {
-    query: { ws: String(ports.ws || ''), api: String(ports.api || '') },
-  });
+  win.loadFile(path.join(ROOT, 'web', 'dist', 'index.html'), { query: { ws: String(ports.ws), api: String(ports.api) } });
   // los enlaces externos (p. ej. abrir un adjunto) van al navegador del sistema
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
@@ -59,7 +57,8 @@ app.whenReady().then(async () => {
   // todo lo escribible (skills sync, uploads, borradores, modos) vive en el
   // perfil del usuario — el .app instalado es de solo lectura
   process.env.SIA_WORKSPACE = path.join(app.getPath('userData'), 'workspace');
-  await import(pathToFileURL(path.join(ROOT, 'server', 'index.js')).href);
+  const { startBridge } = await import(pathToFileURL(path.join(ROOT, 'server', 'index.js')).href);
+  ports = await startBridge();
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });

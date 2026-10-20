@@ -8,8 +8,8 @@
 //   links  = editar enlaces rápidos
 // Las skills comunes son cosa del dueño, no un permiso. La fila owner=true
 // lo abre todo y no se edita ni se revoca desde la app.
-export const PERMS = ['lab', 'admin', 'links'];
-export const ALL_PERMS = Object.fromEntries(PERMS.map((p) => [p, true]));
+const PERMS = ['lab', 'admin', 'links'];
+const ALL_PERMS = Object.fromEntries(PERMS.map((p) => [p, true]));
 export const cleanPerms = (p) => Object.fromEntries(PERMS.map((k) => [k, !!p?.[k]]));
 
 // { name, owner, lab, admin, links } a partir de una fila de

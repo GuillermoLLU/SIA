@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { buildSchemaSql, commonSkillsSql, OWNER_KEY_PLACEHOLDER } from './schema-sql.js';
+import { buildSchemaSql, commonSkillsSql } from './schema-sql.js';
 
 test('el SQL completo lleva la clave de dueño (dos veces) y ningún marcador', () => {
   const sql = buildSchemaSql('11111111-2222-3333-4444-555555555555');
-  assert.equal(sql.includes(OWNER_KEY_PLACEHOLDER), false);
+  assert.equal(sql.includes('__SIA_OWNER_KEY__'), false);
   assert.equal(sql.split('11111111-2222-3333-4444-555555555555').length - 1, 2); // la guarda y el insert
   assert.ok(sql.trimEnd().endsWith("notify pgrst, 'reload schema';"));
   assert.ok(sql.includes('insert into public.skills'), 'lleva las skills comunes de la app');
