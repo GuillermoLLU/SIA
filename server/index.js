@@ -14,6 +14,10 @@ import { json, readBody, sendFile } from './shared/http.js';
 import { linksRoutes } from './links/routes.js';
 import { uploadsRoutes } from './uploads/routes.js';
 import { projectsRoutes } from './projects/routes.js';
+import { createTunnel } from './remote/tunnel.js';
+import { createRemote } from './remote/service.js';
+import { lanRoutes } from './remote/routes.js';
+import { isLoopback, lanToken, openWithoutSession, remoteReach, openWhileLocked } from './remote/remote.js';
 import { createConfigStore } from './config/store.js';
 import { cleanTheme, userEnv, cleanEnv } from './config/config.js';
 import { configRoutes } from './config/routes.js';
@@ -101,70 +105,6 @@ if (process.env.SIA_PORT) {
 }
 // la app Electron lee aquí los puertos elegidos para pasárselos a la UI
 globalThis.__SIA_PORTS = { ws: PORT, api: API_PORT };
-
-/* ── Acceso desde otro dispositivo (móvil) ──────────────────────────
-   El bridge ya escucha en todas las interfaces, así que por defecto
-   DENEGAMOS todo lo que no venga de localhost. Un dispositivo solo entra
-   si presenta una llave de sesión, que se obtiene emparejando con el QR
-   (token de un solo uso) + el PIN que muestra el escritorio.
-   Dos modos: 'lan' (misma WiFi, como siempre) y 'public' (túnel de
-   Cloudflare con URL temporal — el estado del túnel vive en PUBLIC). */
-const LAN = {
-  pairing: null,        // { token, pin, expiresAt, mode } emparejamiento pendiente (el último QR)
-  // sessionToken -> { id, name, since, ip, mode, locked, lastSeen, unlockAttempts }
-  // (id: identificador corto para la lista de dispositivos; el token no sale nunca)
-  sessions: new Map(),
-};
-const newToken = () => randomBytes(24).toString('base64url');
-// Nombre reconocible de un dispositivo a partir de su navegador, para la lista
-// de conectados («iPhone · Safari»). Es orientativo: un iPad se anuncia como Mac.
-const deviceName = (ua = '') => {
-  const dev = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad'
-    : /Android/.test(ua) ? (/Mobile/.test(ua) ? 'Android' : 'Tablet Android')
-      : /Macintosh|Mac OS X/.test(ua) ? 'Mac' : /Windows/.test(ua) ? 'Windows' : /Linux/.test(ua) ? 'Linux' : 'Dispositivo';
-  const br = /EdgA?\//.test(ua) ? 'Edge' : /Firefox|FxiOS/.test(ua) ? 'Firefox' : /CriOS|Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : '';
-  return br ? `${dev} · ${br}` : dev;
-};
-const clientIp = (req) => String(req.headers['cf-connecting-ip'] || req.socket?.remoteAddress || '').replace(/^::ffff:/, '');
-const newPin = () => String(Math.floor(100000 + Math.random() * 900000)); // 6 dígitos
-const lanActive = () => PUBLIC.phase !== 'off' || !!LAN.pairing || LAN.sessions.size > 0;
-// OJO: el tráfico que entra por el túnel de Cloudflare llega al bridge DESDE
-// localhost (cloudflared corre aquí), pero no es local: viene marcado con las
-// cabeceras del proxy. Sin este matiz, cualquiera con la URL pública sería
-// "loopback" y se saltaría el cortafuegos entero.
-const isLoopback = (req) => {
-  if (req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for']) return false;
-  const a = req.socket?.remoteAddress || '';
-  return a === '127.0.0.1' || a === '::1' || a === '::ffff:127.0.0.1';
-};
-const lanIP = () => {
-  for (const ifaces of Object.values(os.networkInterfaces()))
-    for (const i of ifaces || []) if (i.family === 'IPv4' && !i.internal) return i.address;
-  return null;
-};
-// Un QR caducado ya no empareja a nadie: se retira para que el estado no lo dé
-// por pendiente (la pantalla seguía enseñándolo sin fin).
-const dropExpiredPairing = () => { if (LAN.pairing && Date.now() > LAN.pairing.expiresAt) LAN.pairing = null; };
-const lanStatus = () => (dropExpiredPairing(), {
-  active: lanActive(), ip: lanIP(), port: API_PORT, devices: LAN.sessions.size,
-  pendingPairing: !!LAN.pairing, pairExpiresAt: LAN.pairing?.expiresAt || null,
-  mode: PUBLIC.phase !== 'off' ? 'public' : 'lan',
-  publicPhase: ['preparing', 'download', 'starting'].includes(PUBLIC.phase) ? PUBLIC.phase : null,
-  publicError: PUBLIC.error,
-  cloudflared: !!cloudflaredPath(),
-  qrUrl: LAN.pairing
-    ? (LAN.pairing.mode === 'public'
-      ? `${PUBLIC.url}/?p=${LAN.pairing.token}`
-      : `http://${lanIP()}:${API_PORT}/?p=${LAN.pairing.token}`)
-    : null,
-  pin: LAN.pairing?.pin || null,
-  // dispositivos emparejados, para verlos y cerrarlos uno a uno desde el ordenador
-  list: [...LAN.sessions].map(([t, s]) => ({
-    id: s.id, name: s.name || 'Dispositivo', ip: s.ip, mode: s.mode, locked: !!s.locked,
-    since: s.since, lastSeen: s.lastSeen,
-    online: allWsClients().some((c) => c._siaToken === t && c.readyState === 1),
-  })),
-});
 
 // Lo escribible (server/workspace/): en dev, ~/.sia/workspace; empaquetado, userData.
 const workspace = createWorkspace({ root: ROOT, dir: process.env.SIA_WORKSPACE || path.join(os.homedir(), '.sia', 'workspace') });
@@ -268,133 +208,15 @@ const accessTokens = (base = currentBase()) => (base ? base.tokens : []);
    persona se la da la instancia según sus vistas (server/knowledge/
    person-keys.js; con Administración, la del dueño). permisos:
    server/shared/perms.js */
-/* ── Acceso público: quick tunnel de Cloudflare ─────────────────────
-   `cloudflared tunnel --url` sin cuenta ni credenciales: da una URL
-   https://xxx.trycloudflare.com aleatoria que muere con el proceso. Encima
-   va el mismo emparejamiento QR+PIN de la red local, más un candado: al
-   abrir en público el usuario elige una clave de desbloqueo, y la sesión
-   del móvil se bloquea (aquí, en el bridge — no es solo una cortina en el
-   cliente) al perder el foco o pasar un rato inactiva. */
-const PUBLIC = {
-  proc: null,     // proceso cloudflared vivo, o null
-  url: null,      // https://xxx.trycloudflare.com
-  phase: 'off',   // off | preparing | download | starting | ready
-  error: null,    // último fallo, para enseñarlo en la UI
-};
-
-// Binario de cloudflared: el del PATH si existe; si no, uno descargado al
-// workspace (escribible también en la app empaquetada) la primera vez.
-const CF_DIR = workspace.binDir;
-const CF_LOCAL = path.join(CF_DIR, isWin ? 'cloudflared.exe' : 'cloudflared');
-const cloudflaredPath = () => launchers.resolve('cloudflared') || (fs.existsSync(CF_LOCAL) ? CF_LOCAL : null);
-const cfAsset = () => {
-  const arch = os.arch() === 'arm64' ? 'arm64' : 'amd64';
-  if (isWin) return 'cloudflared-windows-amd64.exe'; // no hay build arm64 de Windows
-  if (os.platform() === 'darwin') return `cloudflared-darwin-${arch}.tgz`;
-  return `cloudflared-linux-${arch}`;
-};
-const ensureCloudflared = async () => {
-  const found = cloudflaredPath();
-  if (found) return found;
-  PUBLIC.phase = 'download';
-  console.log('[sia] descargando cloudflared (primera vez)…');
-  fs.mkdirSync(CF_DIR, { recursive: true });
-  const asset = cfAsset();
-  const dlUrl = `https://github.com/cloudflare/cloudflared/releases/latest/download/${asset}`;
-  // fetch normal (TLS validado); si la red corporativa lo rompe con su proxy
-  // MITM, reintento con el agente tolerante que ya usamos para Supabase.
-  let r;
-  try { r = await undiciFetch(dlUrl); } catch { r = await supaFetch(dlUrl); }
-  if (!r.ok) throw new Error(`no se pudo descargar cloudflared (HTTP ${r.status})`);
-  const buf = Buffer.from(await r.arrayBuffer());
-  if (asset.endsWith('.tgz')) { // macOS lo publica empaquetado: extraer con el tar del sistema
-    const tmp = path.join(CF_DIR, asset);
-    fs.writeFileSync(tmp, buf);
-    await new Promise((resolve, reject) => {
-      const p = spawn('tar', ['-xzf', tmp, '-C', CF_DIR]);
-      p.on('exit', (c) => (c === 0 ? resolve() : reject(new Error('no se pudo extraer cloudflared'))));
-      p.on('error', reject);
-    });
-    fs.rmSync(tmp, { force: true });
-  } else {
-    fs.writeFileSync(CF_LOCAL, buf);
-  }
-  if (!isWin) fs.chmodSync(CF_LOCAL, 0o755);
-  console.log('[sia] cloudflared listo en', CF_LOCAL);
-  return CF_LOCAL;
-};
-const startTunnel = (bin) => new Promise((resolve, reject) => {
-  PUBLIC.phase = 'starting';
-  const proc = spawn(bin, ['tunnel', '--url', `http://127.0.0.1:${API_PORT}`, '--no-autoupdate'], {
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  PUBLIC.proc = proc;
-  let out = '';
-  const sniff = (d) => { // cloudflared imprime la URL asignada en su log de arranque
-    out += d.toString();
-    const m = out.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/);
-    if (m) { PUBLIC.url = m[0]; resolve(m[0]); }
-  };
-  proc.stdout.on('data', sniff);
-  proc.stderr.on('data', sniff);
-  proc.on('error', reject);
-  proc.on('exit', () => {
-    if (PUBLIC.proc === proc) { // muerte no pedida (red caída, kill externo…)
-      PUBLIC.proc = null; PUBLIC.url = null;
-      if (PUBLIC.phase === 'ready') { PUBLIC.phase = 'off'; PUBLIC.error = 'el túnel se cerró — vuelve a generar el acceso'; }
-      console.warn('[sia] cloudflared terminó');
-    }
-    reject(new Error('cloudflared terminó sin dar URL'));
-  });
-  setTimeout(() => reject(new Error('el túnel tardó demasiado en arrancar')), 45_000);
-});
-// La URL de un túnel recién creado tarda unos segundos en resolver (DNS en
-// propagación): si el QR sale antes, el primer escaneo puede dar error. Se
-// sondea la URL pública hasta que responde — y si no llega, se sigue igual,
-// que el QR vive 5 minutos y para entonces ya resolverá.
-const warmTunnel = async (base) => {
-  for (let i = 0; i < 6; i++) {
-    try {
-      const r = await undiciFetch(`${base}/api/ping`, { signal: AbortSignal.timeout(3000) });
-      if (r.ok) return;
-    } catch { /* aún propagando */ }
-    await new Promise((r) => setTimeout(r, 2000));
-  }
-};
-const stopTunnel = () => {
-  const proc = PUBLIC.proc;
-  PUBLIC.proc = null; PUBLIC.url = null; PUBLIC.phase = 'off'; PUBLIC.error = null;
-  if (proc) { try { proc.kill(); } catch {} }
-};
+// Acceso desde el móvil (server/remote/): emparejamiento QR+PIN, su candado
+// y el túnel público.
+const tunnel = createTunnel({ binDir: workspace.binDir, apiPort: API_PORT, resolve: launchers.resolve, fetch: undiciFetch, insecureFetch: supaFetch, isWin });
+const remote = createRemote({ lock, tunnel, apiPort: API_PORT, wsClients: () => allWsClients(), idleMs: Number(process.env.SIA_LOCK_IDLE_MS) || undefined });
+const lanRoute = lanRoutes(remote, lock, { json, readBody });
+setInterval(() => remote.lockIdle(), 15_000).unref();
 // que no quede un túnel huérfano apuntando a este equipo al salir
-process.on('exit', () => { try { PUBLIC.proc?.kill(); } catch {} });
-for (const sig of ['SIGINT', 'SIGTERM']) {
-  process.on(sig, () => { try { PUBLIC.proc?.kill(); } catch {} process.exit(sig === 'SIGINT' ? 130 : 143); });
-}
-
-/* Candado: bloquear marca la sesión en el bridge y tira sus WebSockets — la
-   API y la terminal quedan cerradas de verdad hasta la clave correcta. */
-const closeWsFor = (token, code, reason) => {
-  for (const c of allWsClients()) {
-    if (c._siaToken === token) { try { c.close(code, reason); } catch {} }
-  }
-};
-const lockSession = (token, sess) => {
-  if (!sess || sess.locked) return;
-  sess.locked = true;
-  closeWsFor(token, 4423, 'bloqueado');
-};
-// Cinturón del servidor: aunque el móvil muera sin avisar, una sesión pública
-// inactiva se bloquea sola pasado el plazo. (El env es para poder probarlo.)
-const LOCK_IDLE_MS = Number(process.env.SIA_LOCK_IDLE_MS) || 5 * 60_000;
-setInterval(() => {
-  for (const [t, s] of LAN.sessions) {
-    if (s.mode === 'public' && !s.locked && Date.now() - s.lastSeen > LOCK_IDLE_MS) {
-      lockSession(t, s);
-      console.log('[sia] sesión pública bloqueada por inactividad');
-    }
-  }
-}, 15_000).unref();
+process.on('exit', () => tunnel.kill());
+for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { tunnel.kill(); process.exit(sig === 'SIGINT' ? 130 : 143); });
 
 const apiServer = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -412,30 +234,13 @@ const apiServer = http.createServer(async (req, res) => {
 
   // ── Cortafuegos: solo localhost entra sin llave ──
   if (!isLoopback(req)) {
-    const lanToken = req.headers['x-sia-lan'] || url.searchParams.get('t');
-    const sess = lanToken ? LAN.sessions.get(lanToken) : null;
-    // La web estática (el shell del móvil/PWA) se sirve siempre: no expone
-    // datos y permite que la PWA instalada arranque y muestre la pantalla de
-    // PIN aunque el acceso aún no esté activo. La API solo abre ping y pair,
-    // y únicamente mientras el emparejamiento/acceso está activo.
-    const allowed = parts[0] !== 'api' || (lanActive() && (
-      parts[1] === 'ping' ||                                 // comprobar que hay un SIA vivo
-      (parts[1] === 'lan' && parts[2] === 'pair')            // emparejar (token+PIN o solo PIN)
-    ));
-    if (!sess && !allowed) return json(res, 403, { error: 'acceso no autorizado' });
+    const token = lanToken(req, url);
+    const sess = remote.session(token);
+    if (!sess && !openWithoutSession(parts, remote.active())) return json(res, 403, { error: 'acceso no autorizado' });
     if (sess && parts[0] === 'api') {
-      sess.lastSeen = Date.now();
-      // Emparejado NO es local: un dispositivo remoto solo llega a lo que la
-      // vista del móvil usa de verdad. Nada de config personal (ahí viven los
-      // tokens de Jira/GitHub), skills, borradores ni administración.
-      const reach = parts[1] === 'ping' || parts[1] === 'version'
-        || parts[1] === 'upload' || parts[1] === 'uploads'
-        || (parts[1] === 'lan' && ['pair', 'lock', 'unlock', 'pin'].includes(parts[2]));
-      if (!reach) return json(res, 403, { error: 'no disponible en remoto' });
-      // candado echado: solo desbloquear (y ping, que informa del estado)
-      if (sess.locked && parts[1] !== 'ping' && !(parts[1] === 'lan' && ['lock', 'unlock'].includes(parts[2]))) {
-        return json(res, 423, { error: 'sesión bloqueada', locked: true });
-      }
+      remote.touch(token);
+      if (!remoteReach(parts)) return json(res, 403, { error: 'no disponible en remoto' });
+      if (sess.locked && !openWhileLocked(parts)) return json(res, 423, { error: 'sesión bloqueada', locked: true });
     }
   }
 
@@ -456,8 +261,7 @@ const apiServer = http.createServer(async (req, res) => {
       return json(res, 404, { error: 'web no compilada' });
     }
     if (parts[1] === 'ping') {
-      const t = req.headers['x-sia-lan'] || url.searchParams.get('t');
-      const s = t ? LAN.sessions.get(t) : null;
+      const s = remote.session(lanToken(req, url));
       // a una sesión bloqueada no se le dan los puertos: primero la clave
       if (s?.locked) return json(res, 200, { sia: true, locked: true, mode: s.mode, theme: UI_THEME });
       // dev: este bridge corre con node (node dev.mjs), no dentro de la app. La web
@@ -504,136 +308,7 @@ const apiServer = http.createServer(async (req, res) => {
     if (!knowledgeBase && !DB_FREE_ROUTES.has(parts[1])) return json(res, 503, { error: NO_DB_MSG, noDb: true });
     if (parts[1] === 'version') return updatesRoute(req, res, db);
 
-    /* ── Acceso desde el móvil (red local o túnel público) ── */
-    if (parts[1] === 'lan') {
-      // emparejar: lo llama el MÓVIL con el token del QR + el PIN del escritorio.
-      // La PWA instalada no tiene la URL del QR (almacenamiento aparte), así que
-      // también vale SOLO el PIN mientras el emparejamiento esté activo; para
-      // que 6 dígitos no sean fuerza-brutables, la ventana se invalida a los
-      // 5 intentos fallidos.
-      if (parts[2] === 'pair' && req.method === 'POST') {
-        const { token, pin } = await readBody(req);
-        const p = LAN.pairing;
-        const ok = p && Date.now() <= p.expiresAt && p.pin === String(pin) && (!token || p.token === token);
-        if (!ok) {
-          if (p && (p.attempts = (p.attempts || 0) + 1) >= 5) {
-            LAN.pairing = null;
-            console.warn('[sia] emparejamiento invalidado: demasiados intentos fallidos');
-          }
-          return json(res, 403, { error: 'QR o PIN incorrecto o caducado' });
-        }
-        const mode = p.mode || 'lan';
-        LAN.pairing = null; // de un solo uso: el QR/PIN dejan de valer
-        const sessionToken = newToken();
-        LAN.sessions.set(sessionToken, {
-          id: randomBytes(5).toString('hex'), name: deviceName(req.headers['user-agent']),
-          since: Date.now(), ip: clientIp(req),
-          mode, locked: false, lastSeen: Date.now(), unlockAttempts: 0,
-        });
-        return json(res, 200, { sessionToken, mode });
-      }
-      // candado: lo echa el móvil, a mano (su botón) o solo al perder el foco en
-      // el acceso público (sendBeacon → token en ?t=).
-      if (parts[2] === 'lock' && req.method === 'POST') {
-        const t = req.headers['x-sia-lan'] || url.searchParams.get('t');
-        const s = t ? LAN.sessions.get(t) : null;
-        // solo si hay PIN de bloqueo, que es con lo que se desbloquea: sin PIN
-        // no se bloquea, porque no habría forma de volver a entrar
-        if (s && lock.hasPin()) lockSession(t, s);
-        return json(res, 200, { ok: true, locked: !!s?.locked });
-      }
-      // elegir el PIN de bloqueo desde el móvil emparejado: SOLO si aún no hay
-      // ninguno (cambiarlo exige el actual y se hace en el ordenador)
-      if (parts[2] === 'pin' && req.method === 'PUT') {
-        const t = req.headers['x-sia-lan'] || url.searchParams.get('t');
-        if (!t || !LAN.sessions.get(t)) return json(res, 403, { error: 'acceso no autorizado' });
-        if (lock.hasPin()) return json(res, 409, { error: 'Ya hay un PIN de bloqueo: se cambia en el ordenador.' });
-        const { key } = await readBody(req);
-        if (!isPin(key)) return json(res, 400, { error: 'El PIN son 4 dígitos.' });
-        lock.setPin(key);
-        return json(res, 200, { ok: true });
-      }
-      // desbloquear: con el PIN de bloqueo, el mismo del candado del escritorio,
-      // sea la sesión de red local o por túnel. A los 5 fallos la sesión se
-      // revoca entera — quien tenga el token robado se
-      // queda fuera y hace falta volver a emparejar con QR+PIN.
-      if (parts[2] === 'unlock' && req.method === 'POST') {
-        const t = req.headers['x-sia-lan'] || url.searchParams.get('t');
-        const s = t ? LAN.sessions.get(t) : null;
-        if (!s) return json(res, 410, { error: 'sesión revocada — vuelve a emparejar desde el ordenador' });
-        const { key } = await readBody(req);
-        const good = lock.matches(String(key || ''));
-        if (!good) {
-          s.unlockAttempts = (s.unlockAttempts || 0) + 1;
-          if (s.unlockAttempts >= 5) {
-            LAN.sessions.delete(t);
-            closeWsFor(t, 4403, 'revocado');
-            console.warn('[sia] sesión del móvil revocada: demasiados intentos de desbloqueo');
-            return json(res, 410, { error: 'demasiados intentos — sesión revocada, vuelve a emparejar' });
-          }
-          return json(res, 401, { error: `clave incorrecta (quedan ${5 - s.unlockAttempts} intentos)` });
-        }
-        s.locked = false; s.unlockAttempts = 0; s.lastSeen = Date.now();
-        return json(res, 200, { ok: true });
-      }
-      // gestión: SOLO desde el equipo (localhost)
-      if (!isLoopback(req)) return json(res, 403, { error: 'solo desde el equipo' });
-      if (parts[2] === 'status' && req.method === 'GET') return json(res, 200, lanStatus());
-      // cerrar UN dispositivo: se le revoca la llave y se le cortan los sockets;
-      // los demás siguen como estaban
-      if (parts[2] === 'devices' && parts[3] && req.method === 'DELETE') {
-        const hit = [...LAN.sessions].find(([, s]) => s.id === decodeURIComponent(parts[3]));
-        if (!hit) return json(res, 404, { error: 'Ese dispositivo ya no está conectado.' });
-        LAN.sessions.delete(hit[0]);
-        closeWsFor(hit[0], 4403, 'revocado');
-        return json(res, 200, lanStatus());
-      }
-      if (parts[2] === 'enable' && req.method === 'POST') {
-        const { mode = 'lan' } = await readBody(req);
-        if (mode === 'public') {
-          // el móvil por túnel se bloquea solo y se desbloquea con el PIN de
-          // bloqueo: sin PIN no se abre nada a internet
-          if (!lock.hasPin()) return json(res, 409, { error: 'Antes de abrir el acceso público elige tu PIN de bloqueo.', needsPin: true });
-          PUBLIC.error = null;
-          if (PUBLIC.proc && PUBLIC.url) { // túnel ya vivo: solo un QR nuevo
-            LAN.pairing = { token: newToken(), pin: newPin(), expiresAt: Date.now() + 5 * 60 * 1000, mode: 'public' };
-            PUBLIC.phase = 'ready';
-            return json(res, 200, lanStatus());
-          }
-          // arranque asíncrono (la descarga puede tardar): la UI sigue las
-          // fases por /lan/status y pinta el QR cuando phase pasa a ready
-          PUBLIC.phase = 'preparing';
-          (async () => {
-            try {
-              const bin = await ensureCloudflared();
-              await startTunnel(bin);
-              await warmTunnel(PUBLIC.url); // que el QR no salga antes de que la URL resuelva
-              LAN.pairing = { token: newToken(), pin: newPin(), expiresAt: Date.now() + 5 * 60 * 1000, mode: 'public' };
-              PUBLIC.phase = 'ready';
-              console.log(`[sia] acceso público listo: ${PUBLIC.url}`);
-            } catch (err) {
-              const proc = PUBLIC.proc;
-              PUBLIC.proc = null; PUBLIC.url = null; PUBLIC.phase = 'off';
-              PUBLIC.error = err.message;
-              if (proc) { try { proc.kill(); } catch {} }
-              console.warn('[sia] acceso público fallido:', err.message);
-            }
-          })();
-          return json(res, 200, lanStatus());
-        }
-        const ip = lanIP();
-        if (!ip) return json(res, 503, { error: 'no se detecta una red local (¿WiFi?)' });
-        LAN.pairing = { token: newToken(), pin: newPin(), expiresAt: Date.now() + 5 * 60 * 1000, mode: 'lan' };
-        return json(res, 200, lanStatus());
-      }
-      if (parts[2] === 'disable' && req.method === 'POST') {
-        LAN.pairing = null; LAN.sessions.clear();
-        stopTunnel();
-        for (const c of allWsClients()) { if (c._siaLan) { try { c.close(4403, 'acceso revocado'); } catch {} } }
-        return json(res, 200, lanStatus());
-      }
-      return json(res, 404, { error: 'no encontrado' });
-    }
+    if (parts[1] === 'lan') return lanRoute(req, res, url, parts.slice(2));
     if (parts[1] === 'admin') return projectsRoute(req, res, parts.slice(2), url.searchParams, { db, perms });
     if (parts[1] === 'config') return configRoute(req, res);
     // proyectos accesibles para los tokens del usuario (selector de fuentes,
@@ -718,12 +393,12 @@ const handleConnection = (ws, req) => {
   // ── Cortafuegos: un socket remoto exige llave de sesión válida ──
   if (!isLoopback(req)) {
     const t = new URL(req.url, 'http://localhost').searchParams.get('t');
-    const s = t ? LAN.sessions.get(t) : null;
+    const s = remote.session(t);
     if (!s) { try { ws.close(4403, 'no autorizado'); } catch {} return; }
     if (s.locked) { try { ws.close(4423, 'bloqueado'); } catch {} return; } // candado echado
     ws._siaLan = true;   // marcado para poder revocarlo al apagar el acceso
     ws._siaToken = t;    // y para tirar sus sockets al echar el candado
-    s.lastSeen = Date.now();
+    remote.touch(t);
   } else if (lock.locked()) {
     // pantalla bloqueada: nada de sockets NUEVOS desde esta máquina (una ventana
     // recargada no puede engancharse a los chats hasta dar la clave); los que
@@ -828,10 +503,7 @@ const handleConnection = (ws, req) => {
   ws.on('message', (raw) => {
     let msg;
     try { msg = JSON.parse(raw.toString()); } catch { return; }
-    if (ws._siaToken) { // actividad real del móvil: pospone el candado por inactividad
-      const s = LAN.sessions.get(ws._siaToken);
-      if (s) s.lastSeen = Date.now();
-    }
+    if (ws._siaToken) remote.touch(ws._siaToken); // actividad real del móvil: pospone el candado por inactividad
     if (msg.type === 'start') {
       start(msg.launcher, msg.knowledge, msg.projects, msg.cols, msg.rows, msg.issue);
     } else if (msg.type === 'attach') {
