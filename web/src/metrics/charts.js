@@ -9,6 +9,7 @@ import { esc } from '../ui/html.js';
 import { num, pct, dur, MONTHS } from './format.js';
 import { compareFigure } from './compare.js';
 import { SHIFTS } from './shifts.js';
+import { MIN_ISSUES, clearlyWorse, trendDelta, shadeSoft, HOT } from './rules.js';
 
 // ui: { exp: {id: true}, sort: {id: [columna, ±1]} }, lo que la persona ha desplegado y ordenado.
 export const createCharts = (m, ui) => {
@@ -58,20 +59,20 @@ export const createCharts = (m, ui) => {
     return `<svg viewBox="0 0 ${W} ${H}" class="mt-svg">${grid}${xs}${ser}</svg>`;
   };
 
+  // la variación de 90 días (rules.js, trendDelta), con su flecha de color
   const delta = (tr) => {
-    if (tr.prev < 15 && tr.now < 15) return '<span class="mt-mut">—</span>';
-    const d = tr.prev ? (tr.now - tr.prev) / tr.prev : 1;
-    return `<span class="${d > 0.1 ? 'mt-up' : d < -0.1 ? 'mt-down' : 'mt-mut'}">${d > 0 ? '+' : ''}${Math.round(d * 100)} %</span>`;
+    const t = trendDelta(tr);
+    if (!t) return '<span class="mt-mut">—</span>';
+    return `<span class="${{ up: 'mt-up', down: 'mt-down', flat: 'mt-mut' }[t.dir]}">${t.d > 0 ? '+' : ''}${Math.round(t.d * 100)} %</span>`;
   };
 
   // Ficha por valor de una dimensión (módulos, centros…), para leerla de un vistazo: columnas en bloques con su
-  // título; abajo, el total (todos), que es la referencia; en ocre, lo que va claramente peor que ella (un 15 % o más,
-  // solo con al menos SC_MIN issues, para no marcar lo que dice poco). Las o.top primeras y «Resto», para que
+  // título; abajo, el total (todos), que es la referencia; en ocre, lo que va claramente peor que ella (rules.js,
+  // clearlyWorse, solo con al menos MIN_ISSUES, para no marcar lo que dice poco). Las o.top primeras y «Resto», para que
   // sume el total; un clic en «Resto» las enseña todas. Clic en una cabecera ordena; en una fila, filtra. Comparando,
   // cada cifra es la del primer lado con su diferencia respecto al otro.
   // o.child: { dim, top, noun }: cada fila se despliega (▸) en sus valores de otra dimensión (los temas, en sus problemas),
   // ordenados igual; los o.child.top primeros y «Otros», para que sumen la fila.
-  const SC_MIN = 30;
   const SC = {
     n: ['Issues', null, (s) => s.n, 'Issues recibidas en el periodo y su parte del total.'],
     dl: ['90 días', null, (s) => (s.tr.prev ? (s.tr.now - s.tr.prev) / s.tr.prev : 0), 'Últimos 90 días de la foto frente a los 90 anteriores.'],
@@ -125,7 +126,7 @@ export const createCharts = (m, ui) => {
     const ref = full(list), T = ref.n || 1;
     const srt = ui.sort[id] || [o.sort || 'n', -1], key = (r) => SC[srt[0]][2](r) ?? -Infinity;
     // al ordenar por cómo se atiende, lo que tiene pocas issues va al final: su cifra dice poco
-    const few = (r) => (SC[srt[0]][1] && r.n < SC_MIN ? 1 : 0);
+    const few = (r) => (SC[srt[0]][1] && r.n < MIN_ISSUES ? 1 : 0);
     const order = (a, b) => few(a) - few(b) || (key(a) - key(b)) * srt[1] || b.n - a.n;
     const data = all.map((x) => ({ ...full(x.rows), k: x.k, rows: x.rows })).sort(order);
     // lo marcado (filtrado) va primero y siempre a la vista, aunque estuviera en «Resto»; lo demás, apagado
@@ -133,11 +134,7 @@ export const createCharts = (m, ui) => {
     const ordered = any ? [...picked, ...data.filter((r) => !isSel(dim, r.k))] : data;
     const top = Math.max(o.top || 12, picked.length), open = ui.exp[id], shown = open ? ordered : ordered.slice(0, top);
     const rest = !open && data.length > top ? full(all.filter((x) => !shown.some((r) => r.k === x.k)).flatMap((x) => x.rows)) : null;
-    const worse = (c, r) => {
-      const b = SC[c][1], v = SC[c][2](r), w = SC[c][2](ref);
-      if (!b || (SC[c][4] ? SC[c][4](r) : r.n) < SC_MIN || v == null || w == null) return false;
-      return b === 'low' ? v > w * 1.15 : v < w * 0.85;
-    };
+    const worse = (c, r) => (SC[c][4] ? SC[c][4](r) : r.n) >= MIN_ISSUES && clearlyWorse(SC[c][2](r), SC[c][2](ref), SC[c][1]);
     // la barra, su parte real del total (el total, entera; «Resto», lo que suma)
     const cell = (c, r, isRef) => {
       if (c === 'n') return `<td><div class="mt-sc-vol"><em>${pct(r.n / T, 1)}</em><span class="mt-sc-bar"><i style="width:${(r.n / T * 100).toFixed(1)}%"></i></span><b>${num(r.n)}</b></div></td>`;
@@ -185,8 +182,8 @@ export const createCharts = (m, ui) => {
     for (const i of list) for (const a of keys(dr, i)) { const r = ri.get(a); if (r == null) continue; for (const b of keys(dc, i)) { const c = ci.get(b); if (c != null) mt[r][c][SIDE[i]]++; } }
     const tot = (t) => t[0] + t[1] + t[2], max = Math.max(1, ...mt.flat().map(tot));
     const cell = (t, r, c) => {
-      const v = tot(t), a = v ? Math.round(8 + 92 * Math.pow(v / max, 0.6)) : 0;
-      return `<td class="${a > 50 ? 'mt-hot' : ''}" style="--mt-a:${a}%" data-f2="${rd}:${R[r].k}|${cd}:${Cc[c].k}" data-tip="${esc(`${dr.label(R[r].k)} × ${dc.label(Cc[c].k)}\n${num(v)} issues\n${CO().map((k) => `${name(k)}: ${num(t[k])}`).join(' · ')}`)}">${v || ''}</td>`;
+      const v = tot(t), a = shadeSoft(v, max);
+      return `<td class="${a > HOT ? 'mt-hot' : ''}" style="--mt-a:${a}%" data-f2="${rd}:${R[r].k}|${cd}:${Cc[c].k}" data-tip="${esc(`${dr.label(R[r].k)} × ${dc.label(Cc[c].k)}\n${num(v)} issues\n${CO().map((k) => `${name(k)}: ${num(t[k])}`).join(' · ')}`)}">${v || ''}</td>`;
     };
     // cabeceras en horizontal; si son muchas (módulos, centros…), columnas iguales y el nombre cortado con «…» (entero al pasar el ratón)
     const v = 'mt-h', wide = Cc.length > 6;
@@ -220,8 +217,8 @@ export const createCharts = (m, ui) => {
     const tip = (label, t) => `${label}\n${num(tot(t))} issues${CMP() ? `\n${CO().map((k) => `${name(k)}: ${num(t[k])}`).join(' · ')}` : ''}`;
     const filt = (r, c) => (r.f && c?.f ? `data-f2="${r.f}|${c.f}"` : r.f && !c ? `data-f="${r.f}"` : c?.f && !r.f ? `data-f="${c.f}"` : '');
     const cell = (r, j, c, k) => {
-      const v = tot(cnt[j][k]), a = v ? Math.round(8 + 92 * Math.pow(v / gmax.get(r.g), 0.6)) : 0;
-      return `<td class="mt-num ${a > 50 ? 'mt-hot' : ''}" style="--mt-a:${a}%" ${filt(r, c)} data-tip="${esc(tip(`${r.label} · ${c.label}`, cnt[j][k]))}">${show(cnt[j][k])}</td>`;
+      const v = tot(cnt[j][k]), a = shadeSoft(v, gmax.get(r.g));
+      return `<td class="mt-num ${a > HOT ? 'mt-hot' : ''}" style="--mt-a:${a}%" ${filt(r, c)} data-tip="${esc(tip(`${r.label} · ${c.label}`, cnt[j][k]))}">${show(cnt[j][k])}</td>`;
     };
     if (CMP()) o = { ...o, share: false };   // comparando, un % sobre los dos lados juntos no dice nada
     // Las filas, por bloques: cada { head, note } abre uno y su nombre va en una columna a la izquierda que

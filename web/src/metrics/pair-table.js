@@ -7,8 +7,7 @@
 //  - groups: [título, nº de datos], una fila encima que agrupa los datos por concepto.
 // Se marca un lado si los dos tienen al menos BETTER_MIN en lo que cuenta ese dato y no se ven iguales al redondeo.
 import { esc } from '../ui/html.js';
-
-export const BETTER_MIN = 10;
+import { BETTER_MIN } from './rules.js';
 
 // el lado marcado de un dato en una fila (0, 1) o -1
 const pairMark = (d, x, base) => {

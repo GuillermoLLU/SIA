@@ -5,10 +5,11 @@
 // respecto a B.
 import { esc } from '../ui/html.js';
 import { num, dec, pct, dur, nice, title, dateOf, MONTHS, DOWS } from './format.js';
-import { COMPANIES, CARDS, MAJOR, SITUATIONS, ACTIVE_DAYS, START_LIMITS, share } from './model.js';
+import { COMPANIES, CARDS, MAJOR, SITUATIONS, ACTIVE_DAYS, START_LIMITS, share, slaText } from './model.js';
 import { IA_MARKS, IA_NONE, iaStats as iaStatsOf, iaUse } from './ia.js';
 import { SHIFTS, SHIFT_HOURS, DAYS, MIN_ACTIONS } from './shifts.js';
-import { pairTable as pairTableOf, BETTER_MIN } from './pair-table.js';
+import { pairTable as pairTableOf } from './pair-table.js';
+import { DAY, OLD_DAYS, IDLE_DAYS, RECENT_CRIT_DAYS, MIN_ISSUES, BETTER_MIN, OWNERS_SHARE, MIXED_ESC, TICKET_MIN, WORSE, clearlyWorse, shade, HOT, isLate } from './rules.js';
 
 export const TABS = [['resumen', 'Resumen'], ['hoy', 'Foto de hoy'], ['entrada', 'Entrada'], ['backlog', 'Backlog'], ['modulos', 'Módulos y focos'],
   ['resolucion', 'Resolución y escalados'], ['sla', 'SLA y calidad'], ['ia', 'IA'], ['turnos', 'Turnos']];
@@ -19,18 +20,19 @@ const QUESTIONS = {
   backlog: ['¿Qué tenemos pendiente?', 'Lo recibido en el periodo que sigue sin resolver: en qué punto está, desde cuándo y qué conviene vigilar.'],
   modulos: ['¿De dónde viene?', 'Los módulos, centros y problemas que concentran el trabajo, y lo que se repite.'],
   resolucion: ['¿Cómo lo resolvemos?', 'Cuánto tardamos, en qué se va el tiempo, qué módulos tardan más y qué escalamos y a quién. Tiempos de lo resuelto, en tiempo natural.'],
-  sla: ['¿Cómo de bien lo hacemos?', 'Si empezamos a tiempo (SLA de inicio: de la apertura al primer paso a En curso, en tiempo natural; crítica 15 min, alta 45 min, media 2 h, baja 8 h), si el trabajo queda bien hecho y si queda bien registrado.'],
+  sla: ['¿Cómo de bien lo hacemos?', `Si empezamos a tiempo (SLA de inicio: de la apertura al primer paso a En curso, en tiempo natural; ${slaText()}), si el trabajo queda bien hecho y si queda bien registrado.`],
   ia: ['¿Cuánto usamos la IA y cómo sale?', 'Por las marcas de IA de Remedy: en TAGS (IA_SOLVED…, IA_FAIL) y en las notas ([ACT IA], [INFORME IA], notas del agente de IA, [HITL_REVIEW_OK], [HITL_REVIEW_NOT_OK], [IA_FAIL]…). Una issue con IA puede estar revisada OK, con fallo o sin revisar.'],
   turnos: ['¿Cuándo entra y cuándo lo trabajamos?', `Por turnos: ${SHIFTS.map((s, k) => `${s.toLowerCase()} de ${SHIFT_HOURS[k]}`).join(', ')}. El turno se cuenta por la hora en que empieza: la noche del domingo es de fin de semana.`],
 };
 
+const WORSE_NOTE = `En ocre, lo que va un ${Math.round(WORSE * 100)} % o más peor que el total (con al menos ${MIN_ISSUES} issues).`;
 const MONTH_NOTE = 'Por mes de apertura. * mes incompleto: los últimos meses salen mejor de lo que acabarán, porque lo lento aún no se ha resuelto.';
 const REMEDY = 'https://itx.onbmc.com/arsys/servlet/ViewFormServlet?server=onbmc-s&form=HPD:Help+Desk&qual=%271000000161%27%3D%22';
 const incId = (id) => `INC${String(id).padStart(12, '0')}`;
 const opt = (f) => (v) => (v == null ? '—' : f(v));
 
 export const createTabs = (m, ch, ui) => {
-  const { C, DI, S, BASE, LASTM, PRIOS, slaLabel, MONTH, DOW, OPEN, SIDE, STYPE, CMP, CO, NAMES, isSel, stats, group, bySide, clock } = m;
+  const { C, DI, S, BASE, LASTM, PRIOS, CRIT, slaLabel, MONTH, DOW, OPEN, SIDE, STYPE, CMP, CO, NAMES, isSel, stats, group, bySide, clock } = m;
   const name = (k) => NAMES()[k];
   const { card, legend, kpi, kpis, kpiCo, diff, more, lines, heat, matrix, scorecard, day, split } = ch;
   const noK = (k) => k === 0;
@@ -89,8 +91,8 @@ export const createTabs = (m, ch, ui) => {
     for (const i of list) { const t = at(i); if (t != null) { const [d, h] = clock(t); hh[d][h]++; } }
     const mx = Math.max(1, ...hh.flat());
     return `<div class="mt-tablewrap"><table class="mt-hm mt-hours"><thead><tr><th></th>${hh[0].map((_, h) => `<th class="${h === 7 || h === 15 || h === 23 ? 'mt-shift' : ''}">${h}</th>`).join('')}</tr></thead><tbody>${hh.map((r, d) => `<tr><th class="mt-r">${DOWS[d]}</th>${r.map((v, h) => {
-      const a = v ? Math.round(6 + 94 * v / mx) : 0;
-      return `<td class="${a > 50 ? 'mt-hot' : ''} ${h === 7 || h === 15 || h === 23 ? 'mt-shift' : ''}" style="--mt-a:${a}%" ${clickable ? `data-f2="dow:${d}|hour:${h}"` : ''} data-tip="${DOWS[d]} ${h}:00–${h}:59\n${num(v)} issues">${v || ''}</td>`;
+      const a = shade(v, mx);
+      return `<td class="${a > HOT ? 'mt-hot' : ''} ${h === 7 || h === 15 || h === 23 ? 'mt-shift' : ''}" style="--mt-a:${a}%" ${clickable ? `data-f2="dow:${d}|hour:${h}"` : ''} data-tip="${DOWS[d]} ${h}:00–${h}:59\n${num(v)} issues">${v || ''}</td>`;
     }).join('')}</tr>`).join('')}</tbody></table></div>`;
   };
   const startAt = (i) => (C.ip[i] >= 0 ? C.rep[i] + C.ip[i] : null);
@@ -142,7 +144,7 @@ export const createTabs = (m, ch, ui) => {
   // (se solapa: no se suma) y, aparte, lo de nuestras tarjetas que no tiene a nadie (no está en el total).
   // Solo con un lado: comparando, backlogCmp.
   const stockPanel = (T, ST) => {
-    const k0 = CO()[0], people = S.sides.some((s) => s?.people), CRITICAL = DI.prio.indexOf('CRITICAL');
+    const k0 = CO()[0], people = S.sides.some((s) => s?.people);
     const open = T[k0].filter((i) => OPEN[i]), count = (test) => open.filter(test).length;
     const sit = SITUATION.map((x, k) => ({ ...x, k, v: count(x.test) })).filter((x) => x.v);
     const share = (x) => (open.length ? x.v / open.length : 0);
@@ -152,9 +154,9 @@ export const createTabs = (m, ch, ui) => {
     }).join('')}</div>`;
     const watch = [
       ['Fuera de plazo', count(late), 'Nunca han pasado a En curso y ya superan el plazo de su prioridad.', 'sl:4'],
-      ['Con más de 15 días', count((i) => m.SNAP - C.rep[i] > OLD), 'Llevan más de 15 días abiertas: si sube, el backlog envejece.', OLD15],
+      [`Con más de ${OLD_DAYS} días`, count((i) => m.SNAP - C.rep[i] > OLD), `Llevan más de ${OLD_DAYS} días abiertas: si sube, el backlog envejece.`, OLD15],
       ['Escaladas', count((i) => C.vt[i] > 0), 'Con ticket de tercero, estén en el estado que estén (por eso no coincide con «espera tercero»: algunas ya se están trabajando o han vuelto a la cola).', 'es:1'],
-      ['Críticas', count((i) => C.pr[i] === CRITICAL), 'De prioridad crítica.', `pr:${CRITICAL}`],
+      ['Críticas', count((i) => C.pr[i] === CRIT), 'De prioridad crítica.', `pr:${CRIT}`],
       ['PRIO', count((i) => cardsOf(i).includes(2)), 'Priorizadas por negocio.', 'tj:2'],
     ];
     const total = `<section class="mt-st mt-st-total"><h4>Pendientes</h4><div class="mt-st-big"><b>${num(ST[k0].open)}</b></div>
@@ -169,7 +171,7 @@ export const createTabs = (m, ch, ui) => {
     return `<div class="mt-stock ${people ? 'mt-st-noapart' : ''}">${total}${where}${watchHtml}${apart}</div>`;
   };
   const PLURAL = { CRITICAL: 'Críticas', HIGH: 'Altas', MEDIUM: 'Medias', LOW: 'Bajas' };
-  const late = (i) => { const l = m.SLA[C.pr[i]]; return OPEN[i] && C.ip[i] < 0 && l >= 0 && m.SNAP - C.rep[i] > l; };
+  const late = (i) => isLate(OPEN[i], C.ip[i], m.SLA[C.pr[i]], m.SNAP - C.rep[i]);
 
   // Los tramos de la tabla mes a mes: los meses del periodo o, si es un solo mes, sus días (hasta la foto).
   const minOf = (y, mo, d = 1) => (Date.UTC(y, mo, d) - BASE) / 6e4;
@@ -212,9 +214,9 @@ export const createTabs = (m, ch, ui) => {
     ['De meses anteriores', (s) => num(s.prev), 'De las resueltas en el mes, las que se abrieron en un mes anterior: el esfuerzo que se va en sacar backlog.'],
     ['Saldo', (s) => `${s.out - s.in > 0 ? '+' : ''}${num(s.out - s.in)}`, 'Resueltas menos recibidas en el mes: en positivo, la pila baja; en negativo, crece.'],
     ['Pendientes al cierre', (s) => num(s.open), 'De lo recibido desde el inicio del periodo, lo que seguía abierto al acabar el mes (o el día).'],
-    ['Con más de 15 días', (s) => num(s.old), 'De las pendientes al cierre, las que ya llevaban más de 15 días abiertas: si sube, el backlog envejece.'],
+    [`Con más de ${OLD_DAYS} días`, (s) => num(s.old), `De las pendientes al cierre, las que ya llevaban más de ${OLD_DAYS} días abiertas: si sube, el backlog envejece.`],
   ];
-  const OLD = 15 * 1440;
+  const OLD = OLD_DAYS * DAY;
   // Comparando: cada dato en dos columnas, una por lado, con su valor (no la diferencia). Entre empresas, lo que
   // depende de cuánto entra va en relación a lo que entra, para poder compararlo; con personas, el volumen es la
   // media por persona (la de la empresa, de todo su equipo: model.js, heads) y los % no cambian. En verde, el lado
@@ -228,7 +230,7 @@ export const createTabs = (m, ch, ui) => {
     ['Lo que pasó en el mes', [
       ['Resueltas por cada 100 recibidas', (s) => (s.in ? s.out / s.in * 100 : null), 'n', 'high', 'Más de 100: se resolvió más de lo que entró y la pila bajó; menos de 100, creció.'],
       ['% de meses anteriores', (s) => (s.out ? s.prev / s.out : null), 'p', 'warn', 'De lo resuelto en el mes, lo que se abrió en un mes anterior: el esfuerzo en sacar backlog.'],
-      ['% pendientes con más de 15 días', (s) => (s.open ? s.old / s.open : null), 'p', 'low', 'De lo pendiente al acabar el mes, lo que ya llevaba más de 15 días abierto: si sube, el backlog envejece.']]]],
+      [`% pendientes con más de ${OLD_DAYS} días`, (s) => (s.open ? s.old / s.open : null), 'p', 'low', `De lo pendiente al acabar el mes, lo que ya llevaba más de ${OLD_DAYS} días abierto: si sube, el backlog envejece.`]]]],
     pp: [['Lo recibido ese mes', [
       ['Recibidas', (s) => s.in, 'v', null, 'Issues abiertas en ese mes.'],
       ['% cerrado en el mes', (s) => (s.in ? s.same / s.in : null), 'p', 'high', 'De las recibidas en ese mes, las cerradas antes de acabar el mismo mes.']]],
@@ -236,7 +238,7 @@ export const createTabs = (m, ch, ui) => {
       ['Resueltas', (s) => s.out, 'v', 'high', 'Lo resuelto en el mes, se abriera cuando se abriera.'],
       ['De meses anteriores', (s) => s.prev, 'v', 'warn', 'De lo resuelto en el mes, lo que se abrió en un mes anterior.'],
       ['Pendientes al cierre', (s) => s.open, 'v', null, 'Lo que seguía abierto al acabar el mes.'],
-      ['Con más de 15 días', (s) => s.old, 'v', null, 'De las pendientes al cierre, las que ya llevaban más de 15 días abiertas.']]]],
+      [`Con más de ${OLD_DAYS} días`, (s) => s.old, 'v', null, `De las pendientes al cierre, las que ya llevaban más de ${OLD_DAYS} días abiertas.`]]]],
   };
   const ledgerCmp = (units, per, day) => {
     const pp = m.perHead(), H = [0, 1].map((k) => (pp ? m.heads(k).size || 1 : 1)), groups = LEDGER_CMP[pp ? 'pp' : 'co'];
@@ -308,7 +310,7 @@ export const createTabs = (m, ch, ui) => {
   const backlogCmp = (A) => {
     const T = bySide(A), P = T.map((l) => l.filter((i) => OPEN[i])), op = A.filter((i) => OPEN[i]), pp = m.perHead(), d = days() || 1;
     const H = [0, 1].map((k) => (pp ? m.heads(k).size || 1 : 1)), each = pp ? ' por persona' : '', names = teamNames();
-    const CRITICAL = DI.prio.indexOf('CRITICAL'), old = (i) => m.SNAP - C.rep[i] > OLD, sit = (k) => (i) => m.DIMS.sit.get(i) === k;
+    const old = (i) => m.SNAP - C.rep[i] > OLD, sit = (k) => (i) => m.DIMS.sit.get(i) === k;
     // lo que cumple algo, por lado: con personas, issues por persona; entre empresas, qué parte es de sus pendientes
     const part = (test) => [0, 1].map((k) => { const c = P[k].filter(test).length; return { n: P[k].length, v: pp ? c / H[k] : P[k].length ? c / P[k].length : null }; });
     const partFig = (label, test, better, note) => kpiCo(pp ? `${label}${each}` : `% ${label.toLowerCase()}`, part(test), pp ? (s) => dec(s.v) : (s) => pct(s.v), { val: (s) => s.v, better, note: `${note}${headsNote()}`, names });
@@ -319,9 +321,9 @@ export const createTabs = (m, ch, ui) => {
       ...SITUATION.map((x, k) => ({ ...x, better: k === 1 || k === 2 ? 'low' : null })).filter((x) => op.some(x.test)),
       { head: 'A vigilar', note: 'Dentro de las pendientes; se solapan.' },
       { label: 'Fuera de plazo', test: late, f: 'sl:4', better: 'low', tip: 'Nunca han pasado a En curso y ya superan el plazo de su prioridad.' },
-      { label: 'Con más de 15 días', test: old, f: OLD15, better: 'low', tip: 'Llevan más de 15 días abiertas.' },
+      { label: `Con más de ${OLD_DAYS} días`, test: old, f: OLD15, better: 'low', tip: `Llevan más de ${OLD_DAYS} días abiertas.` },
       { label: 'Escaladas', test: (i) => C.vt[i] > 0, f: 'es:1', tip: 'Con ticket de tercero, estén en el estado que estén.' },
-      { label: 'Críticas', test: (i) => C.pr[i] === CRITICAL, f: `pr:${CRITICAL}` },
+      { label: 'Críticas', test: (i) => C.pr[i] === CRIT, f: `pr:${CRIT}` },
     ];
     const mixRows = [{ head: 'Prioridad' }, ...PRIOS.map((p) => ({ label: nice(DI.prio[p]), test: (i) => C.pr[i] === p, f: `pr:${p}` })),
       { head: 'Módulo' }, ...topRows('mo', op, 8)];
@@ -331,7 +333,7 @@ export const createTabs = (m, ch, ui) => {
         kpiCo('Antigüedad media, en días', age, (s) => dec(s.v), { val: (s) => s.v, better: 'low', note: 'Lo que llevan abiertas las pendientes, de media.' }),
         partFig('Sin tocar', sit(1), 'low', 'En Asignada y sin ningún movimiento desde que se abrieron'),
         partFig('Fuera de plazo', late, 'low', 'Nunca han pasado a En curso y ya superan el plazo de su prioridad'),
-        partFig('Con más de 15 días', old, 'low', 'Llevan más de 15 días abiertas'),
+        partFig(`Con más de ${OLD_DAYS} días`, old, 'low', `Llevan más de ${OLD_DAYS} días abiertas`),
         partFig('Escaladas', (i) => C.vt[i] > 0, null, 'Con ticket de tercero: dependen de otros')),
       card('Cómo está lo pendiente', pendCmp(pendRows, op), { span: 's12', sub: `${pp ? 'Issues de cada uno; las de la empresa, la media por persona de su equipo.' : 'Qué parte de sus pendientes está en cada situación.'} En verde, quien va mejor en lo que depende de él; lo que espera a otros, sin color. Clic en una fila para filtrar.` }),
       card('Qué tiene pendiente cada uno', mixCmp(mixRows, op, 'Pendientes'), { span: 's12', sub: 'Los 8 módulos con más pendientes; «Resto», los demás. Clic en una fila para filtrar.' }));
@@ -367,18 +369,19 @@ export const createTabs = (m, ch, ui) => {
   };
 
   // ¿De quién dependemos en cada módulo? Los 15 módulos con más issues: cuántas personas lo tocan, cuántas hacen
-  // falta para llevar el 80 % (de la que más lleva a la que menos) y las tres que más llevan.
+  // falta para llevar OWNERS_SHARE (de la que más lleva a la que menos) y las tres que más llevan.
+  const OWNERS_PCT = Math.round(OWNERS_SHARE * 100);
   const owners = (A) => {
     const g = group('mo', A.filter((i) => C.as[i]), true).filter((x) => x.k).slice(0, 15);
     const body = g.map((x) => {
       const by = group('as', x.rows);
       let sum = 0, n80 = 0;
-      for (const p of by) { sum += p.n; n80++; if (sum >= 0.8 * x.n) break; }
+      for (const p of by) { sum += p.n; n80++; if (sum >= OWNERS_SHARE * x.n) break; }
       const top = by.slice(0, 3).map((p) => `<span class="mt-own ${isSel('as', p.k) ? 'mt-sel' : ''}" data-f="as:${p.k}" data-tip="${esc(`${m.DIMS.as.label(p.k)}\n${num(p.n)} de ${num(x.n)} issues de ${m.DIMS.mo.label(x.k)}`)}">${esc(m.DIMS.as.label(p.k))} <b>${pct(p.n / x.n)}</b></span>`).join('');
       return `<tr class="mt-clk ${isSel('mo', x.k) ? 'mt-sel' : ''}" data-f="mo:${x.k}"><td>${esc(m.DIMS.mo.label(x.k))}</td><td class="mt-num">${num(x.n)}</td><td class="mt-num">${by.length}</td><td class="mt-num">${n80}</td><td class="mt-owns">${top}</td></tr>`;
     }).join('');
     return g.length ? `<div class="mt-tablewrap"><table class="mt-owners"><thead><tr><th>Módulo</th><th class="mt-num">Issues</th><th class="mt-num" data-tip="Personas con alguna issue del módulo.">Personas</th>
-      <th class="mt-num" data-tip="Cuántas personas, de la que más lleva a la que menos, suman el 80 % de las issues del módulo.">Llevan el 80 %</th><th>Quién lleva más</th></tr></thead><tbody>${body}</tbody></table></div>` : '<p class="mt-mut mt-small">Sin datos con estos filtros.</p>';
+      <th class="mt-num" data-tip="Cuántas personas, de la que más lleva a la que menos, suman el ${OWNERS_PCT} % de las issues del módulo.">Llevan el ${OWNERS_PCT} %</th><th>Quién lleva más</th></tr></thead><tbody>${body}</tbody></table></div>` : '<p class="mt-mut mt-small">Sin datos con estos filtros.</p>';
   };
 
   // Módulos y focos de un solo lado; note: un aviso arriba
@@ -423,8 +426,8 @@ export const createTabs = (m, ch, ui) => {
     const who = (x) => (cmp ? ` · ${name(x.k)}` : '');
     // la fila de todas, sin color: es la suma de las otras dos
     const cellsOf = (x, o, last) => TTR_GROUPS.map(([g, ks, better]) => ks.map((k, j) => {
-      const sh = share(x, x.c[k]), a = x.c[k] && !last ? Math.round(6 + 94 * sh / max) : 0, f = x.f ? `data-f2="${x.f}|tb:${k}"` : `data-f="tb:${k}"`;
-      return `<td class="${j ? '' : 'mt-gsep'} ${a > 50 ? 'mt-hot' : ''}" style="--mt-a:${a}%" ${f} data-tip="${esc(`${x.label}${who(x)} · ${m.DIMS.tb.label(k)}\n${num(x.c[k])} de ${num(x.n)} (${pct(sh, 1)})`)}">${x.c[k] ? pct(sh) : ''}</td>`;
+      const sh = share(x, x.c[k]), a = last ? 0 : shade(sh, max), f = x.f ? `data-f2="${x.f}|tb:${k}"` : `data-f="tb:${k}"`;
+      return `<td class="${j ? '' : 'mt-gsep'} ${a > HOT ? 'mt-hot' : ''}" style="--mt-a:${a}%" ${f} data-tip="${esc(`${x.label}${who(x)} · ${m.DIMS.tb.label(k)}\n${num(x.c[k])} de ${num(x.n)} (${pct(sh, 1)})`)}">${x.c[k] ? pct(sh) : ''}</td>`;
     }).join('') + `<td class="mt-total mt-ttr-sub ${best(x, o, ks, better) ? 'mt-better' : ''}" data-tip="${esc(`${x.label}${who(x)} · ${g.toLowerCase()}\n${num(sum(x, ks))} de ${num(x.n)}`)}">${pct(share(x, sum(x, ks)))}</td>`).join('');
     const head = (x, k, n) => (cmp ? `${k ? '' : `<th class="mt-r ${x.f ? 'mt-clk' : ''}" rowspan="${n}" ${x.f ? `data-f="${x.f}"` : ''}>${x.label}</th>`}<th class="mt-r mt-ttr-who" data-tip="${esc(name(k))}"><i class="mt-sw mt-c${k}"></i>${esc(name(k))}</th>`
       : `<th class="mt-r ${x.f ? 'mt-clk' : ''}" ${x.f ? `data-f="${x.f}"` : ''}>${x.label}</th>`);
@@ -438,9 +441,8 @@ export const createTabs = (m, ch, ui) => {
       <tbody>${body}</tbody></table></div>`;
   };
   // Mes a mes (por mes de apertura): lo resuelto de lo recibido ese mes y cuánto tardó, todo, sin escalar y escalado.
-  // En ocre, lo que va claramente peor que el total (como en las fichas: un 15 % o más, con al menos MIN_RES resueltas).
+  // En ocre, lo que va claramente peor que el total (rules.js, con al menos MIN_ISSUES resueltas).
   // Cada dato: [nombre, parte (a todo, n sin escalar, e escalado), valor, formato, mejor, nota].
-  const MIN_RES = 30;
   const RES_MONTH = [
     ['Volumen', [['Resueltas', 'a', (s) => s.resolved, num, null, 'De las recibidas ese mes, las ya resueltas.'],
       ['% escaladas', 'a', (s) => s.escShare, (v) => pct(v), null, 'De las resueltas, las que tienen ticket de tercero.']]],
@@ -457,11 +459,7 @@ export const createTabs = (m, ch, ui) => {
     const defs = RES_MONTH.flatMap(([, d]) => d), firsts = new Set(RES_MONTH.map(([, d]) => d[0]));
     const val = (x, d) => { const s = x[d[1]]; return s.resolved ? d[2](s) : null; };
     const tot = parts(A);
-    const worse = (x, d, v) => {
-      const w = val(tot, d);
-      if (!d[4] || v == null || w == null || x[d[1]].resolved < MIN_RES) return false;
-      return d[4] === 'low' ? v > w * 1.15 : v < w * 0.85;
-    };
+    const worse = (x, d, v) => x[d[1]].resolved >= MIN_ISSUES && clearlyWorse(v, val(tot, d), d[4]);
     const cells = (x, isTot) => defs.map((d) => {
       const v = val(x, d), bad = !isTot && worse(x, d, v);
       return `<td class="mt-num ${firsts.has(d) ? 'mt-gsep' : ''} ${bad ? 'mt-worse' : ''}" ${bad ? `data-tip="${esc(`Peor que el total: ${d[3](val(tot, d))}`)}"` : ''}>${v == null ? '—' : d[3](v)}</td>`;
@@ -489,12 +487,12 @@ export const createTabs = (m, ch, ui) => {
   };
   // la diferencia entre dos tiempos, con signo
   const durDiff = (a, b) => (a == null || b == null ? '—' : `${a >= b ? '+' : '−'}${dur(Math.abs(a - b))}`);
-  // Unas veces se escala y otras no: problemas con al menos 20 resueltas, escalados entre el 20 % y el 80 % de las
-  // veces, agrupados por su módulo principal (el módulo, de más a menos resueltas entre sus problemas). Por problema:
+  // Unas veces se escala y otras no: problemas con al menos MIXED_ESC.min resueltas, escalados entre MIXED_ESC.from y
+  // MIXED_ESC.to de las veces, agrupados por su módulo principal (el módulo, de más a menos resueltas entre sus problemas). Por problema:
   // cuántas, qué parte se escala y lo que tarda sin escalar y escalado.
   const mixedEsc = () => {
-    const g = group('de', m.rows('de').filter(solved), true).filter((x) => x.k && x.n >= 20)
-      .map((x) => ({ ...x, e: x.rows.filter(escd) })).filter((x) => x.e.length >= 0.2 * x.n && x.e.length <= 0.8 * x.n);
+    const g = group('de', m.rows('de').filter(solved), true).filter((x) => x.k && x.n >= MIXED_ESC.min)
+      .map((x) => ({ ...x, e: x.rows.filter(escd) })).filter((x) => x.e.length >= MIXED_ESC.from * x.n && x.e.length <= MIXED_ESC.to * x.n);
     if (!g.length) return '<p class="mt-mut mt-small">Ninguno con estos filtros.</p>';
     const all = ui.exp['rs-mixed'], shown = all ? g : g.slice(0, 12);
     const byMo = new Map();
@@ -516,11 +514,11 @@ export const createTabs = (m, ch, ui) => {
       <tbody>${body}<tr class="mt-lead mt-lead-end"><th class="mt-r" colspan="2">${all || g.length <= 12 ? 'Todos estos problemas' : `Estos ${shown.length} problemas`}</th>${cells(allRows, allRows.filter(escd))}</tr></tbody></table></div>
       ${more('rs-mixed', g.length, 12)}`;
   };
-  // Un mismo ticket, muchas incidencias: tickets de tercero con 5 o más incidencias ligadas, en dos bloques: con
+  // Un mismo ticket, muchas incidencias: tickets de tercero con TICKET_MIN o más incidencias ligadas, en dos bloques: con
   // alguna abierta y ya cerrados (de más a menos incidencias). Cuándo: la primera y la última incidencia y los días
   // entre una y otra (0: todas el mismo día).
   const ticketTable = (A) => {
-    const known = group('vk', A, true).filter((x) => x.k && x.n >= 5).map((x) => ({ ...x, open: x.rows.filter((i) => OPEN[i]).length })).sort((a, b) => (b.open > 0) - (a.open > 0) || b.n - a.n);
+    const known = group('vk', A, true).filter((x) => x.k && x.n >= TICKET_MIN).map((x) => ({ ...x, open: x.rows.filter((i) => OPEN[i]).length })).sort((a, b) => (b.open > 0) - (a.open > 0) || b.n - a.n);
     if (!known.length) return '<p class="mt-mut mt-small">Ninguno con estos filtros.</p>';
     const all = ui.exp['rs-known'], shown = known.slice(0, all ? 200 : 15);
     const row = (x, j, n, head) => {
@@ -627,7 +625,7 @@ export const createTabs = (m, ch, ui) => {
         kpi('Esperando a terceros', on ? pct(s.rt[3] / rtTot) : '—', 'del tiempo de vida de lo resuelto')),
       section('¿Cuánto tardamos?'),
       card('Cuánto tardan', ttrTable(m.rows('tb')), { span: 's12', sub: 'Lo resuelto sin escalar, escalado y todo, repartido según lo que tardó (cada fila suma el 100 %); cada bloque, con su total. Clic en una celda para filtrar.' }),
-      card('Mes a mes', resMonthly(A), { span: 's12', sub: `${MONTH_NOTE} En ocre, lo que va un 15 % o más peor que el total (con al menos ${MIN_RES} resueltas). Clic en un mes para filtrar.` }),
+      card('Mes a mes', resMonthly(A), { span: 's12', sub: `${MONTH_NOTE} ${WORSE_NOTE.replace('issues', 'resueltas')} Clic en un mes para filtrar.` }),
       section('¿En qué se va el tiempo?'),
       card('Por prioridad, escalado y tarjeta', timeTable(A), { span: 's12', sub: 'Lo que pasa de media cada resuelta en cada estado, según el historial de cambios. Clic en una fila para filtrar.' }),
       section('¿Qué módulos tardan más?'),
@@ -636,16 +634,14 @@ export const createTabs = (m, ch, ui) => {
       section('¿Qué escalamos y a quién?'),
       card('', scorecard('vt', [['Volumen', ['n']], ['Cuánto tarda', ['avg', 'w7', 'tv']], ['Hoy', ['open']]],
         { id: 'rs-vt', rows: m.rows('vt').filter(escd), refLabel: 'Todo lo escalado', title: 'A quién escalamos', n: ['Escaladas', 'Issues con ticket de tercero y su parte de lo escalado.'], child: { dim: 'vp', top: 8, noun: 'proyectos Jira' } }), { span: 's12' }),
-      card('Unas veces se escala y otras no', mixedEsc(), { span: 's12', sub: 'Problemas con al menos 20 resueltas que se escalan entre el 20 % y el 80 % de las veces, agrupados por su módulo principal: lo que tardan sin escalar y escalados. Clic en uno para filtrar.' }),
-      card('Un mismo ticket, muchas incidencias', ticketTable(A), { span: 's12', sub: 'Tickets de tercero con 5 o más incidencias ligadas: arriba, los que aún tienen alguna abierta. Clic en uno para filtrar.' }));
+      card('Unas veces se escala y otras no', mixedEsc(), { span: 's12', sub: `Problemas con al menos ${MIXED_ESC.min} resueltas que se escalan entre el ${pct(MIXED_ESC.from)} y el ${pct(MIXED_ESC.to)} de las veces, agrupados por su módulo principal: lo que tardan sin escalar y escalados. Clic en uno para filtrar.` }),
+      card('Un mismo ticket, muchas incidencias', ticketTable(A), { span: 's12', sub: `Tickets de tercero con ${TICKET_MIN} o más incidencias ligadas: arriba, los que aún tienen alguna abierta. Clic en uno para filtrar.` }));
   };
 
   // --- SLA y calidad. Tres preguntas: si empezamos a tiempo, si el trabajo queda bien hecho y si queda
   // bien registrado. Las tablas, como las de Resolución: una fila por corte con su total al final y, en ocre, lo que va
-  // un 15 % o más peor que el total (con al menos MIN_RES issues). 
+  // claramente peor que el total (rules.js, con al menos MIN_ISSUES issues).
   const P1 = (v) => pct(v, 1);
-  // un 15 % o más peor que el total y, en los %, al menos un punto (0,7 % frente a 0,5 % no se marca)
-  const clearlyWorse = (v, w, better) => (better === 'low' ? v > w * 1.15 : v < w * 0.85) && (w > 1 || Math.abs(v - w) >= 0.01);
   const INI = m.DIMS.ini.label;
   // Cuándo pasan a En curso, por prioridad: cada fila repartida entre los tramos (suma el 100 %); los tramos que caen
   // dentro del plazo de esa prioridad, en verde. Clic en una celda filtra esa prioridad y ese tramo. Comparando, una
@@ -664,9 +660,9 @@ export const createTabs = (m, ch, ui) => {
     const share = (x, v) => v / (x.n || 1), max = Math.max(0.01, ...blocks.slice(0, -1).flat().flatMap((x) => x.c.map((v) => share(x, v))));
     const who = (x) => (cmp ? ` · ${name(x.k)}` : '');
     const cells = (x, last) => GROUPS.map(([, ks]) => ks.map((k, j) => {
-      const sh = share(x, x.c[k]), a = x.c[k] && !last ? Math.round(6 + 94 * sh / max) : 0, ok = k <= x.lim;
+      const sh = share(x, x.c[k]), a = last ? 0 : shade(sh, max), ok = k <= x.lim;
       const f = x.f ? `data-f2="${x.f}|ini:${k}"` : `data-f="ini:${k}"`;
-      return `<td class="${j ? '' : 'mt-gsep'} ${ok ? 'mt-insla' : ''} ${a > 50 ? 'mt-hot' : ''}" style="--mt-a:${a}%" ${f} data-tip="${esc(`${x.label}${who(x)} · ${INI(k)}${ok ? ' (dentro del SLA)' : ''}\n${num(x.c[k])} de ${num(x.n)} (${pct(sh, 1)})`)}">${x.c[k] ? pct(sh) : ''}</td>`;
+      return `<td class="${j ? '' : 'mt-gsep'} ${ok ? 'mt-insla' : ''} ${a > HOT ? 'mt-hot' : ''}" style="--mt-a:${a}%" ${f} data-tip="${esc(`${x.label}${who(x)} · ${INI(k)}${ok ? ' (dentro del SLA)' : ''}\n${num(x.c[k])} de ${num(x.n)} (${pct(sh, 1)})`)}">${x.c[k] ? pct(sh) : ''}</td>`;
     }).join('')).join('');
     // el lado que va mejor en una cifra (low: menos es mejor), comparando lo que se ve
     const better = (x, o, v, fmt, low) => cmp && o && x.n >= BETTER_MIN && o.n >= BETTER_MIN && v(x) != null && v(o) != null && fmt(x) !== fmt(o) && (low ? v(x) < v(o) : v(x) > v(o));
@@ -688,13 +684,10 @@ export const createTabs = (m, ch, ui) => {
   };
   // Tabla dinámica de calidad: bloques de filas (cada fila, [nombre, prueba, filtro]) por grupos de columnas (cada una,
   // [nombre, valor de stats, formato, mejor, nota, marca de calidad para el clic]), con el total al final. En ocre, lo
-  // que va un 15 % o más peor que el total, con al menos MIN_RES issues.
+  // que va claramente peor que el total, con al menos MIN_ISSUES issues.
   const qualityPivot = (A, blocks, groups, first = '', st = stats) => {
     const defs = groups.flatMap(([, d]) => d), firsts = new Set(groups.map(([, d]) => d[0])), tot = st(A);
-    const worse = (s, d, v) => {
-      const w = d[1](tot);
-      return d[3] && v != null && w != null && s.n >= MIN_RES && clearlyWorse(v, w, d[3]);
-    };
+    const worse = (s, d, v) => s.n >= MIN_ISSUES && clearlyWorse(v, d[1](tot), d[3]);
     const cells = (s, f, isTot) => defs.map((d) => {
       const v = d[1](s), bad = !isTot && worse(s, d, v), click = d[5] != null ? (f ? `data-f2="${f}|q:${d[5]}"` : `data-f="q:${d[5]}"`) : '';
       return `<td class="mt-num ${firsts.has(d) ? 'mt-gsep' : ''} ${bad ? 'mt-worse' : ''} ${click ? 'mt-clkc' : ''}" ${click} ${bad ? `data-tip="${esc(`Peor que el total: ${d[2](d[1](tot))}`)}"` : ''}>${v == null ? '—' : d[2](v)}</td>`;
@@ -727,7 +720,7 @@ export const createTabs = (m, ch, ui) => {
   const monthPivot = (A, groups, st = stats) => {
     const defs = groups.flatMap(([, d]) => d), firsts = new Set(groups.map(([, d]) => d[0])), tot = st(A);
     const cells = (s, isTot) => defs.map((d) => {
-      const v = d[1](s), w = d[1](tot), bad = !isTot && d[3] && v != null && w != null && s.n >= MIN_RES && clearlyWorse(v, w, d[3]);
+      const v = d[1](s), w = d[1](tot), bad = !isTot && s.n >= MIN_ISSUES && clearlyWorse(v, w, d[3]);
       return `<td class="mt-num ${firsts.has(d) ? 'mt-gsep' : ''} ${bad ? 'mt-worse' : ''}" ${bad ? `data-tip="${esc(`Peor que el total: ${d[2](w)}`)}"` : ''}>${v == null ? '—' : d[2](v)}</td>`;
     }).join('');
     const body = monthsIn().map((k) => `<tr class="mt-clk ${isSel('month', k) ? 'mt-sel' : ''}" data-f="month:${k}"><td>${MONTHS[k]}${k === LASTM ? '*' : ''}</td>${cells(st(A.filter((i) => MONTH[i] === k)))}</tr>`).join('');
@@ -744,17 +737,17 @@ export const createTabs = (m, ch, ui) => {
         kpi('Escaladas sin Pendiente', s.escNoPend == null ? '—' : P1(s.escNoPend), 'de las cerradas escaladas'), kpi('Sin texto de resolución', s.done ? P1(s.noRes) : '—', 'de las cerradas')),
       section('¿Empezamos a tiempo?'),
       card('Cuándo pasan a En curso', startTable(m.rows('ini')), { span: 's12', sub: 'Por prioridad: el SLA de inicio y cómo se reparte (cada fila suma el 100 %) lo que tarda en pasar a En curso; en verde, los tramos dentro del plazo de esa prioridad. Clic en una celda para filtrar.' }),
-      card('Mes a mes', monthPivot(A, SLA_COLS, slaStats), { span: 's12', sub: `${MONTH_NOTE} En ocre, lo que va un 15 % o más peor que el total (con al menos ${MIN_RES} issues). Clic en un mes para filtrar.` }),
+      card('Mes a mes', monthPivot(A, SLA_COLS, slaStats), { span: 's12', sub: `${MONTH_NOTE} ${WORSE_NOTE} Clic en un mes para filtrar.` }),
       card('Por turno y día de entrada', qualityPivot(A, [['Turno', 'Por la hora de apertura.', [0, 1, 2].map((k) => [m.DIMS.tu.label(k), (i) => m.DIMS.tu.get(i) === k, `tu:${k}`])],
         ['Días', '', [0, 1].map((k) => [m.DIMS.we.label(k), (i) => m.DIMS.we.get(i) === k, `we:${k}`])]],
         [['Volumen', [['Issues', (x) => x.n, num, null, '']]], ['Dentro del SLA', [...PRIOS.slice(0, 2).map((p) => [nice(DI.prio[p]), (x) => x.byP?.[p] ?? null, (v) => pct(v), 'high', slaLabel(p)]), ['Todas', (x) => x.sla, (v) => pct(v), 'high', 'Todas las prioridades.']]],
           ['Hasta En curso', [['Media', (x) => x.ip, dur, 'low', 'Media de la apertura al primer paso a En curso.'], ['En su turno', (x) => x.inShift, (v) => pct(v), 'high', 'De las empezadas, las que pasaron a En curso en el mismo turno en que entraron.']]]], '', slaStats),
-        { span: 's12', sub: `Según cuándo se abrió. En ocre, lo que va un 15 % o más peor que el total (con al menos ${MIN_RES} issues). Clic en una fila para filtrar.` }),
+        { span: 's12', sub: `Según cuándo se abrió. ${WORSE_NOTE} Clic en una fila para filtrar.` }),
       section('¿Queda bien hecho y bien registrado?'),
       card('Por prioridad y tarjeta', qualityPivot(A, [['Prioridad', '', PRIO_ROWS()], ['Tarjeta', 'Una PRIO cuenta también en su SGA o SISU.', CARD_ROWS()],
         ['Escalado', '', [['Sin escalar', (i) => !escd(i), 'es:0'], ['Escaladas', escd, 'es:1']]]], QUALITY_COLS),
-        { span: 's12', sub: `Trabajo: lo que vuelve atrás. Registro: lo que falta o no se movió en Remedy. En ocre, lo que va un 15 % o más peor que el total (con al menos ${MIN_RES} issues). Clic en una cifra para ver esas issues.` }),
-      card('Mes a mes', monthPivot(A, QUALITY_COLS), { span: 's12', sub: `${MONTH_NOTE} En ocre, lo que va un 15 % o más peor que el total (con al menos ${MIN_RES} issues). Clic en un mes para filtrar.` }),
+        { span: 's12', sub: `Trabajo: lo que vuelve atrás. Registro: lo que falta o no se movió en Remedy. ${WORSE_NOTE} Clic en una cifra para ver esas issues.` }),
+      card('Mes a mes', monthPivot(A, QUALITY_COLS), { span: 's12', sub: `${MONTH_NOTE} ${WORSE_NOTE} Clic en un mes para filtrar.` }),
       section('¿Dónde?'),
       card('', scorecard('mo', [['Volumen', ['n']], ['Empezar a tiempo', ['sla', 'slaKo', 'ip']], ['Trabajo', ['reop', 'bounce']], ['Registro', ['noIpDone', 'escNoPend', 'noCat', 'noDesc']]],
         { id: 'sq-mo', skip: noK, refLabel: 'Todos los módulos', title: 'Módulos' }), { span: 's12' }),
@@ -766,13 +759,8 @@ export const createTabs = (m, ch, ui) => {
   // recibe trabajo distinto: el SLA, por prioridad, y también con el mismo trabajo); entre personas, cómo trabaja
   // cada uno (una persona frente a su equipo, ella incluida, o frente a otra). Todo cuenta a la persona responsable
   // actual de la issue.
-  // si se empezó dentro del SLA (1), fuera (0) o no cuenta (null): lo mismo que stats (sla)
-  const slaHit = (i) => {
-    const l = m.SLA[C.pr[i]];
-    if (l < 0) return null;
-    if (C.ip[i] >= 0) return C.ip[i] <= l ? 1 : 0;
-    return OPEN[i] && m.SNAP - C.rep[i] > l ? 0 : null;
-  };
+  // si se empezó dentro del SLA (1), fuera (0) o no cuenta (null): lo mismo que stats (sla), desde la dimensión sl
+  const slaHit = (i) => { const k = m.DIMS.sl.get(i); return k === 0 ? 1 : k <= 4 ? 0 : null; };
   // lo que cumpliría ref con el trabajo de work: su % dentro del SLA en cada prioridad y módulo (con menos de 5, el de
   // la prioridad), con el peso que tiene cada uno en work
   const slaWith = (work, ref) => {
@@ -891,7 +879,7 @@ export const createTabs = (m, ch, ui) => {
   };
   // Mes a mes, por mes de apertura, como las fichas de ¿Dónde? (el título dentro de la tabla y bloques de columnas):
   // cuánto se usa (issues, % de lo recibido y personas), cómo sale (reparto en barra y %) y lo resuelto con IA (media,
-  // < 24 h y reabiertas). En ocre, lo que va un 15 % o más peor que el total, con al menos MIN_RES issues con IA. Los
+  // < 24 h y reabiertas). En ocre, lo que va claramente peor que el total, con al menos MIN_ISSUES issues con IA. Los
   // meses sin IA, solo con lo recibido.
   const iaMonthly = (A) => {
     const part = (l) => ({ s: iaStats(l), r: stats(l.filter(withIa)) });
@@ -899,7 +887,7 @@ export const createTabs = (m, ch, ui) => {
     const td = (v, fmt, bad = false, w = null) => `<td class="mt-num ${bad ? 'mt-worse' : ''}" ${bad ? `data-tip="${esc(`Peor que el total: ${fmt(w)}`)}"` : ''}>${v == null ? '' : fmt(v)}</td>`;
     const cells = (x, isTot) => {
       const { s, r } = x, T = tot.s, R = tot.r, on = s.ia > 0, res = r.resolved > 0;
-      const bad = (v, w, b) => !isTot && s.ia >= MIN_RES && v != null && w != null && clearlyWorse(v, w, b);
+      const bad = (v, w, b) => !isTot && s.ia >= MIN_ISSUES && clearlyWorse(v, w, b);
       return `<td><div class="mt-sc-vol"><em>${pct(s.n / N, 1)}</em><span class="mt-sc-bar"><i style="width:${(s.n / N * 100).toFixed(1)}%"></i></span><b>${num(s.n)}</b></div></td>
         <td class="mt-num">${on ? num(s.ia) : '<span class="mt-mut">0</span>'}</td>${td(on ? s.share : null, (v) => pct(v, 1))}${td(on ? s.users : null, num)}
         <td class="mt-tbar">${iaBar(s)}</td>${td(on ? s.okShare : null, (v) => pct(v))}${td(on ? s.failShare : null, (v) => pct(v), bad(s.failShare, T.failShare, 'low'), T.failShare)}${td(on ? s.unrevShare : null, (v) => pct(v))}
@@ -941,7 +929,7 @@ export const createTabs = (m, ch, ui) => {
       card('Según cómo sale', qualityPivot(R, [['Con IA', '', [0, 1, 2].map((k) => [m.DIMS.ia.label(k), (i) => iaOf(i) === k, `ia:${k}`])], ['Sin IA', '', [['Sin IA', (i) => iaOf(i) === IA_NONE, `ia:${IA_NONE}`]]]],
         [['Volumen', [['Resueltas', (x) => x.resolved, num, null, '']]], ['Resolución', [['Media', (x) => (x.resolved ? x.avg : null), dur, 'low', 'De la apertura a la resolución.'], ['En < 24 h', (x) => (x.resolved ? x.d1 : null), (v) => pct(v), 'high', '']]],
           ['Después', [['Reabiertas', (x) => (x.n ? x.reop : null), P1, 'low', 'Volvieron de Resuelta a abierta.'], ['Escaladas', (x) => (x.n ? x.vend : null), (v) => pct(v), null, 'Con ticket de tercero.']]]]),
-        { span: 's12', sub: `Lo resuelto, según sus marcas de IA. En ocre, lo que va un 15 % o más peor que el total (con al menos ${MIN_RES} issues). Clic en una fila para filtrar.` }),
+        { span: 's12', sub: `Lo resuelto, según sus marcas de IA. ${WORSE_NOTE} Clic en una fila para filtrar.` }),
       section('¿Quién la usa?'),
       card('', scorecard('as', [['Volumen', ['n']], ['Con IA', ['iaN', 'iaShare']], ['Cómo sale', ['iaMix', 'iaOk', 'iaFail', 'iaUnrev']], ['Resolución', ['avg', 'd1']]],
         { id: 'ia-as', skip: noK, refLabel: 'Todas las personas', title: 'Personas', extra, sort: 'iaN', top: 15, cell: mix }), { span: 's12' }),
@@ -1084,7 +1072,7 @@ export const createTabs = (m, ch, ui) => {
             fig('El 90 %, en menos de', ST, (s) => dur(s.p90), sv('p90'), 'low'),
             fig('Escaladas a terceros', ST, (s) => pct(s.vend), sv('vend'), null, 'Con ticket de tercero (desarrollo, proveedor…).')]),
           answer('sla', [
-            fig('Empezadas dentro del SLA', ST, slaPct, sv('sla'), 'high', 'Pasan a En curso dentro del plazo de su prioridad: crítica 15 min, alta 45 min, media 2 h, baja 8 h.'),
+            fig('Empezadas dentro del SLA', ST, slaPct, sv('sla'), 'high', `Pasan a En curso dentro del plazo de su prioridad: ${slaText()}.`),
             fig('Primera actuación, de media', ST, (s) => dur(s.fr), sv('fr'), 'low'),
             fig('Reabiertas', ST, (s) => pct(s.reop, 1), sv('reop'), 'low'),
             fig('Cerradas sin explicar la solución', ST, (s) => pct(s.noRes, 1), sv('noRes'), 'low')]),
@@ -1107,10 +1095,9 @@ export const createTabs = (m, ch, ui) => {
     hoy() {
       const L = m.today(), op = L.filter((i) => OPEN[i]), T = bySide(op), now = m.SNAP;
       const people = S.sides.some((x) => x?.people), one = S.sides.some((x) => x?.people?.size === 1) && !CMP();
-      const CRITICAL = DI.prio.indexOf('CRITICAL'), lm = C.lm, days = (min) => Math.floor(min / 1440);
+      const lm = C.lm, days = (min) => Math.floor(min / DAY);
       const idle = (i) => (lm ? now - lm[i] : null);   // sin ningún cambio desde hace (minutos); null con datos de antes de guardar el último cambio
-      const IDLE = 5 * 1440;
-      const late = (i) => { const l = m.SLA[C.pr[i]]; return C.ip[i] < 0 && l >= 0 && now - C.rep[i] > l; };
+      const IDLE = IDLE_DAYS * DAY;
       const waits = (i) => { const k = m.DIMS.sit.get(i); return k === 3 ? 'v' : k === 4 ? 'c' : ''; };
       const count = (test) => T.map((l) => ({ n: l.length || 1, v: l.filter(test).length }));
       // una lista de issues: cada fila con su enlace a Remedy
@@ -1125,7 +1112,7 @@ export const createTabs = (m, ch, ui) => {
         return rowsIn.length ? `<div class="mt-tablewrap ${all ? 'mt-scroll' : ''}"><table class="mt-list"><thead><tr>${head.map((h) => `<th>${h}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>${more(id, rowsIn.length, top)}` : '<p class="mt-mut mt-small">Ninguna.</p>';
       };
       const byAge = (a, b) => C.rep[a] - C.rep[b];
-      const crit3 = L.filter((i) => C.pr[i] === CRITICAL && now - C.rep[i] <= 3 * 1440).sort((a, b) => C.rep[b] - C.rep[a]);
+      const crit3 = L.filter((i) => C.pr[i] === CRIT && now - C.rep[i] <= RECENT_CRIT_DAYS * DAY).sort((a, b) => C.rep[b] - C.rep[a]);
       const prio = op.filter((i) => cardsOf(i).includes(2)).sort(byAge);
       const lateL = op.filter(late).sort(byAge);
       const vendor = op.filter((i) => waits(i) === 'v').sort(byAge);
@@ -1134,9 +1121,9 @@ export const createTabs = (m, ch, ui) => {
       const orphan = people ? [] : m.today(true).filter((i) => OPEN[i] && !C.as[i] && cardsOf(i).some((k) => k < 3)).sort(byAge);
       // quién tiene qué: lo abierto de cada persona
       const PCOLS = [['Abiertas', () => true], ['Asignada', (i) => DI.status[C.st[i]] === 'ASSIGNED'], ['En curso', (i) => DI.status[C.st[i]] === 'IN_PROGRESS'],
-        ['Pendiente', (i) => DI.status[C.st[i]] === 'PENDING'], ['Críticas', (i) => C.pr[i] === CRITICAL], ['PRIO', (i) => cardsOf(i).includes(2)],
+        ['Pendiente', (i) => DI.status[C.st[i]] === 'PENDING'], ['Críticas', (i) => C.pr[i] === CRIT], ['PRIO', (i) => cardsOf(i).includes(2)],
         ['Sin iniciar, fuera de plazo', late], ['Esperando a un tercero', (i) => waits(i) === 'v'], ['Esperando al cliente', (i) => waits(i) === 'c'],
-        ['Más de 15 días', (i) => now - C.rep[i] > 15 * 1440], ...(lm ? [['Sin cambios en 5 días', (i) => idle(i) > IDLE]] : [])];
+        [`Más de ${OLD_DAYS} días`, (i) => now - C.rep[i] > OLD], ...(lm ? [[`Sin cambios en ${IDLE_DAYS} días`, (i) => idle(i) > IDLE]] : [])];
       const who = group('as', op, true).filter((x) => x.k).map((x) => ({ k: x.k, v: PCOLS.map(([, t]) => x.rows.filter(t).length) }));
       const tot = PCOLS.map(([, t]) => op.filter(t).length);
       const whoTable = `<div class="mt-tablewrap"><table><thead><tr><th>Persona</th>${PCOLS.map(([l]) => `<th class="mt-num">${l}</th>`).join('')}</tr></thead><tbody>${who.map((r) => `<tr class="mt-clk ${isSel('as', r.k) ? 'mt-sel' : ''}" data-f="as:${r.k}"><td>${CMP() ? `<i class="mt-sw mt-c${m.SIDE[op.find((i) => C.as[i] === r.k)]}"></i>` : ''}${esc(m.DIMS.as.label(r.k))}</td>${r.v.map((v) => `<td class="mt-num">${v || ''}</td>`).join('')}</tr>`).join('')}
@@ -1144,20 +1131,20 @@ export const createTabs = (m, ch, ui) => {
       const sub = (t) => `${t} Pasa el ratón por un título para leerlo entero.`;
       return grid(ask('hoy'),
         kpis(kpiCo('Abiertas', count(() => true), (s) => num(s.v), { val: (s) => s.v }),
-          kpiCo('Críticas abiertas', count((i) => C.pr[i] === CRITICAL), (s) => num(s.v), { val: (s) => s.v }),
+          kpiCo('Críticas abiertas', count((i) => C.pr[i] === CRIT), (s) => num(s.v), { val: (s) => s.v }),
           kpiCo('PRIO abiertas', count((i) => cardsOf(i).includes(2)), (s) => num(s.v), { val: (s) => s.v }),
           kpiCo('Sin iniciar, fuera de plazo', count(late), (s) => num(s.v), { val: (s) => s.v, better: 'low' }),
           kpiCo('Esperando a un tercero', count((i) => waits(i) === 'v'), (s) => num(s.v), { val: (s) => s.v }),
           kpiCo('Esperando al cliente', count((i) => waits(i) === 'c'), (s) => num(s.v), { val: (s) => s.v }),
-          lm ? kpiCo('Sin cambios en 5 días', count((i) => idle(i) > IDLE), (s) => num(s.v), { val: (s) => s.v, better: 'low' }) : '',
+          lm ? kpiCo(`Sin cambios en ${IDLE_DAYS} días`, count((i) => idle(i) > IDLE), (s) => num(s.v), { val: (s) => s.v, better: 'low' }) : '',
           people ? '' : kpi('Sin asignar', num(orphan.length), 'SGA, SISU o PRIO, sin nadie', 'mt-t2')),
         lm ? '' : '<p class="mt-note">Para ver lo que lleva días sin cambios, carga de nuevo el CSV: los datos guardados son de antes de que se leyera el último cambio de cada issue.</p>',
         card('Quién tiene qué', whoTable, { span: 's12', sub: 'Lo abierto de cada persona. Clic en una persona para ver todas las métricas solo de ella.' }),
-        card('Críticas de los últimos 3 días', list('hoy-crit', crit3), { span: 's12', sub: sub('Todas las críticas abiertas en los 3 últimos días, resueltas o no, de la más reciente a la más antigua.') }),
+        card(`Críticas de los últimos ${RECENT_CRIT_DAYS} días`, list('hoy-crit', crit3), { span: 's12', sub: sub(`Todas las críticas abiertas en los ${RECENT_CRIT_DAYS} últimos días, resueltas o no, de la más reciente a la más antigua.`) }),
         card('PRIO abiertas', list('hoy-prio', prio), { span: 's12', sub: sub('Priorizadas por negocio, de la más antigua a la más reciente.') }),
         card('Sin iniciar y fuera de plazo', list('hoy-late', lateL), { span: 's12', sub: sub('Abiertas que nunca han pasado a En curso y ya superan el plazo de su prioridad.') }),
         ...(people ? [] : [card('Sin asignar', list('hoy-orphan', orphan), { span: 's12', sub: sub('En SGA, SISU o PRIO, sin responsable.') })]),
-        card('Sin cambios desde hace más de 5 días', lm ? list('hoy-stale', stale) : '<p class="mt-mut mt-small">Carga de nuevo el CSV para verlo.</p>', { span: 's12', sub: sub('Abiertas en las que nadie ha tocado nada en 5 días, de la más parada a la menos.') }),
+        card(`Sin cambios desde hace más de ${IDLE_DAYS} días`, lm ? list('hoy-stale', stale) : '<p class="mt-mut mt-small">Carga de nuevo el CSV para verlo.</p>', { span: 's12', sub: sub(`Abiertas en las que nadie ha tocado nada en ${IDLE_DAYS} días, de la más parada a la menos.`) }),
         card('Esperando a un tercero', list('hoy-vendor', vendor), { span: 's12', sub: sub('Pendientes de una acción de un tercero (desarrollo, proveedor…), con su ticket.') }),
         card('Esperando al cliente', list('hoy-client', client), { span: 's12', sub: sub('Pendientes de una acción o de una respuesta del centro o del cliente.') }),
         card('Todo lo abierto', list('hoy-all', op.slice().sort(byAge), { top: 15 }), { span: 's12', sub: sub('La sábana del backlog: todo lo abierto, de lo más antiguo a lo más reciente.') }));
@@ -1194,7 +1181,6 @@ export const createTabs = (m, ch, ui) => {
       if (CMP()) return backlogCmp(A);
       const T = bySide(A), ST = T.map(stats), inA = (i) => SIDE[i] < 2;
       const op = A.filter((i) => OPEN[i]), people = S.sides.some((s) => s?.people), orphans = people ? [] : orphansIn();
-      const CRITICAL = DI.prio.indexOf('CRITICAL');
       // lo pendiente: su situación y, aparte, lo que hay que vigilar
       // solo las situaciones que hay (una sin ninguna issue no aporta y quita sitio)
       const SIT = SITUATION.filter((x) => op.some(x.test));
@@ -1206,7 +1192,7 @@ export const createTabs = (m, ch, ui) => {
         { label: 'Fuera de plazo', tip: 'Sin iniciar: nunca han pasado a En curso y ya superan su SLA.', test: (i) => inA(i) && late(i), f: 'sl:4' },
         { label: 'Escaladas', tip: 'Con ticket de tercero.', test: (i) => inA(i) && C.vt[i] > 0, f: 'es:1' },
         { label: 'PRIO', test: (i) => inA(i) && cardsOf(i).includes(2), f: 'tj:2' },
-        { label: 'Críticas', test: (i) => inA(i) && C.pr[i] === CRITICAL, f: `pr:${CRITICAL}` },
+        { label: 'Críticas', test: (i) => inA(i) && C.pr[i] === CRIT, f: `pr:${CRIT}` },
         ...(orphans.length ? [{ head: 'Aparte', note: 'SGA, SISU o PRIO sin nadie asignado.' }, { label: 'Sin responsable', test: (i) => !C.as[i] }] : []),
       ];
       const prioRows = [{ head: 'Prioridad' }, ...PRIOS.map((p) => ({ label: nice(DI.prio[p]), test: (i) => C.pr[i] === p, f: `pr:${p}` })),

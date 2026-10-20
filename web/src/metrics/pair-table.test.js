@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { pairTable, BETTER_MIN } from './pair-table.js';
+import { pairTable } from './pair-table.js';
+import { BETTER_MIN } from './rules.js';
 
 const pct = (v) => `${Math.round(v * 100)} %`;
 const share = ['% OK', (x) => x.v, pct, 'high', 'nota', (x) => x.n];

@@ -30,6 +30,9 @@ const AGE_LIMITS = [6, 11, 16, 31, Infinity].map((d) => d * 1440);
 
 // SLA de inicio: de la apertura al primer paso a En curso, por prioridad.
 const SLA_MINUTES = { CRITICAL: 15, HIGH: 45, MEDIUM: 120, LOW: 480 };
+const slaDur = (m) => (m < 60 ? `${m} min` : `${m / 60} h`);
+// «crítica 15 min, alta 45 min, media 2 h, baja 8 h», para los textos que explican el SLA
+export const slaText = () => Object.entries(SLA_MINUTES).map(([p, m]) => `${nice(p).toLowerCase()} ${slaDur(m)}`).join(', ');
 const SLA_NAMES = ['Dentro del SLA', 'Hasta el doble del SLA', 'Del doble a 5 veces el SLA', 'Más de 5 veces el SLA',
   'Sin iniciar y ya fuera de plazo', 'Sin iniciar, aún en plazo', 'Cerrada sin pasar por En curso', 'Prioridad sin SLA'];
 
@@ -56,7 +59,7 @@ export const createModel = (data) => {
   const SLA = DI.prio.map((p) => SLA_MINUTES[p] ?? -1);
   // las prioridades de más a menos urgente y su SLA de inicio («Crítica · 15 min»)
   const PRIOS = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map((p) => DI.prio.indexOf(p)).filter((k) => k > 0);
-  const slaLabel = (p) => `${nice(DI.prio[p])} · ${SLA[p] < 60 ? `${SLA[p]} min` : `${SLA[p] / 60} h`}`;
+  const slaLabel = (p) => `${nice(DI.prio[p])} · ${slaDur(SLA[p])}`;
   const OPEN_ST = new Set(['ASSIGNED', 'IN_PROGRESS', 'PENDING'].map((s) => DI.status.indexOf(s)));
   const [ASSIGNED, IN_PROGRESS] = ['ASSIGNED', 'IN_PROGRESS'].map((x) => DI.status.indexOf(x));
   const VENDOR = DI.reason.indexOf(VENDOR_REASON), CLIENT = CLIENT_REASONS.map((r) => DI.reason.indexOf(r)).filter((k) => k > 0);
@@ -315,7 +318,7 @@ export const createModel = (data) => {
   };
 
   return {
-    data, C, DI, N, BASE, SNAP, LASTM, SLA, PRIOS, slaLabel, MONTH, DOW, OPEN, TEAM, SIDE, DIMS, S, STYPE,
+    data, C, DI, N, BASE, SNAP, LASTM, SLA, PRIOS, CRIT, slaLabel, MONTH, DOW, OPEN, TEAM, SIDE, DIMS, S, STYPE,
     CMP, CO, NAMES, refilter, rows, pool, today, toggle, isSel, group, bySide, trend, stats, periodSlots, clock,
     heads, perHead, alone, carry: (list) => carry(list, C, shiftType), shiftWork: (list) => shiftWork(list, C, (i) => OPEN[i], shiftType),
   };
