@@ -29,7 +29,7 @@ cuenta de la instancia (las da un administrador; ver «La base de la
 instancia»). Con «Mantener la sesión» se entra solo la próxima vez.
 
 Cada persona ve las **vistas** que se le den: el Chat siempre y, además,
-Issues, Panel de trabajo, Métricas (las tres, de momento, en esqueleto),
+Issues, Equipo soporte, Métricas,
 Enlaces rápidos, Laboratorio, Administración y Personas. Lo cómodo es darlas
 con un **rol** (un nombre y unas vistas): asignar un rol pone sus vistas y
 editarlo las cambia a todos los que lo tienen. Vienen **Administrador** (todas,
@@ -182,6 +182,27 @@ Variable de entorno solo para desarrollo: `SIA_WORKSPACE`.
 Los scripts de mantenimiento (`scripts/copy-knowledge.mjs`,
 `mcp/seed-skills.mjs`) escriben saltándose las políticas: se les pasa la
 clave secret por entorno en el momento, nunca se guarda.
+
+## Trabajar en el repositorio
+
+- **Trunk-based**: commits pequeños directamente en `main`, uno por cambio,
+  con el mensaje en español explicando qué cambia y por qué, y push tras cada
+  iteración probada. Nada de ramas largas.
+- **Arquitectura**: cada funcionalidad en su carpeta (`server/<slice>/`,
+  `web/src/<slice>/`) con el dominio en módulos puros, sin E/S ni DOM, y su
+  `*.test.js` al lado; la E/S y la vista reciben sus dependencias. `index.js`
+  y `main.js` solo cablean. Un helper que se repite va a `shared/` o `ui/`.
+- **Sin basura**: nada muerto, comentado, duplicado ni exportado «por si
+  acaso»; lo que deja de usarse se borra en el mismo cambio.
+- **Antes de subir**: `npm test` en verde (394 pruebas, en segundos) y
+  `cd web && npx vite build` sin errores; el CI (`.github/workflows/test.yml`)
+  lo repite en cada push y pull request. Un cambio de UI se mira en el
+  navegador contra <http://localhost:5220>. Las pruebas de SQL
+  (`npm run test:platform`, `npm run test:rls`) necesitan Docker y se lanzan a
+  mano cuando se toca la base.
+- **Conocimiento del equipo**: el RAG (contexto «SIA» del MCP `knowledge`) es
+  la referencia; cuando algo cambia, su entrada se reescribe en presente, sin
+  datos personales.
 
 > **Multiplataforma:** Windows (ConPTY), macOS y Linux. App de escritorio con
 > Electron: `npm run dist` (macOS) / tag → CI (`.exe`).

@@ -1,0 +1,26 @@
+name: test
+
+# Las pruebas de dominio (npm test) y la compilación de la web, en cada push y
+# en cada pull request. Lo que no pase aquí no entra en main.
+on:
+  push:
+    branches: ['main']
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Dependencias
+        run: |
+          (cd server && npm ci --no-audit --no-fund)
+          (cd web && npm ci --no-audit --no-fund)
+          (cd mcp && npm ci --no-audit --no-fund)
+      - name: Pruebas
+        run: npm test
+      - name: Web
+        run: cd web && npx vite build
