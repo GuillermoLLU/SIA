@@ -7,8 +7,8 @@ import { WebSocketServer, WebSocket as WSClient } from 'ws';
 import * as pty from 'node-pty';
 import { createClient } from '@supabase/supabase-js';
 import { fetch as undiciFetch, Agent as UndiciAgent } from 'undici';
-import { headerValue, siaHeaders } from './access/credentials.js';
-import { permsFromRow } from './access/perms.js';
+import { headerValue, siaHeaders } from './shared/credentials.js';
+import { permsFromRow } from './shared/perms.js';
 import { schemaOk } from './base/diagnose.js';
 import { json, readBody } from './shared/http.js';
 import { createAuth } from './auth/service.js';
@@ -715,7 +715,7 @@ const accessibleProjects = async (base = currentBase()) => {
    comprueba (cabecera x-sia-power; sia_status() dice qué abre). La de cada
    persona se la da la instancia según sus vistas (server/knowledge/
    person-keys.js; con Administración, la del dueño). permisos:
-   server/access/perms.js */
+   server/shared/perms.js */
 const statusCache = new Map(); // `${baseId}|${powerKey}` → { at, status }
 // sia_status() de una base con una clave de poder dada: { version, owner,
 // me: {name, owner, perms} | null, projects } o null si la base no responde

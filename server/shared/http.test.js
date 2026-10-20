@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { json, readBody, failed } from './http.js';
+import { json, readBody, failed, mimeOf, sendFile } from './http.js';
 
 const capture = () => {
   const res = {};
@@ -30,4 +30,12 @@ test('failed: con estado, su texto (5xx como 503); sin estado, 500 sin detalles'
   assert.deepEqual([res.status, res.body], [503, { error: 'la base no responde' }]);
   failed(j, res, new Error('disco'));
   assert.deepEqual([res.status, res.body], [500, { error: 'Error interno.' }]);
+});
+
+test('sendFile: el tipo por la extensión; lo raro, binario', () => {
+  assert.equal(mimeOf('.CSS'), 'text/css; charset=utf-8');
+  assert.equal(mimeOf('.exe'), 'application/octet-stream');
+  const out = [];
+  sendFile({ writeHead: (c, h) => out.push(c, h), end: (b) => out.push(b) }, '.png', 'img');
+  assert.deepEqual(out, [200, { 'Content-Type': 'image/png' }, 'img']);
 });
