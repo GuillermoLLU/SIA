@@ -1,26 +1,23 @@
-// /api/knowledge/*: conocimiento de cada persona (sesión en X-SIA-Auth; la
-// vista Personas la exige el bridge). La base vuelve a comprobarlo todo con su JWT.
+// /api/knowledge/*: conocimiento de cada persona (la vista Personas la exige
+// el bridge, que ya ha resuelto la sesión: `who` = { user, accessToken }).
+// La base vuelve a comprobarlo todo con su JWT.
 //   GET  /base                      → { base }  (con sus proyectos: { id, name })
 //   PUT  /people/:userId/projects   { projects: [ids] } → { ok }   (vacío: ninguno)
 //   POST /people/:userId/copy       { from } → { ok }
-// Tras cada cambio, sus claves de poder al día (syncKeys) y onChange(token):
-// lo asignado a uno mismo puede haber cambiado.
+// Tras cada cambio, sus claves de poder al día (syncKeys) y onChange(): lo
+// asignado a uno mismo puede haber cambiado.
 
 import { isUuid } from '../shared/ids.js';
-import { keysWarning } from './person-keys.js';
 import { failed } from '../shared/http.js';
+import { keysWarning } from './person-keys.js';
 
-export const knowledgeRoutes = (knowledge, auth, { json, readBody, onChange, syncKeys }) => async (req, res, path) => {
-  const token = req.headers['x-sia-auth'];
+export const knowledgeRoutes = (knowledge, { json, readBody, onChange, syncKeys }) => async (req, res, [kind, id, sub], who) => {
+  const jwt = who.accessToken;
   try {
-    const ctx = await auth.context(token);
-    if (!ctx) return json(res, 401, { error: 'Inicia sesión.' });
-    const [kind, id, sub] = path;
     if (id && !isUuid(id)) return json(res, 404, { error: 'No existe.' });
-    const jwt = ctx.accessToken;
     const changed = async (userId) => {
       const problems = await syncKeys(jwt, userId);
-      await onChange(token);
+      await onChange();
       return json(res, 200, { ok: true, ...keysWarning(problems) });
     };
 

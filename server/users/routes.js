@@ -1,6 +1,6 @@
-// /api/users/*: gestión de usuarios (sesión en X-SIA-Auth; la vista Personas
-// la exige el bridge antes de llegar aquí). La base vuelve a comprobarlo todo
-// con el JWT de quien llama.
+// /api/users/*: gestión de usuarios (la vista Personas la exige el bridge,
+// que ya ha resuelto la sesión: `who` = { user, accessToken }). La base
+// vuelve a comprobarlo todo con el JWT de quien llama.
 //   GET    /      → { users }
 //   POST   /      { email, name, password, role, projects? } → { user, warning? }
 //                 projects = [ids]: los proyectos que verá desde el alta
@@ -14,18 +14,15 @@
 // syncKeys(jwt, id | null, { drop }) pone al día las claves de poder en la
 // base (las vistas) tras cambiar el rol, las vistas o el acceso de alguien, o
 // un rol (null: de todos), y las quita antes de borrar a alguien; si algo
-// falla, se avisa en `warning`.
+// falla, se avisa en `warning`. refreshProfile(token): tras cambiar uno sus datos.
 
 import { isUuid } from '../shared/ids.js';
-import { keysWarning } from '../knowledge/person-keys.js';
 import { failed } from '../shared/http.js';
+import { keysWarning } from '../knowledge/person-keys.js';
 
-export const usersRoutes = (users, auth, { json, readBody, assignKnowledge, syncKeys }) => async (req, res, [id, sub]) => {
-  const token = req.headers['x-sia-auth'];
+export const usersRoutes = (users, { json, readBody, assignKnowledge, syncKeys, refreshProfile }) => async (req, res, [id, sub], who) => {
+  const jwt = who.accessToken;
   try {
-    const ctx = await auth.context(token);
-    if (!ctx) return json(res, 401, { error: 'Inicia sesión.' });
-    const jwt = ctx.accessToken;
     if (id === 'roles') {
       if (sub && !isUuid(sub)) return json(res, 404, { error: 'Ese rol no existe.' });
       if (!sub && req.method === 'GET') return json(res, 200, { roles: await users.roles(jwt) });
@@ -56,7 +53,7 @@ export const usersRoutes = (users, auth, { json, readBody, assignKnowledge, sync
     if (id && req.method === 'PUT') {
       const { name, role, views, active, password } = await readBody(req);
       await users.update(jwt, id, { name, role, views, active, password });
-      if (id === ctx.user.id) auth.refreshProfile(token); // su propio nombre: que se vea ya
+      if (id === who.user.id) refreshProfile(who.token); // su propio nombre: que se vea ya
       const access = role !== undefined || views !== undefined || active !== undefined;
       return json(res, 200, { ok: true, ...(access ? keysWarning(await syncKeys(jwt, id)) : {}) });
     }

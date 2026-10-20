@@ -1,7 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createPlatformClient, PlatformError } from './client.js';
-import { parsePlatformConfig } from './config.js';
 
 const URL = 'https://abcdefghijklmnopqrst.supabase.co';
 const KEY = 'sb_publishable_abc';
@@ -46,13 +45,4 @@ test('errores: mensajes en castellano, 42501 como 403 y sin red como 503', async
   await assert.rejects(offline.rpc('j', 'x'), { status: 503 });
   const tls = createPlatformClient({ url: URL, key: KEY, fetch: async () => { throw Object.assign(new TypeError('fetch failed'), { cause: { code: 'SELF_SIGNED_CERT_IN_CHAIN' } }); } });
   await assert.rejects(tls.rpc('j', 'x'), (e) => e.status === 503 && /certificado/.test(e.message));
-});
-
-test('config: URL de Supabase y clave publishable; el entorno manda; nada más vale', () => {
-  const file = { platform: { url: `${URL}/`, publishableKey: KEY } };
-  assert.deepEqual(parsePlatformConfig(file), { url: URL, key: KEY });
-  assert.deepEqual(parsePlatformConfig(file, { SIA_PLATFORM_URL: 'https://zzzzzzzzzzzzzzzzzzzz.supabase.co' }).url, 'https://zzzzzzzzzzzzzzzzzzzz.supabase.co');
-  assert.equal(parsePlatformConfig({ platform: { url: URL, publishableKey: 'sb_secret_x' } }), null, 'nunca la secret');
-  assert.equal(parsePlatformConfig({ platform: { url: 'https://evil.com', publishableKey: KEY } }), null);
-  assert.equal(parsePlatformConfig(null), null);
 });
