@@ -1,22 +1,12 @@
 // Cliente de /api/knowledge (vista Personas): la base de la instancia con sus
 // proyectos ({ id, name }, sin tokens) y el conocimiento de cada persona.
-// Errores con el texto del bridge.
+// Errores con el texto del bridge. `api`: ui/api.js.
 
-export const createKnowledgeApi = (apiBase, session) => {
-  const call = async (path, method = 'GET', body) => {
-    const r = await fetch(`${apiBase}/knowledge${path}`, {
-      method,
-      headers: { 'Content-Type': 'application/json', ...session.headers() },
-      ...(body ? { body: JSON.stringify(body) } : {}),
-    });
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
-    return data;
-  };
+export const createKnowledgeApi = (api) => {
   const id = (x) => encodeURIComponent(x);
   return {
-    base: async () => (await call('/base')).base,
-    setProjects: (userId, projects) => call(`/people/${id(userId)}/projects`, 'PUT', { projects }),
-    copy: (userId, fromId) => call(`/people/${id(userId)}/copy`, 'POST', { from: fromId }),
+    base: async () => (await api('/knowledge/base')).base,
+    setProjects: (userId, projects) => api(`/knowledge/people/${id(userId)}/projects`, { method: 'PUT', body: { projects } }),
+    copy: (userId, fromId) => api(`/knowledge/people/${id(userId)}/copy`, { method: 'POST', body: { from: fromId } }),
   };
 };

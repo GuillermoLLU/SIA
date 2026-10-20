@@ -67,7 +67,6 @@ export const issuesRoutes = (source, auth, platform, { json, readBody }) => asyn
     }
     return json(res, 404, { error: 'no encontrado' });
   } catch (e) {
-    if (!e.status) return json(res, 500, { error: 'Error interno.' });
-    return json(res, e.status >= 500 ? 503 : e.status, { error: e.message });
+    return failed(json, res, e);
   }
 };

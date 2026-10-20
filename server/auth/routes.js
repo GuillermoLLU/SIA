@@ -8,6 +8,7 @@
 // Si la base de la instancia no responde: 503 con el motivo.
 
 import { passwordProblem } from './password.js';
+import { failed } from '../shared/http.js';
 
 export const authRoutes = (auth, { json, readBody, onSession, onLogout, platform }) => async (req, res, action) => {
   const token = req.headers['x-sia-auth'];
@@ -44,7 +45,6 @@ export const authRoutes = (auth, { json, readBody, onSession, onLogout, platform
     }
     return json(res, 404, { error: 'no encontrado' });
   } catch (e) {
-    if (!e.status) return json(res, 500, { error: 'Error interno.' });
-    return json(res, e.status >= 500 ? 503 : e.status, { error: e.message });
+    return failed(json, res, e);
   }
 };

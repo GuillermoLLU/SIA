@@ -1,23 +1,13 @@
 // Cliente de /api/issues: mi mesa, coger la siguiente, el detalle, devolverla
-// y el equipo (para traspasar).
+// y el equipo (para traspasar). `api`: el cliente del bridge (ui/api.js).
 
-export const createIssuesApi = (apiBase, session) => {
-  const call = async (path, method = 'GET', body) => {
-    const r = await fetch(`${apiBase}/issues${path}`, {
-      method,
-      headers: { 'Content-Type': 'application/json', ...session.headers() },
-      ...(body ? { body: JSON.stringify(body) } : {}),
-    });
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
-    return data;
-  };
+export const createIssuesApi = (api) => {
   const id = (x) => encodeURIComponent(x);
   return {
-    desk: () => call(''),
-    next: (rule) => call('/next', 'POST', { rule }),
-    teammates: async () => (await call('/teammates')).teammates,
-    get: (issueId) => call(`/${id(issueId)}`),
-    release: (issueId) => call(`/${id(issueId)}/release`, 'POST', {}),
+    desk: () => api('/issues'),
+    next: (rule) => api('/issues/next', { method: 'POST', body: { rule } }),
+    teammates: async () => (await api('/issues/teammates')).teammates,
+    get: (issueId) => api(`/issues/${id(issueId)}`),
+    release: (issueId) => api(`/issues/${id(issueId)}/release`, { method: 'POST', body: {} }),
   };
 };

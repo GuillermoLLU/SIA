@@ -1,42 +1,29 @@
 // La pantalla de trabajo de una issue. A la izquierda, en pestañas: el
-// análisis de la IA (con los logs y datos que haya recopilado), el detalle de
-// la issue y las relacionadas. A la derecha, sus datos clave y debajo el chat
-// de la issue (con el conocimiento, issue-chat.js), que vive mientras la issue
-// esté abierta. El análisis y las parecidas, por conectar.
+// análisis de la IA, el detalle de la issue y las relacionadas. A la derecha,
+// sus datos clave y debajo el chat de la issue (con el conocimiento,
+// issue-chat.js), que vive mientras la issue esté abierta. El análisis (lo
+// hará el harness del equipo) y las parecidas, por conectar: solo sus huecos.
 import { esc } from '../ui/html.js';
 import { STATUS_ES, REASON_ES, SEVERITY_ES, when, age, stamp } from './format.js';
 import { item } from './parts.js';
 
 const pending = (text) => `<p class="iss-pending">${text}</p>`;
 
-export const WORK_TABS = [
+const WORK_TABS = [
   { key: 'ai', label: 'Análisis de la IA' },
   { key: 'detail', label: 'Detalle' },
   { key: 'related', label: 'Relacionadas' },
 ];
 
-// El análisis automático (cuando esté conectado): { summary, cause, steps: [],
-// logs: [{ source, at, title, content }] }. Sin él, los huecos y qué irá en cada uno.
-const aiSection = (title, body) => `<section class="iss-ai-sec"><h4 class="iss-sub">${title}</h4>${body}</section>`;
+const aiSection = (title, text) => `<section class="iss-ai-sec"><h4 class="iss-sub">${title}</h4>${pending(text)}</section>`;
+const aiPanel = () => `
+  <div class="iss-panel-h"><span class="iss-badge">Por conectar</span></div>
+  ${aiSection('Resumen', 'Qué pasa, en pocas líneas.')}
+  ${aiSection('Causa probable', 'Lo que apuntan los datos y casos parecidos.')}
+  ${aiSection('Pasos sugeridos', 'Qué hacer para resolverla, en orden.')}
+  ${aiSection('Logs y datos recopilados', 'Lo que haya recogido el análisis automático, una fila por fuente.')}`;
 
-export const aiPanel = (a) => `
-  ${a ? '' : '<div class="iss-panel-h"><span class="iss-badge">Por conectar</span></div>'}
-  ${aiSection('Resumen', a?.summary ? `<p class="iss-ai-text">${esc(a.summary)}</p>` : pending('Qué pasa, en pocas líneas.'))}
-  ${aiSection('Causa probable', a?.cause ? `<p class="iss-ai-text">${esc(a.cause)}</p>` : pending('Lo que apuntan los datos y casos parecidos.'))}
-  ${aiSection('Pasos sugeridos', a?.steps?.length ? `<ol class="iss-steps">${a.steps.map((x) => `<li>${esc(x)}</li>`).join('')}</ol>` : pending('Qué hacer para resolverla, en orden.'))}
-  ${aiSection('Logs y datos recopilados', a?.logs?.length
-    ? `<div class="iss-logs">${a.logs.map((l, k) => `<button class="iss-log" data-log="${k}"><b>${esc(l.source)}</b><span>${esc(l.title || '')}</span><time>${esc(l.at || '')}</time><i aria-hidden="true">›</i></button>`).join('')}</div>`
-    : pending('Lo que haya recogido el análisis automático, una fila por fuente. Al pulsar una, se abre aquí para leerla entera.'))}`;
-
-// Un log a todo el espacio de la pestaña.
-export const logPanel = (l) => `
-  <div class="iss-log-h">
-    <button class="iss-back" data-log-back>← Volver al análisis</button>
-    <span><b>${esc(l.source)}</b>${l.title ? ` · ${esc(l.title)}` : ''}${l.at ? ` · ${esc(l.at)}` : ''}</span>
-  </div>
-  <pre class="iss-log-body">${esc(l.content || '')}</pre>`;
-
-export const workScreen = ({ issue: i, analysis = null, sameCenter, now, mine, tab = 'ai' }) => `<div class="iss-page iss-work-page">
+export const workScreen = ({ issue: i, sameCenter, now, mine, tab = 'ai' }) => `<div class="iss-page iss-work-page">
   <header class="iss-work-h">
     <button class="iss-back" data-back>← Mi mesa</button>
     <div class="iss-title-row">
@@ -60,7 +47,7 @@ export const workScreen = ({ issue: i, analysis = null, sameCenter, now, mine, t
         ${WORK_TABS.map((t) => `<button role="tab" data-wtab="${t.key}" aria-selected="${t.key === tab}">${t.label}${t.key === 'related' && sameCenter.length ? `<span>${sameCenter.length}</span>` : ''}</button>`).join('')}
       </div>
 
-      <div class="iss-wpanel" data-wpanel="ai"${tab === 'ai' ? '' : ' hidden'}>${aiPanel(analysis)}</div>
+      <div class="iss-wpanel" data-wpanel="ai"${tab === 'ai' ? '' : ' hidden'}>${aiPanel()}</div>
 
       <div class="iss-wpanel" data-wpanel="detail"${tab === 'detail' ? '' : ' hidden'}>
         <h4 class="iss-sub">Lo que dice el centro <span class="iss-low">· ${when(i.reported)}</span></h4>

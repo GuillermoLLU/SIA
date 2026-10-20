@@ -7,7 +7,7 @@ import './issues.css';
 import { esc } from '../ui/html.js';
 import { LISTS, when, age, stamp } from './format.js';
 import { sev, origin, item } from './parts.js';
-import { workScreen, aiPanel, logPanel } from './work-screen.js';
+import { workScreen } from './work-screen.js';
 import { ACTIONS, actionForm, readAction } from './actions.js';
 
 const GOAL = { min: 15, max: 20 }; // resueltas por turno, lo que dice el equipo
@@ -15,7 +15,7 @@ const REFRESH_MS = 15000;
 
 // openChat(host, issueId) → { dispose }: el chat de la issue (lo pone main.js).
 export const mountIssuesView = (root, { api, me, toast, openChat }) => {
-  let data = null, rule = 'basic', now = new Date(), opened = null, onDesk = false, workTab = 'ai', analysis = null, chat = null;
+  let data = null, rule = 'basic', now = new Date(), opened = null, onDesk = false, workTab = 'ai', chat = null;
   const closeChat = () => { chat?.dispose(); chat = null; };
 
   const kpi = (label, value, hint) => `<div class="iss-kpi"><span>${label}</span><b>${value}</b><small>${hint}</small></div>`;
@@ -87,15 +87,14 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
     </div>`;
   };
 
-  const renderIssue = ({ issue: i, analysis: a = null, sameCenter }) => {
-    analysis = a;
+  const renderIssue = ({ issue: i, sameCenter }) => {
     onDesk = false;
     const mine = i.claimedBy && data?.desk.some((d) => d.id === i.id && d.claimed);
     if (opened !== i.id) workTab = 'ai';
     opened = i.id;
     closeChat();
     closeAction();
-    root.innerHTML = workScreen({ issue: i, analysis, sameCenter, now, mine, tab: workTab });
+    root.innerHTML = workScreen({ issue: i, sameCenter, now, mine, tab: workTab });
     chat = openChat?.(root.querySelector('.iss-chat-body'), i.id) || null;
     root.scrollTop = 0;
   };
@@ -130,9 +129,6 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
       const act = t.closest('[data-act]');
       if (act) return openAction(act.dataset.act);
       if (t.closest('[data-act-cancel]') || t.classList.contains('iss-modal')) return closeAction();
-      const lg = t.closest('[data-log]');
-      if (lg) { const p = root.querySelector('[data-wpanel="ai"]'); p.innerHTML = logPanel(analysis.logs[+lg.dataset.log]); p.scrollTop = 0; return; }
-      if (t.closest('[data-log-back]')) { root.querySelector('[data-wpanel="ai"]').innerHTML = aiPanel(analysis); return; }
       const r = t.closest('[data-id]');
       if (r) return openIssue(r.dataset.id);
       if (t.closest('[data-back]')) { renderDesk(); root.scrollTop = 0; return; }

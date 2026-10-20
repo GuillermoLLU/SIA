@@ -20,6 +20,7 @@ import { mountMetricsView } from './metrics/metrics-view.js';
 import { createMetricsApi } from './metrics/metrics-api.js';
 import { mountProjectsView } from './projects/projects-view.js';
 import { esc, fold } from './ui/html.js';
+import { createApi } from './ui/api.js';
 import { renderChooser } from './chat/chooser.js';
 import { createUsersApi } from './users/users-api.js';
 import { mountPeopleView } from './users/people-view.js';
@@ -358,34 +359,6 @@ const wsUrl = () => (AUTH ? `${WS_URL}${WS_URL.includes('?') ? '&' : '?'}a=${enc
 // Candado automático en el móvil (solo acceso público): web/src/mobile/auto-lock.js
 if (LAN_TOKEN && localStorage.getItem('sia-lan-mode') === 'public') {
   installAutoLock({ lockUrl: `${API_BASE}/lan/lock?t=${encodeURIComponent(LAN_TOKEN)}`, gate: () => lockGate({ remote: true }) });
-}
-
-/* ── Aviso de actualización ───────────────────────────────────────
-   Pregunta al bridge (que compara con Supabase) si hay versión nueva y,
-   si la hay, muestra un banner con enlace a la descarga. No instala solo:
-   la instalación silenciosa en Mac requiere firma de Apple (pendiente). */
-{
-  const banner = document.getElementById('update-banner');
-  const text = document.getElementById('update-text');
-  const dl = document.getElementById('update-download');
-  const close = document.getElementById('update-close');
-  const checkUpdate = async () => {
-    if (LAN_TOKEN) return; // en el móvil la versión es la del ordenador: no avisamos aquí
-    let info;
-    try { info = await (await fetch(`${API_BASE}/version`, { signal: AbortSignal.timeout(4000) })).json(); }
-    catch { return; }
-    if (!info.updateAvailable || localStorage.getItem('sia-skip-version') === info.latest) return;
-    text.textContent = `Nueva versión disponible (v${info.latest}). Tienes la v${info.current}.`;
-    dl.onclick = () => window.open(info.url, '_blank');
-    close.onclick = () => { localStorage.setItem('sia-skip-version', info.latest); banner.hidden = true; };
-    banner.hidden = false;
-  };
-  // DESACTIVADO por ahora: la descarga apunta al repo privado de GitHub y no
-  // todo el equipo tiene acceso, así que el aviso frustra más que ayuda. Las
-  // versiones se reparten a mano. checkUpdate queda definida a propósito:
-  // para reactivar el aviso basta descomentar estas dos líneas.
-  // checkUpdate();
-  // setInterval(checkUpdate, 6 * 60 * 60 * 1000);
 }
 
 // Temas: web/src/theme/themes.js
@@ -1217,8 +1190,6 @@ const paletteList = document.getElementById('palette-list');
 let paletteItems = []; // filtered skills currently shown
 let paletteIndex = 0;
 
-// diacritics/case-insensitive matching ("nutricion" finds "Nutrición")
-
 const applySkill = (sk) => {
   const active = activeId ? sessions.get(activeId) : null;
   if (!active || !active.launched || active.ws?.readyState !== WebSocket.OPEN) return;
@@ -1433,13 +1404,19 @@ if (IS_PHONE && window.visualViewport) {
 }
 
 /* ════════════════════════════════════════════════════════════════
-   Vistas (Chat / Laboratorio), Configuración y Laboratorio
+   Vistas, Configuración y Laboratorio
    ════════════════════════════════════════════════════════════════ */
 const navChat = document.getElementById('nav-chat');
 const navLab = document.getElementById('nav-lab');
 const viewChat = document.getElementById('view-chat');
 const viewLab = document.getElementById('view-lab');
 
+// el cliente de las vistas (ui/api.js): una sesión que ya no vale vuelve al
+// inicio de sesión; un 423 es el candado del bridge
+const bridgeApi = createApi(API_BASE, () => AUTH.session.headers(), { onReply: (status, data) => {
+  if (status === 401 && data.auth) location.reload();
+  if (status === 423 && data.locked) lockedGate();
+} });
 const api = async (path, opts = {}) => {
   const r = await fetch(`${API_BASE}${path}`, {
     ...opts,
@@ -1466,15 +1443,15 @@ const viewUsers = document.getElementById('view-users');
 // devuelve show(), se llama al abrirlo (Issues recarga su foto).
 const PANELS = [
   { name: 'issues', mount: (el) => AUTH && mountIssuesView(el, {
-    api: createIssuesApi(API_BASE, AUTH.session), me: AUTH.user, toast: (t) => toast(t),
+    api: createIssuesApi(bridgeApi), me: AUTH.user, toast: (t) => toast(t),
     openChat: (host, issueId) => mountIssueChat(host, { issueId, wsUrl, loadProjects: loadAccessProjects, makeTerminal }),
   }) },
   // clic en una persona de Equipo soporte: se abre en Métricas frente al resto de su equipo
   // «Gestionar equipo» lleva a Personas (si también tiene esa vista)
-  { name: 'work', mount: (el) => AUTH && mountWorkView(el, { api: createMetricsApi(API_BASE, AUTH.session),
+  { name: 'work', mount: (el) => AUTH && mountWorkView(el, { api: createMetricsApi(bridgeApi),
     openPerson: (person) => { PANELS.find((p) => p.name === 'metrics').ui?.focus(person); showView('metrics'); },
     onManage: canView('people') ? () => showView('users') : undefined }) },
-  { name: 'metrics', mount: (el) => AUTH && mountMetricsView(el, { api: createMetricsApi(API_BASE, AUTH.session), toast: (t) => toast(t) }) },
+  { name: 'metrics', mount: (el) => AUTH && mountMetricsView(el, { api: createMetricsApi(bridgeApi), toast: (t) => toast(t) }) },
 ].map((p) => ({ ...p, nav: document.getElementById(`nav-${p.name}`), view: document.getElementById(`view-${p.name}`) }));
 const linksGrid = document.getElementById('links-grid');
 const linksFilters = document.getElementById('links-filters');
@@ -1916,7 +1893,7 @@ wireLogout(document.getElementById('settings-session'), { ...AUTH, confirm: dlgC
 // Gestión del equipo (web/src/users/): la otra cara de Equipo soporte (se entra
 // por su icono); «Métricas equipo» vuelve a sus métricas si también tiene esa vista.
 const usersView = canView('people')
-  ? mountPeopleView(viewUsers, { usersApi: createUsersApi(API_BASE, AUTH.session), knowledgeApi: createKnowledgeApi(API_BASE, AUTH.session), me: AUTH.user, toast: (t) => toast(t),
+  ? mountPeopleView(viewUsers, { usersApi: createUsersApi(bridgeApi), knowledgeApi: createKnowledgeApi(bridgeApi), me: AUTH.user, toast: (t) => toast(t),
     onMetrics: canView('work') ? () => showView('work') : undefined })
   : null;
 
@@ -2395,7 +2372,7 @@ const projectsView = mountProjectsView(viewAdmin, { api, dialogs: { prompt: dlgP
 /* ══ Enlaces rápidos ═══════════════════════════════════════════════
    Accesos del equipo agrupados por conocimiento. Verlos puede cualquiera
    (acotado a los proyectos que dan sus tokens); crearlos, editarlos y
-   borrarlos exige rol admin — el mismo gate que publicar skills.
+   borrarlos exige el permiso links de la clave de poder.
    La card ENTERA es el enlace: al pulsarla se abre en el navegador del
    sistema. Las notas tienen su propio icono para no robarle ese gesto. */
 

@@ -18,6 +18,7 @@
 
 import { isUuid } from '../shared/ids.js';
 import { keysWarning } from '../knowledge/person-keys.js';
+import { failed } from '../shared/http.js';
 
 export const usersRoutes = (users, auth, { json, readBody, assignKnowledge, syncKeys }) => async (req, res, [id, sub]) => {
   const token = req.headers['x-sia-auth'];
@@ -45,12 +46,12 @@ export const usersRoutes = (users, auth, { json, readBody, assignKnowledge, sync
       const user = await users.create(jwt, { email, name, password, role });
       // los proyectos elegidos en el alta; la persona ya existe: si algo
       // falla se avisa, no se deshace el alta
-      let failed = null;
+      let assignError = null;
       if (Array.isArray(projects) && projects.length) {
-        try { await assignKnowledge(jwt, user.id, projects); } catch (e) { failed = e.message; }
+        try { await assignKnowledge(jwt, user.id, projects); } catch (e) { assignError = e.message; }
       }
       const keys = keysWarning(await syncKeys(jwt, user.id));
-      return json(res, 200, { user, ...(failed ? { warning: `Creada, pero no se pudo asignar su conocimiento: ${failed}` } : keys) });
+      return json(res, 200, { user, ...(assignError ? { warning: `Creada, pero no se pudo asignar su conocimiento: ${assignError}` } : keys) });
     }
     if (id && req.method === 'PUT') {
       const { name, role, views, active, password } = await readBody(req);
@@ -66,7 +67,6 @@ export const usersRoutes = (users, auth, { json, readBody, assignKnowledge, sync
     }
     return json(res, 404, { error: 'no encontrado' });
   } catch (e) {
-    if (!e.status) return json(res, 500, { error: 'Error interno.' });
-    return json(res, e.status >= 500 ? 503 : e.status, { error: e.message });
+    return failed(json, res, e);
   }
 };

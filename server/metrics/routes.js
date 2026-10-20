@@ -3,6 +3,8 @@
 //   POST /csv?name=<fichero>  cuerpo: el CSV completo de Remedy, tal cual → { meta }
 // Los datos se calculan y se quedan en este ordenador (store.js).
 
+import { failed } from '../shared/http.js';
+
 const CSV_NAME = /^[^/\\]{1,200}$/;
 
 export const metricsRoutes = (store, { json }) => async (req, res, path, query) => {
@@ -17,7 +19,6 @@ export const metricsRoutes = (store, { json }) => async (req, res, path, query) 
     }
     return json(res, 404, { error: 'no encontrado' });
   } catch (e) {
-    if (!e.status) return json(res, 500, { error: 'Error interno.' });
-    return json(res, e.status, { error: e.message });
+    return failed(json, res, e);
   }
 };

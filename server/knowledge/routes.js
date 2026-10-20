@@ -8,6 +8,7 @@
 
 import { isUuid } from '../shared/ids.js';
 import { keysWarning } from './person-keys.js';
+import { failed } from '../shared/http.js';
 
 export const knowledgeRoutes = (knowledge, auth, { json, readBody, onChange, syncKeys }) => async (req, res, path) => {
   const token = req.headers['x-sia-auth'];
@@ -37,7 +38,6 @@ export const knowledgeRoutes = (knowledge, auth, { json, readBody, onChange, syn
     }
     return json(res, 404, { error: 'no encontrado' });
   } catch (e) {
-    if (!e.status) return json(res, 500, { error: 'Error interno.' });
-    return json(res, e.status >= 500 ? 503 : e.status, { error: e.message });
+    return failed(json, res, e);
   }
 };

@@ -115,7 +115,6 @@
 .pp-pw .settings-input { flex: 1; min-width: 0; font-family: ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0.02em; }
 .pp-pw .lab-btn { height: 38px; }
 .pp-msg { min-height: 16px; font-size: 12.5px; color: var(--pp-bad); }
-.pp-msg.ok { color: var(--pp-ok); }
 
 /* modales apilables */
 .pp-scrim { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 16px; background: rgba(0, 0, 0, 0.42); animation: pp-fade .12s ease; }
@@ -124,8 +123,6 @@
 .pp-modal { width: min(520px, 100%); max-height: calc(100vh - 32px); display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 28px 80px rgba(0, 0, 0, 0.35); color: var(--text); font-family: var(--font-ui); }
 .pp-modal.wide { width: min(700px, 100%); }
 .pp-mh { display: flex; gap: 14px; align-items: flex-start; padding: 20px 22px 0; }
-.pp-mh-ico { color: var(--accent); }
-.pp-mh-ico svg { width: 26px; height: 26px; }
 .pp-mh h3 { margin: 0; font-size: 16px; font-weight: 650; }
 .pp-mh p { margin: 4px 0 0; font-size: 13px; color: var(--text-low); line-height: 1.45; }
 .pp-mb { padding: 18px 22px; overflow: auto; }

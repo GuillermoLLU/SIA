@@ -9,7 +9,7 @@
 //
 // deps: lockUrl (a la que mandar el aviso) · gate() (enseña la puerta del PIN)
 const LOCK_GRACE_MS = 2 * 60_000;
-export const LOCK_IDLE_MS = 5 * 60_000;
+const LOCK_IDLE_MS = 5 * 60_000;
 
 export const installAutoLock = ({ lockUrl, gate, graceMs = LOCK_GRACE_MS, idleMs = LOCK_IDLE_MS, doc = document, now = Date.now }) => {
   let lockSent = false;

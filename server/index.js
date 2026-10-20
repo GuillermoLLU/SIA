@@ -1,7 +1,7 @@
-// sia — local PTY bridge
-// Each WebSocket = one session. The browser picks WHAT to launch (a "launcher":
-// free shell, Claude, etc.) and the bridge spawns it on demand. The pty is piped
-// to/from the browser; control messages are small JSON frames.
+// SIA: el bridge local. Sirve la web, la API y, por WebSocket, los chats:
+// cada conexión es una sesión y el bridge lanza el CLI elegido (Claude,
+// Copilot o Codex) en un PTY que se vuelca al navegador; los mensajes de
+// control son JSON pequeños.
 
 import { WebSocketServer, WebSocket as WSClient } from 'ws';
 import * as pty from 'node-pty';
@@ -10,6 +10,7 @@ import { fetch as undiciFetch, Agent as UndiciAgent } from 'undici';
 import { headerValue, siaHeaders } from './access/credentials.js';
 import { permsFromRow } from './access/perms.js';
 import { schemaOk } from './base/diagnose.js';
+import { json, readBody } from './shared/http.js';
 import { createAuth } from './auth/service.js';
 import { authRoutes } from './auth/routes.js';
 import { liveSessions } from './auth/sessions.js';
@@ -216,11 +217,12 @@ const prepareModeDir = (dir, mode, skillsDir) => {
     console.error(`[sia] no se pudo preparar ${dir}: ${err.message}`);
   }
 };
+const SKILLS_DIR = path.join(WORKSPACE, 'skills'); // sin base: vacío
 const MODE_DIRS = {
   auto: path.join(WORKSPACE, 'modes', 'auto'),
   demand: path.join(WORKSPACE, 'modes', 'demand'),
 };
-for (const [mode, dir] of Object.entries(MODE_DIRS)) prepareModeDir(dir, mode, path.join(WORKSPACE, 'skills'));
+for (const [mode, dir] of Object.entries(MODE_DIRS)) prepareModeDir(dir, mode, SKILLS_DIR);
 const modeDirFor = (mode, base) => {
   if (!base) return MODE_DIRS[mode];
   const dir = path.join(BASES_DIR, base.id, 'modes', mode);
@@ -235,7 +237,7 @@ const modeDirFor = (mode, base) => {
 // la app empaquetada puede ser de solo lectura.
 const MCP_SERVER = path.join(ROOT, 'mcp', 'index.js');
 // rutas de la API que no tocan la base de conocimiento
-const DB_FREE_ROUTES = new Set(['ping', 'version', 'lan', 'lock', 'config', 'upload', 'uploads']);
+const DB_FREE_ROUTES = new Set(['version', 'lan', 'config', 'upload', 'uploads']);
 // La config MCP se escribe POR SESIÓN con los proyectos elegidos para ese chat
 // (SIA_ALLOWED_PROJECTS: la selección del usuario dentro de su techo). La
 // conexión viaja al MCP por entorno (nunca por la conversación): la clave
@@ -282,12 +284,12 @@ const writeSessionMcpConfig = (sessionId, kind, allowedProjects, base) => {
   return file;
 };
 
-// Available launchers. The client renders these; unavailable ones are disabled.
-// `modes: true` → the client asks for the knowledge mode (auto/demand).
+// Los CLIs que se pueden lanzar. La web los enseña (los que no están
+// instalados, apagados) y pide el modo de conocimiento (auto/demand).
 const LAUNCHERS = [
-  { id: 'claude', label: 'Claude', cmd: 'claude', modes: true },
-  { id: 'copilot', label: 'Copilot', cmd: 'copilot', modes: true },
-  { id: 'codex', label: 'Codex', cmd: 'codex', modes: true }, // el CLI de OpenAI
+  { id: 'claude', label: 'Claude', cmd: 'claude' },
+  { id: 'copilot', label: 'Copilot', cmd: 'copilot' },
+  { id: 'codex', label: 'Codex', cmd: 'codex' }, // el CLI de OpenAI
 ];
 
 // Resuelve un comando a su ruta ejecutable REAL. En Windows los CLIs instalados
@@ -322,9 +324,7 @@ const resolveCmd = (cmd) => {
 // ¿Es un comando lanzable? (ruta absoluta o localizable en el PATH)
 const which = (cmd) => !!resolveCmd(cmd);
 
-const launcherList = () => LAUNCHERS.map((l) => ({
-  id: l.id, label: l.label, available: which(l.cmd), modes: !!l.modes,
-}));
+const launcherList = () => LAUNCHERS.map((l) => ({ id: l.id, label: l.label, available: which(l.cmd) }));
 
 const parseFrontmatter = (src) => {
   const fm = {};
@@ -340,7 +340,6 @@ const parseFrontmatter = (src) => {
 
 // Skills dictionary: workspace/skills/<name>/SKILL.md (frontmatter YAML). Parsed
 // fresh per connection so a fresh sync needs no restart.
-const SKILLS_DIR = path.join(WORKSPACE, 'skills'); // legado: sin base
 const skillList = (base = null) => {
   const dir = base ? skillsDirFor(base) : SKILLS_DIR;
   try {
@@ -398,7 +397,6 @@ const NO_DB_MSG = 'Sin base de conocimiento: la instancia aún no tiene la suya 
    en memoria, nunca en la config. El MCP recibe la conexión y los proyectos. */
 let assigned = { base: null };
 // Lo que puede el móvil emparejado (entra sin sesión, con su llave).
-const PHONE_USER = { views: ['links'] };
 const currentBase = () => assigned.base;
 // Un cliente por base (se reutiliza mientras no cambien conexión, tokens ni
 // clave de poder): lleva en cada petición las cabeceras con las que la base
@@ -765,15 +763,6 @@ const walkDir = (dir, base = '') => fs.readdirSync(dir, { withFileTypes: true })
   e.isDirectory() ? walkDir(path.join(dir, e.name), path.join(base, e.name))
     : [{ path: path.join(base, e.name), content: fs.readFileSync(path.join(dir, e.name), 'utf8') }]);
 
-const json = (res, code, obj) => {
-  res.writeHead(code, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify(obj));
-};
-const readBody = (req) => new Promise((resolve, reject) => {
-  let b = '';
-  req.on('data', (c) => { b += c; if (b.length > 40_000_000) req.destroy(); });
-  req.on('end', () => { try { resolve(b ? JSON.parse(b) : {}); } catch (e) { reject(e); } });
-});
 const authRoute = authRoutes(auth, { json, readBody, onSession: loadAssigned, onLogout: clearAssigned, platform });
 const syncKeys = (jwt, userId, opts) => knowledge.syncPeople(jwt, userId ? [userId] : null, opts);
 const usersRoute = usersRoutes(users, auth, { json, readBody, syncKeys, assignKnowledge: (jwt, userId, ids) => knowledge.setProjects(jwt, userId, ids) });
@@ -1041,8 +1030,8 @@ const apiServer = http.createServer(async (req, res) => {
     }
     // Cada vista (Laboratorio, Administración, Personas, Enlaces, Issues, Métricas) solo para quien la tiene, aunque una clave de poder lo abriera:
     // segunda capa, además de la de la base (server/auth/views.js). El móvil
-    // emparejado no inicia sesión: ve los Enlaces y nada de gestión.
-    if (!allowed(who?.user ?? PHONE_USER, parts, req.method)) return json(res, 403, { error: 'No tienes acceso a esto.' });
+    // emparejado no inicia sesión y solo llega a lo que deja pasar el cortafuegos.
+    if (!allowed(who?.user, parts, req.method)) return json(res, 403, { error: 'No tienes acceso a esto.' });
     if (parts[1] === 'users') return usersRoute(req, res, parts.slice(2));
     if (parts[1] === 'knowledge') return knowledgeRoute(req, res, parts.slice(2));
     if (parts[1] === 'issues') return issuesRoute(req, res, parts.slice(2));
@@ -1601,21 +1590,15 @@ const handleConnection = (ws, req) => {
       const sessionId = `s${++sessionSeq}`;
 
       // acceso: techo del token ∩ selección del chat
-      let args = def.args || [];
-      let allowedProjects = [];
-      let base = null;
-      if (def.modes) {
-        base = currentBase();
-        const ceiling = (await accessibleProjects(base)).map((p) => p.id);
-        const picked = Array.isArray(projects) && projects.length
-          ? ceiling.filter((id) => projects.includes(id))
-          : ceiling;
-        allowedProjects = picked;
-        if (def.id === 'codex') {
-          // sin sandbox ni confirmaciones, como bypassPermissions en Claude; el MCP por perfil
-          if (base) { writeCodexProfile(sessionId, picked, base); args = ['--dangerously-bypass-approvals-and-sandbox', '-p', codexProfile(sessionId)]; }
-          else args = ['--dangerously-bypass-approvals-and-sandbox'];
-        } else {
+      const base = currentBase();
+      const ceiling = (await accessibleProjects(base)).map((p) => p.id);
+      const picked = Array.isArray(projects) && projects.length ? ceiling.filter((id) => projects.includes(id)) : ceiling;
+      let args;
+      if (def.id === 'codex') {
+        // sin sandbox ni confirmaciones, como bypassPermissions en Claude; el MCP por perfil
+        if (base) { writeCodexProfile(sessionId, picked, base); args = ['--dangerously-bypass-approvals-and-sandbox', '-p', codexProfile(sessionId)]; }
+        else args = ['--dangerously-bypass-approvals-and-sandbox'];
+      } else {
         const cfg = writeSessionMcpConfig(sessionId, def.id, picked, base);
         args = def.id === 'copilot'
           ? ['--allow-all', '--additional-mcp-config', `@${cfg}`]
@@ -1623,7 +1606,6 @@ const handleConnection = (ws, req) => {
           // ignora el settings.json global del usuario (hooks de otra versión que
           // rompen el 2.1.47) sin tocar el login (vive en el Keychain de macOS).
           : ['--permission-mode', 'bypassPermissions', '--setting-sources', '', '--mcp-config', cfg];
-        }
       }
 
       // Resolvemos la ruta real del ejecutable. En Windows un shim .cmd/.bat no
@@ -1645,7 +1627,7 @@ const handleConnection = (ws, req) => {
           name: 'xterm-color',
           cols: cols > 0 ? cols : 80,
           rows: rows > 0 ? rows : 24,
-          cwd: def.modes ? modeDirFor(mode, base) : process.env.HOME,
+          cwd: modeDirFor(mode, base),
           // SHELL_SESSIONS_DISABLE removes macOS's "Restored session…" banner.
           // cleanEnv poda el entorno heredado (CLAUDECODE/*, tokens de GitHub) y
           // userEnv() pone encima las credenciales personales (Jira, la clave de
@@ -1661,14 +1643,14 @@ const handleConnection = (ws, req) => {
         id: sessionId,
         term,
         buffer: '',
-        meta: { launcher: def.id, knowledge: def.modes ? mode : null, label: issue ? issue.id : def.label, color: null, ...(issue ? { issue: issue.id } : {}) },
+        meta: { launcher: def.id, knowledge: mode, label: issue ? issue.id : def.label, color: null, ...(issue ? { issue: issue.id } : {}) },
         assets: [], // adjuntos compartidos en esta sesión (persisten con ella)
         ws: null,
       };
       SESSIONS.set(s.id, s);
       bind(s);
       send(ws, { type: 'started', sessionId: s.id });
-      console.log(`[sia] session open (${def.id}${issue ? `, issue ${issue.id}` : ''}${def.modes ? `, conocimiento ${mode}, base ${base?.name || '-'}, proyectos [${allowedProjects.join(',')}]` : ''}, id ${s.id}, pid ${term.pid})`);
+      console.log(`[sia] session open (${def.id}${issue ? `, issue ${issue.id}` : ''}, conocimiento ${mode}, base ${base?.name || '-'}, proyectos [${picked.join(',')}], id ${s.id}, pid ${term.pid})`);
 
       term.onData((data) => {
         s.buffer += data;

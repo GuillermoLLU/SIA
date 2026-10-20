@@ -36,7 +36,7 @@ export const renderChooser = (host, { launchers, loadProjects, onLaunch, title =
       const btn = el('button', 'launcher-btn');
       btn.disabled = !l.available;
       btn.innerHTML = `<span class="launcher-ico">${LAUNCHER_ICONS[l.id] || ''}</span><span class="launcher-name">${l.label}</span>${l.available ? '' : '<span class="launcher-na">no instalado</span>'}`;
-      if (l.available) btn.addEventListener('click', () => (l.modes ? knowledgeStep(l) : onLaunch(l, null, null)));
+      if (l.available) btn.addEventListener('click', () => knowledgeStep(l));
       grid.appendChild(btn);
     }
     host.append(el('div', 'launcher-title', title), grid);
