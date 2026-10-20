@@ -2,7 +2,7 @@
 // Desde el móvil la web la sirve el propio bridge (mismo origen). En navegador
 // (dev) se sondean los pares candidatos hasta dar con un SIA vivo.
 
-export const PORT_PAIRS = [[57413, 57414], [58527, 58528], [59641, 59642]];
+const PORT_PAIRS = [[57413, 57414], [58527, 58528], [59641, 59642]];
 
 export const bridgeFromQuery = (q) => (q.get('ws') && q.get('api')
   ? { wsUrl: `ws://localhost:${q.get('ws')}`, apiBase: `http://localhost:${q.get('api')}/api` }

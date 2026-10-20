@@ -15,7 +15,7 @@ export const initials = (n) => String(n).split(/\s+/).filter(Boolean).map((w) =>
 export const knOf = (p) => (p.knowledge || []).flatMap((k) => k.groups.map((g) => g.id));
 
 // Filtros de la lista: todas, uno por rol, personalizadas, sin conocimiento y desactivadas.
-export const FIXED_FILTERS = ['all', 'custom', 'none', 'off'];
+const FIXED_FILTERS = ['all', 'custom', 'none', 'off'];
 export const filterChips = (roles) => [['all', 'Todas'], ...roles.map((r) => [r.id, r.name]), ['custom', 'Personalizado'], ['none', 'Sin conocimiento'], ['off', 'Desactivadas']];
 export const matchesFilter = (p, filter) => filter === 'all'
   || (filter === 'off' ? !p.active : filter === 'none' ? !knOf(p).length : filter === 'custom' ? !p.role_id : p.role_id === filter);
@@ -23,7 +23,7 @@ export const matchesFilter = (p, filter) => filter === 'all'
 export const validFilter = (filter, roles) => (FIXED_FILTERS.includes(filter) || roles.some((r) => r.id === filter) ? filter : 'all');
 
 // Buscar por nombre o email (la consulta ya en minúsculas).
-export const matchesQuery = (p, query) => `${p.name} ${p.email}`.toLowerCase().includes(query);
+const matchesQuery = (p, query) => `${p.name} ${p.email}`.toLowerCase().includes(query);
 export const listRows = (people, filter, query) => people.filter((p) => matchesFilter(p, filter) && matchesQuery(p, query));
 
 export const roleName = (roles, p) => roles.find((r) => r.id === p.role_id)?.name || 'Personalizado';

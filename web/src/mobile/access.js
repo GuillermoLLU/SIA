@@ -3,8 +3,8 @@
 // cada dispositivo.
 import { ago, mmss } from '../ui/time.js';
 
-export const PHASES = ['preparing', 'download', 'starting'];
-export const PHASE_TEXT = {
+const PHASES = ['preparing', 'download', 'starting'];
+const PHASE_TEXT = {
   preparing: 'Preparando el acceso público',
   download: 'Descargando cloudflared',
   starting: 'Abriendo el túnel',

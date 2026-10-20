@@ -2,7 +2,7 @@
 // (varias guardadas, una activa: la que se inyecta como GH_TOKEN a los chats
 // NUEVOS, para saltar de entorno —trabajo ↔ personal— sin repegar el token).
 
-export const APPLIES = 'aplica a los chats que abras a partir de ahora';
+const APPLIES = 'aplica a los chats que abras a partir de ahora';
 
 // La URL base sin barra final, como la espera la skill de Jira.
 export const jiraConfig = (baseUrl, token) => ({ baseUrl: baseUrl.trim().replace(/\/+$/, ''), token: token.trim() });
