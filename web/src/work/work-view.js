@@ -4,6 +4,8 @@
 // CSV. Es el equipo de Indra. Clic en una persona: se abre en Métricas frente
 // al resto de su equipo (openPerson). Si la persona también gestiona el equipo,
 // «Gestionar equipo» lleva a la gestión de personas (onManage).
+// Es una vista sobre el dominio de las Métricas: su modelo, sus piezas de pantalla (charts.js, period.js, tip.js) y
+// los estilos de esas piezas (metrics.css); lo suyo, en team.js y work.css.
 import '../metrics/metrics.css';
 import './work.css';
 import { esc } from '../ui/html.js';
@@ -12,6 +14,7 @@ import { createModel } from '../metrics/model.js';
 import { createCharts } from '../metrics/charts.js';
 import { periodLabel, calendarHtml } from '../metrics/period.js';
 import { attachTip } from '../metrics/tip.js';
+import { monthRange } from '../metrics/view.js';
 import { teamPanel } from './team.js';
 
 const CALENDAR_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>';
@@ -60,7 +63,7 @@ export const mountWorkView = (root, { api, openPerson, onManage }) => {
     if (month) {
       const k = Number(month.dataset.month);
       if (anchor == null) { anchor = k; return render(); }
-      [S.from, S.to] = [Math.min(anchor, k), Math.max(anchor, k)];
+      [S.from, S.to] = monthRange(anchor, k);
       calendar = false; anchor = null;
       return render();
     }
@@ -82,6 +85,8 @@ export const mountWorkView = (root, { api, openPerson, onManage }) => {
     if (person) openPerson?.(Number(person.dataset.person));
   });
 
+  // Escape cierra el calendario. En el documento, no en la vista: al marcar un mes se repinta y el foco se va; la
+  // vista se monta una sola vez (main.js), así que el oyente no se acumula.
   document.addEventListener('keydown', (e) => {
     if (m && !root.hidden && e.key === 'Escape' && calendar) { calendar = false; anchor = null; render(); }
   });

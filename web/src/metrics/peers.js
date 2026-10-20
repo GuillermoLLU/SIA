@@ -18,7 +18,7 @@ export const expectedAvg = (m, R, { p, t }) => {
 };
 
 // si una issue se empezó dentro del SLA (1), fuera (0) o no cuenta (null): lo mismo que stats (sla), desde la dimensión sl
-export const slaHit = (m) => (i) => { const k = m.DIMS.sl.get(i); return k === 0 ? 1 : k <= 4 ? 0 : null; };
+const slaHit = (m) => (i) => { const k = m.DIMS.sl.get(i); return k === 0 ? 1 : k <= 4 ? 0 : null; };
 
 // Lo que cumpliría `ref` con el trabajo de `work`: su % dentro del SLA en cada prioridad y módulo (con menos de
 // MIN_CELL issues, el de la prioridad), con el peso que tiene cada uno en `work`.

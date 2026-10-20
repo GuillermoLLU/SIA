@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createModel } from './model.js';
 import { data } from './fixture.js';
-import { situations, late, isOld, orphansIn, watchList, meanAge, lower, pendingCells, backlogFigures } from './backlog.js';
+import { situations, late, isOld, orphansIn, watchList, pendingCells, backlogFigures } from './backlog.js';
 
 const model = (d = data(), sides) => { const m = createModel(d); if (sides) m.S.sides = sides; m.refilter(); return m; };
 
@@ -23,14 +23,12 @@ test('lo pendiente: su situación, lo que conviene vigilar y lo que no tiene a n
   assert.deepEqual(orphansIn(model(d)), [4]);
 });
 
-test('antigüedad media y qué lado va mejor (iguales al redondear: ninguno)', () => {
-  const m = model();
-  assert.equal(meanAge(m, []), null);
-  assert.ok(Math.abs(meanAge(m, [2]) - 200 / 1440) < 1e-9);
-  assert.equal(lower(1, 2, Math.round), 0);
-  assert.equal(lower(2, 1, Math.round), 1);
-  assert.equal(lower(1.04, 1.01, (x) => Math.round(x * 10)), -1);
-  assert.equal(lower(null, 1, Math.round), -1);
+test('comparando: el lado con menos antigüedad va mejor; iguales al redondear, ninguno', () => {
+  const d = data(); d.cols.st[1] = 2;   // la 2 (T-Systems), abierta desde enero
+  const m = model(d, [{ company: 0 }, { company: 1 }]), op = m.rows().filter((i) => m.OPEN[i]);
+  const { v, main, old } = pendingCells(m, m.bySide(op), [1, 1], false, { test: () => true, better: 'low' });
+  assert.ok(Math.abs(v[0].age - 200 / 1440) < 1e-9);
+  assert.deepEqual([main, old], [-1, 0]);   // el 100 % en los dos (iguales); en antigüedad, Indra
 });
 
 test('comparando: las celdas de una fila de lo pendiente y las cifras de arriba', () => {

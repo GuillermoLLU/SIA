@@ -35,9 +35,9 @@ export const watchList = (m) => [
 ];
 
 // la antigüedad media de unas issues, en días (null sin ninguna)
-export const meanAge = (m, l) => (l.length ? l.reduce((a, i) => a + m.SNAP - m.C.rep[i], 0) / l.length / DAY : null);
+const meanAge = (m, l) => (l.length ? l.reduce((a, i) => a + m.SNAP - m.C.rep[i], 0) / l.length / DAY : null);
 // el lado con menos (el que va mejor), o -1 si se ven iguales (al redondear con `same`) o falta uno
-export const lower = (a, b, same) => (a == null || b == null || same(a) === same(b) ? -1 : a < b ? 0 : 1);
+const lower = (a, b, same) => (a == null || b == null || same(a) === same(b) ? -1 : a < b ? 0 : 1);
 
 // Comparando, de cada fila de lo pendiente (r.test; sin prueba, todo) y por lado: sus issues por persona (c), qué
 // parte son de sus pendientes (sh) y cuánto llevan abiertas de media (age); y qué lado va mejor en lo principal

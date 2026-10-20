@@ -11,7 +11,7 @@ export const resolvedAt = (m) => (i) => (!m.OPEN[i] && m.C.res[i] >= 0 ? m.C.res
 export const startedAt = (m) => (i) => (m.C.ip[i] >= 0 ? m.C.rep[i] + m.C.ip[i] : null);
 
 // Los tramos de la tabla mes a mes: los meses del periodo o, si es un solo mes, sus días (hasta la foto).
-export const flowUnits = (m) => {
+const flowUnits = (m) => {
   const { S, LASTM } = m;
   if (S.from !== S.to) return monthsIn(S).map((k) => ({ label: MONTHS[k] + (k === LASTM ? '*' : ''), from: minOf(m, k), to: minOf(m, k + 1), f: `month:${k}` }));
   const y = m.data.meta.year;

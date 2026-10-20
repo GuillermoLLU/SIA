@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createModel } from './model.js';
 import { data } from './fixture.js';
-import { personVsTeam, expectedAvg, slaHit, expectedSla } from './peers.js';
+import { personVsTeam, expectedAvg, expectedSla } from './peers.js';
 
 const model = (sides) => { const m = createModel(data()); m.S.sides = sides; m.refilter(); return m; };
 
@@ -20,11 +20,6 @@ test('lo que tardaría el equipo con los módulos de la persona: la media del eq
   const { own, expected, n } = expectedAvg(m, R, pt);
   assert.deepEqual([own, expected, n], [80, 80, [2, 2]]);   // ANA es todo el equipo: coincide
   assert.deepEqual(expectedAvg(m, [[], R[1]], pt), { own: null, expected: null, n: [0, 2] });
-});
-
-test('dentro del SLA (1), fuera (0) o no cuenta (null), issue a issue', () => {
-  const m = model([{ company: 0 }, { company: 1 }]);
-  assert.deepEqual([0, 1, 2, 3].map(slaHit(m)), [1, 0, 0, null]);
 });
 
 test('lo que cumpliría el otro con el mismo trabajo: por prioridad y módulo, con el peso de cada uno', () => {

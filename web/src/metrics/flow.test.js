@@ -2,14 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createModel } from './model.js';
 import { data } from './fixture.js';
-import { flowUnits, closedInPeriod, ledger, monthVsPrev } from './flow.js';
+import { closedInPeriod, ledger, monthVsPrev } from './flow.js';
 
 const model = (o = {}) => { const m = createModel(data()); Object.assign(m.S, o); m.refilter(); return m; };
 
+const units = (m) => ledger(m, m.rows()).units.filter((u) => !u.after);
+
 test('los tramos: los meses del periodo o, con un solo mes, sus días; el mes en curso, hasta la foto', () => {
-  assert.deepEqual(flowUnits(model()).map((u) => u.label), ['ene', 'feb', 'mar*']);
-  assert.equal(flowUnits(model({ from: 0, to: 0 })).length, 31);
-  assert.equal(flowUnits(model({ from: 2, to: 2 })).length, 11);   // la foto es el 11 de marzo
+  assert.deepEqual(units(model()).map((u) => u.label), ['ene', 'feb', 'mar*']);
+  assert.equal(units(model({ from: 0, to: 0 })).length, 31);
+  assert.equal(units(model({ from: 2, to: 2 })).length, 11);   // la foto es el 11 de marzo
 });
 
 test('el libro mayor cuadra: lo recibido cada mes, qué ha sido de ello y lo que quedaba abierto al cierre', () => {

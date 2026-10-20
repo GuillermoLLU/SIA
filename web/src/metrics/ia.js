@@ -4,7 +4,7 @@
 export const IA_MARKS = 32 | 64 | 2048 | 4096 | 8192;
 const IA_SOLVED = 32, IA_FAILS = 64 | 8192, HITL_OK = 4096;
 export const IA_NAMES = ['Revisada OK', 'Con fallo', 'Sin revisar', 'Sin IA'];
-export const IA_OK = 0, IA_FAIL = 1, IA_UNREVIEWED = 2, IA_NONE = 3;
+export const IA_OK = 0, IA_FAIL = 1, IA_UNREVIEWED = 2, IA_NONE = 3;   // lo que da iaKind, en el orden de IA_NAMES
 
 // cómo sale una issue según sus marcas: con alguna marca de fallo (aunque también tenga revisión OK), con revisión
 // humana OK, con IA pero sin revisión ni fallo, o sin IA
