@@ -10,6 +10,7 @@ import { num, pct, dur, MONTHS } from './format.js';
 import { compareFigure } from './compare.js';
 import { SHIFTS } from './shifts.js';
 import { MIN_ISSUES, clearlyWorse, trendDelta, shadeSoft, HOT } from './rules.js';
+import { blockHead, blocksOf } from './pieces.js';
 
 // ui: { exp: {id: true}, sort: {id: [columna, ±1]} }, lo que la persona ha desplegado y ordenado.
 export const createCharts = (m, ui) => {
@@ -223,13 +224,12 @@ export const createCharts = (m, ui) => {
     if (CMP()) o = { ...o, share: false };   // comparando, un % sobre los dos lados juntos no dice nada
     // Las filas, por bloques: cada { head, note } abre uno y su nombre va en una columna a la izquierda que
     // abarca todas sus filas (como en una tabla dinámica). Las filas antes del primero, sin bloque.
-    const blocks = [];
-    for (const r of rowsDef) { if (r.head) blocks.push({ head: r.head, note: r.note, rows: [] }); else { if (!blocks.length) blocks.push({ rows: [] }); blocks[blocks.length - 1].rows.push(r); } }
+    const blocks = blocksOf(rowsDef);
     const grouped = blocks.some((b) => b.head), span = grouped ? 'colspan="2"' : '';
     const tail = (t, r = {}) => `${o.total ? `<td class="mt-num mt-total" ${filt(r)} data-tip="${esc(tip(r.label || 'Total', t))}">${show(t)}</td>` : ''}${o.share ? `<td class="mt-num mt-mut">${pct(tot(t) / (of || 1), 1)}</td>` : ''}`;
     const row = (r, b, first) => {
       const j = ri.get(r), lab = `<th class="mt-r" ${r.tip ? `data-tip="${esc(r.tip)}"` : `title="${esc(r.label)}"`} ${filt(r)}>${esc(r.label)}</th>`;
-      const gl = !grouped ? lab : !b.head ? lab.replace('<th ', `<th ${span} `) : (first ? `<th class="mt-gl" rowspan="${b.rows.length}">${esc(b.head)}${b.note ? `<small>${esc(b.note)}</small>` : ''}</th>` : '') + lab;
+      const gl = !grouped ? lab : !b.head ? lab.replace('<th ', `<th ${span} `) : (first ? blockHead(b.head, b.note, b.rows.length) : '') + lab;
       return `<tr class="${first ? 'mt-gfirst' : ''}">${gl}${cols.map((c, k) => cell(r, j, c, k)).join('')}${tail(rt[j], r)}</tr>`;
     };
     const fj = all.length - 1;

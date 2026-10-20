@@ -8,6 +8,7 @@
 // Se marca un lado si los dos tienen al menos BETTER_MIN en lo que cuenta ese dato y no se ven iguales al redondeo.
 import { esc } from '../ui/html.js';
 import { BETTER_MIN } from './rules.js';
+import { blockHead } from './pieces.js';
 
 // el lado marcado de un dato en una fila (0, 1) o -1
 const pairMark = (d, x, base) => {
@@ -35,7 +36,7 @@ export const pairTable = ({ names, first, defs, rows, base = () => Infinity, gro
   // head: la celda del título del bloque, en su primera fila; inBlock: las demás filas del bloque
   const row = (r, head = '', inBlock = false) => `<tr class="${r.cls || ''}" ${r.attrs || ''}>${head}<td class="mt-r" ${blocks && !head && !inBlock ? 'colspan="2"' : ''} data-tip="${esc(r.label)}">${esc(r.label)}</td>${cells(r)}</tr>`;
   const block = (b) => b.rows.map((x, j) => row({ ...x, cls: `${x.cls || ''} ${j ? '' : 'mt-gfirst'}` },
-    j ? '' : `<th class="mt-gl" rowspan="${b.rows.length}">${esc(b.head)}${b.note ? `<small>${esc(b.note)}</small>` : ''}</th>`, true)).join('');
+    j ? '' : blockHead(b.head, b.note, b.rows.length), true)).join('');
   const body = rows.map((r) => (r.head ? block(r) : row(r))).join('');
   const lead = blocks ? 2 : 1;
   const side = (k, cls = '') => `<th class="mt-led-side ${cls}" data-tip="${esc(names[k])}"><i class="mt-c${k}"></i></th>`;
