@@ -3,6 +3,8 @@
 //
 // Los tiempos van en minutos desde el 1 de enero del año analizado, con la
 // hora tal cual viene en el dato (sin convertir zona horaria); -1 = no hay.
+// readIssue es la entrada; las piezas en que se descompone (fechas, historial,
+// notas, ticket, ámbito, operación) van públicas para probarse una a una.
 import { readTitle } from './themes.js';
 
 // Marcas de una issue (bits de `flags`). La web las nombra con los mismos bits.

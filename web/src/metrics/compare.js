@@ -9,7 +9,7 @@
 import { num, dec, dur } from './format.js';
 
 // ¿a está peor o mejor que b?
-export const verdict = (a, b, low = true) => (a === b ? '' : (low ? a > b : a < b) ? 'bad' : 'good');
+const verdict = (a, b, low = true) => (a === b ? '' : (low ? a > b : a < b) ? 'bad' : 'good');
 
 // a, b: los indicadores de cada empresa (con n, cuántas issues); fmt: cómo se
 // ve el valor; val: el valor numérico. null si una de las dos no tiene dato.

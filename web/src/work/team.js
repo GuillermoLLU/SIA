@@ -10,7 +10,7 @@ import { esc } from '../ui/html.js';
 import { SCOPE } from '../metrics/model.js';
 import { num, dec, pct, dur, MONTHS } from '../metrics/format.js';
 
-export const MIN = 10;
+const MIN = 10;
 
 const donePct = (s) => (s.slaDone == null ? '—' : pct(s.slaDone));
 

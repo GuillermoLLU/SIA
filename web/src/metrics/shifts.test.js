@@ -1,18 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { slotOf, kindOf, weekendOf, typeOf, slotsIn, carry, shiftWork } from './shifts.js';
+import { slotOf, weekendOf, typeOf, slotsIn, carry, shiftWork } from './shifts.js';
 
 const BASE = Date.UTC(2026, 0, 1);   // jueves
 const type = typeOf(weekendOf(BASE));
 const at = (day, h, mm = 0) => day * 1440 + h * 60 + mm;   // minutos desde el 1 de enero (día 0)
 
-test('cada instante cae en su turno: mañana de 7 a 15, tarde de 15 a 23, noche de 23 a 7', () => {
-  assert.equal(kindOf(slotOf(at(0, 7))), 0);
-  assert.equal(kindOf(slotOf(at(0, 14, 59))), 0);
-  assert.equal(kindOf(slotOf(at(0, 15))), 1);
-  assert.equal(kindOf(slotOf(at(0, 23))), 2);
+test('cada instante cae en su turno: mañana de 7 a 15, tarde de 15 a 23, noche de 23 a 7 (el 1 de enero es laborable)', () => {
+  assert.equal(type(slotOf(at(0, 7))), 0);
+  assert.equal(type(slotOf(at(0, 14, 59))), 0);
+  assert.equal(type(slotOf(at(0, 15))), 1);
+  assert.equal(type(slotOf(at(0, 23))), 2);
   assert.equal(slotOf(at(1, 6, 59)), slotOf(at(0, 23)));   // la noche sigue hasta las 7 del día siguiente
-  assert.equal(kindOf(slotOf(at(0, 6, 59))), 2);           // antes de las 7 del 1 de enero: la noche anterior
+  assert.equal(type(slotOf(at(0, 6, 59))), 2);             // antes de las 7 del 1 de enero: la noche anterior
 });
 
 test('un turno es de fin de semana si empieza en sábado o domingo', () => {

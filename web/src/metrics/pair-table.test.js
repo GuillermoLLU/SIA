@@ -1,24 +1,29 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { pairMark, pairTable, BETTER_MIN } from './pair-table.js';
+import { pairTable, BETTER_MIN } from './pair-table.js';
 
 const pct = (v) => `${Math.round(v * 100)} %`;
 const share = ['% OK', (x) => x.v, pct, 'high', 'nota', (x) => x.n];
+// el lado marcado (0, 1) o -1 en una tabla de una fila y un dato
+const mark = (d, x, cls = 'mt-better') => {
+  const tds = [...pairTable({ names: ['a', 'b'], first: '', defs: [d], rows: [{ label: 'r', x }] }).matchAll(/<td class="mt-num[^"]*"/g)].map((m) => m[0].includes(cls));
+  return tds.indexOf(true);
+};
 
 test('se marca el lado que va mejor, si los dos tienen bastantes y no se ven iguales', () => {
   const x = (a, b, n = 20) => [{ v: a, n }, { v: b, n }];
-  assert.equal(pairMark(share, x(0.5, 0.4)), 0);
-  assert.equal(pairMark(share, x(0.4, 0.5)), 1);
-  assert.equal(pairMark(['', share[1], pct, 'low', '', share[5]], x(0.4, 0.5)), 0);
-  assert.equal(pairMark(share, x(0.501, 0.499)), -1);               // 50 % y 50 %: iguales al verse
-  assert.equal(pairMark(share, x(0.5, 0.4, BETTER_MIN - 1)), -1);   // pocas para marcar
-  assert.equal(pairMark(share, [{ v: null, n: 20 }, { v: 0.4, n: 20 }]), -1);
-  assert.equal(pairMark(['', share[1], pct, null], x(0.5, 0.4)), -1); // sin un mejor, sin color
+  assert.equal(mark(share, x(0.5, 0.4)), 0);
+  assert.equal(mark(share, x(0.4, 0.5)), 1);
+  assert.equal(mark(['', share[1], pct, 'low', '', share[5]], x(0.4, 0.5)), 0);
+  assert.equal(mark(share, x(0.501, 0.499)), -1);               // 50 % y 50 %: iguales al verse
+  assert.equal(mark(share, x(0.5, 0.4, BETTER_MIN - 1)), -1);   // pocas para marcar
+  assert.equal(mark(share, [{ v: null, n: 20 }, { v: 0.4, n: 20 }]), -1);
+  assert.equal(mark(['', share[1], pct, null], x(0.5, 0.4)), -1); // sin un mejor, sin color
 });
 
 test('en ocre (warn), el más alto', () => {
   const warn = ['De antes', (x) => x.v, pct, 'warn'];
-  assert.equal(pairMark(warn, [{ v: 0.3 }, { v: 0.1 }], () => Infinity), 0);
+  assert.equal(mark(warn, [{ v: 0.3 }, { v: 0.1 }], 'mt-warn'), 0);
 });
 
 test('la tabla: leyenda, dos columnas por dato, grupos y bloques con el título a la izquierda', () => {

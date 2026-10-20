@@ -41,7 +41,7 @@ export const THEMES = [
 export const THEME_NAMES = THEMES.map(([name]) => name);
 
 // Texto ya normalizado → máscara de bits, un bit por tema (bit i = THEMES[i]).
-export const themesOf = (text) => {
+const themesOf = (text) => {
   if (THEMES[0][1].test(text)) return 1;
   let mask = 0;
   THEMES.forEach(([, rx], i) => { if (rx.test(text)) mask |= 1 << i; });

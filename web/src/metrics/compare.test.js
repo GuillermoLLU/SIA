@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { compareFigure, verdict } from './compare.js';
+import { compareFigure } from './compare.js';
 import { pct, dur, num, dec } from './format.js';
 
 const figure = (x, y, fmt, better) => compareFigure({ n: 10, v: x }, { n: 10, v: y }, (s) => fmt(s.v), (s) => s.v, better);
@@ -27,8 +27,8 @@ test('iguales al redondeo: «=»; sin dato en una de las dos: null', () => {
   assert.equal(compareFigure({ n: 2 }, { n: 3 }, String, (s) => (s.n === 2 ? null : 1)), null);
 });
 
-test('verdict: cualquier diferencia cuenta', () => {
-  assert.equal(verdict(2, 1), 'bad');
-  assert.equal(verdict(2, 1, false), 'good');
-  assert.equal(verdict(1, 1), '');
+test('cualquier diferencia cuenta: mejor o peor según el sentido; iguales, sin color', () => {
+  assert.equal(figure(2, 1, num, 'low').cls, 'bad');
+  assert.equal(figure(2, 1, num, 'high').cls, 'good');
+  assert.equal(figure(1, 1, num, 'high').cls, '');
 });

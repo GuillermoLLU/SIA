@@ -11,7 +11,7 @@ import { SHIFTS, SHIFT_HOURS, DAYS, MIN_ACTIONS } from './shifts.js';
 import { pairTable as pairTableOf, BETTER_MIN } from './pair-table.js';
 
 export const TABS = [['resumen', 'Resumen'], ['hoy', 'Foto de hoy'], ['entrada', 'Entrada'], ['backlog', 'Backlog'], ['modulos', 'Módulos y focos'],
-  ['resolucion', 'Resolución y escalados'], ['sla', 'SLA y calidad'], ['ia', 'IA'], ['ia2', 'IA (propuesta)'], ['turnos', 'Turnos']];
+  ['resolucion', 'Resolución y escalados'], ['sla', 'SLA y calidad'], ['ia', 'IA'], ['turnos', 'Turnos']];
 const QUESTIONS = {
   resumen: ['¿Cómo vamos?', 'Cada bloque responde a una pregunta con sus cifras clave; el detalle, en su pestaña.'],
   hoy: ['¿Qué hay que mover hoy?', 'Lo abierto ahora mismo, sea del mes que sea (no depende del periodo), en listas para actuar: lo urgente, lo que espera y lo que está parado.'],
@@ -20,8 +20,7 @@ const QUESTIONS = {
   modulos: ['¿De dónde viene?', 'Los módulos, centros y problemas que concentran el trabajo, y lo que se repite.'],
   resolucion: ['¿Cómo lo resolvemos?', 'Cuánto tardamos, en qué se va el tiempo, qué módulos tardan más y qué escalamos y a quién. Tiempos de lo resuelto, en tiempo natural.'],
   sla: ['¿Cómo de bien lo hacemos?', 'Si empezamos a tiempo (SLA de inicio: de la apertura al primer paso a En curso, en tiempo natural; crítica 15 min, alta 45 min, media 2 h, baja 8 h), si el trabajo queda bien hecho y si queda bien registrado.'],
-  ia: ['¿Cuánta IA usamos?', 'Dónde interviene ya la IA y el trabajo repetitivo en el que podría entrar.'],
-  ia2: ['¿Cuánto usamos la IA y cómo sale?', 'Por las marcas de IA de Remedy: en TAGS (IA_SOLVED…, IA_FAIL) y en las notas ([ACT IA], [INFORME IA], notas del agente de IA, [HITL_REVIEW_OK], [HITL_REVIEW_NOT_OK], [IA_FAIL]…). Una issue con IA puede estar revisada OK, con fallo o sin revisar.'],
+  ia: ['¿Cuánto usamos la IA y cómo sale?', 'Por las marcas de IA de Remedy: en TAGS (IA_SOLVED…, IA_FAIL) y en las notas ([ACT IA], [INFORME IA], notas del agente de IA, [HITL_REVIEW_OK], [HITL_REVIEW_NOT_OK], [IA_FAIL]…). Una issue con IA puede estar revisada OK, con fallo o sin revisar.'],
   turnos: ['¿Cuándo entra y cuándo lo trabajamos?', `Por turnos: ${SHIFTS.map((s, k) => `${s.toLowerCase()} de ${SHIFT_HOURS[k]}`).join(', ')}. El turno se cuenta por la hora en que empieza: la noche del domingo es de fin de semana.`],
 };
 
@@ -31,9 +30,9 @@ const incId = (id) => `INC${String(id).padStart(12, '0')}`;
 const opt = (f) => (v) => (v == null ? '—' : f(v));
 
 export const createTabs = (m, ch, ui) => {
-  const { C, DI, N, S, BASE, LASTM, PRIOS, slaLabel, MONTH, DOW, OPEN, SIDE, STYPE, CMP, CO, NAMES, isSel, stats, group, bySide, clock } = m;
+  const { C, DI, S, BASE, LASTM, PRIOS, slaLabel, MONTH, DOW, OPEN, SIDE, STYPE, CMP, CO, NAMES, isSel, stats, group, bySide, clock } = m;
   const name = (k) => NAMES()[k];
-  const { card, legend, kpi, kpis, kpiCo, diff, bars, monthly, lines, ranking, heat, matrix, scorecard, day, split } = ch;
+  const { card, legend, kpi, kpis, kpiCo, diff, more, lines, heat, matrix, scorecard, day, split } = ch;
   const noK = (k) => k === 0;
   const noTheme = (k) => k === m.data.themes.length;
   const REQ = DI.svc.indexOf('USER_SERVICE_REQUEST');
@@ -57,8 +56,9 @@ export const createTabs = (m, ch, ui) => {
   // groups: [título, columnas] de una fila de cabecera por encima, para agrupar columnas; entonces las
   // columnas van todas igual de anchas y con una línea entre grupos
   const colgroup = (groups) => `<colgroup><col class="mt-first">${groups.map(([, n]) => Array.from({ length: n }, (_, j) => `<col${j ? '' : ' class="mt-gsep"'}>`).join('')).join('')}</colgroup>`;
-  const table = (first, defs, rowsHtml, groups) => `<div class="mt-tablewrap"><table ${groups ? 'class="mt-fixed"' : ''}>${groups ? colgroup(groups) : ''}<thead>${groups ? `<tr class="mt-cgrp"><th></th>${groups.map(([l, n]) => `<th colspan="${n}">${l}</th>`).join('')}</tr>` : ''}<tr><th>${first}</th>${defs.map((d) => `<th class="mt-num" ${d[4] ? `data-tip="${esc(d[4])}"` : ''}>${d[0]}</th>`).join('')}</tr></thead><tbody>${rowsHtml}</tbody></table></div>`;
-  const slices = (first, defs, A, cols) => table(first, cols.map((c) => SLICE[c]), defs.map(([label, test, f]) => {
+  // heads: [nombre, nota] de cada columna
+  const table = (first, heads, rowsHtml, groups) => `<div class="mt-tablewrap"><table ${groups ? 'class="mt-fixed"' : ''}>${groups ? colgroup(groups) : ''}<thead>${groups ? `<tr class="mt-cgrp"><th></th>${groups.map(([l, n]) => `<th colspan="${n}">${l}</th>`).join('')}</tr>` : ''}<tr><th>${first}</th>${heads.map(([l, tip]) => `<th class="mt-num" ${tip ? `data-tip="${esc(tip)}"` : ''}>${l}</th>`).join('')}</tr></thead><tbody>${rowsHtml}</tbody></table></div>`;
+  const slices = (first, defs, A, cols) => table(first, cols.map((c) => [SLICE[c][0], SLICE[c][4]]), defs.map(([label, test, f]) => {
     const st = bySide(A.filter(test)).map(stats);
     return `<tr ${f ? `class="mt-clk" data-f${f.includes('|') ? '2' : ''}="${f}"` : ''}><td>${label}</td>${cols.map((c) => `<td class="mt-num">${cell(st, SLICE[c])}</td>`).join('')}</tr>`;
   }).join(''));
@@ -202,16 +202,17 @@ export const createTabs = (m, ch, ui) => {
   // en el propio mes, cuánto hasta hoy y qué queda), y lo que pasó en el mes (lo resuelto, cuánto era de
   // meses anteriores, el saldo y la pila que quedó, con lo envejecido).
   const LEDGER_GROUPS = [['Lo recibido ese mes', 4], ['Lo que pasó en el mes', 5]];
+  // Cada dato: [nombre, cómo se ve, nota]. De un solo lado (comparando, ledgerCmp).
   const LEDGER = [
-    ['Recibidas', (s) => num(s.in), (s) => s.in, null, 'Issues abiertas en ese mes (o día).'],
-    ['% cerrado en el mes', (s) => (s.in ? pct(s.same / s.in, 1) : '—'), (s) => (s.in ? s.same / s.in : null), 'high', 'De las recibidas en ese mes, las que se cerraron antes de acabar el mismo mes. Se puede comparar entre meses: cuanto más bajo, más se queda para después.'],
-    ['% cerrado hasta hoy', (s) => (s.in ? pct(s.closed / s.in, 1) : '—'), (s) => (s.in ? s.closed / s.in : null), 'high', 'De las recibidas en ese mes, las que ya están resueltas, cerradas o canceladas hoy. En los meses pasados tiende al 100 %.'],
-    ['Por cerrar', (s) => num(s.still), (s) => s.still, 'low', 'De las recibidas en ese mes, las que siguen sin resolver hoy. Su total es el backlog del periodo.'],
-    ['Resueltas', (s) => num(s.out), (s) => s.out, 'high', 'Lo que se resolvió dentro de ese mes (o día), se abriera cuando se abriera dentro del periodo.'],
-    ['De meses anteriores', (s) => num(s.prev), (s) => s.prev, null, 'De las resueltas en el mes, las que se abrieron en un mes anterior: el esfuerzo que se va en sacar backlog.'],
-    ['Saldo', (s) => `${s.out - s.in > 0 ? '+' : ''}${num(s.out - s.in)}`, (s) => s.out - s.in, 'high', 'Resueltas menos recibidas en el mes: en positivo, la pila baja; en negativo, crece.'],
-    ['Pendientes al cierre', (s) => num(s.open), (s) => s.open, 'low', 'De lo recibido desde el inicio del periodo, lo que seguía abierto al acabar el mes (o el día).'],
-    ['Con más de 15 días', (s) => num(s.old), (s) => s.old, 'low', 'De las pendientes al cierre, las que ya llevaban más de 15 días abiertas: si sube, el backlog envejece.'],
+    ['Recibidas', (s) => num(s.in), 'Issues abiertas en ese mes (o día).'],
+    ['% cerrado en el mes', (s) => (s.in ? pct(s.same / s.in, 1) : '—'), 'De las recibidas en ese mes, las que se cerraron antes de acabar el mismo mes. Se puede comparar entre meses: cuanto más bajo, más se queda para después.'],
+    ['% cerrado hasta hoy', (s) => (s.in ? pct(s.closed / s.in, 1) : '—'), 'De las recibidas en ese mes, las que ya están resueltas, cerradas o canceladas hoy. En los meses pasados tiende al 100 %.'],
+    ['Por cerrar', (s) => num(s.still), 'De las recibidas en ese mes, las que siguen sin resolver hoy. Su total es el backlog del periodo.'],
+    ['Resueltas', (s) => num(s.out), 'Lo que se resolvió dentro de ese mes (o día), se abriera cuando se abriera dentro del periodo.'],
+    ['De meses anteriores', (s) => num(s.prev), 'De las resueltas en el mes, las que se abrieron en un mes anterior: el esfuerzo que se va en sacar backlog.'],
+    ['Saldo', (s) => `${s.out - s.in > 0 ? '+' : ''}${num(s.out - s.in)}`, 'Resueltas menos recibidas en el mes: en positivo, la pila baja; en negativo, crece.'],
+    ['Pendientes al cierre', (s) => num(s.open), 'De lo recibido desde el inicio del periodo, lo que seguía abierto al acabar el mes (o el día).'],
+    ['Con más de 15 días', (s) => num(s.old), 'De las pendientes al cierre, las que ya llevaban más de 15 días abiertas: si sube, el backlog envejece.'],
   ];
   const OLD = 15 * 1440;
   // Comparando: cada dato en dos columnas, una por lado, con su valor (no la diferencia). Entre empresas, lo que
@@ -360,9 +361,9 @@ export const createTabs = (m, ch, ui) => {
       return [...rowsK, tot].map((x) => ({ ...x, n: x.in + x.out + x.open }));
     });
     if (CMP()) return ledgerCmp(units, per, day);
-    const row = (label, j, attrs = '') => `<tr ${attrs}><td>${label}</td>${defs.map((d) => `<td class="mt-num">${cell([per[0][j], per[1][j]], d)}</td>`).join('')}</tr>`;
+    const row = (label, j, attrs = '') => `<tr ${attrs}><td>${label}</td>${defs.map(([, f]) => `<td class="mt-num">${f(per[0][j])}</td>`).join('')}</tr>`;
     const groups = LEDGER_GROUPS.map(([l, n]) => [day ? l.replace('mes', 'día') : l, n]);
-    return table(day ? 'Día' : 'Mes', defs, units.map((u, j) => row(u.label, j, u.f ? `class="mt-clk" data-f="${u.f}"` : u.after ? 'class="mt-mut"' : '')).join('') + row('Total', units.length, 'class="mt-tot"'), groups);
+    return table(day ? 'Día' : 'Mes', defs.map(([l, , tip]) => [l, tip]), units.map((u, j) => row(u.label, j, u.f ? `class="mt-clk" data-f="${u.f}"` : u.after ? 'class="mt-mut"' : '')).join('') + row('Total', units.length, 'class="mt-tot"'), groups);
   };
 
   // ¿De quién dependemos en cada módulo? Los 15 módulos con más issues: cuántas personas lo tocan, cuántas hacen
@@ -393,9 +394,9 @@ export const createTabs = (m, ch, ui) => {
       card('', scorecard('tp', PB_GROUPS, { id: 'md-pb', refLabel: 'Todos los problemas', extra: problemExtra, title: 'Problemas', top: 14, child: { dim: 'de', top: 8, noun: 'problemas' } }), { span: 's12' }));
   };
 
-  // --- Resolución (propuesta). Una pregunta por bloque: cuánto tardamos, en qué se va el tiempo, qué módulos tardan
-  // más y qué escalamos y a quién. Los tiempos, de lo resuelto y en tiempo natural; el de cada estado, la media por
-  // resuelta (model.js, stats rt). Por ahora, de un solo lado: comparando, se ve el primero.
+  // --- Resolución. Una pregunta por bloque: cuánto tardamos, en qué se va el tiempo, qué módulos tardan más y qué
+  // escalamos y a quién. Los tiempos, de lo resuelto y en tiempo natural; el de cada estado, la media por resuelta
+  // (model.js, stats rt). Entre empresas no se compara (resolutionCmp es para personas).
   const solved = (i) => m.DIMS.tb.get(i) < 8, escd = (i) => C.vt[i] > 0;
   const STATES = [['En cola', 'En Asignada: sin coger o de vuelta a la cola. Incluye lo que espera a otros sin pasar a Pendiente.'], ['En curso', 'En En curso.'],
     ['Espera cliente', 'En Pendiente del centro o del cliente.'], ['Espera tercero', 'En Pendiente de un tercero.'], ['Otro motivo', 'En Pendiente por otro motivo o sin motivo.']];
@@ -466,7 +467,7 @@ export const createTabs = (m, ch, ui) => {
       return `<td class="mt-num ${firsts.has(d) ? 'mt-gsep' : ''} ${bad ? 'mt-worse' : ''}" ${bad ? `data-tip="${esc(`Peor que el total: ${d[3](val(tot, d))}`)}"` : ''}>${v == null ? '—' : d[3](v)}</td>`;
     }).join('');
     const body = monthsIn().map((k) => `<tr class="mt-clk ${isSel('month', k) ? 'mt-sel' : ''}" data-f="month:${k}"><td>${MONTHS[k]}${k === LASTM ? '*' : ''}</td>${cells(parts(A.filter((i) => MONTH[i] === k)))}</tr>`).join('');
-    return `<div class="mt-res-month">${table('Mes de apertura', defs.map((d) => [d[0], 0, 0, 0, d[5]]), `${body}<tr class="mt-tot"><td>Total</td>${cells(tot, true)}</tr>`, RES_MONTH.map(([g, d]) => [g, d.length]))}</div>`;
+    return `<div class="mt-res-month">${table('Mes de apertura', defs.map((d) => [d[0], d[5]]), `${body}<tr class="mt-tot"><td>Total</td>${cells(tot, true)}</tr>`, RES_MONTH.map(([g, d]) => [g, d.length]))}</div>`;
   };
   // en qué se va el tiempo: por prioridad, escalada o no y tarjeta, la media y su reparto entre estados
   const timeTable = (A) => {
@@ -513,7 +514,7 @@ export const createTabs = (m, ch, ui) => {
       <tr class="mt-cgrp"><th colspan="2"></th><th colspan="2">Volumen</th><th colspan="3">Media de resolución</th><th colspan="2">En < 24 h</th></tr>
       <tr><th>Módulo principal</th><th>Problema</th><th class="mt-num">Resueltas</th><th data-tip="De las resueltas, las que tienen ticket de tercero.">Escaladas</th><th class="mt-num">Sin escalar</th><th class="mt-num">Escaladas</th><th class="mt-num" data-tip="Lo que tardan de más (o de menos) las escaladas.">Diferencia</th><th class="mt-num">Sin escalar</th><th class="mt-num">Escaladas</th></tr></thead>
       <tbody>${body}<tr class="mt-lead mt-lead-end"><th class="mt-r" colspan="2">${all || g.length <= 12 ? 'Todos estos problemas' : `Estos ${shown.length} problemas`}</th>${cells(allRows, allRows.filter(escd))}</tr></tbody></table></div>
-      ${g.length > 12 ? `<button class="mt-more" data-exp="rs-mixed">${all ? 'Ver menos' : `Ver todos (${num(g.length)})`}</button>` : ''}`;
+      ${more('rs-mixed', g.length, 12)}`;
   };
   // Un mismo ticket, muchas incidencias: tickets de tercero con 5 o más incidencias ligadas, en dos bloques: con
   // alguna abierta y ya cerrados (de más a menos incidencias). Cuándo: la primera y la última incidencia y los días
@@ -537,7 +538,7 @@ export const createTabs = (m, ch, ui) => {
       <tr class="mt-cgrp"><th colspan="2"></th><th colspan="3">Volumen</th><th colspan="3">Cuándo</th><th colspan="2">Resolución</th></tr>
       <tr><th>Estado</th><th>Ticket</th><th class="mt-num">Incidencias</th><th class="mt-num">Abiertas</th><th class="mt-num" data-tip="Centros distintos con alguna de esas incidencias.">Centros</th><th class="mt-num">Primera</th><th class="mt-num">Última</th><th class="mt-num" data-tip="Días entre la primera y la última incidencia.">Días</th><th class="mt-num">Media resol.</th><th>Problema más habitual</th></tr></thead>
       <tbody>${body}<tr class="mt-lead mt-lead-end"><th class="mt-r" colspan="2">${shown.length === known.length ? `Todos (${num(shown.length)} tickets)` : `Estos ${num(shown.length)} tickets`}</th><td class="mt-num mt-gsep">${num(sum((x) => x.n))}</td><td class="mt-num">${num(sum((x) => x.open)) || ''}</td><td colspan="6" class="mt-gsep"></td></tr></tbody></table></div>
-      ${known.length > 15 ? `<button class="mt-more" data-exp="rs-known">${all ? 'Ver menos' : `Ver todos (${num(known.length)})`}</button>` : ''}`;
+      ${more('rs-known', known.length, 15)}`;
   };
   // --- Resolución, comparando personas: una persona frente a su equipo (ella incluida: model.js heads) o frente a
   // otra. Lo que tarda depende mucho del módulo, así que la tabla principal compara módulo a módulo y la media se pone
@@ -730,7 +731,7 @@ export const createTabs = (m, ch, ui) => {
       return `<td class="mt-num ${firsts.has(d) ? 'mt-gsep' : ''} ${bad ? 'mt-worse' : ''}" ${bad ? `data-tip="${esc(`Peor que el total: ${d[2](w)}`)}"` : ''}>${v == null ? '—' : d[2](v)}</td>`;
     }).join('');
     const body = monthsIn().map((k) => `<tr class="mt-clk ${isSel('month', k) ? 'mt-sel' : ''}" data-f="month:${k}"><td>${MONTHS[k]}${k === LASTM ? '*' : ''}</td>${cells(st(A.filter((i) => MONTH[i] === k)))}</tr>`).join('');
-    return `<div class="mt-res-month">${table('Mes de apertura', defs.map((d) => [d[0], 0, 0, 0, d[4]]), `${body}<tr class="mt-tot"><td>Total</td>${cells(tot, true)}</tr>`, groups.map(([g, d]) => [g, d.length]))}</div>`;
+    return `<div class="mt-res-month">${table('Mes de apertura', defs.map((d) => [d[0], d[4]]), `${body}<tr class="mt-tot"><td>Total</td>${cells(tot, true)}</tr>`, groups.map(([g, d]) => [g, d.length]))}</div>`;
   };
   const PRIO_ROWS = () => PRIOS.map((p) => [nice(DI.prio[p]), (i) => C.pr[i] === p, `pr:${p}`]);
   const CARD_ROWS = () => CARDS.map((c, k) => [c, (i) => cardsOf(i).includes(k), `tj:${k}`]);
@@ -848,7 +849,7 @@ export const createTabs = (m, ch, ui) => {
         { span: 's12', sub: `Los 15 módulos con más issues de los que tienen al menos ${BETTER_MIN} cada uno. ${greenNote} Clic en un módulo para filtrar.` }) : '');
   };
 
-  // --- IA (propuesta). Cuánto la usamos, dónde, cómo sale, quién la usa y qué se repite. Por las marcas de IA de cada
+  // --- IA. Cuánto la usamos, dónde, cómo sale, quién la usa y qué se repite. Por las marcas de IA de cada
   // issue (ia.js; en model.js, la dimensión ia).
   const iaOf = (i) => m.DIMS.ia.get(i), withIa = (i) => iaOf(i) !== IA_NONE;
   const iaStats = (l) => iaStatsOf(l, C);
@@ -927,7 +928,7 @@ export const createTabs = (m, ch, ui) => {
     // de cada resolución, además, el módulo en el que más se usa
     const rzExtra = (st, l) => { extra(st, l); const g = group('mo', l).filter((x) => x.k); st.top = g.length ? { label: m.DIMS.mo.label(g[0].k), share: g[0].n / (l.length || 1) } : null; };
     const mix = { iaMix: (r) => iaBar(r.iaS) };
-    return grid(ask('ia2'), note,
+    return grid(ask('ia'), note,
       iaHead(A, s),
       section('¿Cuánto la usamos?'),
       card('', iaMonthly(A), { span: 's12' }),
@@ -1032,7 +1033,7 @@ export const createTabs = (m, ch, ui) => {
       pp ? fig('Media con IA, en días', (s) => (s.avg == null ? null : s.avg / 1440), dec, 'low', 'De las resueltas con IA, de la apertura a la resolución.', (s) => s.r.resolved) : '',
       co ? fig('Personas que la usan', users, P, 'high', 'De las personas con issues en el periodo, las que tienen alguna con IA.', (s) => s.people) : '',
       co ? kpiCo('Módulos donde se usa', mods.map((v) => ({ n: 1, v })), (x) => num(x.v), { val: (x) => x.v, note: 'Módulos con alguna issue con IA.' }) : ''];
-    return grid(ask('ia2'),
+    return grid(ask('ia'),
       kpis(...kp.filter(Boolean)),
       section('¿Cuánto la usamos?'),
       card('Mes a mes', pairTable('Mes de apertura', [D.vol, D.ia, D.share, D.ok, D.fail, ...(pp ? [D.avg] : [])], iaRows(A, months), IA_N, [['Volumen', 1], ['Uso de IA', 2], ['Cómo sale, de las de IA', 2], ...(pp ? [['Resolución', 1]] : [])]),
@@ -1104,7 +1105,7 @@ export const createTabs = (m, ch, ui) => {
     },
 
     hoy() {
-      const L = m.today(), op = L.filter((i) => OPEN[i]), T = bySide(op), cos = CO(), now = m.SNAP;
+      const L = m.today(), op = L.filter((i) => OPEN[i]), T = bySide(op), now = m.SNAP;
       const people = S.sides.some((x) => x?.people), one = S.sides.some((x) => x?.people?.size === 1) && !CMP();
       const CRITICAL = DI.prio.indexOf('CRITICAL'), lm = C.lm, days = (min) => Math.floor(min / 1440);
       const idle = (i) => (lm ? now - lm[i] : null);   // sin ningún cambio desde hace (minutos); null con datos de antes de guardar el último cambio
@@ -1121,8 +1122,7 @@ export const createTabs = (m, ch, ui) => {
           <td>${nice(DI.status[C.st[i]])}${C.rs[i] ? ` · <span class="mt-mut">${esc(title(DI.reason[C.rs[i]]))}</span>` : ''}</td>
           ${one ? '' : `<td><span class="mt-pill mt-p${SIDE[i]}">${esc(m.DIMS.as.label(C.as[i]))}</span></td>`}
           <td class="mt-num">${days(now - C.rep[i])} d</td>${lm ? `<td class="mt-num">${days(idle(i))} d</td>` : ''}<td>${C.vk[i] ? esc(DI.vkey[C.vk[i]]) : C.vt[i] ? esc(m.DIMS.vt.label(C.vt[i])) : ''}</td></tr>`).join('');
-        const more = rowsIn.length > top ? `<button class="mt-more" data-exp="${id}">${all ? 'Ver menos' : `Ver todas (${num(rowsIn.length)})`}</button>` : '';
-        return rowsIn.length ? `<div class="mt-tablewrap ${all ? 'mt-scroll' : ''}"><table class="mt-list"><thead><tr>${head.map((h) => `<th>${h}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>${more}` : '<p class="mt-mut mt-small">Ninguna.</p>';
+        return rowsIn.length ? `<div class="mt-tablewrap ${all ? 'mt-scroll' : ''}"><table class="mt-list"><thead><tr>${head.map((h) => `<th>${h}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>${more(id, rowsIn.length, top)}` : '<p class="mt-mut mt-small">Ninguna.</p>';
       };
       const byAge = (a, b) => C.rep[a] - C.rep[b];
       const crit3 = L.filter((i) => C.pr[i] === CRITICAL && now - C.rep[i] <= 3 * 1440).sort((a, b) => C.rep[b] - C.rep[a]);
@@ -1249,30 +1249,6 @@ export const createTabs = (m, ch, ui) => {
     },
 
     ia(A) {
-      const ia = A.filter((i) => C.fl[i] & IA_MARKS), T = bySide(A), TI = bySide(ia);
-      const count = (label, b, note) => kpiCo(label, T.map((l) => ({ n: l.length, v: l.filter((i) => C.fl[i] & b).length })), (s) => num(s.v), { val: (s) => s.v, note });
-      const extra = (s, l) => { s.req = share(l, (i) => C.sv[i] === REQ); s.rep = share(l, (i) => C.rz[i] > 0); };
-      const SI = TI.map(stats), SN = T.map((l) => stats(l.filter((i) => !(C.fl[i] & IA_MARKS))));
-      return grid(ask('ia'),
-        kpis(count('Issues con alguna marca de IA', IA_MARKS, 'en TAGS o en notas'), count('Con marca IA_SOLVED…', 32, 'en TAGS'), count('Con intervención de IA', 2048, 'notas [ACT IA], [INFORME IA]…'),
-          count('Revisión humana OK', 4096, '[HITL_REVIEW_OK] en notas'), count('IA fallida o no OK', 8192 | 64, 'IA_FAIL, HITL no OK…'),
-          kpiCo('Media con IA', SI, (s) => dur(s.avg), { val: (s) => s.avg }), kpiCo('Media sin IA', SN, (s) => dur(s.avg), { val: (s) => s.avg })),
-        section('Issues donde ya interviene la IA', `${num(ia.length)} issues con alguna marca de IA`),
-        card('Por mes', legend() + monthly(ia), { span: 's4' }),
-        card('Por módulo', bars('mo', { id: 'ia-mo', rows: ia, top: 10 }), { span: 's4' }),
-        card('Por tema', bars('th', { id: 'ia-th', rows: ia, top: 10 }), { span: 's4' }),
-        card('Por centro', bars('ce', { id: 'ia-ce', rows: ia, top: 10 }), { span: 's4' }),
-        card('Por tipología', bars('k3', { id: 'ia-k3', rows: ia, top: 10 }), { span: 's4' }),
-        card('Resultado', bars('fl', { id: 'ia-fl', rows: ia, top: 15, skip: (x) => ![5, 6, 11, 12, 13].includes(x) }), { span: 's4', sub: 'Marcas de IA presentes en esas issues.' }),
-        section('Trabajo repetitivo, donde la IA podría entrar'),
-        card('Temas: volumen, rapidez y repetición', ranking('th', ['n', 'mix', 'req', 'rep', 'avg', 'd1', 'vend'], { id: 'rep-th', extra, top: 27 }),
-          { span: 's12', sub: '«% peticiones» = tipo de servicio Petición de usuario. «% resolución repetida» = issues cuyo texto de resolución se ha usado 4 veces o más.' }),
-        card('Tipología: volumen, rapidez y repetición', ranking('k3', ['n', 'mix', 'req', 'rep', 'avg', 'd1', 'vend'], { id: 'rep-k3', extra, top: 15, min: 50 }), { span: 's12' }),
-        card('Títulos que más se repiten', bars('de', { id: 'rep-de', top: 15, skip: noK })),
-        card('Resoluciones que más se repiten', bars('rz', { id: 'rep-rz', top: 15, skip: noK })));
-    },
-
-    ia2(A) {
       if (CMP()) return iaCmp(A);
       return iaView(A);
     },
@@ -1318,7 +1294,7 @@ export const createTabs = (m, ch, ui) => {
           kpiCo('Entran en fin de semana', shareOf(T, (i) => STYPE[i] >= 3), (s) => pct(s.v), { val: (s) => s.v }),
           kpiCo('Empezadas en su turno', ST, (s) => opt(pct)(s.inShift), { val: (s) => s.inShift, better: 'high', note: 'en el turno en que entran' }),
           kpiCo('Resueltas en su turno', ST, (s) => opt(pct)(s.resInShift), { val: (s) => s.resInShift, better: 'high', note: 'en el turno en que entran' })),
-        card('Turno a turno', table('Turno', TCOLS, rowsHtml), { span: 's12', sub: 'Por el turno en que entra cada issue; el trabajo (resueltas, personas, acciones), por el turno en que se hace. Clic en una fila para filtrar. Pasa el ratón por una cabecera para ver cómo se calcula.' }),
+        card('Turno a turno', table('Turno', TCOLS.map((d) => [d[0], d[4]]), rowsHtml), { span: 's12', sub: 'Por el turno en que entra cada issue; el trabajo (resueltas, personas, acciones), por el turno en que se hace. Clic en una fila para filtrar. Pasa el ratón por una cabecera para ver cómo se calcula.' }),
         card('El día en 24 horas', curves, { span: 's12', sub: 'Issues que entran, que se empiezan (pasan a En curso) y que se resuelven en cada hora, en todo el periodo. Si la línea de las que entran va por encima, en esas horas se acumula trabajo.' }),
         card('¿Qué se queda para el turno siguiente?', split(['En su turno', 'En el siguiente', 'Más tarde', 'Sin pasar por En curso'], carryRows), { span: 's12', sub: 'De lo que entra en cada turno, cuándo se empieza. «Sin pasar por En curso»: abiertas sin empezar o cerradas sin ese paso.' }),
         card('Prioridad por turno', heat('pr', 'tu', 4, 3, { skipR: noK, orderR: PRIOS, orderC: [0, 1, 2] }), { sub: 'Issues que entran de cada prioridad en cada turno. Clic en una celda para filtrar.' }),

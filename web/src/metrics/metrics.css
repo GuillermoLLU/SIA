@@ -102,7 +102,7 @@
 /* rejilla y tarjetas */
 .mt-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; }
 .mt-card { grid-column: span 6; min-width: 0; padding: 16px 18px; background: var(--mt-card); border: 1px solid var(--mt-line); box-shadow: var(--mt-shadow); }
-.mt-s12 { grid-column: span 12; } .mt-s6 { grid-column: span 6; } .mt-s7 { grid-column: span 7; } .mt-s5 { grid-column: span 5; } .mt-s4 { grid-column: span 4; }
+.mt-s12 { grid-column: span 12; } .mt-s6 { grid-column: span 6; } .mt-s4 { grid-column: span 4; }
 .mt-card h3 { margin: 0 0 2px; font-size: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--mt-low); }
 .mt-sub { margin: 0 0 12px; font-size: 12.5px; color: var(--mt-low); }
 .mt-card h3 + :not(.mt-sub) { margin-top: 12px; }
@@ -177,17 +177,6 @@
 .mt-clk { cursor: pointer; } .mt-clk:hover td { background: var(--mt-soft); } .mt-sel td { background: var(--mt-sel); }
 .mt-grp td { padding: 5px 8px; font-size: 12px; font-weight: 650; letter-spacing: .4px; text-transform: uppercase; color: var(--mt-low); background: var(--mt-soft); }
 .mt-view a { color: var(--accent); }
-
-/* perfil comparado */
-.mt-cmp { display: grid; grid-template-columns: 1fr minmax(120px, 190px) 1fr; gap: 6px; align-items: center; padding: 2px 0; font-size: 12.5px; cursor: pointer; }
-.mt-cmp:hover { background: var(--mt-soft); } .mt-cmp.mt-sel { background: var(--mt-sel); }
-.mt-cmp.mt-cmp-h { font-weight: 600; cursor: default; } .mt-cmp.mt-cmp-h:hover { background: none; }
-.mt-cmp-l { display: flex; justify-content: flex-end; align-items: center; gap: 6px; }
-.mt-cmp-r { display: flex; align-items: center; gap: 6px; }
-.mt-cmp-m { overflow: hidden; font-size: 13px; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
-.mt-cmp i { display: block; height: 13px; }
-.mt-cmp span { min-width: 38px; color: var(--mt-low); font-variant-numeric: tabular-nums; }
-.mt-cmp-l span { text-align: right; }
 
 /* mapas de calor */
 .mt-view .mt-hm td, .mt-view .mt-hm th { padding: 5px 6px; font-size: 12px; text-align: center; border: 1px solid var(--mt-card); font-variant-numeric: tabular-nums; }
@@ -280,7 +269,7 @@
 .mt-part0 { background: var(--mt-c0); } .mt-part1 { background: color-mix(in srgb, var(--mt-c0) 62%, var(--mt-card)); }
 .mt-part2 { background: color-mix(in srgb, var(--mt-c0) 36%, var(--mt-card)); } .mt-part3 { background: var(--mt-c2); }
 
-@media (max-width: 1100px) { .mt-card, .mt-s6, .mt-s7, .mt-s5, .mt-s4 { grid-column: span 12; } .mt-trio { grid-template-columns: 1fr; } }
+@media (max-width: 1100px) { .mt-card, .mt-s6, .mt-s4 { grid-column: span 12; } .mt-trio { grid-template-columns: 1fr; } }
 
 /* Lo pendiente (Entrada y backlog): total · en qué punto están (barra que suma el total) · a vigilar · aparte */
 .mt-stock { grid-column: span 12; display: grid; grid-template-columns: minmax(150px, 1fr) minmax(0, 2.6fr) minmax(220px, 1.3fr) minmax(150px, 1fr); gap: 12px; }

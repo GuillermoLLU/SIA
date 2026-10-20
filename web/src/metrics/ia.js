@@ -1,5 +1,5 @@
 // La IA de las Métricas (sin DOM): las marcas de IA de cada issue y las cifras de una lista.
-// Las marcas vienen de Remedy (model.js, FLAGS): en TAGS (IA_SOLVED…, IA_FAIL) y en las notas ([ACT IA], [INFORME IA],
+// Las marcas vienen de Remedy (server/metrics/remedy.js, FLAG): en TAGS (IA_SOLVED…, IA_FAIL) y en las notas ([ACT IA], [INFORME IA],
 // [HITL_REVIEW_OK], [HITL_REVIEW_NOT_OK], [IA_FAIL]…).
 export const IA_MARKS = 32 | 64 | 2048 | 4096 | 8192;
 const IA_SOLVED = 32, IA_FAILS = 64 | 8192, HITL_OK = 4096;
@@ -30,7 +30,7 @@ export const iaStats = (list, C) => {
 };
 
 // las personas según qué parte de sus issues lleva IA
-export const IA_USE = [['Sin IA', (s) => !s.ia], ['Menos del 5 %', (s) => s.ia > 0 && s.share < 0.05],
+const IA_USE = [['Sin IA', (s) => !s.ia], ['Menos del 5 %', (s) => s.ia > 0 && s.share < 0.05],
   ['Del 5 al 15 %', (s) => s.share >= 0.05 && s.share < 0.15], ['El 15 % o más', (s) => s.share >= 0.15]];
 
 // de unas personas (sus iaStats), las de cada tramo de IA_USE: cuántas son (c) de todas (n), y cuántas issues con IA

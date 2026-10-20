@@ -2,9 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createModel } from '../metrics/model.js';
 import { createCharts } from '../metrics/charts.js';
-import { teamPanel, MIN } from './team.js';
+import { teamPanel } from './team.js';
 
-// 2 personas de Indra (ANA, rápida; PEPE, lenta) con MIN issues cada una y 1 de T-Systems (LUIS, con 1 issue), que no sale.
+// 2 personas de Indra (ANA, rápida; PEPE, lenta) con MIN (10) issues cada una y 1 de T-Systems (LUIS, con 1 issue), que no sale.
+const MIN = 10;   // team.js: con menos issues, los % de una persona dicen poco
 const issues = [
   ...Array.from({ length: MIN }, (_, i) => ({ as: 1, rep: 1000 + i, res: 1060 + i, ip: 5, fr: 5 })),
   ...Array.from({ length: MIN }, (_, i) => ({ as: 2, rep: 2000 + i, res: 9000 + i, ip: 300, fr: 300 })),
