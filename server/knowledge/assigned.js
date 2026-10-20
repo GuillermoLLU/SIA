@@ -6,7 +6,7 @@
 // sin token). Aquí se convierte en la base que usa el bridge
 // ({ id, name, url, key, tokens, powerKey }); su id es «p-<id en la instancia>».
 
-export const assignedId = (baseId) => `p-${baseId}`;
+const assignedId = (baseId) => `p-${baseId}`;
 
 // Filas de platform_my_knowledge → la base con todos sus tokens, o null.
 export const toAssignedBase = (rows) => {

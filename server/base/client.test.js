@@ -1,6 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { noDbClient, fetchAll, createBaseAccess, NO_DB_MSG } from './client.js';
+import { noDbClient, fetchAll, createBaseAccess, schemaOk, NO_DB_MSG } from './client.js';
+
+test('schemaOk: la versión del esquema blindado o posterior', () => {
+  assert.equal(schemaOk({ version: 2 }), true);
+  assert.equal(schemaOk({ version: '3' }), true);
+  assert.equal(schemaOk({ version: 1 }), false);
+  assert.equal(schemaOk({}), false);
+  assert.equal(schemaOk(null), false);
+});
 
 test('noDbClient: cualquier cadena de llamadas resuelve con el mismo error', async () => {
   assert.deepEqual(await noDbClient.from('x').select('*').eq('a', 1), { data: null, error: { message: NO_DB_MSG, code: 'NO_DB' }, count: null });

@@ -8,7 +8,12 @@
 // claros, no la barrera. La clave secret del proyecto nunca entra en SIA.
 import { siaHeaders } from '../shared/credentials.js';
 import { permsFromRow } from '../shared/perms.js';
-import { schemaOk } from './diagnose.js';
+
+// ¿Tiene la base el esquema blindado al día? Lo dice sia_status().version:
+// sin ella (o vieja) hay que ejecutar el SQL de SIA en la base, y hasta
+// entonces no se usa. Es la versión que escribe supabase-schema.sql.
+const SCHEMA_VERSION = 2;
+export const schemaOk = (status) => !!status && (Number(status.version) || 0) >= SCHEMA_VERSION;
 
 export const NO_DB_MSG = 'Sin base de conocimiento: la instancia aún no tiene la suya o no has iniciado sesión.';
 

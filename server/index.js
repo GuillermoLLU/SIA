@@ -34,7 +34,7 @@ import { authRoutes } from './auth/routes.js';
 import { can } from './auth/views.js';
 import { createUserAdmin } from './users/service.js';
 import { usersRoutes } from './users/routes.js';
-import { createBaseAccess } from './base/client.js';
+import { createBaseAccess, fetchAll } from './base/client.js';
 import { createBaseAccess as createKnowledgeBaseAccess } from './knowledge/base-access.js';
 import { toAssignedBase } from './knowledge/assigned.js';
 import { createKnowledge } from './knowledge/service.js';
@@ -151,7 +151,7 @@ export const startBridge = async ({ env = process.env } = {}) => {
     issues: issuesRoutes(issues, http_),
     metrics: metricsRoutes(createMetricsStore(workspace.metricsDir, { year: 2026 }), { json }), // de momento, solo 2026
     lan: lanRoutes(remote, lock, http_),
-    projects: projectsRoutes(createProjects({ newId: randomUUID, fetchAll: baseAccess.fetchAll }), { ...http_, onProjectRemoved: () => skillSync.sync(assigned) }),
+    projects: projectsRoutes(createProjects({ newId: randomUUID, fetchAll }), { ...http_, onProjectRemoved: () => skillSync.sync(assigned) }),
     skills: skillsRoutes({ ...http_, sync: skillSync, drafts: createDrafts(workspace.draftsDir), workspace }),
     links: linksRoutes(http_),
     uploads: uploadsRoutes(workspace.uploadsDir, { ...http_, sendFile }),
