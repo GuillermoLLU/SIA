@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { iaKind, iaStats, iaUse, IA_OK, IA_FAIL, IA_UNREVIEWED, IA_NONE } from './ia.js';
+import { iaKind, iaStats, iaUse, iaMonths, iaTop, IA_OK, IA_FAIL, IA_UNREVIEWED, IA_NONE } from './ia.js';
+import { createModel } from './model.js';
+import { data } from './fixture.js';
+import { monthsIn } from './flow.js';
 
 test('cómo sale una issue según sus marcas de IA', () => {
   assert.equal(iaKind(0), IA_NONE);
@@ -39,4 +42,12 @@ test('las personas según qué parte de lo suyo lleva IA', () => {
   assert.deepEqual(u.map((x) => x.c), [1, 1, 1, 2]);
   assert.deepEqual(u.map((x) => x.ia), [0, 1, 3, 16]);
   assert.ok(u.every((x) => x.n === 5 && x.all === 20));
+});
+
+test('los meses de la cabecera (último completo y anterior, primero con IA) y los que más la usan', () => {
+  const d = data(); d.cols.fl[0] = 2048;
+  const m = createModel(d); m.refilter();
+  assert.deepEqual(iaMonths(m, m.rows(), monthsIn), { last: [{ k: 1, share: null }, { k: 0, share: 0.5 }], first: 0 });
+  assert.deepEqual(iaTop(m, m.rows(), 'mo', 2), { count: 1, all: 2, share: 0.5, top: [{ k: 1, n: 1, p: 1 }] });
+  assert.deepEqual(iaTop(m, [3], 'mo', 2), { count: 0, all: 2, share: 0, top: [] });
 });

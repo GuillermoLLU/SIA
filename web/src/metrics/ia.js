@@ -42,3 +42,18 @@ export const iaUse = (people) => {
     return { label, n: people.length, c: ps.length, ia: ps.reduce((a, s) => a + s.ia, 0), all };
   });
 };
+
+// Las cifras de arriba de la pestaña IA (m: el modelo; A: lo que se mira): la parte con IA del último mes completo y
+// del anterior (si están en el periodo) y el primer mes con alguna issue con IA.
+export const iaMonths = (m, A, monthsIn) => {
+  const withIa = (i) => iaKind(m.C.fl[i]) !== IA_NONE, months = monthsIn(m.S), full = months.filter((k) => k !== m.LASTM);
+  const share = (k) => { const l = A.filter((i) => m.MONTH[i] === k); return l.length ? l.filter(withIa).length / l.length : null; };
+  return { last: full.slice(-2).reverse().map((k) => ({ k, share: share(k) })), first: months.find((k) => A.some((i) => m.MONTH[i] === k && withIa(i))) ?? null };
+};
+
+// Quién y dónde se usa: de una dimensión (personas, módulos), cuántos valores tienen alguna issue con IA de cuántos
+// (all) y los tres con más, cada uno con su parte de todas las de IA.
+export const iaTop = (m, A, dim, all) => {
+  const by = m.group(dim, A.filter((i) => iaKind(m.C.fl[i]) !== IA_NONE && m.DIMS[dim].get(i))), n = by.reduce((t, x) => t + x.n, 0);
+  return { count: by.length, all, share: all ? by.length / all : 0, top: by.slice(0, 3).map((x) => ({ k: x.k, n: x.n, p: x.n / n })) };
+};

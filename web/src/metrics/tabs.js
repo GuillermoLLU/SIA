@@ -5,11 +5,20 @@
 // respecto a B.
 import { esc } from '../ui/html.js';
 import { num, dec, pct, dur, nice, title, dateOf, MONTHS, DOWS } from './format.js';
-import { COMPANIES, CARDS, MAJOR, SITUATIONS, ACTIVE_DAYS, START_LIMITS, share, slaText } from './model.js';
+import { COMPANIES, CARDS, ACTIVE_DAYS, share, slaText } from './model.js';
 import { IA_MARKS, IA_NONE, iaStats as iaStatsOf, iaUse } from './ia.js';
 import { SHIFTS, SHIFT_HOURS, DAYS, MIN_ACTIONS } from './shifts.js';
 import { pairTable as pairTableOf } from './pair-table.js';
-import { DAY, OLD_DAYS, IDLE_DAYS, RECENT_CRIT_DAYS, MIN_ISSUES, BETTER_MIN, OWNERS_SHARE, MIXED_ESC, TICKET_MIN, WORSE, clearlyWorse, shade, HOT, isLate } from './rules.js';
+import { OLD_DAYS, IDLE_DAYS, RECENT_CRIT_DAYS, MIN_ISSUES, BETTER_MIN, OWNERS_SHARE, MIXED_ESC, TICKET_MIN, WORSE, clearlyWorse, shade, HOT } from './rules.js';
+import { monthsIn as monthsOf, resolvedAt, startedAt, closedInPeriod as closedIn, ledger as ledgerOf, monthVsPrev as monthVsPrevOf } from './flow.js';
+import { situations, ages, OLD_FILTER, late as lateOf, isOld, escalated as escalatedOf, orphansIn as orphansOf, watchList, pendingCells, backlogFigures } from './backlog.js';
+import { centreExtra as centreExtraOf, problemExtra as problemExtraOf, owners as ownersOf } from './focus.js';
+import { personVsTeam, expectedAvg, expectedSla } from './peers.js';
+import { todayLists } from './today.js';
+import { solved as solvedOf, ttrBlocks, bestOf, resolutionParts, partValue, partWorse, mixedEscalation, tickets, resolvedPair, modulesBySide } from './resolution.js';
+import { startBlocks, slaStats as slaStatsOf, slaPair as slaPairOf, commonModules } from './sla.js';
+import { perShiftType, byHour, carryRows as carryRowsOf, clockMatrix } from './turns.js';
+import { iaMonths, iaTop } from './ia.js';
 
 export const TABS = [['resumen', 'Resumen'], ['hoy', 'Foto de hoy'], ['entrada', 'Entrada'], ['backlog', 'Backlog'], ['modulos', 'Módulos y focos'],
   ['resolucion', 'Resolución y escalados'], ['sla', 'SLA y calidad'], ['ia', 'IA'], ['turnos', 'Turnos']];
@@ -32,15 +41,15 @@ const incId = (id) => `INC${String(id).padStart(12, '0')}`;
 const opt = (f) => (v) => (v == null ? '—' : f(v));
 
 export const createTabs = (m, ch, ui) => {
-  const { C, DI, S, BASE, LASTM, PRIOS, CRIT, slaLabel, MONTH, DOW, OPEN, SIDE, STYPE, CMP, CO, NAMES, isSel, stats, group, bySide, clock } = m;
+  const { C, DI, S, BASE, LASTM, PRIOS, CRIT, slaLabel, MONTH, DOW, OPEN, SIDE, STYPE, CMP, CO, NAMES, isSel, stats, group, bySide } = m;
   const name = (k) => NAMES()[k];
   const { card, legend, kpi, kpis, kpiCo, diff, more, lines, heat, matrix, scorecard, day, split } = ch;
   const noK = (k) => k === 0;
   const noTheme = (k) => k === m.data.themes.length;
   const REQ = DI.svc.indexOf('USER_SERVICE_REQUEST');
   const slaPct = (s) => (s.sla == null ? '—' : pct(s.sla));
-  const inPeriod = (i) => MONTH[i] >= S.from && MONTH[i] <= S.to;
-  const monthsIn = () => Array.from({ length: S.to - S.from + 1 }, (_, j) => S.from + j);
+  const monthsIn = () => monthsOf(S);
+  const late = lateOf(m), old = isOld(m), escd = escalatedOf(m), solved = solvedOf(m), resAt = resolvedAt(m), startAt = startedAt(m);
   // lo de cada lado que cumple algo: { n, v } con v la proporción (para kpiCo y las cifras del resumen)
   const shareOf = (T, test) => T.map((l) => ({ n: l.length, v: share(l, test) }));
 
@@ -69,35 +78,20 @@ export const createTabs = (m, ch, ui) => {
   const MOD_GROUPS = [['Volumen', ['n', 'dl']], ['Cómo se atiende', ['sla', 'avg', 'd1', 'reop']], ['Qué trae', ['crit', 'vend']], ['Hoy', ['open']]];
   // y la de los centros: lo que más les falla (su módulo con más issues) y sus major incidents
   const CE_GROUPS = [['Volumen', ['n', 'dl']], ['Cómo se atiende', ['sla', 'avg']], ['Qué trae', ['top', 'crit', 'vend', 'mi']], ['Hoy', ['open']]];
-  const centreExtra = (st, l) => {
-    const g = group('mo', l).filter((x) => x.k);
-    st.top = g.length ? { label: m.DIMS.mo.label(g[0].k), share: g[0].n / (l.length || 1) } : null;
-    st.mi = l.filter((i) => C.fl[i] & MAJOR).length;
-  };
+  const centreExtra = centreExtraOf(m);
   // y la de los problemas, por tema: cuánto se repiten, en cuántos centros y si se cierran siempre igual (esto, solo
   // de un problema: en un tema o en el total se mezclan problemas distintos)
   const PB_GROUPS = [['Volumen', ['n', 'dl', 'nce']], ['Cómo se resuelve', ['avg', 'd1', 'reop', 'vend', 'same']], ['Hoy', ['open']]];
-  const problemExtra = (st, l) => {
-    const ce = new Set(), rz = new Map();
-    let done = 0;
-    for (const i of l) { if (C.ce[i]) ce.add(C.ce[i]); if (!OPEN[i] && C.res[i] >= 0) { done++; if (C.rz[i]) rz.set(C.rz[i], (rz.get(C.rz[i]) || 0) + 1); } }
-    st.nce = ce.size;
-    st.same = done && l.every((i) => C.de[i] === C.de[l[0]]) ? Math.max(0, ...rz.values()) / done : null;
-  };
+  const problemExtra = problemExtraOf(m);
 
   // Mapa de calor día de la semana × hora de un instante de cada issue (la apertura, la resolución…).
   const clockHeat = (list, at, clickable) => {
-    const hh = Array.from({ length: 7 }, () => new Array(24).fill(0));
-    for (const i of list) { const t = at(i); if (t != null) { const [d, h] = clock(t); hh[d][h]++; } }
-    const mx = Math.max(1, ...hh.flat());
+    const { hh, max: mx } = clockMatrix(m, list, at);
     return `<div class="mt-tablewrap"><table class="mt-hm mt-hours"><thead><tr><th></th>${hh[0].map((_, h) => `<th class="${h === 7 || h === 15 || h === 23 ? 'mt-shift' : ''}">${h}</th>`).join('')}</tr></thead><tbody>${hh.map((r, d) => `<tr><th class="mt-r">${DOWS[d]}</th>${r.map((v, h) => {
       const a = shade(v, mx);
       return `<td class="${a > HOT ? 'mt-hot' : ''} ${h === 7 || h === 15 || h === 23 ? 'mt-shift' : ''}" style="--mt-a:${a}%" ${clickable ? `data-f2="dow:${d}|hour:${h}"` : ''} data-tip="${DOWS[d]} ${h}:00–${h}:59\n${num(v)} issues">${v || ''}</td>`;
     }).join('')}</tr>`).join('')}</tbody></table></div>`;
   };
-  const startAt = (i) => (C.ip[i] >= 0 ? C.rep[i] + C.ip[i] : null);
-  const resAt = (i) => (!OPEN[i] && C.res[i] >= 0 ? C.res[i] : null);
-
   // --- Resumen: un bloque por pregunta, con sus cifras clave y el paso a su pestaña. Cada cifra es la
   // de lo que se mira y, al comparar, al lado, la diferencia con el otro lado.
   const fig = (label, ST, fmt, val, better, tip) => {
@@ -110,35 +104,15 @@ export const createTabs = (m, ch, ui) => {
     return `<section class="mt-card mt-ans"><header><h3>${title || QUESTIONS[list[0]][0]}</h3><span class="mt-gos">${list.map((t) => `<button class="mt-go" data-go="${t}">${TABS.find(([k]) => k === t)[1]} →</button>`).join('')}</span></header><div class="mt-figs">${figs.join('')}</div></section>`;
   };
   const days = () => m.periodSlots().reduce((a, b) => a + b, 0) / 3;
-  // Último mes completo del periodo frente al anterior: [mes, { n, v } por lado] o null. Las del mes
-  // anterior pueden quedar fuera del periodo.
-  const monthVsPrev = () => {
-    const lastFull = S.to === LASTM ? LASTM - 1 : S.to;
-    if (lastFull < 1 || lastFull < S.from) return null;
-    return [lastFull, bySide(m.today()).map((l) => {
-      let a = 0, b = 0; for (const i of l) { if (MONTH[i] === lastFull) a++; else if (MONTH[i] === lastFull - 1) b++; }
-      return { n: a + b, v: b ? (a - b) / b : null };
-    })];
-  };
 
-  // --- Lo pendiente. Su situación (model.js, SITUATIONS): en curso, en Asignada sin tocar o devuelta, o en espera
-  // (Pendiente) de un tercero, del cliente o por otro motivo; las seis suman todo lo abierto.
-  const SIT_TIPS = ['Alguien está trabajando en ellas.', 'En Asignada y sin ningún movimiento desde que se abrieron: nadie las ha mirado.',
-    'En Asignada, pero ya se trabajaron: pasaron por En curso o Pendiente, o tienen ticket de tercero. Están paradas en la cola.',
-    'En Pendiente por una acción de un tercero (desarrollo, proveedor…).',
-    'En Pendiente por una acción o respuesta del centro o del cliente.', 'En Pendiente con otro motivo o sin motivo informado.'];
-  const SITUATION = SIT_TIPS.map((tip, k) => ({ label: SITUATIONS[k], test: (i) => m.DIMS.sit.get(i) === k, f: `sit:${k}`, tip }));
-  // los dos tramos de antigüedad de más de 15 días, para filtrar con un clic
-  const OLD15 = 'age:3|age:4';
-  const AGES = [0, 1, 2, 3, 4].map((k) => ({ label: m.DIMS.age.label(k), test: (i) => m.DIMS.age.get(i) === k, f: `age:${k}` }));
+  // --- Lo pendiente (backlog.js): su situación, los tramos de antigüedad y lo que conviene vigilar.
+  const SITUATION = situations(m), AGES = ages(m), orphansIn = () => orphansOf(m);
   // filas de una dimensión: las n con más issues en `list` y, si hay más, «Resto» (así la tabla suma el total)
   const topRows = (dim, list, n) => {
     const { get, label } = m.DIMS[dim], g = group(dim, list), top = g.slice(0, n), keys = new Set(top.map((x) => x.k));
     const rows = top.map((x) => ({ label: label(x.k), test: (i) => get(i) === x.k, f: `${dim}:${x.k}` }));
     return g.length > n ? [...rows, { label: `Resto (${g.length - n})`, test: (i) => !keys.has(get(i)) }] : rows;
   };
-  // lo que no tiene a nadie: abierto, de las tarjetas del equipo (SGA, SISU o PRIO) y del periodo, con los filtros
-  const orphansIn = () => m.today(true).filter((i) => OPEN[i] && !C.as[i] && inPeriod(i) && cardsOf(i).some((k) => k < 3));
   // Lo pendiente, de un vistazo y en orden: el total; en qué punto está (en curso, sin tocar, devuelta y en espera de
   // un tercero, del cliente u otro motivo, que suman el total), en una barra; lo que conviene vigilar dentro
   // (se solapa: no se suma) y, aparte, lo de nuestras tarjetas que no tiene a nadie (no está en el total).
@@ -152,13 +126,7 @@ export const createTabs = (m, ch, ui) => {
       const p = share(x);
       return `<i class="mt-sit${x.k}" style="width:${(p * 100).toFixed(2)}%" data-f="${x.f}" data-tip="${esc(`${x.label}\n${num(x.v)} de ${num(open.length)} (${pct(p)})\n${x.tip}`)}">${p >= 0.07 ? pct(p) : ''}</i>`;
     }).join('')}</div>`;
-    const watch = [
-      ['Fuera de plazo', count(late), 'Nunca han pasado a En curso y ya superan el plazo de su prioridad.', 'sl:4'],
-      [`Con más de ${OLD_DAYS} días`, count((i) => m.SNAP - C.rep[i] > OLD), `Llevan más de ${OLD_DAYS} días abiertas: si sube, el backlog envejece.`, OLD15],
-      ['Escaladas', count((i) => C.vt[i] > 0), 'Con ticket de tercero, estén en el estado que estén (por eso no coincide con «espera tercero»: algunas ya se están trabajando o han vuelto a la cola).', 'es:1'],
-      ['Críticas', count((i) => C.pr[i] === CRIT), 'De prioridad crítica.', `pr:${CRIT}`],
-      ['PRIO', count((i) => cardsOf(i).includes(2)), 'Priorizadas por negocio.', 'tj:2'],
-    ];
+    const watch = watchList(m).map(([l, test, tip, f]) => [l, count(test), tip, f]);
     const total = `<section class="mt-st mt-st-total"><h4>Pendientes</h4><div class="mt-st-big"><b>${num(ST[k0].open)}</b></div>
       <p>sin resolver, de ${num(ST[k0].n)} recibidas en el periodo</p></section>`;
     const where = `<section class="mt-st mt-st-where"><h4>¿En qué punto están?<small>suman las pendientes</small></h4>
@@ -171,21 +139,6 @@ export const createTabs = (m, ch, ui) => {
     return `<div class="mt-stock ${people ? 'mt-st-noapart' : ''}">${total}${where}${watchHtml}${apart}</div>`;
   };
   const PLURAL = { CRITICAL: 'Críticas', HIGH: 'Altas', MEDIUM: 'Medias', LOW: 'Bajas' };
-  const late = (i) => isLate(OPEN[i], C.ip[i], m.SLA[C.pr[i]], m.SNAP - C.rep[i]);
-
-  // Los tramos de la tabla mes a mes: los meses del periodo o, si es un solo mes, sus días (hasta la foto).
-  const minOf = (y, mo, d = 1) => (Date.UTC(y, mo, d) - BASE) / 6e4;
-  const flowUnits = () => {
-    const y = m.data.meta.year;
-    if (S.from !== S.to) return monthsIn().map((k) => ({ label: MONTHS[k] + (k === LASTM ? '*' : ''), from: minOf(y, k), to: minOf(y, k + 1), f: `month:${k}` }));
-    const last = Math.min(new Date(Date.UTC(y, S.from + 1, 0)).getUTCDate(), S.from === LASTM ? new Date(BASE + m.SNAP * 6e4).getUTCDate() : 31);
-    return Array.from({ length: last }, (_, j) => ({ label: `${j + 1} ${MONTHS[S.from]}`, from: minOf(y, S.from, j + 1), to: minOf(y, S.from, j + 2) }));
-  };
-  // lo cerrado dentro del periodo, por lado, se abriera cuando se abriera
-  const closedInPeriod = () => {
-    const y = m.data.meta.year, from = minOf(y, S.from), to = minOf(y, S.to + 1);
-    return bySide(m.today()).map((l) => l.filter((i) => { const r = resAt(i); return r != null && r >= from && r < to; }));
-  };
   // El volumen de cada lado ({ n, v }, para kpiCo): su total o, comparando con alguna persona, la media por persona:
   // lo de cada lado (una empresa, todo su equipo: model.js, bySide y heads) entre sus personas. per: el divisor que se
   // le añade (los días, para «al día»). teamNames: el nombre de cada lado en esas cifras («Media de Indra»).
@@ -216,7 +169,6 @@ export const createTabs = (m, ch, ui) => {
     ['Pendientes al cierre', (s) => num(s.open), 'De lo recibido desde el inicio del periodo, lo que seguía abierto al acabar el mes (o el día).'],
     [`Con más de ${OLD_DAYS} días`, (s) => num(s.old), `De las pendientes al cierre, las que ya llevaban más de ${OLD_DAYS} días abiertas: si sube, el backlog envejece.`],
   ];
-  const OLD = OLD_DAYS * DAY;
   // Comparando: cada dato en dos columnas, una por lado, con su valor (no la diferencia). Entre empresas, lo que
   // depende de cuánto entra va en relación a lo que entra, para poder compararlo; con personas, el volumen es la
   // media por persona (la de la empresa, de todo su equipo: model.js, heads) y los % no cambian. En verde, el lado
@@ -281,15 +233,10 @@ export const createTabs = (m, ch, ui) => {
   const pendCmp = (rowsDef, op) => {
     const T = bySide(op), pp = m.perHead(), H = [0, 1].map((k) => (pp ? m.heads(k).size || 1 : 1));
     const sideName = (k) => (pp && !S.sides[k].people ? `Media de ${COMPANIES[S.sides[k].company]}` : name(k));
-    const ageOf = (l) => (l.length ? l.reduce((a, i) => a + m.SNAP - C.rep[i], 0) / l.length / 1440 : null);   // en días
-    // el lado con menos (el que va mejor), o -1 si se ven iguales o falta uno
-    const lower = (a, b, same) => (a == null || b == null || same(a) === same(b) ? -1 : a < b ? 0 : 1);
     const blocks = [];
     for (const r of rowsDef) { if (r.head) blocks.push({ head: r.head, note: r.note, rows: [] }); else blocks[blocks.length - 1].rows.push(r); }
     const cells = (r) => {
-      const v = [0, 1].map((k) => { const l = r.test ? T[k].filter(r.test) : T[k]; return { c: l.length / H[k], sh: T[k].length ? l.length / T[k].length : null, age: ageOf(l) }; });
-      const main = r.better ? (pp ? lower(v[0].c, v[1].c, (x) => Math.round(x * 10)) : lower(v[0].sh, v[1].sh, (x) => Math.round(x * 100))) : -1;
-      const old = r.better || !r.test ? lower(v[0].age, v[1].age, (x) => Math.round(x * 10)) : -1;
+      const { v, main, old } = pendingCells(m, T, H, pp, r);
       const ok = (on) => (on ? 'mt-better' : '');
       return [0, 1].map((k) => `<td class="mt-num ${k ? 'mt-msep' : 'mt-gsep'} ${ok(pp && main === k)}">${H[k] > 1 ? dec(v[k].c) : num(v[k].c)}</td>
         <td class="mt-num mt-mix-p ${ok(!pp && main === k)}">${v[k].sh == null ? '—' : pct(v[k].sh)}</td><td class="mt-num ${ok(old === k)}">${v[k].age == null ? '—' : dec(v[k].age)}</td>`).join('');
@@ -310,19 +257,16 @@ export const createTabs = (m, ch, ui) => {
   const backlogCmp = (A) => {
     const T = bySide(A), P = T.map((l) => l.filter((i) => OPEN[i])), op = A.filter((i) => OPEN[i]), pp = m.perHead(), d = days() || 1;
     const H = [0, 1].map((k) => (pp ? m.heads(k).size || 1 : 1)), each = pp ? ' por persona' : '', names = teamNames();
-    const old = (i) => m.SNAP - C.rep[i] > OLD, sit = (k) => (i) => m.DIMS.sit.get(i) === k;
-    // lo que cumple algo, por lado: con personas, issues por persona; entre empresas, qué parte es de sus pendientes
-    const part = (test) => [0, 1].map((k) => { const c = P[k].filter(test).length; return { n: P[k].length, v: pp ? c / H[k] : P[k].length ? c / P[k].length : null }; });
+    const sit = (k) => (i) => m.DIMS.sit.get(i) === k;
+    const { part, age, stock } = backlogFigures(m, T, P, H, pp, d);
     const partFig = (label, test, better, note) => kpiCo(pp ? `${label}${each}` : `% ${label.toLowerCase()}`, part(test), pp ? (s) => dec(s.v) : (s) => pct(s.v), { val: (s) => s.v, better, note: `${note}${headsNote()}`, names });
-    const age = [0, 1].map((k) => ({ n: P[k].length, v: P[k].length ? P[k].reduce((a, i) => a + m.SNAP - C.rep[i], 0) / P[k].length / 1440 : null }));
-    const stock = [0, 1].map((k) => ({ n: T[k].length, v: P[k].length / (T[k].length / d) }));
     const pendRows = [
       { head: 'Situación', note: 'Suman las pendientes.' },
       ...SITUATION.map((x, k) => ({ ...x, better: k === 1 || k === 2 ? 'low' : null })).filter((x) => op.some(x.test)),
       { head: 'A vigilar', note: 'Dentro de las pendientes; se solapan.' },
       { label: 'Fuera de plazo', test: late, f: 'sl:4', better: 'low', tip: 'Nunca han pasado a En curso y ya superan el plazo de su prioridad.' },
-      { label: `Con más de ${OLD_DAYS} días`, test: old, f: OLD15, better: 'low', tip: `Llevan más de ${OLD_DAYS} días abiertas.` },
-      { label: 'Escaladas', test: (i) => C.vt[i] > 0, f: 'es:1', tip: 'Con ticket de tercero, estén en el estado que estén.' },
+      { label: `Con más de ${OLD_DAYS} días`, test: old, f: OLD_FILTER, better: 'low', tip: `Llevan más de ${OLD_DAYS} días abiertas.` },
+      { label: 'Escaladas', test: escd, f: 'es:1', tip: 'Con ticket de tercero, estén en el estado que estén.' },
       { label: 'Críticas', test: (i) => C.pr[i] === CRIT, f: `pr:${CRIT}` },
     ];
     const mixRows = [{ head: 'Prioridad' }, ...PRIOS.map((p) => ({ label: nice(DI.prio[p]), test: (i) => C.pr[i] === p, f: `pr:${p}` })),
@@ -334,35 +278,15 @@ export const createTabs = (m, ch, ui) => {
         partFig('Sin tocar', sit(1), 'low', 'En Asignada y sin ningún movimiento desde que se abrieron'),
         partFig('Fuera de plazo', late, 'low', 'Nunca han pasado a En curso y ya superan el plazo de su prioridad'),
         partFig(`Con más de ${OLD_DAYS} días`, old, 'low', `Llevan más de ${OLD_DAYS} días abiertas`),
-        partFig('Escaladas', (i) => C.vt[i] > 0, null, 'Con ticket de tercero: dependen de otros')),
+        partFig('Escaladas', escd, null, 'Con ticket de tercero: dependen de otros')),
       card('Cómo está lo pendiente', pendCmp(pendRows, op), { span: 's12', sub: `${pp ? 'Issues de cada uno; las de la empresa, la media por persona de su equipo.' : 'Qué parte de sus pendientes está en cada situación.'} En verde, quien va mejor en lo que depende de él; lo que espera a otros, sin color. Clic en una fila para filtrar.` }),
       card('Qué tiene pendiente cada uno', mixCmp(mixRows, op, 'Pendientes'), { span: 's12', sub: 'Los 8 módulos con más pendientes; «Resto», los demás. Clic en una fila para filtrar.' }));
   };
   const ledger = (A) => {
-    const T = bySide(A), day = S.from === S.to, units = flowUnits();
-    // si el periodo acaba antes de la foto, lo resuelto después también cuenta: así «resueltas» suma las
-    // ya cerradas y «pendientes al cierre» acaba en lo que sigue abierto hoy
-    const end = units.length ? units[units.length - 1].to : 0;
-    if (end <= m.SNAP) units.push({ label: 'Después del periodo, hasta hoy', from: end, to: Infinity, after: true });
+    const { units, per, day } = ledgerOf(m, A);
+    if (CMP()) return ledgerCmp(units, per, day);
     const DAY_NAMES = { '% cerrado en el mes': '% cerrado el mismo día', 'De meses anteriores': 'De días anteriores' };
     const defs = day ? LEDGER.map((d) => (DAY_NAMES[d[0]] ? [DAY_NAMES[d[0]], ...d.slice(1)] : d)) : LEDGER;
-    const per = [0, 1].map((k) => {
-      const rowsK = units.map(() => ({ in: 0, closed: 0, still: 0, same: 0, out: 0, prev: 0, open: 0, old: 0 }));
-      for (const i of T[k]) {
-        const r = resAt(i);
-        units.forEach((u, j) => {
-          const x = rowsK[j];
-          if (C.rep[i] >= u.from && C.rep[i] < u.to) { x.in++; if (OPEN[i]) x.still++; else x.closed++; if (r != null && r < u.to) x.same++; }
-          if (r != null && r >= u.from && r < u.to) { x.out++; if (C.rep[i] < u.from) x.prev++; }
-          if (C.rep[i] < u.to && (r == null || r >= u.to)) { x.open++; if (Math.min(u.to, m.SNAP) - C.rep[i] > OLD) x.old++; }
-        });
-      }
-      const tot = rowsK.reduce((a, x) => ({ in: a.in + x.in, closed: a.closed + x.closed, still: a.still + x.still, same: a.same + x.same, out: a.out + x.out, prev: a.prev + x.prev }), { in: 0, closed: 0, still: 0, same: 0, out: 0, prev: 0 });
-      const last = rowsK[rowsK.length - 1] || { open: 0, old: 0 };
-      tot.open = last.open; tot.old = last.old;
-      return [...rowsK, tot].map((x) => ({ ...x, n: x.in + x.out + x.open }));
-    });
-    if (CMP()) return ledgerCmp(units, per, day);
     const row = (label, j, attrs = '') => `<tr ${attrs}><td>${label}</td>${defs.map(([, f]) => `<td class="mt-num">${f(per[0][j])}</td>`).join('')}</tr>`;
     const groups = LEDGER_GROUPS.map(([l, n]) => [day ? l.replace('mes', 'día') : l, n]);
     return table(day ? 'Día' : 'Mes', defs.map(([l, , tip]) => [l, tip]), units.map((u, j) => row(u.label, j, u.f ? `class="mt-clk" data-f="${u.f}"` : u.after ? 'class="mt-mut"' : '')).join('') + row('Total', units.length, 'class="mt-tot"'), groups);
@@ -372,13 +296,10 @@ export const createTabs = (m, ch, ui) => {
   // falta para llevar OWNERS_SHARE (de la que más lleva a la que menos) y las tres que más llevan.
   const OWNERS_PCT = Math.round(OWNERS_SHARE * 100);
   const owners = (A) => {
-    const g = group('mo', A.filter((i) => C.as[i]), true).filter((x) => x.k).slice(0, 15);
+    const g = ownersOf(m, A);
     const body = g.map((x) => {
-      const by = group('as', x.rows);
-      let sum = 0, n80 = 0;
-      for (const p of by) { sum += p.n; n80++; if (sum >= OWNERS_SHARE * x.n) break; }
-      const top = by.slice(0, 3).map((p) => `<span class="mt-own ${isSel('as', p.k) ? 'mt-sel' : ''}" data-f="as:${p.k}" data-tip="${esc(`${m.DIMS.as.label(p.k)}\n${num(p.n)} de ${num(x.n)} issues de ${m.DIMS.mo.label(x.k)}`)}">${esc(m.DIMS.as.label(p.k))} <b>${pct(p.n / x.n)}</b></span>`).join('');
-      return `<tr class="mt-clk ${isSel('mo', x.k) ? 'mt-sel' : ''}" data-f="mo:${x.k}"><td>${esc(m.DIMS.mo.label(x.k))}</td><td class="mt-num">${num(x.n)}</td><td class="mt-num">${by.length}</td><td class="mt-num">${n80}</td><td class="mt-owns">${top}</td></tr>`;
+      const top = x.top.map((p) => `<span class="mt-own ${isSel('as', p.k) ? 'mt-sel' : ''}" data-f="as:${p.k}" data-tip="${esc(`${m.DIMS.as.label(p.k)}\n${num(p.n)} de ${num(x.n)} issues de ${m.DIMS.mo.label(x.k)}`)}">${esc(m.DIMS.as.label(p.k))} <b>${pct(p.n / x.n)}</b></span>`).join('');
+      return `<tr class="mt-clk ${isSel('mo', x.k) ? 'mt-sel' : ''}" data-f="mo:${x.k}"><td>${esc(m.DIMS.mo.label(x.k))}</td><td class="mt-num">${num(x.n)}</td><td class="mt-num">${x.people}</td><td class="mt-num">${x.n80}</td><td class="mt-owns">${top}</td></tr>`;
     }).join('');
     return g.length ? `<div class="mt-tablewrap"><table class="mt-owners"><thead><tr><th>Módulo</th><th class="mt-num">Issues</th><th class="mt-num" data-tip="Personas con alguna issue del módulo.">Personas</th>
       <th class="mt-num" data-tip="Cuántas personas, de la que más lleva a la que menos, suman el ${OWNERS_PCT} % de las issues del módulo.">Llevan el ${OWNERS_PCT} %</th><th>Quién lleva más</th></tr></thead><tbody>${body}</tbody></table></div>` : '<p class="mt-mut mt-small">Sin datos con estos filtros.</p>';
@@ -400,7 +321,6 @@ export const createTabs = (m, ch, ui) => {
   // --- Resolución. Una pregunta por bloque: cuánto tardamos, en qué se va el tiempo, qué módulos tardan más y qué
   // escalamos y a quién. Los tiempos, de lo resuelto y en tiempo natural; el de cada estado, la media por resuelta
   // (model.js, stats rt). Entre empresas no se compara (resolutionCmp es para personas).
-  const solved = (i) => m.DIMS.tb.get(i) < 8, escd = (i) => C.vt[i] > 0;
   const STATES = [['En cola', 'En Asignada: sin coger o de vuelta a la cola. Incluye lo que espera a otros sin pasar a Pendiente.'], ['En curso', 'En En curso.'],
     ['Espera cliente', 'En Pendiente del centro o del cliente.'], ['Espera tercero', 'En Pendiente de un tercero.'], ['Otro motivo', 'En Pendiente por otro motivo o sin motivo.']];
   const optDur = (v) => (v == null ? '—' : dur(v));
@@ -412,17 +332,9 @@ export const createTabs = (m, ch, ui) => {
   const TTR_GROUPS = [['Menos de 24 h', [0, 1, 2, 3], 'high'], ['De 1 a 7 días', [4, 5], null], ['Más de 7 días', [6, 7], 'low']];
   const ttrTable = (list) => {
     const R = list.filter(solved), cmp = CMP(), P = cmp ? bySide(R).slice(0, 2) : [R];
-    const KINDS = [['Sin escalar', (i) => !escd(i), 'es:0'], ['Escaladas', escd, 'es:1'], ['Todas las resueltas', null, null]];
-    const blocks = KINDS.map(([label, t, f]) => P.map((L, k) => {
-      const l = t ? L.filter(t) : L, c = new Array(8).fill(0);
-      for (const i of l) c[m.DIMS.tb.get(i)]++;
-      return { label, f, k, n: l.length, c, s: stats(l) };
-    }));
-    const lines = blocks.flat();
-    const share = (x, v) => v / (x.n || 1), max = Math.max(0.01, ...lines.flatMap((x) => x.c.map((v) => share(x, v))));
-    const sum = (x, ks) => ks.reduce((t, k) => t + x.c[k], 0);
-    const shown = (x, ks) => Math.round(share(x, sum(x, ks)) * 100);
-    const best = (x, o, ks, better) => cmp && better && x.n && o.n && shown(x, ks) !== shown(o, ks) && (better === 'high') === (shown(x, ks) > shown(o, ks));
+    const { blocks, max } = ttrBlocks(m, list, P);
+    const share = (x, v) => v / (x.n || 1), sum = (x, ks) => ks.reduce((t, k) => t + x.c[k], 0);
+    const best = (x, o, ks, better) => cmp && bestOf(x, o, ks, better);
     const who = (x) => (cmp ? ` · ${name(x.k)}` : '');
     // la fila de todas, sin color: es la suma de las otras dos
     const cellsOf = (x, o, last) => TTR_GROUPS.map(([g, ks, better]) => ks.map((k, j) => {
@@ -451,17 +363,11 @@ export const createTabs = (m, ch, ui) => {
     ['Más de 7 días', [['Sin escalar', 'n', (s) => s.w7, (v) => pct(v), 'low', ''], ['Escaladas', 'e', (s) => s.w7, (v) => pct(v), 'low', '']]],
   ];
   const resMonthly = (A) => {
-    const parts = (l) => {
-      const r = l.filter(solved), e = r.filter(escd), a = stats(l);
-      a.escShare = r.length ? e.length / r.length : null;
-      return { a, n: stats(r.filter((i) => !escd(i))), e: stats(e) };
-    };
+    const parts = resolutionParts(m), val = partValue;
     const defs = RES_MONTH.flatMap(([, d]) => d), firsts = new Set(RES_MONTH.map(([, d]) => d[0]));
-    const val = (x, d) => { const s = x[d[1]]; return s.resolved ? d[2](s) : null; };
     const tot = parts(A);
-    const worse = (x, d, v) => x[d[1]].resolved >= MIN_ISSUES && clearlyWorse(v, val(tot, d), d[4]);
     const cells = (x, isTot) => defs.map((d) => {
-      const v = val(x, d), bad = !isTot && worse(x, d, v);
+      const v = val(x, d), bad = !isTot && partWorse(x, d, v, tot);
       return `<td class="mt-num ${firsts.has(d) ? 'mt-gsep' : ''} ${bad ? 'mt-worse' : ''}" ${bad ? `data-tip="${esc(`Peor que el total: ${d[3](val(tot, d))}`)}"` : ''}>${v == null ? '—' : d[3](v)}</td>`;
     }).join('');
     const body = monthsIn().map((k) => `<tr class="mt-clk ${isSel('month', k) ? 'mt-sel' : ''}" data-f="month:${k}"><td>${MONTHS[k]}${k === LASTM ? '*' : ''}</td>${cells(parts(A.filter((i) => MONTH[i] === k)))}</tr>`).join('');
@@ -491,13 +397,8 @@ export const createTabs = (m, ch, ui) => {
   // MIXED_ESC.to de las veces, agrupados por su módulo principal (el módulo, de más a menos resueltas entre sus problemas). Por problema:
   // cuántas, qué parte se escala y lo que tarda sin escalar y escalado.
   const mixedEsc = () => {
-    const g = group('de', m.rows('de').filter(solved), true).filter((x) => x.k && x.n >= MIXED_ESC.min)
-      .map((x) => ({ ...x, e: x.rows.filter(escd) })).filter((x) => x.e.length >= MIXED_ESC.from * x.n && x.e.length <= MIXED_ESC.to * x.n);
-    if (!g.length) return '<p class="mt-mut mt-small">Ninguno con estos filtros.</p>';
-    const all = ui.exp['rs-mixed'], shown = all ? g : g.slice(0, 12);
-    const byMo = new Map();
-    for (const x of shown) { const mo = group('mo', x.rows).find((y) => y.k)?.k ?? 0; if (!byMo.has(mo)) byMo.set(mo, []); byMo.get(mo).push(x); }
-    const mods = [...byMo].sort((a, b) => b[1].reduce((t, x) => t + x.n, 0) - a[1].reduce((t, x) => t + x.n, 0));
+    const all = ui.exp['rs-mixed'], { all: total, shown, groups: mods } = mixedEscalation(m, all ? 0 : 12);
+    if (!total) return '<p class="mt-mut mt-small">Ninguno con estos filtros.</p>';
     const cells = (rows, e) => {
       const n = stats(rows.filter((i) => !escd(i))), s = stats(e), sh = e.length / (rows.length || 1);
       return `<td class="mt-num mt-gsep">${num(rows.length)}</td>
@@ -511,24 +412,20 @@ export const createTabs = (m, ch, ui) => {
     return `<div class="mt-tablewrap"><table class="mt-mx mt-mixesc"><colgroup><col style="width:13%"><col style="width:21%"><col style="width:8%"><col style="width:15%"><col style="width:10%"><col style="width:10%"><col style="width:9%"><col style="width:7%"><col style="width:7%"></colgroup><thead>
       <tr class="mt-cgrp"><th colspan="2"></th><th colspan="2">Volumen</th><th colspan="3">Media de resolución</th><th colspan="2">En < 24 h</th></tr>
       <tr><th>Módulo principal</th><th>Problema</th><th class="mt-num">Resueltas</th><th data-tip="De las resueltas, las que tienen ticket de tercero.">Escaladas</th><th class="mt-num">Sin escalar</th><th class="mt-num">Escaladas</th><th class="mt-num" data-tip="Lo que tardan de más (o de menos) las escaladas.">Diferencia</th><th class="mt-num">Sin escalar</th><th class="mt-num">Escaladas</th></tr></thead>
-      <tbody>${body}<tr class="mt-lead mt-lead-end"><th class="mt-r" colspan="2">${all || g.length <= 12 ? 'Todos estos problemas' : `Estos ${shown.length} problemas`}</th>${cells(allRows, allRows.filter(escd))}</tr></tbody></table></div>
-      ${more('rs-mixed', g.length, 12)}`;
+      <tbody>${body}<tr class="mt-lead mt-lead-end"><th class="mt-r" colspan="2">${all || total <= 12 ? 'Todos estos problemas' : `Estos ${shown.length} problemas`}</th>${cells(allRows, allRows.filter(escd))}</tr></tbody></table></div>
+      ${more('rs-mixed', total, 12)}`;
   };
   // Un mismo ticket, muchas incidencias: tickets de tercero con TICKET_MIN o más incidencias ligadas, en dos bloques: con
   // alguna abierta y ya cerrados (de más a menos incidencias). Cuándo: la primera y la última incidencia y los días
   // entre una y otra (0: todas el mismo día).
   const ticketTable = (A) => {
-    const known = group('vk', A, true).filter((x) => x.k && x.n >= TICKET_MIN).map((x) => ({ ...x, open: x.rows.filter((i) => OPEN[i]).length })).sort((a, b) => (b.open > 0) - (a.open > 0) || b.n - a.n);
+    const known = tickets(m, A);
     if (!known.length) return '<p class="mt-mut mt-small">Ninguno con estos filtros.</p>';
     const all = ui.exp['rs-known'], shown = known.slice(0, all ? 200 : 15);
-    const row = (x, j, n, head) => {
-      const ce = new Set(x.rows.map((i) => C.ce[i])).size, f = Math.min(...x.rows.map((i) => C.rep[i])), l = Math.max(...x.rows.map((i) => C.rep[i])), ti = group('de', x.rows).find((y) => y.k);
-      const span = Math.floor(l / 1440) - Math.floor(f / 1440);
-      return `<tr class="mt-clk ${j ? '' : 'mt-gfirst'} ${isSel('vk', x.k) ? 'mt-sel' : ''}" data-f="vk:${x.k}">${j ? '' : `<th class="mt-gl" rowspan="${n}">${head}</th>`}<th class="mt-r"><b>${esc(DI.vkey[x.k])}</b></th>
-        <td class="mt-num mt-gsep">${num(x.n)}</td><td class="mt-num ${x.open ? 'mt-warnc' : ''}">${x.open || ''}</td><td class="mt-num">${num(ce)}</td>
-        <td class="mt-num mt-gsep">${dateOf(BASE, f).slice(0, 5)}</td><td class="mt-num">${dateOf(BASE, l).slice(0, 5)}</td><td class="mt-num">${span ? num(span) : 'el mismo'}</td>
-        <td class="mt-num mt-gsep">${avgOf(stats(x.rows))}</td><td class="mt-gsep mt-mut" data-tip="${ti ? esc(DI.problem[ti.k]) : ''}">${ti ? esc(DI.problem[ti.k]) : ''}</td></tr>`;
-    };
+    const row = (x, j, n, head) => `<tr class="mt-clk ${j ? '' : 'mt-gfirst'} ${isSel('vk', x.k) ? 'mt-sel' : ''}" data-f="vk:${x.k}">${j ? '' : `<th class="mt-gl" rowspan="${n}">${head}</th>`}<th class="mt-r"><b>${esc(DI.vkey[x.k])}</b></th>
+        <td class="mt-num mt-gsep">${num(x.n)}</td><td class="mt-num ${x.open ? 'mt-warnc' : ''}">${x.open || ''}</td><td class="mt-num">${num(x.centres)}</td>
+        <td class="mt-num mt-gsep">${dateOf(BASE, x.first).slice(0, 5)}</td><td class="mt-num">${dateOf(BASE, x.last).slice(0, 5)}</td><td class="mt-num">${x.span ? num(x.span) : 'el mismo'}</td>
+        <td class="mt-num mt-gsep">${avgOf(stats(x.rows))}</td><td class="mt-gsep mt-mut" data-tip="${x.problem ? esc(DI.problem[x.problem]) : ''}">${x.problem ? esc(DI.problem[x.problem]) : ''}</td></tr>`;
     const parts = [['Con alguna abierta', shown.filter((x) => x.open)], ['Cerrados', shown.filter((x) => !x.open)]].filter(([, xs]) => xs.length);
     const body = parts.map(([head, xs]) => xs.map((x, j) => row(x, j, xs.length, head)).join('')).join('');
     const sum = (f) => shown.reduce((t, x) => t + f(x), 0);
@@ -547,23 +444,18 @@ export const createTabs = (m, ch, ui) => {
   const pairTable = (first, defs, rows, base = (x) => x.resolved, groups = null) =>
     pairTableOf({ names: teamNames() || [name(0), name(1)], first, defs, rows, base, groups });
   // lo resuelto de cada lado en una lista, con el volumen (comparando con personas, una empresa por persona)
-  const resPair = (lists) => {
-    const H = [0, 1].map((k) => (m.perHead() ? m.heads(k).size || 1 : 1));
-    return [0, 1].map((k) => { const s = stats(lists[k]); s.vol = s.resolved / H[k]; s.H = H[k]; return s; });
-  };
+  const resPair = (lists) => resolvedPair(m, lists);
   const RES_VOL = ['Resueltas', (s) => s.vol, (v, s) => (s.H > 1 ? dec(v) : num(v)), null, ''];
   const RES_PAIR = [
     ['Media', (s) => (s.resolved ? s.avg : null), dur, 'low', 'De la apertura a la resolución.'],
     ['En < 24 h', (s) => (s.resolved ? s.d1 : null), (v) => pct(v), 'high', 'De las resueltas, las resueltas en menos de 24 horas.'],
   ];
   const resModulesCmp = (A) => {
-    const R = A.filter(solved), T = bySide(R), lead = S.sides[0].people || !S.sides[1].people ? 0 : 1, mine = new Set(T[lead]);
-    const g = group('mo', R, true).filter((x) => x.k).map((x) => ({ ...x, own: x.rows.filter((i) => mine.has(i)).length }))
-      .filter((x) => x.own).sort((a, b) => b.own - a.own || b.n - a.n);
-    const top = g.slice(0, 15), restL = g.slice(15).flatMap((x) => x.rows);
+    const R = A.filter(solved), T = bySide(R), lead = S.sides[0].people || !S.sides[1].people ? 0 : 1;
+    const { top, rest: restL, all } = modulesBySide(m, R, T, lead);
     const split = (l) => { const set = new Set(l); return resPair(T.map((t) => t.filter((i) => set.has(i)))); };
     const rows = top.map((x) => ({ label: m.DIMS.mo.label(x.k), x: split(x.rows), cls: `mt-clk ${isSel('mo', x.k) ? 'mt-sel' : ''}`, attrs: `data-f="mo:${x.k}"` }));
-    if (restL.length) rows.push({ label: `Resto (${g.length - 15})`, x: split(restL), cls: 'mt-mut' });
+    if (restL.length) rows.push({ label: `Resto (${all - 15})`, x: split(restL), cls: 'mt-mut' });
     rows.push({ label: 'Todas las resueltas', x: resPair(T), cls: 'mt-tot' });
     return pairTable('Módulo', [RES_VOL, ...RES_PAIR,
       ['1 a 7 días', (s) => (s.resolved ? s.d7 : null), (v) => pct(v), null, 'De las resueltas, las que tardaron de 1 a 7 días.'],
@@ -583,13 +475,11 @@ export const createTabs = (m, ch, ui) => {
   // las medias de las fichas, en días con un decimal: «+1 día 6 h» no cabe en una ficha estrecha
   const inDays = (v) => (v == null ? null : v / 1440), days1 = (s) => (s.v == null ? '—' : dec(s.v));
   const sameModules = (A) => {
-    const p = S.sides[0].people ? 0 : 1, t = 1 - p;
-    if (!S.sides[p].people || S.sides[t].people) return null;
-    const R = bySide(A.filter(solved)), mean = new Map(group('mo', R[t], true).map((x) => [x.k, stats(x.rows).avg]));
-    const own = group('mo', R[p]), all = stats(R[t]).avg;
-    const exp = own.length ? own.reduce((a, x) => a + x.n * (mean.get(x.k) ?? all), 0) / R[p].length : null;
+    const pt = personVsTeam(m);
+    if (!pt) return null;
+    const { p, t } = pt, { own, expected, n } = expectedAvg(m, bySide(A.filter(solved)), pt);
     const out = [];
-    out[p] = { n: R[p].length, v: R[p].length ? inDays(stats(R[p]).avg) : null }; out[t] = { n: R[t].length, v: inDays(exp) };
+    out[p] = { n: n[0], v: inDays(own) }; out[t] = { n: n[1], v: inDays(expected) };
     const names = [];
     names[p] = name(p); names[t] = `${COMPANIES[S.sides[t].company]}, en sus módulos`;
     return kpiCo('Media frente a sus módulos, en días', out, days1, { val: (s) => s.v, better: 'low', names,
@@ -650,14 +540,8 @@ export const createTabs = (m, ch, ui) => {
   const startTable = (list) => {
     const cmp = CMP(), GROUPS = [['Pasan a En curso en…', [0, 1, 2, 3, 4, 5, 6]], [cmp ? 'Sin En curso' : 'Sin pasar a En curso', [7, 8]]];
     const P = cmp ? bySide(list).slice(0, 2) : [list], H = [0, 1].map((k) => (cmp && m.perHead() ? m.heads(k).size || 1 : 1));
-    const line = (label, l, f, p, k) => {
-      const c = new Array(9).fill(0);
-      for (const i of l) c[m.DIMS.ini.get(i)]++;
-      return { label, f, k, n: l.length, c, s: stats(l), lim: p == null ? -1 : START_LIMITS.indexOf(m.SLA[p]) };
-    };
-    const blocks = [...PRIOS.filter((p) => list.some((i) => C.pr[i] === p)).map((p) => P.map((l, k) => line(slaLabel(p), l.filter((i) => C.pr[i] === p), `pr:${p}`, p, k))),
-      P.map((l, k) => line('Todas', l, null, null, k))];
-    const share = (x, v) => v / (x.n || 1), max = Math.max(0.01, ...blocks.slice(0, -1).flat().flatMap((x) => x.c.map((v) => share(x, v))));
+    const { blocks, max } = startBlocks(m, list, P);
+    const share = (x, v) => v / (x.n || 1);
     const who = (x) => (cmp ? ` · ${name(x.k)}` : '');
     const cells = (x, last) => GROUPS.map(([, ks]) => ks.map((k, j) => {
       const sh = share(x, x.c[k]), a = last ? 0 : shade(sh, max), ok = k <= x.lim;
@@ -714,8 +598,7 @@ export const createTabs = (m, ch, ui) => {
     ['Dentro del SLA', [...PRIOS.map((p) => [nice(DI.prio[p]), (s) => s.byP[p], (v) => pct(v), 'high', slaLabel(p)]), ['Todas', (s) => s.sla, (v) => pct(v), 'high', 'Todas las prioridades.']]],
     ['Fuera de SLA', [['Issues', (s) => s.slaKo, num, null, 'Empezadas tarde y abiertas que siguen sin empezar pasado el plazo.'], ['Media hasta En curso', (s) => s.ip, dur, 'low', 'Media de la apertura al primer paso a En curso.']]],
   ];
-  // stats con el % dentro del SLA de cada prioridad (byP)
-  const slaStats = (l) => { const s = stats(l); s.byP = []; s.nP = []; for (const p of PRIOS) { const t = stats(l.filter((i) => C.pr[i] === p)); s.byP[p] = t.sla; s.nP[p] = t.n; } return s; };
+  const slaStats = slaStatsOf(m);
   // mes a mes: filas por mes de apertura, con las columnas que se le pasen ([grupo, defs] como en qualityPivot)
   const monthPivot = (A, groups, st = stats) => {
     const defs = groups.flatMap(([, d]) => d), firsts = new Set(groups.map(([, d]) => d[0])), tot = st(A);
@@ -759,37 +642,19 @@ export const createTabs = (m, ch, ui) => {
   // recibe trabajo distinto: el SLA, por prioridad, y también con el mismo trabajo); entre personas, cómo trabaja
   // cada uno (una persona frente a su equipo, ella incluida, o frente a otra). Todo cuenta a la persona responsable
   // actual de la issue.
-  // si se empezó dentro del SLA (1), fuera (0) o no cuenta (null): lo mismo que stats (sla), desde la dimensión sl
-  const slaHit = (i) => { const k = m.DIMS.sl.get(i); return k === 0 ? 1 : k <= 4 ? 0 : null; };
-  // lo que cumpliría ref con el trabajo de work: su % dentro del SLA en cada prioridad y módulo (con menos de 5, el de
-  // la prioridad), con el peso que tiene cada uno en work
-  const slaWith = (work, ref) => {
-    const cell = new Map(), prio = new Map(), add = (mp, k, v) => { const x = mp.get(k) || [0, 0]; x[0] += v; x[1]++; mp.set(k, x); };
-    for (const i of ref) { const v = slaHit(i); if (v != null) { add(cell, `${C.pr[i]}:${C.mo[i]}`, v); add(prio, C.pr[i], v); } }
-    let t = 0, n = 0;
-    for (const i of work) {
-      if (slaHit(i) == null) continue;
-      const c = cell.get(`${C.pr[i]}:${C.mo[i]}`), x = c && c[1] >= 5 ? c : prio.get(C.pr[i]);
-      if (x) { t += x[0] / x[1]; n++; }
-    }
-    return n ? t / n : null;
-  };
-  // «con el mismo trabajo»: el primer lado (o la persona, frente a su empresa) frente a lo que cumpliría el otro con su trabajo
+  // «con el mismo trabajo»: el primer lado (o la persona, frente a su empresa) frente a lo que cumpliría el otro con
+  // su trabajo (peers.js)
   const sameWork = (A) => {
-    const pp = m.perHead();
-    const p = pp ? (S.sides[0].people ? 0 : 1) : 0, t = 1 - p;
-    if (pp && (!S.sides[p].people || S.sides[t].people)) return '';
-    const T = bySide(A), v = [], names = [];
-    v[p] = { n: T[p].length, v: stats(T[p]).sla }; v[t] = { n: T[t].length, v: slaWith(T[p], T[t]) };
+    const pp = m.perHead(), pt = pp ? personVsTeam(m) : { p: 0, t: 1 };
+    if (!pt) return '';
+    const { p, t } = pt, T = bySide(A), v = [], names = [];
+    v[p] = { n: T[p].length, v: stats(T[p]).sla }; v[t] = { n: T[t].length, v: expectedSla(m, T[p], T[t]) };
     names[p] = name(p); names[t] = `${name(t)}, con ese trabajo`;
     return kpiCo('Dentro del SLA, con el mismo trabajo', v, (s) => opt(pct)(s.v), { val: (s) => s.v, better: 'high', names,
       note: `Lo que cumpliría ${name(t)} con el trabajo de ${name(p)}: su % dentro del SLA en cada prioridad y módulo, con el peso que tiene cada uno en lo de ${name(p)}.` });
   };
   // stats de cada lado de una lista, con las issues por persona (comparando con personas, una empresa entre su equipo)
-  const slaPair = (lists) => {
-    const H = [0, 1].map((k) => (m.perHead() ? m.heads(k).size || 1 : 1));
-    return [0, 1].map((k) => { const s = slaStats(lists[k]); s.vol = s.n / H[k]; s.H = H[k]; return s; });
-  };
+  const slaPair = (lists) => slaPairOf(m, lists);
   const PAIR_VOL = ['Issues', (s) => s.vol, (v, s) => (s.H > 1 ? dec(v) : num(v)), null, ''];
   const PAIR_SLA = [['Dentro del SLA (altas)', (s) => s.byP[PRIOS[1]] ?? null, (v) => pct(v), 'high', slaLabel(PRIOS[1]), (s) => s.nP[PRIOS[1]]],
     ['Dentro del SLA (todas)', (s) => s.sla, (v) => pct(v), 'high', 'Todas las prioridades.'],
@@ -819,10 +684,7 @@ export const createTabs = (m, ch, ui) => {
         fig('Devueltas a cola', (s) => (s.n ? s.bounce : null), (v) => pct(v), 'low', 'Pasaron de En curso a Asignada.'),
         fig('Cerradas sin En curso', (s) => s.noIpDone, (v) => pct(v), 'low', 'De las cerradas, las que nunca pasaron por En curso.'),
         fig('Escaladas sin Pendiente', (s) => s.escNoPend, (v) => pct(v), 'low', 'De las cerradas con ticket de tercero, las que nunca pasaron a Pendiente.')];
-    const common = () => {
-      const g = group('mo', A, true).filter((x) => x.k).map((x) => ({ ...x, both: T.slice(0, 2).every((l) => l.filter((i) => C.mo[i] === x.k).length >= BETTER_MIN) })).filter((x) => x.both).slice(0, 15);
-      return g.map((x) => [m.DIMS.mo.label(x.k), (i) => C.mo[i] === x.k, `mo:${x.k}`]);
-    };
+    const common = () => commonModules(m, A, T, BETTER_MIN).map((x) => [m.DIMS.mo.label(x.k), (i) => C.mo[i] === x.k, `mo:${x.k}`]);
     return grid(ask('sla'),
       kpis(...kp.filter(Boolean)),
       section('¿Empezamos a tiempo?'),
@@ -851,23 +713,20 @@ export const createTabs = (m, ch, ui) => {
   // Quién y dónde: cuántos la usan de cuántos (con su barra) y los tres que más issues con IA tienen, cada uno con su
   // barra: la parte que lleva de todas las issues con IA.
   const iaRank = (label, dim, A, all, noun, of, tip) => {
-    const by = group(dim, A.filter((i) => withIa(i) && m.DIMS[dim].get(i))), n = by.reduce((t, x) => t + x.n, 0);
-    const sh = all ? by.length / all : 0;
-    const rows = by.slice(0, 3).map((x) => {
-      const l = m.DIMS[dim].label(x.k), p = x.n / n;
-      return `<div class="mt-iarank" data-tip="${esc(`${l}\n${num(x.n)} ${x.n === 1 ? 'issue' : 'issues'} con IA: ${pct(p, 1)} de todas las de IA${tip ? `\n${tip(x)}` : ''}`)}"><span>${esc(l)}</span><b>${num(x.n)}</b><em>${pct(p)}</em>
-        <span class="mt-bt"><i class="mt-ia0" style="width:${(p * 100).toFixed(1)}%"></i></span></div>`;
+    const { count, share: sh, top } = iaTop(m, A, dim, all);
+    const rows = top.map((x) => {
+      const l = m.DIMS[dim].label(x.k);
+      return `<div class="mt-iarank" data-tip="${esc(`${l}\n${num(x.n)} ${x.n === 1 ? 'issue' : 'issues'} con IA: ${pct(x.p, 1)} de todas las de IA${tip ? `\n${tip(x)}` : ''}`)}"><span>${esc(l)}</span><b>${num(x.n)}</b><em>${pct(x.p)}</em>
+        <span class="mt-bt"><i class="mt-ia0" style="width:${(x.p * 100).toFixed(1)}%"></i></span></div>`;
     }).join('');
-    return `<div class="mt-iabox"><div class="mt-kpi-l">${label}</div><div class="mt-kpi-v">${num(by.length)} <small>de ${num(all)} ${noun}</small></div>
+    return `<div class="mt-iabox"><div class="mt-kpi-l">${label}</div><div class="mt-kpi-v">${num(count)} <small>de ${num(all)} ${noun}</small></div>
       <div class="mt-iause"><span class="mt-bt"><i class="mt-ia0" style="width:${(sh * 100).toFixed(1)}%"></i></span><em>${pct(sh)} ${of}</em></div>
-      ${by.length ? `<div class="mt-iarank-h"></div>${rows}` : '<div class="mt-kpi-s"><span>Ninguna issue con IA</span></div>'}</div>`;
+      ${count ? `<div class="mt-iarank-h"></div>${rows}` : '<div class="mt-kpi-s"><span>Ninguna issue con IA</span></div>'}</div>`;
   };
   const iaHead = (A, s) => {
-    const full = monthsIn().filter((k) => k !== LASTM), last = full.slice(-2).reverse();
-    const monthShare = (k) => iaStats(A.filter((i) => MONTH[i] === k));
-    const first = monthsIn().find((k) => A.some((i) => MONTH[i] === k && withIa(i)));
+    const { last, first } = iaMonths(m, A, monthsOf);
     const use = iaBox('Con IA, de lo recibido', s.share == null ? '—' : pct(s.share, 1), [['Issues con IA', num(s.ia)],
-      ...last.map((k, j) => [`${j ? 'Mes anterior' : 'Último mes completo'} (${MONTHS[k]})`, opt((v) => pct(v, 1))(monthShare(k).share)]),
+      ...last.map((x, j) => [`${j ? 'Mes anterior' : 'Último mes completo'} (${MONTHS[x.k]})`, opt((v) => pct(v, 1))(x.share)]),
       ['Primer mes con IA', first == null ? '—' : MONTHS[first]]]);
     const how = iaBox(`Cómo sale, de las ${num(s.ia)} con IA`, s.ia ? `${pct(s.okShare)} OK` : '—',
       [...IA_SPLIT.map(([l, k, c]) => [l, s.ia ? `${pct(s[`${k}Share`])} · ${num(s[k])}` : '—', c]), ['Resueltas por la IA (IA_SOLVED)', num(s.solved)]], iaBar(s));
@@ -1052,13 +911,13 @@ export const createTabs = (m, ch, ui) => {
       const count = (b) => T.map((l) => ({ n: l.length, v: l.filter((i) => C.fl[i] & b).length }));
       const sharePct = (s) => opt(pct)(s.v);
       // último mes completo del periodo frente al anterior (las del mes anterior pueden quedar fuera del periodo)
-      const vsPrev = monthVsPrev(), closedIn = closedInPeriod();
+      const vsPrev = monthVsPrevOf(m), closed = closedIn(m);
       return grid(ask('resumen'),
         `<div class="mt-answers">${[
           answer(['entrada', 'backlog'], [
             fig('Recibidas', ST, (s) => num(s.n), sv('n')),
             fig('Entran al día', ST.map((s) => ({ n: s.n, v: s.n / d })), (s) => dec(s.v), sv('v'), null, 'Recibidas entre los días naturales del periodo.'),
-            fig('Cerramos al día', closedIn.map((l, k) => ({ n: l.length + ST[k].n, v: l.length / d })), (s) => dec(s.v), sv('v'), 'high', 'Todo lo cerrado en el periodo, entre sus días naturales.'),
+            fig('Cerramos al día', closed.map((l, k) => ({ n: l.length + ST[k].n, v: l.length / d })), (s) => dec(s.v), sv('v'), 'high', 'Todo lo cerrado en el periodo, entre sus días naturales.'),
             ...(vsPrev ? [fig(`${MONTHS[vsPrev[0]]} frente a ${MONTHS[vsPrev[0] - 1]}`, vsPrev[1], (s) => opt((v) => `${v > 0 ? '+' : ''}${pct(v)}`)(s.v), sv('v'), null, 'Variación de las recibidas en el último mes completo del periodo respecto al anterior.')] : []),
             fig('Pendientes', ST, (s) => num(s.open), sv('open'), 'low', 'Lo recibido en el periodo que sigue sin resolver.'),
             fig('Fuera de plazo', ST, (s) => num(s.waitKo), sv('waitKo'), 'low', 'Pendientes que nunca han pasado a En curso y ya superan el plazo de su prioridad.')], '¿Qué tenemos?'),
@@ -1093,12 +952,8 @@ export const createTabs = (m, ch, ui) => {
     },
 
     hoy() {
-      const L = m.today(), op = L.filter((i) => OPEN[i]), T = bySide(op), now = m.SNAP;
-      const people = S.sides.some((x) => x?.people), one = S.sides.some((x) => x?.people?.size === 1) && !CMP();
-      const lm = C.lm, days = (min) => Math.floor(min / DAY);
-      const idle = (i) => (lm ? now - lm[i] : null);   // sin ningún cambio desde hace (minutos); null con datos de antes de guardar el último cambio
-      const IDLE = IDLE_DAYS * DAY;
-      const waits = (i) => { const k = m.DIMS.sit.get(i); return k === 3 ? 'v' : k === 4 ? 'c' : ''; };
+      const { op, lm, idle, waits, late, prio, stale, people, one, crit: crit3, prioList, lateList: lateL, vendor, client, staleList: stale3, orphan, all, cols: PCOLS, who, tot } = todayLists(m);
+      const T = bySide(op), now = m.SNAP, days = (min) => Math.floor(min / 1440);
       const count = (test) => T.map((l) => ({ n: l.length || 1, v: l.filter(test).length }));
       // una lista de issues: cada fila con su enlace a Remedy
       const list = (id, rowsIn, o = {}) => {
@@ -1111,50 +966,36 @@ export const createTabs = (m, ch, ui) => {
           <td class="mt-num">${days(now - C.rep[i])} d</td>${lm ? `<td class="mt-num">${days(idle(i))} d</td>` : ''}<td>${C.vk[i] ? esc(DI.vkey[C.vk[i]]) : C.vt[i] ? esc(m.DIMS.vt.label(C.vt[i])) : ''}</td></tr>`).join('');
         return rowsIn.length ? `<div class="mt-tablewrap ${all ? 'mt-scroll' : ''}"><table class="mt-list"><thead><tr>${head.map((h) => `<th>${h}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>${more(id, rowsIn.length, top)}` : '<p class="mt-mut mt-small">Ninguna.</p>';
       };
-      const byAge = (a, b) => C.rep[a] - C.rep[b];
-      const crit3 = L.filter((i) => C.pr[i] === CRIT && now - C.rep[i] <= RECENT_CRIT_DAYS * DAY).sort((a, b) => C.rep[b] - C.rep[a]);
-      const prio = op.filter((i) => cardsOf(i).includes(2)).sort(byAge);
-      const lateL = op.filter(late).sort(byAge);
-      const vendor = op.filter((i) => waits(i) === 'v').sort(byAge);
-      const client = op.filter((i) => waits(i) === 'c').sort(byAge);
-      const stale = lm ? op.filter((i) => idle(i) > IDLE).sort((a, b) => lm[a] - lm[b]) : [];
-      const orphan = people ? [] : m.today(true).filter((i) => OPEN[i] && !C.as[i] && cardsOf(i).some((k) => k < 3)).sort(byAge);
       // quién tiene qué: lo abierto de cada persona
-      const PCOLS = [['Abiertas', () => true], ['Asignada', (i) => DI.status[C.st[i]] === 'ASSIGNED'], ['En curso', (i) => DI.status[C.st[i]] === 'IN_PROGRESS'],
-        ['Pendiente', (i) => DI.status[C.st[i]] === 'PENDING'], ['Críticas', (i) => C.pr[i] === CRIT], ['PRIO', (i) => cardsOf(i).includes(2)],
-        ['Sin iniciar, fuera de plazo', late], ['Esperando a un tercero', (i) => waits(i) === 'v'], ['Esperando al cliente', (i) => waits(i) === 'c'],
-        [`Más de ${OLD_DAYS} días`, (i) => now - C.rep[i] > OLD], ...(lm ? [[`Sin cambios en ${IDLE_DAYS} días`, (i) => idle(i) > IDLE]] : [])];
-      const who = group('as', op, true).filter((x) => x.k).map((x) => ({ k: x.k, v: PCOLS.map(([, t]) => x.rows.filter(t).length) }));
-      const tot = PCOLS.map(([, t]) => op.filter(t).length);
       const whoTable = `<div class="mt-tablewrap"><table><thead><tr><th>Persona</th>${PCOLS.map(([l]) => `<th class="mt-num">${l}</th>`).join('')}</tr></thead><tbody>${who.map((r) => `<tr class="mt-clk ${isSel('as', r.k) ? 'mt-sel' : ''}" data-f="as:${r.k}"><td>${CMP() ? `<i class="mt-sw mt-c${m.SIDE[op.find((i) => C.as[i] === r.k)]}"></i>` : ''}${esc(m.DIMS.as.label(r.k))}</td>${r.v.map((v) => `<td class="mt-num">${v || ''}</td>`).join('')}</tr>`).join('')}
         <tr class="mt-grp"><td>Total</td>${tot.map((v) => `<td class="mt-num">${num(v)}</td>`).join('')}</tr></tbody></table></div>`;
       const sub = (t) => `${t} Pasa el ratón por un título para leerlo entero.`;
       return grid(ask('hoy'),
         kpis(kpiCo('Abiertas', count(() => true), (s) => num(s.v), { val: (s) => s.v }),
           kpiCo('Críticas abiertas', count((i) => C.pr[i] === CRIT), (s) => num(s.v), { val: (s) => s.v }),
-          kpiCo('PRIO abiertas', count((i) => cardsOf(i).includes(2)), (s) => num(s.v), { val: (s) => s.v }),
+          kpiCo('PRIO abiertas', count(prio), (s) => num(s.v), { val: (s) => s.v }),
           kpiCo('Sin iniciar, fuera de plazo', count(late), (s) => num(s.v), { val: (s) => s.v, better: 'low' }),
           kpiCo('Esperando a un tercero', count((i) => waits(i) === 'v'), (s) => num(s.v), { val: (s) => s.v }),
           kpiCo('Esperando al cliente', count((i) => waits(i) === 'c'), (s) => num(s.v), { val: (s) => s.v }),
-          lm ? kpiCo(`Sin cambios en ${IDLE_DAYS} días`, count((i) => idle(i) > IDLE), (s) => num(s.v), { val: (s) => s.v, better: 'low' }) : '',
+          lm ? kpiCo(`Sin cambios en ${IDLE_DAYS} días`, count(stale), (s) => num(s.v), { val: (s) => s.v, better: 'low' }) : '',
           people ? '' : kpi('Sin asignar', num(orphan.length), 'SGA, SISU o PRIO, sin nadie', 'mt-t2')),
         lm ? '' : '<p class="mt-note">Para ver lo que lleva días sin cambios, carga de nuevo el CSV: los datos guardados son de antes de que se leyera el último cambio de cada issue.</p>',
         card('Quién tiene qué', whoTable, { span: 's12', sub: 'Lo abierto de cada persona. Clic en una persona para ver todas las métricas solo de ella.' }),
         card(`Críticas de los últimos ${RECENT_CRIT_DAYS} días`, list('hoy-crit', crit3), { span: 's12', sub: sub(`Todas las críticas abiertas en los ${RECENT_CRIT_DAYS} últimos días, resueltas o no, de la más reciente a la más antigua.`) }),
-        card('PRIO abiertas', list('hoy-prio', prio), { span: 's12', sub: sub('Priorizadas por negocio, de la más antigua a la más reciente.') }),
+        card('PRIO abiertas', list('hoy-prio', prioList), { span: 's12', sub: sub('Priorizadas por negocio, de la más antigua a la más reciente.') }),
         card('Sin iniciar y fuera de plazo', list('hoy-late', lateL), { span: 's12', sub: sub('Abiertas que nunca han pasado a En curso y ya superan el plazo de su prioridad.') }),
         ...(people ? [] : [card('Sin asignar', list('hoy-orphan', orphan), { span: 's12', sub: sub('En SGA, SISU o PRIO, sin responsable.') })]),
-        card(`Sin cambios desde hace más de ${IDLE_DAYS} días`, lm ? list('hoy-stale', stale) : '<p class="mt-mut mt-small">Carga de nuevo el CSV para verlo.</p>', { span: 's12', sub: sub(`Abiertas en las que nadie ha tocado nada en ${IDLE_DAYS} días, de la más parada a la menos.`) }),
+        card(`Sin cambios desde hace más de ${IDLE_DAYS} días`, lm ? list('hoy-stale', stale3) : '<p class="mt-mut mt-small">Carga de nuevo el CSV para verlo.</p>', { span: 's12', sub: sub(`Abiertas en las que nadie ha tocado nada en ${IDLE_DAYS} días, de la más parada a la menos.`) }),
         card('Esperando a un tercero', list('hoy-vendor', vendor), { span: 's12', sub: sub('Pendientes de una acción de un tercero (desarrollo, proveedor…), con su ticket.') }),
         card('Esperando al cliente', list('hoy-client', client), { span: 's12', sub: sub('Pendientes de una acción o de una respuesta del centro o del cliente.') }),
-        card('Todo lo abierto', list('hoy-all', op.slice().sort(byAge), { top: 15 }), { span: 's12', sub: sub('La sábana del backlog: todo lo abierto, de lo más antiguo a lo más reciente.') }));
+        card('Todo lo abierto', list('hoy-all', all, { top: 15 }), { span: 's12', sub: sub('La sábana del backlog: todo lo abierto, de lo más antiguo a lo más reciente.') }));
     },
 
     // ¿Qué tenemos? Lo que entra, cómo se va cerrando y lo que queda pendiente, con tablas que cuadran:
     // cada una con su total, y los totales iguales a las cifras de arriba.
     entrada(A) {
       const T = bySide(A), ST = T.map(stats), d = days() || 1, sharePct = (s) => opt(pct)(s.v);
-      const closedIn = closedInPeriod(), each = m.perHead() ? ' por persona' : '';
+      const closed = closedIn(m), each = m.perHead() ? ' por persona' : '';
       // lo que entra, mes a mes, por prioridad, tipo de servicio, tarjeta y tipo de operación; comparando, sin tarjeta
       // (cada empresa las usa a su manera: no se comparan)
       const months = monthsIn().map((k) => ({ label: MONTHS[k] + (k === LASTM ? '*' : ''), test: (i) => MONTH[i] === k, f: `month:${k}` }));
@@ -1167,7 +1008,7 @@ export const createTabs = (m, ch, ui) => {
       return grid(ask('entrada'),
         kpis(kpiCo(`Recibidas${each}`, volume(T), (s) => num(Math.round(s.v)), { val: (s) => Math.round(s.v), note: `abiertas en el periodo${headsNote()}`, names: teamNames() }),
           kpiCo(`Entran al día${each}`, volume(T, d), (s) => dec(s.v), { val: (s) => s.v, note: `de media, en días naturales${headsNote()}`, names: teamNames() }),
-          kpiCo(`Cerramos al día${each}`, volume(closedIn, d), (s) => dec(s.v), { val: (s) => s.v, note: `de media, todo lo cerrado en el periodo${headsNote()}`, names: teamNames() }),
+          kpiCo(`Cerramos al día${each}`, volume(closed, d), (s) => dec(s.v), { val: (s) => s.v, note: `de media, todo lo cerrado en el periodo${headsNote()}`, names: teamNames() }),
           ...PRIOS.map((p) => kpiCo(`% ${PLURAL[DI.prio[p]] || nice(DI.prio[p])}`, ST.map((s) => ({ n: s.n, v: s.n ? s.prio[p] / s.n : null })), sharePct, { val: (s) => s.v, note: `SLA de inicio: ${slaLabel(p).split(' · ')[1]}` })),
           kpiCo('% Peticiones', shareOf(T, (i) => C.sv[i] === REQ), sharePct, { val: (s) => s.v, note: 'de usuario' })),
         card(S.from === S.to ? 'Día a día: lo que entra, lo que se cierra y lo que queda' : 'Mes a mes: lo que entra, lo que se cierra y lo que queda', ledger(A),
@@ -1241,13 +1082,8 @@ export const createTabs = (m, ch, ui) => {
 
     turnos(A) {
       const T = bySide(A), ST = T.map(stats), cos = CO(), slots = m.periodSlots();
-      // por tipo de turno (0–2 laborables, 3–5 fin de semana): sus indicadores y el trabajo hecho en él
-      const perType = (l) => {
-        const by = slots.map(() => []), w = m.shiftWork(l);
-        for (const i of l) by[STYPE[i]].push(i);
-        return by.map((li, t) => ({ ...stats(li), perTurn: slots[t] ? li.length / slots[t] : null, worked: w[t].turns, resTurn: w[t].turns ? w[t].resolved / w[t].turns : null, people: w[t].people, perPerson: w[t].perPerson }));
-      };
-      const per = [0, 1].map((k) => (cos.includes(k) ? perType(T[k]) : null));
+      // por tipo de turno (0–2 laborables, 3–5 fin de semana): sus indicadores y el trabajo hecho en él (turns.js)
+      const per = [0, 1].map((k) => (cos.includes(k) ? perShiftType(m, T[k], slots) : null));
       const TCOLS = [
         ['Entran', (s) => num(s.n), (s) => s.n],
         ['Entran por turno', (s) => opt(dec)(s.perTurn), (s) => s.perTurn, null, 'Media de issues que entran en cada turno de este tipo del periodo.'],
@@ -1267,14 +1103,13 @@ export const createTabs = (m, ch, ui) => {
         return `<tr class="mt-clk" data-f2="tu:${k}|we:${w}"><td>${sn} <span class="mt-mut">· ${SHIFT_HOURS[k]}</span></td>${TCOLS.map((d) => `<td class="mt-num">${cell(st, d)}</td>`).join('')}</tr>`;
       }).join('')}`).join('');
       // el día en 24 horas: entran, se empiezan y se resuelven, por hora
-      const hours = (l, at) => { const v = new Array(24).fill(0); for (const i of l) { const t = at(i); if (t != null) v[clock(t)[1]]++; } return v; };
+      const hours = (l, at) => byHour(m, l, at);
       const curves = cos.map((k) => `${CMP() ? `<p class="mt-small"><span class="mt-sw mt-c${k}"></span><b>${esc(name(k))}</b></p>` : ''}${day([
         { label: 'Entran', cls: 'mt-l-in', v: hours(T[k], (i) => C.rep[i]) },
         { label: 'Se empiezan', cls: `mt-l-st${k}`, v: hours(T[k], startAt) },
         { label: 'Se resuelven', cls: `mt-l-rs${k}`, v: hours(T[k], resAt) }])}`).join('');
       // qué se queda para el turno siguiente
-      const carried = cos.map((k) => m.carry(T[k]));
-      const carryRows = SHIFTS.flatMap((sn, j) => cos.map((k) => ({ label: sn, k, v: carried[cos.indexOf(k)][j].map((v, x) => v + carried[cos.indexOf(k)][j + 3][x]) })));
+      const carryRows = carryRowsOf(m, T, cos);
       return grid(ask('turnos'),
         kpis(...SHIFTS.map((sn, k) => kpiCo(`Entran de ${sn.toLowerCase()}`, shareOf(T, (i) => STYPE[i] % 3 === k), (s) => pct(s.v), { val: (s) => s.v, note: SHIFT_HOURS[k] })),
           kpiCo('Entran en fin de semana', shareOf(T, (i) => STYPE[i] >= 3), (s) => pct(s.v), { val: (s) => s.v }),
