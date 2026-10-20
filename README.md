@@ -131,8 +131,17 @@ hasta que se vuelve a ejecutar su SQL (`node server/base/schema-sql.js`).
 
 ## Piezas
 
-- `web/` — UI (Vite + xterm.js): pestañas multi-sesión, temas, lanzador,
-  Laboratorio de skills, Administración, enlaces rápidos. Puerto **5220**.
+- `web/` — UI (Vite + xterm.js), puerto **5220** en desarrollo. `src/main.js`
+  solo arranca (descubrir el bridge, la sesión, montar las vistas); cada
+  funcionalidad vive en su carpeta de `src/` con su dominio puro probado
+  (`*.test.js` al lado), su API y su vista: `app/` (bridge, barra y permisos),
+  `auth/`, `chat/` (sesiones, protocolo, adjuntos, pestañas, terminal),
+  `issues/`, `metrics/` (reglas y cálculo por pestaña en módulos puros; el
+  HTML de cada pestaña en `metrics/tabs/`), `work/` (Equipo soporte, una vista
+  sobre el dominio de Métricas), `users/` (Personas), `knowledge/`,
+  `projects/` (Administración), `lab/`, `links/`, `skills/` (la paleta),
+  `settings/`, `lock/`, `mobile/`, `theme/` y `ui/` (el cliente HTTP único
+  `api.js`, diálogos, toast, html, tiempo).
 - `server/` — bridge local: un PTY por sesión expuesto por WebSocket y la API
   HTTP. `index.js` solo monta las piezas (`startBridge()`) y `router.js` las
   encamina; cada funcionalidad vive en su carpeta, con su dominio puro
