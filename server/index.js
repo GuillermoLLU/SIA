@@ -19,7 +19,9 @@ import { lockRoutes } from './lock/routes.js';
 import { isPin } from './lock/lock.js';
 import { createWorkspace } from './workspace/workspace.js';
 import { createLaunchers } from './launchers/service.js';
-import { mcpRename } from './launchers/mcp.js';
+import { createSkillSync } from './skills/sync.js';
+import { skillList, createDrafts } from './skills/catalog.js';
+import { skillsRoutes } from './skills/routes.js';
 import { createAuth } from './auth/service.js';
 import { authRoutes } from './auth/routes.js';
 import { liveSessions } from './auth/sessions.js';
@@ -172,47 +174,6 @@ const launchers = createLaunchers({ workspace: workspace.dir, codexHome: process
 // rutas de la API que no tocan la base de conocimiento
 const DB_FREE_ROUTES = new Set(['version', 'lan', 'config', 'upload', 'uploads']);
 
-const parseFrontmatter = (src) => {
-  const fm = {};
-  const m = src.match(/^---\n([\s\S]*?)\n---/);
-  if (m) {
-    for (const line of m[1].split('\n')) {
-      const i = line.indexOf(':');
-      if (i > 0) fm[line.slice(0, i).trim()] = line.slice(i + 1).trim().replace(/^["']|["']$/g, '');
-    }
-  }
-  return fm;
-};
-
-// Skills dictionary: workspace/skills/<name>/SKILL.md (frontmatter YAML). Parsed
-// fresh per connection so a fresh sync needs no restart.
-const skillList = (base = null) => {
-  const dir = base ? workspace.skillsDirFor(base) : workspace.skillsDir;
-  try {
-    return fs.readdirSync(dir, { withFileTypes: true })
-      .filter((d) => d.isDirectory())
-      .map((d) => {
-        const md = path.join(dir, d.name, 'SKILL.md');
-        if (!fs.existsSync(md)) return null;
-        const fm = parseFrontmatter(fs.readFileSync(md, 'utf8'));
-        if (fm.enabled === 'false') return null;
-        return {
-          id: d.name,
-          label: fm.commandLabel || fm.name || d.name,
-          description: fm.commandDescription || fm.description || '',
-          category: fm.category || '',
-        };
-      })
-      .filter(Boolean);
-  } catch {
-    return [];
-  }
-};
-
-/* ── Central skills: Supabase is the source of truth ───────────────
-   The bridge pulls enabled skills and rebuilds workspace/skills/ (local
-   edits there get overwritten — publishing is the way to change a skill).
-   If Supabase is unreachable, the last synced copy keeps working. */
 // El Node embebido de Electron (v20) no trae WebSocket nativo y supabase-js lo
 // exige al construir el cliente — le damos el de `ws`. En Node 21+ no hace nada.
 if (typeof globalThis.WebSocket === 'undefined') globalThis.WebSocket = WSClient;
@@ -237,58 +198,16 @@ const accessibleProjects = (base = currentBase()) => baseAccess.accessibleProjec
 
 const projects = createProjects({ newId: randomUUID, fetchAll });
 
-const syncSkills = async (base) => {
-  if (!base) return;
-  const dir = workspace.skillsDirFor(base);
-  try {
-    // sin el esquema blindado la base no se usa (ni para skills): aviso y fuera
-    if (await needsSchema(base)) { console.warn(`[sia] «${base.name}» necesita el SQL del esquema nuevo: no se usa hasta entonces`); lastSyncByBase.set(base.id, Date.now()); return; }
-    const db = clientFor(base);
-    const { data: metas, error: e1 } = await db.from('skills').select('id, scope').eq('enabled', true);
-    if (e1) throw new Error(e1.message);
-    if (!metas?.length) { console.warn(`[sia] sync ${base.name}: 0 skills en Supabase — conservo la copia local`); lastSyncByBase.set(base.id, Date.now()); return; }
-    const { data: files, error: e2 } = await fetchAll(() => db.from('skill_files').select('skill_id, path, content').order('skill_id').order('path'));
-    if (e2) throw new Error(e2.message);
-    // visibilidad: comunes (scope vacío) + las de los proyectos cuyo token tiene
-    // la persona (los mismos tokens que el acceso al conocimiento).
-    const myTokens = new Set(accessTokens(base));
-    const enabled = new Set(metas.filter((m) => !m.scope || myTokens.has(m.scope)).map((m) => m.id));
-    fs.rmSync(dir, { recursive: true, force: true });
-    let written = 0;
-    for (const f of files) {
-      if (!enabled.has(f.skill_id)) continue;
-      const rel = safeRelPath(f.path);
-      if (!rel) continue;
-      const dest = path.join(dir, f.skill_id, rel);
-      fs.mkdirSync(path.dirname(dest), { recursive: true });
-      fs.writeFileSync(dest, mcpRename(f.content));
-      written++;
-    }
-    lastSyncByBase.set(base.id, Date.now());
-    console.log(`[sia] skills de «${base.name}» sincronizadas: ${enabled.size} skills, ${written} ficheros`);
-  } catch (err) {
-    console.error(`[sia] sync de skills de «${base.name}» falló (sigo con la copia local): ${err.message}`);
-  }
-};
-const lastSyncByBase = new Map();
-const syncAllSkills = async () => {
-  // otra base (o ninguna): fuera el rincón del workspace de la anterior
-  const b = currentBase();
-  workspace.keepOnlyBase(b);
-  await syncSkills(b);
-};
-const maybeSyncSkills = () => {
-  const b = currentBase();
-  if (b && Date.now() - (lastSyncByBase.get(b.id) || 0) > 60_000) syncSkills(b);
-};
+// Las skills publicadas en la base, bajadas a su copia local (server/skills/).
+const skillSync = createSkillSync({ clientFor, needsSchema, workspace });
+const skillsOf = (base) => skillList(base ? workspace.skillsDirFor(base) : workspace.skillsDir);
 // Otra base asignada (o ninguna, al salir): fuera los permisos cacheados de la
-// anterior y, como son otras skills, vaciar la copia local y volver a traerlas.
+// anterior y, como son otras skills, la copia local se rehace.
 const applyBase = async () => {
   const b = currentBase();
   baseAccess.clearStatus();
-  lastSyncByBase.clear();
   console.log(b ? `[sia] base de conocimiento en uso: ${b.name}` : '[sia] sin base de conocimiento en uso');
-  await syncAllSkills();
+  await skillSync.switchTo(b);
 };
 
 // La config personal (server/config/): Jira, claves de GitHub, tema, sesiones
@@ -368,15 +287,6 @@ const linkFields = ({ title, url, image, notes }) => {
   return { value: { title: t, url: u, image: img, notes: notes ? String(notes) : null } };
 };
 
-const walkDir = (dir, base = '') => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
-  e.isDirectory() ? walkDir(path.join(dir, e.name), path.join(base, e.name))
-    : [{ path: path.join(base, e.name), content: fs.readFileSync(path.join(dir, e.name), 'utf8') }]);
-
-const lockRoute = lockRoutes(lock, { json, readBody });
-const updatesRoute = updatesRoutes(APP_VERSION, { json });
-const configRoute = configRoutes(config, { json, readBody, version: APP_VERSION, onTheme: (theme) => {
-  if (JSON.stringify(theme) !== JSON.stringify(UI_THEME)) { UI_THEME = theme; broadcastTheme(); }
-} });
 const authRoute = authRoutes(auth, { json, readBody, onSession: loadAssigned, onLogout: clearAssigned, platform });
 const syncKeys = (jwt, userId, opts) => knowledge.syncPeople(jwt, userId ? [userId] : null, opts);
 const usersRoute = usersRoutes(users, auth, { json, readBody, syncKeys, assignKnowledge: (jwt, userId, ids) => knowledge.setProjects(jwt, userId, ids) });
@@ -386,10 +296,7 @@ const issuesSource = createIssuesSource(workspace.issuesDir);
 const issuesRoute = issuesRoutes(issuesSource, auth, platform, { json, readBody });
 // Métricas: calculadas desde el CSV completo de Remedy que carga cada persona; de momento, solo 2026.
 const metricsRoute = metricsRoutes(createMetricsStore(workspace.metricsDir, { year: 2026 }), { json });
-const validId = (s) => typeof s === 'string' && /^[a-z0-9][a-z0-9_-]{1,63}$/i.test(s);
 let uploadSeq = 0;
-const validFiles = (files) => Array.isArray(files) && files.length &&
-  files.every((f) => safeRelPath(f.path || '') && typeof f.content === 'string');
 
 /* ── Acceso público: quick tunnel de Cloudflare ─────────────────────
    `cloudflared tunnel --url` sin cuenta ni credenciales: da una URL
@@ -771,7 +678,7 @@ const apiServer = http.createServer(async (req, res) => {
           if (!parts[3] && req.method === 'POST') return json(res, 200, await projects.create(db, (await readBody(req)).name));
           if (parts[3] && req.method === 'DELETE') {
             await projects.remove(db, Number(parts[3]));
-            await syncSkills(knowledgeBase); // las skills de su token se van con él: fuera de la copia local
+            await skillSync.sync(knowledgeBase); // las skills de su token se van con él: fuera de la copia local
             return json(res, 200, { ok: true });
           }
         } catch (e) { return json(res, e.status || 500, { error: e.message }); }
@@ -897,125 +804,7 @@ const apiServer = http.createServer(async (req, res) => {
       return res.end(fs.readFileSync(fp));
     }
 
-    // gate del Laboratorio: permiso «lab» en la base (el dueño lo tiene)
-    const labOp = parts[1] === 'drafts' || parts[1] === 'groups'
-      || (parts[1] === 'skills' && (req.method === 'DELETE' || parts[2] === 'publish'));
-    if (labOp && !perms?.lab) return json(res, 403, { error: 'Sin acceso al Laboratorio.' });
-
-    // proyectos para el selector de visibilidad del Laboratorio: solo los que
-    // la persona ve (una skill de proyecto solo se publica donde uno tiene acceso)
-    if (parts[1] === 'groups' && req.method === 'GET') {
-      const { data, error } = await db.from('access_groups').select('token, name').order('name');
-      if (error) return json(res, 500, { error: error.message });
-      const mine = new Set(accessTokens(knowledgeBase));
-      return json(res, 200, (data || []).filter((g) => mine.has(g.token)));
-    }
-
-    // ── skills publicadas (Supabase) — solo las que el rol puede gestionar ──
-    if (parts[1] === 'skills' && req.method === 'GET' && !parts[2]) {
-      const { data, error } = await db.from('skills').select('*').order('id');
-      if (error) return json(res, 500, { error: error.message });
-      // el dueño: todas. Los demás: solo las de SUS proyectos (no comunes, no de otros).
-      const list = perms?.owner
-        ? data
-        : data.filter((s) => s.scope && accessTokens(knowledgeBase).includes(s.scope));
-      // nombre del proyecto de cada skill: el dueño ve skills de proyectos de
-      // los que no tiene token, y sin el nombre la UI solo podría pintar el
-      // token (una credencial de acceso, no algo que enseñar en una tarjeta)
-      const { data: grps } = await db.from('access_groups').select('token, name');
-      const names = new Map((grps || []).map((g) => [g.token, g.name]));
-      return json(res, 200, list.map((s) => ({ ...s, scopeName: s.scope ? names.get(s.scope) || null : null })));
-    }
-    if (parts[1] === 'skills' && req.method === 'POST' && parts[2] === 'refresh') {
-      await syncSkills(knowledgeBase); // Supa → workspace/bases/<id>/skills (la paleta lo ve al momento)
-      return json(res, 200, { ok: true, skills: skillList(knowledgeBase) });
-    }
-    if (parts[1] === 'skills' && req.method === 'POST' && parts[2] === 'publish') {
-      const { id, files, scope } = await readBody(req);
-      if (!validId(id) || !validFiles(files)) return json(res, 400, { error: 'payload inválido' });
-      const newScope = scope || null; // '' / undefined → común
-      // las COMUNES (scope vacío) solo las toca el owner; idem si la skill
-      // que se sobrescribe ya era común.
-      const { data: existing } = await db.from('skills').select('scope').eq('id', id).maybeSingle();
-      const touchesCommon = !newScope || (existing && !existing.scope);
-      if (touchesCommon && !perms?.owner) {
-        return json(res, 403, { error: 'Las skills comunes solo las crea o edita quien tiene Administración. Elige un proyecto en «Visibilidad».' });
-      }
-      const skillMd = files.find((f) => f.path === 'SKILL.md');
-      if (!skillMd) return json(res, 400, { error: 'falta SKILL.md' });
-      const fm = parseFrontmatter(skillMd.content);
-      const { error: e1 } = await db.from('skills').upsert({
-        id,
-        label: fm.commandLabel || fm.name || id,
-        description: fm.commandDescription || fm.description || '',
-        category: fm.category || '',
-        version: fm.version || '1.0.0',
-        enabled: fm.enabled !== 'false',
-        scope: newScope,
-        updated_at: new Date().toISOString(),
-      });
-      if (e1) return json(res, 500, { error: e1.message });
-      const { error: e2 } = await db.from('skill_files').delete().eq('skill_id', id);
-      if (e2) return json(res, 500, { error: e2.message });
-      const { error: e3 } = await db.from('skill_files').insert(files.map((f) => ({ skill_id: id, path: safeRelPath(f.path), content: f.content })));
-      if (e3) return json(res, 500, { error: e3.message });
-      await syncSkills(knowledgeBase);
-      return json(res, 200, { ok: true, id, files: files.length });
-    }
-    if (parts[1] === 'skills' && req.method === 'DELETE' && parts[2]) {
-      const id = decodeURIComponent(parts[2]);
-      if (!validId(id)) return json(res, 400, { error: 'id inválido' });
-      const { data: existing } = await db.from('skills').select('scope').eq('id', id).maybeSingle();
-      if (existing && !existing.scope && !perms?.owner) {
-        return json(res, 403, { error: 'Las skills comunes solo las borra quien tiene Administración.' });
-      }
-      const { error } = await db.from('skills').delete().eq('id', id); // skill_files cae por cascade
-      if (error) return json(res, 500, { error: error.message });
-      fs.rmSync(path.join(workspace.skillsDirFor(knowledgeBase), id), { recursive: true, force: true });
-      await syncSkills(knowledgeBase);
-      return json(res, 200, { ok: true, deleted: id });
-    }
-    if (parts[1] === 'skills' && req.method === 'GET' && parts[2]) {
-      const id = decodeURIComponent(parts[2]);
-      const [meta, files] = await Promise.all([
-        db.from('skills').select('*').eq('id', id).single(),
-        db.from('skill_files').select('path, content').eq('skill_id', id).order('path'),
-      ]);
-      if (meta.error || files.error) return json(res, 404, { error: (meta.error || files.error).message });
-      return json(res, 200, { ...meta.data, files: files.data });
-    }
-
-    // ── borradores (locales, no salen en la paleta) ──
-    if (parts[1] === 'drafts' && req.method === 'GET' && !parts[2]) {
-      const ids = fs.existsSync(workspace.draftsDir)
-        ? fs.readdirSync(workspace.draftsDir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name)
-        : [];
-      return json(res, 200, ids);
-    }
-    if (parts[1] === 'drafts' && parts[2]) {
-      const id = decodeURIComponent(parts[2]);
-      if (!validId(id)) return json(res, 400, { error: 'id inválido' });
-      const dir = path.join(workspace.draftsDir, id);
-      if (req.method === 'GET') {
-        if (!fs.existsSync(dir)) return json(res, 404, { error: 'borrador no encontrado' });
-        return json(res, 200, { id, files: walkDir(dir) });
-      }
-      if (req.method === 'PUT') {
-        const { files } = await readBody(req);
-        if (!validFiles(files)) return json(res, 400, { error: 'payload inválido' });
-        fs.rmSync(dir, { recursive: true, force: true });
-        for (const f of files) {
-          const dest = path.join(dir, safeRelPath(f.path));
-          fs.mkdirSync(path.dirname(dest), { recursive: true });
-          fs.writeFileSync(dest, f.content);
-        }
-        return json(res, 200, { ok: true });
-      }
-      if (req.method === 'DELETE') {
-        fs.rmSync(dir, { recursive: true, force: true });
-        return json(res, 200, { ok: true });
-      }
-    }
+    if (['skills', 'drafts', 'groups'].includes(parts[1])) return skillsRoute(req, res, parts.slice(1), { db, base: knowledgeBase, perms });
     return json(res, 404, { error: 'no encontrado' });
   } catch (err) {
     return json(res, 500, { error: err.message });
@@ -1105,10 +894,10 @@ const handleConnection = (ws, req) => {
     return;
   }
   let sess = null; // sesión enganchada a ESTE socket
-  maybeSyncSkills(); // refresh the catalog in the background (next chat sees it)
+  skillSync.maybe(currentBase()); // la copia local al día en segundo plano (el siguiente chat lo ve)
 
   accessibleProjects().then((projects) =>
-    send(ws, { type: 'launchers', list: launchers.list(), skills: skillList(currentBase()), sessions: sessionList(), accessProjects: projects }));
+    send(ws, { type: 'launchers', list: launchers.list(), skills: skillsOf(currentBase()), sessions: sessionList(), accessProjects: projects }));
 
   const bind = (s) => {
     // Un socket por sesión. 4409 = "otro dispositivo tomó los chats": el cliente
