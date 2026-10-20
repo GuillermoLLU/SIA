@@ -17,6 +17,9 @@ import { configRoutes } from './config/routes.js';
 import { createLock } from './lock/service.js';
 import { lockRoutes } from './lock/routes.js';
 import { isPin } from './lock/lock.js';
+import { createWorkspace } from './workspace/workspace.js';
+import { createLaunchers } from './launchers/service.js';
+import { mcpRename } from './launchers/mcp.js';
 import { createAuth } from './auth/service.js';
 import { authRoutes } from './auth/routes.js';
 import { liveSessions } from './auth/sessions.js';
@@ -31,7 +34,7 @@ import { createKnowledge } from './knowledge/service.js';
 import { knowledgeRoutes } from './knowledge/routes.js';
 import { createIssuesSource } from './issues/source.js';
 import { issuesRoutes } from './issues/routes.js';
-import { issueContext, promptArgs } from './issues/context.js';
+import { issueContext } from './issues/context.js';
 import { createMetricsStore } from './metrics/store.js';
 import { metricsRoutes } from './metrics/routes.js';
 import os from 'node:os';
@@ -165,172 +168,16 @@ const lanStatus = () => (dropExpiredPairing(), {
   })),
 });
 
-// The CLIs run inside a per-mode workspace whose CLAUDE.md/AGENTS.md set the
-// knowledge behavior: "auto" consults the RAG on its own, "demand" only via
-// the knowledge-search skill. Each mode dir gets a symlink to the shared
-// skills/ so the palette's relative paths keep working.
-// Empaquetado (Electron): el .app es de solo lectura → todo lo escribible vive
-// en un workspace aparte (SIA_WORKSPACE, p. ej. userData). En dev, FUERA del
-// repo (~/.sia/workspace): así el cwd de los CLIs no cae dentro del código de
-// SIA y claude no husmea el repo (README, package.json…) creyéndolo "el
-// proyecto". El conocimiento del equipo llega solo por el RAG, no por el cwd.
-const WORKSPACE = process.env.SIA_WORKSPACE || path.join(os.homedir(), '.sia', 'workspace');
-const TEMPLATE_MODES = path.join(ROOT, 'workspace', 'modes'); // plantillas empaquetadas
-
+// Lo escribible (server/workspace/): en dev, ~/.sia/workspace; empaquetado, userData.
+const workspace = createWorkspace({ root: ROOT, dir: process.env.SIA_WORKSPACE || path.join(os.homedir(), '.sia', 'workspace') });
 // Imágenes adjuntadas desde la UI: temporales por arranque (se limpia al iniciar).
-const UPLOADS_DIR = path.join(WORKSPACE, 'uploads');
-fs.rmSync(UPLOADS_DIR, { recursive: true, force: true });
-fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-
-/* La base de conocimiento tiene su rincón del workspace: workspace/bases/<id>/skills
-   (sus skills sincronizadas) y workspace/bases/<id>/modes/{auto,demand} (el cwd
-   de los chats, con CLAUDE.md/AGENTS.md y un symlink skills → esas skills).
-   Sin base (sin sesión) se usa workspace/modes/<modo>. */
-const BASES_DIR = path.join(WORKSPACE, 'bases');
-// Nombre con el que cada CLI ve el servidor MCP de conocimiento: es el que sale
-// en pantalla cada vez que un chat busca o guarda («knowledge - search_knowledge»).
-// Instrucciones ya sembradas en un equipo o skills guardadas en una base
-// pueden nombrarlo con el nombre antiguo del servidor («ITX-knowledge»): al
-// escribirlas en disco se les pone el nombre vigente (mcpRename).
-const MCP_NAME = 'knowledge';
-const mcpRename = (text) => (typeof text === 'string' ? text.replace(/ITX-knowledge/g, MCP_NAME) : text);
-const skillsDirFor = (base) => path.join(BASES_DIR, base.id, 'skills');
-const prepareModeDir = (dir, mode, skillsDir) => {
-  try {
-    fs.mkdirSync(dir, { recursive: true });
-    // instrucciones del modo: sembrar desde la plantilla si aún no existen
-    for (const f of ['CLAUDE.md', 'AGENTS.md']) {
-      const dest = path.join(dir, f);
-      const src = path.join(TEMPLATE_MODES, mode, f);
-      if (!fs.existsSync(dest) && fs.existsSync(src) && dest !== src) fs.copyFileSync(src, dest);
-      // las sembradas por una versión anterior: solo se corrige el nombre del
-      // servidor MCP, sin tocar lo demás (el fichero puede estar retocado a mano)
-      if (fs.existsSync(dest) && dest !== src) {
-        const text = fs.readFileSync(dest, 'utf8');
-        if (mcpRename(text) !== text) fs.writeFileSync(dest, mcpRename(text));
-      }
-    }
-    // ojo: existsSync sigue el symlink (un enlace roto da false) → usar lstat
-    const link = path.join(dir, 'skills');
-    let linkExists = false;
-    const norm = (p) => path.resolve(String(p).replace(/^\\\\\?\\/, '')).replace(/[\\/]+$/, '').toLowerCase();
-    try { linkExists = norm(fs.readlinkSync(link)) === norm(skillsDir); if (!linkExists) fs.unlinkSync(link); } catch { /* no existe o no es enlace */ }
-    if (!linkExists) {
-      fs.mkdirSync(skillsDir, { recursive: true });
-      fs.symlinkSync(skillsDir, link, os.platform() === 'win32' ? 'junction' : 'dir');
-    }
-  } catch (err) {
-    console.error(`[sia] no se pudo preparar ${dir}: ${err.message}`);
-  }
-};
-const SKILLS_DIR = path.join(WORKSPACE, 'skills'); // sin base: vacío
-const MODE_DIRS = {
-  auto: path.join(WORKSPACE, 'modes', 'auto'),
-  demand: path.join(WORKSPACE, 'modes', 'demand'),
-};
-for (const [mode, dir] of Object.entries(MODE_DIRS)) prepareModeDir(dir, mode, SKILLS_DIR);
-const modeDirFor = (mode, base) => {
-  if (!base) return MODE_DIRS[mode];
-  const dir = path.join(BASES_DIR, base.id, 'modes', mode);
-  prepareModeDir(dir, mode, skillsDirFor(base));
-  return dir;
-};
-
-// Knowledge MCP: configs con rutas absolutas para que los CLIs arranquen
-// nuestro servidor MCP local. ELECTRON_RUN_AS_NODE: bajo Electron,
-// process.execPath es el binario de la app y con esa variable actúa como Node
-// puro (bajo node normal es inocua). Van al WORKSPACE porque el directorio de
-// la app empaquetada puede ser de solo lectura.
-const MCP_SERVER = path.join(ROOT, 'mcp', 'index.js');
+fs.rmSync(workspace.uploadsDir, { recursive: true, force: true });
+fs.mkdirSync(workspace.uploadsDir, { recursive: true });
+const isWin = os.platform() === 'win32';
+// Los CLIs y sus ficheros de MCP por sesión (server/launchers/).
+const launchers = createLaunchers({ workspace: workspace.dir, codexHome: process.env.CODEX_HOME || path.join(os.homedir(), '.codex'), mcpServer: path.join(ROOT, 'mcp', 'index.js'), isWin });
 // rutas de la API que no tocan la base de conocimiento
 const DB_FREE_ROUTES = new Set(['version', 'lan', 'config', 'upload', 'uploads']);
-// La config MCP se escribe POR SESIÓN con los proyectos elegidos para ese chat
-// (SIA_ALLOWED_PROJECTS: la selección del usuario dentro de su techo). La
-// conexión viaja al MCP por entorno (nunca por la conversación): la clave
-// publishable de la base y los tokens de los proyectos, que es lo que la base exige
-// para dejar ver algo (ver supabase-schema.sql). Sin base configurada no se
-// registra el MCP: el chat arranca igual, solo que sin conocimiento.
-const sessionMcpEnv = (allowedProjects, base) => ({
-  ELECTRON_RUN_AS_NODE: '1', SIA_ALLOWED_PROJECTS: allowedProjects.join(','),
-  ...(base ? { SIA_SUPABASE_URL: base.url, SIA_SUPABASE_KEY: base.key, SIA_ACCESS_TOKENS: headerValue(base.tokens) } : {}),
-});
-// Codex (OpenAI) no lee un fichero de MCP por sesión: se le escribe un PERFIL
-// (`$CODEX_HOME/sia-<sesión>.config.toml`, que se apila sobre su config.toml
-// sin tocarlo) y se lanza con -p sia-<sesión>. Un perfil en vez de -c porque
-// así los argumentos no llevan comillas ni llaves, que en Windows pasan por
-// cmd.exe y se rompen. El fichero se borra al terminar la sesión.
-const CODEX_HOME = process.env.CODEX_HOME || path.join(os.homedir(), '.codex');
-const tomlStr = (v) => `"${String(v).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
-const codexProfile = (sessionId) => `sia-${sessionId}`;
-const writeCodexProfile = (sessionId, allowedProjects, base) => {
-  const env = sessionMcpEnv(allowedProjects, base);
-  const toml = [
-    '# perfil temporal de SIA para esta sesión (se borra al cerrarla)',
-    `[mcp_servers.${MCP_NAME}]`,
-    `command = ${tomlStr(process.execPath)}`,
-    `args = [${tomlStr(MCP_SERVER)}]`,
-    `[mcp_servers.${MCP_NAME}.env]`,
-    ...Object.entries(env).map(([k, v]) => `${k} = ${tomlStr(v)}`),
-    '',
-  ].join('\n');
-  fs.mkdirSync(CODEX_HOME, { recursive: true });
-  fs.writeFileSync(path.join(CODEX_HOME, `${codexProfile(sessionId)}.config.toml`), toml, { mode: 0o600 });
-};
-const removeCodexProfile = (sessionId) => { try { fs.unlinkSync(path.join(CODEX_HOME, `${codexProfile(sessionId)}.config.toml`)); } catch {} };
-// perfiles huérfanos de arranques anteriores (cierres bruscos)
-try { for (const f of fs.readdirSync(CODEX_HOME)) if (/^sia-s\d+\.config\.toml$/.test(f)) fs.unlinkSync(path.join(CODEX_HOME, f)); } catch {}
-const writeSessionMcpConfig = (sessionId, kind, allowedProjects, base) => {
-  const conn = base ? { url: base.url, key: base.key } : null;
-  const env = sessionMcpEnv(allowedProjects, base);
-  const server = !conn ? {} : kind === 'copilot'
-    ? { [MCP_NAME]: { type: 'local', command: process.execPath, args: [MCP_SERVER], tools: ['*'], env } }
-    : { [MCP_NAME]: { command: process.execPath, args: [MCP_SERVER], env } };
-  const file = path.join(WORKSPACE, `.mcp-${kind}-${sessionId}.json`);
-  fs.writeFileSync(file, JSON.stringify({ mcpServers: server }, null, 2));
-  return file;
-};
-
-// Los CLIs que se pueden lanzar. La web los enseña (los que no están
-// instalados, apagados) y pide el modo de conocimiento (auto/demand).
-const LAUNCHERS = [
-  { id: 'claude', label: 'Claude', cmd: 'claude' },
-  { id: 'copilot', label: 'Copilot', cmd: 'copilot' },
-  { id: 'codex', label: 'Codex', cmd: 'codex' }, // el CLI de OpenAI
-];
-
-// Resuelve un comando a su ruta ejecutable REAL. En Windows los CLIs instalados
-// por npm (claude, copilot) son shims `.cmd`; `which('claude')` con el nombre
-// pelado encontraba el wrapper sh sin extensión (existe también) y el guard
-// pasaba, pero luego pty.spawn('claude') fallaba con "File not found" porque
-// ConPTY/CreateProcess NO aplica PATHEXT. Aquí probamos las extensiones de
-// PATHEXT y devolvemos la ruta completa (o null si no se encuentra).
-const isWin = os.platform() === 'win32';
-const PATHEXT = isWin ? (process.env.PATHEXT || '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean) : [];
-const resolveCmd = (cmd) => {
-  // En Windows las extensiones de PATHEXT tienen PRIORIDAD sobre un archivo sin
-  // extensión: npm deja un wrapper sh `claude` (sin ext, no ejecutable por
-  // Windows) junto al `claude.cmd` que sí queremos. Fuera de Windows solo la
-  // forma literal ('') tiene sentido.
-  const exts = isWin ? [...PATHEXT, ''] : [''];
-  const firstFile = (base) => {
-    for (const ext of exts) {
-      const full = base + ext;
-      try { if (fs.statSync(full).isFile()) return full; } catch { /* siguiente */ }
-    }
-    return null;
-  };
-  if (cmd.includes('/') || cmd.includes('\\') || path.isAbsolute(cmd)) return firstFile(cmd);
-  for (const d of (process.env.PATH || '').split(path.delimiter)) {
-    if (!d) continue;
-    const hit = firstFile(path.join(d, cmd));
-    if (hit) return hit;
-  }
-  return null;
-};
-// ¿Es un comando lanzable? (ruta absoluta o localizable en el PATH)
-const which = (cmd) => !!resolveCmd(cmd);
-
-const launcherList = () => LAUNCHERS.map((l) => ({ id: l.id, label: l.label, available: which(l.cmd) }));
 
 const parseFrontmatter = (src) => {
   const fm = {};
@@ -347,7 +194,7 @@ const parseFrontmatter = (src) => {
 // Skills dictionary: workspace/skills/<name>/SKILL.md (frontmatter YAML). Parsed
 // fresh per connection so a fresh sync needs no restart.
 const skillList = (base = null) => {
-  const dir = base ? skillsDirFor(base) : SKILLS_DIR;
+  const dir = base ? workspace.skillsDirFor(base) : workspace.skillsDir;
   try {
     return fs.readdirSync(dir, { withFileTypes: true })
       .filter((d) => d.isDirectory())
@@ -451,7 +298,7 @@ const projects = createProjects({ newId: randomUUID, fetchAll });
 
 const syncSkills = async (base) => {
   if (!base) return;
-  const dir = skillsDirFor(base);
+  const dir = workspace.skillsDirFor(base);
   try {
     // sin el esquema blindado la base no se usa (ni para skills): aviso y fuera
     if (await needsSchema(base)) { console.warn(`[sia] «${base.name}» necesita el SQL del esquema nuevo: no se usa hasta entonces`); lastSyncByBase.set(base.id, Date.now()); return; }
@@ -486,7 +333,7 @@ const lastSyncByBase = new Map();
 const syncAllSkills = async () => {
   // otra base (o ninguna): fuera el rincón del workspace de la anterior
   const b = currentBase();
-  try { for (const d of fs.readdirSync(BASES_DIR)) if (d !== b?.id) fs.rmSync(path.join(BASES_DIR, d), { recursive: true, force: true }); } catch {}
+  workspace.keepOnlyBase(b);
   await syncSkills(b);
 };
 const maybeSyncSkills = () => {
@@ -639,8 +486,6 @@ const linkFields = ({ title, url, image, notes }) => {
   return { value: { title: t, url: u, image: img, notes: notes ? String(notes) : null } };
 };
 
-const DRAFTS_DIR = path.join(WORKSPACE, 'lab-drafts');
-
 const walkDir = (dir, base = '') => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
   e.isDirectory() ? walkDir(path.join(dir, e.name), path.join(base, e.name))
     : [{ path: path.join(base, e.name), content: fs.readFileSync(path.join(dir, e.name), 'utf8') }]);
@@ -654,10 +499,10 @@ const syncKeys = (jwt, userId, opts) => knowledge.syncPeople(jwt, userId ? [user
 const usersRoute = usersRoutes(users, auth, { json, readBody, syncKeys, assignKnowledge: (jwt, userId, ids) => knowledge.setProjects(jwt, userId, ids) });
 const knowledgeRoute = knowledgeRoutes(knowledge, auth, { json, readBody, syncKeys, onChange: loadAssigned });
 // Issues: de momento, el CSV más reciente que se deje en <workspace>/issues.
-const issuesSource = createIssuesSource(path.join(WORKSPACE, 'issues'));
+const issuesSource = createIssuesSource(workspace.issuesDir);
 const issuesRoute = issuesRoutes(issuesSource, auth, platform, { json, readBody });
 // Métricas: calculadas desde el CSV completo de Remedy que carga cada persona; de momento, solo 2026.
-const metricsRoute = metricsRoutes(createMetricsStore(path.join(WORKSPACE, 'metrics'), { year: 2026 }), { json });
+const metricsRoute = metricsRoutes(createMetricsStore(workspace.metricsDir, { year: 2026 }), { json });
 const validId = (s) => typeof s === 'string' && /^[a-z0-9][a-z0-9_-]{1,63}$/i.test(s);
 let uploadSeq = 0;
 const validFiles = (files) => Array.isArray(files) && files.length &&
@@ -679,9 +524,9 @@ const PUBLIC = {
 
 // Binario de cloudflared: el del PATH si existe; si no, uno descargado al
 // workspace (escribible también en la app empaquetada) la primera vez.
-const CF_DIR = path.join(WORKSPACE, 'bin');
+const CF_DIR = workspace.binDir;
 const CF_LOCAL = path.join(CF_DIR, isWin ? 'cloudflared.exe' : 'cloudflared');
-const cloudflaredPath = () => resolveCmd('cloudflared') || (fs.existsSync(CF_LOCAL) ? CF_LOCAL : null);
+const cloudflaredPath = () => launchers.resolve('cloudflared') || (fs.existsSync(CF_LOCAL) ? CF_LOCAL : null);
 const cfAsset = () => {
   const arch = os.arch() === 'arm64' ? 'arm64' : 'amd64';
   if (isWin) return 'cloudflared-windows-amd64.exe'; // no hay build arm64 de Windows
@@ -1166,12 +1011,12 @@ const apiServer = http.createServer(async (req, res) => {
       const ext = ((path.extname(name || '') || '.png').toLowerCase().replace(/[^.a-z0-9]/g, '')) || '.png';
       const base = path.basename(name || 'imagen', path.extname(name || '')).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40) || 'imagen';
       const fname = `${++uploadSeq}-${base}${ext}`;
-      fs.writeFileSync(path.join(UPLOADS_DIR, fname), Buffer.from(data, 'base64'));
-      return json(res, 200, { ok: true, name: fname, absPath: path.join(UPLOADS_DIR, fname) });
+      fs.writeFileSync(path.join(workspace.uploadsDir, fname), Buffer.from(data, 'base64'));
+      return json(res, 200, { ok: true, name: fname, absPath: path.join(workspace.uploadsDir, fname) });
     }
     if (parts[1] === 'uploads' && req.method === 'GET' && parts[2]) {
       const fname = path.basename(decodeURIComponent(parts[2]));
-      const fp = path.join(UPLOADS_DIR, fname);
+      const fp = path.join(workspace.uploadsDir, fname);
       if (!fs.existsSync(fp)) return json(res, 404, { error: 'no encontrado' });
       const MIME = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.pdf': 'application/pdf', '.txt': 'text/plain; charset=utf-8', '.md': 'text/plain; charset=utf-8', '.csv': 'text/csv; charset=utf-8', '.json': 'application/json' };
       res.writeHead(200, { 'Content-Type': MIME[path.extname(fname).toLowerCase()] || 'application/octet-stream' });
@@ -1252,7 +1097,7 @@ const apiServer = http.createServer(async (req, res) => {
       }
       const { error } = await db.from('skills').delete().eq('id', id); // skill_files cae por cascade
       if (error) return json(res, 500, { error: error.message });
-      fs.rmSync(path.join(skillsDirFor(knowledgeBase), id), { recursive: true, force: true });
+      fs.rmSync(path.join(workspace.skillsDirFor(knowledgeBase), id), { recursive: true, force: true });
       await syncSkills(knowledgeBase);
       return json(res, 200, { ok: true, deleted: id });
     }
@@ -1268,15 +1113,15 @@ const apiServer = http.createServer(async (req, res) => {
 
     // ── borradores (locales, no salen en la paleta) ──
     if (parts[1] === 'drafts' && req.method === 'GET' && !parts[2]) {
-      const ids = fs.existsSync(DRAFTS_DIR)
-        ? fs.readdirSync(DRAFTS_DIR, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name)
+      const ids = fs.existsSync(workspace.draftsDir)
+        ? fs.readdirSync(workspace.draftsDir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name)
         : [];
       return json(res, 200, ids);
     }
     if (parts[1] === 'drafts' && parts[2]) {
       const id = decodeURIComponent(parts[2]);
       if (!validId(id)) return json(res, 400, { error: 'id inválido' });
-      const dir = path.join(DRAFTS_DIR, id);
+      const dir = path.join(workspace.draftsDir, id);
       if (req.method === 'GET') {
         if (!fs.existsSync(dir)) return json(res, 404, { error: 'borrador no encontrado' });
         return json(res, 200, { id, files: walkDir(dir) });
@@ -1389,7 +1234,7 @@ const handleConnection = (ws, req) => {
   maybeSyncSkills(); // refresh the catalog in the background (next chat sees it)
 
   accessibleProjects().then((projects) =>
-    send(ws, { type: 'launchers', list: launcherList(), skills: skillList(currentBase()), sessions: sessionList(), accessProjects: projects }));
+    send(ws, { type: 'launchers', list: launchers.list(), skills: skillList(currentBase()), sessions: sessionList(), accessProjects: projects }));
 
   const bind = (s) => {
     // Un socket por sesión. 4409 = "otro dispositivo tomó los chats": el cliente
@@ -1415,8 +1260,8 @@ const handleConnection = (ws, req) => {
         const open = [...SESSIONS.values()].find((x) => x.meta.issue === issue.id);
         if (open) { bind(open); send(ws, { type: 'started', sessionId: open.id }); send(ws, { type: 'history', data: open.buffer }); return; }
       }
-      const def = LAUNCHERS.find((l) => l.id === launcherId) || LAUNCHERS[0];
-      if (!which(def.cmd)) {
+      const def = launchers.byId(launcherId);
+      if (!launchers.installed(def)) {
         send(ws, { type: 'error', message: `"${def.cmd}" no está instalado.` });
         return;
       }
@@ -1427,41 +1272,15 @@ const handleConnection = (ws, req) => {
       const base = currentBase();
       const ceiling = (await accessibleProjects(base)).map((p) => p.id);
       const picked = Array.isArray(projects) && projects.length ? ceiling.filter((id) => projects.includes(id)) : ceiling;
-      let args;
-      if (def.id === 'codex') {
-        // sin sandbox ni confirmaciones, como bypassPermissions en Claude; el MCP por perfil
-        if (base) { writeCodexProfile(sessionId, picked, base); args = ['--dangerously-bypass-approvals-and-sandbox', '-p', codexProfile(sessionId)]; }
-        else args = ['--dangerously-bypass-approvals-and-sandbox'];
-      } else {
-        const cfg = writeSessionMcpConfig(sessionId, def.id, picked, base);
-        args = def.id === 'copilot'
-          ? ['--allow-all', '--additional-mcp-config', `@${cfg}`]
-          // bypassPermissions = bypass sin el prompt de "¿seguro?"; setting-sources ''
-          // ignora el settings.json global del usuario (hooks de otra versión que
-          // rompen el 2.1.47) sin tocar el login (vive en el Keychain de macOS).
-          : ['--permission-mode', 'bypassPermissions', '--setting-sources', '', '--mcp-config', cfg];
-      }
-
-      // Resolvemos la ruta real del ejecutable. En Windows un shim .cmd/.bat no
-      // lo ejecuta ConPTY por sí solo (CreateProcess no corre batch), así que lo
-      // lanzamos a través de cmd.exe /c — igual que hace la terminal de VS Code.
-      // el primer mensaje, delante: detrás, `--mcp-config` (admite varios) se lo tragaría
-      if (issue) args = [...promptArgs(def.id, issueContext(issue)), ...args];
-      const exe = resolveCmd(def.cmd) || def.cmd;
-      let spawnCmd = exe;
-      let spawnArgs = args;
-      if (isWin && /\.(cmd|bat)$/i.test(exe)) {
-        spawnCmd = process.env.COMSPEC || 'cmd.exe';
-        spawnArgs = ['/c', exe, ...args];
-      }
+      const spawn = launchers.prepare(def, sessionId, picked, base, issue ? issueContext(issue) : null);
 
       let term;
       try {
-        term = pty.spawn(spawnCmd, spawnArgs, {
+        term = pty.spawn(spawn.cmd, spawn.args, {
           name: 'xterm-color',
           cols: cols > 0 ? cols : 80,
           rows: rows > 0 ? rows : 24,
-          cwd: modeDirFor(mode, base),
+          cwd: workspace.modeDirFor(mode, base),
           // SHELL_SESSIONS_DISABLE removes macOS's "Restored session…" banner.
           // cleanEnv poda el entorno heredado (CLAUDECODE/*, tokens de GitHub) y
           // userEnv() pone encima las credenciales personales (Jira, la clave de
@@ -1494,8 +1313,7 @@ const handleConnection = (ws, req) => {
       term.onExit(() => {
         console.log(`[sia] session ended (id ${s.id})`);
         SESSIONS.delete(s.id);
-        for (const k of ['claude', 'copilot']) { try { fs.rmSync(path.join(WORKSPACE, `.mcp-${k}-${s.id}.json`)); } catch {} }
-        removeCodexProfile(s.id);
+        launchers.cleanup(s.id);
         send(s.ws, { type: 'exit' });
         if (s.ws) { try { s.ws.close(); } catch {} }
         broadcastSessions(); // el chat desaparece en todos los dispositivos

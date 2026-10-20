@@ -26,7 +26,3 @@ export const issueContext = (i) => [
   'Usa el conocimiento del equipo cuando haga falta. De momento no hagas nada más:',
   `responde solo con un resumen de una línea y pregunta en qué te ayudo con ${i.id}.`,
 ].join('\n');
-
-// Cómo pasa cada agente ese primer mensaje al arrancar en interactivo (va
-// delante del resto de opciones).
-export const promptArgs = (launcherId, prompt) => (launcherId === 'copilot' ? ['-i', prompt] : [prompt]);
