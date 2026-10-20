@@ -15,26 +15,23 @@ import { createCharts } from './charts.js';
 import { createTabs, TABS } from './tabs.js';
 import { periodLabel, calendarHtml } from './period.js';
 import { attachTip } from './tip.js';
+import { COLORS, defaultColors, freeColor, dayOf, freeCompany, withoutSide, togglePerson, monthRange, filterKey } from './view.js';
 
 const SEARCH_MS = 250;
 const svg = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const CALENDAR_ICON = svg('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>');
 const SEARCH_ICON = svg('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>');
 const CHEVRON = svg('<path d="m6 9 6 6 6-6"/>');
-// colores para elegir en cada lado (no el rojo ni el verde: son peor y mejor); de partida, azul y ocre
-const COLORS = [['#2f6fb5', 'azul'], ['#c98a3a', 'ocre'], ['#7c4dcc', 'morado'], ['#14919b', 'turquesa'], ['#d6457f', 'rosa'],
-  ['#e07b24', 'naranja'], ['#6d7a1f', 'oliva'], ['#5b6472', 'gris']];
 
 export const mountMetricsView = (root, { api, toast }) => {
   let m = null, tabs = null, tab = 'resumen', loading = false;
   // open: el desplegable abierto ('calendar', 'side0' o 'side1'); anchor: el primer mes marcado a
   // falta del último; who: lo escrito en el buscador de personas; searching: la búsqueda abierta
   let open = null, anchor = null, who = '', searching = false;
-  let colors = [COLORS[0][0], COLORS[1][0]];   // el color de cada lado
+  let colors = defaultColors();   // el color de cada lado
   const ui = { exp: {}, sort: {} };
   const $ = (s) => root.querySelector(s);
 
-  const dayOf = (iso) => { const d = new Date(iso); return `${d.getDate()} de ${MONTHS[d.getMonth()]}`; };
   const loadButton = (label) => `<label class="mt-load ${loading ? 'mt-busy' : ''}">${loading ? 'Calculando…' : label}<input type="file" accept=".csv,text/csv" data-csv hidden ${loading ? 'disabled' : ''}></label>`;
 
   const renderEmpty = () => {
@@ -108,9 +105,6 @@ export const mountMetricsView = (root, { api, toast }) => {
         || '<p class="mt-mut">Nadie con ese nombre.</p>';
     }
   };
-  // la empresa que se pone por defecto a un lado: la primera que no tenga ya el otro
-  const freeCompany = (other) => ({ company: [0, 1, 2].find((c) => other?.people || other?.company !== c) });
-
   const closePops = () => { open = null; anchor = null; who = ''; };
   // Al salir del calendario con un solo mes marcado, ese mes; true si el periodo ha cambiado.
   const settleMonth = () => {
@@ -167,7 +161,6 @@ export const mountMetricsView = (root, { api, toast }) => {
     }
   };
 
-  const filterKey = (s) => { const p = s.indexOf(':'); return [s.slice(0, p), Number(s.slice(p + 1))]; };
   root.addEventListener('click', (e) => {
     if (!m || e.target.closest('a')) return;
     const { S } = m;
@@ -179,7 +172,7 @@ export const mountMetricsView = (root, { api, toast }) => {
     if (month) {
       const k = Number(month.dataset.month);
       if (anchor == null) { anchor = k; return renderPeriod(); }
-      [S.from, S.to] = [Math.min(anchor, k), Math.max(anchor, k)];
+      [S.from, S.to] = monthRange(anchor, k);
       closePops();
       return render();
     }
@@ -188,14 +181,13 @@ export const mountMetricsView = (root, { api, toast }) => {
     if (company) { const [k, c] = company.dataset.pickCompany.split(':').map(Number); S.sides[k] = { company: c }; closePops(); return render(); }
     if (e.target.closest('[data-side-add]')) {
       S.sides[1] = freeCompany(S.sides[0]);
-      colors[1] = COLORS.find(([c]) => c !== colors[0])[0];
+      colors[1] = freeColor(colors[0]);
       closePops();
       return render();
     }
     const remove = e.target.closest('[data-side-remove]');
     if (remove) {
-      // queda el otro lado, que pasa a ser A con su color
-      if (remove.dataset.sideRemove === '0') { S.sides = [S.sides[1], null]; colors = [colors[1], colors[0]]; } else S.sides[1] = null;
+      ({ sides: S.sides, colors } = withoutSide(S.sides, colors, Number(remove.dataset.sideRemove)));
       closePops();
       return render();
     }
@@ -204,9 +196,7 @@ export const mountMetricsView = (root, { api, toast }) => {
     const person = e.target.closest('[data-pick-person]');
     if (person) {
       const [k, p] = person.dataset.pickPerson.split(':').map(Number);
-      const set = new Set(S.sides[k]?.people || []);
-      if (set.has(p)) set.delete(p); else set.add(p);
-      S.sides[k] = set.size ? { people: set } : freeCompany(S.sides[1 - k]);
+      S.sides[k] = togglePerson(S.sides, k, p);
       return render();
     }
     if (open && !e.target.closest('.mt-pop')) {
@@ -270,7 +260,7 @@ export const mountMetricsView = (root, { api, toast }) => {
     focus: (person) => ready().then(() => {
       if (!m) return;
       m.S.sides = [{ people: new Set([person]) }, { company: m.data.company[person] }];
-      colors = [COLORS[0][0], COLORS[1][0]];
+      colors = defaultColors();
       tab = 'resumen'; closePops();
       render();
     }).catch(failed),

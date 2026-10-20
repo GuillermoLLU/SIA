@@ -21,8 +21,8 @@ export const lineScale = (values, n, { W, H, L, R, T, B }) => {
 // La del día en 24 horas: cada hora en el centro de su franja (x) o en su borde (edge), y las franjas de los
 // turnos (de la hora `from` a `to`).
 export const dayScale = (series, { W, H, L, R, T, B }) => {
-  const max = Math.max(1, ...series.flatMap((s) => s.v)) * AIR, w = (W - L - R) / 24, edge = (h) => L + h * w;
-  return { max, x: (h) => edge(h + 0.5), edge, y: (v) => T + (H - T - B) * (1 - v / max), band: (from, to) => ({ x: edge(from), width: (to - from) * w }) };
+  const max = Math.max(1, ...series.flatMap((s) => s.v)) * AIR, span = W - L - R, edge = (h) => L + h * span / 24;
+  return { max, x: (h) => edge(h + 0.5), edge, y: (v) => T + (H - T - B) * (1 - v / max), band: (from, to) => ({ x: edge(from), width: (to - from) * span / 24 }) };
 };
 
 // El orden de una ficha: por la columna elegida (key) y sentido (dir); al ordenar por cómo se atiende (rated), lo
