@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseCsv, csvReader } from './csv.js';
+import { parseCsv, csvReader, isCsvName } from './csv.js';
 
 const TEXT = '﻿A,B,C\r\n1,"dos, ""tres""","línea 1\nlínea 2"\r\n\r\n4,,\n"",x,""""\r\n';
 const ROWS = [
@@ -27,4 +27,10 @@ test('por trozos: da igual dónde corte cada uno', () => {
       assert.deepEqual(rows, ROWS, `cortes en ${a} y ${b}`);
     }
   }
+});
+
+test('isCsvName: un nombre de fichero .csv, sin rutas', () => {
+  assert.equal(isCsvName('issues_2026.csv'), true);
+  assert.equal(isCsvName('Datos de Remedy.CSV'), true);
+  for (const bad of ['', 'datos.xlsx', '../x.csv', 'a/b.csv', 'a\\b.csv', `${'x'.repeat(200)}.csv`]) assert.equal(isCsvName(bad), false, bad);
 });

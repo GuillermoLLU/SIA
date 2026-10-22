@@ -57,5 +57,7 @@ export const createIssuesService = ({ source, platform }) => {
     },
     // una issue de la foto, por id (el chat de una issue)
     find: (id) => source.load().issues.find((i) => i.id === id) || null,
+    // el CSV de la consulta, tal cual, por trozos → { file, taken, issues }
+    importCsv: (chunks, name) => source.importCsv(chunks, name),
   };
 };

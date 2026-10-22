@@ -59,6 +59,9 @@ export const csvReader = (onRow) => {
   return { push, end };
 };
 
+// Un nombre de fichero .csv tal cual lo manda la web (sin rutas, de 1 a 200 caracteres).
+export const isCsvName = (name) => /^[^/\\]{1,200}$/.test(name) && name.toLowerCase().endsWith('.csv');
+
 // Un CSV entero que ya está en memoria → filas.
 export const parseCsv = (text) => {
   const rows = [];
