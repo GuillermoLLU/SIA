@@ -21,10 +21,17 @@ const setup = (claims = []) => {
     },
   };
   const loads = { n: 0 };
-  const source = { load: () => { loads.n++; return { taken: '2026-10-04T09:44:00.000Z', issues: ISSUES }; } };
+  const imports = [];
+  const source = {
+    load: () => { loads.n++; return { taken: '2026-10-04T09:44:00.000Z', issues: ISSUES }; },
+    importCsv: async (chunks, name) => { const got = [name]; for await (const c of chunks) got.push(c); imports.push(got); return { file: name, taken: 't', issues: 1 }; },
+  };
   const route = issuesRoutes(createIssuesService({ source, platform }), { json: (res, status, body) => Object.assign(res, { status, body }), readBody: async (req) => req.body || {} });
-  const call = async (method, path, body) => { const res = {}; await route({ method, body }, res, path, WHO); return res; };
-  return { call, calls, loads };
+  const call = async (method, path, body, query = '') => {
+    const res = {}, req = { method, body, setEncoding() {}, resume() {}, [Symbol.asyncIterator]: async function* () { yield body; } };
+    await route(req, res, path, WHO, new URLSearchParams(query)); return res;
+  };
+  return { call, calls, loads, imports };
 };
 
 test('GET /: libres, reglas y mi mesa (responsable en Remedy o cogida en SIA)', async () => {
@@ -69,4 +76,13 @@ test('GET /teammates: el equipo de Issues sin mí, sin leer la foto; un fallo de
   const broken = issuesRoutes({ desk: async () => { throw Object.assign(new Error('sin red'), { status: 503 }); } }, { json: (res, status, body) => Object.assign(res, { status, body }), readBody: async () => ({}) });
   const res = {}; await broken({ method: 'GET' }, res, [], WHO);
   assert.deepEqual([res.status, res.body], [503, { error: 'sin red' }]);
+});
+
+test('POST /csv: carga el cuerpo con el nombre del fichero; sin nombre .csv, 400', async () => {
+  const { call, imports } = setup();
+  assert.deepEqual((await call('POST', ['csv'], 'csv', 'name=issues_2026.csv')).body, { meta: { file: 'issues_2026.csv', taken: 't', issues: 1 } });
+  assert.deepEqual(imports, [['issues_2026.csv', 'csv']]);
+  assert.equal((await call('POST', ['csv'], 'csv', 'name=datos.xlsx')).status, 400);
+  assert.equal((await call('POST', ['csv'], 'csv', 'name=../x.csv')).status, 400);
+  assert.equal(imports.length, 1);
 });
