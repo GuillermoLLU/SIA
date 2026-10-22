@@ -17,7 +17,11 @@
 .iss-load { display: inline-flex; align-items: center; height: 32px; padding: 0 14px; font-size: 13px; font-weight: 600; color: var(--surface); background: var(--accent); cursor: pointer; white-space: nowrap; }
 .iss-load:hover { filter: brightness(1.08); }
 .iss-load.iss-busy { opacity: .6; cursor: progress; }
-.iss-empty + .iss-load { margin-top: 12px; }
+.iss-none { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 70px 20px; text-align: center; font-size: 13px; color: var(--text-low); }
+.iss-none b { font-size: 15px; color: var(--text); }
+.iss-none span { max-width: 460px; }
+.iss-none .iss-load { margin-top: 8px; }
+.iss-top .iss-load { align-self: center; }
 .iss-empty { margin: 0; padding: 20px 0; text-align: center; color: var(--text-low); font-size: 13px; }
 
 /* tarjetas */

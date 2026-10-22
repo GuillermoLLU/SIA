@@ -15,7 +15,7 @@ const REFRESH_MS = 15000;
 
 // openChat(host, issueId) → { dispose }: el chat de la issue (lo pone main.js).
 export const mountIssuesView = (root, { api, me, toast, openChat }) => {
-  let data = null, rule = 'basic', now = new Date(), opened = null, onDesk = false, workTab = 'ai', chat = null, loading = false;
+  let data = null, rule = 'basic', now = new Date(), opened = null, onDesk = false, workTab = 'ai', chat = null, loading = false, picking = false;
   const closeChat = () => { chat?.dispose(); chat = null; };
 
   // Cargar la foto (el CSV de la consulta de Remedy, hasta leer de Remedy).
@@ -34,8 +34,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
     onDesk = true;
     if (!data.taken) {
       root.innerHTML = `<div class="iss-page"><h2 class="iss-title">Issues</h2>
-        <p class="iss-empty">Aún no hay issues. De momento se cargan con el CSV de la consulta de Remedy (vale el mismo que el de Métricas); cuando SIA lea de Remedy, saldrán de ahí.</p>
-        ${loadButton('Cargar CSV')}</div>`;
+        <div class="iss-none"><b>Aún no hay issues</b><span>De momento se cargan con el CSV de la consulta de Remedy (vale el mismo que el de Métricas); cuando SIA lea de Remedy, saldrán de ahí.</span>${loadButton('Cargar CSV')}</div></div>`;
       return;
     }
     const { today, history, next } = data;
@@ -177,12 +176,16 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
 
   root.addEventListener('change', (e) => {
     if (e.target.matches('[data-rule]')) rule = e.target.value;
-    if (e.target.matches('[data-csv]')) upload(e.target.files[0]);
+    if (e.target.matches('[data-csv]')) { picking = false; upload(e.target.files[0]); }
   });
+  // Con el diálogo de elegir fichero abierto no se repinta la mesa: el
+  // cambio llegaría a un input que ya no está en la página.
+  root.addEventListener('click', (e) => { if (e.target.matches('[data-csv]')) picking = true; });
+  window.addEventListener('focus', () => { picking = false; });
 
   // Refresco: solo con la mesa a la vista (no mientras se trabaja una issue).
   const refresher = setInterval(() => {
-    if (!onDesk || root.hidden || document.visibilityState !== 'visible') return;
+    if (!onDesk || picking || root.hidden || document.visibilityState !== 'visible') return;
     const y = root.scrollTop;
     api.desk().then((d) => { data = d; now = d.taken ? new Date(d.taken) : new Date(); if (onDesk) { renderDesk(); root.scrollTop = y; } }).catch(() => {});
   }, REFRESH_MS);
