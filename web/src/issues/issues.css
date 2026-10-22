@@ -17,7 +17,7 @@
 .iss-load { display: inline-flex; align-items: center; height: 32px; padding: 0 14px; font-size: 13px; font-weight: 600; color: var(--surface); background: var(--accent); cursor: pointer; white-space: nowrap; }
 .iss-load:hover { filter: brightness(1.08); }
 .iss-load.iss-busy { opacity: .6; cursor: progress; }
-.iss-none { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 70px 20px; text-align: center; font-size: 13px; color: var(--text-low); }
+.iss-none { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-height: calc(100vh - 220px); padding: 20px; text-align: center; font-size: 13px; color: var(--text-low); }
 .iss-none b { font-size: 15px; color: var(--text); }
 .iss-none span { max-width: 460px; }
 .iss-none .iss-load { margin-top: 8px; }
