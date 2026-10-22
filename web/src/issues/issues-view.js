@@ -181,7 +181,8 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
   // Con el diálogo de elegir fichero abierto no se repinta la mesa: el
   // cambio llegaría a un input que ya no está en la página.
   root.addEventListener('click', (e) => { if (e.target.matches('[data-csv]')) picking = true; });
-  window.addEventListener('focus', () => { picking = false; });
+  const picked = () => { picking = false; };
+  window.addEventListener('focus', picked);
 
   // Refresco: solo con la mesa a la vista (no mientras se trabaja una issue).
   const refresher = setInterval(() => {
@@ -192,6 +193,6 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
 
   return {
     show: () => loadDesk().catch((err) => { root.innerHTML = `<div class="iss-page"><p class="iss-empty">No se pudieron cargar las issues: ${esc(err.message)}</p></div>`; }),
-    dispose: () => { clearInterval(refresher); closeChat(); },
+    dispose: () => { clearInterval(refresher); window.removeEventListener('focus', picked); closeChat(); },
   };
 };

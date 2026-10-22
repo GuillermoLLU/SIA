@@ -4,8 +4,7 @@
 // Los datos se calculan y se quedan en este ordenador (store.js).
 
 import { failed } from '../shared/http.js';
-
-const CSV_NAME = /^[^/\\]{1,200}$/;
+import { isCsvName } from '../shared/csv.js';
 
 export const metricsRoutes = (store, { json }) => async (req, res, path, query) => {
   try {
@@ -13,7 +12,7 @@ export const metricsRoutes = (store, { json }) => async (req, res, path, query) 
     if (!what && req.method === 'GET') return json(res, 200, { data: store.load() });
     if (what === 'csv' && !path[1] && req.method === 'POST') {
       const name = query.get('name') || '';
-      if (!CSV_NAME.test(name) || !name.toLowerCase().endsWith('.csv')) { req.resume(); return json(res, 400, { error: 'Elige un fichero .csv.' }); }
+      if (!isCsvName(name)) { req.resume(); return json(res, 400, { error: 'Elige un fichero .csv.' }); }
       req.setEncoding('utf8');
       return json(res, 200, { meta: await store.importCsv(req, name) });
     }

@@ -10,15 +10,15 @@
 //   POST /csv?name=<fichero>  cuerpo: el CSV de la consulta, tal cual → { meta }
 //                         (la foto de Issues; se queda en este ordenador, source.js)
 import { failed } from '../shared/http.js';
+import { isCsvName } from '../shared/csv.js';
 
 const ISSUE_ID = /^INC\d+$/;
-const CSV_NAME = /^[^/\\]{1,200}$/;
 
 export const issuesRoutes = (issues, { json, readBody }) => async (req, res, [id, action], who, query) => {
   try {
     if (id === 'csv' && !action && req.method === 'POST') {
-      const name = query?.get('name') || '';
-      if (!CSV_NAME.test(name) || !name.toLowerCase().endsWith('.csv')) { req.resume(); return json(res, 400, { error: 'Elige un fichero .csv.' }); }
+      const name = query.get('name') || '';
+      if (!isCsvName(name)) { req.resume(); return json(res, 400, { error: 'Elige un fichero .csv.' }); }
       req.setEncoding('utf8');
       return json(res, 200, { meta: await issues.importCsv(req, name) });
     }
