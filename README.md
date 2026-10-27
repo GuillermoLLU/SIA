@@ -27,6 +27,20 @@ del equipo**, trabaja las **issues** del servicio desde su mesa y sigue las
    Instala lo que falte y levanta el bridge y la web. Abre
    <http://localhost:5220> e inicia sesión.
 
+### Detrás de la VPN
+
+Si al arrancar aparece `No se pudo verificar el certificado de la base de la
+instancia`, el equipo no confía en los certificados corporativos. Impórtalos en
+el sistema y arranca con:
+
+```bash
+npm run dev:vpn
+```
+
+Es `node dev.mjs` con `NODE_USE_SYSTEM_CA=1`, para que Node use el almacén de
+certificados de Windows o macOS. Requiere Node 22.19 o superior. Fuera de la VPN
+no hace falta.
+
 Cada persona ve las vistas que le dé su rol: el Chat siempre y, además,
 Issues, Equipo soporte, Métricas, Enlaces, Laboratorio, Administración y
 Personas.
@@ -85,6 +99,7 @@ Todo esto, carpeta a carpeta y con cómo se comunican, en
 | Comando | Qué hace |
 |---|---|
 | `node dev.mjs` | Arranca bridge y web en desarrollo |
+| `npm run dev:vpn` | Lo mismo con los certificados del sistema (detrás de la VPN) |
 | `npm test` | Las pruebas de dominio (segundos) |
 | `cd web && npx vite build` | Compila la web |
 | `npm run test:platform` / `test:rls` | Pruebas de la base en Docker (cuando se toca SQL) |

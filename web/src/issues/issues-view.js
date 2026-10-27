@@ -15,8 +15,11 @@ const REFRESH_MS = 15000;
 
 // openChat(host, issueId) → { dispose }: el chat de la issue (lo pone main.js).
 export const mountIssuesView = (root, { api, me, toast, openChat }) => {
-  let data = null, rule = 'basic', now = new Date(), opened = null, onDesk = false, workTab = 'ai', chat = null;
+  let data = null, rule = 'basic', now = new Date(), opened = null, onDesk = false, workTab = 'ai', chat = null, loading = false, picking = false;
   const closeChat = () => { chat?.dispose(); chat = null; };
+
+  // Cargar la foto (el CSV de la consulta de Remedy, hasta leer de Remedy).
+  const loadButton = (label) => `<label class="iss-load ${loading ? 'iss-busy' : ''}">${loading ? 'Cargando…' : label}<input type="file" accept=".csv,text/csv" data-csv hidden ${loading ? 'disabled' : ''}></label>`;
 
   const kpi = (label, value, hint) => `<div class="iss-kpi"><span>${label}</span><b>${value}</b><small>${hint}</small></div>`;
 
@@ -31,7 +34,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
     onDesk = true;
     if (!data.taken) {
       root.innerHTML = `<div class="iss-page"><h2 class="iss-title">Issues</h2>
-        <p class="iss-empty">Aún no hay issues. De momento se leen del CSV más reciente que se deje en la carpeta «issues» del workspace de SIA.</p></div>`;
+        <div class="iss-none"><b>Aún no hay issues</b><span>De momento se cargan con el CSV de la consulta de Remedy (vale el mismo que el de Métricas); cuando SIA lea de Remedy, saldrán de ahí.</span>${loadButton('Cargar CSV')}</div></div>`;
       return;
     }
     const { today, history, next } = data;
@@ -39,7 +42,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
     const count = (key) => lists.find((l) => l.key === key).items.length;
     const used = history.weeks.some((w) => w.sga + w.sisu);
     root.innerHTML = `<div class="iss-page">
-      <header class="iss-top"><h2 class="iss-title">Hola, ${esc((me?.name || '').split(' ')[0] || 'equipo')}</h2><span class="iss-snap">Datos de Remedy del ${when(stamp(now))}</span></header>
+      <header class="iss-top"><h2 class="iss-title">Hola, ${esc((me?.name || '').split(' ')[0] || 'equipo')}</h2><span class="iss-snap">Datos de Remedy del ${when(stamp(now))}</span>${loadButton('Cargar otro CSV')}</header>
 
       <div class="iss-row1">
         <section class="iss-card iss-next">
@@ -157,17 +160,39 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
   });
   root.addEventListener('keydown', (e) => { if (e.key === 'Escape' && root.querySelector('.iss-modal')) closeAction(); });
 
-  root.addEventListener('change', (e) => { if (e.target.matches('[data-rule]')) rule = e.target.value; });
+  const upload = async (file) => {
+    if (!file) return;
+    loading = true;
+    renderDesk();
+    try {
+      const { meta } = await api.upload(file);
+      toast?.(`Foto cargada: ${meta.issues} issues.`);
+    } catch (e) {
+      toast?.(e.message);
+    }
+    loading = false;
+    await loadDesk();
+  };
+
+  root.addEventListener('change', (e) => {
+    if (e.target.matches('[data-rule]')) rule = e.target.value;
+    if (e.target.matches('[data-csv]')) { picking = false; upload(e.target.files[0]); }
+  });
+  // Con el diálogo de elegir fichero abierto no se repinta la mesa: el
+  // cambio llegaría a un input que ya no está en la página.
+  root.addEventListener('click', (e) => { if (e.target.matches('[data-csv]')) picking = true; });
+  const picked = () => { picking = false; };
+  window.addEventListener('focus', picked);
 
   // Refresco: solo con la mesa a la vista (no mientras se trabaja una issue).
   const refresher = setInterval(() => {
-    if (!onDesk || root.hidden || document.visibilityState !== 'visible') return;
+    if (!onDesk || picking || root.hidden || document.visibilityState !== 'visible') return;
     const y = root.scrollTop;
     api.desk().then((d) => { data = d; now = d.taken ? new Date(d.taken) : new Date(); if (onDesk) { renderDesk(); root.scrollTop = y; } }).catch(() => {});
   }, REFRESH_MS);
 
   return {
     show: () => loadDesk().catch((err) => { root.innerHTML = `<div class="iss-page"><p class="iss-empty">No se pudieron cargar las issues: ${esc(err.message)}</p></div>`; }),
-    dispose: () => { clearInterval(refresher); closeChat(); },
+    dispose: () => { clearInterval(refresher); window.removeEventListener('focus', picked); closeChat(); },
   };
 };
