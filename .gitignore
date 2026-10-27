@@ -19,6 +19,8 @@ nohup.out
 # repositorio local de incidencias: datos de la operación, nunca al repositorio
 *.sqlite
 *.sqlite.tmp
+*.sqlite-wal
+*.sqlite-shm
 
 # credenciales locales de Claude Code (MCP knowledge)
 .claude/settings.local.json

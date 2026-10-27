@@ -1,5 +1,5 @@
-// Qué hacer con una fila de un CSV de Remedy frente a la incidencia que ya está
-// guardada (el CSV es una foto del origen, no manda sobre lo más nuevo), y cómo
+// Qué hacer con una fila de Remedy frente a la incidencia que ya está guardada
+// (la fila es una foto del origen, no manda sobre lo más nuevo), y cómo
 // se abren AUDIT_DETAIL y WORKLOG_DETAIL para consultarlos por fecha. Dominio puro.
 import { entries } from './remedy.js';
 
@@ -7,8 +7,8 @@ const STAMP = /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d/;
 // «2026-02-01 10:00:00.000» y «2026-02-01 10:00:00» son el mismo instante; sin fecha, la más antigua
 const stampOf = (s) => STAMP.exec(s || '')?.[0] ?? '';
 
-// stored: la incidencia guardada (undefined si no existe); row: la del CSV.
-//   insert: no existía · update: el CSV es más reciente, o igual de reciente pero con otro contenido
+// stored: la incidencia guardada (undefined si no existe); row: la que llega.
+//   insert: no existía · update: la que llega es más reciente, o igual de reciente pero con otro contenido
 //   keep: lo guardado es más reciente · same: idéntica
 // A igual fecha de modificación se compara todo: hay campos agregados que cambian sin tocar la fecha.
 export const decide = (stored, row) => {

@@ -54,8 +54,8 @@ test('resoluciones repetidas: solo las usadas 4 veces o más', () => {
   assert.equal(dict.resol[1], 'reinicio #');
 });
 
-test('un CSV que no es el de la consulta, o sin issues del grupo: error con estado 400', () => {
-  assert.throws(() => checkColumns({ A: '1' }), (e) => e.status === 400 && /no es el de la consulta/.test(e.message));
+test('unos datos que no son los de la consulta, o sin issues del grupo: error con estado 400', () => {
+  assert.throws(() => checkColumns({ A: '1' }), (e) => e.status === 400 && /La consulta de issues no trae/.test(e.message));
   assert.doesNotThrow(() => checkColumns(row()));
   const ds = createDataset({ start: 2026 });
   ds.add(row({ ASSIGNEDGROUP: 'OTRO' }));

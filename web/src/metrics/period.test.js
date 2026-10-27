@@ -30,9 +30,6 @@ test('el periodo de partida: el mes en curso entero, del día 1 a la foto', () =
   const m = twoYears();
   m.resetPeriod();
   assert.equal(periodLabel(m), '01/03/2026 – 11/03/2026');
-  assert.equal(m.isStartPeriod(), true);
-  m.setPeriod(m.MIN_D, m.END_D);
-  assert.equal(m.isStartPeriod(), false);
 });
 
 test('el rango se limita a lo cargado: ni antes del primer día con issues ni después de la foto', () => {
@@ -111,12 +108,14 @@ test('un lado que enseña otro año: ese mes con borde, y el elegido sigue siend
   assert.match(html, /data-year="from:-1" aria-label="Año anterior" disabled/);
 });
 
-test('el panel: cabecera con el periodo y «Listo», y los dos lados; sin campos de texto ni accesos rápidos', () => {
+test('el panel: cabecera con el periodo y los dos lados, con los meses a la izquierda de los días; sin «Listo» ni campos de texto ni accesos rápidos', () => {
   const m = model();
   m.setPeriod(at(0, 15), at(1, 16));
   const html = periodPanel(m, { from: 0, to: 1 });
   assert.match(html, /<b>15\/01\/2026 – 15\/02\/2026 · 32 días<\/b>/);
-  assert.match(html, /data-done>Listo</);
+  assert.doesNotMatch(html, /data-done|Listo/);   // cada elección se aplica al momento
+  // en cada lado, el año y los meses en una columna y, a su derecha, los días
+  assert.match(html, /mt-side-body">\s*<div class="mt-mcol">[\s\S]*?mt-months[\s\S]*?<\/div>\s*<\/div>\s*<div class="mt-days">/);
   assert.match(html, /Desde[\s\S]*Hasta/);
   assert.doesNotMatch(html, /<input|data-last|data-month-all|Todo/);
 });

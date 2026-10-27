@@ -1,8 +1,7 @@
 // El panel del periodo de Métricas y Equipo soporte (period.js lo pinta): sus clics. Cada lado («Desde», «Hasta») es
 // un selector independiente: el año solo cambia lo que enseña; un mes o un día fija ese extremo (doble clic en un mes:
-// el periodo es ese mes entero) y se aplica al momento
-// (onPick(false): el panel sigue abierto). «Listo» lo cierra (onPick(true)), igual que un clic fuera o Escape (la
-// vista). model: da el modelo (model.js) de ese momento.
+// el periodo es ese mes entero) y se aplica al momento (onPick(false): el panel sigue abierto). Se cierra con un clic
+// fuera o Escape (la vista). model: da el modelo (model.js) de ese momento.
 import { periodPanel, pickMonth, wholeMonth, pickDay, shiftYear, sideDay } from './period.js';
 
 export const mountPeriodPanel = (el, { model, onPick }) => {
@@ -16,9 +15,8 @@ export const mountPeriodPanel = (el, { model, onPick }) => {
   // un clic fuera, que lo cierra
   el.addEventListener('click', (e) => {
     e.stopPropagation();
-    const m = model(), hit = e.target.closest('[data-pick-month],[data-pick-day],[data-year],[data-done]');
+    const m = model(), hit = e.target.closest('[data-pick-month],[data-pick-day],[data-year]');
     if (!hit) return;
-    if (hit.matches('[data-done]')) return onPick(true);
     const [side, n] = (hit.dataset.pickMonth || hit.dataset.pickDay || hit.dataset.year).split(':');
     if (hit.matches('[data-year]')) { shown[side] = shiftYear(m, shown[side], Number(n)); return paint(); }
     // doble clic en un mes (el segundo clic, detail 2; no dblclick, porque el primero ya ha repintado el botón): el mes entero

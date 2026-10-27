@@ -36,15 +36,15 @@ export const REQUIRED = ['INCIDENTNUMBER', 'ASSIGNEDGROUP', 'ASSIGNEE', 'SUMMARY
   'REPORTEDDATE', 'LASTRESOLUTIONDATE', 'LASTMODIFIEDDATE', 'RESOLUTION', 'VENDORTICKETNUMBER', 'PRODUCTCATEGORIZATIONTIER1',
   'PRODUCTCATEGORIZATIONTIER2', 'PRODUCTCATEGORIZATIONTIER3', 'CATEGORIZATIONTIER3', 'AUDIT_DETAIL', 'WORKLOG_DETAIL'];
 
-// El CSV no es el de la consulta (status 400 para la ruta).
-export class CsvError extends Error {
+// Los datos no son los de la consulta de issues (status 400 para la ruta).
+export class DataError extends Error {
   constructor(message) { super(message); this.status = 400; }
 }
 
-// La primera fila de un CSV dice si es el de la consulta de issues.
+// La primera fila dice si los datos son los de la consulta de issues.
 export const checkColumns = (row) => {
   const missing = REQUIRED.filter((c) => !(c in row));
-  if (missing.length) throw new CsvError(`Ese CSV no es el de la consulta de issues: le falta ${missing.join(', ')}.`);
+  if (missing.length) throw new DataError(`La consulta de issues no trae ${missing.join(', ')}.`);
 };
 
 // Copia propia de un texto que se guarda. Los trozos de un campo del CSV
@@ -100,7 +100,7 @@ export const createDataset = ({ start }) => {
   };
 
   const build = ({ file, generated }) => {
-    if (!cols.id.length) throw new CsvError(`No hay issues del grupo ${GROUP} en los datos cargados.`);
+    if (!cols.id.length) throw new DataError(`No hay issues del grupo ${GROUP} en los datos cargados.`);
     cols.rz = resolutions.map((z) => (z && resolutionCount.get(z) >= 4 ? D.resol.id(z) : 0));
     const logins = new Map();
     for (const [login, name] of loginsOf(resolvers)) logins.set(name, [...(logins.get(name) || []), login]);

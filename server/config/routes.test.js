@@ -9,16 +9,17 @@ const setup = (cfg = {}) => {
   return { call: async (method, body) => { const res = {}; await route({ method, body }, res); return res; }, cfg: () => cfg, themes };
 };
 
-test('GET: Jira, GitHub y la versión; nunca sesiones ni candado', async () => {
-  const { call } = setup({ jira: { baseUrl: 'u' }, github: { keys: [] }, sessions: [1], lock: {} });
-  assert.deepEqual((await call('GET')).body, { jira: { baseUrl: 'u' }, github: { keys: [] }, version: '1.2.3' });
+test('GET: Jira, GitHub, Snowflake y la versión; nunca sesiones ni candado', async () => {
+  const { call } = setup({ jira: { baseUrl: 'u' }, github: { keys: [] }, snowflake: { user: 'ana' }, sessions: [1], lock: {} });
+  assert.deepEqual((await call('GET')).body, { jira: { baseUrl: 'u' }, github: { keys: [] },
+    snowflake: { user: 'ana', role: 'R_SGA_USERS', warehouse: 'COMMON_USERS_WH' }, version: '1.2.3' });
 });
 
 test('PUT: solo lo que viene, saneado; el tema avisa si vale', async () => {
   const s = setup({ sessions: [1] });
   const ui = { bg: '#fff', surface: '#fff', border: '#fff', text: '#fff', textLow: '#fff', accent: '#fff', scrollbar: '#fff' };
-  await s.call('PUT', { jira: { baseUrl: ' j ' }, theme: { id: 'dark', ui } });
-  assert.deepEqual(s.cfg(), { sessions: [1], jira: { baseUrl: 'j', token: '' }, theme: { id: 'dark', ui } });
+  await s.call('PUT', { jira: { baseUrl: ' j ' }, snowflake: { user: ' ana ' }, theme: { id: 'dark', ui } });
+  assert.deepEqual(s.cfg(), { sessions: [1], jira: { baseUrl: 'j', token: '' }, snowflake: { user: 'ana', role: 'R_SGA_USERS', warehouse: 'COMMON_USERS_WH' }, theme: { id: 'dark', ui } });
   assert.equal(s.themes.length, 1);
   await s.call('PUT', { theme: { id: 'bad' } });
   assert.equal(s.themes.length, 1, 'un tema que no vale no se guarda ni se avisa');

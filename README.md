@@ -41,6 +41,10 @@ Es `node dev.mjs` con `NODE_USE_SYSTEM_CA=1`, para que Node use el almacén de
 certificados de Windows o macOS. Requiere Node 22.19 o superior. Fuera de la VPN
 no hace falta.
 
+Métricas trae las incidencias de Remedy de Snowflake: pon tu usuario en
+Configuración → Credenciales → Snowflake. La primera vez se abre el navegador
+para entrar con la cuenta de Inditex (SSO); necesita la VPN.
+
 Cada persona ve las vistas que le dé su rol: el Chat siempre y, además,
 Issues, Equipo soporte, Métricas, Enlaces, Laboratorio, Administración y
 Personas.

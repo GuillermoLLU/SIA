@@ -1,9 +1,9 @@
 // El repositorio local de incidencias: un fichero SQLite (node:sqlite) en este
-// ordenador que acumula los CSV de Remedy sin perder lo ya guardado. No sale de
+// ordenador que acumula las incidencias de Remedy sin perder lo ya guardado. No sale de
 // aquí ni va al repositorio de código: lleva datos de la operación. Se escribe
 // directo en el fichero, sin cargarlo en memoria: crece con los años sin límite.
 //
-//   incidents        una fila por INCIDENTNUMBER con todas las columnas del CSV, tal cual,
+//   incidents        una fila por INCIDENTNUMBER con todas las columnas de la consulta, tal cual,
 //                    y LASTUPDATE_BBDD: cuándo la actualizó SIA (no es LASTMODIFIEDDATE, que es de Remedy)
 //   audit_events     AUDIT_DETAIL abierto: un cambio por fila (fecha, quién, campo, old_value, new_value)
 //   worklog_entries  WORKLOG_DETAIL abierto: una nota por fila
@@ -32,11 +32,14 @@ export const createRepository = ({ DatabaseSync, file, fs, now = () => new Date(
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.rmSync(`${file}.tmp`, { force: true });   // lo que dejó una carga cortada con el motor anterior (sql.js)
   const db = new DatabaseSync(file);
+  // WAL y más caché: guardar una actualización va el doble de rápido en un fichero de gigas (medido: 2.946
+  // incidencias en 9,8 s frente a 14–18 s). Deja junto al fichero sus -wal y -shm mientras está abierto.
+  db.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA cache_size = -65536;');
   db.exec(SCHEMA);
 
   const columns = () => db.prepare('PRAGMA table_info(incidents)').all().map((c) => c.name);
 
-  // Las cabeceras que no estaban (un CSV con campos nuevos) se añaden, sin tocar lo guardado.
+  // Las columnas que no estaban (una consulta con campos nuevos) se añaden, sin tocar lo guardado.
   const ensureColumns = (names) => {
     const known = new Set(columns());
     for (const name of names) {
@@ -46,7 +49,7 @@ export const createRepository = ({ DatabaseSync, file, fs, now = () => new Date(
     }
   };
 
-  // Una importación es una transacción: o entra el CSV entero o no entra nada.
+  // Una actualización es una transacción: o entra entera o no entra nada.
   // add(fila) por cada fila; commit() la confirma y rollback() la deshace.
   const begin = () => {
     db.exec('BEGIN');
@@ -92,20 +95,31 @@ export const createRepository = ({ DatabaseSync, file, fs, now = () => new Date(
     };
   };
 
-  // Cada incidencia como el CSV: las columnas que no tenía (de un CSV anterior) salen vacías.
-  const eachIncident = (fn) => {
+  // Las incidencias, una a una, como filas de la consulta: las columnas que no tenía (de una carga anterior) salen
+  // vacías. count: cuántas son (para el avance del cálculo).
+  function* incidents() {
     for (const row of db.prepare(`SELECT * FROM incidents ORDER BY ${ID}`).iterate()) {
       for (const c in row) if (row[c] === null) row[c] = '';
-      fn(row);
+      yield row;
     }
-  };
+  }
+  const count = () => db.prepare('SELECT COUNT(*) AS n FROM incidents').get().n;
 
   // El año de la primera incidencia abierta del grupo (null: no hay ninguna).
   const firstYear = (group) => {
-    if (!['REPORTEDDATE', 'ASSIGNEDGROUP'].every((c) => columns().includes(c))) return null;   // aún no se ha cargado ningún CSV
+    if (!['REPORTEDDATE', 'ASSIGNEDGROUP'].every((c) => columns().includes(c))) return null;   // aún no se ha cargado nada
     const r = db.prepare(`SELECT MIN(REPORTEDDATE) AS d FROM incidents WHERE TRIM(ASSIGNEDGROUP) = ? AND REPORTEDDATE GLOB '[0-9][0-9][0-9][0-9]-*'`).get(group);
     return r?.d ? Number(r.d.slice(0, 4)) : null;
   };
 
-  return { begin, eachIncident, firstYear, close: () => db.close() };
+  // Desde dónde pedir a Snowflake (query.js: rangeOf): la apertura más antigua y la
+  // última modificación guardadas, de todos los grupos (null: aún no hay nada).
+  const extremes = () => {
+    if (!['REPORTEDDATE', 'LASTMODIFIEDDATE'].every((c) => columns().includes(c))) return { first: null, last: null };
+    const date = (c) => `CASE WHEN ${c} GLOB '[0-9][0-9][0-9][0-9]-*' THEN ${c} END`;
+    const r = db.prepare(`SELECT MIN(${date('REPORTEDDATE')}) AS first, MAX(${date('LASTMODIFIEDDATE')}) AS last FROM incidents`).get();
+    return { first: r.first ?? null, last: r.last ?? null };
+  };
+
+  return { begin, incidents, count, firstYear, extremes, close: () => db.close() };
 };

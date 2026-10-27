@@ -1,7 +1,7 @@
-// Vista «Métricas»: cómo va el soporte, para verlo en vivo. Cada CSV completo de
-// Remedy que carga la persona se suma al repositorio local de incidencias y de él
-// salen los datos (el bridge los calcula y los guarda en este ordenador). Al
-// entrar, siempre el Resumen.
+// Vista «Métricas»: cómo va el soporte, para verlo en vivo. «Actualizar y generar
+// informe» pide a Snowflake las incidencias de Remedy nuevas o cambiadas, se suman
+// al repositorio local de incidencias y de él salen los datos (el bridge los
+// calcula y los guarda en este ordenador). Al entrar, siempre el Resumen.
 //
 // Arriba, qué se mira: el equipo, una empresa o un grupo de personas (de partida,
 // nuestro equipo) y, si se quiere, con «+ Comparar», otro lado frente a él; cada
@@ -17,10 +17,14 @@ import { createTabs, TABS } from './tabs.js';
 import { periodLabel } from './period.js';
 import { mountPeriodPanel } from './period-panel.js';
 import { attachTip } from './tip.js';
+import { PHASES, progressOf, progressHtml } from './progress.js';
 import { COLORS, defaultColors, freeColor, dayOf, coverage, freeCompany, withoutSide, togglePerson, filterKey } from './view.js';
 
 const SEARCH_MS = 250;
 const LOAD = 'Actualizar y generar informe';
+const POLL_MS = 400;     // cada cuánto se pregunta al bridge por el avance de la actualización
+const TICK_MS = 200;     // y cada cuánto se repinta (el porcentaje es de tiempo: se mueve aunque no haya cifras nuevas)
+const FINISH_MS = 450;   // el 100 % a la vista un momento antes de abrir las métricas nuevas
 const svg = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const CALENDAR_ICON = svg('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>');
 const SEARCH_ICON = svg('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>');
@@ -35,13 +39,13 @@ export const mountMetricsView = (root, { api, toast }) => {
   const ui = { exp: {}, sort: {} };
   const $ = (s) => root.querySelector(s);
 
-  const loadButton = (label) => `<label class="mt-load ${loading ? 'mt-busy' : ''}">${loading ? 'Calculando…' : label}<input type="file" accept=".csv,text/csv" data-csv hidden ${loading ? 'disabled' : ''}></label>`;
+  const loadButton = () => `<button class="mt-load ${loading ? 'mt-busy' : ''}" data-update ${loading ? 'disabled' : ''}>${loading ? 'Actualizando…' : LOAD}</button>`;
 
   const renderEmpty = () => {
     root.innerHTML = `<div class="mt-page"><header class="mt-top"><h2 class="mt-title">Métricas</h2></header>
       <div class="mt-empty"><b>Aún no hay datos</b>
-        <span>Carga el CSV completo de la consulta de issues (con notas e historial). Se suma al repositorio local de este ordenador y de él salen las métricas.</span>
-        ${loadButton(LOAD)}</div></div>`;
+        <span>Trae de Snowflake las incidencias de Remedy (con notas e historial) desde 2026. Se guardan en el repositorio local de este ordenador y de él salen las métricas; cada vez que actualices, solo llega lo nuevo y lo cambiado.</span>
+        ${loadButton()}</div></div>`;
   };
 
   const sideSlot = (k) => `<div class="mt-period mt-slot" data-slot="${k}"><button class="mt-btn mt-icon-btn mt-side" data-side="${k}" aria-haspopup="true"><i class="mt-c${k}"></i><span data-side-name="${k}"></span>${CHEVRON}</button><button class="mt-btn mt-x" data-side-remove="${k}" title="Quitar de la comparación">×</button>
@@ -52,13 +56,12 @@ export const mountMetricsView = (root, { api, toast }) => {
     const { meta } = m.data;
     root.innerHTML = `<div class="mt-page">
       <header class="mt-top"><h2 class="mt-title">Métricas</h2>
-        <span class="mt-date" data-coverage title="${esc(`${meta.file}, cargado el ${dayOf(meta.generated)}`)}"></span>
-        ${loadButton(LOAD)}</header>
+        <span class="mt-date" data-coverage title="${esc(`${meta.file}, actualizado el ${dayOf(meta.generated)}`)}"></span>
+        ${loadButton()}</header>
       <div class="mt-fbar">
         ${sideSlot(0)}<span class="mt-vs" data-vs>frente a</span>${sideSlot(1)}<button class="mt-btn mt-add" data-side-add>+ Comparar</button>
         <div class="mt-period"><button class="mt-btn mt-icon-btn" data-calendar aria-haspopup="true">${CALENDAR_ICON}<span data-period></span></button><div class="mt-pop mt-cal" data-cal hidden></div></div>
         <div class="mt-chips" data-chips></div>
-        <button class="mt-btn" data-clear>Quitar filtros</button>
         <div class="mt-find"><input type="search" data-q placeholder="Título o INC…" hidden><span class="mt-count" data-count></span>
           <button class="mt-search" data-search title="Buscar en el título o por número">${SEARCH_ICON}</button></div>
       </div>
@@ -121,7 +124,6 @@ export const mountMetricsView = (root, { api, toast }) => {
     const A = m.rows();
     const chips = Object.keys(S.f).flatMap((dim) => [...S.f[dim]].map((k) => `<span class="mt-chip">${DIMS[dim].name}: <b>${esc(DIMS[dim].label(k))}</b><button data-rm="${dim}:${k}" title="Quitar">×</button></span>`));
     $('[data-chips]').innerHTML = chips.join('');
-    $('[data-clear]').hidden = !(chips.length || S.q || !m.isStartPeriod());
     $('[data-coverage]').textContent = coverage(m);
     renderPeriod();
     renderSides();
@@ -142,23 +144,76 @@ export const mountMetricsView = (root, { api, toast }) => {
     render();
   };
 
-  const upload = async (file) => {
-    if (!file) return;
+  // Mientras se actualiza, una capa encima con el avance (progress.js): lo de debajo se queda viejo, así que no se
+  // puede tocar (inert). La capa se pinta una vez y luego solo cambian sus cifras, para que la barra avance suave.
+  const cover = (t0) => {
+    const el = document.createElement('div');
+    el.className = 'mt-loading';
+    const paint = (view) => {
+      if (!el.firstElementChild) { el.innerHTML = progressHtml(view); return; }
+      el.querySelector('[role=progressbar]').setAttribute('aria-valuenow', view.percent);
+      el.querySelector('.mt-load-figure b').textContent = view.percent;
+      el.querySelector('.mt-load-bar i').style.width = `${view.percent}%`;
+      el.querySelector('.mt-load-now b').textContent = PHASES[view.phase].label;
+      el.querySelector('.mt-load-now span').textContent = view.left;
+      el.querySelector('.mt-load-detail').textContent = view.detail;
+      el.querySelectorAll('.mt-load-steps li').forEach((li, i) => { li.className = i < view.phase ? 'mt-done' : i === view.phase ? 'mt-now' : ''; });
+    };
+    // el último avance del bridge, cuándo empezó su fase (para su ritmo) y lo más alto que ha llegado la barra (nunca retrocede)
+    let last = null, phaseT0 = t0, top = 0;
+    return {
+      el,
+      set: (p) => {
+        if ((p?.phase ?? null) !== (last?.phase ?? null)) phaseT0 = Date.now();
+        last = p ?? last;
+      },
+      tick: () => {
+        const now = Date.now(), view = progressOf(last, { elapsed: now - t0, phaseMs: now - phaseT0 });
+        top = Math.max(top, view.percent);
+        paint({ ...view, percent: top });
+      },
+      finish: () => paint({ phase: PHASES.length - 1, percent: 100, detail: 'Abriendo las métricas con los datos nuevos…', left: 'Hecho' }),
+    };
+  };
+
+  // La primera vez puede abrirse el navegador para entrar en Snowflake con la cuenta de Inditex.
+  const update = async () => {
+    if (loading) return;
     loading = true;
-    if (m) $('.mt-load').outerHTML = loadButton(''); else renderEmpty();
+    if (m) $('.mt-load').outerHTML = loadButton(); else renderEmpty();
+    const c = cover(Date.now());
+    root.scrollTop = 0;
+    root.classList.add('mt-updating');
+    $('.mt-page').inert = true;
+    root.append(c.el);
+    c.tick();
+    const poll = setInterval(async () => { try { c.set(await api.progress()); } catch { /* sigue con lo último */ } }, POLL_MS);
+    const ticker = setInterval(c.tick, TICK_MS);
+    const stop = () => { clearInterval(poll); clearInterval(ticker); };
     try {
-      const { counts } = await api.upload(file);
+      const { counts } = await api.update();
+      stop();
+      c.finish();
+      const data = await api.load();
+      await new Promise((r) => setTimeout(r, FINISH_MS));
       loading = false;
-      start(await api.load());
-      toast?.(`Informe actualizado: ${num(counts.inserted)} nuevas, ${num(counts.updated)} actualizadas y ${num(counts.unchanged + counts.kept)} sin cambios.`);
+      start(data);
+      toast?.(counts.inserted || counts.updated
+        ? `Informe actualizado: ${num(counts.inserted)} nuevas y ${num(counts.updated)} actualizadas.`
+        : 'Informe actualizado: sin cambios desde la última vez.');
     } catch (e) {
       loading = false;
-      if (m) $('.mt-load').outerHTML = loadButton(LOAD); else renderEmpty();
+      c.el.remove();
+      if (m) { $('.mt-page').inert = false; $('.mt-load').outerHTML = loadButton(); } else renderEmpty();
       toast?.(e.message);
+    } finally {
+      stop();
+      root.classList.remove('mt-updating');
     }
   };
 
   root.addEventListener('click', (e) => {
+    if (e.target.closest('[data-update]')) return update();
     if (!m || e.target.closest('a')) return;
     const { S } = m;
     // desplegables: abrir y cerrar, elegir; un clic fuera los cierra
@@ -194,23 +249,16 @@ export const mountMetricsView = (root, { api, toast }) => {
       if (searching) $('[data-q]').focus();
       return;
     }
-    const t = e.target.closest('[data-tab],[data-go],[data-rm],[data-exp],[data-sort],[data-clear],[data-f2],[data-f]');
+    const t = e.target.closest('[data-tab],[data-go],[data-rm],[data-exp],[data-sort],[data-f2],[data-f]');
     if (!t) return;
     const d = t.dataset;
     if (d.tab || d.go) { tab = d.tab || d.go; root.scrollTop = 0; }
     else if (d.rm) { const [dim, k] = filterKey(d.rm); S.f[dim].delete(k); }
     else if (d.exp) ui.exp[d.exp] = !ui.exp[d.exp];
     else if (d.sort) { const [id, c] = d.sort.split(':'), cur = ui.sort[id]; ui.sort[id] = [c, cur && cur[0] === c ? -cur[1] : -1]; }
-    else if (t.matches('[data-clear]')) {
-      Object.assign(S, { f: {}, q: '' });
-      m.resetPeriod();
-      $('[data-q]').value = ''; searching = false;
-    } else if (d.f2) d.f2.split('|').forEach((x) => { const [dim, k] = filterKey(x); if (!m.isSel(dim, k)) m.toggle(dim, k); });
+    else if (d.f2) d.f2.split('|').forEach((x) => { const [dim, k] = filterKey(x); if (!m.isSel(dim, k)) m.toggle(dim, k); });
     else if (d.f) { const [dim, k] = filterKey(d.f); m.toggle(dim, k); }
     render();
-  });
-  root.addEventListener('change', (e) => {
-    if (e.target.matches('[data-csv]')) upload(e.target.files[0]);
   });
   let searchTimer;
   root.addEventListener('input', (e) => {

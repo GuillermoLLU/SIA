@@ -1,4 +1,4 @@
-// De una fila del CSV completo de Remedy (la consulta de issues, con
+// De una fila de Remedy (la consulta de issues, con
 // notas e historial) a lo que miden las Métricas de esa issue. Dominio puro.
 //
 // Los tiempos van en minutos desde el 1 de enero del primer año de los datos, con la

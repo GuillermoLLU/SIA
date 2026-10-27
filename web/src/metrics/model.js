@@ -168,7 +168,6 @@ export const createModel = (data) => {
   };
   // un mes entero dentro del periodo y ya cerrado (el de la foto aún puede cambiar)
   const fullMonth = (k) => k < LASTM && minuteOf(k) >= S.d0 && minuteOf(k + 1) <= S.d1;
-  const isStartPeriod = () => S.d0 === START_D && S.d1 === END_D;
   const resetPeriod = () => setPeriod(START_D, END_D);
   const daily = () => S.d1 - S.d0 <= 31 * DAY;   // hasta un mes se ve día a día; más, mes a mes
   const inPeriod = (i) => C.rep[i] >= S.d0 && C.rep[i] < S.d1;
@@ -345,7 +344,7 @@ export const createModel = (data) => {
   };
 
   return {
-    data, C, DI, N, BASE, SNAP, LASTM, SLA, PRIOS, CRIT, slaLabel, monthAt, monthName, minuteOf, dayName, fullMonth, MIN_D, END_D, setPeriod, isStartPeriod, resetPeriod, daily, inPeriod, MONTH, DOW, OPEN, TEAM, SIDE, DIMS, S, STYPE,
+    data, C, DI, N, BASE, SNAP, LASTM, SLA, PRIOS, CRIT, slaLabel, monthAt, monthName, minuteOf, dayName, fullMonth, MIN_D, END_D, setPeriod, resetPeriod, daily, inPeriod, MONTH, DOW, OPEN, TEAM, SIDE, DIMS, S, STYPE,
     CMP, CO, NAMES, refilter, rows, pool, today, toggle, isSel, anySel, group, bySide, trend, stats, periodSlots, clock,
     heads, perHead, alone, carry: (list) => carry(list, C, shiftType), shiftWork: (list) => shiftWork(list, C, (i) => OPEN[i], shiftType),
   };

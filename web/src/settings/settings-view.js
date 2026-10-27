@@ -1,5 +1,5 @@
 // Configuración (el modal): sus pestañas, la versión y las credenciales
-// (Jira y GitHub). Las demás secciones (Móvil, Apariencia, Bloqueo) se
+// (Jira, GitHub y el usuario de Snowflake de las Métricas). Las demás secciones (Móvil, Apariencia, Bloqueo) se
 // cuelgan de onOpen/onClose para releer su estado cuando se abre o se cierra.
 import { esc } from '../ui/html.js';
 import { setStatus } from '../ui/dom.js';
@@ -27,6 +27,15 @@ export const mountSettings = ({ api }) => {
       await api('/config', { method: 'PUT', body: { jira: jiraConfig(jiraUrl.value, jiraToken.value) } });
       setStatus(jiraStatus, 'guardado ✓ — aplica a los chats que abras a partir de ahora', 'ok');
     } catch (err) { setStatus(jiraStatus, `no se pudo guardar: ${err.message}`, 'bad'); }
+  });
+
+  // Snowflake: solo quién consulta (se entra por SSO); el bridge pone el rol y el warehouse de soporte si van vacíos
+  const sfUser = $('sf-user-input'), sfRole = $('sf-role-input'), sfWarehouse = $('sf-warehouse-input'), sfStatus = $('sf-status');
+  $('sf-save').addEventListener('click', async () => {
+    try {
+      await api('/config', { method: 'PUT', body: { snowflake: { user: sfUser.value, role: sfRole.value, warehouse: sfWarehouse.value } } });
+      setStatus(sfStatus, 'guardado ✓ — se usa en la próxima actualización de Métricas', 'ok');
+    } catch (err) { setStatus(sfStatus, `no se pudo guardar: ${err.message}`, 'bad'); }
   });
 
   // GitHub: varias claves, una activa
@@ -65,6 +74,7 @@ export const mountSettings = ({ api }) => {
 
   const open = async () => {
     setStatus(jiraStatus, '');
+    setStatus(sfStatus, '');
     setStatus(ghStatus, '');
     modal.hidden = false;
     for (const fn of opens) fn();
@@ -73,6 +83,9 @@ export const mountSettings = ({ api }) => {
       if (cfg.version) version.textContent = `SIA v${cfg.version}`;
       jiraUrl.value = cfg.jira?.baseUrl || '';
       jiraToken.value = cfg.jira?.token || '';
+      sfUser.value = cfg.snowflake?.user || '';
+      sfRole.value = cfg.snowflake?.role || '';
+      sfWarehouse.value = cfg.snowflake?.warehouse || '';
       gh = { keys: Array.isArray(cfg.github?.keys) ? cfg.github.keys : [], activeId: cfg.github?.activeId || null };
       ghName.value = ''; ghToken.value = '';
       renderGh();

@@ -21,7 +21,7 @@ import { json, readBody, sendFile } from './shared/http.js';
 import { choosePair } from './shared/ports.js';
 import { createRouter } from './router.js';
 import { createConfigStore } from './config/store.js';
-import { cleanTheme, userEnv, cleanEnv } from './config/config.js';
+import { cleanTheme, userEnv, cleanEnv, cleanSnowflake } from './config/config.js';
 import { configRoutes } from './config/routes.js';
 import { createLock } from './lock/service.js';
 import { lockRoutes } from './lock/routes.js';
@@ -54,6 +54,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { createMetricsStore } from './metrics/store.js';
 import { createRepository } from './metrics/repository.js';
 import { metricsRoutes } from './metrics/routes.js';
+import { createSnowflake } from './metrics/snowflake.js';
 import { createTunnel } from './remote/tunnel.js';
 import { createRemote } from './remote/service.js';
 import { lanRoutes } from './remote/routes.js';
@@ -151,7 +152,11 @@ export const startBridge = async ({ env = process.env } = {}) => {
     users: usersRoutes(users, { ...http_, syncKeys, assignKnowledge: (jwt, userId, ids) => knowledge.setProjects(jwt, userId, ids), refreshProfile: (token) => auth.refreshProfile(token) }),
     knowledge: knowledgeRoutes(knowledge, { ...http_, syncKeys, onChange: () => loadAssigned() }),
     issues: issuesRoutes(issues, http_),
-    metrics: metricsRoutes(createMetricsStore(workspace.metricsDir, { repo: createRepository({ DatabaseSync, file: path.join(workspace.metricsDir, 'incidencias.sqlite'), fs }) }), { json }),
+    metrics: metricsRoutes(createMetricsStore(workspace.metricsDir, {
+      repo: createRepository({ DatabaseSync, file: path.join(workspace.metricsDir, 'incidencias.sqlite'), fs }),
+      source: createSnowflake({ loadSdk: async () => (await import('snowflake-sdk')).default, config: () => cleanSnowflake(config.read().snowflake) }),
+      log: console.log,
+    }), { json }),
     lan: lanRoutes(remote, lock, http_),
     projects: projectsRoutes(createProjects({ newId: randomUUID, fetchAll }), { ...http_, onProjectRemoved: () => skillSync.sync(assigned) }),
     skills: skillsRoutes({ ...http_, sync: skillSync, drafts: createDrafts(workspace.draftsDir), workspace }),

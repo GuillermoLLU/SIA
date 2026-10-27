@@ -10,7 +10,9 @@ const HEAD = ['INCIDENTNUMBER', 'ASSIGNEDGROUP', 'STATUS', 'REPORTEDDATE', 'LAST
 const inc = (o = {}) => ({ ...Object.fromEntries(HEAD.map((c) => [c, ''])),
   INCIDENTNUMBER: 'INC1', ASSIGNEDGROUP: 'AYS SOPORTE', STATUS: 'ASSIGNED', REPORTEDDATE: '2026-03-01 09:00:00', LASTMODIFIEDDATE: '2026-03-01 10:00:00', ...o });
 const now = () => new Date('2026-10-14T08:00:00Z');
-const load = (repo) => { const out = []; repo.eachIncident((r) => out.push(r)); return out; };
+// los ficheros del directorio, sin los -wal y -shm que SQLite deja mientras está abierto
+const files = (dir) => fs.readdirSync(dir).filter((f) => !/-(wal|shm)$/.test(f)).sort();
+const load = (repo) => [...repo.incidents()];
 const run = (repo, ...rows) => { const r = repo.begin(); rows.forEach(r.add); return r.commit(); };
 
 // Un directorio de pruebas y sus repositorios; al acabar se cierran (Windows no borra un fichero abierto).
@@ -75,7 +77,7 @@ test('se guarda en el fichero y se recupera al reabrir; varios años se acumulan
   const again = s.open();
   run(again, inc({ INCIDENTNUMBER: 'INC2', REPORTEDDATE: '2025-06-01 09:00:00' }));
   assert.deepEqual(load(again).map((r) => [r.INCIDENTNUMBER, r.REPORTEDDATE.slice(0, 4)]), [['INC1', '2026'], ['INC2', '2025']]);
-  assert.deepEqual(fs.readdirSync(s.dir), ['x.sqlite']);
+  assert.deepEqual(files(s.dir), ['x.sqlite']);
   s.done();
 });
 
@@ -83,7 +85,7 @@ test('un fichero .tmp de una carga cortada con el motor anterior se descarta', (
   const s = scratch();
   fs.writeFileSync(`${s.file}.tmp`, '');
   s.open();
-  assert.deepEqual(fs.readdirSync(s.dir), ['x.sqlite']);
+  assert.deepEqual(files(s.dir), ['x.sqlite']);
   s.done();
 });
 
@@ -105,6 +107,23 @@ test('rollback: no queda nada del CSV a medias', () => {
   r.add(inc({ STATUS: 'CLOSED', LASTMODIFIEDDATE: '2026-04-01 00:00:00' }));
   r.rollback();
   assert.deepEqual(load(repo).map((x) => [x.INCIDENTNUMBER, x.STATUS]), [['INC1', 'ASSIGNED']]);
+  s.done();
+});
+
+test('count: cuántas incidencias hay guardadas', () => {
+  const s = scratch(), repo = s.open();
+  assert.equal(repo.count(), 0);
+  run(repo, inc(), inc({ INCIDENTNUMBER: 'INC2' }));
+  assert.equal(repo.count(), 2);
+  s.done();
+});
+
+test('extremes: la apertura más antigua y la última modificación, de todos los grupos; vacío, null', () => {
+  const s = scratch(), repo = s.open();
+  assert.deepEqual(repo.extremes(), { first: null, last: null });
+  run(repo, inc(), inc({ INCIDENTNUMBER: 'INC2', REPORTEDDATE: '2025-12-31 23:00:00.000', LASTMODIFIEDDATE: '2026-04-02 08:00:00.000', ASSIGNEDGROUP: 'OTRO' }),
+    inc({ INCIDENTNUMBER: 'INC3', REPORTEDDATE: '', LASTMODIFIEDDATE: '' }));
+  assert.deepEqual(repo.extremes(), { first: '2025-12-31 23:00:00.000', last: '2026-04-02 08:00:00.000' });
   s.done();
 });
 

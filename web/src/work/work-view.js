@@ -1,7 +1,7 @@
 // Vista «Equipo soporte» (vista work): un control rápido de la calidad del equipo y de
 // cada persona (team.js). Con los datos de las Métricas, que se cargan desde
-// allí; se vuelven a leer al abrir la vista, por si alguien ha cargado otro
-// CSV. Es el equipo de Indra. Clic en una persona: se abre en Métricas frente
+// allí; se vuelven a leer al abrir la vista, por si se han actualizado desde
+// Snowflake. Es el equipo de Indra. Clic en una persona: se abre en Métricas frente
 // al resto de su equipo (openPerson). Si la persona también gestiona el equipo,
 // «Gestionar equipo» lleva a la gestión de personas (onManage).
 // Es una vista sobre el dominio de las Métricas: su modelo, sus piezas de pantalla (charts.js, period.js, tip.js) y
@@ -80,7 +80,7 @@ export const mountWorkView = (root, { api, openPerson, onManage }) => {
     show: async () => {
       try {
         const data = await api.load();
-        if (!data) { m = null; root.innerHTML = `${page('')}<div class="mt-empty"><b>Aún no hay datos</b><span>Se cargan desde Métricas, con el CSV completo de la consulta de issues.</span></div></div>`; return; }
+        if (!data) { m = null; root.innerHTML = `${page('')}<div class="mt-empty"><b>Aún no hay datos</b><span>Se traen de Snowflake desde Métricas, con «Actualizar y generar informe».</span></div></div>`; return; }
         if (data.meta.generated !== generated) {
           generated = data.meta.generated;
           m = createModel(data);

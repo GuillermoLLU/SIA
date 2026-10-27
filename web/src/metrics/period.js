@@ -45,7 +45,7 @@ export const pickDay = (m, side, day) => {
 // Mover el año que enseña un lado (k: el mes que enseña; dir: -1 o +1), sin salir de los meses con datos.
 export const shiftYear = (m, k, dir) => Math.min(m.LASTM, Math.max(m.monthAt(m.MIN_D), k + 12 * dir));
 
-// Un lado del panel. k: el mes que enseña (sus días, debajo). Su mes elegido (el de su extremo) va sólido; si enseña
+// Un lado del panel. k: el mes que enseña (sus días, a la derecha de los meses). Su mes elegido (el de su extremo) va sólido; si enseña
 // otro (tras cambiar de año), ese lleva el borde. En los días, el periodo en tinte y sus dos extremos sólidos; el
 // día de la foto, subrayado. Lo que no tiene datos no se puede elegir.
 export const sideHtml = (m, side, k) => {
@@ -64,19 +64,23 @@ export const sideHtml = (m, side, k) => {
   return `<div class="mt-side">
       <p class="mt-pp-title">${SIDES[side]}</p>
       <b class="mt-side-date">${dmy(m.BASE + sideDay(m, side) * 6e4)}</b>
-      <div class="mt-ynav">
-        <button data-year="${side}:-1" aria-label="Año anterior" ${y * 12 <= first ? 'disabled' : ''}>‹</button>
-        <b>${meta.start + y}</b>
-        <button data-year="${side}:1" aria-label="Año siguiente" ${(y + 1) * 12 > LASTM ? 'disabled' : ''}>›</button>
+      <div class="mt-side-body">
+        <div class="mt-mcol">
+          <div class="mt-ynav">
+            <button data-year="${side}:-1" aria-label="Año anterior" ${y * 12 <= first ? 'disabled' : ''}>‹</button>
+            <b>${meta.start + y}</b>
+            <button data-year="${side}:1" aria-label="Año siguiente" ${(y + 1) * 12 > LASTM ? 'disabled' : ''}>›</button>
+          </div>
+          <div class="mt-months">${months}</div>
+        </div>
+        <div class="mt-days">${WEEK.map((w) => `<span>${w}</span>`).join('')}${'<span></span>'.repeat(lead)}${days}</div>
       </div>
-      <div class="mt-months">${months}</div>
-      <div class="mt-days">${WEEK.map((w) => `<span>${w}</span>`).join('')}${'<span></span>'.repeat(lead)}${days}</div>
     </div>`;
 };
 
-// El panel: cabecera con el periodo y «Listo», y los dos lados. shown: el mes que enseña cada lado ({ from, to }).
+// El panel: cabecera con el periodo y los dos lados (cada elección se aplica al momento). shown: el mes que enseña
+// cada lado ({ from, to }).
 export const periodPanel = (m, shown) => `<div class="mt-cal-head">
     <span class="mt-pp-title">Periodo</span><b>${periodSummary(m)}</b>
-    <button class="mt-done" data-done>Listo</button>
   </div>
   <div class="mt-pp">${sideHtml(m, 'from', shown.from)}${sideHtml(m, 'to', shown.to)}</div>`;

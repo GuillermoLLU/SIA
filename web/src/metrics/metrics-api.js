@@ -1,7 +1,8 @@
-// Cliente de /api/metrics: los datos calculados y cargar un CSV nuevo. `api`: ui/api.js.
+// Cliente de /api/metrics: los datos calculados y actualizarlos desde Snowflake. `api`: ui/api.js.
 
 export const createMetricsApi = (api) => ({
   load: async () => (await api('/metrics')).data,
-  // el fichero tal cual: el bridge lo lee en streaming
-  upload: (file) => api(`/metrics/csv?name=${encodeURIComponent(file.name)}`, { method: 'POST', body: file, type: 'text/csv' }),
+  update: () => api('/metrics/update', { method: 'POST' }),
+  // por dónde va la actualización en curso (null: ninguna)
+  progress: async () => (await api('/metrics/progress')).progress,
 });

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cleanTheme, cleanGithub, cleanJira, activeGithubToken, userEnv, cleanEnv, migrate } from './config.js';
+import { cleanTheme, cleanGithub, cleanJira, cleanSnowflake, SNOWFLAKE, activeGithubToken, userEnv, cleanEnv, migrate } from './config.js';
 
 const UI = { bg: '#fff', surface: '#ffffff', border: '#e1e4e8', text: '#1f2328', textLow: '#656d76', accent: '#2563eb', scrollbar: '#d0d5dbff' };
 
@@ -19,6 +19,11 @@ test('cleanGithub: entradas con token, nombres por defecto, tope 20 y la activa 
   assert.equal(cleanGithub({ keys: [{ token: 't' }], activeId: 'nope' }).activeId, null);
   assert.equal(cleanGithub({ keys: Array.from({ length: 25 }, () => ({ token: 't' })) }).keys.length, 20);
   assert.deepEqual(cleanGithub(null), { keys: [], activeId: null });
+});
+
+test('cleanSnowflake: recortado; sin rol ni warehouse, los de soporte', () => {
+  assert.deepEqual(cleanSnowflake({ user: ' ana@ext.inditex.com ', role: ' OTRO ' }), { user: 'ana@ext.inditex.com', role: 'OTRO', warehouse: SNOWFLAKE.warehouse });
+  assert.deepEqual(cleanSnowflake(undefined), { user: '', role: 'R_SGA_USERS', warehouse: 'COMMON_USERS_WH' });
 });
 
 test('cleanJira: recortado y siempre con los dos campos', () => {

@@ -342,6 +342,21 @@
                 <div class="settings-status" id="jira-status"></div>
               </section>
               <section class="settings-section">
+                <h3>Snowflake</h3>
+                <p class="settings-hint">
+                  Tu usuario de Snowflake para traer las incidencias de Remedy a
+                  Métricas. Se entra con la cuenta de Inditex en el navegador (SSO):
+                  no hace falta contraseña. Necesita la VPN.
+                </p>
+                <input class="settings-input" id="sf-user-input" type="text" placeholder="Usuario (p. ej. NOMBRE@EXT.INDITEX.COM)" autocomplete="off" spellcheck="false" />
+                <div class="settings-row" style="margin-top: 8px;">
+                  <input class="settings-input" id="sf-role-input" type="text" placeholder="Rol (vacío: R_SGA_USERS)" autocomplete="off" spellcheck="false" />
+                  <input class="settings-input" id="sf-warehouse-input" type="text" placeholder="Warehouse (vacío: COMMON_USERS_WH)" autocomplete="off" spellcheck="false" />
+                  <button class="lab-btn primary" id="sf-save">Guardar</button>
+                </div>
+                <div class="settings-status" id="sf-status"></div>
+              </section>
+              <section class="settings-section">
                 <h3>GitHub</h3>
                 <p class="settings-hint">
                   Tokens personales para que la skill de GitHub opere en tu nombre

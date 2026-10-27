@@ -76,7 +76,7 @@ sus reglas, sus pruebas y su pantalla, sin tener que entender el resto.
 - Las pruebas de SQL (`npm run test:platform`, `npm run test:rls`) necesitan
   Docker (con Rancher Desktop, `DOCKER_HOST=unix://$HOME/.rd/docker.sock`) y
   se lanzan a mano cuando se toca la base.
-- Los datos de clientes (CSV de Remedy, informes) no se suben nunca al
+- Los datos de clientes (incidencias de Remedy, CSV, informes) no se suben nunca al
   repositorio ni a la base: se trabaja con ellos en local.
 
 ## El conocimiento del equipo (RAG)
