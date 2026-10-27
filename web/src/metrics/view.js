@@ -1,6 +1,6 @@
 // Lo que decide la vista Métricas sin tocar el DOM: los colores de los lados, qué empresa va a un lado nuevo, qué
 // pasa al quitar un lado o marcar a una persona, los meses del calendario y las claves de los filtros.
-import { MONTHS } from './format.js';
+import { MONTHS, dmy } from './format.js';
 
 // colores para elegir en cada lado (no el rojo ni el verde: son peor y mejor); de partida, azul y ocre
 export const COLORS = [['#2f6fb5', 'azul'], ['#c98a3a', 'ocre'], ['#7c4dcc', 'morado'], ['#14919b', 'turquesa'], ['#d6457f', 'rosa'],
@@ -9,6 +9,11 @@ export const defaultColors = () => [COLORS[0][0], COLORS[1][0]];
 // el primer color que no sea el que ya se usa
 export const freeColor = (taken) => COLORS.find(([c]) => c !== taken)[0];
 
+// «Datos desde 03/01/2026 hasta 13/10/2026»: el periodo elegido, recortado a la primera y la última apertura de lo cargado
+export const coverage = (m) => {
+  const { S, BASE, data: { meta } } = m, from = Math.max(S.d0, meta.first), to = Math.min(S.d1 - 1, meta.last);
+  return from <= to ? `Datos desde ${dmy(BASE + from * 6e4)} hasta ${dmy(BASE + to * 6e4)}` : `Sin issues del ${dmy(BASE + S.d0 * 6e4)} al ${dmy(BASE + (S.d1 - 1) * 6e4)}`;
+};
 // «14 de oct», en UTC como el resto de las fechas de las Métricas
 export const dayOf = (iso) => { const d = new Date(iso); return `${d.getUTCDate()} de ${MONTHS[d.getUTCMonth()]}`; };
 
@@ -26,7 +31,6 @@ export const togglePerson = (sides, k, p) => {
 };
 
 // el periodo entre dos meses marcados, en cualquier orden
-export const monthRange = (a, b) => [Math.min(a, b), Math.max(a, b)];
 
 // «dim:clave» → [dim, clave]
 export const filterKey = (s) => { const p = s.indexOf(':'); return [s.slice(0, p), Number(s.slice(p + 1))]; };

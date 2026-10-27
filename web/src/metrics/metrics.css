@@ -57,14 +57,40 @@
 .mt-icon-btn { display: inline-flex; align-items: center; gap: 7px; height: 32px; }
 .mt-icon-btn svg, .mt-search svg { width: 16px; height: 16px; color: var(--mt-low); }
 .mt-pop { position: absolute; top: calc(100% + 6px); left: 0; z-index: 10; padding: 12px; background: var(--surface); border: 1px solid var(--mt-line); box-shadow: 0 8px 24px rgba(0, 0, 0, .16); }
-.mt-cal { width: 250px; }
-.mt-cal p { margin: 0 0 10px; font-size: 12px; color: var(--mt-low); }
-.mt-months { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
-.mt-months button { height: 32px; font: inherit; font-size: 13px; color: var(--text); background: var(--bg); border: 1px solid var(--mt-line); cursor: pointer; }
-.mt-months button:hover:not(:disabled) { border-color: var(--accent); }
-.mt-months button.mt-on { color: var(--surface); background: var(--accent); border-color: var(--accent); }
-.mt-months button:disabled { opacity: .35; cursor: default; }
-.mt-cal .mt-more { margin-top: 8px; }
+.mt-cal { width: 620px; max-width: calc(100vw - 32px); padding: 16px; box-shadow: 0 12px 32px rgba(0, 0, 0, .14); }
+.mt-cal-head { display: flex; align-items: center; gap: 12px; padding-bottom: 12px; margin-bottom: 14px; border-bottom: 1px solid var(--mt-line); }
+.mt-cal-head b { font-size: 13px; color: var(--text); }
+.mt-done { margin-left: auto; padding: 6px 16px; font: inherit; font-size: 13px; font-weight: 600; color: var(--surface); background: var(--accent); border: 0; cursor: pointer; }
+.mt-done:hover { background: color-mix(in srgb, var(--accent) 85%, var(--text)); }
+.mt-pp-title { margin: 0; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--mt-low); }
+.mt-pp { display: grid; grid-template-columns: 1fr 1fr; }
+.mt-side { min-width: 0; }
+.mt-side:first-child { padding-right: 16px; border-right: 1px solid var(--mt-line); }
+.mt-side:last-child { padding-left: 16px; }
+.mt-side-date { display: block; margin: 2px 0 10px; font-size: 17px; font-weight: 600; color: var(--text); }
+.mt-ynav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; font-size: 13px; }
+.mt-ynav button { width: 28px; height: 28px; padding: 0; font: inherit; font-size: 16px; line-height: 1; color: var(--text); background: none; border: 0; cursor: pointer; }
+.mt-ynav button:hover:not(:disabled) { background: var(--mt-soft); }
+.mt-ynav button:disabled { opacity: .3; cursor: default; }
+.mt-months { display: grid; grid-template-columns: repeat(6, 1fr); gap: 3px; margin-bottom: 12px; }
+.mt-months button, .mt-days button { padding: 0; font: inherit; color: var(--text); background: var(--bg); border: 0; cursor: pointer; transition: background .12s, box-shadow .12s; }
+.mt-months button { height: 32px; font-size: 13px; }
+.mt-months button:hover:not(:disabled), .mt-days button:hover:not(:disabled) { box-shadow: inset 0 0 0 1px var(--accent); }
+.mt-months button.mt-shown { box-shadow: inset 0 0 0 2px var(--accent); }
+.mt-months button.mt-edge, .mt-days button.mt-edge { color: var(--surface); font-weight: 600; background: var(--accent); }
+.mt-months button:disabled { color: color-mix(in srgb, var(--mt-low) 45%, transparent); background: transparent; cursor: default; }
+.mt-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.mt-days > span { padding-bottom: 2px; text-align: center; font-size: 11px; color: var(--mt-low); }
+.mt-days button { aspect-ratio: 1; font-size: 12px; }
+.mt-days button.mt-in { background: var(--mt-sel); }
+.mt-days button.mt-today { text-decoration: underline 2px var(--accent); text-underline-offset: 3px; }
+.mt-days button.mt-edge.mt-today { text-decoration-color: var(--surface); }
+.mt-days button:disabled { opacity: .35; cursor: default; }
+@media (max-width: 680px) {
+  .mt-pp { grid-template-columns: 1fr; }
+  .mt-side:first-child { padding: 0 0 14px; margin-bottom: 14px; border-right: 0; border-bottom: 1px solid var(--mt-line); }
+  .mt-side:last-child { padding-left: 0; }
+}
 .mt-who { width: 330px; padding: 10px; }
 .mt-who input { width: 100%; height: 30px; margin-bottom: 8px; padding: 0 8px; font: inherit; font-size: 13px; color: var(--text); background: var(--bg); border: 1px solid var(--mt-line); }
 .mt-who-list { max-height: 340px; overflow-y: auto; }

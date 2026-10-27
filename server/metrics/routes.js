@@ -1,6 +1,7 @@
 // /api/metrics (vista Métricas; leer, también con la del Panel de trabajo; lo exige el bridge).
-//   GET  /               → { data }  (null: aún no se ha cargado ningún CSV)
-//   POST /csv?name=<fichero>  cuerpo: el CSV completo de Remedy, tal cual → { meta }
+//   GET  /               → { data }  (null: aún no hay incidencias guardadas)
+//   POST /csv?name=<fichero>  cuerpo: el CSV completo de Remedy, tal cual → { meta, counts }
+//        lo suma al repositorio local; counts: { inserted, updated, unchanged, kept }
 // Los datos se calculan y se quedan en este ordenador (store.js).
 
 import { failed } from '../shared/http.js';
@@ -15,7 +16,7 @@ export const metricsRoutes = (store, { json }) => async (req, res, path, query) 
       const name = query.get('name') || '';
       if (!CSV_NAME.test(name) || !name.toLowerCase().endsWith('.csv')) { req.resume(); return json(res, 400, { error: 'Elige un fichero .csv.' }); }
       req.setEncoding('utf8');
-      return json(res, 200, { meta: await store.importCsv(req, name) });
+      return json(res, 200, await store.importCsv(req, name));
     }
     return json(res, 404, { error: 'no encontrado' });
   } catch (e) {

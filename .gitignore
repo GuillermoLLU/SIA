@@ -15,3 +15,10 @@ workspace/.copilot-mcp.json
 .DS_Store
 *.log
 nohup.out
+
+# repositorio local de incidencias: datos de la operación, nunca al repositorio
+*.sqlite
+*.sqlite.tmp
+
+# credenciales locales de Claude Code (MCP knowledge)
+.claude/settings.local.json

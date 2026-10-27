@@ -19,9 +19,9 @@ test('GET /: los datos guardados, o null', async () => {
 
 test('POST /csv: carga el cuerpo con el nombre del fichero', async () => {
   let got;
-  const call = setup({ importCsv: async (body, name) => { got = [name]; for await (const c of body) got.push(c); return { rows: 1 }; } });
+  const call = setup({ importCsv: async (body, name) => { got = [name]; for await (const c of body) got.push(c); return { meta: { rows: 1 }, counts: { inserted: 1 } }; } });
   const res = await call('POST', ['csv'], 'name=issues_2026.csv');
-  assert.deepEqual([res.status, res.body], [200, { meta: { rows: 1 } }]);
+  assert.deepEqual([res.status, res.body], [200, { meta: { rows: 1 }, counts: { inserted: 1 } }]);
   assert.deepEqual(got, ['issues_2026.csv', 'csv']);
 });
 

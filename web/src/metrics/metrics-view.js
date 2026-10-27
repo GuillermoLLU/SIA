@@ -1,6 +1,7 @@
-// Vista «Métricas»: cómo va el soporte, para verlo en vivo. Los datos salen
-// del CSV completo de Remedy que carga cada persona (el bridge los calcula y
-// los guarda en este ordenador). Al entrar, siempre el Resumen.
+// Vista «Métricas»: cómo va el soporte, para verlo en vivo. Cada CSV completo de
+// Remedy que carga la persona se suma al repositorio local de incidencias y de él
+// salen los datos (el bridge los calcula y los guarda en este ordenador). Al
+// entrar, siempre el Resumen.
 //
 // Arriba, qué se mira: el equipo, una empresa o un grupo de personas (de partida,
 // nuestro equipo) y, si se quiere, con «+ Comparar», otro lado frente a él; cada
@@ -9,25 +10,27 @@
 // cualquier barra, fila o celda, ese valor.
 import './metrics.css';
 import { esc, fold } from '../ui/html.js';
-import { num, MONTHS } from './format.js';
+import { num } from './format.js';
 import { createModel, COMPANIES } from './model.js';
 import { createCharts } from './charts.js';
 import { createTabs, TABS } from './tabs.js';
-import { periodLabel, calendarHtml } from './period.js';
+import { periodLabel } from './period.js';
+import { mountPeriodPanel } from './period-panel.js';
 import { attachTip } from './tip.js';
-import { COLORS, defaultColors, freeColor, dayOf, freeCompany, withoutSide, togglePerson, monthRange, filterKey } from './view.js';
+import { COLORS, defaultColors, freeColor, dayOf, coverage, freeCompany, withoutSide, togglePerson, filterKey } from './view.js';
 
 const SEARCH_MS = 250;
+const LOAD = 'Actualizar y generar informe';
 const svg = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const CALENDAR_ICON = svg('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>');
 const SEARCH_ICON = svg('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>');
 const CHEVRON = svg('<path d="m6 9 6 6 6-6"/>');
 
 export const mountMetricsView = (root, { api, toast }) => {
-  let m = null, tabs = null, tab = 'resumen', loading = false;
-  // open: el desplegable abierto ('calendar', 'side0' o 'side1'); anchor: el primer mes marcado a
-  // falta del último; who: lo escrito en el buscador de personas; searching: la búsqueda abierta
-  let open = null, anchor = null, who = '', searching = false;
+  let m = null, tabs = null, tab = 'resumen', loading = false, panel = null;
+  // open: el desplegable abierto ('calendar', 'side0' o 'side1'); who: lo escrito en el buscador de
+  // personas; searching: la búsqueda abierta
+  let open = null, who = '', searching = false;
   let colors = defaultColors();   // el color de cada lado
   const ui = { exp: {}, sort: {} };
   const $ = (s) => root.querySelector(s);
@@ -37,8 +40,8 @@ export const mountMetricsView = (root, { api, toast }) => {
   const renderEmpty = () => {
     root.innerHTML = `<div class="mt-page"><header class="mt-top"><h2 class="mt-title">Métricas</h2></header>
       <div class="mt-empty"><b>Aún no hay datos</b>
-        <span>Carga el CSV completo de la consulta de issues del año (con notas e historial). Se calcula y se queda en este ordenador.</span>
-        ${loadButton('Cargar CSV')}</div></div>`;
+        <span>Carga el CSV completo de la consulta de issues (con notas e historial). Se suma al repositorio local de este ordenador y de él salen las métricas.</span>
+        ${loadButton(LOAD)}</div></div>`;
   };
 
   const sideSlot = (k) => `<div class="mt-period mt-slot" data-slot="${k}"><button class="mt-btn mt-icon-btn mt-side" data-side="${k}" aria-haspopup="true"><i class="mt-c${k}"></i><span data-side-name="${k}"></span>${CHEVRON}</button><button class="mt-btn mt-x" data-side-remove="${k}" title="Quitar de la comparación">×</button>
@@ -46,11 +49,11 @@ export const mountMetricsView = (root, { api, toast }) => {
 
   // Lo fijo de la vista (cabecera, comparación, filtros, pestañas); lo de dentro se repinta con cada cambio.
   const renderFrame = () => {
-    const { meta } = m.data, snap = new Date(m.BASE + m.SNAP * 6e4);
+    const { meta } = m.data;
     root.innerHTML = `<div class="mt-page">
       <header class="mt-top"><h2 class="mt-title">Métricas</h2>
-        <span class="mt-date" title="${esc(`${meta.file}, cargado el ${dayOf(meta.generated)}`)}">datos hasta el ${snap.getUTCDate()} de ${MONTHS[snap.getUTCMonth()]} de ${snap.getUTCFullYear()}</span>
-        ${loadButton('Cargar otro CSV')}</header>
+        <span class="mt-date" data-coverage title="${esc(`${meta.file}, cargado el ${dayOf(meta.generated)}`)}"></span>
+        ${loadButton(LOAD)}</header>
       <div class="mt-fbar">
         ${sideSlot(0)}<span class="mt-vs" data-vs>frente a</span>${sideSlot(1)}<button class="mt-btn mt-add" data-side-add>+ Comparar</button>
         <div class="mt-period"><button class="mt-btn mt-icon-btn" data-calendar aria-haspopup="true">${CALENDAR_ICON}<span data-period></span></button><div class="mt-pop mt-cal" data-cal hidden></div></div>
@@ -64,15 +67,11 @@ export const mountMetricsView = (root, { api, toast }) => {
     </div><div class="mt-tip" data-tip-box hidden></div>`;
   };
 
-  // Periodo: el botón dice qué meses se miran; el calendario, un mes por casilla. Primer clic, el primer
-  // mes; segundo, el último (en cualquier orden). Con un solo mes marcado, al salir del calendario se
-  // ve ese mes. Los meses sin datos aún no se pueden marcar.
+  // Periodo: el botón dice qué fechas se miran; su panel (period-panel.js), la rejilla de meses y los campos Desde y
+  // Hasta. Elegir en la rejilla lo aplica y lo cierra; una fecha, lo aplica y lo deja abierto.
   const renderPeriod = () => {
-    const { S, LASTM } = m;
-    $('[data-period]').textContent = periodLabel(S, LASTM, m.data.meta.year);
-    const cal = $('[data-cal]');
-    cal.hidden = open !== 'calendar';
-    if (!cal.hidden) cal.innerHTML = calendarHtml(S, LASTM, m.data.meta.year, anchor);
+    $('[data-period]').textContent = periodLabel(m);
+    $('[data-cal]').hidden = open !== 'calendar';
   };
 
   // Cada lado: el botón dice qué es y lleva su color; la × lo quita (si hay dos). Su desplegable deja
@@ -105,18 +104,13 @@ export const mountMetricsView = (root, { api, toast }) => {
         || '<p class="mt-mut">Nadie con ese nombre.</p>';
     }
   };
-  const closePops = () => { open = null; anchor = null; who = ''; };
-  // Al salir del calendario con un solo mes marcado, ese mes; true si el periodo ha cambiado.
-  const settleMonth = () => {
-    if (open !== 'calendar' || anchor == null) return false;
-    m.S.from = m.S.to = anchor;
-    return true;
-  };
+  const closePops = () => { open = null; who = ''; };
   const togglePop = (which) => {
-    const was = open, changed = settleMonth();
+    const was = open;
     closePops();
     if (was !== which) open = which;
-    if (changed) render(); else { renderPeriod(); renderSides(); }
+    if (open === 'calendar') panel.open();
+    renderPeriod(); renderSides();
     const q = open?.startsWith('side') && $(`[data-side-pop="${open.slice(4)}"] [data-who-q]`);
     if (q) { q.value = ''; q.focus(); }
   };
@@ -127,7 +121,8 @@ export const mountMetricsView = (root, { api, toast }) => {
     const A = m.rows();
     const chips = Object.keys(S.f).flatMap((dim) => [...S.f[dim]].map((k) => `<span class="mt-chip">${DIMS[dim].name}: <b>${esc(DIMS[dim].label(k))}</b><button data-rm="${dim}:${k}" title="Quitar">×</button></span>`));
     $('[data-chips]').innerHTML = chips.join('');
-    $('[data-clear]').hidden = !(chips.length || S.q || S.from || S.to !== m.LASTM);
+    $('[data-clear]').hidden = !(chips.length || S.q || !m.isStartPeriod());
+    $('[data-coverage]').textContent = coverage(m);
     renderPeriod();
     renderSides();
     $('[data-q]').hidden = !(searching || S.q);
@@ -138,10 +133,12 @@ export const mountMetricsView = (root, { api, toast }) => {
 
   const start = (data) => {
     m = data ? createModel(data) : null;
+    m?.resetPeriod();   // de partida, el mes en curso
     ui.exp = {}; ui.sort = {}; tab = 'resumen'; searching = false; closePops();
     if (!m) return renderEmpty();
     tabs = createTabs(m, createCharts(m, ui), ui);
     renderFrame();
+    panel = mountPeriodPanel($('[data-cal]'), { model: () => m, onPick: (close) => { if (close) closePops(); render(); } });
     render();
   };
 
@@ -150,13 +147,13 @@ export const mountMetricsView = (root, { api, toast }) => {
     loading = true;
     if (m) $('.mt-load').outerHTML = loadButton(''); else renderEmpty();
     try {
-      const { meta } = await api.upload(file);
+      const { counts } = await api.upload(file);
       loading = false;
       start(await api.load());
-      toast?.(`Cargadas ${num(meta.rows)} issues de ${meta.group}.`);
+      toast?.(`Informe actualizado: ${num(counts.inserted)} nuevas, ${num(counts.updated)} actualizadas y ${num(counts.unchanged + counts.kept)} sin cambios.`);
     } catch (e) {
       loading = false;
-      if (m) $('.mt-load').outerHTML = loadButton('Cargar otro CSV'); else renderEmpty();
+      if (m) $('.mt-load').outerHTML = loadButton(LOAD); else renderEmpty();
       toast?.(e.message);
     }
   };
@@ -168,15 +165,6 @@ export const mountMetricsView = (root, { api, toast }) => {
     if (e.target.closest('[data-calendar]')) return togglePop('calendar');
     const side = e.target.closest('[data-side]');
     if (side) return togglePop(`side${side.dataset.side}`);
-    const month = e.target.closest('[data-month]');
-    if (month) {
-      const k = Number(month.dataset.month);
-      if (anchor == null) { anchor = k; return renderPeriod(); }
-      [S.from, S.to] = monthRange(anchor, k);
-      closePops();
-      return render();
-    }
-    if (e.target.closest('[data-month-all]')) { S.from = 0; S.to = m.LASTM; closePops(); return render(); }
     const company = e.target.closest('[data-pick-company]');
     if (company) { const [k, c] = company.dataset.pickCompany.split(':').map(Number); S.sides[k] = { company: c }; closePops(); return render(); }
     if (e.target.closest('[data-side-add]')) {
@@ -199,11 +187,7 @@ export const mountMetricsView = (root, { api, toast }) => {
       S.sides[k] = togglePerson(S.sides, k, p);
       return render();
     }
-    if (open && !e.target.closest('.mt-pop')) {
-      const changed = settleMonth();
-      closePops();
-      if (changed) render(); else { renderPeriod(); renderSides(); }
-    }
+    if (open && !e.target.closest('.mt-pop')) { closePops(); renderPeriod(); renderSides(); }
     if (e.target.closest('[data-search]')) {
       searching = !searching || !!S.q;
       $('[data-q]').hidden = !searching;
@@ -218,7 +202,8 @@ export const mountMetricsView = (root, { api, toast }) => {
     else if (d.exp) ui.exp[d.exp] = !ui.exp[d.exp];
     else if (d.sort) { const [id, c] = d.sort.split(':'), cur = ui.sort[id]; ui.sort[id] = [c, cur && cur[0] === c ? -cur[1] : -1]; }
     else if (t.matches('[data-clear]')) {
-      Object.assign(S, { f: {}, q: '', from: 0, to: m.LASTM });
+      Object.assign(S, { f: {}, q: '' });
+      m.resetPeriod();
       $('[data-q]').value = ''; searching = false;
     } else if (d.f2) d.f2.split('|').forEach((x) => { const [dim, k] = filterKey(x); if (!m.isSel(dim, k)) m.toggle(dim, k); });
     else if (d.f) { const [dim, k] = filterKey(d.f); m.toggle(dim, k); }

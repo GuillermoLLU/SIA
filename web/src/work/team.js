@@ -8,7 +8,8 @@
 // al ordenar por ellos, esas personas van al final.
 import { esc } from '../ui/html.js';
 import { SCOPE, slaText } from '../metrics/model.js';
-import { num, dec, pct, dur, MONTHS } from '../metrics/format.js';
+import { num, dec, pct, dur } from '../metrics/format.js';
+import { monthTicks } from '../metrics/plot.js';
 
 const MIN = 10;
 
@@ -52,9 +53,9 @@ export const teamPanel = (m, ch, ui) => {
   // Pendientes: todo lo que el equipo tiene sin resolver (caiga o no en sus búsquedas de Remedy) y lo
   // que espera en sus búsquedas (SGA y SISU) sin asignar o asignado a otros; de las issues abiertas en el periodo.
   const { C, OPEN, MONTH, S, N, TEAM } = m, own = m.S.sides[0].company;
-  const queue = { all: 0, mine: 0, orphan: 0, months: Array.from({ length: 12 }, () => [0, 0, 0]) };   // por mes: equipo, sin asignar, otros
+  const queue = { all: 0, mine: 0, orphan: 0, months: Array.from({ length: m.LASTM + 1 }, () => [0, 0, 0]) };   // por mes: equipo, sin asignar, otros
   for (let i = 0; i < N; i++) {
-    if (!OPEN[i] || MONTH[i] < S.from || MONTH[i] > S.to) continue;
+    if (!OPEN[i] || !m.inPeriod(i)) continue;
     const mine = C.as[i] && TEAM[i] === own;
     if (!mine && C.sc[i] !== SCOPE.SGA && C.sc[i] !== SCOPE.SISU) continue;
     const who = mine ? 0 : !C.as[i] ? 1 : 2;
@@ -74,27 +75,29 @@ export const teamPanel = (m, ch, ui) => {
   const block = (id, title, label, hero, items, extra, chart) => {
     const fixed = CHART_ONLY.has(id), asChart = fixed || charts.has(id);
     // en los bloques que son siempre gráfica, `extra` va en la línea del título, a la derecha
-    const head = `<div class="wk-block-h"><h3>${title}</h3>${fixed ? extra : `<button class="wk-chart-btn" data-chart="${id}" title="${asChart ? 'Ver los datos' : 'Ver la evolución por mes'}">${asChart ? DATA_ICON : CHART_ICON}</button>`}</div>`;
+    const head = `<div class="wk-block-h"><h3>${title}</h3>${fixed ? extra : `<button class="wk-chart-btn" data-chart="${id}" title="${asChart ? 'Ver los datos' : `Ver la evolución por ${m.daily() ? 'día' : 'mes'}`}">${asChart ? DATA_ICON : CHART_ICON}</button>`}</div>`;
     if (!asChart) return `<section class="wk-block">${head}<div class="wk-hero"><b>${hero}</b><span>${label}</span></div>${extra}<div class="wk-items">${items.join('')}</div></section>`;
     const note = { queue: 'Lo que sigue sin resolver de cada mes, por mes de creación.', volume: '' }[id]
-      ?? 'Por mes de creación. * Mes en curso: aún puede cambiar.';
+      ?? (m.daily() ? 'Por día de creación. * Día de la última carga: aún puede cambiar.' : 'Por mes de creación. * Mes en curso: aún puede cambiar.');
     return `<section class="wk-block wk-as-chart">${head}<div class="wk-key"><b>${hero}</b><span>${label}</span></div>
       <div class="wk-chart">${typeof chart === 'function' ? chart() : lines(A, ...chart, { height: 150, left: 78 })}</div>${note ? `<p class="wk-note">${note}</p>` : ''}</section>`;
   };
   // nuevas y resueltas de cada mes: las creadas ese mes y las resueltas ese mes (por su fecha de resolución,
   // aunque se crearan antes), del equipo; dos columnas por mes
-  const flow = Array.from({ length: 12 }, () => [0, 0]);
-  const yearEnd = (Date.UTC(m.data.meta.year + 1, 0, 1) - m.BASE) / 6e4;
+  const flow = Array.from({ length: m.LASTM + 1 }, () => [0, 0]);
   for (let i = 0; i < N; i++) {
     if (TEAM[i] !== own || !C.as[i]) continue;
-    flow[MONTH[i]][0]++;
-    if (C.res[i] >= 0 && C.res[i] < yearEnd) flow[new Date(m.BASE + C.res[i] * 6e4).getUTCMonth()][1]++;
+    if (m.inPeriod(i)) flow[MONTH[i]][0]++;
+    if (C.res[i] >= S.d0 && C.res[i] < S.d1) flow[m.monthAt(C.res[i])][1]++;
   }
+  // bajo cada columna, su mes (uno de cada tantos si son muchos) y el año bajo el primero de cada año (monthTicks)
+  const ticks = new Map(monthTicks(S.from, Math.min(S.to, m.LASTM), m.data.meta.start).map((t) => [t.k, t]));
+  const colX = (k) => { const t = ticks.get(k); return `<span class="wk-col-x">${t ? `${t.label}${t.sub ? `<br>${t.sub}` : ''}` : '&nbsp;'}</span>`; };
   const flowBars = () => {
     const shown = flow.map((v, k) => [k, v]).filter(([k]) => k >= S.from && k <= Math.min(S.to, m.LASTM));
     const max = Math.max(1, ...shown.flatMap(([, v]) => v));
-    return `<div class="wk-cols">${shown.map(([k, [inN, outN]]) => `<div class="wk-col" data-tip="${esc(`${MONTHS[k]}\nNuevas: ${num(inN)}\nResueltas: ${num(outN)}`)}">
-        <span class="wk-pair"><i class="mt-c2" style="height:${(inN / max * 100).toFixed(1)}%"></i><i class="mt-c${k0}" style="height:${(outN / max * 100).toFixed(1)}%"></i></span><span class="wk-col-x">${MONTHS[k]}</span></div>`).join('')}</div>`;
+    return `<div class="wk-cols">${shown.map(([k, [inN, outN]]) => `<div class="wk-col" data-tip="${esc(`${m.monthName(k)}\nNuevas: ${num(inN)}\nResueltas: ${num(outN)}`)}">
+        <span class="wk-pair"><i class="mt-c2" style="height:${(inN / max * 100).toFixed(1)}%"></i><i class="mt-c${k0}" style="height:${(outN / max * 100).toFixed(1)}%"></i></span>${colX(k)}</div>`).join('')}</div>`;
   };
   // pendientes por mes de creación: una columna por mes, con los mismos colores que la barra del bloque
   const queueBars = (months) => {
@@ -102,8 +105,8 @@ export const teamPanel = (m, ch, ui) => {
     const max = Math.max(1, ...shown.map(([, v]) => v[0] + v[1] + v[2]));
     return `<div class="wk-cols">${shown.map(([k, v]) => {
       const n = v[0] + v[1] + v[2];
-      return `<div class="wk-col" data-tip="${esc(`${MONTHS[k]}: ${num(n)} sin resolver\nAsignadas al equipo: ${num(v[0])}\nSin asignar: ${num(v[1])}\nAsignadas a otros: ${num(v[2])}`)}">
-        <span class="wk-col-n">${n ? num(n) : ''}</span><span class="wk-col-bar" style="height:${(n / max * 100).toFixed(1)}%"><i class="mt-c2" style="flex:${v[2]}"></i><i class="wk-orphan" style="flex:${v[1]}"></i><i class="mt-c${k0}" style="flex:${v[0]}"></i></span><span class="wk-col-x">${MONTHS[k]}</span></div>`;
+      return `<div class="wk-col" data-tip="${esc(`${m.monthName(k)}: ${num(n)} sin resolver\nAsignadas al equipo: ${num(v[0])}\nSin asignar: ${num(v[1])}\nAsignadas a otros: ${num(v[2])}`)}">
+        <span class="wk-col-n">${n ? num(n) : ''}</span><span class="wk-col-bar" style="height:${(n / max * 100).toFixed(1)}%"><i class="mt-c2" style="flex:${v[2]}"></i><i class="wk-orphan" style="flex:${v[1]}"></i><i class="mt-c${k0}" style="flex:${v[0]}"></i></span>${colX(k)}</div>`;
     }).join('')}</div>`;
   };
   const bar = (share, cls = `mt-c${k0}`) => `<span class="wk-bar"><i class="${cls}" style="width:${Math.min(100, share * 100).toFixed(1)}%"></i></span>`;

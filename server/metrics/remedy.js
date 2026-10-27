@@ -1,7 +1,7 @@
-// De una fila del CSV completo de Remedy (la consulta de todo el año, con
+// De una fila del CSV completo de Remedy (la consulta de issues, con
 // notas e historial) a lo que miden las Métricas de esa issue. Dominio puro.
 //
-// Los tiempos van en minutos desde el 1 de enero del año analizado, con la
+// Los tiempos van en minutos desde el 1 de enero del primer año de los datos, con la
 // hora tal cual viene en el dato (sin convertir zona horaria); -1 = no hay.
 // readIssue es la entrada; las piezas en que se descompone (fechas, historial,
 // notas, ticket, ámbito, operación) van públicas para probarse una a una.
@@ -134,7 +134,7 @@ const tagFlags = (tags) => (tags.has('SISUINC') ? FLAG.SISU : 0) | (tags.has('PR
   | ([...tags].some((t) => t.startsWith('IA_SOLVED')) ? FLAG.IA_SOLVED : 0) | (tags.has('IA_FAIL') || tags.has('HITL_IA_FAIL') ? FLAG.IA_FAIL_TAG : 0)
   | (tags.has('DB2_LOCK') ? FLAG.DB2_LOCK : 0);
 
-// La fila entera → la issue medida. `base`: milisegundos del 1 de enero del año.
+// La fila entera → la issue medida. `base`: milisegundos del 1 de enero del primer año de los datos.
 export const readIssue = (r, base) => {
   const at = (s) => minutesSince(base, s);
   const reported = at(r.REPORTEDDATE), modified = at(r.LASTMODIFIEDDATE);

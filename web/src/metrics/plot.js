@@ -1,16 +1,50 @@
 // Lo que hay detrás de las piezas de pantalla (sin DOM): las series y escalas de las gráficas, el orden y el
 // reparto de las fichas y los recuentos de los mapas de calor y las tablas de recuentos.
-import { MIN_ISSUES } from './rules.js';
+import { MIN_ISSUES, DAY } from './rules.js';
+import { MONTHS } from './format.js';
 
-export const LINE_MIN = 10;   // un mes con menos issues no se pinta en las líneas: su cifra dice poco
+export const LINE_MIN = 10;   // un tramo (mes o día) con menos issues no se pinta en las líneas: su cifra dice poco
 const AIR = 1.1;              // la escala deja un 10 % de aire por encima del máximo
 
-// Las series de una gráfica por mes, una por lado (cos): f(indicadores del mes), o null con pocas issues.
-export const monthSeries = (m, A, f, cos) => cos.map((k) => {
-  const mt = Array.from({ length: m.LASTM + 1 }, () => []);
-  for (const i of A) if (m.SIDE[i] === k) mt[m.MONTH[i]].push(i);
-  return mt.map((l) => (l.length >= LINE_MIN ? f(m.stats(l)) : null));
-});
+// Las series de una gráfica de evolución en el periodo que se mira, una por lado (cos): por días si el periodo es de un
+// mes o menos (m.daily()), si no por meses (del S.from al S.to). f(indicadores del tramo) da el valor, o null con pocas
+// issues. → { daily, n: tramos, per: una lista de n valores por lado }
+export const periodSeries = (m, A, f, cos) => {
+  const { S, C } = m, daily = m.daily();
+  const n = daily ? Math.round((S.d1 - S.d0) / DAY) : S.to - S.from + 1;
+  const unit = daily ? (i) => Math.floor((C.rep[i] - S.d0) / DAY) : (i) => m.MONTH[i] - S.from;
+  const per = cos.map((k) => {
+    const mt = Array.from({ length: n }, () => []);
+    for (const i of A) { const u = unit(i); if (m.SIDE[i] === k && u >= 0 && u < n) mt[u].push(i); }
+    return mt.map((l) => (l.length >= LINE_MIN ? f(m.stats(l)) : null));
+  });
+  return { daily, n, per };
+};
+
+// Las etiquetas de un eje de meses (del mes `from` al `to`, numerados desde el enero de `start`): con más de 12, una
+// de cada tantas contando desde la última, para que salga siempre el último mes y ninguna se monte en otra. Si el eje
+// pasa de un año a otro, bajo la primera etiqueta de cada año va su año. → [{ k, label, sub }]
+export const monthTicks = (from, to, start) => {
+  const step = Math.ceil((to - from + 1) / 12), years = Math.floor(from / 12) !== Math.floor(to / 12), out = [];
+  for (let k = from + ((to - from) % step); k <= to; k += step) {
+    const prev = out[out.length - 1], y = Math.floor(k / 12);
+    out.push({ k, label: MONTHS[k % 12], sub: years && (!prev || Math.floor(prev.k / 12) !== y) ? start + y : null });
+  }
+  return out;
+};
+
+// Lo mismo para un eje de los n días del periodo (k: el día, desde S.d0): el número del día y, bajo la primera
+// etiqueta de cada mes, el mes.
+export const dayTicks = (m, n) => {
+  const step = Math.ceil(n / 12), out = [];
+  let month = -1;
+  for (let k = (n - 1) % step; k < n; k += step) {
+    const d = new Date(m.BASE + (m.S.d0 + k * DAY) * 6e4);
+    out.push({ k, label: String(d.getUTCDate()), sub: d.getUTCMonth() !== month ? MONTHS[d.getUTCMonth()] : null });
+    month = d.getUTCMonth();
+  }
+  return out;
+};
 
 // La escala de una gráfica de n puntos en un dibujo de W×H con márgenes (L, R, T, B): el máximo con aire y dónde
 // cae cada punto (x) y cada valor (y).

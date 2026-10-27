@@ -1,28 +1,25 @@
 // Lo que entra y lo que se cierra (sin DOM): los tramos del periodo, lo cerrado dentro de él, el libro mayor
 // mes a mes (o día a día) y el último mes completo frente al anterior. m: el modelo (model.js).
-import { MONTHS } from './format.js';
 import { OLD_DAYS, DAY } from './rules.js';
 
+// los meses que toca el periodo
 export const monthsIn = (S) => Array.from({ length: S.to - S.from + 1 }, (_, j) => S.from + j);
-// minutos desde el 1 de enero de un día
-const minOf = (m, mo, d = 1) => (Date.UTC(m.data.meta.year, mo, d) - m.BASE) / 6e4;
 // cuándo se resolvió una issue (minutos), o null si sigue abierta
 export const resolvedAt = (m) => (i) => (!m.OPEN[i] && m.C.res[i] >= 0 ? m.C.res[i] : null);
 export const startedAt = (m) => (i) => (m.C.ip[i] >= 0 ? m.C.rep[i] + m.C.ip[i] : null);
 
-// Los tramos de la tabla mes a mes: los meses del periodo o, si es un solo mes, sus días (hasta la foto).
+// Los tramos de la tabla mes a mes: los meses del periodo (el primero y el último, solo la parte que cae dentro) o,
+// si el periodo es de un mes o menos, sus días.
 const flowUnits = (m) => {
   const { S, LASTM } = m;
-  if (S.from !== S.to) return monthsIn(S).map((k) => ({ label: MONTHS[k] + (k === LASTM ? '*' : ''), from: minOf(m, k), to: minOf(m, k + 1), f: `month:${k}` }));
-  const y = m.data.meta.year;
-  const last = Math.min(new Date(Date.UTC(y, S.from + 1, 0)).getUTCDate(), S.from === LASTM ? new Date(m.BASE + m.SNAP * 6e4).getUTCDate() : 31);
-  return Array.from({ length: last }, (_, j) => ({ label: `${j + 1} ${MONTHS[S.from]}`, from: minOf(m, S.from, j + 1), to: minOf(m, S.from, j + 2) }));
+  if (!m.daily()) return monthsIn(S).map((k) => ({ label: m.monthName(k) + (k === LASTM ? '*' : ''), from: Math.max(m.minuteOf(k), S.d0), to: Math.min(m.minuteOf(k + 1), S.d1), f: `month:${k}` }));
+  return Array.from({ length: Math.round((S.d1 - S.d0) / DAY) }, (_, j) => ({ label: m.dayName(S.d0 + j * DAY), from: S.d0 + j * DAY, to: S.d0 + (j + 1) * DAY }));
 };
 
 // lo cerrado dentro del periodo, por lado, se abriera cuando se abriera
 export const closedInPeriod = (m) => {
-  const from = minOf(m, m.S.from), to = minOf(m, m.S.to + 1), resAt = resolvedAt(m);
-  return m.bySide(m.today()).map((l) => l.filter((i) => { const r = resAt(i); return r != null && r >= from && r < to; }));
+  const { d0, d1 } = m.S, resAt = resolvedAt(m);
+  return m.bySide(m.today()).map((l) => l.filter((i) => { const r = resAt(i); return r != null && r >= d0 && r < d1; }));
 };
 
 // El libro mayor de cada lado: por tramo, lo recibido (in) y qué ha sido de ello (closed, still, same: cerrado en el
@@ -48,14 +45,16 @@ export const ledger = (m, A) => {
     const last = rows[rows.length - 1] || { open: 0, old: 0 };
     return [...rows, { ...tot, open: last.open, old: last.old }];
   });
-  return { units, per, day: m.S.from === m.S.to };
+  return { units, per, day: m.daily() };
 };
 
 // Último mes completo del periodo frente al anterior: [mes, { n, v } por lado] o null. Las del mes anterior pueden
 // quedar fuera del periodo.
 export const monthVsPrev = (m) => {
-  const { S, LASTM, MONTH } = m, lastFull = S.to === LASTM ? LASTM - 1 : S.to;
-  if (lastFull < 1 || lastFull < S.from) return null;
+  const { MONTH } = m;
+  let lastFull = m.monthAt(m.S.d1 - 1);
+  while (lastFull >= 1 && !m.fullMonth(lastFull)) lastFull--;
+  if (lastFull < 1 || !m.fullMonth(lastFull)) return null;
   return [lastFull, m.bySide(m.today()).map((l) => {
     let a = 0, b = 0;
     for (const i of l) { if (MONTH[i] === lastFull) a++; else if (MONTH[i] === lastFull - 1) b++; }

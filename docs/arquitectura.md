@@ -49,7 +49,7 @@ las rutas de cada slice.
 | `users/`, `knowledge/` | Personas y roles; conocimiento asignado y claves de poder de cada persona |
 | `base/` | Cliente de la base de conocimiento, permisos y el esquema SQL |
 | `projects/` | Administración: proyectos y sus entradas |
-| `issues/`, `metrics/` | Issues (cola, mesa, estadísticas) y Métricas (del CSV de Remedy a datos por columnas) |
+| `issues/`, `metrics/` | Issues (cola, mesa, estadísticas) y Métricas (los CSV de Remedy se suman a un repositorio SQLite local con `node:sqlite`, `incidencias.sqlite`, que no sale del equipo; de él salen los datos por columnas; el periodo se elige por fechas) |
 | `skills/`, `links/`, `uploads/` | Laboratorio y sincronización de skills, enlaces rápidos, adjuntos |
 | `config/`, `lock/` | Configuración personal (`~/.sia/config.json`: tema, Jira, GitHub) y candado |
 | `launchers/`, `workspace/` | Los CLIs (Claude, Copilot, Codex), sus argumentos y su MCP por sesión; los directorios de modo y skills por base |

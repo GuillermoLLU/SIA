@@ -1,5 +1,5 @@
 // A qué empresa se cuenta cada responsable de AYS SOPORTE: Indra (su equipo,
-// por usuario de Remedy, también quien estuvo en él durante el año), fuera de
+// por usuario de Remedy, también quien estuvo en él en algún momento: una empresa por persona para todos los años), fuera de
 // la comparación (sin responsable o personal del cliente) y T-Systems todos
 // los demás del grupo. Quien entre en el equipo de Indra, aquí.
 
