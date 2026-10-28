@@ -3,7 +3,7 @@
 // reparto por tramos, tabla dinámica de calidad). createCommon las prepara una vez para un modelo (m), unas
 // gráficas (ch) y el estado de la vista (ui); cada pestaña recibe ese conjunto y saca de él lo que necesita.
 import { esc } from '../../ui/html.js';
-import { num, dec, pct, dur, nice, MONTHS } from '../format.js';
+import { num, dec, pct, dur, nice } from '../format.js';
 import { COMPANIES, CARDS, ACTIVE_DAYS, share, slaText } from '../model.js';
 import { SHIFTS, SHIFT_HOURS } from '../shifts.js';
 import { pairTable as pairTableOf } from '../pair-table.js';
@@ -17,7 +17,7 @@ export const TABS = [['resumen', 'Resumen'], ['hoy', 'Foto de hoy'], ['entrada',
   ['resolucion', 'Resolución y escalados'], ['sla', 'SLA y calidad'], ['ia', 'IA'], ['turnos', 'Turnos']];
 export const QUESTIONS = {
   resumen: ['¿Cómo vamos?', 'Cada bloque responde a una pregunta con sus cifras clave; el detalle, en su pestaña.'],
-  hoy: ['¿Qué hay que mover hoy?', 'Lo abierto ahora mismo, sea del mes que sea (no depende del periodo), en listas para actuar: lo urgente, lo que espera y lo que está parado.'],
+  hoy: ['¿Qué hay que mover hoy?', 'Lo abierto a fecha de la última carga, se abriera cuando se abriera (no depende del periodo), en listas para actuar: lo urgente, lo que espera y lo que está parado.'],
   entrada: ['¿Qué nos entra?', 'Cuánto entra, cuánto se cierra y de qué tipo, mes a mes. Cada tabla lleva su total y los totales cuadran con las cifras de arriba.'],
   backlog: ['¿Qué tenemos pendiente?', 'Lo recibido en el periodo que sigue sin resolver: en qué punto está, desde cuándo y qué conviene vigilar.'],
   modulos: ['¿De dónde viene?', 'Los módulos, centros y problemas que concentran el trabajo, y lo que se repite.'],
@@ -29,6 +29,8 @@ export const QUESTIONS = {
 
 export const WORSE_NOTE = `En ocre, lo que va un ${Math.round(WORSE * 100)} % o más peor que el total (con al menos ${MIN_ISSUES} issues).`;
 export const MONTH_NOTE = 'Por mes de apertura. * mes incompleto: los últimos meses salen mejor de lo que acabarán, porque lo lento aún no se ha resuelto.';
+// la evolución día a día (periodos de un mes o menos)
+export const DAY_NOTE = 'Por día de apertura. * día de la última carga, incompleto. Los últimos días salen mejor de lo que acabarán, porque lo lento aún no se ha resuelto. Un día con menos de 10 issues no se pinta.';
 export const opt = (f) => (v) => (v == null ? '—' : f(v));
 export const P1 = (v) => pct(v, 1);
 export const optDur = (v) => (v == null ? '—' : dur(v));
@@ -49,7 +51,7 @@ export const createCommon = (m, ch, ui) => {
   // si una fila con filtro f está marcada (los filtros dobles «a|b» y las filas sin filtro, no)
   const selRow = (f) => !!f && !f.includes('|') && isSel(f.split(':')[0], +f.split(':')[1]);
   // filas de corte, [nombre, prueba, filtro]: por mes de apertura y por prioridad
-  const monthRows = () => monthsIn().map((k) => [`${MONTHS[k]}${k === LASTM ? '*' : ''}`, (i) => MONTH[i] === k, `month:${k}`]);
+  const monthRows = () => monthsIn().map((k) => [`${m.monthName(k)}${k === LASTM ? '*' : ''}`, (i) => MONTH[i] === k, `month:${k}`]);
   const prioRows = () => PRIOS.map((p) => [nice(DI.prio[p]), (i) => C.pr[i] === p, `pr:${p}`]);
   const asRows = (rows) => rows.map(([label, test, f]) => ({ label, test, f }));
   // una fila por mes con sus celdas (cells: de las issues del mes); el nombre del mes en `tag`
@@ -103,7 +105,7 @@ export const createCommon = (m, ch, ui) => {
     return { n: H, v: H ? l.length / H / per : null };
   });
   const teamNames = () => (m.perHead() ? [0, 1].map(sideLabel) : null);
-  const headsNote = () => (m.perHead() ? ` · por persona: lo de cada lado entre sus personas; el equipo, quien ha tenido actividad en los ${ACTIVE_DAYS} días antes de la foto (${[0, 1].map((k) => `${teamNames()[k]}: ${m.heads(k).size}`).join(' · ')})` : '');
+  const headsNote = () => (m.perHead() ? ` · por persona: lo de cada lado entre sus personas; el equipo, quien ha tenido actividad en los ${ACTIVE_DAYS} días antes del final del periodo (${[0, 1].map((k) => `${teamNames()[k]}: ${m.heads(k).size}`).join(' · ')})` : '');
 
   // La tabla de dos lados con el título del bloque a la izquierda y tres columnas por lado (cols: sus cabeceras):
   // cells(r), las celdas de una fila; lead, la fila de totales (arriba o, con leadAtEnd, abajo); rowAttrs(r) y

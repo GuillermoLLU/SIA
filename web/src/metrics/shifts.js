@@ -1,5 +1,5 @@
 // Los turnos del servicio (sin DOM): mañana de 7 a 15, tarde de 15 a 23 y noche de 23 a 7.
-// Salen de la actividad del propio equipo en 2026 (cuándo empieza y acaba cada persona en las
+// Salen de la actividad del propio equipo en los datos cargados (cuándo empieza y acaba cada persona en las
 // semanas en que está en un turno); la gente rota de turno por semanas.
 //
 // Un turno concreto es cada tramo de 8 h desde las 7:00 del 1 de enero: `slot` es su número

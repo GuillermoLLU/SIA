@@ -19,9 +19,8 @@ export const late = (m) => (i) => isLate(m.OPEN[i], m.C.ip[i], m.SLA[m.C.pr[i]],
 export const escalated = (m) => (i) => m.C.vt[i] > 0;
 const cards = (m) => (i) => m.DIMS.tj.get(i);
 export const isPrio = (m) => (i) => cards(m)(i).includes(2);
-const inPeriod = (m) => (i) => m.MONTH[i] >= m.S.from && m.MONTH[i] <= m.S.to;
 // lo que no tiene a nadie: abierto, de las tarjetas del equipo (SGA, SISU o PRIO) y del periodo, con los filtros
-export const orphansIn = (m) => m.today(true).filter((i) => m.OPEN[i] && !m.C.as[i] && inPeriod(m)(i) && cards(m)(i).some((k) => k < 3));
+export const orphansIn = (m) => m.today(true).filter((i) => m.OPEN[i] && !m.C.as[i] && m.inPeriod(i) && cards(m)(i).some((k) => k < 3));
 // lo mismo, de cualquier mes (la foto de hoy)
 export const orphansToday = (m) => m.today(true).filter((i) => m.OPEN[i] && !m.C.as[i] && cards(m)(i).some((k) => k < 3));
 

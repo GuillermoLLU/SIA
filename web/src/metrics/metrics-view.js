@@ -1,6 +1,7 @@
-// Vista «Métricas»: cómo va el soporte, para verlo en vivo. Los datos salen
-// del CSV completo de Remedy que carga cada persona (el bridge los calcula y
-// los guarda en este ordenador). Al entrar, siempre el Resumen.
+// Vista «Métricas»: cómo va el soporte, para verlo en vivo. «Actualizar y generar
+// informe» pide a Snowflake las incidencias de Remedy nuevas o cambiadas, se suman
+// al repositorio local de incidencias y de él salen los datos (el bridge los
+// calcula y los guarda en este ordenador). Al entrar, siempre el Resumen.
 //
 // Arriba, qué se mira: el equipo, una empresa o un grupo de personas (de partida,
 // nuestro equipo) y, si se quiere, con «+ Comparar», otro lado frente a él; cada
@@ -9,36 +10,42 @@
 // cualquier barra, fila o celda, ese valor.
 import './metrics.css';
 import { esc, fold } from '../ui/html.js';
-import { num, MONTHS } from './format.js';
+import { num } from './format.js';
 import { createModel, COMPANIES } from './model.js';
 import { createCharts } from './charts.js';
 import { createTabs, TABS } from './tabs.js';
-import { periodLabel, calendarHtml } from './period.js';
+import { periodLabel } from './period.js';
+import { mountPeriodPanel } from './period-panel.js';
 import { attachTip } from './tip.js';
-import { COLORS, defaultColors, freeColor, dayOf, freeCompany, withoutSide, togglePerson, monthRange, filterKey } from './view.js';
+import { PHASES, progressOf, progressHtml } from './progress.js';
+import { COLORS, defaultColors, freeColor, dayOf, coverage, freeCompany, withoutSide, togglePerson, filterKey } from './view.js';
 
 const SEARCH_MS = 250;
+const LOAD = 'Actualizar y generar informe';
+const POLL_MS = 400;     // cada cuánto se pregunta al bridge por el avance de la actualización
+const TICK_MS = 200;     // y cada cuánto se repinta (el porcentaje es de tiempo: se mueve aunque no haya cifras nuevas)
+const FINISH_MS = 450;   // el 100 % a la vista un momento antes de abrir las métricas nuevas
 const svg = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const CALENDAR_ICON = svg('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>');
 const SEARCH_ICON = svg('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>');
 const CHEVRON = svg('<path d="m6 9 6 6 6-6"/>');
 
 export const mountMetricsView = (root, { api, toast }) => {
-  let m = null, tabs = null, tab = 'resumen', loading = false;
-  // open: el desplegable abierto ('calendar', 'side0' o 'side1'); anchor: el primer mes marcado a
-  // falta del último; who: lo escrito en el buscador de personas; searching: la búsqueda abierta
-  let open = null, anchor = null, who = '', searching = false;
+  let m = null, tabs = null, tab = 'resumen', loading = false, panel = null;
+  // open: el desplegable abierto ('calendar', 'side0' o 'side1'); who: lo escrito en el buscador de
+  // personas; searching: la búsqueda abierta
+  let open = null, who = '', searching = false;
   let colors = defaultColors();   // el color de cada lado
   const ui = { exp: {}, sort: {} };
   const $ = (s) => root.querySelector(s);
 
-  const loadButton = (label) => `<label class="mt-load ${loading ? 'mt-busy' : ''}">${loading ? 'Calculando…' : label}<input type="file" accept=".csv,text/csv" data-csv hidden ${loading ? 'disabled' : ''}></label>`;
+  const loadButton = () => `<button class="mt-load ${loading ? 'mt-busy' : ''}" data-update ${loading ? 'disabled' : ''}>${loading ? 'Actualizando…' : LOAD}</button>`;
 
   const renderEmpty = () => {
     root.innerHTML = `<div class="mt-page"><header class="mt-top"><h2 class="mt-title">Métricas</h2></header>
       <div class="mt-empty"><b>Aún no hay datos</b>
-        <span>Carga el CSV completo de la consulta de issues del año (con notas e historial). Se calcula y se queda en este ordenador.</span>
-        ${loadButton('Cargar CSV')}</div></div>`;
+        <span>Trae de Snowflake las incidencias de Remedy (con notas e historial) desde 2026. Se guardan en el repositorio local de este ordenador y de él salen las métricas; cada vez que actualices, solo llega lo nuevo y lo cambiado.</span>
+        ${loadButton()}</div></div>`;
   };
 
   const sideSlot = (k) => `<div class="mt-period mt-slot" data-slot="${k}"><button class="mt-btn mt-icon-btn mt-side" data-side="${k}" aria-haspopup="true"><i class="mt-c${k}"></i><span data-side-name="${k}"></span>${CHEVRON}</button><button class="mt-btn mt-x" data-side-remove="${k}" title="Quitar de la comparación">×</button>
@@ -46,16 +53,15 @@ export const mountMetricsView = (root, { api, toast }) => {
 
   // Lo fijo de la vista (cabecera, comparación, filtros, pestañas); lo de dentro se repinta con cada cambio.
   const renderFrame = () => {
-    const { meta } = m.data, snap = new Date(m.BASE + m.SNAP * 6e4);
+    const { meta } = m.data;
     root.innerHTML = `<div class="mt-page">
       <header class="mt-top"><h2 class="mt-title">Métricas</h2>
-        <span class="mt-date" title="${esc(`${meta.file}, cargado el ${dayOf(meta.generated)}`)}">datos hasta el ${snap.getUTCDate()} de ${MONTHS[snap.getUTCMonth()]} de ${snap.getUTCFullYear()}</span>
-        ${loadButton('Cargar otro CSV')}</header>
+        <span class="mt-date" data-coverage title="${esc(`${meta.file}, actualizado el ${dayOf(meta.generated)}`)}"></span>
+        ${loadButton()}</header>
       <div class="mt-fbar">
         ${sideSlot(0)}<span class="mt-vs" data-vs>frente a</span>${sideSlot(1)}<button class="mt-btn mt-add" data-side-add>+ Comparar</button>
         <div class="mt-period"><button class="mt-btn mt-icon-btn" data-calendar aria-haspopup="true">${CALENDAR_ICON}<span data-period></span></button><div class="mt-pop mt-cal" data-cal hidden></div></div>
         <div class="mt-chips" data-chips></div>
-        <button class="mt-btn" data-clear>Quitar filtros</button>
         <div class="mt-find"><input type="search" data-q placeholder="Título o INC…" hidden><span class="mt-count" data-count></span>
           <button class="mt-search" data-search title="Buscar en el título o por número">${SEARCH_ICON}</button></div>
       </div>
@@ -64,15 +70,11 @@ export const mountMetricsView = (root, { api, toast }) => {
     </div><div class="mt-tip" data-tip-box hidden></div>`;
   };
 
-  // Periodo: el botón dice qué meses se miran; el calendario, un mes por casilla. Primer clic, el primer
-  // mes; segundo, el último (en cualquier orden). Con un solo mes marcado, al salir del calendario se
-  // ve ese mes. Los meses sin datos aún no se pueden marcar.
+  // Periodo: el botón dice qué fechas se miran; su panel (period-panel.js), la rejilla de meses y los campos Desde y
+  // Hasta. Elegir en la rejilla lo aplica y lo cierra; una fecha, lo aplica y lo deja abierto.
   const renderPeriod = () => {
-    const { S, LASTM } = m;
-    $('[data-period]').textContent = periodLabel(S, LASTM, m.data.meta.year);
-    const cal = $('[data-cal]');
-    cal.hidden = open !== 'calendar';
-    if (!cal.hidden) cal.innerHTML = calendarHtml(S, LASTM, m.data.meta.year, anchor);
+    $('[data-period]').textContent = periodLabel(m);
+    $('[data-cal]').hidden = open !== 'calendar';
   };
 
   // Cada lado: el botón dice qué es y lleva su color; la × lo quita (si hay dos). Su desplegable deja
@@ -105,18 +107,13 @@ export const mountMetricsView = (root, { api, toast }) => {
         || '<p class="mt-mut">Nadie con ese nombre.</p>';
     }
   };
-  const closePops = () => { open = null; anchor = null; who = ''; };
-  // Al salir del calendario con un solo mes marcado, ese mes; true si el periodo ha cambiado.
-  const settleMonth = () => {
-    if (open !== 'calendar' || anchor == null) return false;
-    m.S.from = m.S.to = anchor;
-    return true;
-  };
+  const closePops = () => { open = null; who = ''; };
   const togglePop = (which) => {
-    const was = open, changed = settleMonth();
+    const was = open;
     closePops();
     if (was !== which) open = which;
-    if (changed) render(); else { renderPeriod(); renderSides(); }
+    if (open === 'calendar') panel.open();
+    renderPeriod(); renderSides();
     const q = open?.startsWith('side') && $(`[data-side-pop="${open.slice(4)}"] [data-who-q]`);
     if (q) { q.value = ''; q.focus(); }
   };
@@ -127,7 +124,7 @@ export const mountMetricsView = (root, { api, toast }) => {
     const A = m.rows();
     const chips = Object.keys(S.f).flatMap((dim) => [...S.f[dim]].map((k) => `<span class="mt-chip">${DIMS[dim].name}: <b>${esc(DIMS[dim].label(k))}</b><button data-rm="${dim}:${k}" title="Quitar">×</button></span>`));
     $('[data-chips]').innerHTML = chips.join('');
-    $('[data-clear]').hidden = !(chips.length || S.q || S.from || S.to !== m.LASTM);
+    $('[data-coverage]').textContent = coverage(m);
     renderPeriod();
     renderSides();
     $('[data-q]').hidden = !(searching || S.q);
@@ -138,45 +135,91 @@ export const mountMetricsView = (root, { api, toast }) => {
 
   const start = (data) => {
     m = data ? createModel(data) : null;
+    m?.resetPeriod();   // de partida, el mes en curso
     ui.exp = {}; ui.sort = {}; tab = 'resumen'; searching = false; closePops();
     if (!m) return renderEmpty();
     tabs = createTabs(m, createCharts(m, ui), ui);
     renderFrame();
+    panel = mountPeriodPanel($('[data-cal]'), { model: () => m, onPick: (close) => { if (close) closePops(); render(); } });
     render();
   };
 
-  const upload = async (file) => {
-    if (!file) return;
+  // Mientras se actualiza, una capa encima con el avance (progress.js): lo de debajo se queda viejo, así que no se
+  // puede tocar (inert). La capa se pinta una vez y luego solo cambian sus cifras, para que la barra avance suave.
+  const cover = (t0) => {
+    const el = document.createElement('div');
+    el.className = 'mt-loading';
+    const paint = (view) => {
+      if (!el.firstElementChild) { el.innerHTML = progressHtml(view); return; }
+      el.querySelector('[role=progressbar]').setAttribute('aria-valuenow', view.percent);
+      el.querySelector('.mt-load-figure b').textContent = view.percent;
+      el.querySelector('.mt-load-bar i').style.width = `${view.percent}%`;
+      el.querySelector('.mt-load-now b').textContent = PHASES[view.phase].label;
+      el.querySelector('.mt-load-now span').textContent = view.left;
+      el.querySelector('.mt-load-detail').textContent = view.detail;
+      el.querySelectorAll('.mt-load-steps li').forEach((li, i) => { li.className = i < view.phase ? 'mt-done' : i === view.phase ? 'mt-now' : ''; });
+    };
+    // el último avance del bridge, cuándo empezó su fase (para su ritmo) y lo más alto que ha llegado la barra (nunca retrocede)
+    let last = null, phaseT0 = t0, top = 0;
+    return {
+      el,
+      set: (p) => {
+        if ((p?.phase ?? null) !== (last?.phase ?? null)) phaseT0 = Date.now();
+        last = p ?? last;
+      },
+      tick: () => {
+        const now = Date.now(), view = progressOf(last, { elapsed: now - t0, phaseMs: now - phaseT0 });
+        top = Math.max(top, view.percent);
+        paint({ ...view, percent: top });
+      },
+      finish: () => paint({ phase: PHASES.length - 1, percent: 100, detail: 'Abriendo las métricas con los datos nuevos…', left: 'Hecho' }),
+    };
+  };
+
+  // La primera vez puede abrirse el navegador para entrar en Snowflake con la cuenta de Inditex.
+  const update = async () => {
+    if (loading) return;
     loading = true;
-    if (m) $('.mt-load').outerHTML = loadButton(''); else renderEmpty();
+    if (m) $('.mt-load').outerHTML = loadButton(); else renderEmpty();
+    const c = cover(Date.now());
+    root.scrollTop = 0;
+    root.classList.add('mt-updating');
+    $('.mt-page').inert = true;
+    root.append(c.el);
+    c.tick();
+    const poll = setInterval(async () => { try { c.set(await api.progress()); } catch { /* sigue con lo último */ } }, POLL_MS);
+    const ticker = setInterval(c.tick, TICK_MS);
+    const stop = () => { clearInterval(poll); clearInterval(ticker); };
     try {
-      const { meta } = await api.upload(file);
+      const { counts } = await api.update();
+      stop();
+      c.finish();
+      const data = await api.load();
+      await new Promise((r) => setTimeout(r, FINISH_MS));
       loading = false;
-      start(await api.load());
-      toast?.(`Cargadas ${num(meta.rows)} issues de ${meta.group}.`);
+      start(data);
+      toast?.(counts.inserted || counts.updated
+        ? `Informe actualizado: ${num(counts.inserted)} nuevas y ${num(counts.updated)} actualizadas.`
+        : 'Informe actualizado: sin cambios desde la última vez.');
     } catch (e) {
       loading = false;
-      if (m) $('.mt-load').outerHTML = loadButton('Cargar otro CSV'); else renderEmpty();
+      c.el.remove();
+      if (m) { $('.mt-page').inert = false; $('.mt-load').outerHTML = loadButton(); } else renderEmpty();
       toast?.(e.message);
+    } finally {
+      stop();
+      root.classList.remove('mt-updating');
     }
   };
 
   root.addEventListener('click', (e) => {
+    if (e.target.closest('[data-update]')) return update();
     if (!m || e.target.closest('a')) return;
     const { S } = m;
     // desplegables: abrir y cerrar, elegir; un clic fuera los cierra
     if (e.target.closest('[data-calendar]')) return togglePop('calendar');
     const side = e.target.closest('[data-side]');
     if (side) return togglePop(`side${side.dataset.side}`);
-    const month = e.target.closest('[data-month]');
-    if (month) {
-      const k = Number(month.dataset.month);
-      if (anchor == null) { anchor = k; return renderPeriod(); }
-      [S.from, S.to] = monthRange(anchor, k);
-      closePops();
-      return render();
-    }
-    if (e.target.closest('[data-month-all]')) { S.from = 0; S.to = m.LASTM; closePops(); return render(); }
     const company = e.target.closest('[data-pick-company]');
     if (company) { const [k, c] = company.dataset.pickCompany.split(':').map(Number); S.sides[k] = { company: c }; closePops(); return render(); }
     if (e.target.closest('[data-side-add]')) {
@@ -199,33 +242,23 @@ export const mountMetricsView = (root, { api, toast }) => {
       S.sides[k] = togglePerson(S.sides, k, p);
       return render();
     }
-    if (open && !e.target.closest('.mt-pop')) {
-      const changed = settleMonth();
-      closePops();
-      if (changed) render(); else { renderPeriod(); renderSides(); }
-    }
+    if (open && !e.target.closest('.mt-pop')) { closePops(); renderPeriod(); renderSides(); }
     if (e.target.closest('[data-search]')) {
       searching = !searching || !!S.q;
       $('[data-q]').hidden = !searching;
       if (searching) $('[data-q]').focus();
       return;
     }
-    const t = e.target.closest('[data-tab],[data-go],[data-rm],[data-exp],[data-sort],[data-clear],[data-f2],[data-f]');
+    const t = e.target.closest('[data-tab],[data-go],[data-rm],[data-exp],[data-sort],[data-f2],[data-f]');
     if (!t) return;
     const d = t.dataset;
     if (d.tab || d.go) { tab = d.tab || d.go; root.scrollTop = 0; }
     else if (d.rm) { const [dim, k] = filterKey(d.rm); S.f[dim].delete(k); }
     else if (d.exp) ui.exp[d.exp] = !ui.exp[d.exp];
     else if (d.sort) { const [id, c] = d.sort.split(':'), cur = ui.sort[id]; ui.sort[id] = [c, cur && cur[0] === c ? -cur[1] : -1]; }
-    else if (t.matches('[data-clear]')) {
-      Object.assign(S, { f: {}, q: '', from: 0, to: m.LASTM });
-      $('[data-q]').value = ''; searching = false;
-    } else if (d.f2) d.f2.split('|').forEach((x) => { const [dim, k] = filterKey(x); if (!m.isSel(dim, k)) m.toggle(dim, k); });
+    else if (d.f2) d.f2.split('|').forEach((x) => { const [dim, k] = filterKey(x); if (!m.isSel(dim, k)) m.toggle(dim, k); });
     else if (d.f) { const [dim, k] = filterKey(d.f); m.toggle(dim, k); }
     render();
-  });
-  root.addEventListener('change', (e) => {
-    if (e.target.matches('[data-csv]')) upload(e.target.files[0]);
   });
   let searchTimer;
   root.addEventListener('input', (e) => {

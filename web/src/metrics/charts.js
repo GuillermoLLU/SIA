@@ -6,16 +6,16 @@
 // A respecto a B (compare.js); data-cmp lleva lo que enseña
 // la tarjeta al pasar el ratón.
 import { esc } from '../ui/html.js';
-import { num, pct, dur, MONTHS } from './format.js';
+import { num, pct, dur } from './format.js';
 import { compareFigure } from './compare.js';
 import { SHIFTS } from './shifts.js';
-import { MIN_ISSUES, clearlyWorse, trendDelta, shadeSoft, HOT } from './rules.js';
+import { MIN_ISSUES, DAY, clearlyWorse, trendDelta, shadeSoft, HOT } from './rules.js';
 import { blockHead, blocksOf } from './pieces.js';
-import { monthSeries, lineScale, dayScale, scorecardOrder, shownRows, heatCounts, matrixCounts, groupMax, LINE_MIN } from './plot.js';
+import { periodSeries, monthTicks, dayTicks, lineScale, dayScale, scorecardOrder, shownRows, heatCounts, matrixCounts, groupMax, LINE_MIN } from './plot.js';
 
 // ui: { exp: {id: true}, sort: {id: [columna, ±1]} }, lo que la persona ha desplegado y ordenado.
 export const createCharts = (m, ui) => {
-  const { DIMS, LASTM, CO, CMP, NAMES, isSel, anySel, rows, group, stats, bySide, trend, SIDE } = m;
+  const { DIMS, LASTM, monthName, CO, CMP, NAMES, isSel, anySel, rows, group, stats, bySide, trend, SIDE } = m;
   const name = (k) => NAMES()[k];   // el nombre de cada lado: una empresa, una persona o «N personas»
 
   // sin título (t vacío), la tarjeta es solo su contenido, de borde a borde: p. ej. un mapa de calor que lleva el
@@ -44,19 +44,26 @@ export const createCharts = (m, ui) => {
       <div class="mt-kpi-v ${f ? `mt-diff ${f.cls}` : 'mt-mut'}">${f ? (f.pts || f.main) : '—'}</div>${side(0)}${side(1)}</div>`;
   };
 
-  // Líneas por mes, una por lado (plot.js: un mes con menos de LINE_MIN issues no se pinta). f(indicadores del mes)
-  // da el valor. o.height y o.left: alto del dibujo y margen para las etiquetas del eje (para gráficas pequeñas, con
+  // Líneas de evolución en el periodo que se mira, una por lado: por meses o, si es de un mes o menos, por días
+  // (plot.js: un tramo con menos de LINE_MIN issues no se pinta). f(indicadores del tramo) da el valor. o.height y o.left: alto del dibujo y margen para las etiquetas del eje (para gráficas pequeñas, con
   // letra más grande).
   const lines = (A, f, fmt, o = {}) => {
-    const W = 620, H = o.height || 190, L = o.left || 74, R = 12, T = 12, B = 26, cos = CO();
-    const per = monthSeries(m, A, f, cos);
-    const { max, x, y } = lineScale(per.flat(), LASTM, { W, H, L, R, T, B });
+    const { S } = m, cos = CO(), { daily, n, per } = periodSeries(m, A, f, cos);
+    // el eje: los días o los meses del periodo (k desde su primer tramo); el último, con * si es el de la foto
+    const ticks = daily ? dayTicks(m, n) : monthTicks(S.from, S.to, m.data.meta.start).map((t) => ({ ...t, k: t.k - S.from }));
+    const last = (k) => (daily ? S.d0 + k * DAY === m.END_D - DAY : S.from + k === LASTM);
+    const tip = (k) => (daily ? m.dayName(S.d0 + k * DAY) : monthName(S.from + k));
+    const subs = ticks.some((t) => t.sub);
+    const W = 620, H = o.height || 190, L = o.left || 74, R = 12, T = 12, B = subs ? 38 : 26;
+    const { max, x, y } = lineScale(per.flat(), n - 1, { W, H, L, R, T, B });
     const grid = [0, 0.5, 1].map((p) => `<line x1="${L}" x2="${W - R}" y1="${y(max * p)}" y2="${y(max * p)}" class="mt-gridline"/><text x="${L - 6}" y="${y(max * p) + 4}" text-anchor="end" class="mt-axis">${fmt(max * p)}</text>`).join('');
-    const xs = MONTHS.slice(0, LASTM + 1).map((mm, i) => `<text x="${x(i)}" y="${H - 6}" text-anchor="middle" class="mt-axis">${mm}${i === LASTM ? '*' : ''}</text>`).join('');
+    // el tramo bajo su punto y, debajo, el año (meses) o el mes (días) donde cambia (monthTicks, dayTicks)
+    const xs = ticks.map(({ k, label, sub }) => `<text x="${x(k)}" y="${H - (subs ? 19 : 6)}" text-anchor="middle" class="mt-axis">${label}${last(k) ? '*' : ''}</text>`
+      + (sub ? `<text x="${x(k)}" y="${H - 4}" text-anchor="middle" class="mt-axis">${sub}</text>` : '')).join('');
     const ser = per.map((v, s) => {
       const pts = v.map((p, i) => (p == null ? null : [x(i), y(p)])).filter(Boolean);
       return `<polyline class="mt-line mt-s${cos[s]}" points="${pts.map((p) => p.map((n) => n.toFixed(1)).join(',')).join(' ')}"/>`
-        + v.map((p, i) => (p == null ? '' : `<circle cx="${x(i).toFixed(1)}" cy="${y(p).toFixed(1)}" r="4" class="mt-f${cos[s]}" data-tip="${esc(`${name(cos[s])} · ${MONTHS[i]}\n${fmt(p)}`)}"/>`)).join('');
+        + v.map((p, i) => (p == null ? '' : `<circle cx="${x(i).toFixed(1)}" cy="${y(p).toFixed(1)}" r="4" class="mt-f${cos[s]}" data-tip="${esc(`${name(cos[s])} · ${tip(i)}\n${fmt(p)}`)}"/>`)).join('');
     }).join('');
     return `<svg viewBox="0 0 ${W} ${H}" class="mt-svg">${grid}${xs}${ser}</svg>`;
   };

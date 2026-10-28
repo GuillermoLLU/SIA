@@ -1,12 +1,12 @@
 // Resumen: un bloque por pregunta, con sus cifras clave y el paso a su pestaña. Cada cifra es la de lo que
 // se mira y, al comparar, al lado, la diferencia con el otro lado.
 import { esc } from '../../ui/html.js';
-import { num, dec, pct, dur, MONTHS } from '../format.js';
+import { num, dec, pct, dur } from '../format.js';
 import { slaText } from '../model.js';
 import { IA_MARKS } from '../ia.js';
 import { SHIFTS } from '../shifts.js';
 import { closedInPeriod as closedIn, monthVsPrev as monthVsPrevOf } from '../flow.js';
-import { TABS, QUESTIONS, MONTH_NOTE, opt } from './common.js';
+import { TABS, QUESTIONS, MONTH_NOTE, DAY_NOTE, opt } from './common.js';
 
 export const resumenTab = (t) => {
   const { m, ch, shareOf, grid, ask, slaPct, days } = t;
@@ -38,7 +38,7 @@ export const resumenTab = (t) => {
           fig('Recibidas', ST, (s) => num(s.n), sv('n')),
           fig('Entran al día', ST.map((s) => ({ n: s.n, v: s.n / d })), (s) => dec(s.v), sv('v'), null, 'Recibidas entre los días naturales del periodo.'),
           fig('Cerramos al día', closed.map((l, k) => ({ n: l.length + ST[k].n, v: l.length / d })), (s) => dec(s.v), sv('v'), 'high', 'Todo lo cerrado en el periodo, entre sus días naturales.'),
-          ...(vsPrev ? [fig(`${MONTHS[vsPrev[0]]} frente a ${MONTHS[vsPrev[0] - 1]}`, vsPrev[1], (s) => opt((v) => `${v > 0 ? '+' : ''}${pct(v)}`)(s.v), sv('v'), null, 'Variación de las recibidas en el último mes completo del periodo respecto al anterior.')] : []),
+          ...(vsPrev ? [fig(`${m.monthName(vsPrev[0])} frente a ${m.monthName(vsPrev[0] - 1)}`, vsPrev[1], (s) => opt((v) => `${v > 0 ? '+' : ''}${pct(v)}`)(s.v), sv('v'), null, 'Variación de las recibidas en el último mes completo del periodo respecto al anterior.')] : []),
           fig('Pendientes', ST, (s) => num(s.open), sv('open'), 'low', 'Lo recibido en el periodo que sigue sin resolver.'),
           fig('Fuera de plazo', ST, (s) => num(s.waitKo), sv('waitKo'), 'low', 'Pendientes que nunca han pasado a En curso y ya superan el plazo de su prioridad.')], '¿Qué tenemos?'),
         answer('modulos', [
@@ -65,9 +65,9 @@ export const resumenTab = (t) => {
           fig('En fin de semana', shareOf(T, (i) => STYPE[i] >= 3), sharePct, sv('v')),
           fig('Empezadas en el turno en que entran', ST, (s) => opt(pct)(s.inShift), sv('inShift'), 'high')]),
       ].join('')}</div>`,
-      card('Evolución mes a mes', `${CMP() ? legend() : ''}<div class="mt-trio">
+      card(m.daily() ? 'Evolución día a día' : 'Evolución mes a mes', `${CMP() ? legend() : ''}<div class="mt-trio">
         <div><p class="mt-small"><b>Issues recibidas</b></p>${lines(A, (s) => s.n, num, { height: 170 })}</div>
         <div><p class="mt-small"><b>Empezadas dentro del SLA</b></p>${lines(A, (s) => s.sla, (v) => pct(v), { height: 170 })}</div>
-        <div><p class="mt-small"><b>Media de resolución</b></p>${lines(A, (s) => s.avg, dur, { height: 170 })}</div></div>`, { span: 's12', sub: `${MONTH_NOTE} Un mes con menos de 10 issues no se pinta.` }));
+        <div><p class="mt-small"><b>Media de resolución</b></p>${lines(A, (s) => s.avg, dur, { height: 170 })}</div></div>`, { span: 's12', sub: m.daily() ? DAY_NOTE : `${MONTH_NOTE} Un mes con menos de 10 issues no se pinta.` }));
   };
 };

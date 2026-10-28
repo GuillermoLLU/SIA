@@ -2,14 +2,26 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createModel } from './model.js';
 import { data } from './fixture.js';
-import { monthSeries, lineScale, dayScale, scorecardOrder, shownRows, heatCounts, matrixCounts, groupMax, LINE_MIN } from './plot.js';
+import { periodSeries, monthTicks, dayTicks, lineScale, dayScale, scorecardOrder, shownRows, heatCounts, matrixCounts, groupMax, LINE_MIN } from './plot.js';
 
 const BOX = { W: 100, H: 50, L: 10, R: 10, T: 5, B: 5 };
 
-test('las series por mes: un mes con menos de 10 issues no se pinta', () => {
+test('las series de evolución: los meses del periodo; un tramo con menos de 10 issues no se pinta', () => {
   const m = createModel(data()); m.refilter();
-  assert.deepEqual(monthSeries(m, m.rows(), (s) => s.n, [0]), [[null, null, null]]);
+  assert.deepEqual(periodSeries(m, m.rows(), (s) => s.n, [0]), { daily: false, n: 3, per: [[null, null, null]] });   // ene, feb y mar
   assert.equal(LINE_MIN, 10);
+});
+
+test('las series de evolución con un periodo de un mes o menos: un tramo por día, solo los del periodo', () => {
+  const d = data();
+  d.cols.rep = d.cols.rep.map(() => 2000);   // las cinco, el 2 de enero
+  const m = createModel(d), day = 1440;
+  m.setPeriod(day, 4 * day);                 // del 2 al 4 de enero
+  m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const s = periodSeries(m, m.rows(), (x) => x.n, [0]);
+  assert.deepEqual([s.daily, s.n, s.per[0].length], [true, 3, 3]);
+  assert.deepEqual(s.per[0], [null, null, null]);   // menos de 10 issues por día: no se pinta
+  assert.equal(periodSeries(m, m.rows(), (x) => x.n, [0]).per.length, 1);
 });
 
 test('la escala de una gráfica: el máximo con un 10 % de aire, los puntos repartidos y el eje al revés', () => {
@@ -64,4 +76,25 @@ test('los recuentos de una tabla de condiciones y el máximo de cada bloque', ()
   assert.deepEqual([gm.get(even), gm.get(big), gm.get(all)], [1, 1, 2]);
   assert.deepEqual([...groupMax([even, all], cnt, (r) => rows.indexOf(r)).values()], [2, 2]);   // sin cabeceras, un solo bloque
   assert.equal(groupMax([{ head: 'vacío' }, { head: 'B' }, all], cnt, (r) => rows.indexOf(r)).get(all), 2);   // un bloque sin filas no estorba
+});
+
+test('el eje de meses: hasta 12, todos; con más, uno de cada tantos contando desde el último; el año bajo el primero de cada año', () => {
+  const months = (l) => l.map((t) => t.label);
+  assert.deepEqual(months(monthTicks(0, 9, 2026)), ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct']);
+  assert.ok(monthTicks(0, 9, 2026).every((t) => t.sub === null));   // un solo año: sin año
+  const t = monthTicks(0, 21, 2025);   // de enero de 2025 a octubre de 2026
+  assert.deepEqual(t.map((x) => x.k), [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21]);
+  assert.ok(t.every((x, i) => !i || x.k - t[i - 1].k === 2));   // ninguna pegada a otra
+  assert.deepEqual(t.filter((x) => x.sub).map((x) => [x.label, x.sub]), [['feb', 2025], ['feb', 2026]]);
+  assert.equal(t[t.length - 1].label, 'oct');   // el último mes, siempre
+  assert.deepEqual(monthTicks(12, 14, 2025).map((x) => x.k), [12, 13, 14]);   // solo los meses del periodo
+});
+
+test('el eje de días: el número del día, uno de cada tantos desde el último, y el mes bajo el primero de cada mes', () => {
+  const m = createModel(data()), day = 1440;
+  m.setPeriod(25 * day, 41 * day);   // del 26 de enero al 10 de febrero: 16 días
+  const t = dayTicks(m, 16);
+  assert.deepEqual(t.map((x) => x.k), [1, 3, 5, 7, 9, 11, 13, 15]);
+  assert.deepEqual(t.map((x) => x.label), ['27', '29', '31', '2', '4', '6', '8', '10']);
+  assert.deepEqual(t.filter((x) => x.sub).map((x) => [x.label, x.sub]), [['27', 'ene'], ['2', 'feb']]);
 });

@@ -45,7 +45,7 @@ const QUALITY_NAMES = ['Reabierta', 'Devuelta a cola', 'Cerrada sin pasar por En
   'Sin tipología', 'Título sin descripción', 'Cerrada sin texto de resolución', 'Ninguna'];
 
 const DAY = 1440;
-export const ACTIVE_DAYS = 30;   // el equipo de una empresa, comparando con personas: quien ha tenido actividad en estos días antes de la foto
+export const ACTIVE_DAYS = 30;   // el equipo de una empresa, comparando con personas: quien ha tenido actividad en estos días antes del final del periodo
 
 const quant = (arr, p) => { if (!arr.length) return null; const a = Float64Array.from(arr).sort(); return a[Math.min(a.length - 1, Math.floor(a.length * p))]; };
 const mean = (arr) => { if (!arr.length) return null; let t = 0; for (const x of arr) t += x; return t / arr.length; };
@@ -53,8 +53,21 @@ export const share = (list, test) => { if (!list.length) return 0; let n = 0; fo
 
 export const createModel = (data) => {
   const { cols: C, dict: DI, meta } = data;
-  const N = meta.rows, BASE = Date.UTC(meta.year, 0, 1), SNAP = meta.snapshot;
-  const LASTM = new Date(BASE + SNAP * 6e4).getUTCMonth();
+  const N = meta.rows, BASE = Date.UTC(meta.start, 0, 1), SNAP = meta.snapshot;
+  // Los meses se numeran desde el enero del año en que empiezan los datos: 0 es ese enero, 12 el siguiente…
+  const monthOf = (d) => (d.getUTCFullYear() - meta.start) * 12 + d.getUTCMonth();
+  const monthAt = (minutes) => monthOf(new Date(BASE + minutes * 6e4));   // el mes de un instante (minutos desde BASE)
+  const LASTM = monthAt(SNAP);
+  // con datos de más de un año, los meses llevan su año («ene 2027»)
+  const monthName = (k) => (LASTM >= 12 ? `${MONTHS[k % 12]} ${meta.start + Math.floor(k / 12)}` : MONTHS[k]);
+  // minutos del día `d` del mes `k` (desde BASE), y el nombre de un día («3 ene», con año si hay más de uno)
+  const minuteOf = (k, d = 1) => (Date.UTC(meta.start, k, d) - BASE) / 6e4;
+  const dayName = (min) => { const d = new Date(BASE + min * 6e4); return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}${LASTM >= 12 ? ` ${d.getUTCFullYear()}` : ''}`; };
+  // Lo cargado, por días completos: del primer día con issues (MIN_D) al día de la foto, incluido (END_D, excluido).
+  const MIN_D = Math.floor(meta.first / DAY) * DAY, END_D = (Math.floor(SNAP / DAY) + 1) * DAY;
+  // El periodo con el que abren las vistas (resetPeriod): el mes en curso (el de la foto) entero, del día 1, o del
+  // primer día con issues, hasta la foto.
+  const START_D = Math.max(MIN_D, minuteOf(LASTM));
   const CRIT = DI.prio.indexOf('CRITICAL');
   const SLA = DI.prio.map((p) => SLA_MINUTES[p] ?? -1);
   // las prioridades de más a menos urgente y su SLA de inicio («Crítica · 15 min»)
@@ -73,11 +86,11 @@ export const createModel = (data) => {
   const shiftType = typeOf(weekendOf(BASE));   // tipo del turno de un instante (shifts.js): 0–2 laborables, 3–5 fin de semana
 
   // --- lo que se deriva de cada issue
-  const MONTH = new Uint8Array(N), DOW = new Uint8Array(N), HOUR = new Uint8Array(N), TTR = new Int32Array(N), TB = new Uint8Array(N), OPEN = new Uint8Array(N), TEAM = new Uint8Array(N);
+  const MONTH = new Uint16Array(N), DOW = new Uint8Array(N), HOUR = new Uint8Array(N), TTR = new Int32Array(N), TB = new Uint8Array(N), OPEN = new Uint8Array(N), TEAM = new Uint8Array(N);
   const SLOT = new Int32Array(N), STYPE = new Uint8Array(N);   // el turno en que entra y su tipo
   for (let i = 0; i < N; i++) {
     const d = new Date(BASE + C.rep[i] * 6e4);
-    MONTH[i] = d.getUTCMonth(); DOW[i] = (d.getUTCDay() + 6) % 7; HOUR[i] = d.getUTCHours();
+    MONTH[i] = monthOf(d); DOW[i] = (d.getUTCDay() + 6) % 7; HOUR[i] = d.getUTCHours();
     SLOT[i] = slotOf(C.rep[i]); STYPE[i] = shiftType(SLOT[i]);
     TTR[i] = C.res[i] >= 0 ? Math.max(C.res[i] - C.rep[i], 0) : -1;
     TB[i] = TTR[i] < 0 ? 8 : TTR_LIMITS.findIndex((l) => TTR[i] < l);
@@ -88,7 +101,7 @@ export const createModel = (data) => {
   // --- dimensiones: por las que se agrupa y se filtra
   const dictDim = (name, col, dict, fmt = nice) => ({ name, get: (i) => C[col][i], label: (k) => fmt(DI[dict][k]) });
   const DIMS = {
-    month: { name: 'Mes', get: (i) => MONTH[i], label: (k) => MONTHS[k] },
+    month: { name: 'Mes', get: (i) => MONTH[i], label: monthName },
     pr: dictDim('Prioridad', 'pr', 'prio'),
     sv: dictDim('Tipo de servicio', 'sv', 'svc'),
     as: { name: 'Responsable', get: (i) => C.as[i], label: (k) => (k ? DI.person[k] : '(sin responsable)') },
@@ -146,7 +159,18 @@ export const createModel = (data) => {
   // personas, una empresa es todo su equipo, también quien está en el otro lado (bySide, heads).
   // --- filtros. S.f: dimensión → valores marcados. Una fila cuenta en un gráfico si pasa todos
   // los filtros salvo el de la propia dimensión.
-  const S = { f: {}, from: 0, to: LASTM, q: '', sides: [{ company: 0 }, null] };
+  // El periodo, S.d0–S.d1 (minutos desde BASE, d1 excluido; sin elegir, todo lo cargado); S.from y S.to, los meses que toca.
+  const S = { f: {}, d0: MIN_D, d1: END_D, from: monthAt(MIN_D), to: LASTM, q: '', sides: [{ company: 0 }, null] };
+  const setPeriod = (d0, d1) => {
+    S.d0 = Math.max(MIN_D, Math.min(d0, END_D - DAY));
+    S.d1 = Math.min(END_D, Math.max(d1, S.d0 + DAY));
+    S.from = monthAt(S.d0); S.to = monthAt(S.d1 - 1);
+  };
+  // un mes entero dentro del periodo y ya cerrado (el de la foto aún puede cambiar)
+  const fullMonth = (k) => k < LASTM && minuteOf(k) >= S.d0 && minuteOf(k + 1) <= S.d1;
+  const resetPeriod = () => setPeriod(START_D, END_D);
+  const daily = () => S.d1 - S.d0 <= 31 * DAY;   // hasta un mes se ve día a día; más, mes a mes
+  const inPeriod = (i) => C.rep[i] >= S.d0 && C.rep[i] < S.d1;
   const SIDE = new Uint8Array(N);
   const CO = () => (S.sides[1] ? [0, 1] : [0]);
   const CMP = () => !!S.sides[1];
@@ -179,7 +203,7 @@ export const createModel = (data) => {
       let m = 0;
       SIDE[i] = sideOf(i);
       if (SIDE[i] === 2) m |= OUT_SIDE;
-      if (MONTH[i] < S.from || MONTH[i] > S.to) m |= OUT_PERIOD;
+      if (!inPeriod(i)) m |= OUT_PERIOD;
       if (q && !C.su[i].toLowerCase().includes(q) && !`inc${String(C.id[i]).padStart(12, '0')}`.includes(q)) m |= OUT;
       for (let a = 0; a < ACTIVE.length; a++) {
         const dm = DIMS[ACTIVE[a]], set = S.f[ACTIVE[a]], v = dm.get(i);
@@ -214,14 +238,14 @@ export const createModel = (data) => {
     return (CACHE[key] = out);
   };
   // Comparando con alguna persona (perHead), una empresa es todo su equipo: sus personas con actividad (una de sus
-  // issues se abre, empieza o resuelve) en los ACTIVE_DAYS días antes de la foto, sea cual sea el periodo que se
-  // mira; también quien está en el otro lado. Así una persona se compara con todo su equipo; no cuenta quien ya no
+  // issues se abre, empieza o resuelve) en los ACTIVE_DAYS días antes del final del periodo que se mira; también
+  // quien está en el otro lado. Así una persona se compara con todo su equipo; no cuenta quien ya no
   // está, y sí quien trabaja poco. heads(k): las personas de cada lado (las elegidas, o ese equipo).
   const heads = (k) => {
     const s = S.sides[k], key = `heads${k}`;
     if (s.people) return s.people;
     if (CACHE[key]) return CACHE[key];
-    const from = SNAP - ACTIVE_DAYS * DAY, out = new Set(), near = (t) => t >= from && t <= SNAP;
+    const end = Math.min(S.d1, SNAP), from = end - ACTIVE_DAYS * DAY, out = new Set(), near = (t) => t >= from && t <= end;
     for (let i = 0; i < N; i++) {
       if (!C.as[i] || out.has(C.as[i]) || TEAM[i] !== s.company) continue;
       if (near(C.rep[i]) || (C.ip[i] >= 0 && near(C.rep[i] + C.ip[i])) || (C.res[i] >= 0 && near(C.res[i]))) out.add(C.as[i]);
@@ -256,9 +280,9 @@ export const createModel = (data) => {
   // día de la semana (0 = lunes) y hora de un instante
   const clock = (min) => { const d = new Date(BASE + min * 6e4); return [(d.getUTCDay() + 6) % 7, d.getUTCHours()]; };
   // los turnos de cada tipo que caben en el periodo (hasta la foto), para las medias por turno
-  const periodSlots = () => slotsIn(Date.UTC(meta.year, S.from, 1) / 6e4 - BASE / 6e4, Math.min(Date.UTC(meta.year, S.to + 1, 1) / 6e4 - BASE / 6e4, SNAP), shiftType);
-  // últimos 90 días de la foto frente a los 90 anteriores
-  const trend = (list) => { let now = 0, prev = 0; for (const i of list) { const age = SNAP - C.rep[i]; if (age < 90 * DAY) now++; else if (age < 180 * DAY) prev++; } return { now, prev }; };
+  const periodSlots = () => slotsIn(S.d0, Math.min(S.d1, SNAP), shiftType);
+  // últimos 90 días del periodo frente a los 90 anteriores
+  const trend = (list) => { const end = Math.min(S.d1, SNAP); let now = 0, prev = 0; for (const i of list) { const age = end - C.rep[i]; if (age < 90 * DAY) now++; else if (age < 180 * DAY) prev++; } return { now, prev }; };
 
   // Indicadores de un grupo de issues. Tiempos en minutos; proporciones de 0 a 1.
   const stats = (list) => {
@@ -320,7 +344,7 @@ export const createModel = (data) => {
   };
 
   return {
-    data, C, DI, N, BASE, SNAP, LASTM, SLA, PRIOS, CRIT, slaLabel, MONTH, DOW, OPEN, TEAM, SIDE, DIMS, S, STYPE,
+    data, C, DI, N, BASE, SNAP, LASTM, SLA, PRIOS, CRIT, slaLabel, monthAt, monthName, minuteOf, dayName, fullMonth, MIN_D, END_D, setPeriod, resetPeriod, daily, inPeriod, MONTH, DOW, OPEN, TEAM, SIDE, DIMS, S, STYPE,
     CMP, CO, NAMES, refilter, rows, pool, today, toggle, isSel, anySel, group, bySide, trend, stats, periodSlots, clock,
     heads, perHead, alone, carry: (list) => carry(list, C, shiftType), shiftWork: (list) => shiftWork(list, C, (i) => OPEN[i], shiftType),
   };

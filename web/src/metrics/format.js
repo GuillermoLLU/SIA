@@ -26,6 +26,9 @@ export const dateOf = (base, m) => {
   return `${two(d.getUTCDate())}/${two(d.getUTCMonth() + 1)} ${two(d.getUTCHours())}:${two(d.getUTCMinutes())}`;
 };
 
+// ms → «dd/mm/aaaa»
+export const dmy = (ms) => { const d = new Date(ms); return `${two(d.getUTCDate())}/${two(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`; };
+
 const ES = {
   CLOSED: 'Cerrada', RESOLVED: 'Resuelta', ASSIGNED: 'Asignada', PENDING: 'Pendiente', IN_PROGRESS: 'En curso', CANCELLED: 'Cancelada',
   CRITICAL: 'Crítica', HIGH: 'Alta', MEDIUM: 'Media', LOW: 'Baja',

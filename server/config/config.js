@@ -1,7 +1,7 @@
 // La config personal (dominio, sin E/S): lo que guarda ~/.sia/config.json por
 // máquina y fuera del proyecto. Credenciales de Jira y de GitHub (varias
 // claves, solo una activa, que viaja a los chats que se abran a partir de
-// entonces), el tema de la interfaz, las sesiones guardadas (auth/) y el
+// entonces), el usuario de Snowflake de las Métricas, el tema de la interfaz, las sesiones guardadas (auth/) y el
 // candado (lock/). Aquí, cómo se sanea lo que llega de la web y qué entorno
 // reciben los CLIs.
 
@@ -35,6 +35,12 @@ export const cleanGithub = (g) => {
 };
 
 export const cleanJira = (j) => ({ baseUrl: String(j?.baseUrl || '').trim(), token: String(j?.token || '').trim() });
+
+// Snowflake (Métricas): quién consulta. Sin secretos: se entra por SSO. El rol y el
+// warehouse, los de soporte si no se dice otro.
+export const SNOWFLAKE = { role: 'R_SGA_USERS', warehouse: 'COMMON_USERS_WH' };
+const field = (v, fallback = '') => String(v || '').trim().slice(0, 200) || fallback;
+export const cleanSnowflake = (s) => ({ user: field(s?.user), role: field(s?.role, SNOWFLAKE.role), warehouse: field(s?.warehouse, SNOWFLAKE.warehouse) });
 
 export const activeGithubToken = (cfg) => {
   const g = cfg.github || {};

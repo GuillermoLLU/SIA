@@ -76,7 +76,7 @@ sus reglas, sus pruebas y su pantalla, sin tener que entender el resto.
 - Las pruebas de SQL (`npm run test:platform`, `npm run test:rls`) necesitan
   Docker (con Rancher Desktop, `DOCKER_HOST=unix://$HOME/.rd/docker.sock`) y
   se lanzan a mano cuando se toca la base.
-- Los datos de clientes (CSV de Remedy, informes) no se suben nunca al
+- Los datos de clientes (incidencias de Remedy, CSV, informes) no se suben nunca al
   repositorio ni a la base: se trabaja con ellos en local.
 
 ## El conocimiento del equipo (RAG)
@@ -94,7 +94,7 @@ sus reglas, sus pruebas y su pantalla, sin tener que entender el resto.
 
 1. Acceso al repositorio y una cuenta de la instancia (la crea un
    administrador en Personas, con su rol y los proyectos que verá).
-2. Node 22 y los CLIs que vaya a usar con sesión iniciada: `claude`,
+2. Node 22.19 o superior (trae el SQLite de las Métricas y los certificados del sistema, para la VPN) y los CLIs que vaya a usar con sesión iniciada: `claude`,
    `copilot` o `codex`.
 3. `git clone`, `node dev.mjs`, <http://localhost:5220>, iniciar sesión.
 4. Leer el README, [arquitectura.md](arquitectura.md) y, en un chat de SIA,

@@ -15,13 +15,15 @@ import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
+import tls from 'node:tls';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { json, readBody, sendFile } from './shared/http.js';
 import { choosePair } from './shared/ports.js';
+import { trustSystemCerts } from './shared/certs.js';
 import { createRouter } from './router.js';
 import { createConfigStore } from './config/store.js';
-import { cleanTheme, userEnv, cleanEnv } from './config/config.js';
+import { cleanTheme, userEnv, cleanEnv, cleanSnowflake } from './config/config.js';
 import { configRoutes } from './config/routes.js';
 import { createLock } from './lock/service.js';
 import { lockRoutes } from './lock/routes.js';
@@ -50,8 +52,11 @@ import { updatesRoutes } from './updates/routes.js';
 import { createIssuesSource } from './issues/source.js';
 import { createIssuesService } from './issues/service.js';
 import { issuesRoutes } from './issues/routes.js';
+import { DatabaseSync } from 'node:sqlite';
 import { createMetricsStore } from './metrics/store.js';
+import { createRepository } from './metrics/repository.js';
 import { metricsRoutes } from './metrics/routes.js';
+import { createSnowflake } from './metrics/snowflake.js';
 import { createTunnel } from './remote/tunnel.js';
 import { createRemote } from './remote/service.js';
 import { lanRoutes } from './remote/routes.js';
@@ -62,6 +67,8 @@ const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url))); // sia/
 
 // → { ws, api }: los puertos elegidos, para que la app se los pase a la UI.
 export const startBridge = async ({ env = process.env } = {}) => {
+  // antes de cualquier conexión: detrás de la VPN, la base de la instancia solo se verifica con los del sistema
+  if (!trustSystemCerts(tls)) console.log('[sia] sin los certificados del sistema: detrás de un proxy corporativo, arranca con NODE_USE_SYSTEM_CA=1');
   const version = (() => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version; } catch { return '0.0.0'; } })();
   const ports = await choosePair(version, { forced: env.SIA_PORT });
   const isWin = os.platform() === 'win32';
@@ -149,7 +156,11 @@ export const startBridge = async ({ env = process.env } = {}) => {
     users: usersRoutes(users, { ...http_, syncKeys, assignKnowledge: (jwt, userId, ids) => knowledge.setProjects(jwt, userId, ids), refreshProfile: (token) => auth.refreshProfile(token) }),
     knowledge: knowledgeRoutes(knowledge, { ...http_, syncKeys, onChange: () => loadAssigned() }),
     issues: issuesRoutes(issues, http_),
-    metrics: metricsRoutes(createMetricsStore(workspace.metricsDir, { year: 2026 }), { json }), // de momento, solo 2026
+    metrics: metricsRoutes(createMetricsStore(workspace.metricsDir, {
+      repo: createRepository({ DatabaseSync, file: path.join(workspace.metricsDir, 'incidencias.sqlite'), fs }),
+      source: createSnowflake({ loadSdk: async () => (await import('snowflake-sdk')).default, config: () => cleanSnowflake(config.read().snowflake) }),
+      log: console.log,
+    }), { json }),
     lan: lanRoutes(remote, lock, http_),
     projects: projectsRoutes(createProjects({ newId: randomUUID, fetchAll }), { ...http_, onProjectRemoved: () => skillSync.sync(assigned) }),
     skills: skillsRoutes({ ...http_, sync: skillSync, drafts: createDrafts(workspace.draftsDir), workspace }),

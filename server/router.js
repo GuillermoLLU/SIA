@@ -79,7 +79,7 @@ export const createRouter = ({ webDist, ping, base, auth, lock, remote, routes }
       if (parts[1] === 'users') return routes.users(req, res, rest, who);
       if (parts[1] === 'knowledge') return routes.knowledge(req, res, rest, who);
       if (parts[1] === 'issues') return routes.issues(req, res, rest, who, url.searchParams);
-      if (parts[1] === 'metrics') return routes.metrics(req, res, rest, url.searchParams);
+      if (parts[1] === 'metrics') return routes.metrics(req, res, rest);
       if (parts[1] === 'lan') return routes.lan(req, res, url, rest);
       if (parts[1] === 'config') return routes.config(req, res);
       if (parts[1] === 'upload' || parts[1] === 'uploads') return routes.uploads(req, res, parts.slice(1));

@@ -22,7 +22,10 @@ export const skillList = (dir) => {
   }
 };
 
-export const walkDir = (dir, base = '') => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+// Los ficheros de una carpeta, por nombre: readdir los da en el orden del sistema de ficheros (Windows, sin distinguir
+// mayúsculas; Linux, cualquiera), y así una skill sale igual en todas partes.
+const byName = (a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+export const walkDir = (dir, base = '') => fs.readdirSync(dir, { withFileTypes: true }).sort(byName).flatMap((e) =>
   e.isDirectory() ? walkDir(path.join(dir, e.name), path.posix.join(base, e.name))
     : [{ path: path.posix.join(base, e.name), content: fs.readFileSync(path.join(dir, e.name), 'utf8') }]);
 

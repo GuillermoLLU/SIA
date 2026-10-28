@@ -28,7 +28,7 @@ test('sin el último cambio de cada issue (datos viejos), no hay lista de parada
 
 test('la foto no mira el periodo, y lo sin asignar solo cuenta mirando al equipo', () => {
   const d = data(); d.cols.st[4] = 2; d.cols.sc[4] = 1;   // la 5, abierta en SGA y sin nadie
-  const m = model(d); m.S.from = m.S.to = 1; m.refilter();   // febrero, sin nada
+  const m = model(d); m.setPeriod(m.minuteOf(1), m.minuteOf(2)); m.refilter();   // febrero, sin nada
   assert.deepEqual(todayLists(m).op, [2]);
   assert.deepEqual(todayLists(m).orphan, [4]);
   m.S.sides = [{ people: new Set([1]) }, null]; m.refilter();
