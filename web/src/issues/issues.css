@@ -172,16 +172,23 @@
 .iss-done .ok i { color: var(--iss-ok); }
 .iss-done .no { color: var(--text-low); }
 .iss-done small { margin-left: auto; font-size: 11.5px; color: var(--text-low); font-variant-numeric: tabular-nums; white-space: nowrap; }
-/* resolver: el resumen de lo que se enviará, como se va a leer */
-.iss-sum { display: grid; grid-template-columns: 1fr 1.6fr; gap: 12px; }
-@media (max-width: 640px) { .iss-sum { grid-template-columns: 1fr; } }
-.iss-sum-b { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; font-size: 13px; background: var(--bg); border: 1px solid var(--border); }
-.iss-sum-b > b { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-low); }
-.iss-sum-b > small { margin-top: -4px; font-size: 11.5px; color: var(--text-low); }
-.iss-sum-b p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.iss-sum-b p i { display: block; font-style: normal; font-weight: 600; }
-.iss-sum-miss { color: var(--iss-crit); }
-.iss-sum-state { margin: 0; font-size: 13px; color: var(--text-low); }
+/* resolver: el identificador bien visible, para no equivocarse de incidencia */
+.iss-act-form header .iss-act-id { padding: 3px 10px; font-size: 14px; font-weight: 700; letter-spacing: .02em; color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); border: 1px solid var(--accent); }
+.iss-saved { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0; padding: 8px 12px; font-size: 13px; background: var(--bg); border-left: 3px solid var(--accent); }
+.iss-saved .lab-btn { margin-left: auto; }
+/* resolver, confirmación: lo que se envía, limpio y como se va a leer */
+.iss-act-form[hidden] { display: none; } /* el formulario, debajo de la confirmación */
+.iss-cf-lead { margin: 0; font-size: 13px; color: var(--text-low); }
+.iss-cf { display: flex; flex-direction: column; gap: 8px; }
+.iss-cf h4 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin: 0; font-size: 13.5px; font-weight: 650; }
+.iss-cf h4 em { font-style: normal; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-low); }
+.iss-cf-box { display: flex; flex-direction: column; gap: 12px; padding: 12px 14px; font-size: 13.5px; line-height: 1.5; background: var(--bg); border: 1px solid var(--border); }
+.iss-cf-box p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.iss-cf-mail { border-left: 3px solid var(--accent); }
+.iss-cf-mail b { display: block; margin-bottom: 2px; font-weight: 600; }
+.iss-cf-state { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 0; padding-top: 12px; font-size: 13px; color: var(--text-low); border-top: 1px solid var(--border); }
+.iss-cf-state span { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.iss-cf-state b { color: var(--iss-ok); }
 /* «?»: la ayuda sale al pasar el ratón o al llegar con el teclado */
 .iss-tip { position: relative; display: inline-flex; }
 .iss-tip button { width: 18px; height: 18px; padding: 0; font: inherit; font-size: 11px; font-weight: 700; line-height: 1; color: var(--text-low); background: transparent; border: 1px solid var(--border); cursor: help; }

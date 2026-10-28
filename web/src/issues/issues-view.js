@@ -10,7 +10,8 @@ import { sev, origin, item } from './parts.js';
 import { workScreen } from './work-screen.js';
 import { ACTIONS, actionForm, readAction } from './actions.js';
 import { resolveDraft } from './resolve-draft.js';
-import { resolveForm, resolveSummary } from './resolve-form.js';
+import { resolveForm, resolveConfirm } from './resolve-form.js';
+import { createResolveSaved } from './resolve-saved.js';
 
 const GOAL = { min: 15, max: 20 }; // resueltas por turno, lo que dice el equipo
 const REFRESH_MS = 15000;
@@ -19,6 +20,8 @@ const REFRESH_MS = 15000;
 export const mountIssuesView = (root, { api, me, toast, openChat }) => {
   let data = null, rule = 'basic', now = new Date(), opened = null, onDesk = false, workTab = 'ai', chat = null, loading = false, picking = false;
   let issue = null; // la issue abierta: Resolver aprovecha sus notas de Remedy
+  const saved = createResolveSaved(); // Resolver: lo guardado para después, en este navegador
+  const minuteNow = () => { const d = new Date(), p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; };
   const closeChat = () => { chat?.dispose(); chat = null; };
 
   // Cargar la foto (el CSV de la consulta de Remedy, hasta leer de Remedy).
@@ -133,6 +136,23 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
       const act = t.closest('[data-act]');
       if (act) return openAction(act.dataset.act);
       if (t.closest('[data-act-cancel]') || t.classList.contains('iss-modal')) return closeAction();
+      if (t.closest('[data-confirm-back]')) {
+        const form = root.querySelector('[data-act-form="resolve"]');
+        root.querySelector('[data-resolve-confirm]').remove();
+        form.hidden = false;
+        return form.querySelector('textarea')?.focus();
+      }
+      if (t.closest('[data-saved-keep]')) {
+        const ok = saved.set(opened, Object.fromEntries(new FormData(t.closest('form'))), minuteNow());
+        closeAction();
+        return toast?.(ok ? 'Guardado en este navegador: lo tendrás al volver a Resolver.' : 'No se ha podido guardar: este navegador no lo permite.');
+      }
+      if (t.closest('[data-saved-drop]')) { saved.drop(opened); return openAction('resolve'); }
+      if (t.closest('[data-confirm-send]')) {
+        saved.drop(opened);
+        closeAction();
+        return toast?.('Resolver: preparado, pero aún no se envía a Remedy (falta conectar SIGLO).');
+      }
       const r = t.closest('[data-id]');
       if (r) return openIssue(r.dataset.id);
       if (t.closest('[data-back]')) { renderDesk(); root.scrollTop = 0; return; }
@@ -147,7 +167,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
   const openAction = async (key) => {
     closeAction();
     if (key === 'transfer') people = await api.teammates();
-    const form = key === 'resolve' ? resolveForm(opened, resolveDraft(issue)) : actionForm(key, opened, people);
+    const form = key === 'resolve' ? resolveForm(opened, resolveDraft(issue), saved.get(opened)) : actionForm(key, opened, people);
     root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${form}</div>`);
     root.querySelector('.iss-act-form textarea, .iss-act-form input:not([type=hidden]), .iss-act-form select')?.focus();
   };
@@ -159,14 +179,18 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
     const { missing, values } = readAction(key, Object.fromEntries(new FormData(form)));
     const err = form.querySelector('.iss-act-err');
     if (missing) { err.textContent = `Falta: ${missing}.`; err.hidden = false; return; }
+    // Resolver se confirma viendo lo que se va a enviar; el formulario se
+    // queda escondido debajo, con lo escrito, por si se vuelve a editar
+    if (key === 'resolve') {
+      err.hidden = true;
+      form.hidden = true;
+      form.insertAdjacentHTML('afterend', resolveConfirm(opened, values));
+      form.parentElement.querySelector('[data-confirm-send]').focus();
+      return;
+    }
     closeAction();
     const who = key === 'transfer' ? people.find((p) => p.id === values.to)?.name : null;
     toast?.(`${ACTIONS[key].label}${who ? ` a ${who}` : ''}: preparado, pero aún no se envía a Remedy (falta conectar SIGLO).`);
-  });
-  // Resolver: el resumen de lo que se enviará sigue a lo que se escribe
-  root.addEventListener('input', (e) => {
-    const form = e.target.closest('[data-act-form="resolve"]');
-    if (form) form.querySelector('[data-resolve-summary]').innerHTML = resolveSummary(Object.fromEntries(new FormData(form)));
   });
   root.addEventListener('keydown', (e) => { if (e.key === 'Escape' && root.querySelector('.iss-modal')) closeAction(); });
 
