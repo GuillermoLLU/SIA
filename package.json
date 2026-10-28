@@ -1,7 +1,7 @@
 {
   "name": "sia",
   "productName": "SIA",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "SIA: sistema de uso de IA para equipos — terminal de IA + conocimiento + skills",
   "type": "module",
   "main": "electron/main.js",
