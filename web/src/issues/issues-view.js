@@ -10,8 +10,7 @@ import { sev, origin, item } from './parts.js';
 import { workScreen } from './work-screen.js';
 import { ACTIONS, actionForm, readAction } from './actions.js';
 import { resolveDraft } from './resolve-draft.js';
-import { resolveForm, resolveConfirm } from './resolve-form.js';
-import { createResolveSaved } from './resolve-saved.js';
+import { resolveForm, resolveReview, stepMissing, STEPS, MAX_FILE, fileSize, fileBox, localShort } from './resolve-form.js';
 
 const GOAL = { min: 15, max: 20 }; // resueltas por turno, lo que dice el equipo
 const REFRESH_MS = 15000;
@@ -20,8 +19,7 @@ const REFRESH_MS = 15000;
 export const mountIssuesView = (root, { api, me, toast, openChat }) => {
   let data = null, rule = 'basic', now = new Date(), opened = null, onDesk = false, workTab = 'ai', chat = null, loading = false, picking = false;
   let issue = null; // la issue abierta: Resolver aprovecha sus notas de Remedy
-  const saved = createResolveSaved(); // Resolver: lo guardado para después, en este navegador
-  const minuteNow = () => { const d = new Date(), p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; };
+  let attached = null; // Resolver: el adjunto guardado en el borrador abierto ({ name, type, size })
   const closeChat = () => { chat?.dispose(); chat = null; };
 
   // Cargar la foto (el CSV de la consulta de Remedy, hasta leer de Remedy).
@@ -136,23 +134,10 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
       const act = t.closest('[data-act]');
       if (act) return openAction(act.dataset.act);
       if (t.closest('[data-act-cancel]') || t.classList.contains('iss-modal')) return closeAction();
-      if (t.closest('[data-confirm-back]')) {
-        const form = root.querySelector('[data-act-form="resolve"]');
-        root.querySelector('[data-resolve-confirm]').remove();
-        form.hidden = false;
-        return form.querySelector('textarea')?.focus();
-      }
-      if (t.closest('[data-saved-keep]')) {
-        const ok = saved.set(opened, Object.fromEntries(new FormData(t.closest('form'))), minuteNow());
-        closeAction();
-        return toast?.(ok ? 'Guardado en este navegador: lo tendrás al volver a Resolver.' : 'No se ha podido guardar: este navegador no lo permite.');
-      }
-      if (t.closest('[data-saved-drop]')) { saved.drop(opened); return openAction('resolve'); }
-      if (t.closest('[data-confirm-send]')) {
-        saved.drop(opened);
-        closeAction();
-        return toast?.('Resolver: preparado, pero aún no se envía a Remedy (falta conectar SIGLO).');
-      }
+      if (t.closest('[data-step-next]')) return stepNext(t.closest('form'));
+      if (t.closest('[data-step-back]')) { const form = t.closest('form'); return goStep(form, Number(form.dataset.step) - 1); }
+      if (t.closest('[data-file-clear]')) return setFile(t.closest('form'), null);
+      if (t.closest('[data-saved-drop]')) { clearTimeout(autosave); autosave = null; await api.dropDraft(opened); return openAction('resolve'); }
       const r = t.closest('[data-id]');
       if (r) return openIssue(r.dataset.id);
       if (t.closest('[data-back]')) { renderDesk(); root.scrollTop = 0; return; }
@@ -163,11 +148,89 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
   // Acciones: su formulario encima de la pantalla de trabajo. De momento se
   // valida y se avisa: nada sale hacia Remedy hasta conectar SIGLO.
   let people = [];
-  const closeAction = () => root.querySelector('.iss-modal')?.remove();
+  const closeAction = () => { flushSave(); root.querySelector('.iss-modal')?.remove(); };
+
+  // Resolver: los tres pasos. No se sale de uno sin lo obligatorio; el 3 se
+  // pinta con lo escrito, como se va a enviar.
+  const showErr = (form, text) => { const err = form.querySelector('.iss-act-err'); err.textContent = text || ''; err.hidden = !text; };
+  const goStep = (form, n) => {
+    form.dataset.step = String(n);
+    showErr(form, null);
+    form.querySelectorAll('[data-rstep]').forEach((p) => { p.hidden = p.dataset.rstep !== String(n); });
+    form.querySelectorAll('[data-step-mark]').forEach((m) => {
+      const k = Number(m.dataset.stepMark);
+      m.classList.toggle('done', k < n);
+      if (k === n) m.setAttribute('aria-current', 'step'); else m.removeAttribute('aria-current');
+    });
+    const last = n === STEPS.length;
+    if (last) {
+      const { values } = readAction('resolve', Object.fromEntries(new FormData(form)));
+      form.querySelector('[data-rstep="3"]').innerHTML = resolveReview(values, attached);
+    }
+    form.querySelector('[data-act-cancel]').hidden = n !== 1;
+    form.querySelector('[data-step-back]').hidden = n === 1;
+    const next = form.querySelector('[data-step-next]');
+    next.hidden = last;
+    next.textContent = `Siguiente: ${STEPS[n]?.title.toLowerCase() ?? ''}`;
+    form.querySelector('[data-confirm-send]').hidden = !last;
+    (last ? form.querySelector('[data-confirm-send]') : form.querySelector(`[data-rstep="${n}"] textarea`))?.focus();
+  };
+  const stepNext = (form) => {
+    const n = Number(form.dataset.step);
+    const missing = stepMissing(n, Object.fromEntries(new FormData(form)));
+    if (missing) {
+      showErr(form, `Falta: ${missing}.`);
+      return [...form.querySelectorAll(`[data-rstep="${n}"] textarea`)].find((a) => !a.value.trim())?.focus();
+    }
+    goStep(form, n + 1);
+  };
+  // El adjunto (uno): se guarda en el borrador en cuanto se elige o se suelta.
+  const base64 = (file) => new Promise((ok, ko) => {
+    const r = new FileReader();
+    r.onload = () => ok(String(r.result).split(',')[1] || '');
+    r.onerror = () => ko(r.error);
+    r.readAsDataURL(file);
+  });
+  const setFile = async (form, file) => {
+    if (file && file.size > MAX_FILE) return showErr(form, `El adjunto pasa de ${fileSize(MAX_FILE)}: elige otro más pequeño.`);
+    showErr(form, null);
+    const box = form.querySelector('[data-file-box]');
+    box.innerHTML = '<p class="iss-file-on">Guardando…</p>';
+    try {
+      const got = file ? await api.saveDraftFile(opened, { name: file.name, type: file.type, data: await base64(file) }) : await api.dropDraftFile(opened);
+      attached = got.file || null;
+      form.querySelector('[data-autosave]').textContent = `Guardado ${localShort(got.at)}`;
+    } catch (e) { showErr(form, `No se ha podido guardar el adjunto: ${e.message}`); }
+    box.innerHTML = fileBox(attached);
+  };
+  // Lo escrito se guarda solo, un momento después de dejar de teclear, y al cerrar.
+  let autosave = null;
+  const saveNow = async (form) => {
+    const label = form.querySelector('[data-autosave]');
+    try { label.textContent = `Guardado ${localShort((await api.saveDraft(opened, Object.fromEntries(new FormData(form)))).at)}`; }
+    catch { label.textContent = 'No se ha podido guardar el borrador'; }
+  };
+  const flushSave = () => {
+    if (!autosave) return;
+    clearTimeout(autosave); autosave = null;
+    const form = root.querySelector('[data-act-form="resolve"]');
+    if (form) saveNow(form);
+  };
+  root.addEventListener('input', (e) => {
+    const form = e.target.closest('[data-act-form="resolve"]');
+    if (!form || e.target.matches('[data-file]')) return;   // el adjunto se guarda aparte (setFile)
+    clearTimeout(autosave);
+    autosave = setTimeout(() => { autosave = null; saveNow(form); }, 800);
+  });
   const openAction = async (key) => {
     closeAction();
     if (key === 'transfer') people = await api.teammates();
-    const form = key === 'resolve' ? resolveForm(opened, resolveDraft(issue), saved.get(opened)) : actionForm(key, opened, people);
+    let saved = null;
+    if (key === 'resolve') {
+      saved = await api.draft(opened).catch(() => null);   // sin borrador guardado se empieza con lo de Remedy
+      attached = saved?.file || null;
+    }
+    const form = key === 'resolve' ? resolveForm(opened, resolveDraft(issue), saved) : actionForm(key, opened, people);
     root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${form}</div>`);
     root.querySelector('.iss-act-form textarea, .iss-act-form input:not([type=hidden]), .iss-act-form select')?.focus();
   };
@@ -176,21 +239,33 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
     if (!form) return;
     e.preventDefault();
     const key = form.dataset.actForm;
+    if (key === 'resolve' && Number(form.dataset.step) < STEPS.length) return stepNext(form);
     const { missing, values } = readAction(key, Object.fromEntries(new FormData(form)));
     const err = form.querySelector('.iss-act-err');
     if (missing) { err.textContent = `Falta: ${missing}.`; err.hidden = false; return; }
-    // Resolver se confirma viendo lo que se va a enviar; el formulario se
-    // queda escondido debajo, con lo escrito, por si se vuelve a editar
+    // Resolver solo se envía desde el último paso, ya revisado; el borrador deja de hacer falta
     if (key === 'resolve') {
-      err.hidden = true;
-      form.hidden = true;
-      form.insertAdjacentHTML('afterend', resolveConfirm(opened, values));
-      form.parentElement.querySelector('[data-confirm-send]').focus();
-      return;
+      clearTimeout(autosave); autosave = null;
+      api.dropDraft(opened).catch(() => {});
+      closeAction();
+      return toast?.('Resolver: preparado, pero aún no se envía a Remedy (falta conectar SIGLO).');
     }
     closeAction();
     const who = key === 'transfer' ? people.find((p) => p.id === values.to)?.name : null;
     toast?.(`${ACTIONS[key].label}${who ? ` a ${who}` : ''}: preparado, pero aún no se envía a Remedy (falta conectar SIGLO).`);
+  });
+  // Soltar el adjunto en su zona
+  const dropZone = (e) => e.target.closest?.('[data-drop]');
+  root.addEventListener('dragover', (e) => { const z = dropZone(e); if (z) { e.preventDefault(); z.classList.add('over'); } });
+  root.addEventListener('dragleave', (e) => dropZone(e)?.classList.remove('over'));
+  root.addEventListener('drop', (e) => {
+    const z = dropZone(e);
+    if (!z) return;
+    e.preventDefault();
+    const files = e.dataTransfer.files;
+    if (!files.length) return z.classList.remove('over');
+    setFile(z.closest('form'), files[0]);
+    if (files.length > 1) toast?.('Solo se adjunta uno: el primero.');
   });
   root.addEventListener('keydown', (e) => { if (e.key === 'Escape' && root.querySelector('.iss-modal')) closeAction(); });
 
@@ -211,6 +286,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
   root.addEventListener('change', (e) => {
     if (e.target.matches('[data-rule]')) rule = e.target.value;
     if (e.target.matches('[data-csv]')) { picking = false; upload(e.target.files[0]); }
+    if (e.target.matches('[data-file]') && e.target.files[0]) setFile(e.target.closest('form'), e.target.files[0]);
   });
   // Con el diálogo de elegir fichero abierto no se repinta la mesa: el
   // cambio llegaría a un input que ya no está en la página.

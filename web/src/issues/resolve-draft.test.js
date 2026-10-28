@@ -20,6 +20,7 @@ test('qué ocurrió sale del último diagnóstico, con o sin tilde; [RESOLUTION]
   assert.equal(r.resolution, null);
   assert.deepEqual(r.notes.map((x) => Boolean(x.note)), [true, true, true, true, false]);
   assert.deepEqual(r.warnings, []);
+  assert.deepEqual(r.missing, []);
 });
 
 test('con la nota de resolución escrita, no se vuelve a pedir y empieza «Cómo se resolvió»', () => {
@@ -28,11 +29,12 @@ test('con la nota de resolución escrita, no se vuelve a pedir y empieza «Cómo
   assert.equal(r.draft.how.value, 'Se libera el bulto');
 });
 
-test('avisos: las notas que faltan, sin diagnóstico, sin categoría y lo de las críticas', () => {
+test('lo que falta en Remedy para la nota de cierre (en críticas, también sus dos notas) y los avisos que no bloquean', () => {
   const r = resolveDraft(issue({ category: '', priority: 'CRITICAL', worklog: worklog.slice(0, 1) }));
-  assert.match(r.warnings[0], /antecedentes, análisis, diagnóstico\./);
-  assert.equal(r.warnings.length, 4);
+  assert.deepEqual(r.missing, ['Antecedentes', 'Análisis', 'Diagnóstico', '¿Es mayor incidente?', 'Servicio restablecido']);
+  assert.deepEqual(r.warnings, ['La issue no tiene categoría en Remedy: ponla antes de resolver.']);
   assert.equal(r.notes.length, 7);
+  assert.deepEqual(resolveDraft(issue()).missing, []);
   assert.deepEqual(resolveDraft({ priority: 'LOW', category: 'x' }).notes.length, 5);
 });
 

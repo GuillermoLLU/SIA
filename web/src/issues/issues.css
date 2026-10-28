@@ -162,7 +162,6 @@
 .iss-rs { display: flex; flex-direction: column; gap: 10px; padding-top: 14px; border-top: 1px solid var(--border); }
 .iss-rs h4 { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; font-size: 13.5px; font-weight: 650; }
 .iss-rs h4 em { font-style: normal; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-low); }
-.iss-rs-n { display: inline-grid; place-items: center; width: 20px; height: 20px; font-size: 11px; font-weight: 700; color: var(--surface); background: var(--accent); }
 .iss-rs-have { margin: 0; font-size: 13px; color: var(--iss-ok); }
 .iss-rs blockquote { margin: 0; padding: 8px 12px; font-size: 13px; white-space: pre-wrap; color: var(--text); background: var(--bg); border-left: 3px solid var(--border); }
 .iss-done { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 28px; margin: 0; padding: 0; list-style: none; font-size: 13px; }
@@ -176,8 +175,25 @@
 .iss-act-form header .iss-act-id { padding: 3px 10px; font-size: 14px; font-weight: 700; letter-spacing: .02em; color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); border: 1px solid var(--accent); }
 .iss-saved { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0; padding: 8px 12px; font-size: 13px; background: var(--bg); border-left: 3px solid var(--accent); }
 .iss-saved .lab-btn { margin-left: auto; }
+.iss-steps { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0; padding: 0 0 12px; list-style: none; font-size: 12.5px; color: var(--text-low); border-bottom: 1px solid var(--border); }
+.iss-steps li { display: flex; align-items: center; gap: 8px; }
+.iss-steps i { display: inline-grid; place-items: center; width: 20px; height: 20px; font-size: 11px; font-weight: 700; font-style: normal; border: 1px solid var(--border); }
+.iss-steps li[aria-current] { font-weight: 650; color: var(--text); }
+.iss-steps li[aria-current] i { color: var(--surface); background: var(--accent); border-color: var(--accent); }
+.iss-steps li.done i { font-size: 0; color: var(--iss-ok); border-color: var(--iss-ok); }
+.iss-steps li.done i::before { content: '✓'; font-size: 12px; }
+.iss-rstep { display: flex; flex-direction: column; gap: 18px; }
+.iss-rstep .iss-rs:first-child { padding-top: 0; border-top: 0; }
+.iss-drop { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 22px 16px; font-size: 13px; text-align: center; color: var(--text-low); cursor: pointer; border: 1px dashed var(--border); background: var(--bg); }
+.iss-drop b { font-weight: 600; color: var(--text); }
+.iss-drop:hover, .iss-drop.over, .iss-drop:focus-within { border-color: var(--accent); color: var(--text); }
+.iss-file-on { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0; padding: 10px 12px; font-size: 13px; background: var(--bg); border: 1px solid var(--border); }
+.iss-file-on span { overflow-wrap: anywhere; }
+.iss-file-on .lab-btn { margin-left: auto; }
+.iss-block { margin: 0; padding: 10px 12px; font-size: 13px; color: var(--text); border-left: 3px solid var(--iss-crit); background: color-mix(in srgb, var(--iss-crit) 8%, var(--surface)); }
+.iss-autosave { margin-right: auto; font-size: 12px; color: var(--text-low); }
+.iss-cf-file { color: var(--text-low); }
 /* resolver, confirmación: lo que se envía, limpio y como se va a leer */
-.iss-act-form[hidden] { display: none; } /* el formulario, debajo de la confirmación */
 .iss-cf-lead { margin: 0; font-size: 13px; color: var(--text-low); }
 .iss-cf { display: flex; flex-direction: column; gap: 8px; }
 .iss-cf h4 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin: 0; font-size: 13.5px; font-weight: 650; }
@@ -185,7 +201,6 @@
 .iss-cf-box { display: flex; flex-direction: column; gap: 12px; padding: 12px 14px; font-size: 13.5px; line-height: 1.5; background: var(--bg); border: 1px solid var(--border); }
 .iss-cf-box p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .iss-cf-mail { border-left: 3px solid var(--accent); }
-.iss-cf-mail b { display: block; margin-bottom: 2px; font-weight: 600; }
 .iss-cf-state { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 0; padding-top: 12px; font-size: 13px; color: var(--text-low); border-top: 1px solid var(--border); }
 .iss-cf-state span { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
 .iss-cf-state b { color: var(--iss-ok); }
@@ -210,3 +225,4 @@
   .iss-bars { gap: 3px; }
   .iss-kv, .iss-facts { grid-template-columns: 1fr; }
     }
+.iss-field textarea:disabled { opacity: .55; cursor: not-allowed; }

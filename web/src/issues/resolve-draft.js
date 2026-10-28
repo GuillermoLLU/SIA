@@ -3,7 +3,7 @@
 //
 // Al resolver se escriben dos cosas distintas (procedimiento de ECOM):
 // - la nota interna de resolución, `[RESOLUCION]`, que solo ve el equipo;
-// - el mensaje al centro, por correo, con tres puntos: qué ocurrió (lo dice la
+// - la nota externa para el centro en Remedy, con tres puntos: qué ocurrió (lo dice la
 //   nota de diagnóstico), cómo se resolvió y qué se hará para evitarlo. Lo
 //   reciben el interlocutor y todos los que han participado (paso 2.8 del
 //   proceso de resolución de soporte).
@@ -45,25 +45,24 @@ const lastByKey = (worklog = []) => {
 export const short = (at) => `${at.slice(8, 10)}/${at.slice(5, 7)} ${at.slice(11, 16)}`;
 const from = (n, label) => n ? { value: n.text, from: `${label.toLowerCase()} (${short(n.at)}, ${n.who})` } : null;
 
-// → { notes: [{ key, label, note }], draft: { what, how }, resolution, warnings }
+// → { notes: [{ key, label, note }], missing, draft: { what, how }, resolution, warnings }
+// missing: las notas que faltan en Remedy (sin ellas no se escribe la de cierre);
 // draft: lo que empieza cada punto del mensaje ({ value, from }); resolution:
 // la nota [RESOLUCION] si ya está escrita (entonces no se vuelve a pedir).
 export const resolveDraft = (issue) => {
   const last = lastByKey(issue.worklog);
   const critical = issue.priority === 'CRITICAL';
   const notes = [...NOTES, ...(critical ? CRITICAL : [])].map(({ key, label }) => ({ key, label, note: last[key] || null }));
-  const missing = notes.filter((n) => !n.note && n.key !== 'resolution' && !CRITICAL.some((c) => c.key === n.key)).map((n) => n.label.toLowerCase());
+  const missing = notes.filter((n) => !n.note && n.key !== 'resolution').map((n) => n.label);
 
   const warnings = [];
-  if (missing.length) warnings.push(`Faltan notas internas en Remedy: ${missing.join(', ')}. La auditoría de calidad revisa las cinco.`);
   if (!issue.category) warnings.push('La issue no tiene categoría en Remedy: ponla antes de resolver.');
-  if (critical && !last.major) warnings.push('Es crítica y no consta si es mayor incidente: añade la nota en Remedy.');
   // paso 3.5: avisar al proveedor o al equipo escalado de que está resuelta
   if (issue.vendorTicket) warnings.push(`Tiene el ticket de proveedor ${issue.vendorTicket}: avisa de que se ha resuelto.`);
-  if (critical && !last.restored) warnings.push('Es crítica y no consta cuándo se restableció el servicio: añade la nota en Remedy.');
 
   return {
     notes,
+    missing,
     draft: { what: from(last.diagnosis, 'Diagnóstico'), how: from(last.resolution, 'Resolución') },
     resolution: last.resolution || null,
     warnings,

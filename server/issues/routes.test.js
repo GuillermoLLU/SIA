@@ -26,7 +26,14 @@ const setup = (claims = []) => {
     load: () => { loads.n++; return { taken: '2026-10-04T09:44:00.000Z', issues: ISSUES }; },
     importCsv: async (chunks, name) => { const got = [name]; for await (const c of chunks) got.push(c); imports.push(got); return { file: name, taken: 't', issues: 1 }; },
   };
-  const route = issuesRoutes(createIssuesService({ source, platform }), { json: (res, status, body) => Object.assign(res, { status, body }), readBody: async (req) => req.body || {} });
+  const store = new Map();
+  const drafts = {
+    get: (u, i) => store.get(`${u}/${i}`) ?? null,
+    setText: (u, i, f) => { store.set(`${u}/${i}`, { ...store.get(`${u}/${i}`), ...f }); return 'at'; },
+    setFile: (u, i, f) => { store.set(`${u}/${i}`, { ...store.get(`${u}/${i}`), file: f && f.name }); return 'at'; },
+    drop: (u, i) => { store.delete(`${u}/${i}`); },
+  };
+  const route = issuesRoutes(createIssuesService({ source, platform, drafts }), { json: (res, status, body) => Object.assign(res, { status, body }), readBody: async (req) => req.body || {} });
   const call = async (method, path, body, query = '') => {
     const res = {}, req = { method, body, setEncoding() {}, resume() {}, [Symbol.asyncIterator]: async function* () { yield body; } };
     await route(req, res, path, WHO, new URLSearchParams(query)); return res;
@@ -85,4 +92,20 @@ test('POST /csv: carga el cuerpo con el nombre del fichero; sin nombre .csv, 400
   assert.equal((await call('POST', ['csv'], 'csv', 'name=datos.xlsx')).status, 400);
   assert.equal((await call('POST', ['csv'], 'csv', 'name=../x.csv')).status, 400);
   assert.equal(imports.length, 1);
+});
+
+test('borrador de Resolver: guardar, adjuntar, quitar el adjunto y descartar, siempre el mío', async () => {
+  const { call } = setup();
+  assert.deepEqual((await call('GET', ['INC1', 'draft'])).body, { draft: null });
+  assert.deepEqual((await call('PUT', ['INC1', 'draft'], { note: 'n', what: 'w', extra: 'x' })).body, { at: 'at' });
+  assert.deepEqual((await call('GET', ['INC1', 'draft'])).body.draft, { note: 'n', what: 'w', how: '', prevent: '' });
+  const up = await call('PUT', ['INC1', 'draft', 'file'], { name: 'cola.png', type: 'image/png', data: Buffer.from('hola').toString('base64') });
+  assert.deepEqual(up.body, { at: 'at', file: { name: 'cola.png', type: 'image/png', size: 4 } });
+  assert.equal((await call('PUT', ['INC1', 'draft', 'file'], { name: 'x.png' })).status, 400);
+  assert.equal((await call('GET', ['INC1', 'draft'])).body.draft.file, 'cola.png');
+  await call('DELETE', ['INC1', 'draft', 'file']);
+  assert.equal((await call('GET', ['INC1', 'draft'])).body.draft.file, null);
+  assert.deepEqual((await call('DELETE', ['INC1', 'draft'])).body, { ok: true });
+  assert.deepEqual((await call('GET', ['INC1', 'draft'])).body, { draft: null });
+  assert.equal((await call('GET', ['../x', 'draft'])).status, 404);
 });

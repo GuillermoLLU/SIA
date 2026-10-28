@@ -5,10 +5,11 @@
 import { queue, RULES } from './queue.js';
 import { deskOf, brief } from './desk.js';
 import { today, history, dayKey } from './stats.js';
+import { cleanFields, cleanFile } from './draft.js';
 
 const WEEKS = 12;
 
-export const createIssuesService = ({ source, platform }) => {
+export const createIssuesService = ({ source, platform, drafts }) => {
   // la foto y lo cogido en SIA; `now` es la hora de la foto, no la de ahora
   const snapshot = async (jwt) => {
     const { taken, issues } = source.load();
@@ -57,6 +58,15 @@ export const createIssuesService = ({ source, platform }) => {
     },
     // una issue de la foto, por id (el chat de una issue)
     find: (id) => source.load().issues.find((i) => i.id === id) || null,
+    // el borrador de Resolver de quien lo escribe (drafts.js), en la BBDD local
+    draft: ({ user }, id) => drafts.get(user.id, id),
+    saveDraft: ({ user }, id, body) => ({ at: drafts.setText(user.id, id, cleanFields(body)) }),
+    saveDraftFile: ({ user }, id, body) => {
+      const file = cleanFile(body);
+      return { at: drafts.setFile(user.id, id, file), file: { name: file.name, type: file.type, size: file.data.length } };
+    },
+    dropDraftFile: ({ user }, id) => ({ at: drafts.setFile(user.id, id, null) }),
+    dropDraft: ({ user }, id) => { drafts.drop(user.id, id); return { ok: true }; },
     // el CSV de la consulta, tal cual, por trozos → { file, taken, issues }
     importCsv: (chunks, name) => source.importCsv(chunks, name),
   };
