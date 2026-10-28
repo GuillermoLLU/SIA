@@ -10,7 +10,7 @@ import { sev, origin, item } from './parts.js';
 import { workScreen } from './work-screen.js';
 import { ACTIONS, actionForm, readAction } from './actions.js';
 import { resolveDraft } from './resolve-draft.js';
-import { resolveForm } from './resolve-form.js';
+import { resolveForm, resolveSummary } from './resolve-form.js';
 
 const GOAL = { min: 15, max: 20 }; // resueltas por turno, lo que dice el equipo
 const REFRESH_MS = 15000;
@@ -162,6 +162,11 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
     closeAction();
     const who = key === 'transfer' ? people.find((p) => p.id === values.to)?.name : null;
     toast?.(`${ACTIONS[key].label}${who ? ` a ${who}` : ''}: preparado, pero aún no se envía a Remedy (falta conectar SIGLO).`);
+  });
+  // Resolver: el resumen de lo que se enviará sigue a lo que se escribe
+  root.addEventListener('input', (e) => {
+    const form = e.target.closest('[data-act-form="resolve"]');
+    if (form) form.querySelector('[data-resolve-summary]').innerHTML = resolveSummary(Object.fromEntries(new FormData(form)));
   });
   root.addEventListener('keydown', (e) => { if (e.key === 'Escape' && root.querySelector('.iss-modal')) closeAction(); });
 

@@ -15,6 +15,20 @@ const tip = (text) => {
 const area = (name, rows, d, empty) => `<textarea id="iss-f-${name}" name="${name}" rows="${rows}">${esc(d?.value || '')}</textarea>
       <small>${d ? `Sale de tu nota de ${esc(d.from)}. Cuéntalo sin jerga: lo lee el centro.` : empty}</small>`;
 
+// El resumen de lo que se va a enviar, con lo escrito hasta ahora (se repinta
+// al escribir). `v`: { note, what, how, prevent }, los valores del formulario.
+const POINTS = [['what', 'Qué ocurrió'], ['how', 'Cómo se resolvió'], ['prevent', 'Qué se hará para evitarlo']];
+const text = (v) => String(v || '').trim();
+const missing = (label) => `<span class="iss-sum-miss">Falta: ${label.toLowerCase()}</span>`;
+export const resolveSummary = (v) => `<h4>Así se enviará ${tip('Lo que saldrá al pulsar Resolver, con lo que has escrito arriba. Si algo está mal, cámbialo arriba: el resumen se actualiza solo.')}</h4>
+      <div class="iss-sum">
+        <div class="iss-sum-b"><b>Nota interna en Remedy</b><small>Solo el equipo</small>
+          <p>${text(v.note) ? `[RESOLUCION] ${esc(text(v.note))}` : missing('Nota interna de resolución')}</p></div>
+        <div class="iss-sum-b"><b>Correo de resolución</b><small>Al centro y a quien haya participado</small>
+          ${POINTS.map(([k, label]) => `<p><i>${label}</i>${text(v[k]) ? esc(text(v[k])) : missing(label)}</p>`).join('')}</div>
+      </div>
+      <p class="iss-sum-state">La issue pasa a <b>Resuelta</b>. Si el centro no la reabre, se cierra sola a los 5 días.</p>`;
+
 const done = (n) => `<li class="${n.note ? 'ok' : 'no'}"><i>${n.note ? '✓' : '—'}</i><span>${n.label}</span><small>${n.note ? `${short(n.note.at)} · ${esc(n.note.who)}` : n.key === 'resolution' ? 'la escribes ahora' : 'no está'}</small></li>`;
 
 export const resolveForm = (issueId, r) => `<form class="iss-act-form iss-resolve" data-act-form="resolve" novalidate>
@@ -44,6 +58,10 @@ export const resolveForm = (issueId, r) => `<form class="iss-act-form iss-resolv
       ${area('how', 3, r.draft.how, 'Lo que se hizo, en palabras del centro. Si es temporal, dilo: puede volver a pasar.')}</label>
       <label class="iss-field" for="iss-f-prevent"><span>Qué se hará para evitarlo</span>
       ${area('prevent', 2, null, 'Si es un fallo del sistema, basta con decir que se ha pedido su corrección: la gestiona A&S Proyectos. Si no, una pauta para el centro.')}</label>
+    </section>
+
+    <section class="iss-rs" data-resolve-summary>
+      ${resolveSummary({ note: r.resolution?.text, what: r.draft.what?.value, how: r.draft.how?.value })}
     </section>
 
     <p class="iss-act-note">Aún no se envía a Remedy: irá por SIGLO cuando lo conectemos.</p>
