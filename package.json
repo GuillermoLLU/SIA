@@ -1,7 +1,7 @@
 {
   "name": "sia",
   "productName": "SIA",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "SIA: sistema de uso de IA para equipos — terminal de IA + conocimiento + skills",
   "type": "module",
   "main": "electron/main.js",
@@ -21,13 +21,14 @@
     "@supabase/supabase-js": "^2.45.0",
     "@xenova/transformers": "^2.17.2",
     "node-pty": "^1.1.0",
+    "snowflake-sdk": "^3.4.1",
     "undici": "^6.0.0",
     "ws": "^8.21.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
     "cross-env": "^10.1.0",
-    "electron": "^33.0.0",
+    "electron": "^37.10.3",
     "electron-builder": "^25.0.0"
   },
   "build": {

@@ -5,7 +5,7 @@
 // fallos, en verde; lo que no tiene un mejor, sin color. Entre empresas no se comparan tiempos (como en
 // Resolución: cada una recibe trabajo distinto).
 import { esc } from '../../ui/html.js';
-import { num, dec, pct, dur, MONTHS } from '../format.js';
+import { num, dec, pct, dur } from '../format.js';
 import { share } from '../model.js';
 import { IA_NONE, iaStats as iaStatsOf, iaUse, iaMonths, iaTop } from '../ia.js';
 import { MIN_ISSUES, BETTER_MIN, clearlyWorse } from '../rules.js';
@@ -54,8 +54,8 @@ export const iaTab = (t) => {
   const iaHead = (A, s) => {
     const { last, first } = iaMonths(m, A, monthsOf);
     const use = iaBox('Con IA, de lo recibido', s.share == null ? '—' : pct(s.share, 1), [['Issues con IA', num(s.ia)],
-      ...last.map((x, j) => [`${j ? 'Mes anterior' : 'Último mes completo'} (${MONTHS[x.k]})`, opt((v) => pct(v, 1))(x.share)]),
-      ['Primer mes con IA', first == null ? '—' : MONTHS[first]]]);
+      ...last.map((x, j) => [`${j ? 'Mes anterior' : 'Último mes completo'} (${m.monthName(x.k)})`, opt((v) => pct(v, 1))(x.share)]),
+      ['Primer mes con IA', first == null ? '—' : m.monthName(first)]]);
     const how = iaBox(`Cómo sale, de las ${num(s.ia)} con IA`, s.ia ? `${pct(s.okShare)} OK` : '—',
       [...IA_SPLIT.map(([l, k, c]) => [l, s.ia ? `${pct(s[`${k}Share`])} · ${num(s[k])}` : '—', c]), ['Resueltas por la IA (IA_SOLVED)', num(s.solved)]], iaBar(s));
     const mods = new Set(A.map((i) => C.mo[i]).filter(Boolean)).size;

@@ -15,7 +15,7 @@ test('cada ruta de gestión pide su vista', () => {
   assert.deepEqual(viewsForRoute(p('admin/projects'), 'GET'), ['admin']);
   assert.deepEqual(viewsForRoute(p('links'), 'POST'), ['links']);
   assert.deepEqual(viewsForRoute(p('issues'), 'GET'), ['issues']);
-  assert.deepEqual(viewsForRoute(p('metrics/csv'), 'POST'), ['metrics']);
+  assert.deepEqual(viewsForRoute(p('metrics/update'), 'POST'), ['metrics']);
   assert.deepEqual(viewsForRoute(['api', 'metrics'], 'GET'), ['metrics', 'work']);
   assert.deepEqual(viewsForRoute(p('drafts'), 'GET'), ['lab']);
   assert.deepEqual(viewsForRoute(p('skills/x'), 'DELETE'), ['lab']);

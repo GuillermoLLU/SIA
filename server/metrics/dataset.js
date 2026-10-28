@@ -1,20 +1,22 @@
-// Del CSV completo de Remedy a los datos de las Métricas: solo las issues del
-// grupo de soporte abiertas en el año, medidas una a una (remedy.js) y
-// guardadas por columnas, con los textos repetidos en diccionarios. Los
-// avisos automáticos de ruta y etiqueta (AUTOTEC) se abren y se cierran
-// solos: no son trabajo del equipo y no se guardan.
+// De las incidencias del repositorio local (repository.js) a los datos de las
+// Métricas: solo las issues del grupo de soporte, de cualquier año, medidas una
+// a una (remedy.js) y guardadas por columnas, con los textos repetidos en
+// diccionarios. Los avisos automáticos de ruta y etiqueta (AUTOTEC) se abren y
+// se cierran solos: no son trabajo del equipo y no se guardan.
 //
 // Lo que sale (lo lee web/src/metrics/):
-//   meta    { format, file, year, group, rows, total, snapshot, generated }
-//           format: FORMAT; unos datos de otro formato se vuelven a calcular cargando el CSV.
-//           rows: issues del grupo y del año; total: filas del CSV;
-//           snapshot: el último minuto con movimiento (la «hora de la foto»).
+//   meta    { format, file, start, group, rows, total, snapshot, first, last, generated }
+//           format: FORMAT; unos datos de otro formato se vuelven a calcular desde el repositorio.
+//           start: el año de la primera issue; el 1 de enero de ese año es el origen de los minutos.
+//           rows: issues del grupo; total: incidencias guardadas;
+//           snapshot: el último minuto con movimiento (la «hora de la foto»);
+//           first/last: la apertura de la primera y de la última issue (minutos).
 //   dict    textos por columna; el 0 es siempre ''.
 //   themes  nombres de los temas (bit i de `th`).
 //   reasons los motivos de Pendiente que son esperar al cliente o a un tercero (states.js), para la situación.
 //   company empresa de cada persona de dict.person (companies.js).
 //   cols    una lista por columna, una posición por issue:
-//           id número · rep/res abierta y resuelta · lm último cambio (minutos desde el 1 de enero; -1 no hay)
+//           id número · rep/res abierta y resuelta · lm último cambio (minutos desde el 1 de enero de start; -1 no hay)
 //           st estado · rs motivo · pr prioridad · sv tipo de servicio · as responsable
 //           ce centro · op operación · mo módulo · k3 tipología · sc ámbito · fl marcas (remedy.js FLAG)
 //           vt/vp/vk ticket de tercero: tipo, proyecto Jira y clave · th temas · su título
@@ -27,17 +29,23 @@ import { loginsOf, companyOf } from './companies.js';
 import { THEME_NAMES, problemKey } from './themes.js';
 import { PENDING } from './states.js';
 
-const GROUP = 'AYS SOPORTE';
-export const FORMAT = 3;
+export const GROUP = 'AYS SOPORTE';
+export const FORMAT = 4;
 
 export const REQUIRED = ['INCIDENTNUMBER', 'ASSIGNEDGROUP', 'ASSIGNEE', 'SUMMARY', 'PRIORITY', 'STATUS', 'STATUSREASON', 'SERVICETYPE', 'TAGS',
   'REPORTEDDATE', 'LASTRESOLUTIONDATE', 'LASTMODIFIEDDATE', 'RESOLUTION', 'VENDORTICKETNUMBER', 'PRODUCTCATEGORIZATIONTIER1',
   'PRODUCTCATEGORIZATIONTIER2', 'PRODUCTCATEGORIZATIONTIER3', 'CATEGORIZATIONTIER3', 'AUDIT_DETAIL', 'WORKLOG_DETAIL'];
 
-// El CSV no es el de la consulta (status 400 para la ruta).
-class CsvError extends Error {
+// Los datos no son los de la consulta de issues (status 400 para la ruta).
+export class DataError extends Error {
   constructor(message) { super(message); this.status = 400; }
 }
+
+// La primera fila dice si los datos son los de la consulta de issues.
+export const checkColumns = (row) => {
+  const missing = REQUIRED.filter((c) => !(c in row));
+  if (missing.length) throw new DataError(`La consulta de issues no trae ${missing.join(', ')}.`);
+};
 
 // Copia propia de un texto que se guarda. Los trozos de un campo del CSV
 // pueden ser vistas del trozo leído (64 KB): guardar la vista retendría el
@@ -53,26 +61,24 @@ const dictionary = () => {
 const COLS = ['id', 'rep', 'res', 'lm', 'st', 'rs', 'pr', 'sv', 'as', 'ce', 'op', 'mo', 'k3', 'sc', 'fl', 'vt', 'vp', 'vk',
   'fr', 'ip', 'tA', 'tI', 'tPc', 'tPv', 'tPo', 'nb', 'np', 'th', 'su', 'de'];
 
-export const createDataset = ({ year }) => {
-  const base = Date.UTC(year, 0, 1), yearEnd = (Date.UTC(year + 1, 0, 1) - base) / 60000;
+// start: el año de la primera issue del grupo.
+export const createDataset = ({ start }) => {
+  const base = Date.UTC(start, 0, 1);
   const D = Object.fromEntries(['status', 'reason', 'prio', 'svc', 'person', 'centre', 'op', 'module', 'cat', 'vtype', 'vproj', 'vkey', 'resol', 'problem'].map((k) => [k, dictionary()]));
   const cols = Object.fromEntries(COLS.map((c) => [c, []]));
   const resolutions = [], resolutionCount = new Map(), resolvers = new Map();
   const spellings = [];   // por problema: cuántas veces se escribe de cada forma
-  let total = 0, snapshot = 0, checked = false;
+  let total = 0, snapshot = 0, first = Infinity, last = -1;
 
   const add = (r) => {
-    if (!checked) {
-      const missing = REQUIRED.filter((c) => !(c in r));
-      if (missing.length) throw new CsvError(`Ese CSV no es el de la consulta de issues: le falta ${missing.join(', ')}.`);
-      checked = true;
-    }
     total++;
     if (r.ASSIGNEDGROUP.trim() !== GROUP) return;
     const i = readIssue(r, base);
-    if (i.reported < 0 || i.reported >= yearEnd) return;
+    if (i.reported < 0) return;
     snapshot = Math.max(snapshot, i.reported, i.modified);
     if (i.flags & FLAG.AUTO_NOTICE) return;
+    first = Math.min(first, i.reported);
+    last = Math.max(last, i.reported);
     if (i.resolvedBy.length) {
       const name = own(i.assignee), counts = resolvers.get(name) || new Map();
       for (const who of i.resolvedBy) counts.set(counts.has(who) ? who : own(who), (counts.get(who) || 0) + 1);
@@ -94,7 +100,7 @@ export const createDataset = ({ year }) => {
   };
 
   const build = ({ file, generated }) => {
-    if (!cols.id.length) throw new CsvError(`Ese CSV no tiene issues del grupo ${GROUP} abiertas en ${year}.`);
+    if (!cols.id.length) throw new DataError(`No hay issues del grupo ${GROUP} en los datos cargados.`);
     cols.rz = resolutions.map((z) => (z && resolutionCount.get(z) >= 4 ? D.resol.id(z) : 0));
     const logins = new Map();
     for (const [login, name] of loginsOf(resolvers)) logins.set(name, [...(logins.get(name) || []), login]);
@@ -102,7 +108,7 @@ export const createDataset = ({ year }) => {
     const dict = Object.fromEntries(Object.entries(D).map(([k, d]) => [k, d.values]));
     dict.problem = dict.problem.map((k, n) => (n ? [...spellings[n]].reduce((a, b) => (b[1] > a[1] ? b : a))[0] : ''));
     return {
-      meta: { format: FORMAT, file, year, group: GROUP, rows: cols.id.length, total, snapshot, generated },
+      meta: { format: FORMAT, file, start, group: GROUP, rows: cols.id.length, total, snapshot, first, last, generated },
       dict,
       themes: THEME_NAMES,
       reasons: PENDING,

@@ -59,7 +59,7 @@ test('situación de cada issue: en curso, sin tocar o devuelta a Asignada, en es
 
 test('la foto de hoy no mira el periodo; con anySide, tampoco el lado', () => {
   const m = createModel(data());
-  m.S.from = m.S.to = 2; m.refilter();   // solo marzo: la 3
+  m.setPeriod(m.minuteOf(2), m.END_D); m.refilter();   // solo marzo: la 3
   assert.deepEqual(m.rows(), [2]);
   assert.deepEqual(m.today(), [0, 2, 3]);
   assert.deepEqual(m.today(true), [0, 1, 2, 3, 4]);
@@ -303,4 +303,47 @@ test('de lo resuelto: los tramos de tiempo, el máximo y el tiempo en cada estad
   assert.equal(s.d1, 0.5); assert.equal(s.d7, 0.5); assert.equal(s.d15, 0);   // una en menos de 1 día y otra de 1 a 7
   assert.ok(s.mx >= 1440 && s.mx > s.avg);
   assert.deepEqual(s.rt, [110, 2950, 0, 0, 0]);
+});
+
+// los mismos datos con el origen en 2025: la foto cae 14 meses después (marzo de 2026)
+const twoYears = () => {
+  const d = data(), shift = 365 * 1440;
+  d.meta.start = 2025;
+  d.meta.snapshot = SNAP + shift;
+  d.cols.rep = d.cols.rep.map((v, i) => (i >= 2 ? v + shift : v));
+  d.cols.res = d.cols.res.map((v, i) => (v >= 0 && i >= 2 ? v + shift : v));
+  return d;
+};
+
+test('datos de más de un año: los meses siguen contando desde el primer enero y llevan su año', () => {
+  const m = createModel(twoYears());
+  assert.deepEqual([m.MONTH[0], m.MONTH[1], m.MONTH[2]], [0, 0, 14]);   // ene 2025, ene 2025, mar 2026
+  assert.equal(m.LASTM, 14);
+  assert.deepEqual([m.monthName(0), m.monthName(11), m.monthName(14)], ['ene 2025', 'dic 2025', 'mar 2026']);
+  assert.equal(m.DIMS.month.label(13), 'feb 2026');
+  assert.equal(createModel(data()).monthName(2), 'mar');   // con un solo año, sin año
+});
+
+test('datos de más de un año: todas las pestañas se pintan, de un mes y de todo el periodo', () => {
+  const m = createModel(twoYears()), ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  // todo; el último mes; diez días a caballo de dos años; un solo día
+  for (const [d0, d1] of [[m.MIN_D, m.END_D], [m.minuteOf(m.LASTM), m.END_D], [m.minuteOf(11, 25), m.minuteOf(12, 5)], [m.minuteOf(12, 10), m.minuteOf(12, 11)]]) {
+    m.setPeriod(d0, d1);
+    Object.assign(m.S, { q: '', sides: [{ company: 0 }, { company: 1 }] });
+    m.refilter();
+    for (const [tab] of TABS) assert.doesNotMatch(tabs.render(tab, m.rows()), /undefined|NaN|\[object/, `${tab} ${d0}-${d1}`);
+  }
+});
+
+test('el periodo es un rango de fechas: filtra por apertura y la tendencia cuenta hacia atrás desde su final', () => {
+  const m = createModel(twoYears());
+  m.setPeriod(m.MIN_D, m.minuteOf(14, 1));   // hasta el 28 de febrero de 2026: no entra la de marzo
+  m.refilter();
+  assert.equal(m.inPeriod(2), false);
+  assert.equal(m.inPeriod(0), true);
+  m.setPeriod(m.MIN_D, m.minuteOf(0, 20));   // hasta el 19 de enero de 2025: la 1, abierta el 1 de enero, es de los últimos 90 días
+  assert.equal(m.trend([0]).now, 1);
+  m.setPeriod(m.MIN_D, m.END_D);             // hasta la foto (marzo de 2026): ya es de hace más de un año
+  assert.equal(m.trend([0]).now, 0);
+  assert.equal(m.inPeriod(2), true);
 });

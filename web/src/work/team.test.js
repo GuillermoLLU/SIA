@@ -13,7 +13,7 @@ const issues = [
 ];
 const n = issues.length, col = (f) => issues.map(f), zeros = () => col(() => 0);
 const data = () => ({
-  meta: { file: 'x.csv', year: 2026, group: 'AYS SOPORTE', rows: n, total: n, snapshot: 100000, generated: 'g' },
+  meta: { file: 'x.csv', start: 2026, first: 1000, last: 6000, group: 'AYS SOPORTE', rows: n, total: n, snapshot: 100000, generated: 'g' },
   dict: { status: ['', 'CLOSED'], reason: [''], prio: ['', 'HIGH'], svc: [''], person: ['', 'ANA', 'PEPE', 'LUIS'], centre: [''], op: [''], module: [''],
     cat: [''], vtype: [''], vproj: [''], vkey: [''], resol: [''], problem: [''] },
   themes: [], reasons: { client: [], vendor: [] }, company: [2, 0, 0, 1],
