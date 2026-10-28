@@ -9,6 +9,8 @@ import { LISTS, when, age, stamp, weekBars } from './format.js';
 import { sev, origin, item } from './parts.js';
 import { workScreen } from './work-screen.js';
 import { ACTIONS, actionForm, readAction } from './actions.js';
+import { resolveDraft } from './resolve-draft.js';
+import { resolveForm } from './resolve-form.js';
 
 const GOAL = { min: 15, max: 20 }; // resueltas por turno, lo que dice el equipo
 const REFRESH_MS = 15000;
@@ -16,6 +18,7 @@ const REFRESH_MS = 15000;
 // openChat(host, issueId) → { dispose }: el chat de la issue (lo pone main.js).
 export const mountIssuesView = (root, { api, me, toast, openChat }) => {
   let data = null, rule = 'basic', now = new Date(), opened = null, onDesk = false, workTab = 'ai', chat = null, loading = false, picking = false;
+  let issue = null; // la issue abierta: Resolver aprovecha sus notas de Remedy
   const closeChat = () => { chat?.dispose(); chat = null; };
 
   // Cargar la foto (el CSV de la consulta de Remedy, hasta leer de Remedy).
@@ -92,6 +95,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
     const mine = i.claimedBy && data?.desk.some((d) => d.id === i.id && d.claimed);
     if (opened !== i.id) workTab = 'ai';
     opened = i.id;
+    issue = i;
     closeChat();
     closeAction();
     root.innerHTML = workScreen({ issue: i, sameCenter, now, mine, tab: workTab });
@@ -143,8 +147,9 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
   const openAction = async (key) => {
     closeAction();
     if (key === 'transfer') people = await api.teammates();
-    root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${actionForm(key, opened, people)}</div>`);
-    root.querySelector('.iss-act-form [name]')?.focus();
+    const form = key === 'resolve' ? resolveForm(opened, resolveDraft(issue)) : actionForm(key, opened, people);
+    root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${form}</div>`);
+    root.querySelector('.iss-act-form textarea, .iss-act-form input:not([type=hidden]), .iss-act-form select')?.focus();
   };
   root.addEventListener('submit', (e) => {
     const form = e.target.closest('[data-act-form]');

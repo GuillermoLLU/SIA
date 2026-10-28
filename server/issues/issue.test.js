@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { toIssue, statusChanges } from './issue.js';
+import { toIssue, statusChanges, worklog } from './issue.js';
 
 const row = (o) => ({
   INCIDENTNUMBER: 'INC1', SUMMARY: '', PRIORITY: 'HIGH', STATUS: 'ASSIGNED', STATUSREASON: '', ASSIGNEE: '',
@@ -41,4 +41,13 @@ test('statusChanges: solo los cambios de estado', () => {
 
 test('categoría por niveles, sin huecos', () => {
   assert.equal(toIssue(row({ CATEGORIZATIONTIER1: 'ECOM ZARA ES13', CATEGORIZATIONTIER2: 'EWMS' })).category, 'ECOM ZARA ES13 › EWMS');
+});
+
+test('worklog: notas en orden, al minuto, sin la columna no hay ninguna', () => {
+  const text = '2026-10-22 20:24:05.000 - RICARDOEB - [ANALISIS] Verificamos | 2026-10-22 20:23:22.000 - RICARDOEB - [SITUACION INICIAL] Indican que no';
+  assert.deepEqual(worklog(text), [
+    { at: '2026-10-22 20:23', who: 'RICARDOEB', text: '[SITUACION INICIAL] Indican que no' },
+    { at: '2026-10-22 20:24', who: 'RICARDOEB', text: '[ANALISIS] Verificamos' },
+  ]);
+  assert.deepEqual(toIssue(row({})).worklog, []);
 });

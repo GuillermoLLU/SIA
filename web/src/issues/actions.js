@@ -6,7 +6,14 @@ import { esc } from '../ui/html.js';
 export const ACTIONS = {
   resolve: {
     label: 'Resolver', title: 'Resolver la issue', ok: 'Resolver',
-    fields: [{ name: 'resolution', label: 'Resolución', kind: 'text', required: true, hint: 'Qué se ha hecho. Es lo que verá el centro.' }],
+    // la nota interna y los tres puntos del mensaje al centro; el formulario
+    // es propio (resolve-form.js), aquí solo lo que hace falta para enviarlo
+    fields: [
+      { name: 'note', label: 'Nota interna de resolución', kind: 'text', required: true },
+      { name: 'what', label: 'Qué ocurrió', kind: 'text', required: true },
+      { name: 'how', label: 'Cómo se resolvió', kind: 'text', required: true },
+      { name: 'prevent', label: 'Qué se hará para evitarlo', kind: 'text', required: true },
+    ],
   },
   escalate: {
     label: 'Escalar', title: 'Escalar la issue', ok: 'Escalar',
