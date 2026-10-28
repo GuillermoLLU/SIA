@@ -14,6 +14,8 @@ test('dos bloques separados, con su ayuda, y lo de Remedy ya puesto y escapado',
   assert.equal((html.match(/role="tooltip"/g) || []).length, 4);
   assert.match(html, /name="what" rows="3">Cola &lt;llena&gt;<\/textarea>\s*<small>Sale de tu nota de diagnóstico \(28\/10 11:05, ANA\)\. Cuéntalo sin jerga/);
   assert.match(html, /<textarea id="iss-f-note" name="note"/);
+  assert.match(html, /<span>¿Qué se ha hecho\?<\/span>/);
+  assert.match(html, /aria-label="¿Qué es esto\?"/);
   assert.doesNotMatch(html, /P-0\d\d|C-0\d\d/);
 });
 
@@ -36,7 +38,7 @@ test('tres pasos: la nota interna, el mensaje con su adjunto, y revisar; solo el
 test('no se sale de un paso sin lo obligatorio', () => {
   assert.equal(stepMissing(1, { note: '  ' }), 'Nota interna de resolución');
   assert.equal(stepMissing(1, { note: 'Relanzada' }), null);
-  assert.equal(stepMissing(2, { what: 'Se paró', how: '', prevent: 'x' }), 'Cómo se resolvió');
+  assert.equal(stepMissing(2, { what: 'Se paró', how: '', prevent: 'x' }), '¿Cómo se resolvió?');
   assert.equal(stepMissing(2, { what: 'a', how: 'b', prevent: 'c' }), null);
   assert.equal(stepMissing(3, {}), null);
 });
@@ -58,10 +60,12 @@ test('título, identificador visible, guardado automático y lo que se dejó esc
   const r = resolveDraft({ priority: 'HIGH', category: 'x', worklog: ALL });
   assert.match(resolveForm('INC1', r), /<h3>Resolver incidencia<\/h3><span class="iss-act-id">INC1<\/span>/);
   assert.doesNotMatch(resolveForm('INC1', r), /Guardar para después/);
-  assert.match(resolveForm('INC1', r), /data-autosave>Se guarda solo mientras escribes/);
+  assert.match(resolveForm('INC1', r), /data-autosave>El borrador se guarda solo mientras escribes/);
+  assert.match(resolveForm('INC1', r), /<span>¿Qué ocurrió\?<\/span>[\s\S]*<span>¿Cómo se resolvió\?<\/span>[\s\S]*<span>¿Qué se hará para evitarlo\?<\/span>/);
   const at = new Date(2026, 9, 28, 15, 20).toISOString();
   const html = resolveForm('INC1', r, { at, note: 'Mi nota', what: 'Lo mío', how: '', prevent: 'P', file: { name: 'cola.png', size: 2048 } });
   assert.match(html, /Seguimos con lo que dejaste el 28\/10 15:20/);
+  assert.match(html, /data-autosave>Borrador guardado 28\/10 15:20</);
   assert.match(html, /data-file-name>cola\.png · 2 KB<\/span><button type="button" class="lab-btn" data-file-clear>Quitar/);
   assert.doesNotMatch(html, /data-drop/);
   assert.match(html, /name="what" rows="3">Lo mío<\/textarea>/);

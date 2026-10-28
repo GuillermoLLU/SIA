@@ -12,7 +12,7 @@ let tips = 0;
 // Una ayuda: un botón «?» que enseña el texto al pasar o al enfocarlo con el teclado.
 const tip = (text) => {
   const id = `iss-tip-${++tips}`;
-  return `<span class="iss-tip"><button type="button" aria-describedby="${id}" aria-label="Qué es esto">?</button><span role="tooltip" id="${id}">${text}</span></span>`;
+  return `<span class="iss-tip"><button type="button" aria-describedby="${id}" aria-label="¿Qué es esto?">?</button><span role="tooltip" id="${id}">${text}</span></span>`;
 };
 
 export const STEPS = [
@@ -87,7 +87,7 @@ export const resolveForm = (issueId, r, saved = null) => `<form class="iss-act-f
         ${r.resolution
           ? `<p class="iss-rs-have">Ya la escribiste en Remedy (${short(r.resolution.at)}, ${esc(r.resolution.who)}): no hace falta repetirla.</p>
         <blockquote>${esc(r.resolution.text)}</blockquote><input type="hidden" name="note" value="${esc(r.resolution.text)}" />`
-          : `<label class="iss-field" for="iss-f-note"><span>Qué se ha hecho</span>
+          : `<label class="iss-field" for="iss-f-note"><span>¿Qué se ha hecho?</span>
         <textarea id="iss-f-note" name="note" rows="4"${r.missing.length ? ' disabled' : ''}>${esc(saved?.note || '')}</textarea>
         <small>Técnico y concreto: la query, el script o el cambio aplicado.</small></label>`}
       </section>
@@ -95,12 +95,12 @@ export const resolveForm = (issueId, r, saved = null) => `<form class="iss-act-f
 
     <div class="iss-rstep" data-rstep="2" hidden>
       <section class="iss-rs">
-        <h4>Mensaje al centro <em>Lo reciben el centro y quien haya participado</em> ${tip('Es la nota externa de resolución en Remedy. Le llega a quien abrió la issue y a todos los que han participado (proveedor, desarrollo…). Lo lee gente que no es técnica, así que va sin jerga. La auditoría comprueba que trae los tres puntos y que «Qué ocurrió» coincide con tu nota de diagnóstico.')}</h4>
-        <label class="iss-field" for="iss-f-what"><span>Qué ocurrió</span>
+        <h4>Mensaje al centro <em>Lo reciben el centro y quien haya participado</em> ${tip('Es la nota externa de resolución en Remedy. Le llega a quien abrió la issue y a todos los que han participado (proveedor, desarrollo…). Lo lee gente que no es técnica, así que va sin jerga. La auditoría comprueba que trae los tres puntos y que «¿Qué ocurrió?» coincide con tu nota de diagnóstico.')}</h4>
+        <label class="iss-field" for="iss-f-what"><span>¿Qué ocurrió?</span>
         ${area('what', 3, r.draft.what, 'Lo que pasó, contado para el centro. Tiene que coincidir con tu diagnóstico.', saved)}</label>
-        <label class="iss-field" for="iss-f-how"><span>Cómo se resolvió</span>
+        <label class="iss-field" for="iss-f-how"><span>¿Cómo se resolvió?</span>
         ${area('how', 3, r.draft.how, 'Lo que se hizo, en palabras del centro. Si es temporal, dilo: puede volver a pasar.', saved)}</label>
-        <label class="iss-field" for="iss-f-prevent"><span>Qué se hará para evitarlo</span>
+        <label class="iss-field" for="iss-f-prevent"><span>¿Qué se hará para evitarlo?</span>
         ${area('prevent', 2, null, 'Si es un fallo del sistema, basta con decir que se ha pedido su corrección: la gestiona A&S Proyectos. Si no, una pauta para el centro.', saved)}</label>
       </section>
 
@@ -114,7 +114,7 @@ export const resolveForm = (issueId, r, saved = null) => `<form class="iss-act-f
 
     <p class="iss-act-err" hidden></p>
     <footer>
-      <small class="iss-autosave" data-autosave>${saved ? `Guardado ${localShort(saved.at)}` : 'Se guarda solo mientras escribes'}</small>
+      <small class="iss-autosave" data-autosave>${saved ? `Borrador guardado ${localShort(saved.at)}` : 'El borrador se guarda solo mientras escribes'}</small>
       <button type="button" class="lab-btn" data-act-cancel>Cancelar</button>
       <button type="button" class="lab-btn" data-step-back hidden>Atrás</button>
       <button type="button" class="lab-btn primary" data-step-next${r.missing.length ? ' disabled' : ''}>Siguiente: mensaje al centro</button>

@@ -179,7 +179,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
     const n = Number(form.dataset.step);
     const missing = stepMissing(n, Object.fromEntries(new FormData(form)));
     if (missing) {
-      showErr(form, `Falta: ${missing}.`);
+      showErr(form, `Falta: ${missing}`);
       return [...form.querySelectorAll(`[data-rstep="${n}"] textarea`)].find((a) => !a.value.trim())?.focus();
     }
     goStep(form, n + 1);
@@ -199,7 +199,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
     try {
       const got = file ? await api.saveDraftFile(opened, { name: file.name, type: file.type, data: await base64(file) }) : await api.dropDraftFile(opened);
       attached = got.file || null;
-      form.querySelector('[data-autosave]').textContent = `Guardado ${localShort(got.at)}`;
+      form.querySelector('[data-autosave]').textContent = `Borrador guardado ${localShort(got.at)}`;
     } catch (e) { showErr(form, `No se ha podido guardar el adjunto: ${e.message}`); }
     box.innerHTML = fileBox(attached);
   };
@@ -207,7 +207,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
   let autosave = null;
   const saveNow = async (form) => {
     const label = form.querySelector('[data-autosave]');
-    try { label.textContent = `Guardado ${localShort((await api.saveDraft(opened, Object.fromEntries(new FormData(form)))).at)}`; }
+    try { label.textContent = `Borrador guardado ${localShort((await api.saveDraft(opened, Object.fromEntries(new FormData(form)))).at)}`; }
     catch { label.textContent = 'No se ha podido guardar el borrador'; }
   };
   const flushSave = () => {

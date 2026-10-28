@@ -7,7 +7,7 @@ test('las cuatro acciones', () => {
 });
 
 test('obligatorios: el primero que falte', () => {
-  assert.deepEqual(readAction('resolve', { note: 'Se relanzó', what: '  ' }), { missing: 'Qué ocurrió' });
+  assert.deepEqual(readAction('resolve', { note: 'Se relanzó', what: '  ' }), { missing: '¿Qué ocurrió?' });
   assert.deepEqual(readAction('escalate', { to: 'Proveedor X', reason: '' }), { missing: 'Motivo' });
   assert.deepEqual(readAction('transfer', { to: 'u1' }), { values: { to: 'u1', comment: '' } });
 });

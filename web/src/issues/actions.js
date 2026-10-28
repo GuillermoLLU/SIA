@@ -10,9 +10,9 @@ export const ACTIONS = {
     // es propio (resolve-form.js), aquí solo lo que hace falta para enviarlo
     fields: [
       { name: 'note', label: 'Nota interna de resolución', kind: 'text', required: true },
-      { name: 'what', label: 'Qué ocurrió', kind: 'text', required: true },
-      { name: 'how', label: 'Cómo se resolvió', kind: 'text', required: true },
-      { name: 'prevent', label: 'Qué se hará para evitarlo', kind: 'text', required: true },
+      { name: 'what', label: '¿Qué ocurrió?', kind: 'text', required: true },
+      { name: 'how', label: '¿Cómo se resolvió?', kind: 'text', required: true },
+      { name: 'prevent', label: '¿Qué se hará para evitarlo?', kind: 'text', required: true },
     ],
   },
   escalate: {
