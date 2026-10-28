@@ -29,17 +29,15 @@ del equipo**, trabaja las **issues** del servicio desde su mesa y sigue las
 
 ### Detrás de la VPN
 
-Si al arrancar aparece `No se pudo verificar el certificado de la base de la
-instancia`, el equipo no confía en los certificados corporativos. Impórtalos en
-el sistema y arranca con:
+La VPN firma la conexión con la base de la instancia con un certificado
+corporativo. El bridge confía también en los certificados del sistema (Windows o
+macOS) al arrancar, así que `node dev.mjs` y la app instalada funcionan igual
+dentro y fuera de la VPN. Requiere Node 22.19 o superior, y el certificado
+corporativo importado en el sistema.
 
-```bash
-npm run dev:vpn
-```
-
-Es `node dev.mjs` con `NODE_USE_SYSTEM_CA=1`, para que Node use el almacén de
-certificados de Windows o macOS. Requiere Node 22.19 o superior. Fuera de la VPN
-no hace falta.
+Si aun así aparece `No se pudo verificar el certificado de la base de la
+instancia` (un Node más antiguo), arranca con `npm run dev:vpn`, que es
+`node dev.mjs` con `NODE_USE_SYSTEM_CA=1`.
 
 Métricas trae las incidencias de Remedy de Snowflake: pon tu usuario en
 Configuración → Credenciales → Snowflake. La primera vez se abre el navegador

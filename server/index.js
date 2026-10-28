@@ -15,10 +15,12 @@ import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
+import tls from 'node:tls';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { json, readBody, sendFile } from './shared/http.js';
 import { choosePair } from './shared/ports.js';
+import { trustSystemCerts } from './shared/certs.js';
 import { createRouter } from './router.js';
 import { createConfigStore } from './config/store.js';
 import { cleanTheme, userEnv, cleanEnv, cleanSnowflake } from './config/config.js';
@@ -65,6 +67,8 @@ const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url))); // sia/
 
 // → { ws, api }: los puertos elegidos, para que la app se los pase a la UI.
 export const startBridge = async ({ env = process.env } = {}) => {
+  // antes de cualquier conexión: detrás de la VPN, la base de la instancia solo se verifica con los del sistema
+  if (!trustSystemCerts(tls)) console.log('[sia] sin los certificados del sistema: detrás de un proxy corporativo, arranca con NODE_USE_SYSTEM_CA=1');
   const version = (() => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version; } catch { return '0.0.0'; } })();
   const ports = await choosePair(version, { forced: env.SIA_PORT });
   const isWin = os.platform() === 'win32';
