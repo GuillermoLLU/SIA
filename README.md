@@ -15,7 +15,7 @@ del equipo**, trabaja las **issues** del servicio desde su mesa y sigue las
 
 ## Empezar
 
-1. **Node 22.13+** (trae el SQLite de las Métricas) y los CLIs que vayas a usar, con sesión iniciada: `claude`,
+1. **Node 22.19+** (trae el SQLite de las Métricas y los certificados del sistema, para la VPN) y los CLIs que vayas a usar, con sesión iniciada: `claude`,
    `copilot` o `codex`. Los que no estén instalados salen apagados.
 2. Una **cuenta de la instancia** (te la da un administrador en Personas).
 3. Arrancar:

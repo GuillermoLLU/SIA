@@ -94,7 +94,7 @@ sus reglas, sus pruebas y su pantalla, sin tener que entender el resto.
 
 1. Acceso al repositorio y una cuenta de la instancia (la crea un
    administrador en Personas, con su rol y los proyectos que verá).
-2. Node 22.13 o superior (trae el SQLite de las Métricas) y los CLIs que vaya a usar con sesión iniciada: `claude`,
+2. Node 22.19 o superior (trae el SQLite de las Métricas y los certificados del sistema, para la VPN) y los CLIs que vaya a usar con sesión iniciada: `claude`,
    `copilot` o `codex`.
 3. `git clone`, `node dev.mjs`, <http://localhost:5220>, iniciar sesión.
 4. Leer el README, [arquitectura.md](arquitectura.md) y, en un chat de SIA,
