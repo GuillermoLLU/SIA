@@ -37,13 +37,13 @@ export const resolveForm = (issueId, r) => `<form class="iss-act-form iss-resolv
     </section>
 
     <section class="iss-rs">
-      <h4><span class="iss-rs-n">2</span>Mensaje al centro <em>Lo recibe el centro por correo</em> ${tip('Es el mensaje público de resolución. Lo lee gente que no es técnica, así que va sin jerga. La auditoría comprueba que trae los tres puntos y que «Qué ocurrió» coincide con tu nota de diagnóstico.')}</h4>
+      <h4><span class="iss-rs-n">2</span>Mensaje al centro <em>Lo reciben el centro y quien haya participado</em> ${tip('Es el mensaje público de resolución, por correo. Le llega a quien abrió la issue y a todos los que han participado (proveedor, desarrollo…). Lo lee gente que no es técnica, así que va sin jerga. La auditoría comprueba que trae los tres puntos y que «Qué ocurrió» coincide con tu nota de diagnóstico.')}</h4>
       <label class="iss-field" for="iss-f-what"><span>Qué ocurrió</span>
       ${area('what', 3, r.draft.what, 'Lo que pasó, contado para el centro. Tiene que coincidir con tu diagnóstico.')}</label>
       <label class="iss-field" for="iss-f-how"><span>Cómo se resolvió</span>
       ${area('how', 3, r.draft.how, 'Lo que se hizo, en palabras del centro. Si es temporal, dilo: puede volver a pasar.')}</label>
       <label class="iss-field" for="iss-f-prevent"><span>Qué se hará para evitarlo</span>
-      ${area('prevent', 2, null, 'Por ejemplo: se ha pedido a desarrollo que corrija la causa, o una pauta para el centro.')}</label>
+      ${area('prevent', 2, null, 'Si es un fallo del sistema, basta con decir que se ha pedido su corrección: la gestiona A&S Proyectos. Si no, una pauta para el centro.')}</label>
     </section>
 
     <p class="iss-act-note">Aún no se envía a Remedy: irá por SIGLO cuando lo conectemos.</p>

@@ -35,3 +35,7 @@ test('avisos: las notas que faltan, sin diagnóstico, sin categoría y lo de las
   assert.equal(r.notes.length, 7);
   assert.deepEqual(resolveDraft({ priority: 'LOW', category: 'x' }).notes.length, 5);
 });
+
+test('con ticket de proveedor, recuerda avisar de que se ha resuelto', () => {
+  assert.deepEqual(resolveDraft(issue({ vendorTicket: 'SISUPAC-1' })).warnings, ['Tiene el ticket de proveedor SISUPAC-1: avisa de que se ha resuelto.']);
+});

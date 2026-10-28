@@ -4,7 +4,9 @@
 // Al resolver se escriben dos cosas distintas (procedimiento de ECOM):
 // - la nota interna de resolución, `[RESOLUCION]`, que solo ve el equipo;
 // - el mensaje al centro, por correo, con tres puntos: qué ocurrió (lo dice la
-//   nota de diagnóstico), cómo se resolvió y qué se hará para evitarlo.
+//   nota de diagnóstico), cómo se resolvió y qué se hará para evitarlo. Lo
+//   reciben el interlocutor y todos los que han participado (paso 2.8 del
+//   proceso de resolución de soporte).
 
 // Las notas internas que pide la auditoría, por orden. La etiqueta, con o sin
 // tilde (en el CSV a veces llega rota).
@@ -56,6 +58,8 @@ export const resolveDraft = (issue) => {
   if (missing.length) warnings.push(`Faltan notas internas en Remedy: ${missing.join(', ')}. La auditoría de calidad revisa las cinco.`);
   if (!issue.category) warnings.push('La issue no tiene categoría en Remedy: ponla antes de resolver.');
   if (critical && !last.major) warnings.push('Es crítica y no consta si es mayor incidente: añade la nota en Remedy.');
+  // paso 3.5: avisar al proveedor o al equipo escalado de que está resuelta
+  if (issue.vendorTicket) warnings.push(`Tiene el ticket de proveedor ${issue.vendorTicket}: avisa de que se ha resuelto.`);
   if (critical && !last.restored) warnings.push('Es crítica y no consta cuándo se restableció el servicio: añade la nota en Remedy.');
 
   return {
