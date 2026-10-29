@@ -108,6 +108,31 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   };
   const openIssue = async (id) => renderIssue(await api.get(id));
 
+  // El selector de persona de las acciones: abrir, elegir, cerrar.
+  const closePick = () => root.querySelectorAll('[data-pick] [aria-expanded="true"]').forEach((b) => { b.setAttribute('aria-expanded', 'false'); b.nextElementSibling.hidden = true; });
+  root.addEventListener('click', (e) => {
+    const t = e.target;
+    const btn = t.closest('[data-pick-btn]');
+    if (btn) {
+      const open = btn.getAttribute('aria-expanded') === 'true';
+      closePick();
+      if (!open) { btn.setAttribute('aria-expanded', 'true'); btn.nextElementSibling.hidden = false; }
+      return;
+    }
+    const opt = t.closest('[data-pick-opt]');
+    if (opt) {
+      const pick = opt.closest('[data-pick]');
+      pick.querySelector('input[type=hidden]').value = opt.dataset.pickOpt;
+      pick.querySelectorAll('[data-pick-opt]').forEach((o) => o.setAttribute('aria-selected', String(o === opt)));
+      const label = pick.querySelector('[data-pick-label]');
+      label.textContent = opt.textContent;
+      label.classList.remove('iss-pick-ph');
+      closePick();
+      syncSubmit(pick.closest('[data-act-form]'));
+      return;
+    }
+    closePick();
+  });
   root.addEventListener('click', async (e) => {
     const t = e.target;
     try {
@@ -201,7 +226,11 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       toast?.(`${ACTIONS[key].label}: preparado, pero aún no se envía a Remedy (falta conectar SIGLO).`);
     } catch (e2) { fail(e2.message); }
   });
-  root.addEventListener('keydown', (e) => { if (e.key === 'Escape' && root.querySelector('.iss-modal')) closeAction(); });
+  root.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || !root.querySelector('.iss-modal')) return;
+    if (root.querySelector('[data-pick] [aria-expanded="true"]')) return closePick();
+    closeAction();
+  });
 
   const upload = async (file) => {
     if (!file) return;

@@ -21,9 +21,11 @@ test('el botón de enviar empieza apagado y solo se enciende con todos los oblig
   assert.equal(isComplete('note', { note: 'x' }), true);
 });
 
-test('traspasar: el equipo en el desplegable, escapado; se queda en SIA, sin el aviso de Remedy', () => {
+test('traspasar: el equipo en el selector propio, escapado; se queda en SIA, sin el aviso de Remedy', () => {
   const html = actionForm('transfer', 'INC1', [{ id: 'u1', name: 'Ana <x>' }]);
-  assert.match(html, /<option value="u1">Ana &lt;x&gt;<\/option>/);
+  assert.match(html, /<input type="hidden" name="to" value="">/);
+  assert.match(html, /<li role="option" data-pick-opt="u1" aria-selected="false">Ana &lt;x&gt;<\/li>/);
+  assert.match(actionForm('transfer', 'INC1', []), /data-pick-btn[^>]*disabled[^>]*>.*No hay más personas en Issues/);
   assert.doesNotMatch(html, /Aún no se envía a Remedy/);
   assert.doesNotMatch(actionForm('note', 'INC1'), /Aún no se envía a Remedy/);
   assert.match(actionForm('resolve', 'INC1'), /Aún no se envía a Remedy/);

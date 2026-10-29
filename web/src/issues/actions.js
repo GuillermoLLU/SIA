@@ -29,12 +29,23 @@ export const ACTIONS = {
   },
 };
 
+// El selector de persona es propio (el desplegable nativo no se puede pintar):
+// un campo oculto con el id, un botón con el nombre elegido y la lista debajo.
+// Abrir, elegir y cerrar lo lleva la vista (issues-view.js) por data-pick-*.
+const picker = (f, people) => `<div class="iss-pick" data-pick>
+      <input type="hidden" name="${f.name}" value="">
+      <button type="button" id="iss-f-${f.name}" class="iss-pick-btn" data-pick-btn aria-haspopup="listbox" aria-expanded="false" ${people.length ? '' : 'disabled'}><span data-pick-label class="iss-pick-ph">${people.length ? 'Elige a quién' : 'No hay más personas en Issues'}</span></button>
+      <ul class="iss-pick-list" role="listbox" hidden>${people.map((p) => `<li role="option" data-pick-opt="${esc(p.id)}" aria-selected="false">${esc(p.name)}</li>`).join('')}</ul>
+    </div>`;
+
 const field = (f, people) => {
   const id = `iss-f-${f.name}`;
-  const input = f.kind === 'text' ? `<textarea id="${id}" name="${f.name}" rows="5"></textarea>`
-    : f.kind === 'person' ? `<select id="${id}" name="${f.name}"><option value="">${people.length ? 'Elige a quién' : 'No hay más personas en Issues'}</option>${people.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}</select>`
-    : `<input id="${id}" name="${f.name}" />`;
-  return `<label class="iss-field" for="${id}"><span>${f.label}${f.required ? '' : ' <i>(opcional)</i>'}</span>${input}${f.hint ? `<small>${f.hint}</small>` : ''}</label>`;
+  const label = `<span>${f.label}${f.required ? '' : ' <i>(opcional)</i>'}</span>`;
+  const hint = f.hint ? `<small>${f.hint}</small>` : '';
+  // el selector no va dentro de un <label>: un clic en su lista rebotaría al botón
+  if (f.kind === 'person') return `<div class="iss-field">${label}${picker(f, people)}${hint}</div>`;
+  const input = f.kind === 'text' ? `<textarea id="${id}" name="${f.name}" rows="5"></textarea>` : `<input id="${id}" name="${f.name}" />`;
+  return `<label class="iss-field" for="${id}">${label}${input}${hint}</label>`;
 };
 
 export const actionForm = (key, issueId, people = []) => {
