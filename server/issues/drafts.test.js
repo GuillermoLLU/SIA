@@ -52,3 +52,10 @@ test('una BBDD de antes del idioma se migra sin perder lo guardado', () => {
   drafts.close();
   createResolveDrafts({ DatabaseSync, file, fs }).close();   // la segunda vez no vuelve a migrar
 });
+
+test('quitar un adjunto sin borrador no crea uno vacío', () => {
+  const { drafts } = open();
+  drafts.setFile('u1', 'INC1', null);
+  assert.equal(drafts.get('u1', 'INC1'), null);
+  drafts.close();
+});

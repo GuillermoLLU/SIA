@@ -8,7 +8,7 @@ const issue = (id, o = {}) => ({ id, center: '100', text: id, priority: 'HIGH', 
 const ISSUES = [issue('INC1'), issue('INC2', { prio: true }), issue('INC3', { assignee: 'ANA LOPEZ GARCIA', status: 'PENDING' })];
 const WHO = { user: { id: 'u-ana', name: 'Ana López' }, accessToken: 'jwt' };
 
-const setup = (claims = [], issues = ISSUES) => {
+const setup = (claims = [], issues = ISSUES, broken) => {
   const calls = [];
   const platform = {
     rpc: async (jwt, fn, args) => {
@@ -33,12 +33,12 @@ const setup = (claims = [], issues = ISSUES) => {
     setFile: (u, i, f) => { store.set(`${u}/${i}`, { ...store.get(`${u}/${i}`), file: f && f.name }); return 'at'; },
     drop: (u, i) => { store.delete(`${u}/${i}`); },
   };
-  const route = issuesRoutes(createIssuesService({ source, platform, drafts }), { json: (res, status, body) => Object.assign(res, { status, body }), readBody: async (req) => req.body || {} });
+  const route = issuesRoutes(createIssuesService({ source, platform, drafts: broken === undefined ? drafts : broken }), { json: (res, status, body) => Object.assign(res, { status, body }), readBody: async (req) => req.body || {} });
   const call = async (method, path, body, query = '') => {
     const res = {}, req = { method, body, setEncoding() {}, resume() {}, [Symbol.asyncIterator]: async function* () { yield body; } };
     await route(req, res, path, WHO, new URLSearchParams(query)); return res;
   };
-  return { call, calls, loads, imports };
+  return { call, calls, loads, imports, store };
 };
 
 test('GET /: libres, reglas y mi mesa (responsable en Remedy o cogida en SIA)', async () => {
@@ -157,3 +157,23 @@ test('confirmar Resolver: lo comprueba todo otra vez y, si cumple, borra el borr
   assert.equal((await call('GET', ['INC4', 'resolve'])).body.draft, null);
 });
 
+
+test('sin la BBDD de borradores, Resolver sigue: se abre sin borrador, se confirma y guardar da 503', async () => {
+  const failing = { get: () => { throw new Error('disk'); }, setText: () => { throw new Error('disk'); }, setFile: () => { throw new Error('disk'); }, drop: () => { throw new Error('disk'); } };
+  for (const broken of [null, failing]) {
+    const { call } = setup([], RES, broken);
+    assert.equal((await call('GET', ['INC4', 'resolve'])).body.draft, null);
+    const put = await call('PUT', ['INC4', 'draft'], SEND);
+    assert.equal(put.status, 503);
+    assert.match(put.body.error, /BBDD local de borradores/);
+    assert.deepEqual((await call('POST', ['INC4', 'resolve'], SEND)).body, { ok: true, sent: false });
+  }
+});
+
+test('quitar el adjunto pasa la misma comprobación y no crea un borrador vacío', async () => {
+  const { call, store } = setup([], RES);
+  assert.equal((await call('DELETE', ['INC999', 'draft', 'file'])).status, 404);
+  assert.equal((await call('DELETE', ['INC1', 'draft', 'file'])).status, 403);
+  assert.equal((await call('DELETE', ['INC5', 'draft', 'file'])).status, 409);
+  assert.equal(store.size, 0);
+});

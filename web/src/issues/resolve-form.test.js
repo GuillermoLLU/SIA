@@ -30,7 +30,7 @@ test('si la nota de resolución ya está en Remedy, se enseña y no se pide', ()
 test('tres pasos: la nota interna, el mensaje con su adjunto, y revisar; solo el primero a la vista', () => {
   const html = resolveForm('INC1', resolveDraft({ priority: 'HIGH', category: 'x', worklog: ALL }));
   assert.match(html, /<li data-step-mark="1" aria-current="step"><i>1<\/i>Nota interna<\/li><li data-step-mark="2"><i>2<\/i>Mensaje al centro<\/li><li data-step-mark="3"><i>3<\/i>Revisar y enviar<\/li>/);
-  assert.match(html, /data-rstep="1">[\s\S]*Nota interna de resolución[\s\S]*data-rstep="2" hidden>[\s\S]*Mensaje al centro[\s\S]*<label class="iss-drop" data-drop><input type="file" data-file hidden \/><b>Arrastra aquí el archivo<\/b>[\s\S]*data-rstep="3" hidden>/);
+  assert.match(html, /data-rstep="1">[\s\S]*Nota interna de resolución[\s\S]*data-rstep="2" hidden>[\s\S]*Mensaje al centro[\s\S]*<label class="iss-drop" data-drop><input type="file" data-file \/><b>Arrastra aquí el archivo<\/b>[\s\S]*data-rstep="3" hidden>/);
   assert.doesNotMatch(html, /multiple/);
   assert.match(html, /data-step-next>Siguiente: mensaje al centro/);
   assert.match(html, /data-confirm-send hidden>Confirmar y resolver/);
@@ -93,4 +93,8 @@ test('la zona del adjunto y la hora en la de este equipo', () => {
   assert.match(fileBox(null), /data-drop>.*o pulsa para elegirlo · uno, hasta 15 MB/);
   assert.match(fileBox({ name: 'a<b>.txt', size: 10 }), /a&lt;b&gt;\.txt · 1 KB/);
   assert.equal(localShort(new Date(2026, 0, 5, 7, 3).toISOString()), '05/01 07:03');
+});
+
+test('el selector del adjunto se alcanza con el teclado: no está oculto con hidden', () => {
+  assert.doesNotMatch(fileBox(null), /data-file hidden/);
 });

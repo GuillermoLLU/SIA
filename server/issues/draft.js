@@ -7,7 +7,7 @@
 export const FIELDS = ['note', 'what', 'how', 'prevent'];
 export const MAX_TEXT = 20_000;               // el mismo maxlength que tiene la web
 export const MAX_FILE = 15 * 1024 * 1024;     // el mismo límite que enseña la web (en base64 cabe en BODY_MAX)
-export const LANGS = ['es', 'en'];            // el idioma de la nota externa
+const LANGS = ['es', 'en'];                   // el idioma de la nota externa
 // Lo que se puede ejecutar no va como adjunto al centro.
 const RUNNABLE = /\.(exe|com|bat|cmd|msi|scr|pif|ps1|vbs|vbe|js|jse|wsf|wsh|hta|jar|sh|lnk|reg|cpl|dll)$/i;
 const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/;
@@ -35,8 +35,11 @@ export const cleanFields = (body) => {
 // { name, type, data (base64) } → { name, type, data: Buffer }; un solo adjunto, de hasta MAX_FILE
 export const cleanFile = (body) => {
   if (!isObject(body)) throw fail('Falta el archivo.');
-  // sin rutas ni caracteres de control (los que dan la vuelta al texto, tampoco)
-  const name = String(body.name ?? '').replace(/[\\/]/g, '_').replace(/[\p{Cc}\p{Cf}]/gu, '').trim().slice(0, 200);
+  // sin rutas; con caracteres de control o invisibles (como el que da la vuelta
+  // al texto para que «gpj.exe» parezca «exe.jpg»), fuera
+  const raw = String(body.name ?? '');
+  if (/[\p{Cc}\p{Cf}]/u.test(raw)) throw fail('El nombre del archivo tiene caracteres ocultos: cámbialo.');
+  const name = raw.replace(/[\\/]/g, '_').trim().slice(0, 200);
   if (!name || typeof body.data !== 'string' || !body.data) throw fail('Falta el archivo.');
   if (RUNNABLE.test(name)) throw fail('Ese tipo de archivo no se puede adjuntar: es un ejecutable.');
   if (body.data.length % 4 || !BASE64.test(body.data)) throw fail('El archivo no ha llegado bien.');

@@ -51,3 +51,14 @@ test('worklog: notas en orden, al minuto, sin la columna no hay ninguna', () => 
   ]);
   assert.deepEqual(toIssue(row({})).worklog, []);
 });
+
+test('worklog: dos notas del mismo minuto, en su orden real aunque el CSV traiga primero la nueva', () => {
+  const text = '2026-10-22 20:24:50.000 - ANA - [DIAGNOSTICO] El bueno | 2026-10-22 20:24:05.000 - ANA - [DIAGNOSTICO] El viejo';
+  assert.deepEqual(worklog(text).map((n) => n.text), ['[DIAGNOSTICO] El viejo', '[DIAGNOSTICO] El bueno']);
+});
+
+test('worklog: las notas del método, enteras; las automáticas, recortadas', () => {
+  const long = 'x'.repeat(5000);
+  const [auto, method] = worklog(`2026-10-22 20:25:00.000 - ANA - [RESOLUCION] ${long} | 2026-10-22 20:24:00.000 - REMEDY - ${long}`);
+  assert.deepEqual([auto.text.length, method.text.length], [1000, 5000 + '[RESOLUCION] '.length]);
+});

@@ -16,15 +16,20 @@ export const statusChanges = (audit) => String(audit || '').split(' | ')
   .map(([, at, from, to]) => [minute(at), from.trim(), to.trim()]);
 
 // WORKLOG_DETAIL: las notas, «fecha - quién - texto» separadas por « | »
-// delante de una fecha. Las 120 últimas y recortadas: la foto se guarda
-// entera en este ordenador y hay notas automáticas enormes (en octubre de
-// 2026, la abierta con más notas tenía 65).
+// delante de una fecha. Las 120 últimas: la foto se guarda entera en este
+// ordenador (en octubre de 2026, la abierta con más notas tenía 65). Las notas
+// del método («[ETIQUETA] …») van enteras, hasta el tope del borrador, porque
+// Resolver las reutiliza; las automáticas, que pueden ser enormes, se recortan.
+// Se ordena por la fecha completa: el CSV trae primero la más reciente y dos
+// notas del mismo minuto quedarían al revés.
 const ENTRY = / \| (?=\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d{3} - )/;
-const MAX_NOTES = 120, MAX_TEXT = 1000;
+const MAX_NOTES = 120, MAX_AUTO = 1000, MAX_METHOD = 20_000;
+const cut = (text) => text.slice(0, text.startsWith('[') ? MAX_METHOD : MAX_AUTO);
 export const worklog = (text) => String(text || '').split(ENTRY).flatMap((e) => {
   const a = e.indexOf(' - '), b = a < 0 ? -1 : e.indexOf(' - ', a + 3);
-  return b < 0 ? [] : [{ at: minute(e.slice(0, a)), who: e.slice(a + 3, b).trim(), text: e.slice(b + 3).trim().slice(0, MAX_TEXT) }];
-}).sort((x, y) => x.at.localeCompare(y.at)).slice(-MAX_NOTES);
+  return b < 0 ? [] : [{ full: e.slice(0, a).trim(), who: e.slice(a + 3, b).trim(), text: cut(e.slice(b + 3).trim()) }];
+}).sort((x, y) => x.full.localeCompare(y.full)).slice(-MAX_NOTES)
+  .map(({ full, ...n }) => ({ at: minute(full), ...n }));
 
 export const toIssue = (r) => {
   const m = r.SUMMARY.match(SUMMARY);

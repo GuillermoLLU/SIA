@@ -13,7 +13,7 @@ import { fail } from './draft.js';
 
 // Las notas internas que pide la auditoría, por orden. La etiqueta, con o sin
 // tilde (en el CSV a veces llega rota).
-export const NOTES = [
+const NOTES = [
   { key: 'initial', label: 'Situación inicial', tag: /^SITUACI.?N INICIAL$/ },
   { key: 'background', label: 'Antecedentes', tag: /^ANTECEDENTES$/ },
   { key: 'analysis', label: 'Análisis', tag: /^AN.?LISIS$/ },

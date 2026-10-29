@@ -45,7 +45,7 @@ export const issuesRoutes = (issues, { json, readBody }) => async (req, res, [id
     }
     if (action === 'draft' && part === 'file') {
       if (req.method === 'PUT') return json(res, 200, await issues.saveDraftFile(who, id, await readBody(req)));
-      if (req.method === 'DELETE') return json(res, 200, issues.dropDraftFile(who, id));
+      if (req.method === 'DELETE') return json(res, 200, await issues.dropDraftFile(who, id));
     }
     if (!action && req.method === 'GET') {
       const got = await issues.get(who, id);

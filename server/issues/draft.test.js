@@ -35,10 +35,8 @@ test('el adjunto forzado: ni ejecutables, ni base64 roto, ni nombres con trampa,
   for (const d of ['no es base64!', 'aG9sYQ', 'aG9s YQ==']) assert.throws(() => cleanFile({ name: 'a.txt', data: d }), { status: 400, message: 'El archivo no ha llegado bien.' });
   assert.throws(() => cleanFile(null), { status: 400 });
   assert.throws(() => cleanFile({ name: 'a.txt', data: 7 }), { status: 400 });
-  // el carácter que da la vuelta al texto («gpj.exe» se vería «exe.jpg») y los de control
-  assert.throws(() => cleanFile({ name: 'foto‮gpj.exe', data }), { message: /ejecutable/ });
-  assert.equal(cleanFile({ name: 'a\u0000b\n.txt', data }).name, 'ab.txt');
-  assert.throws(() => cleanFile({ name: ' ​ ', data }), { message: 'Falta el archivo.' });   // solo invisibles: sin nombre
+  // el carácter que da la vuelta al texto («gpj.exe» se vería «exe.jpg»), los de control y los invisibles: 400, no se arreglan
+  for (const name of ['foto‮gpj.exe', 'a\u0000b.txt', 'a\nb.txt', ' ​ ']) assert.throws(() => cleanFile({ name, data }), { status: 400, message: /caracteres ocultos/ });
   // el tipo, solo si tiene forma de tipo
   assert.equal(cleanFile({ name: 'a.txt', type: 'text/html"><script>', data }).type, '');
   assert.equal(cleanFile({ name: 'a.txt', type: { a: 1 }, data }).type, '');

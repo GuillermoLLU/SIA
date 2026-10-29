@@ -48,7 +48,7 @@ export const localShort = (iso) => {
 // La zona del adjunto: se suelta el archivo encima o se pulsa para elegirlo.
 export const fileBox = (file) => file
   ? `<p class="iss-file-on"><span data-file-name>${esc(file.name)} · ${fileSize(file.size)}</span><button type="button" class="lab-btn" data-file-clear>Quitar</button></p>`
-  : `<label class="iss-drop" data-drop><input type="file" data-file hidden /><b>Arrastra aquí el archivo</b><span>o pulsa para elegirlo · uno, hasta 15 MB</span></label>`;
+  : `<label class="iss-drop" data-drop><input type="file" data-file /><b>Arrastra aquí el archivo</b><span>o pulsa para elegirlo · uno, hasta 15 MB</span></label>`;
 
 const area = (name, rows, d, empty, saved) => `<textarea id="iss-f-${name}" name="${name}" rows="${rows}" maxlength="${MAX_TEXT}">${esc(saved?.[name] ?? d?.value ?? '')}</textarea>
       <small>${d ? `Sale de tu nota de ${esc(d.from)}. Cuéntalo sin jerga: lo lee el centro.` : empty}</small>`;

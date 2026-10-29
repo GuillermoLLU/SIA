@@ -44,7 +44,7 @@ export const createResolveDrafts = ({ DatabaseSync, file, fs, now = () => new Da
     // file: cleanFile(…) o null para quitarlo → at
     setFile(user, issue, file) {
       const at = stamp();
-      ensure.run(user, issue, at);
+      if (file) ensure.run(user, issue, at);   // quitar un adjunto que no hay no crea un borrador vacío
       setFile.run(at, file?.name ?? null, file?.type ?? null, file?.data ?? null, user, issue);
       return at;
     },

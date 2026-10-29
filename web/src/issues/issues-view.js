@@ -165,6 +165,9 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
       if (k === n) m.setAttribute('aria-current', 'step'); else m.removeAttribute('aria-current');
     });
     const last = n === STEPS.length;
+    // «¿Cómo se resolvió?» empieza con la nota interna recién escrita, si aún está vacío
+    const how = form.elements.how;
+    if (n === 2 && !how.value.trim()) how.value = form.elements.note?.value || '';
     if (last) {
       const { values } = readAction('resolve', Object.fromEntries(new FormData(form)));
       form.querySelector('[data-rstep="3"]').innerHTML = resolveReview(values, attached, { lang: form.elements.lang.value, hour: new Date().getHours() });
@@ -177,14 +180,15 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
     form.querySelector('[data-confirm-send]').hidden = !last;
     (last ? form.querySelector('[data-confirm-send]') : form.querySelector(`[data-rstep="${n}"] textarea`))?.focus();
   };
-  const stepNext = (form) => {
+  const stepNext = async (form) => {
     const n = Number(form.dataset.step);
     const missing = stepMissing(n, Object.fromEntries(new FormData(form)));
     if (missing) {
       showErr(form, `Falta: ${missing}`);
       return [...form.querySelectorAll(`[data-rstep="${n}"] textarea`)].find((a) => !a.value.trim())?.focus();
     }
-    goStep(form, n + 1);
+    if (n + 1 === STEPS.length) await saving;   // la revisión enseña el adjunto aunque aún se estuviera guardando
+    if (form.isConnected) goStep(form, n + 1);
   };
   // El adjunto (uno): se guarda en el borrador en cuanto se elige o se suelta.
   const base64 = (file) => new Promise((ok, ko) => {
@@ -193,30 +197,38 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
     r.onerror = () => ko(r.error);
     r.readAsDataURL(file);
   });
-  const setFile = async (form, file) => {
+  // Todo lo que escribe en el borrador (el texto y el adjunto) va en una sola
+  // cola, `saving`. Lo que lo lee o lo borra (abrir, revisar, confirmar,
+  // descartar) espera a que acabe: si no, un guardado tardío traería un estado
+  // viejo o volvería a crear el borrador ya borrado. Cada trabajo guarda el id
+  // de su issue, por si mientras tanto se abre otra.
+  let autosave = null, saving = Promise.resolve();
+  const enqueue = (job) => (saving = saving.then(job).catch(() => {}));
+  const setFile = (form, file) => {
     if (file && file.size > MAX_FILE) return showErr(form, 'El adjunto pasa de 15 MB: elige otro más pequeño.');   // el mismo texto que el bridge
     if (file && !file.size) return showErr(form, 'El archivo está vacío (o es una carpeta): elige otro.');
     showErr(form, null);
-    const box = form.querySelector('[data-file-box]');
+    const id = opened, box = form.querySelector('[data-file-box]');
     box.innerHTML = '<p class="iss-file-on">Guardando…</p>';
-    try {
-      const got = file ? await api.saveDraftFile(opened, { name: file.name, type: file.type, data: await base64(file) }) : await api.dropDraftFile(opened);
-      attached = got.file || null;
-      form.querySelector('[data-autosave]').textContent = `Borrador guardado ${localShort(got.at)}`;
-    } catch (e) { showErr(form, `No se ha podido guardar el adjunto: ${e.message}`); }
-    box.innerHTML = fileBox(attached);
+    return enqueue(async () => {
+      let got = null;
+      try { got = file ? await api.saveDraftFile(id, { name: file.name, type: file.type, data: await base64(file) }) : await api.dropDraftFile(id); }
+      catch (e) { showErr(form, `No se ha podido guardar el adjunto: ${e.message}`); }
+      if (!form.isConnected) return;   // el modal ya se cerró: no se toca el de otra issue
+      if (got) {
+        attached = got.file || null;
+        form.querySelector('[data-autosave]').textContent = `Borrador guardado ${localShort(got.at)}`;
+      }
+      box.innerHTML = fileBox(attached);
+    });
   };
-  // Lo escrito se guarda solo, un momento después de dejar de teclear, y al
-  // cerrar. `saving`: el guardado en curso, para que confirmar espere a que
-  // acabe (si no, llegaría después y volvería a crear el borrador).
-  let autosave = null, saving = Promise.resolve();
+  // Lo escrito se guarda solo, un momento después de dejar de teclear, y al cerrar.
   const saveNow = (form) => {
     const label = form.querySelector('[data-autosave]');
     const id = opened, fields = Object.fromEntries(new FormData(form));
-    saving = saving.then(() => api.saveDraft(id, fields))
+    return enqueue(() => api.saveDraft(id, fields)
       .then(({ at }) => { label.textContent = `Borrador guardado ${localShort(at)}`; })
-      .catch((e) => { label.textContent = `No se ha podido guardar el borrador: ${e.message}`; });
-    return saving;
+      .catch((e) => { label.textContent = `No se ha podido guardar el borrador: ${e.message}`; }));
   };
   const flushSave = () => {
     if (!autosave) return;
@@ -238,6 +250,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
     // bridge, que también dice si se puede (mía, en la foto y aún abierta)
     let start = null;
     if (key === 'resolve') {
+      await saving;   // lo que se guardaba al cerrar, antes de leer el borrador
       start = await api.startResolve(opened);
       attached = start.draft?.file || null;
     }
@@ -260,13 +273,15 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
       const send = form.querySelector('[data-confirm-send]');
       if (send.disabled) return;   // un segundo clic mientras se envía
       send.disabled = true;
+      // la issue y lo escrito de ESTE formulario, aunque mientras se abra otra
+      const id = opened, fields = Object.fromEntries(new FormData(form));
       // lo último escrito, guardado antes: si el bridge lo rechaza, no se pierde
       if (autosave) { clearTimeout(autosave); autosave = null; saveNow(form); }
       try {
         await saving;
-        await api.resolve(opened, Object.fromEntries(new FormData(form)));
+        await api.resolve(id, fields);
       } catch (err) { send.disabled = false; return showErr(form, err.message); }
-      closeAction();
+      if (form.isConnected) closeAction();   // si ya se cerró, no se cierra el de otra issue
       return toast?.('Resolver: comprobado, pero aún no se envía a Remedy (falta conectar SIGLO).');
     }
     closeAction();

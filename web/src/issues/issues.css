@@ -184,9 +184,12 @@
 .iss-steps li.done i::before { content: '✓'; font-size: 12px; }
 .iss-rstep { display: flex; flex-direction: column; gap: 18px; }
 .iss-rstep .iss-rs:first-child { padding-top: 0; border-top: 0; }
-.iss-drop { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 22px 16px; font-size: 13px; text-align: center; color: var(--text-low); cursor: pointer; border: 1px dashed var(--border); background: var(--bg); }
+.iss-drop { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 22px 16px; font-size: 13px; text-align: center; color: var(--text-low); cursor: pointer; border: 1px dashed var(--border); background: var(--bg); }
 .iss-drop b { font-weight: 600; color: var(--text); }
 .iss-drop:hover, .iss-drop.over, .iss-drop:focus-within { border-color: var(--accent); color: var(--text); }
+/* el selector de archivos, oculto a la vista pero no al teclado: Tab lo enfoca e Intro lo abre */
+.iss-drop input { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+.iss-drop:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* El idioma: a la derecha del título, dos botones de los que vale uno. Es un
    radio por dentro (teclado y formulario), pero se pulsa todo el botón. */
 .iss-rs-h { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
