@@ -178,6 +178,13 @@ test('borrador de Resolver: guardar, adjuntar, quitar el adjunto y descartar, si
   assert.equal((await call('GET', ['INC4', 'draft'])).status, 404);   // el borrador se lee al abrir Resolver
 });
 
+test('borrador de Resolver: el paso llega del formulario como texto y vuelve al abrir, para retomarlo ahí', async () => {
+  const { call } = setup([], { issues: RES });
+  await call('PUT', ['INC4', 'draft'], { note: 'n', what: 'w', how: 'h', prevent: 'p', lang: 'es', step: '3' });
+  assert.equal((await call('GET', ['INC4', 'resolve'])).body.draft.step, 3);
+  assert.equal((await call('PUT', ['INC4', 'draft'], { note: 'n', step: '9' })).status, 400);
+});
+
 test('abrir Resolver: lo que hay en Remedy y lo que falta lo calcula el bridge', async () => {
   const { call } = setup([], { issues: RES });
   const { check } = (await call('GET', ['INC4', 'resolve'])).body;
