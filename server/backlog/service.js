@@ -1,10 +1,10 @@
 // El backlog del equipo: lo que nadie tiene aún (sin responsable en Remedy ni
-// cogida en SIA), en el orden en que la regla elegida lo iría repartiendo,
-// con las priorizadas a mano delante. Desde aquí se priorizan y se asignan
+// cogida en SIA), en el orden en que la regla elegida lo iría repartiendo;
+// lo priorizado a mano cuenta como priorizado por negocio. Desde aquí se priorizan y se asignan
 // issues, y se gestionan las reglas de priorización. Es una vista sobre el
 // dominio de Issues (queue.js, rules.js, desk.js): la misma foto y las mismas
 // cogidas de la base de la instancia. Coger es de Issues.
-import { queue, pinnedFor, CRITERIA } from '../issues/queue.js';
+import { queue, withPriorities, CRITERIA } from '../issues/queue.js';
 import { brief } from '../issues/desk.js';
 import { loadRules, ruleById, ruleProblem } from '../issues/rules.js';
 
@@ -13,8 +13,8 @@ export const createBacklogService = ({ source, platform, now = () => new Date() 
     const [claims, rules, priorities] = await Promise.all([platform.rpc(jwt, 'platform_issue_claims'), loadRules(platform, jwt), platform.rpc(jwt, 'platform_issue_priorities')]);
     return { claims, rules, priorities };
   };
-  // lo que la pantalla enseña de una priorización: quién, cuándo y si es para todas las reglas o para cuáles
-  const pinOf = (p) => ({ by: p.by_name ?? null, at: p.set_at, rules: p.rules || [] });
+  // lo que la pantalla enseña de una priorización a mano: quién y cuándo
+  const pinOf = (p) => ({ by: p.by_name ?? null, at: p.set_at });
 
   return {
     // → { taken, rule, rules, issues: [brief + pinned?] } en el orden de la regla pedida (la básica si no existe)
@@ -24,10 +24,9 @@ export const createBacklogService = ({ source, platform, now = () => new Date() 
       const claimed = new Set(claims.map((c) => c.issue_id));
       const byId = new Map(issues.map((i) => [i.id, i]));
       const rule = ruleById(rules, ruleId);
-      const pinned = pinnedFor(priorities, rule.id);
       const pins = new Map(priorities.map((p) => [p.issue_id, pinOf(p)]));
-      const row = (id) => ({ ...brief(byId.get(id)), ...(pinned.includes(id) ? { pinned: pins.get(id) } : {}) });
-      return { taken, rule: rule.id, rules: rules.map(({ id, label }) => ({ id, label })), issues: queue(issues, claimed, now(), rule.criteria, pinned).map(row) };
+      const row = (id) => ({ ...brief(byId.get(id)), ...(pins.has(id) ? { pinned: pins.get(id) } : {}) });
+      return { taken, rule: rule.id, rules: rules.map(({ id, label }) => ({ id, label })), issues: queue(withPriorities(issues, priorities), claimed, now(), rule.criteria).map(row) };
     },
     // una issue de la foto, entera → { issue, pinned, claimedBy } | null si no está en la foto
     async get({ accessToken: jwt }, id) {
@@ -40,8 +39,8 @@ export const createBacklogService = ({ source, platform, now = () => new Date() 
     },
     // el equipo de Issues (a quién se puede asignar) → [{ id, name }]
     people: ({ accessToken: jwt }) => platform.rpc(jwt, 'platform_issue_teammates'),
-    // priorizarla: va la primera de la cola, para todas las reglas (rules vacío) o para esas
-    prioritize: ({ accessToken: jwt }, id, rules = []) => platform.rpc(jwt, 'platform_prioritize_issue', { p_issue: id, p_rules: rules }),
+    // priorizarla a mano: cuenta como priorizada por negocio
+    prioritize: ({ accessToken: jwt }, id) => platform.rpc(jwt, 'platform_prioritize_issue', { p_issue: id }),
     unprioritize: ({ accessToken: jwt }, id) => platform.rpc(jwt, 'platform_unprioritize_issue', { p_issue: id }),
     // asignarla a alguien del equipo: pasa a su mesa
     assign: ({ accessToken: jwt }, id, to) => platform.rpc(jwt, 'platform_assign_issue', { p_issue: id, p_to: to }),

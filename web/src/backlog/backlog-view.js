@@ -1,6 +1,6 @@
 // Vista «Backlog»: la cola del equipo, lo que nadie tiene aún, en el orden en
 // que la regla elegida lo iría repartiendo (la básica, u otra del selector),
-// con las priorizadas a mano delante. Al pulsar una issue se abre, a la
+// contando lo priorizado a mano como priorizado por negocio. Al pulsar una issue se abre, a la
 // derecha de la lista, su detalle (side-panel.js), desde donde se prioriza
 // o se asigna a alguien del equipo. Para quien reparte el trabajo: aquí se
 // mira la cola entera (Issues solo enseña la siguiente). Arriba, el panel:
@@ -22,8 +22,8 @@ const PLURAL = { CRITICAL: 'Críticas', HIGH: 'Altas', MEDIUM: 'Medias', LOW: 'B
 // dialogs y toast: los de la app. «Reglas de priorización» abre el modal (rules-modal.js).
 export const mountBacklogView = (root, { api, dialogs, toast }) => {
   let data = null, filter = { ...EMPTY_FILTER }, now = new Date(), loading = false, rule = 'basic';
-  // el panel lateral: la issue abierta, su detalle, el equipo, el formulario de priorizar y qué está en marcha
-  let opened = null, detail = null, people = [], pinForm = null, side = { busy: false, error: null };
+  // el panel lateral: la issue abierta, su detalle, el equipo y qué está en marcha
+  let opened = null, detail = null, people = [], side = { busy: false, error: null };
 
   const page = (body) => `<div class="bl-page"><h2 class="iss-title">Backlog</h2>${body}</div>`;
 
@@ -33,11 +33,11 @@ export const mountBacklogView = (root, { api, dialogs, toast }) => {
 
   const row = (i) => `<button class="bl-row${i.id === opened ? ' on' : ''}" data-id="${esc(i.id)}">
       <span class="bl-rank">${i.rank}</span>
-      <span class="iss-line">${sev(i.priority)}<span class="iss-code">${esc(i.center || '—')}</span>${origin(i)}${i.pinned ? '<span class="bl-pin" title="Priorizada a mano desde el Backlog">Priorizada</span>' : ''}${i.prio ? '<span class="iss-prio">Priorizada por negocio</span>' : ''}<span class="iss-when">hace ${age(i.reported, now)}</span></span>
+      <span class="iss-line">${sev(i.priority)}<span class="iss-code">${esc(i.center || '—')}</span>${origin(i)}${i.pinned ? '<span class="iss-prio" title="Priorizada a mano desde el Backlog">Priorizada por el equipo</span>' : i.prio ? '<span class="iss-prio">Priorizada por negocio</span>' : ''}<span class="iss-when">hace ${age(i.reported, now)}</span></span>
       <span class="iss-text">${esc(i.text)}</span>
     </button>`;
 
-  const sideHtml = () => (detail ? sidePanel({ detail, rules: data.rules, people, pinForm, busy: side.busy, error: side.error, now }) : '<p class="bl-empty">Cargando…</p>');
+  const sideHtml = () => (detail ? sidePanel({ detail, people, busy: side.busy, error: side.error, now }) : '<p class="bl-empty">Cargando…</p>');
 
   const render = () => {
     if (!data.taken) {
@@ -93,9 +93,9 @@ export const mountBacklogView = (root, { api, dialogs, toast }) => {
     load().catch((err) => toast?.(`No se pudo ordenar el backlog: ${err.message}`));
   });
   const paintSide = () => { const el = root.querySelector('[data-side]'); if (el) el.innerHTML = sideHtml(); };
-  const closeSide = () => { opened = null; detail = null; pinForm = null; side = { busy: false, error: null }; render(); };
+  const closeSide = () => { opened = null; detail = null; side = { busy: false, error: null }; render(); };
   const openIssue = async (id) => {
-    opened = id; detail = null; pinForm = null; side = { busy: false, error: null };
+    opened = id; detail = null; side = { busy: false, error: null };
     render();
     try {
       [detail, people] = await Promise.all([api.get(id), people.length ? people : api.people()]);
@@ -109,35 +109,23 @@ export const mountBacklogView = (root, { api, dialogs, toast }) => {
   // una acción del panel: ocupado mientras va, y después la lista y el detalle al día
   const act = async (go, done) => {
     side = { busy: true, error: null }; paintSide();
-    try { await go(); await load(); if (opened) detail = await api.get(opened); side = { busy: false, error: null }; pinForm = null; done?.(); render(); }
+    try { await go(); await load(); if (opened) detail = await api.get(opened); side = { busy: false, error: null }; done?.(); render(); }
     catch (err) { side = { busy: false, error: err.message }; paintSide(); }
   };
   root.addEventListener('submit', (e) => {
-    if (e.target.matches('[data-pin-form]')) {
-      e.preventDefault();
-      const rules = pinForm.all ? [] : [...e.target.querySelectorAll('input[name="rule"]:checked')].map((x) => x.value);
-      if (!pinForm.all && !rules.length) { side = { ...side, error: 'Marca al menos una regla, o todas.' }; return paintSide(); }
-      return act(() => api.prioritize(opened, rules), () => toast?.('Priorizada: va la primera de la cola.'));
-    }
-    if (e.target.matches('[data-assign-form]')) {
-      e.preventDefault();
-      const to = e.target.elements.to.value;
-      const name = people.find((u) => u.id === to)?.name || 'esa persona';
-      return act(() => api.assign(opened, to), () => { toast?.(`Asignada a ${name}: ya está en su mesa.`); closeSide(); });
-    }
-  });
-  root.addEventListener('change', (e) => {
-    if (e.target.matches('[data-pin-all]')) { pinForm = { ...pinForm, all: e.target.checked }; return paintSide(); }
-    if (e.target.matches('input[name="rule"]')) { pinForm = { ...pinForm, rules: [...root.querySelectorAll('input[name="rule"]:checked')].map((x) => x.value) }; }
+    if (!e.target.matches('[data-assign-form]')) return;
+    e.preventDefault();
+    const to = e.target.elements.to.value;
+    const name = people.find((u) => u.id === to)?.name || 'esa persona';
+    act(() => api.assign(opened, to), () => { toast?.(`Asignada a ${name}: ya está en su mesa.`); closeSide(); });
   });
 
   root.addEventListener('click', (e) => {
     const rowEl = e.target.closest('.bl-row');
     if (rowEl) return rowEl.dataset.id === opened ? closeSide() : openIssue(rowEl.dataset.id);
     if (e.target.closest('[data-side-close]')) return closeSide();
-    if (e.target.closest('[data-pin-open]')) { pinForm = { all: true, rules: [] }; return paintSide(); }
-    if (e.target.closest('[data-pin-cancel]')) { pinForm = null; side = { ...side, error: null }; return paintSide(); }
-    if (e.target.closest('[data-unpin]')) return act(() => api.unprioritize(opened), () => toast?.('Ya no está priorizada.'));
+    if (e.target.closest('[data-pin]')) return act(() => api.prioritize(opened), () => toast?.('Priorizada: cuenta como priorizada por negocio.'));
+    if (e.target.closest('[data-unpin]')) return act(() => api.unprioritize(opened), () => toast?.('Ya no está priorizada por el equipo.'));
     if (e.target.closest('[data-rules]')) return openRulesModal({ api, dialogs, toast, onChange: () => load().catch(() => {}) }).catch((err) => toast?.(`No se pudieron cargar las reglas: ${err.message}`));
     if (e.target.closest('[data-reload]')) return load().catch((err) => toast?.(`No se pudo actualizar el backlog: ${err.message}`));
     const b = e.target.closest('[data-key]');

@@ -8,8 +8,8 @@ export const createBacklogApi = (api) => ({
   // → { issue, pinned, claimedBy }
   get: (id) => api(`/backlog/${encodeURIComponent(id)}`),
   people: async () => (await api('/backlog/people')).people,
-  // rules vacío: la primera de la cola en todas las reglas
-  prioritize: (id, rules) => api(`/backlog/${encodeURIComponent(id)}/prioritize`, { method: 'POST', body: { rules } }),
+  // a mano: cuenta como priorizada por negocio
+  prioritize: (id) => api(`/backlog/${encodeURIComponent(id)}/prioritize`, { method: 'POST', body: {} }),
   unprioritize: (id) => api(`/backlog/${encodeURIComponent(id)}/prioritize`, { method: 'DELETE' }),
   assign: (id, to) => api(`/backlog/${encodeURIComponent(id)}/assign`, { method: 'POST', body: { to } }),
   // → { criteria, rules }: el catálogo de criterios y las reglas con los suyos

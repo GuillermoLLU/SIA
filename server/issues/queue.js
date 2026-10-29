@@ -48,17 +48,12 @@ export const orderBy = (criteria, now) => {
 
 export const isFree = (i, claimed) => i.status === 'ASSIGNED' && !i.assignee && !claimed.has(i.id);
 
-// Las priorizadas a mano desde el Backlog que cuentan para una regla (todas,
-// o las que la nombran), en el orden en que se priorizaron.
-export const pinnedFor = (priorities, ruleId) => priorities
-  .filter((p) => !p.rules?.length || p.rules.includes(ruleId))
-  .sort((a, b) => (a.set_at < b.set_at ? -1 : a.set_at > b.set_at ? 1 : 0))
-  .map((p) => p.issue_id);
-
-// Ids libres: primero las priorizadas a mano (`pinned`, en su orden) y luego
-// el resto en el orden de los criterios (la base se queda con la primera que nadie tenga).
-export const queue = (issues, claimed, now, criteria = BASIC_RULE.criteria, pinned = []) => {
-  const free = issues.filter((i) => isFree(i, claimed));
-  const first = pinned.filter((id) => free.some((i) => i.id === id));
-  return [...first, ...free.filter((i) => !first.includes(i.id)).sort(orderBy(criteria, now)).map((i) => i.id)];
+// Las priorizadas a mano desde el Backlog cuentan como priorizadas por negocio.
+export const withPriorities = (issues, priorities) => {
+  const ids = new Set(priorities.map((p) => p.issue_id));
+  return issues.map((i) => (ids.has(i.id) ? { ...i, prio: true } : i));
 };
+
+// Ids libres en el orden de los criterios (la base se queda con la primera que nadie tenga).
+export const queue = (issues, claimed, now, criteria = BASIC_RULE.criteria) =>
+  issues.filter((i) => isFree(i, claimed)).sort(orderBy(criteria, now)).map((i) => i.id);

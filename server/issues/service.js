@@ -2,7 +2,7 @@
 // quién ha cogido qué, que lleva la base de la instancia (platform_*). Todo
 // con el JWT de quien actúa; «coger» es un simulacro: se da por hecho que
 // SIGLO la asigna en Remedy.
-import { queue, pinnedFor } from './queue.js';
+import { queue, withPriorities } from './queue.js';
 import { loadRules, ruleById } from './rules.js';
 import { deskOf, brief } from './desk.js';
 import { today, history, dayKey } from './stats.js';
@@ -15,17 +15,14 @@ const WEEKS = 12;
 // solo dice de cuándo son los datos (taken); lo medido en SIA se mide a día de hoy.
 export const createIssuesService = ({ source, platform, now = () => new Date() }) => {
   // la foto y lo cogido en SIA
-  // la foto, lo cogido en SIA, las reglas y lo priorizado a mano desde el Backlog
+  // la foto (con lo priorizado a mano desde el Backlog como priorizado por negocio), lo cogido en SIA y las reglas
   const snapshot = async (jwt) => {
     const { taken, issues } = source.load();
     const [claims, rules, priorities] = await Promise.all([platform.rpc(jwt, 'platform_issue_claims'), loadRules(platform, jwt), platform.rpc(jwt, 'platform_issue_priorities')]);
-    return { taken, issues, claims, claimed: new Set(claims.map((c) => c.issue_id)), rules, priorities, now: now() };
+    return { taken, issues: withPriorities(issues, priorities), claims, claimed: new Set(claims.map((c) => c.issue_id)), rules, now: now() };
   };
-  // la cola de una regla: sus priorizadas delante y el resto por sus criterios
-  const queueOf = ({ issues, claimed, rules, priorities, now }, ruleId) => {
-    const rule = ruleById(rules, ruleId);
-    return queue(issues, claimed, now, rule.criteria, pinnedFor(priorities, rule.id));
-  };
+  // la cola de una regla
+  const queueOf = ({ issues, claimed, rules, now }, ruleId) => queue(issues, claimed, now, ruleById(rules, ruleId).criteria);
   // el histórico de una issue: sus movimientos y notas, unidos por orden
   const timelineOf = async (jwt, id) => {
     const [events, notes] = await Promise.all([platform.rpc(jwt, 'platform_issue_events', { p_issue: id }), platform.rpc(jwt, 'platform_issue_notes', { p_issue: id })]);

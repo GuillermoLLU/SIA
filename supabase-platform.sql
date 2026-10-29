@@ -31,8 +31,8 @@
 --    priority_rules     reglas de priorización del backlog: un nombre y una lista
 --                       ordenada de criterios (el catálogo, en platform.known_criteria()).
 --                       La básica viene de serie (builtin): se ajusta, no se borra
---    issue_priorities   issues priorizadas a mano desde el Backlog: van las primeras
---                       de la cola, para todas las reglas o solo para algunas
+--    issue_priorities   issues priorizadas a mano desde el Backlog: cuentan como
+--                       priorizadas por negocio para las reglas
 --
 --  Vistas: lo que cada persona puede ver y hacer en SIA (el Chat, siempre).
 --  La lista está en platform.known_views().
@@ -221,10 +221,10 @@ create unique index if not exists priority_rules_builtin on platform.priority_ru
 
 create table if not exists platform.issue_priorities (
   issue_id    text primary key check (issue_id ~ '^INC[0-9]+$'),
-  rules       uuid[] not null default '{}',  -- vacío: en todas las reglas
   set_by      uuid references platform.users (id) on delete set null,
   set_at      timestamptz not null default now()
 );
+alter table platform.issue_priorities drop column if exists rules; -- al principio se priorizaba por reglas
 -- la acción 'assigned' llegó después: la restricción de las bases ya montadas se renueva
 alter table platform.issue_events drop constraint if exists issue_events_action_check;
 alter table platform.issue_events add constraint issue_events_action_check check (action in ('claimed', 'released', 'transferred', 'assigned'));
@@ -876,31 +876,30 @@ end $$;
 -- El equipo de Issues: las personas activas con la vista Issues (para
 -- traspasar una issue a un compañero).
 -- ── Priorizar a mano y asignar desde el Backlog ───────────────────────────
--- Una issue priorizada va la primera de la cola (de todas las reglas, o solo
--- de las que se digan). Las ve quien coge issues o reparte; las pone y quita
--- quien reparte (Backlog).
+-- Una issue priorizada a mano cuenta como priorizada por negocio: las reglas
+-- con ese criterio la suben. Las ve quien coge issues o reparte; las pone y
+-- quita quien reparte (Backlog).
 drop function if exists public.platform_issue_priorities();
 create function public.platform_issue_priorities()
-returns table (issue_id text, rules uuid[], by_name text, set_at timestamptz)
+returns table (issue_id text, by_name text, set_at timestamptz)
 language plpgsql stable security definer set search_path = '' as $$
 #variable_conflict use_column
 begin
   perform platform.require_view('issues', 'backlog');
   return query
-    select p.issue_id, p.rules, u.name, p.set_at
+    select p.issue_id, u.name, p.set_at
     from platform.issue_priorities p left join platform.users u on u.id = p.set_by
     order by p.set_at;
 end $$;
 
-create or replace function public.platform_prioritize_issue(p_issue text, p_rules uuid[]) returns void
+drop function if exists public.platform_prioritize_issue(text, uuid[]);
+create or replace function public.platform_prioritize_issue(p_issue text) returns void
 language plpgsql security definer set search_path = '' as $$
 declare v_me uuid := platform.require_view('backlog');
-        v_rules uuid[] := coalesce(p_rules, '{}');
 begin
-  if not (v_rules <@ array(select r.id from platform.priority_rules r)) then raise exception 'Alguna de esas reglas no existe.' using errcode = '22023'; end if;
-  insert into platform.issue_priorities (issue_id, rules, set_by) values (p_issue, v_rules, v_me)
-    on conflict (issue_id) do update set rules = excluded.rules, set_by = excluded.set_by, set_at = now();
-  perform platform.audit(v_me, 'issue.prioritize', null, jsonb_build_object('issue', p_issue, 'rules', to_jsonb(v_rules)));
+  insert into platform.issue_priorities (issue_id, set_by) values (p_issue, v_me)
+    on conflict (issue_id) do update set set_by = excluded.set_by, set_at = now();
+  perform platform.audit(v_me, 'issue.prioritize', null, jsonb_build_object('issue', p_issue));
 exception
   when check_violation then raise exception 'Esa issue no vale.' using errcode = '23514';
 end $$;
