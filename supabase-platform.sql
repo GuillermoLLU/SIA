@@ -216,6 +216,7 @@ create table if not exists platform.priority_rules (
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
+alter table platform.priority_rules add column if not exists builtin boolean not null default false; -- bases montadas antes de la básica de serie
 create unique index if not exists priority_rules_builtin on platform.priority_rules (builtin) where builtin;
 
 create table if not exists platform.issue_priorities (
