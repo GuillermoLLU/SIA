@@ -90,7 +90,7 @@ test('sin las notas del procedimiento en Remedy no se escribe la nota de cierre 
 });
 
 test('la zona del adjunto y la hora en la de este equipo', () => {
-  assert.match(fileBox(null), /data-drop>.*o pulsa para elegirlo · uno, hasta 10 MB/);
+  assert.match(fileBox(null), /data-drop>.*o pulsa para elegirlo · uno, hasta 20 MB/);
   assert.match(fileBox({ name: 'a<b>.txt', size: 10 }), /a&lt;b&gt;\.txt · 1 KB/);
   assert.equal(localShort(new Date(2026, 0, 5, 7, 3).toISOString()), '05/01 07:03');
 });

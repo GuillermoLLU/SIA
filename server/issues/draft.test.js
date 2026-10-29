@@ -18,14 +18,15 @@ test('lo forzado desde devtools se rechaza, no se arregla', () => {
   bad({ lang: ['es'] }, 'Ese idioma no está.');
 });
 
-test('el adjunto: con nombre sin rutas, no vacío y de hasta 10 MB', () => {
+test('el adjunto: con nombre sin rutas, no vacío y de hasta 20 MB', () => {
   const f = cleanFile({ name: '../c:\\cola.png', type: 'image/png', data: Buffer.from('hola').toString('base64') });
   assert.deepEqual([f.name, f.type, f.data.toString()], ['.._c:_cola.png', 'image/png', 'hola']);
   assert.throws(() => cleanFile({ name: 'x.png' }), { status: 400, message: 'Falta el archivo.' });
   assert.throws(() => cleanFile({ name: '', data: 'aG9sYQ==' }), { status: 400 });
   assert.throws(() => cleanFile({ name: 'x', data: '' }), { message: 'Falta el archivo.' });
   assert.throws(() => cleanFile({ name: 'x', data: '==' }), { message: 'El archivo no ha llegado bien.' });
-  assert.throws(() => cleanFile({ name: 'x', data: Buffer.alloc(MAX_FILE + 1).toString('base64') }), { status: 400, message: /10 MB/ });
+  assert.throws(() => cleanFile({ name: 'x', data: Buffer.alloc(MAX_FILE + 1).toString('base64') }), { status: 400, message: /20 MB/ });
+  assert.equal(cleanFile({ name: 'x', data: Buffer.alloc(MAX_FILE).toString('base64') }).data.length, MAX_FILE);   // justo 20 MB, sí
 });
 
 test('el adjunto forzado: ni ejecutables, ni base64 roto, ni nombres con trampa, ni tipos inventados', () => {

@@ -193,7 +193,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
     r.readAsDataURL(file);
   });
   const setFile = async (form, file) => {
-    if (file && file.size > MAX_FILE) return showErr(form, 'El adjunto pasa de 10 MB: elige otro más pequeño.');   // el mismo texto que el bridge
+    if (file && file.size > MAX_FILE) return showErr(form, 'El adjunto pasa de 20 MB: elige otro más pequeño.');   // el mismo texto que el bridge
     if (file && !file.size) return showErr(form, 'El archivo está vacío (o es una carpeta): elige otro.');
     showErr(form, null);
     const box = form.querySelector('[data-file-box]');
