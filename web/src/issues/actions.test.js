@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ACTIONS, actionForm, readAction, isComplete } from './actions.js';
 
-test('las cuatro acciones', () => {
-  assert.deepEqual(Object.keys(ACTIONS), ['resolve', 'escalate', 'note', 'transfer']);
+test('las tres acciones (las notas van en el recorrido)', () => {
+  assert.deepEqual(Object.keys(ACTIONS), ['resolve', 'escalate', 'transfer']);
 });
 
 test('obligatorios: el primero que falte', () => {
@@ -18,7 +18,7 @@ test('el botón de enviar empieza apagado y solo se enciende con todos los oblig
   assert.equal(isComplete('transfer', { to: 'u1', comment: '  ' }), false);
   assert.equal(isComplete('transfer', { to: '', comment: 'motivo' }), false);
   assert.equal(isComplete('transfer', { to: 'u1', comment: 'motivo' }), true);
-  assert.equal(isComplete('note', { note: 'x' }), true);
+  assert.equal(isComplete('escalate', { to: 'x', reason: 'y' }), true);
 });
 
 test('traspasar: el equipo en el selector propio, escapado; se queda en SIA, sin el aviso de Remedy', () => {
@@ -27,6 +27,5 @@ test('traspasar: el equipo en el selector propio, escapado; se queda en SIA, sin
   assert.match(html, /<li role="option" data-pick-opt="u1" aria-selected="false">Ana &lt;x&gt;<\/li>/);
   assert.match(actionForm('transfer', 'INC1', []), /data-pick-btn[^>]*disabled[^>]*>.*No hay más personas en Issues/);
   assert.doesNotMatch(html, /Aún no se envía a Remedy/);
-  assert.doesNotMatch(actionForm('note', 'INC1'), /Aún no se envía a Remedy/);
   assert.match(actionForm('resolve', 'INC1'), /Aún no se envía a Remedy/);
 });

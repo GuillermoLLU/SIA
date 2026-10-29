@@ -197,8 +197,31 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   };
   // El botón de enviar, apagado hasta que estén todos los campos obligatorios.
   const syncSubmit = (form) => { form.querySelector('[type=submit]').disabled = !isComplete(form.dataset.actForm, Object.fromEntries(new FormData(form))); };
-  root.addEventListener('input', (e) => { const form = e.target.closest('[data-act-form]'); if (form) syncSubmit(form); });
+  root.addEventListener('input', (e) => {
+    const form = e.target.closest('[data-act-form]');
+    if (form) return syncSubmit(form);
+    const nf = e.target.closest('[data-note-form]');
+    if (nf) nf.querySelector('[type=submit]').disabled = !nf.note.value.trim();
+  });
+  // La nota interna, desde el pie del recorrido: se guarda, se repinta y se
+  // baja hasta ella.
+  const sendNote = async (form) => {
+    const text = form.note.value.trim();
+    if (!text) return;
+    const btn = form.querySelector('[type=submit]');
+    btn.disabled = true;
+    try {
+      await api.addNote(opened, text);
+      form.note.value = '';
+      await refreshTrail();
+      const box = root.querySelector('[data-trail]');
+      if (box) box.scrollTop = box.scrollHeight;
+      toast?.('Nota añadida.');
+    } catch (err) { toast?.(err.message); btn.disabled = false; }
+  };
   root.addEventListener('submit', async (e) => {
+    const nf = e.target.closest('[data-note-form]');
+    if (nf) { e.preventDefault(); return sendNote(nf); }
     const form = e.target.closest('[data-act-form]');
     if (!form) return;
     e.preventDefault();
@@ -215,13 +238,6 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
         closeAction();
         await loadDesk();
         return toast?.(`Traspasada a ${who}.`);
-      }
-      if (key === 'note') {
-        await api.addNote(opened, values.note);
-        closeAction();
-        showTab('trail');
-        await refreshTrail();
-        return toast?.('Nota añadida.');
       }
       closeAction();
       toast?.(`${ACTIONS[key].label}: preparado, pero aún no se envía a Remedy (falta conectar SIGLO).`);

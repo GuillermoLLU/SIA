@@ -32,6 +32,12 @@ export const trailHtml = (timeline = []) => (timeline.length
   ? `<ol class="iss-trail">${timeline.map(trailItem).join('')}</ol>`
   : '<p class="iss-empty">Nadie la ha movido ni anotado en SIA todavía.</p>');
 
+// Escribir una nota interna, al pie del recorrido. El botón se enciende con texto.
+export const noteFormHtml = () => `<form class="iss-note-form" data-note-form novalidate>
+    <textarea name="note" rows="2" placeholder="Escribe una nota interna para el equipo…" aria-label="Nota interna"></textarea>
+    <button type="submit" class="lab-btn primary" disabled>Añadir nota</button>
+  </form>`;
+
 // El cuerpo del diálogo de confirmación al devolver a la cola.
 export const releaseDialogHtml = (id, text) => `<div class="iss-dlg-issue"><span class="iss-dlg-code">${esc(id)}</span><span class="iss-dlg-text">${esc(text || '')}</span></div>
   <p class="iss-dlg-p">Volverá a la cola y podrá cogerla cualquier compañero.</p>`;
@@ -56,7 +62,6 @@ export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, tab
         <button class="lab-btn primary" data-act="resolve">Resolver</button>
         <button class="lab-btn" data-act="escalate">Escalar</button>
         <button class="lab-btn" data-act="transfer">Traspasar</button>
-        <button class="lab-btn" data-act="note">Añadir nota</button>
         ${mine ? '<button class="lab-btn" data-release>Devolver a la cola</button>' : ''}
       </div>
     </div>
@@ -99,9 +104,10 @@ export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, tab
         ${pending('Issues de otros centros con el mismo problema y cómo se resolvieron.')}
       </div>
 
-      <div class="iss-wpanel" data-wpanel="trail"${tab === 'trail' ? '' : ' hidden'}>
+      <div class="iss-wpanel iss-trail-panel" data-wpanel="trail"${tab === 'trail' ? '' : ' hidden'}>
         <h4 class="iss-sub">Por dónde ha pasado en SIA <span class="iss-low">· quién la cogió, devolvió o traspasó, y las notas del equipo</span></h4>
-        <div data-trail>${trailHtml(timeline)}</div>
+        <div class="iss-trail-scroll" data-trail>${trailHtml(timeline)}</div>
+        ${noteFormHtml()}
       </div>
     </section>
 

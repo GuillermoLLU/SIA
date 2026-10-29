@@ -129,6 +129,11 @@
 .iss-kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .iss-tl { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 13px; }
 .iss-tl time { display: inline-block; width: 96px; color: var(--text-low); font-variant-numeric: tabular-nums; }
+.iss-trail-panel { overflow: hidden; }
+.iss-trail-scroll { flex: 1; min-height: 0; overflow-y: auto; }
+.iss-note-form { display: flex; gap: 10px; align-items: flex-end; padding-top: 12px; border-top: 1px solid var(--border); }
+.iss-note-form textarea { flex: 1; min-height: 44px; max-height: 160px; padding: 8px 10px; font: inherit; font-size: 13px; line-height: 1.45; color: var(--text); background: var(--bg); border: 1px solid var(--border); outline: none; resize: vertical; }
+.iss-note-form textarea:focus { border-color: var(--accent); }
 .iss-trail { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; font-size: 13px; }
 .iss-trail li { display: grid; grid-template-columns: 96px 1fr; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
 .iss-trail li:last-child { border-bottom: 0; }

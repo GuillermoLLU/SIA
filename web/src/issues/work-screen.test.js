@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { workScreen, trailHtml, trailTab, releaseDialogHtml } from './work-screen.js';
+import { workScreen, trailHtml, trailTab, releaseDialogHtml, noteFormHtml } from './work-screen.js';
 
 const issue = (o = {}) => ({ id: 'INC1', text: 'PDA <sin imagen>', priority: 'HIGH', status: 'ASSIGNED', reason: '', notes: 'no <arranca>',
   resolution: '', category: 'SGA', group: 'AYS SOPORTE', assignee: '', reported: '2026-10-01 10:00', modified: '2026-10-01 11:00',
@@ -11,6 +11,8 @@ test('la pantalla: cuatro pestañas, el análisis por conectar y el texto escapa
   const html = workScreen({ issue: issue(), sameCenter: [], now, mine: false });
   assert.equal((html.match(/data-wtab="/g) || []).length, 4);
   assert.match(html, /Nadie la ha movido ni anotado en SIA todavía/);
+  assert.doesNotMatch(html, /data-act="note"/);
+  assert.match(html, /data-note-form/);
   assert.match(html, /Por conectar/);
   assert.equal((html.match(/iss-pending/g) || []).length, 5);
   assert.match(html, /PDA &lt;sin imagen&gt;/);
@@ -51,4 +53,10 @@ test('la pestaña del recorrido lleva el contador solo si hay entradas; el diál
   assert.match(html, /PDA &lt;x&gt;/);
   assert.match(html, /Volverá a la cola/);
   assert.doesNotMatch(releaseDialogHtml('INC1'), /undefined/);
+});
+
+test('el campo de nota del recorrido: un textarea y el botón apagado de inicio', () => {
+  const html = noteFormHtml();
+  assert.match(html, /<textarea name="note"/);
+  assert.match(html, /type="submit"[^>]*disabled/);
 });

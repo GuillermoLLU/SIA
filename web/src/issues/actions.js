@@ -1,7 +1,7 @@
-// Las acciones sobre una issue (resolver, escalar, añadir nota, traspasar):
-// su formulario y qué hace falta para enviarlo. Añadir nota y traspasar se
-// quedan en SIA (la base de la instancia); resolver y escalar irán a Remedy
-// por SIGLO y, de momento, no se envían.
+// Las acciones sobre una issue (resolver, escalar, traspasar): su formulario
+// y qué hace falta para enviarlo. Traspasar se queda en SIA (la base de la
+// instancia); resolver y escalar irán a Remedy por SIGLO y, de momento, no se
+// envían. Las notas internas se escriben en la pestaña Recorrido y notas.
 import { esc } from '../ui/html.js';
 
 export const ACTIONS = {
@@ -15,10 +15,6 @@ export const ACTIONS = {
       { name: 'to', label: 'A quién', kind: 'line', required: true, hint: 'Grupo o proveedor.' },
       { name: 'reason', label: 'Motivo', kind: 'text', required: true },
     ],
-  },
-  note: {
-    label: 'Añadir nota', title: 'Añadir una nota', ok: 'Añadir', local: true,
-    fields: [{ name: 'note', label: 'Nota', kind: 'text', required: true, hint: 'Interna, para el equipo. La verá quien abra la issue en SIA.' }],
   },
   transfer: {
     label: 'Traspasar', title: 'Traspasar a un compañero', ok: 'Traspasar', local: true,
