@@ -250,9 +250,12 @@ select assert_eq((select string_agg(action || ':' || coalesce(actor_name, '-') |
 select assert_eq((select string_agg(kind || ':' || author_name || ':' || body, '|') from public.platform_issue_notes('INC1')), 'transfer:Admin:Lleva dos llamadas del centro.', 'el comentario del traspaso queda como nota etiquetada, sin espacios de más');
 select assert_eq((select string_agg(action, ',' order by happened_at, id) from public.platform_issue_events('INC2')), 'claimed,released', 'la devuelta a la cola también queda');
 select assert_eq((select count(*) from public.platform_issue_events('INC3')), 0::bigint, 'sin movimientos: nada');
+select assert_eq((select count(*) from public.platform_my_transfers()), 0::bigint, 'quien traspasa no tiene nada traspasado');
 select t_as(:U2);
+select assert_eq((select string_agg(issue_id || ':' || from_name || ':' || reason, ',') from public.platform_my_transfers()), 'INC1:Admin:Lleva dos llamadas del centro.', 'quien la recibe ve de quién viene y por qué');
 select public.platform_release_issue('INC1');
 select assert_eq((select count(*) from public.platform_issue_claims()), 0::bigint, 'quien la recibe sí puede devolverla');
+select assert_eq((select count(*) from public.platform_my_transfers()), 0::bigint, 'devuelta: ya no consta como traspasada');
 
 -- ── 6a³. issues: notas internas ──
 select t_as(:U1);

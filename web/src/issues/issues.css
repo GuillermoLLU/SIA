@@ -86,6 +86,15 @@
 .iss-sev.HIGH { color: var(--iss-high); }
 .iss-code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; color: var(--text-low); }
 .iss-prio { color: var(--iss-crit); font-weight: 600; }
+/* traspasada: la marca y el icono con quién y por qué */
+.iss-handed { display: inline-flex; align-items: center; gap: 6px; }
+.iss-tag-handed { padding: 1px 7px; font-size: 11px; font-weight: 600; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.iss-tip { position: relative; display: inline-flex; color: var(--text-low); outline: none; }
+.iss-tip:hover, .iss-tip:focus-visible { color: var(--accent); }
+.iss-tip-box { position: absolute; left: 50%; bottom: calc(100% + 8px); z-index: 5; width: max-content; max-width: 320px; padding: 10px 12px; font-size: 12px; font-weight: 400; line-height: 1.45; color: var(--text); text-align: left; white-space: normal; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0, 0, 0, .18); transform: translateX(-50%); opacity: 0; pointer-events: none; transition: opacity .12s ease; }
+.iss-tip-box i { display: block; margin-top: 6px; padding-top: 6px; font-style: normal; color: var(--text-low); border-top: 1px solid var(--border); }
+.iss-tip:hover .iss-tip-box, .iss-tip:focus-visible .iss-tip-box { opacity: 1; }
+.iss-items, .iss-card { overflow: visible; }
 
 /* pantalla de trabajo: cabecera con acciones; a la izquierda, pestañas
    (análisis, detalle, relacionadas) y a la derecha el chat, a la misma altura */

@@ -750,6 +750,28 @@ begin
   perform platform.audit(v_me, 'issue.transferred', p_to, jsonb_build_object('issue', p_issue));
 end $$;
 
+-- Lo que me han traspasado y aún tengo: de quién viene, cuándo y el motivo
+-- (la nota 'transfer' que se escribió en el mismo instante). Para marcarlas
+-- en la mesa. Una issue devuelta o traspasada de nuevo ya no sale.
+drop function if exists public.platform_my_transfers();
+create function public.platform_my_transfers()
+returns table (issue_id text, from_name text, happened_at timestamptz, reason text)
+language plpgsql stable security definer set search_path = '' as $$
+#variable_conflict use_column
+declare v_me uuid := platform.require_view('issues');
+begin
+  return query
+    select distinct on (e.issue_id) e.issue_id, uf.name, e.happened_at,
+      (select n.body from platform.issue_notes n
+        where n.issue_id = e.issue_id and n.kind = 'transfer' and n.author is not distinct from e.actor and n.created_at = e.happened_at
+        order by n.id desc limit 1)
+    from platform.issue_events e
+    join platform.issue_claims c on c.issue_id = e.issue_id and c.user_id = v_me and c.claimed_at = e.happened_at
+    left join platform.users uf on uf.id = e.from_user
+    where e.action = 'transferred' and e.to_user = v_me
+    order by e.issue_id, e.happened_at desc, e.id desc;
+end $$;
+
 -- El histórico de una issue en SIA: cada movimiento con quién lo hizo y de
 -- quién a quién, del más antiguo al más reciente.
 drop function if exists public.platform_issue_events(text);

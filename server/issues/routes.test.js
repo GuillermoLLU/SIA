@@ -8,7 +8,7 @@ const issue = (id, o = {}) => ({ id, center: '100', text: id, priority: 'HIGH', 
 const ISSUES = [issue('INC1'), issue('INC2', { prio: true }), issue('INC3', { assignee: 'ANA LOPEZ GARCIA', status: 'PENDING' })];
 const WHO = { user: { id: 'u-ana', name: 'Ana López' }, accessToken: 'jwt' };
 
-const setup = (claims = []) => {
+const setup = (claims = [], transfers = []) => {
   const calls = [];
   const platform = {
     rpc: async (jwt, fn, args) => {
@@ -20,6 +20,7 @@ const setup = (claims = []) => {
       if (fn === 'platform_issue_events') return args.p_issue === 'INC1' ? [{ id: 1, action: 'claimed', actor_name: 'Ana López', from_name: null, to_name: 'Ana López', happened_at: '2026-10-06T08:00:00+00:00' }] : [];
       if (fn === 'platform_issue_notes') return args.p_issue === 'INC1' ? [{ id: 5, author_id: 'u-ana', author_name: 'Ana López', kind: 'note', body: 'ojo', created_at: '2026-10-06T09:00:00+00:00', edited_at: null }] : [];
       if (fn === 'platform_add_issue_note') return 9;
+      if (fn === 'platform_my_transfers') return transfers;
       return null;
     },
   };
@@ -46,6 +47,13 @@ test('GET /: libres, reglas y mi mesa (responsable en Remedy o cogida en SIA)', 
   assert.equal(body.next.id, 'INC2');
   assert.equal(body.history.weeks.length, 12);
   assert.deepEqual(body.today, { resolved: 0, sga: 0, sisu: 0 });
+});
+
+test('GET /: la que me han traspasado sale marcada con de quién viene y el motivo', async () => {
+  const { body } = await setup([{ issue_id: 'INC1', user_id: 'u-ana', user_name: 'Ana López' }],
+    [{ issue_id: 'INC1', from_name: 'Luis', happened_at: '2026-10-29T10:00:00+00:00', reason: 'Es de tu centro.' }]).call('GET', []);
+  assert.deepEqual(body.desk.find((i) => i.id === 'INC1').transferred, { from: 'Luis', at: '2026-10-29T10:00:00+00:00', reason: 'Es de tu centro.' });
+  assert.equal(body.desk.find((i) => i.id === 'INC3').transferred, undefined);
 });
 
 test('POST /next: manda la cola en orden de la regla y devuelve la que se lleva', async () => {

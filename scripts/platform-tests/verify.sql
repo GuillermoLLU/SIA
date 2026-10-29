@@ -14,7 +14,7 @@ expected (proname) as (values
   ('platform_list_bases'), ('platform_base_access'),
   ('platform_set_knowledge'), ('platform_copy_knowledge'), ('platform_person_keys'), ('platform_set_person_key'),
   ('platform_list_audit'), ('platform_issue_claims'), ('platform_claim_next_issue'), ('platform_release_issue'), ('platform_my_issue_events'), ('platform_issue_teammates'),
-  ('platform_transfer_issue'), ('platform_issue_events'), ('platform_issue_notes'), ('platform_add_issue_note'), ('platform_edit_issue_note')
+  ('platform_transfer_issue'), ('platform_issue_events'), ('platform_issue_notes'), ('platform_add_issue_note'), ('platform_edit_issue_note'), ('platform_my_transfers')
 ),
 tables as (
   select c.relname, c.relrowsecurity
@@ -42,9 +42,9 @@ checks (orden, comprobacion, ok, detalle) as (
     not has_schema_privilege('anon', 'platform', 'usage') and not has_schema_privilege('authenticated', 'platform', 'usage'),
     'usage: anon=' || has_schema_privilege('anon', 'platform', 'usage') || ', authenticated=' || has_schema_privilege('authenticated', 'platform', 'usage')
   union all
-  select 6, 'Las 27 funciones de la API existen',
-    (select count(*) from api where proname in (select proname from expected)) = 27,
-    coalesce((select 'faltan: ' || string_agg(e.proname, ', ') from expected e where e.proname not in (select proname from api)), '27 de 27')
+  select 6, 'Las 28 funciones de la API existen',
+    (select count(*) from api where proname in (select proname from expected)) = 28,
+    coalesce((select 'faltan: ' || string_agg(e.proname, ', ') from expected e where e.proname not in (select proname from api)), '28 de 28')
   union all
   select 7, 'Todas son SECURITY DEFINER',
     not exists (select 1 from api where not prosecdef),

@@ -22,7 +22,7 @@ export const createIssuesService = ({ source, platform }) => {
     async desk({ user, accessToken: jwt }) {
       const { taken, issues, claims, claimed, now } = await snapshot(jwt);
       const free = queue(issues, claimed, now);
-      const desk = deskOf(issues, user, claims);
+      const desk = deskOf(issues, user, claims, await platform.rpc(jwt, 'platform_my_transfers'));
       const nextIssue = free.length ? issues.find((i) => i.id === free[0]) : null;
       const since = new Date(now.getTime() - WEEKS * 7 * 86400000).toISOString();
       return {
