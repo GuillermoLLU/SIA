@@ -14,8 +14,6 @@ import { makeTerminal, useWebgl, enableTouchScroll, wireCopyPaste } from './term
 import { createAssets } from './assets.js';
 import { createTabBar } from './tabs.js';
 
-const SEND_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
-
 // api/apiBase: el bridge · wsUrl(): el socket · theme(): el tema actual ·
 // phone/mac: dónde corre · me: el nombre de quien entra (saluda la portada) ·
 // remote(): si es un móvil emparejado · gate(): la puerta del candado ·
@@ -81,23 +79,22 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
     <div class="ai-hero-box">
       <h1 class="ai-hero-hi">${esc(me ? `Hola, ${me.split(' ')[0]}.` : 'Hola.')}</h1>
       <form class="ai-ask" data-ask novalidate>
-        <textarea name="ask" rows="1" placeholder="Describe la incidencia o lo que necesitas saber…" aria-label="Tu pregunta" ${error ? 'disabled' : ''}></textarea>
-        <button type="submit" class="ai-ask-send" aria-label="Enviar" title="Enviar (Intro)" disabled>${SEND_ICON}</button>
+        <textarea name="ask" rows="1" placeholder="¿En qué te puedo ayudar hoy?" aria-label="Tu pregunta" ${error ? 'disabled' : ''}></textarea>
       </form>
       ${error ? `<p class="ai-hero-err">${esc(error)}</p>` : ''}
     </div></div>`;
   const renderStart = (s, launchers) => {
     s.start.innerHTML = heroHtml();
     const form = s.start.querySelector('[data-ask]');
-    const field = form.elements.ask, send = form.querySelector('.ai-ask-send');
-    const grow = () => { field.style.height = 'auto'; field.style.height = `${Math.min(field.scrollHeight, 180)}px`; send.disabled = !field.value.trim(); };
+    const field = form.elements.ask;
+    const grow = () => { field.style.height = 'auto'; field.style.height = `${Math.min(field.scrollHeight, 180)}px`; };
     field.addEventListener('input', grow);
     field.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); } });
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const prompt = field.value.trim();
       if (!prompt || s.launched) return;
-      field.disabled = true; send.disabled = true;
+      field.disabled = true;
       const projects = await loadProjects();
       const plan = chatPlan({ launchers, projects });
       if (plan.error) { s.start.innerHTML = heroHtml(plan.error); return; }
