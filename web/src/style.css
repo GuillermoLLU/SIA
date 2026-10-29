@@ -709,7 +709,16 @@ body { display: flex; flex-direction: column; }
 .ai-ask textarea:disabled { opacity: 0.5; }
 .ai-hero-err { margin: 0; font-size: 12.5px; line-height: 1.5; color: #f25f5c; text-align: center; }
 body.phone .ai-hero-hi { font-size: 26px; }
-@media (prefers-reduced-motion: reduce) { .ai-hero-bg i, .ai-hero-box { animation: none; } }
+
+/* El arranque (app/intro.js): mientras `booting`, la barra lateral espera
+   fuera de pantalla y el campo no se ve; con `ready`, la barra entra desde la
+   izquierda y el campo aparece a la vez. El hueco de la barra ya está
+   reservado, así que el saludo no se mueve. */
+body.booting .sidebar { transform: translateX(-100%); }
+body.ready .sidebar { transition: transform 0.65s cubic-bezier(0.2, 0.7, 0.2, 1); }
+body.booting .ai-ask { opacity: 0; }
+body.ready .ai-ask { transition: opacity 0.6s ease 0.15s; }
+@media (prefers-reduced-motion: reduce) { .ai-hero-bg i, .ai-hero-box { animation: none; } body.ready .sidebar, body.ready .ai-ask { transition: none; } }
 
 /* xterm fills its pane */
 .xterm { height: 100%; }

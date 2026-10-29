@@ -18,8 +18,9 @@ import { createAssets } from './assets.js';
 // remote(): si es un móvil emparejado · gate(): la puerta del candado ·
 // onRevoked(): el ordenador cerró este móvil · onTheme(id): el ordenador
 // cambió de tema (lo sigue el móvil) · onSkills(list): las skills de la
-// paleta, cuando el bridge las manda
-export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac, me = null, remote, gate, onRevoked, onTheme, onSkills }) => {
+// paleta, cuando el bridge las manda · onFirstScreen('hero' | 'chat'): qué se
+// pinta primero al cargar (la portada o un chat vivo), para el arranque
+export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac, me = null, remote, gate, onRevoked, onTheme, onSkills, onFirstScreen = () => {} }) => {
   const viewEl = document.getElementById('view-chat');
   const stackEl = document.getElementById('term-stack');
   const barEl = document.getElementById('chat-bar');
@@ -196,6 +197,7 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
             bootstrapped = true;
             const own = chatSessions(m.sessions);
             if (own.length) restoreSessions(own, s.id);
+            onFirstScreen(own.length ? 'chat' : 'hero');
           }
           break;
         case 'started':

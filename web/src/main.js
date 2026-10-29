@@ -10,6 +10,7 @@ import { createToast } from './ui/dom.js';
 import { bridgeFromQuery, isPhoneLocation, discoverBridge } from './app/discover.js';
 import { canView, baseNav, panelNav, teamView } from './app/nav.js';
 import { createPermsWatch } from './app/perms.js';
+import { startIntro, reveal } from './app/intro.js';
 import { createAuthSession } from './auth/session.js';
 import { ensureLogin } from './auth/login-view.js';
 import { wireLogout } from './auth/logout-button.js';
@@ -38,6 +39,7 @@ import { mountMetricsView } from './metrics/metrics-view.js';
 import { createMetricsApi } from './metrics/metrics-api.js';
 
 const $ = (id) => document.getElementById(id);
+startIntro(); // la barra lateral espera al saludo de la portada (app/intro.js)
 
 // Favicon de la pestaña (la S) y la S de las pantallas completas.
 document.head.appendChild(Object.assign(document.createElement('link'), { rel: 'icon', href: logoUrl }));
@@ -104,6 +106,7 @@ chat = mountChatView({
   mac: /Mac|iP(hone|ad)/i.test(navigator.platform || navigator.userAgent || ''),
   remote: () => !!ctx.lanToken, gate: gate.fromBridge, onRevoked: lanRevoked,
   onTheme: (id) => theme.apply(id), onSkills: (list) => palette.setSkills(list),
+  onFirstScreen: reveal,
 });
 palette = mountPalette({ chat, phone: isPhone });
 
