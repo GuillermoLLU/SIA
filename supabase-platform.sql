@@ -966,11 +966,13 @@ declare v_me uuid := platform.require_view('issues');
 begin
   return query
     select e.issue_id,
-      case when e.action <> 'transferred' then e.action when e.to_user = v_me then 'received' else 'handed' end,
+      case when e.action = 'assigned' then 'received'  -- asignada desde el Backlog: mía desde entonces, como un traspaso recibido
+           when e.action <> 'transferred' then e.action when e.to_user = v_me then 'received' else 'handed' end,
       e.happened_at
     from platform.issue_events e
     where e.happened_at >= p_since
       and ((e.action = 'claimed' and e.to_user = v_me) or (e.action = 'released' and e.from_user = v_me)
+        or (e.action = 'assigned' and e.to_user = v_me)
         or (e.action = 'transferred' and (e.to_user = v_me or e.from_user = v_me)))
     order by e.happened_at, e.id;
 end $$;
