@@ -33,7 +33,6 @@ import { createKnowledgeApi } from './knowledge/knowledge-api.js';
 import { mountIssuesView } from './issues/issues-view.js';
 import { createIssuesApi } from './issues/issues-api.js';
 import { mountIssueChat } from './issues/issue-chat.js';
-import { originOf } from './issues/assisted.js';
 import { mountWorkView } from './work/work-view.js';
 import { mountMetricsView } from './metrics/metrics-view.js';
 import { createMetricsApi } from './metrics/metrics-api.js';
@@ -148,7 +147,7 @@ const usersView = canView(user, 'people')
 const PANELS = [
   { name: 'issues', mount: (el) => user && mountIssuesView(el, {
     api: createIssuesApi(api), me: user, toast, dialogs,
-    openChat: (host, issue) => mountIssueChat(host, { issueId: issue.id, origin: originOf(issue), wsUrl, loadProjects: chat.loadProjects, makeTerminal: chat.makeTerminal }),
+    openChat: (host, issue) => mountIssueChat(host, { issue, wsUrl, loadProjects: chat.loadProjects, makeTerminal: chat.makeTerminal }),
   }) },
   // clic en una persona de Equipo soporte: se abre en Métricas frente al resto de su equipo
   { name: 'work', mount: (el) => user && mountWorkView(el, { api: createMetricsApi(api),

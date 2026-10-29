@@ -59,8 +59,6 @@ export const vendorOf = (text) => {
   return { type, project: jira ? jira[1] : '', key: jira ? `${jira[1]}-${jira[2]}` : '' };
 };
 
-// AUDIT_DETAIL y WORKLOG_DETAIL: entradas «fecha - quién - texto» (server/shared/remedy-entries.js).
-export { entries };
 
 // Recorrido del historial de estados (los estados y motivos, con sus códigos: states.js): tiempo en cada estado,
 // primera actuación (primer cambio de estado real), primer paso a En curso (SLA de inicio), devoluciones a la

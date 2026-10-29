@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LISTS, when, whenIso, whenLabel, snapshotInfo, age, stamp, duration, since, weekBars } from './format.js';
+import { LISTS, when, whenIso, whenLabel, newestFirst, snapshotInfo, age, stamp, duration, since, weekBars } from './format.js';
 
 const NOW = new Date('2026-10-04T11:44:00');
 
@@ -61,4 +61,9 @@ test('cuándo, frente a hoy: HOY con la hora; otro día, la fecha; otro año, co
   assert.equal(whenLabel('2026-10-06T10:05:00', now), '06/10 10:05');
   assert.equal(whenLabel('2025-12-31T10:05:00', now), '31/12/2025 10:05');
   assert.equal(whenLabel('2026-10-29 09:10', now), 'HOY 09:10');
+  assert.equal(whenLabel('', now), '—');
+  assert.equal(whenLabel('no es fecha', now), '—');
+  const l = [1, 2, 3];
+  assert.deepEqual(newestFirst(l), [3, 2, 1]);
+  assert.deepEqual(l, [1, 2, 3]);
 });

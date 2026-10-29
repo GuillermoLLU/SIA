@@ -31,12 +31,15 @@ export const stamp = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d
 
 // «2026-10-04 11:44» → «04/10 11:44»
 export const when = (s) => (s ? `${s.slice(8, 10)}/${s.slice(5, 7)} ${s.slice(11, 16)}` : '—');
+// Lo más reciente primero (sin tocar la lista original).
+export const newestFirst = (list) => [...list].reverse();
 // Una fecha ISO de la base (UTC) en hora local, con el mismo formato.
 export const whenIso = (iso) => when(stamp(new Date(iso)));
 // Cuándo, frente a hoy: «HOY 13:05» si es de hoy; si no, «22/10 12:06» (con
 // el año si es otro). Vale para una fecha ISO de la base y para una «YYYY-MM-DD HH:MM» de Remedy.
 export const whenLabel = (s, now) => {
-  const d = new Date(s);
+  const d = new Date(String(s || '').replace(' ', 'T'));
+  if (Number.isNaN(d.getTime())) return '—';
   const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
   if (d.toDateString() === now.toDateString()) return `HOY ${time}`;
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}${d.getFullYear() !== now.getFullYear() ? `/${d.getFullYear()}` : ''} ${time}`;

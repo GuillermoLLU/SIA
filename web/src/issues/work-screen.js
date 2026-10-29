@@ -1,12 +1,11 @@
 // La pantalla de trabajo de una issue. A la izquierda, en pestañas: el
 // detalle de la issue (por defecto), las notas de trabajo de Remedy, las
 // relacionadas y su histórico en SIA (por dónde ha pasado y las notas
-// internas del equipo). A la derecha, sus
-// datos clave y debajo el chat de la issue (con el conocimiento,
-// issue-chat.js), que vive mientras la issue esté abierta. Las parecidas,
-// por conectar: solo su hueco.
+// internas del equipo). A la derecha, sus datos clave y debajo la resolución
+// asistida por IA (issue-chat.js), que vive mientras la issue esté abierta.
+// Las parecidas, por conectar: solo su hueco.
 import { esc } from '../ui/html.js';
-import { STATUS_ES, REASON_ES, SEVERITY_ES, when, whenIso, whenLabel, age } from './format.js';
+import { STATUS_ES, REASON_ES, SEVERITY_ES, when, whenIso, whenLabel, newestFirst, age } from './format.js';
 import { item } from './parts.js';
 
 const WORK_TABS = [
@@ -16,18 +15,19 @@ const WORK_TABS = [
   { key: 'trail', label: 'Histórico y notas' },
 ];
 
-// El histórico en SIA: movimientos y notas por orden (lo que da el bridge en
-// `timeline`). Se pinta aparte para poder refrescarlo al añadir una nota.
+// El histórico en SIA: lo que da el bridge en `timeline` (movimientos y notas,
+// de la más antigua a la más nueva), pintado al revés, lo reciente arriba. Va
+// aparte para poder refrescarlo al añadir o editar una nota.
 export const trailTab = (n) => `${WORK_TABS.find((t) => t.key === 'trail').label}${n ? `<span>${n}</span>` : ''}`;
 // Las notas de trabajo de Remedy (worklog de la foto): quién, cuándo y qué,
 // la más reciente arriba y abierta; el resto, plegadas con su primera línea,
 // y se abren al pulsar la tarjeta. Sin la columna en la foto (cargada antes
 // de leerla), se pide un CSV nuevo.
-const firstLine = (text) => { const l = String(text).trim().split('\n')[0]; return l.length > 90 ? `${l.slice(0, 90)}…` : l; };
+export const firstLine = (text) => { const l = String(text).trim().split('\n')[0]; return l.length > 90 ? `${l.slice(0, 90)}…` : l; };
 export const worklogHtml = (worklog, now = new Date()) => {
   if (!worklog) return '<p class="iss-empty">La foto cargada no trae las notas de Remedy: carga un CSV nuevo de la consulta.</p>';
   if (!worklog.length) return '<p class="iss-empty">Sin notas de trabajo en Remedy.</p>';
-  return `<div class="iss-wl">${[...worklog].reverse().map((n, k) => `<details class="iss-wl-card"${k === 0 ? ' open' : ''}>
+  return `<div class="iss-wl">${newestFirst(worklog).map((n, k) => `<details class="iss-wl-card"${k === 0 ? ' open' : ''}>
       <summary><b>${esc(n.who)}</b><span class="iss-wl-peek">${esc(firstLine(n.text))}</span><time>${whenLabel(n.at, now)}</time></summary>
       <p>${esc(n.text)}</p>
     </details>`).join('')}</div>`;
@@ -64,8 +64,15 @@ export const noteEditorHtml = (text) => `<form class="iss-note-edit" data-note-e
 // Lo más reciente arriba; cada entrada con su cuándo («HOY 13:05» o «22/10 12:06»).
 // meId: quién mira, para ofrecer «Editar» solo en sus notas recientes.
 export const trailHtml = (timeline = [], now = new Date(), meId = null) => (timeline.length
-  ? `<ol class="iss-trail-list">${[...timeline].reverse().map((t) => trailItem(t, meId, now)).join('')}</ol>`
+  ? `<ol class="iss-trail-list">${newestFirst(timeline).map((t) => trailItem(t, meId, now)).join('')}</ol>`
   : '<p class="iss-empty">Nadie la ha movido ni anotado en SIA todavía.</p>');
+
+// El arranque de la resolución asistida: solo el botón; si no se puede, el
+// motivo debajo y el botón apagado.
+export const assistHtml = (error = null) => `<div class="iss-assist">
+    <button class="lab-btn primary iss-assist-go" data-assist ${error ? 'disabled' : ''}>Iniciar resolución asistida por IA</button>
+    ${error ? `<p class="iss-assist-hint">${esc(error)}</p>` : ''}
+  </div>`;
 
 // En el campo de nota, Intro envía; Mayús+Intro salta de línea.
 export const sendsNote = (e) => e.key === 'Enter' && !e.shiftKey;
@@ -156,8 +163,7 @@ export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, meI
       <div class="k-open"><span>Abierta</span><b>${age(i.reported, now)}</b><small>desde que se creó</small></div>
       <div class="k-moved"><span>Último movimiento</span><b>${i.modified ? `hace ${age(i.modified, now)}` : '—'}</b><small>${when(i.modified)}</small></div>
     </section>
-    <aside class="iss-card iss-chat" aria-label="Chat de la issue">
-      <div class="iss-card-h" data-chat-head hidden><h3>Resolución asistida por IA</h3></div>
+    <aside class="iss-card iss-chat" aria-label="Resolución asistida por IA">
       <div class="iss-chat-body"></div>
     </aside>
     </div>

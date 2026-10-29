@@ -55,7 +55,7 @@ las rutas de cada slice.
 | `launchers/`, `workspace/` | Los CLIs (Claude, Copilot, Codex), sus argumentos y su MCP por sesión; los directorios de modo y skills por base |
 | `remote/` | Acceso desde el móvil: emparejar por QR + PIN, candado, túnel de Cloudflare |
 | `terminal/` | Las sesiones de chat y el protocolo WebSocket |
-| `updates/`, `shared/` | `/api/version`; lo común (HTTP, CSV, ids, puertos, cabeceras, permisos) |
+| `updates/`, `shared/` | `/api/version`; lo común (HTTP, CSV, ids, puertos, cabeceras, permisos, el troceo de entradas de Remedy) |
 
 Cosas que conviene saber:
 

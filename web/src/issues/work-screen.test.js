@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { workScreen, trailHtml, trailTab, releaseDialogHtml, noteFormHtml, sendsNote, canEditNote, noteEditorHtml, worklogHtml } from './work-screen.js';
+import { workScreen, trailHtml, trailTab, releaseDialogHtml, noteFormHtml, sendsNote, canEditNote, noteEditorHtml, worklogHtml, firstLine, assistHtml } from './work-screen.js';
 
 const issue = (o = {}) => ({ id: 'INC1', text: 'PDA <sin imagen>', priority: 'HIGH', status: 'ASSIGNED', reason: '', notes: 'no <arranca>',
   resolution: '', category: 'SGA', group: 'AYS SOPORTE', assignee: '', reported: '2026-10-01 10:00', modified: '2026-10-01 11:00',
@@ -14,8 +14,8 @@ test('la pantalla: cuatro pestañas, Detalle por defecto, sin análisis de la IA
   assert.match(html, /data-wtab="detail" aria-selected="true"/);
   assert.doesNotMatch(html, /Análisis de la IA|data-wpanel="ai"/);
   assert.match(html, /Nadie la ha movido ni anotado en SIA todavía/);
-  assert.match(html, /data-chat-head hidden><h3>Resolución asistida por IA<\/h3>/);
-  assert.doesNotMatch(html, /iss-chat-note/);
+  assert.doesNotMatch(html, /data-chat-head|iss-chat-note/, 'la cabecera del chat la pinta el propio chat');
+  assert.match(html, /<div class="iss-chat-body"><\/div>/);
   assert.match(html, /iss-trail-hint">Por quién ha pasado esta issue y las notas internas del equipo</);
   assert.doesNotMatch(html, /data-act="note"/);
   assert.match(html, /data-note-form/);
@@ -114,4 +114,13 @@ test('las notas de Remedy: lista con quién y cuándo, escapada; vacía o sin co
   const screen = workScreen({ issue: issue({ worklog: wl }), sameCenter: [], now, mine: false, tab: 'remedy' });
   assert.match(screen, /data-wtab="remedy" aria-selected="true">Notas de Remedy<span>2<\/span>/);
   assert.doesNotMatch(workScreen({ issue: issue(), sameCenter: [], now, mine: false }), /Notas de Remedy<span>/);
+});
+
+test('la primera línea de una nota, recortada a 90; el arranque de la resolución asistida', () => {
+  assert.equal(firstLine('  una línea corta  '), 'una línea corta');
+  assert.equal(firstLine('primera\nsegunda'), 'primera');
+  assert.equal(firstLine('x'.repeat(95)), 'x'.repeat(90) + '…');
+  assert.match(assistHtml(), /<button class="lab-btn primary iss-assist-go" data-assist >Iniciar resolución asistida por IA<\/button>/);
+  assert.doesNotMatch(assistHtml(), /iss-assist-hint/);
+  assert.match(assistHtml('Claude <no> está'), /data-assist disabled>[^]*<p class="iss-assist-hint">Claude &lt;no&gt; está<\/p>/);
 });

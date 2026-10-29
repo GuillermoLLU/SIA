@@ -138,6 +138,7 @@
 .iss-tl { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 13px; }
 .iss-tl time { display: inline-block; width: 96px; color: var(--text-low); font-variant-numeric: tabular-nums; }
 .iss-trail-panel { overflow: hidden; gap: 10px; }
+/* la nota pequeña a la derecha que explica una pestaña (histórico y notas de Remedy) */
 .iss-trail-hint { align-self: flex-end; max-width: 60%; margin: 0; padding: 7px 12px; font-size: 11.5px; line-height: 1.45; color: var(--text-low); text-align: right; background: color-mix(in srgb, var(--accent) 6%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border)); border-right: 3px solid var(--accent); }
 .iss-trail-scroll { flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px; }
 .iss-trail-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; font-size: 13px; }
@@ -183,7 +184,8 @@
 .iss-chat { flex: 1; min-height: 0; }
 .iss-chat-body { flex: 1; min-height: 0; display: flex; flex-direction: column; margin: 0 -8px -8px; }
 .iss-chat-body .term-host { flex: 1; min-height: 0; height: auto; padding: 6px; background: var(--bg); }
-.iss-chat-chooser { flex: 1; height: auto; gap: 14px; padding: 8px; overflow-y: auto; }
+.iss-chat-start { flex: 1; display: flex; flex-direction: column; gap: 14px; padding: 8px; overflow-y: auto; }
+.iss-chat-start[hidden] { display: none; }
 /* el arranque de la resolución asistida: un botón en el centro y con qué se abre */
 .iss-assist { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px 16px; text-align: center; }
 .iss-assist-go { padding: 12px 22px; font-size: 14px; }
