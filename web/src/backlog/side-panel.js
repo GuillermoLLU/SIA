@@ -9,7 +9,9 @@ import { sev, origin } from '../issues/parts.js';
 import { worklogHtml } from '../issues/work-screen.js';
 
 // Priorizar: la prioridad es la etiqueta PRIO de Remedy, que pone negocio.
-const pinHtml = ({ prio }) => `<div class="bl-act"><h5>Priorizar</h5><p>${prio ? 'Ya está priorizada por negocio en Remedy.' : 'Es la etiqueta de negocio en Remedy; desde aquí, en cuanto SIA pueda escribirla.'}</p><button class="lab-btn" data-pin ${prio ? 'disabled' : ''}>Priorizar</button></div>`;
+const pinHtml = ({ prio }) => `<div class="bl-act"><h5>Priorizar</h5><p>${prio ? 'Ya está priorizada por negocio.' : 'Pasará a priorizada por negocio.'}</p>
+    <button class="lab-btn primary" data-pin ${prio ? 'disabled' : ''}>Priorizar</button>
+    <small class="bl-act-note">Pendiente: la prioridad es la etiqueta PRIO de Remedy y SIA aún no puede escribirla.</small></div>`;
 
 // Asignarla a alguien del equipo (people: [{ id, name }]).
 const assignHtml = ({ people, busy }) => `<form class="bl-act bl-act-form" data-assign-form><h5>Asignar</h5><p>Pasará a la mesa de esa persona, como cogida.</p>
