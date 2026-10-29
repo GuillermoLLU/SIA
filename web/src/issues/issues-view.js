@@ -13,7 +13,7 @@ import { ACTIONS, actionForm, readAction, isComplete } from './actions.js';
 import { resolveForm, resolveReview, resumeStep, stepMissing, STEPS, MAX_FILE, fileBox, localShort } from './resolve-form.js';
 import { readEscalate, createEscalateDrafts } from './escalate.js';
 import { escalateForm, escalateLive } from './escalate-form.js';
-import { DESTINATIONS, OPEN_TICKETS, TEST_CASES } from './escalate-mock.js';
+import { DESTINATIONS, OPEN_TICKETS } from './escalate-mock.js';
 
 const GOAL = { min: 15, max: 20 }; // resueltas por turno, lo que dice el equipo
 const REFRESH_MS = 15000;
@@ -296,17 +296,14 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     clearTimeout(autosave);
     autosave = setTimeout(() => { autosave = null; saveNow(form); }, 800);
   });
-  // Escalar: el catálogo y los tickets abiertos son de prueba (escalate-mock.js);
-  // en desarrollo, además, se puede simular un caso sobre la issue abierta. Lo
-  // escrito se guarda por issue hasta escalar o unir (escDrafts).
-  let escCase = '';
+  // Escalar: el catálogo y los tickets abiertos son de prueba (escalate-mock.js).
+  // Lo escrito se guarda por issue hasta escalar o unir (escDrafts).
   const escDrafts = createEscalateDrafts();
-  const escIssue = () => (TEST_CASES.find((c) => c.id === escCase) || TEST_CASES[0]).apply(issue, new Date());
-  const escalateModal = (v, saved = null) => escalateForm({ issue: escIssue(), now: new Date(), dests: DESTINATIONS, open: OPEN_TICKETS, v, cases: import.meta.env.DEV ? TEST_CASES : null, caseId: escCase, saved });
+  const escalateModal = () => escalateForm({ issue, dests: DESTINATIONS, open: OPEN_TICKETS, v: escDrafts.get(opened) || {} });
   const refreshEscalate = (form) => {
     const v = Object.fromEntries(new FormData(form));
     escDrafts.save(opened, v);
-    const live = escalateLive(v, { issue: escIssue(), dests: DESTINATIONS });
+    const live = escalateLive(v, { issue, dests: DESTINATIONS });
     for (const [k, html] of Object.entries(live.html)) form.querySelector(`[data-esc-live="${k}"]`).innerHTML = html;
     for (const k of ['other', 'jira', 'dev']) form.querySelector(`[data-esc-when="${k}"]`).hidden = !live.show[k];
     const link = v.mode === 'link';
@@ -315,24 +312,10 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     form.querySelector('.iss-esc-hint')?.toggleAttribute('hidden', link);
     form.querySelector('[data-esc-ok]').textContent = link ? 'Unir al ticket' : 'Escalar';
   };
-  // Otro caso de prueba: el modal se repinta con lo escrito; el ticket a unir vuelve a salir del caso.
-  const escalateCase = (form, caseId) => {
-    escCase = caseId;
-    const v = Object.fromEntries(new FormData(form));
-    delete v.linked; delete v.linkedOther;
-    escDrafts.save(opened, v);
-    root.querySelector('.iss-modal').innerHTML = escalateModal(v);
-  };
-  root.addEventListener('input', (e) => {
-    const form = e.target.closest('[data-act-form="escalate"]');
-    if (!form) return;
-    if (e.target.matches('[data-esc-case]')) return escalateCase(form, e.target.value);
-    refreshEscalate(form);
-  });
+  root.addEventListener('input', (e) => { const form = e.target.closest('[data-act-form="escalate"]'); if (form) refreshEscalate(form); });
   // Escribir en «Otro ticket» o pulsar «Unirla a…» elige esa opción sin buscar el radio.
   root.addEventListener('focusin', (e) => { if (e.target.name === 'linkedOther') e.target.closest('label').querySelector('[name="linked"]').checked = true; });
   root.addEventListener('click', (e) => {
-    if (e.target.closest('[data-esc-drop]')) { escDrafts.drop(opened); root.querySelector('.iss-modal').innerHTML = escalateModal(); return; }
     const use = e.target.closest('[data-esc-use-link]');
     if (!use) return;
     const form = use.closest('form');
@@ -351,7 +334,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       start = await api.startResolve(opened);
       attached = start.draft?.file || null;
     }
-    const form = key === 'resolve' ? resolveForm(opened, start.check, start.draft) : key === 'escalate' ? escalateModal(escDrafts.get(opened)?.values, escDrafts.get(opened)) : actionForm(key, opened, people);
+    const form = key === 'resolve' ? resolveForm(opened, start.check, start.draft) : key === 'escalate' ? escalateModal() : actionForm(key, opened, people);
     root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${form}</div>`);
     root.querySelector(key === 'escalate' ? '#iss-f-dest' : '.iss-act-form textarea, .iss-act-form input:not([type=hidden]), .iss-act-form select')?.focus();
     // Resolver se retoma en el paso en el que se quedó (también enfoca lo suyo)
@@ -453,7 +436,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       return toast?.('Resolver: comprobado, pero aún no se envía a Remedy (falta conectar SIGLO).');
     }
     if (key === 'escalate') {
-      const rootCause = escIssue().status === 'RESOLVED';
+      const rootCause = issue.status === 'RESOLVED';
       escDrafts.drop(opened);   // escalada o unida: ya no hay nada pendiente
       closeAction();
       return toast?.(values.mode === 'link'

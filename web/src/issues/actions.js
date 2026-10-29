@@ -32,11 +32,11 @@ export const ACTIONS = {
 // El desplegable de la web es propio (el nativo no se puede pintar): un campo
 // oculto con el valor, un botón con lo elegido y la lista debajo. Abrir, elegir
 // y cerrar lo lleva la vista (issues-view.js) por data-pick-*. `groups`:
-// [{ label?, options: [{ value, label }] }]; `name` o `attr`, el campo oculto.
-export const pickField = ({ id, name = '', attr = '', value = '', placeholder = '', groups, disabled = false }) => {
+// [{ label?, options: [{ value, label }] }]; `name`, el del campo oculto.
+export const pickField = ({ id, name, value = '', placeholder = '', groups, disabled = false }) => {
   const chosen = groups.flatMap((g) => g.options).find((o) => o.value === value);
   return `<div class="iss-pick" data-pick>
-      <input type="hidden"${name ? ` name="${name}"` : ''}${attr ? ` ${attr}` : ''} value="${esc(value)}">
+      <input type="hidden" name="${name}" value="${esc(value)}">
       <button type="button" id="${id}" class="iss-pick-btn" data-pick-btn aria-haspopup="listbox" aria-expanded="false"${disabled ? ' disabled' : ''}><span data-pick-label${chosen ? '' : ' class="iss-pick-ph"'}>${esc(chosen ? chosen.label : placeholder)}</span></button>
       <ul class="iss-pick-list" role="listbox" hidden>${groups.map((g) => `${g.label ? `<li role="presentation" class="iss-pick-group">${esc(g.label)}</li>` : ''}${g.options.map((o) => `<li role="option" data-pick-opt="${esc(o.value)}" aria-selected="${o.value === value}">${esc(o.label)}</li>`).join('')}`).join('')}</ul>
     </div>`;

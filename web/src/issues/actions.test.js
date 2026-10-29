@@ -34,5 +34,5 @@ test('el desplegable de la web: valor, grupos, lo elegido y escapado', () => {
   assert.match(html, /data-pick-btn[^>]*><span data-pick-label>B &amp; C<\/span>/);
   assert.match(html, /<li role="presentation" class="iss-pick-group">G &lt;1&gt;<\/li>/);
   assert.match(html, /data-pick-opt="b" aria-selected="true"/);
-  assert.match(pickField({ id: 'x', attr: 'data-x', placeholder: 'Elige', groups: [{ options: [] }] }), /<input type="hidden" data-x value="">[\s\S]*class="iss-pick-ph">Elige</);
+  assert.match(pickField({ id: 'x', name: 'y', placeholder: 'Elige', groups: [{ options: [] }] }), /<input type="hidden" name="y" value="">[\s\S]*class="iss-pick-ph">Elige</);
 });

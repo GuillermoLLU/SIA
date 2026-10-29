@@ -1,7 +1,6 @@
 // Escalar (#9), sin DOM: el ticket de proveedor (formato y prefijos de hoy),
-// los plazos del contrato, la prioridad del Jira y qué hace falta para
-// escalar o vincular. Los destinos llegan de fuera (el catálogo).
-import { duration } from './format.js';
+// la prioridad del Jira y qué hace falta para escalar o vincular. Los destinos
+// llegan de fuera (el catálogo).
 
 // Una clave de Jira (PROYECTO-número) o una incidencia de Remedy (INC y 12 dígitos).
 const JIRA = /^[A-Z][A-Z0-9]*-\d+$/;
@@ -23,25 +22,6 @@ export const ticketCheck = (raw) => {
   if (tickets.length > 1) return { state: 'many', tickets };
   return { state: 'ok', value: tickets[0], changed: tickets[0] !== text };
 };
-
-// Plazos del contrato para escalar a N2 o N3, en minutos: ver que hace falta,
-// el escalado formal y la confirmación de recepción del grupo receptor.
-const DEADLINES = {
-  CRITICAL: { label: 'crítica', formal: 45, ack: 45 },
-  HIGH: { label: 'alta', formal: 180, ack: 240 },
-  rest: { label: 'media o baja', formal: 480, ack: 1440 },
-};
-export const deadlines = (priority) => DEADLINES[priority] || DEADLINES.rest;
-
-// El reloj del escalado formal: desde que se cogió en SIA o, si no, desde
-// que se creó. → { limit, elapsed, left, late, from }
-export const formalClock = (issue, now) => {
-  const d = deadlines(issue.priority);
-  const at = issue.claimedBy?.at ? new Date(issue.claimedBy.at) : new Date(String(issue.reported).replace(' ', 'T'));
-  const elapsed = Math.max(0, (now - at) / 60000);
-  return { limit: d.formal, elapsed, left: d.formal - elapsed, late: elapsed > d.formal, from: issue.claimedBy?.at ? 'cogió' : 'creó' };
-};
-export const clockText = (c) => (c.late ? `Te has pasado ${duration(-c.left)}` : `Quedan ${duration(c.left)}`);
 
 // La prioridad del Jira según la categoría de SIGLO (proceso de soporte, 2.4).
 export const JIRA_PRIORITIES = [
@@ -87,13 +67,13 @@ export const readEscalate = (v, dests) => {
 };
 
 // Lo escrito en Escalar, por issue, hasta que se escala o se une: cerrar el
-// modal no lo pierde. → { get(id) → { values, at } | null, save(id, values), drop(id) }
+// modal no lo pierde. → { get(id) → values | null, save(id, values), drop(id) }
 // shortcut: en memoria de esta ventana, se pierde al recargar; con la integración irá al bridge, como el borrador de Resolver.
-export const createEscalateDrafts = (clock = () => new Date()) => {
+export const createEscalateDrafts = () => {
   const drafts = new Map();
   return {
     get: (id) => drafts.get(id) ?? null,
-    save: (id, values) => { drafts.set(id, { values, at: clock() }); },
+    save: (id, values) => { drafts.set(id, values); },
     drop: (id) => { drafts.delete(id); },
   };
 };

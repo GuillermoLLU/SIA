@@ -3,13 +3,10 @@
 // o a qué ticket; lo demás se recomienda, no bloquea. Lo que depende de lo
 // escrito son piezas que la vista vuelve a pintar al teclear: escalateLive.
 import { esc } from '../ui/html.js';
-import { when, duration } from './format.js';
-import { localShort } from './resolve-form.js';
+import { when } from './format.js';
 import { pickField } from './actions.js';
-import { ticketCheck, deadlines, formalClock, clockText, JIRA_PRIORITIES, jiraPriority, n3Subject, isDev, opensTicket } from './escalate.js';
+import { ticketCheck, JIRA_PRIORITIES, jiraPriority, n3Subject, isDev, opensTicket } from './escalate.js';
 
-const VIA = { SIGLO: 'por SIGLO', IOP: 'por IOP', MoninBot: 'por MoninBot', Correo: 'por correo' };
-const OPENS = { jira: 'abre un Jira', remedy: 'abre una incidencia de Remedy', none: 'no abre ticket' };
 const GROUPS = [
   ['N3 · el equipo que mantiene el módulo (por SIGLO)', (d) => d.level === 'N3' && d.via === 'SIGLO'],
   ['N2 · otro equipo de soporte (por IOP)', (d) => d.via === 'IOP'],
@@ -20,13 +17,6 @@ const destGroups = (dests) => [
   ...GROUPS.map(([label, test]) => ({ label, options: dests.filter(test).map((d) => ({ value: d.id, label: d.name })) })),
   { label: 'Fuera del mapa', options: [{ value: 'other', label: 'Otro equipo, fuera del mapa' }] },
 ];
-
-// Qué pasa al escalar a ese destino, dicho para quien no lo ha hecho nunca.
-const destText = (v, dest) => !v.dest ? 'Del mapa de escalado de soporte ECOM. Si no sabes cuál, busca el módulo que falla.'
-  : !dest ? 'Fuera del mapa: escribe el equipo y cuenta abajo cómo se lo has hecho llegar.'
-  : `${dest.level === 'N3' ? 'N3, el equipo que mantiene el módulo' : 'Otro equipo de soporte (N2)'}. Se escala ${VIA[dest.via]} y ${OPENS[dest.opens]}`
-    + (opensTicket(dest) ? ': el ticket llega solo a la issue.' : ': no queda rastro en ninguna herramienta, así que cuenta abajo qué has enviado.')
-    + (dest.via === 'Correo' ? ' Si es alta o crítica, llama además.' : '');
 
 // El ticket «otro» al vincular, comprobado al teclear.
 const linkedText = (raw) => {
@@ -49,7 +39,6 @@ export const escalateLive = (v, { issue, dests }) => {
     </ul>`;
   return {
     html: {
-      dest: `<small>${esc(destText(v, dest))}</small>`,
       sentTag: opens ? '(opcional)' : '(recomendado)',
       linked: linkedText(v.linkedOther),
       check: checklist,
@@ -57,23 +46,6 @@ export const escalateLive = (v, { issue, dests }) => {
     },
     show: { other: v.dest === 'other', jira: dest?.opens === 'jira', dev: isDev(dest) },
   };
-};
-
-// El reloj del escalado formal, arriba y a la vista.
-const clockLine = (issue, now) => {
-  const d = deadlines(issue.priority), c = formalClock(issue, now);
-  return `<p class="iss-esc-clock${c.late ? ' late' : ''}"><b>${clockText(c)}</b> ${c.late ? 'del plazo para' : 'para'} el escalado formal · ${d.label}: ${duration(d.formal)} desde que se ${c.from}</p>`;
-};
-
-// El detalle de los plazos y, en altas y críticas, los niveles: plegado.
-const deadlineBox = (issue) => {
-  const d = deadlines(issue.priority);
-  const urgent = issue.priority === 'CRITICAL' || issue.priority === 'HIGH';
-  return `<details class="iss-esc-box"><summary>Plazos y qué hacer si no responden</summary>
-      <p>El escalado formal va con el análisis previo y las evidencias, en menos de ${duration(d.formal)}.</p>
-      <p>El destino tiene que confirmar que lo ha recibido en menos de ${duration(d.ack)}${issue.priority === 'HIGH' ? ', con nota pública y teléfono con 3 intentos' : ''}.</p>
-      ${urgent ? '<p class="iss-esc-levels">Estás en el <b>nivel 1</b> (N3, Operaciones o desarrollo). Si no hay solución, nivel 2: el responsable técnico del módulo. A la 1 h sin diagnóstico ni plan, nivel 3: el responsable funcional. <i>Manual de Remedy, sección 07.</i></p>' : ''}
-    </details>`;
 };
 
 // N3 de desarrollo: lo mínimo que hay que enviar (proceso de soporte, 2.3).
@@ -89,12 +61,9 @@ const devBox = (issue, dest) => `<section class="iss-esc-dev" data-esc-when="dev
 // Una opción que se elige pulsando la tarjeta entera; el radio no se ve.
 const card = (name, value, checked, body) => `<label class="iss-esc-card"><input type="radio" class="iss-sr" name="${name}" value="${esc(value)}"${checked ? ' checked' : ''} />${body}</label>`;
 
-// `issue`: la issue (ya con el caso de prueba aplicado); `dests` y `open`:
-// el catálogo y los tickets abiertos; `v`: lo que ya hay escrito; `cases`:
-// los casos de prueba (solo en desarrollo) y `caseId`, el elegido; `saved`:
-// { at } si lo escrito viene de antes de cerrar el modal.
-export const escalateForm = ({ issue, now, dests, open, v = {}, cases = null, caseId = '', saved = null }) => {
-  const rootCause = issue.status === 'RESOLVED';
+// `issue`: la issue abierta; `dests` y `open`: el catálogo y los tickets
+// abiertos; `v`: lo que ya hay escrito (lo que se dejó al cerrar el modal).
+export const escalateForm = ({ issue, dests, open, v = {} }) => {
   // Si la foto ya trae un ticket, puede que esté escalada: se propone unirla a él.
   const known = ticketCheck(issue.vendorTicket);
   const fromPhoto = known.state === 'ok' ? known.value : '';
@@ -105,13 +74,7 @@ export const escalateForm = ({ issue, now, dests, open, v = {}, cases = null, ca
   const live = escalateLive(values, { issue, dests });
   const link = values.mode === 'link';
   return `<form class="iss-act-form iss-esc" data-act-form="escalate" novalidate>
-    <header><h3>${rootCause ? 'Escalar por la causa raíz' : 'Escalar la issue'}</h3><span class="iss-act-id">${esc(issue.id)}</span></header>
-    ${cases ? `<div class="iss-test"><span>Datos de prueba</span>${pickField({ id: 'iss-f-case', attr: 'data-esc-case', value: caseId, groups: [{ options: cases.map((c) => ({ value: c.id, label: c.label })) }] })}</div>` : ''}
-    ${saved ? `<p class="iss-saved">Sigues con lo que dejaste a las ${localShort(saved.at.toISOString()).slice(-5)}. <button type="button" class="lab-btn" data-esc-drop>Descartar y empezar de nuevo</button></p>` : ''}
-    <p class="iss-esc-intro">${rootCause
-      ? 'Está Resuelta con una solución temporal: se registra el escalado de la causa raíz y la issue sigue Resuelta.'
-      : 'Cuando en soporte no se puede resolver, se pasa al equipo que puede. La issue queda en Pendiente (proveedor) hasta que contesten.'}</p>
-    ${clockLine(issue, now)}
+    <header><h3>${issue.status === 'RESOLVED' ? 'Escalar por la causa raíz' : 'Escalar la issue'}</h3><span class="iss-act-id">${esc(issue.id)}</span></header>
     ${fromPhoto && !link ? `<p class="iss-esc-hint"><span>Remedy ya trae el ticket <b class="iss-mono">${esc(fromPhoto)}</b>: puede que ya esté escalada.</span><button type="button" class="lab-btn" data-esc-use-link>Unirla a ${esc(fromPhoto)}</button></p>` : ''}
 
     <div class="iss-esc-mode" role="radiogroup" aria-label="¿Qué vas a hacer?">
@@ -120,12 +83,11 @@ export const escalateForm = ({ issue, now, dests, open, v = {}, cases = null, ca
     </div>
 
     <div data-esc-mode="escalate"${link ? ' hidden' : ''}>
-      <div class="iss-field"><span>¿A qué equipo se escala?</span>${pickField({ id: 'iss-f-dest', name: 'dest', value: values.dest || '', placeholder: 'Elige el equipo', groups: destGroups(dests) })}<span data-esc-live="dest">${live.html.dest}</span></div>
+      <div class="iss-field"><span>¿A qué equipo se escala?</span>${pickField({ id: 'iss-f-dest', name: 'dest', value: values.dest || '', placeholder: 'Elige el equipo', groups: destGroups(dests) })}</div>
       <label class="iss-field" for="iss-f-destOther" data-esc-when="other"${live.show.other ? '' : ' hidden'}><span>Equipo o proveedor</span><input id="iss-f-destOther" name="destOther" value="${esc(values.destOther || '')}" placeholder="Ej.: Soporte de transporte" /></label>
       <div class="iss-field" data-esc-when="jira"${live.show.jira ? '' : ' hidden'}><span>Prioridad del Jira</span>
-        ${pickField({ id: 'iss-f-jira', name: 'jiraPriority', value: values.jiraPriority, groups: [{ options: JIRA_PRIORITIES.map((p) => ({ value: p.id, label: `${p.label} · ${p.when}` })) }] })}
-        <small>Por su criticidad le toca «${JIRA_PRIORITIES.find((p) => p.id === jiraPriority(issue.priority)).label}»: ya está puesta.</small></div>
-      <label class="iss-field" for="iss-f-reason"><span>¿Por qué se escala?</span><textarea id="iss-f-reason" name="reason" rows="3" placeholder="Ej.: desde las 10:00 el túnel RFID de la mesa 3 tarda de 8 a 12 s. Reiniciado el servicio, sigue igual.">${esc(values.reason || '')}</textarea><small>Qué has visto y qué has probado. Antes, mira si hay un procedimiento para resolverlo en soporte.</small></label>
+        ${pickField({ id: 'iss-f-jira', name: 'jiraPriority', value: values.jiraPriority, groups: [{ options: JIRA_PRIORITIES.map((p) => ({ value: p.id, label: `${p.label} · ${p.when}` })) }] })}</div>
+      <label class="iss-field" for="iss-f-reason"><span>¿Por qué se escala?</span><textarea id="iss-f-reason" name="reason" rows="3" placeholder="Ej.: desde las 10:00 el túnel RFID de la mesa 3 tarda de 8 a 12 s. Reiniciado el servicio, sigue igual.">${esc(values.reason || '')}</textarea></label>
       <label class="iss-field" for="iss-f-sent"><span>¿Qué se ha enviado? <i data-esc-live="sentTag">${live.html.sentTag}</i></span><textarea id="iss-f-sent" name="sent" rows="2" placeholder="Ej.: logs del proceso y una captura del error, por correo a las 10:12.">${esc(values.sent || '')}</textarea></label>
       ${devBox(issue, dest)}
       <section class="iss-esc-before"><h4>Para que llegue bien <i>(no bloquea)</i></h4><div data-esc-live="check">${live.html.check}</div></section>
@@ -138,8 +100,6 @@ export const escalateForm = ({ issue, now, dests, open, v = {}, cases = null, ca
       </fieldset>
       <label class="iss-field" for="iss-f-why"><span>¿Por qué es el mismo problema? <i>(opcional)</i></span><textarea id="iss-f-why" name="why" rows="2">${esc(values.why || '')}</textarea></label>
     </div>
-
-    ${deadlineBox(issue)}
 
     <p class="iss-act-note">Aún no se envía a Remedy: irá cuando lo conectemos.</p>
     <p class="iss-act-err" hidden></p>

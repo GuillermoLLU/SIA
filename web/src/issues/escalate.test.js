@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseTickets, ticketCheck, deadlines, formalClock, clockText, jiraPriority, n3Subject, escalateTodo, readEscalate, createEscalateDrafts } from './escalate.js';
+import { parseTickets, ticketCheck, jiraPriority, n3Subject, escalateTodo, readEscalate, createEscalateDrafts } from './escalate.js';
 import { DESTINATIONS } from './escalate-mock.js';
 
 const dest = (id) => DESTINATIONS.find((d) => d.id === id);
@@ -19,19 +19,6 @@ test('el ticket al que se une: vacío, válido, limpiado, mal escrito y varios',
   assert.deepEqual(ticketCheck('ITD: SISUPAC-9211'), { state: 'ok', value: 'SISUPAC-9211', changed: true });
   assert.equal(ticketCheck('TEC: MOCA').state, 'bad');
   assert.equal(ticketCheck('SISUPAC-1, WOSPAC-2').state, 'many');
-});
-
-test('los plazos del contrato por criticidad y el reloj del escalado formal', () => {
-  assert.equal(deadlines('CRITICAL').formal, 45);
-  assert.equal(deadlines('HIGH').ack, 240);
-  assert.equal(deadlines('LOW').formal, 480);
-  const now = new Date('2026-10-29T12:00:00');
-  const onTime = formalClock({ priority: 'CRITICAL', reported: '2026-10-29 11:00', claimedBy: { at: '2026-10-29T11:40:00' } }, now);
-  assert.deepEqual([onTime.late, Math.round(onTime.left), onTime.from], [false, 25, 'cogió']);
-  assert.equal(clockText(onTime), 'Quedan 25 min');
-  const late = formalClock({ priority: 'CRITICAL', reported: '2026-10-29 09:00', claimedBy: null }, now);
-  assert.deepEqual([late.late, late.from], [true, 'creó']);
-  assert.equal(clockText(late), 'Te has pasado 2 h');
 });
 
 test('la prioridad del Jira y el asunto del chat de N3', () => {
@@ -70,15 +57,14 @@ test('unir: a uno de la lista o a otro, siempre con un ticket válido', () => {
   assert.equal(r({ linked: 'other', linkedOther: 'ITD: ERA-4170' }).values.ticket, 'ERA-4170');
 });
 
-test('el borrador de Escalar: por issue, con su hora, hasta que se descarta o se escala', () => {
-  const at = new Date('2026-10-29T12:40:00');
-  const d = createEscalateDrafts(() => at);
+test('el borrador de Escalar: por issue, hasta que se escala o se une', () => {
+  const d = createEscalateDrafts();
   assert.equal(d.get('INC1'), null);
   d.save('INC1', { dest: 'sisupac' });
-  assert.deepEqual(d.get('INC1'), { values: { dest: 'sisupac' }, at });
+  assert.deepEqual(d.get('INC1'), { dest: 'sisupac' });
   assert.equal(d.get('INC2'), null);
   d.save('INC1', { dest: 'returns' });
-  assert.equal(d.get('INC1').values.dest, 'returns');
+  assert.equal(d.get('INC1').dest, 'returns');
   d.drop('INC1');
   assert.equal(d.get('INC1'), null);
 });

@@ -1,7 +1,6 @@
 // Datos de prueba de Escalar, hasta tener el catálogo completo de #34 y los
 // eventos de SIA (#24): un extracto del mapa de escalado de soporte ECOM (un
-// destino de cada tipo), tickets ya abiertos para vincular y los casos que se
-// pueden simular sobre una issue de la foto para revisar la vista.
+// destino de cada tipo) y tickets ya abiertos para vincular.
 
 // level: N2 o N3 · via: por dónde se escala · opens: lo que abre (jira, remedy o none)
 // · project: el proyecto de Jira que abre, para comprobar el ticket.
@@ -26,21 +25,4 @@ export const OPEN_TICKETS = [
   { ticket: 'SISUPAC-9211', dest: 'sisupac', title: 'Lentitud RFID en packing', issues: 5, since: '2026-10-27 09:12' },
   { ticket: 'ITSMECOM-5804475', dest: 'returns', title: 'Error aleatorio en el proceso de returns', issues: 2, since: '2026-10-26 18:40' },
   { ticket: 'INC000027778368', dest: 'maestros', title: 'Artículo sin maestro en el centro', issues: 1, since: '2026-10-28 08:05' },
-];
-
-const ago = (now, min) => {
-  const d = new Date(now - min * 60000), p = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
-};
-
-// Casos que se simulan sobre la issue abierta: cambian lo que haga falta de ella.
-export const TEST_CASES = [
-  { id: '', label: 'La issue tal cual viene de la foto', apply: (i) => i },
-  { id: 'crit-ok', label: 'Crítica cogida hace 20 min (en plazo)', apply: (i, now) => ({ ...i, priority: 'CRITICAL', status: 'IN_PROGRESS', reported: ago(now, 25), claimedBy: { ...(i.claimedBy || { name: 'Ana' }), at: new Date(now - 20 * 60000).toISOString() } }) },
-  { id: 'crit-late', label: 'Crítica fuera de plazo', apply: (i, now) => ({ ...i, priority: 'CRITICAL', status: 'IN_PROGRESS', reported: ago(now, 190), claimedBy: null }) },
-  { id: 'high', label: 'Alta cogida hace 1 h', apply: (i, now) => ({ ...i, priority: 'HIGH', status: 'IN_PROGRESS', reported: ago(now, 70), claimedBy: { ...(i.claimedBy || { name: 'Ana' }), at: new Date(now - 60 * 60000).toISOString() } }) },
-  { id: 'medium', label: 'Media cogida hace 5 h', apply: (i, now) => ({ ...i, priority: 'MEDIUM', status: 'IN_PROGRESS', reported: ago(now, 320), claimedBy: { ...(i.claimedBy || { name: 'Ana' }), at: new Date(now - 300 * 60000).toISOString() } }) },
-  { id: 'known', label: 'Remedy ya trae un ticket abierto (se propone unirla)', apply: (i) => ({ ...i, vendorTicket: 'ITD: SISUPAC-9211' }) },
-  { id: 'known-other', label: 'Remedy trae un ticket que no está en la lista', apply: (i) => ({ ...i, vendorTicket: 'TEC: SGAMSRAP-8777' }) },
-  { id: 'resolved', label: 'Resuelta con una solución temporal (causa raíz)', apply: (i) => ({ ...i, status: 'RESOLVED' }) },
 ];

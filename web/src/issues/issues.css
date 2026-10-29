@@ -294,17 +294,12 @@
 .iss-mono, .iss-esc code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; }
 .iss-esc [hidden] { display: none !important; }
 .iss-esc [data-esc-mode] { display: flex; flex-direction: column; gap: 14px; }
-.iss-esc .iss-field span[data-esc-live] { display: flex; flex-direction: column; gap: 4px; font-weight: 400; }
 /* Escalar: la lista de equipos, más alta (lleva los grupos del mapa) */
 .iss-esc .iss-pick-list { max-height: 280px; }
 .iss-esc small.ok { color: var(--iss-ok); }
 .iss-esc small.bad { color: var(--iss-crit); }
 .iss-esc small b { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-weight: 600; }
 .iss-esc textarea::placeholder, .iss-esc input::placeholder { color: var(--text-low); opacity: .7; }
-.iss-esc-intro { margin: 0; font-size: 13px; line-height: 1.45; color: var(--text-low); }
-.iss-esc-clock { margin: 0; padding: 6px 10px; font-size: 12.5px; border-left: 3px solid var(--accent); background: color-mix(in srgb, var(--accent) 5%, var(--surface)); }
-.iss-esc-clock.late { border-left-color: var(--iss-crit); background: color-mix(in srgb, var(--iss-crit) 6%, var(--surface)); }
-.iss-esc-clock.late b { color: var(--iss-crit); }
 .iss-esc-hint { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: 0; padding: 8px 10px; font-size: 12.5px; border: 1px solid color-mix(in srgb, var(--iss-high) 40%, var(--border)); }
 .iss-esc-hint .lab-btn { margin-left: auto; }
 /* Opciones que se eligen pulsando la tarjeta: el radio no se ve, la tarjeta marca la elegida */
@@ -321,14 +316,10 @@
 .iss-esc-open { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; border: 0; }
 .iss-esc-open legend { padding: 0 0 6px; font-size: 13px; font-weight: 600; }
 .iss-esc-open input[name=linkedOther] { margin-top: 4px; padding: 6px 8px; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border); }
-.iss-esc-box, .iss-esc-dev { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; font-size: 12.5px; line-height: 1.45; border: 1px solid var(--border); background: color-mix(in srgb, var(--bg) 60%, var(--surface)); }
-.iss-esc-box p, .iss-esc-dev ul { margin: 0; }
-.iss-esc-box summary { font-weight: 600; cursor: pointer; }
-.iss-esc-box i { font-style: normal; color: var(--text-low); }
-.iss-esc-levels { padding-top: 6px; border-top: 1px dashed var(--border); }
+.iss-esc-dev { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; font-size: 12.5px; line-height: 1.45; border: 1px solid var(--border); background: color-mix(in srgb, var(--bg) 60%, var(--surface)); }
 .iss-esc-dev h4, .iss-esc-before h4 { margin: 0; font-size: 13px; font-weight: 600; }
 .iss-esc-before h4 i { font-weight: 400; font-style: normal; color: var(--text-low); }
-.iss-esc-dev ul { padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.iss-esc-dev ul { display: flex; flex-direction: column; gap: 4px; margin: 0; padding-left: 18px; }
 .iss-esc-before { display: flex; flex-direction: column; gap: 8px; }
 .iss-esc-check { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 13px; }
 .iss-esc-check li { display: flex; gap: 8px; }
@@ -337,9 +328,6 @@
 .iss-esc-check li.todo > span { color: var(--text-low); }
 .iss-esc-check i { font-style: normal; color: var(--text-low); }
 @media (max-width: 560px) { .iss-esc-mode { grid-template-columns: 1fr; } }
-/* solo en desarrollo: simular un caso sobre la issue abierta */
-.iss-test { display: flex; align-items: center; gap: 8px; padding: 6px 10px; font-size: 12px; color: var(--text-low); border: 1px dashed var(--border); }
-.iss-test .iss-pick { flex: 1; min-width: 0; }
 .iss-take:focus-visible, .iss-item:focus-visible, .iss-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* la issue en el diálogo de confirmación (devolver a la cola) */
 .iss-dlg-issue { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; background: color-mix(in srgb, var(--bg) 60%, var(--surface)); border: 1px solid var(--border); }
