@@ -2,7 +2,7 @@
 // quién ha cogido qué, que lleva la base de la instancia (platform_*). Todo
 // con el JWT de quien actúa; «coger» es un simulacro: se da por hecho que
 // SIGLO la asigna en Remedy.
-import { queue, withPriorities } from './queue.js';
+import { queue } from './queue.js';
 import { loadRules, ruleById } from './rules.js';
 import { deskOf, brief } from './desk.js';
 import { today, history, dayKey } from './stats.js';
@@ -15,11 +15,11 @@ const WEEKS = 12;
 // solo dice de cuándo son los datos (taken); lo medido en SIA se mide a día de hoy.
 export const createIssuesService = ({ source, platform, now = () => new Date() }) => {
   // la foto y lo cogido en SIA
-  // la foto (con lo priorizado a mano desde el Backlog como priorizado por negocio), lo cogido en SIA y las reglas
+  // la foto, lo cogido en SIA y las reglas de priorización
   const snapshot = async (jwt) => {
     const { taken, issues } = source.load();
-    const [claims, rules, priorities] = await Promise.all([platform.rpc(jwt, 'platform_issue_claims'), loadRules(platform, jwt), platform.rpc(jwt, 'platform_issue_priorities')]);
-    return { taken, issues: withPriorities(issues, priorities), claims, claimed: new Set(claims.map((c) => c.issue_id)), rules, now: now() };
+    const [claims, rules] = await Promise.all([platform.rpc(jwt, 'platform_issue_claims'), loadRules(platform, jwt)]);
+    return { taken, issues, claims, claimed: new Set(claims.map((c) => c.issue_id)), rules, now: now() };
   };
   // la cola de una regla
   const queueOf = ({ issues, claimed, rules, now }, ruleId) => queue(issues, claimed, now, ruleById(rules, ruleId).criteria);

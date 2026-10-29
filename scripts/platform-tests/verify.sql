@@ -16,7 +16,7 @@ expected (proname) as (values
   ('platform_list_audit'), ('platform_issue_claims'), ('platform_claim_next_issue'), ('platform_release_issue'), ('platform_my_issue_events'), ('platform_issue_teammates'),
   ('platform_transfer_issue'), ('platform_issue_events'), ('platform_issue_notes'), ('platform_add_issue_note'), ('platform_edit_issue_note'), ('platform_my_transfers'),
   ('platform_list_rules'), ('platform_save_rule'), ('platform_delete_rule'),
-  ('platform_issue_priorities'), ('platform_prioritize_issue'), ('platform_unprioritize_issue'), ('platform_assign_issue')
+  ('platform_assign_issue')
 ),
 tables as (
   select c.relname, c.relrowsecurity
@@ -24,8 +24,8 @@ tables as (
   where n.nspname = 'platform' and c.relkind = 'r'
 ),
 checks (orden, comprobacion, ok, detalle) as (
-  select 1, 'Las 11 tablas existen en el esquema privado platform',
-    (select count(*) from tables where relname in ('roles', 'users', 'knowledge_bases', 'knowledge_grants', 'person_keys', 'audit_log', 'issue_claims', 'issue_events', 'issue_notes', 'priority_rules', 'issue_priorities')) = 11,
+  select 1, 'Las 10 tablas existen en el esquema privado platform',
+    (select count(*) from tables where relname in ('roles', 'users', 'knowledge_bases', 'knowledge_grants', 'person_keys', 'audit_log', 'issue_claims', 'issue_events', 'issue_notes', 'priority_rules')) = 10,
     (select string_agg(relname, ', ' order by relname) from tables)
   union all
   select 2, 'No hay funciones platform_* fuera de la API',
@@ -44,9 +44,9 @@ checks (orden, comprobacion, ok, detalle) as (
     not has_schema_privilege('anon', 'platform', 'usage') and not has_schema_privilege('authenticated', 'platform', 'usage'),
     'usage: anon=' || has_schema_privilege('anon', 'platform', 'usage') || ', authenticated=' || has_schema_privilege('authenticated', 'platform', 'usage')
   union all
-  select 6, 'Las 35 funciones de la API existen',
-    (select count(*) from api where proname in (select proname from expected)) = 35,
-    coalesce((select 'faltan: ' || string_agg(e.proname, ', ') from expected e where e.proname not in (select proname from api)), '35 de 35')
+  select 6, 'Las 32 funciones de la API existen',
+    (select count(*) from api where proname in (select proname from expected)) = 32,
+    coalesce((select 'faltan: ' || string_agg(e.proname, ', ') from expected e where e.proname not in (select proname from api)), '32 de 32')
   union all
   select 7, 'Todas son SECURITY DEFINER',
     not exists (select 1 from api where not prosecdef),

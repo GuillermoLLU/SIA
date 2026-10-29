@@ -48,12 +48,6 @@ export const orderBy = (criteria, now) => {
 
 export const isFree = (i, claimed) => i.status === 'ASSIGNED' && !i.assignee && !claimed.has(i.id);
 
-// Las priorizadas a mano desde el Backlog cuentan como priorizadas por negocio.
-export const withPriorities = (issues, priorities) => {
-  const ids = new Set(priorities.map((p) => p.issue_id));
-  return issues.map((i) => (ids.has(i.id) ? { ...i, prio: true } : i));
-};
-
 // Ids libres en el orden de los criterios (la base se queda con la primera que nadie tenga).
 export const queue = (issues, claimed, now, criteria = BASIC_RULE.criteria) =>
   issues.filter((i) => isFree(i, claimed)).sort(orderBy(criteria, now)).map((i) => i.id);

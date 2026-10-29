@@ -2,9 +2,7 @@
 // sesión: `who` = { user, accessToken }).
 //   GET    /?rule=<id>       → { taken, rule, rules, issues }  (la cola del equipo en el orden de esa regla, en breve)
 //   GET    /people           → { people: [{ id, name }] }  (el equipo de Issues, a quién asignar)
-//   GET    /:id              → { issue, pinned, claimedBy }  (una issue entera; 404 si no está en la foto)
-//   POST   /:id/prioritize   → { ok }  (cuenta como priorizada por negocio)
-//   DELETE /:id/prioritize   → { ok }
+//   GET    /:id              → { issue, claimedBy }  (una issue entera; 404 si no está en la foto)
 //   POST   /:id/assign       { to } → { ok }  (a la mesa de esa persona)
 //   GET    /rules            → { criteria, rules }  (el catálogo de criterios y las reglas, con los suyos)
 //   POST   /rules            { name, criteria } → { id }  (crear; 400 si no vale)
@@ -33,8 +31,6 @@ export const backlogRoutes = (backlog, { json, readBody }) => async (req, res, [
       const got = await backlog.get(who, id);
       return got ? json(res, 200, got) : json(res, 404, { error: 'Esa issue ya no está en la foto.' });
     }
-    if (sub === 'prioritize' && req.method === 'POST') { await backlog.prioritize(who, id); return json(res, 200, { ok: true }); }
-    if (sub === 'prioritize' && req.method === 'DELETE') { await backlog.unprioritize(who, id); return json(res, 200, { ok: true }); }
     if (sub === 'assign' && req.method === 'POST') {
       const { to } = await readBody(req);
       if (!isUuid(to)) return json(res, 400, { error: 'Elige a quién asignarla.' });

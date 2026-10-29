@@ -1,8 +1,7 @@
 // Vista «Backlog»: la cola del equipo, lo que nadie tiene aún, en el orden en
 // que la regla elegida lo iría repartiendo (la básica, u otra del selector),
-// contando lo priorizado a mano como priorizado por negocio. Al pulsar una issue se abre, a la
-// derecha de la lista, su detalle (side-panel.js), desde donde se prioriza
-// o se asigna a alguien del equipo. Para quien reparte el trabajo: aquí se
+// Al pulsar una issue se abre, a la derecha de la lista, su detalle
+// (side-panel.js), desde donde se asigna a alguien del equipo. Para quien reparte el trabajo: aquí se
 // mira la cola entera (Issues solo enseña la siguiente). Arriba, el panel:
 // cuánto hay de cada tipo, y las tarjetas filtran la lista al pulsarlas, varias
 // a la vez, y el buscador acota por código, centro o texto (filter.js);
@@ -33,7 +32,7 @@ export const mountBacklogView = (root, { api, dialogs, toast }) => {
 
   const row = (i) => `<button class="bl-row${i.id === opened ? ' on' : ''}" data-id="${esc(i.id)}">
       <span class="bl-rank">${i.rank}</span>
-      <span class="iss-line">${sev(i.priority)}<span class="iss-code">${esc(i.center || '—')}</span>${origin(i)}${i.pinned ? '<span class="iss-prio" title="Priorizada a mano desde el Backlog">Priorizada por el equipo</span>' : i.prio ? '<span class="iss-prio">Priorizada por negocio</span>' : ''}<span class="iss-when">hace ${age(i.reported, now)}</span></span>
+      <span class="iss-line">${sev(i.priority)}<span class="iss-code">${esc(i.center || '—')}</span>${origin(i)}${i.prio ? '<span class="iss-prio">Priorizada por negocio</span>' : ''}<span class="iss-when">hace ${age(i.reported, now)}</span></span>
       <span class="iss-text">${esc(i.text)}</span>
     </button>`;
 
@@ -124,8 +123,7 @@ export const mountBacklogView = (root, { api, dialogs, toast }) => {
     const rowEl = e.target.closest('.bl-row');
     if (rowEl) return rowEl.dataset.id === opened ? closeSide() : openIssue(rowEl.dataset.id);
     if (e.target.closest('[data-side-close]')) return closeSide();
-    if (e.target.closest('[data-pin]')) return act(() => api.prioritize(opened), () => toast?.('Priorizada: cuenta como priorizada por negocio.'));
-    if (e.target.closest('[data-unpin]')) return act(() => api.unprioritize(opened), () => toast?.('Ya no está priorizada por el equipo.'));
+    if (e.target.closest('[data-pin]')) return toast?.('Pendiente: priorizar es poner la etiqueta PRIO en Remedy, y SIA aún no puede escribirla. De momento, en Remedy.');
     if (e.target.closest('[data-rules]')) return openRulesModal({ api, dialogs, toast, onChange: () => load().catch(() => {}) }).catch((err) => toast?.(`No se pudieron cargar las reglas: ${err.message}`));
     if (e.target.closest('[data-reload]')) return load().catch((err) => toast?.(`No se pudo actualizar el backlog: ${err.message}`));
     const b = e.target.closest('[data-key]');

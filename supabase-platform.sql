@@ -31,8 +31,6 @@
 --    priority_rules     reglas de priorización del backlog: un nombre y una lista
 --                       ordenada de criterios (el catálogo, en platform.known_criteria()).
 --                       La básica viene de serie (builtin): se ajusta, no se borra
---    issue_priorities   issues priorizadas a mano desde el Backlog: cuentan como
---                       priorizadas por negocio para las reglas
 --
 --  Vistas: lo que cada persona puede ver y hacer en SIA (el Chat, siempre).
 --  La lista está en platform.known_views().
@@ -219,12 +217,6 @@ create table if not exists platform.priority_rules (
 alter table platform.priority_rules add column if not exists builtin boolean not null default false; -- bases montadas antes de la básica de serie
 create unique index if not exists priority_rules_builtin on platform.priority_rules (builtin) where builtin;
 
-create table if not exists platform.issue_priorities (
-  issue_id    text primary key check (issue_id ~ '^INC[0-9]+$'),
-  set_by      uuid references platform.users (id) on delete set null,
-  set_at      timestamptz not null default now()
-);
-alter table platform.issue_priorities drop column if exists rules; -- al principio se priorizaba por reglas
 -- la acción 'assigned' llegó después: la restricción de las bases ya montadas se renueva
 alter table platform.issue_events drop constraint if exists issue_events_action_check;
 alter table platform.issue_events add constraint issue_events_action_check check (action in ('claimed', 'released', 'transferred', 'assigned'));
@@ -248,7 +240,6 @@ alter table platform.issue_claims     enable row level security;
 alter table platform.issue_events     enable row level security;
 alter table platform.issue_notes      enable row level security;
 alter table platform.priority_rules  enable row level security;
-alter table platform.issue_priorities enable row level security;
 revoke all on all tables in schema platform from public, anon, authenticated;
 revoke all on all sequences in schema platform from public, anon, authenticated;
 
@@ -875,43 +866,15 @@ end $$;
 
 -- El equipo de Issues: las personas activas con la vista Issues (para
 -- traspasar una issue a un compañero).
--- ── Priorizar a mano y asignar desde el Backlog ───────────────────────────
--- Una issue priorizada a mano cuenta como priorizada por negocio: las reglas
--- con ese criterio la suben. Las ve quien coge issues o reparte; las pone y
--- quita quien reparte (Backlog).
+-- ── Asignar desde el Backlog ──────────────────────────────────────────────
+-- La prioridad de una issue es la etiqueta PRIO de Remedy (la pone negocio);
+-- SIA no lleva una lista propia. Hubo una (issue_priorities) en una versión
+-- intermedia: se retira de las bases que la montaron.
 drop function if exists public.platform_issue_priorities();
-create function public.platform_issue_priorities()
-returns table (issue_id text, by_name text, set_at timestamptz)
-language plpgsql stable security definer set search_path = '' as $$
-#variable_conflict use_column
-begin
-  perform platform.require_view('issues', 'backlog');
-  return query
-    select p.issue_id, u.name, p.set_at
-    from platform.issue_priorities p left join platform.users u on u.id = p.set_by
-    order by p.set_at;
-end $$;
-
 drop function if exists public.platform_prioritize_issue(text, uuid[]);
-create or replace function public.platform_prioritize_issue(p_issue text) returns void
-language plpgsql security definer set search_path = '' as $$
-declare v_me uuid := platform.require_view('backlog');
-begin
-  insert into platform.issue_priorities (issue_id, set_by) values (p_issue, v_me)
-    on conflict (issue_id) do update set set_by = excluded.set_by, set_at = now();
-  perform platform.audit(v_me, 'issue.prioritize', null, jsonb_build_object('issue', p_issue));
-exception
-  when check_violation then raise exception 'Esa issue no vale.' using errcode = '23514';
-end $$;
-
-create or replace function public.platform_unprioritize_issue(p_issue text) returns void
-language plpgsql security definer set search_path = '' as $$
-declare v_me uuid := platform.require_view('backlog');
-begin
-  delete from platform.issue_priorities where issue_id = p_issue;
-  if not found then raise exception 'Esa issue no estaba priorizada.' using errcode = 'P0002'; end if;
-  perform platform.audit(v_me, 'issue.unprioritize', null, jsonb_build_object('issue', p_issue));
-end $$;
+drop function if exists public.platform_prioritize_issue(text);
+drop function if exists public.platform_unprioritize_issue(text);
+drop table if exists platform.issue_priorities;
 
 -- Asignarla a alguien del equipo de Issues: pasa a su mesa como cogida, y en
 -- el histórico queda quién la asignó. Si ya la tiene alguien, no.
@@ -926,7 +889,6 @@ begin
   if found then raise exception 'Esa issue ya la tiene %.', v_holder using errcode = '23505'; end if;
   insert into platform.issue_claims (issue_id, user_id) values (p_issue, p_to);
   insert into platform.issue_events (issue_id, action, actor, to_user) values (p_issue, 'assigned', v_me, p_to);
-  delete from platform.issue_priorities where issue_id = p_issue; -- ya no está en la cola
 exception
   when check_violation then raise exception 'Esa issue no vale.' using errcode = '23514';
 end $$;
