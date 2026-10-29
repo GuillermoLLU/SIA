@@ -598,7 +598,6 @@ body { display: flex; flex-direction: column; }
   flex-shrink: 0; user-select: none;
   transition: background 0.15s ease, color 0.15s ease;
 }
-.tab.dragging { opacity: 0.45; }
 .tab:hover { background: var(--border); color: var(--text); }
 .tab.active { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--text); }
 .tab.colored { box-shadow: inset 3px 0 0 var(--tab-color); }
@@ -623,15 +622,6 @@ body { display: flex; flex-direction: column; }
   font-size: 15px; line-height: 1; opacity: 0.6;
 }
 .tab .tab-close:hover { background: rgba(127,127,127,0.25); opacity: 1; }
-.tab-add {
-  display: flex; align-items: center; justify-content: center;
-  width: 30px; height: 30px; flex-shrink: 0;
-  border: 0; border-radius: 0;
-  background: transparent; color: var(--text-low);
-  font-size: 20px; line-height: 1; cursor: pointer;
-}
-.tab-add:hover { background: var(--border); color: var(--text); }
-
 .tabs-spacer { flex: 1; min-width: 12px; }
 .tab-skills {
   display: inline-flex; align-items: center; gap: 7px;
@@ -719,7 +709,8 @@ body { display: flex; flex-direction: column; }
 .term-host { height: 100%; }
 .term-host[hidden] { display: none; }
 
-/* ── Launcher chooser (new chat) ───────────────────────────── */
+/* ── Arranque de un chat con IA (el Chat y el chat de una issue): un botón
+   centrado y, debajo, con qué se abre o por qué no se puede ─────────── */
 .launcher {
   height: 100%;
   display: flex; flex-direction: column;
@@ -727,56 +718,10 @@ body { display: flex; flex-direction: column; }
   gap: 18px; text-align: center;
 }
 .launcher[hidden] { display: none; }
-.launcher-title { font-size: 15px; color: var(--text); }
-.launcher-grid { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
-.launcher-btn {
-  width: 120px; height: 104px;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center; gap: 8px;
-  border: 1px solid var(--border); border-radius: 0;
-  background: var(--surface); color: var(--text);
-  cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
-}
-.launcher-btn:hover:not(:disabled) {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
-}
-.launcher-btn:active:not(:disabled) { transform: scale(0.97); }
-.launcher-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.launcher-btn.wide { width: 200px; height: 136px; }
-
-/* Selector de fuentes: incluida = encendida (acento) · excluida = apagada */
-.source-btn { transition: opacity 0.15s ease, border-color 0.15s ease, background 0.15s ease, filter 0.15s ease; }
-.source-btn.selected {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
-}
-.source-btn.selected .launcher-ico svg { color: var(--accent); }
-.source-btn.selected .src-state { color: var(--accent); }
-.source-btn:not(.selected) {
-  opacity: 0.45;
-  filter: grayscale(1);
-  border-style: dashed;
-}
-.source-btn:not(.selected):hover { opacity: 0.7; }
-.source-btn:not(.selected) .launcher-ico svg { color: var(--text-low); }
-.launcher-desc {
-  font-size: 11px; color: var(--text-low);
-  line-height: 1.4; padding: 0 12px;
-}
-.launcher-back {
-  border: 0; background: transparent;
-  color: var(--text-low); font-size: 12.5px; cursor: pointer;
-}
-.launcher-back:hover { color: var(--text); }
-.launcher-ico svg { width: 30px; height: 30px; color: var(--accent); }
-.launcher-name { font-size: 14px; }
-.launcher-na {
-  font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
-  color: var(--text-low);
-}
 .launcher-err { font-size: 13px; color: #f25f5c; margin-top: 4px; }
+.ai-start { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px 16px; text-align: center; }
+.ai-start-go { padding: 12px 22px; font-size: 14px; }
+.ai-start-hint { margin: 0; max-width: 300px; font-size: 12.5px; line-height: 1.5; color: var(--text-low); }
 
 /* xterm fills its pane */
 .xterm { height: 100%; }
@@ -918,7 +863,7 @@ body.phone .xterm .xterm-viewport {
 body.phone .xterm .xterm-viewport::-webkit-scrollbar { display: none; }
 /* Barra de pestañas: objetivos táctiles más generosos */
 body.phone .tabs { height: 48px; }
-body.phone .tab, body.phone .tab-add, body.phone .tab-skills { height: 36px; }
+body.phone .tab, body.phone .tab-skills { height: 36px; }
 /* Skills y adjuntar viven en la barra de pestañas (main.js los mueve ahí):
    como botones flotantes tapaban la esquina donde va la entrada del chat */
 body.phone .skills-fab, body.phone .attach-fab, body.phone .lock-fab {

@@ -69,9 +69,9 @@ export const trailHtml = (timeline = [], now = new Date(), meId = null) => (time
 
 // El arranque de la resolución asistida: solo el botón; si no se puede, el
 // motivo debajo y el botón apagado.
-export const assistHtml = (error = null) => `<div class="iss-assist">
-    <button class="lab-btn primary iss-assist-go" data-assist ${error ? 'disabled' : ''}>Iniciar resolución asistida por IA</button>
-    ${error ? `<p class="iss-assist-hint">${esc(error)}</p>` : ''}
+export const assistHtml = (error = null) => `<div class="ai-start">
+    <button class="lab-btn primary ai-start-go" data-assist ${error ? 'disabled' : ''}>Iniciar resolución asistida por IA</button>
+    ${error ? `<p class="ai-start-hint">${esc(error)}</p>` : ''}
   </div>`;
 
 // En el campo de nota, Intro envía; Mayús+Intro salta de línea.

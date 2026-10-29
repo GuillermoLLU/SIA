@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { chatSessions, chromeVisible, nextActive, isImageName, fileExt, toAsset, missingAssets, reconcile, dropBefore } from './sessions.js';
+import { chatSessions, chromeVisible, nextActive, isImageName, fileExt, toAsset, missingAssets, reconcile } from './sessions.js';
 
 const local = (o) => ({ id: 1, remoteId: 's1', passive: false, linkLost: false, launched: true, label: 'Chat 1', color: null, assets: [], ...o });
 
@@ -8,7 +8,7 @@ test('chatSessions: fuera los chats de issues; chrome solo con un chat real', ()
   assert.deepEqual(chatSessions([{ id: 'a' }, { id: 'b', issue: 'INC1' }]).map((r) => r.id), ['a']);
   assert.equal(chromeVisible([{ launched: false, passive: false }]), false);
   assert.equal(chromeVisible([{ launched: true }]), true);
-  assert.equal(chromeVisible([{}, {}]), true);
+  assert.equal(chromeVisible([{ passive: true }]), true);
   assert.equal(nextActive([1, 2, 3]), 3);
   assert.equal(nextActive([]), null);
 });
@@ -48,9 +48,7 @@ test('reconcile: los chats nuevos de otro dispositivo se crean, salvo con un lan
   assert.deepEqual([held.create, held.hold], [[], true]);
 });
 
-test('dropBefore: la primera pestaña con el centro a la derecha del cursor', () => {
-  const boxes = [{ el: 'a', left: 0, width: 100 }, { el: 'b', left: 100, width: 100 }, { el: 'c', left: 200, width: 100 }];
-  assert.equal(dropBefore(120, boxes), 'b');
-  assert.equal(dropBefore(260, boxes), null);
-  assert.equal(dropBefore(10, boxes), 'a');
+test('reconcile: un chat cerrado aquí que el bridge aún lista no vuelve como pasivo', () => {
+  const r = reconcile([local({ remoteId: null, launched: false })], [{ id: 's1' }, { id: 's9' }], new Set(['s1']));
+  assert.deepEqual(r.create.map((x) => x.id), ['s9']);
 });

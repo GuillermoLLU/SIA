@@ -1,17 +1,15 @@
 // La barra de pestañas del chat: cada sesión tiene su pestaña (punto de
-// estado, nombre, X), se reordenan arrastrando y con doble clic se abre el
-// editor de nombre y color. Nombre y color se mandan al bridge (onMeta) y
-// persisten entre recargas.
-import { dropBefore, defaultLabel } from './sessions.js';
+// estado, nombre, X) y con doble clic se abre el editor de nombre y color.
+// Nombre y color se mandan al bridge (onMeta) y persisten entre recargas.
+import { defaultLabel } from './sessions.js';
 
 const TAB_COLORS = ['#f38ba8', '#fab387', '#f9e2af', '#a6e3a1', '#89b4fa', '#cba6f7', '#f5c2e7'];
 
 // onPick(s): activar · onClose(s): cerrar · onMeta(s): nombre o color cambiados
 export const createTabBar = ({ onPick, onClose, onMeta }) => {
   const $ = (id) => document.getElementById(id);
-  const tabsEl = $('tabs'), addBtn = $('tab-add');
+  const tabsEl = $('tabs'), spacer = tabsEl.querySelector('.tabs-spacer');
   const editor = $('tab-editor'), nameInput = $('tab-name-input'), colorsEl = $('tab-colors');
-  let dragged = null; // la pestaña que se arrastra
   let editing = null; // la sesión abierta en el editor
 
   const applyColor = (s) => {
@@ -37,23 +35,14 @@ export const createTabBar = ({ onPick, onClose, onMeta }) => {
     close.textContent = '×';
     close.title = 'Cerrar';
     tab.append(dot, name, close);
-    tabsEl.insertBefore(tab, addBtn);
+    tabsEl.insertBefore(tab, spacer);
     s.tab = tab;
     s.dot = dot;
     tab.addEventListener('click', () => onPick(s));
     tab.addEventListener('dblclick', (e) => { e.stopPropagation(); openEditor(s); });
     close.addEventListener('click', (e) => { e.stopPropagation(); onClose(s); });
-    tab.draggable = true;
-    tab.addEventListener('dragstart', (e) => { dragged = tab; tab.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; });
-    tab.addEventListener('dragend', () => { tab.classList.remove('dragging'); dragged = null; });
     applyColor(s);
   };
-  tabsEl.addEventListener('dragover', (e) => {
-    if (!dragged) return;
-    e.preventDefault();
-    const boxes = [...tabsEl.querySelectorAll('.tab:not(.dragging)')].map((el) => { const b = el.getBoundingClientRect(); return { el, left: b.left, width: b.width }; });
-    tabsEl.insertBefore(dragged, dropBefore(e.clientX, boxes) || addBtn);
-  });
 
   // editor: nombre y color
   const markColor = (color) => colorsEl.querySelectorAll('.swatch').forEach((sw) => sw.classList.toggle('active', (sw.dataset.color || '') === (color || '')));
@@ -98,5 +87,5 @@ export const createTabBar = ({ onPick, onClose, onMeta }) => {
     if (!editor.hidden && !editor.contains(e.target) && !e.target.closest('.tab')) closeEditor();
   });
 
-  return { tabsEl, addBtn, add, applyColor, setLabel, setStatus, remove: (s) => s.tab.remove() };
+  return { tabsEl, add, applyColor, setLabel, setStatus, remove: (s) => s.tab.remove() };
 };

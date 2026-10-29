@@ -24,7 +24,7 @@ API y su vista:
 |---|---|
 | `app/` | Descubrir el bridge, la barra lateral (qué icono ve cada persona) y la relectura de permisos |
 | `auth/` | Inicio de sesión y la sesión en el navegador |
-| `chat/` | Los chats: protocolo con el bridge, reconciliación entre dispositivos, terminal, adjuntos, pestañas, el selector de agente y conocimiento |
+| `chat/` | El chat: su arranque (`start.js`: Claude, conocimiento autónomo y todo lo accesible), protocolo con el bridge, reconciliación entre dispositivos, terminal y adjuntos |
 | `issues/` | La mesa de issues de cada persona y la pantalla de trabajo de una issue (con su chat) |
 | `metrics/` | Métricas: reglas (`rules.js`) y cálculo por pestaña en módulos puros; el HTML de cada pestaña en `metrics/tabs/` |
 | `work/` | Equipo soporte: una vista sobre el dominio de Métricas |

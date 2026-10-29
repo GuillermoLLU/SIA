@@ -1,11 +1,13 @@
-// La vista Chat: pestañas, cada una con su sesión del bridge (un CLI en un
-// PTY) y su terminal. Un chat vive en el bridge, no aquí: la pestaña se puede
-// cerrar y reabrir, recargar la página o abrir el mismo chat desde otro
-// dispositivo (multidispositivo: una pestaña pasiva es un chat que tiene otro
-// dispositivo; no se roba, se reclama con un botón). Las reglas, en
-// sessions.js y protocol.js; la terminal, en terminal.js.
+// La vista Chat: un chat, con su sesión del bridge (un CLI en un PTY) y su
+// terminal. Se abre con un botón y sin elegir nada: Claude, conocimiento
+// autónomo y todo el conocimiento al que la persona tiene acceso (start.js).
+// El chat vive en el bridge, no aquí: la pestaña se puede cerrar y reabrir,
+// recargar la página o abrir el mismo chat desde otro dispositivo
+// (multidispositivo: una pestaña pasiva es un chat que tiene otro dispositivo;
+// no se roba, se reclama con un botón). Las reglas, en sessions.js y
+// protocol.js; la terminal, en terminal.js.
 import { esc } from '../ui/html.js';
-import { renderChooser } from './chooser.js';
+import { chatPlan, knowledgeLabel } from './start.js';
 import { msg, parse, closeReason, sendOn, isOpen } from './protocol.js';
 import { chatSessions, defaultLabel, chromeVisible, nextActive, toAsset, reconcile } from './sessions.js';
 import { makeTerminal, useWebgl, enableTouchScroll, wireCopyPaste } from './terminal.js';
@@ -25,6 +27,7 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
   let activeId = null;
   let bootstrapped = false; // tras el primer 'launchers' restauramos sesiones vivas
   let lastSessionsList = null; // última lista del bridge (para re-reconciliar)
+  const killed = new Set(); // chats cerrados aquí que el bridge aún puede listar
   let accessProjects = []; // proyectos que ves en la base de conocimiento (del bridge)
 
   const active = () => (activeId ? sessions.get(activeId) : null);
@@ -62,19 +65,32 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
   /* Sincronizar nombre/color de la pestaña con el bridge (persisten entre recargas). */
   const sendMeta = (s) => { if (s.launched) sendOn(s.ws, msg.meta(s.label, s.color)); };
 
-  /* Selector del chat (chooser.js): agente, conocimiento y fuentes. */
+  /* El arranque del chat: un botón y, debajo, con qué conocimiento se abre.
+     Los proyectos se vuelven a pedir al pulsar (recoge los creados al vuelo);
+     si falta algo (start.js), se explica en lugar del aviso. */
   const loadProjects = async () => {
     try { accessProjects = await api('/access/projects'); } catch { /* deja lo último conocido */ }
     return accessProjects;
   };
-  const renderSessionChooser = (s, launchers) => renderChooser(s.chooser, {
-    launchers, loadProjects, onLaunch: (launcher, mode, projects) => launchSession(s, launcher, mode, projects),
-  });
+  const startHtml = (hint, error = null) => `<div class="ai-start">
+    <button class="lab-btn primary ai-start-go" data-start ${error ? 'disabled' : ''}>Iniciar chat con IA</button>
+    <p class="ai-start-hint">${esc(error || hint)}</p></div>`;
+  const renderStart = (s, launchers) => {
+    s.start.innerHTML = startHtml(knowledgeLabel(accessProjects));
+    const btn = s.start.querySelector('[data-start]');
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      const projects = await loadProjects();
+      const plan = chatPlan({ launchers, projects });
+      if (plan.error) { s.start.innerHTML = startHtml(null, plan.error); return; }
+      launchSession(s, plan.launcher, plan.knowledge, plan.projects);
+    });
+  };
 
   /* Montar la terminal de una sesión (común a lanzar nueva y re-enganchar). */
   const materialize = (s) => {
     s.launched = true;
-    s.chooser.hidden = true;
+    s.start.hidden = true;
     s.termHost.hidden = false;
     ({ term: s.term, fit: s.fit } = makeTerminal(theme().term));
     s.term.open(s.termHost);
@@ -123,15 +139,15 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
     const pane = document.createElement('div');
     pane.className = 'term-pane';
     pane.hidden = true;
-    const chooser = document.createElement('div');
-    chooser.className = 'launcher';
+    const start = document.createElement('div');
+    start.className = 'launcher';
     const termHost = document.createElement('div');
     termHost.className = 'term-host';
     termHost.hidden = true;
-    pane.append(chooser, termHost);
+    pane.append(start, termHost);
     stackEl.appendChild(pane);
     const s = {
-      id, label: attach?.label || defaultLabel(id), pane, chooser, termHost,
+      id, label: attach?.label || defaultLabel(id), pane, start, termHost,
       term: null, fit: null, ro: null, ws: null, passive, tab: null, dot: null, status: 'idle',
       launched: false, renamed: !!attach?.label, launcher: attach?.launcher || null,
       color: attach?.color || null, remoteId: attach?.id || null,
@@ -170,7 +186,7 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
         case 'launchers':
           onSkills(m.skills || []);
           accessProjects = m.accessProjects || [];
-          if (!s.launched && !attach) renderSessionChooser(s, m.list);
+          if (!s.launched && !attach) renderStart(s, m.list);
           if (!bootstrapped) {
             bootstrapped = true;
             const own = chatSessions(m.sessions);
@@ -198,7 +214,7 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
           break;
         case 'error':
           if (s.launched) dialogs.alert('Error de sesión', esc(m.message));
-          else s.chooser.insertAdjacentHTML('beforeend', `<div class="launcher-err">${esc(m.message)}</div>`);
+          else s.start.insertAdjacentHTML('beforeend', `<div class="launcher-err">${esc(m.message)}</div>`);
           break;
       }
     };
@@ -230,17 +246,17 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
   };
 
   /* Una pestaña pasiva es un chat vivo en el bridge que tiene OTRO dispositivo
-     (o quedó libre al cerrarse aquel). No se roba: muestra un botón que trae
-     TODOS los chats a este dispositivo (aquí solo se usa uno a la vez). */
+     (o quedó libre al cerrarse aquel). No se roba: muestra un botón que lo
+     trae a este dispositivo. */
   const showHandoff = (s) => {
-    s.chooser.hidden = true;
+    s.start.hidden = true;
     s.termHost.hidden = true;
     if (!s.handoffEl) {
       s.handoffEl = document.createElement('div');
       s.handoffEl.className = 'handoff';
       s.handoffEl.innerHTML = `
         <p>Este chat está abierto en otro dispositivo.</p>
-        <button class="lab-btn primary">Usar los chats en este dispositivo</button>`;
+        <button class="lab-btn primary">Usar el chat en este dispositivo</button>`;
       s.handoffEl.querySelector('button').addEventListener('click', claimAllHere);
       s.pane.appendChild(s.handoffEl);
     }
@@ -268,8 +284,8 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
     s.termHost.hidden = false;
     connectSession(s, { id: s.remoteId });
   };
-  /* Traer TODOS los chats a este dispositivo (el que los tenía pasa a pasivo).
-     Cubre tanto las pestañas pasivas como las que perdieron el enlace. */
+  /* Traer el chat a este dispositivo (el que lo tenía pasa a pasivo). Cubre
+     tanto las pestañas pasivas como las que perdieron el enlace. */
   const claimAllHere = () => {
     for (const s of sessions.values()) if (s.remoteId && (s.passive || s.linkLost)) reattach(s);
     updateChrome();
@@ -282,6 +298,7 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
     const s = sessions.get(id);
     if (!s) return;
     if (kill) {
+      if (s.remoteId) killed.add(s.remoteId);
       if (s.launched && isOpen(s.ws)) sendOn(s.ws, msg.kill());
       else if (s.remoteId) sendOn(controlWS, msg.kill(s.remoteId)); // pestaña pasiva o sin socket: la X es la X
     }
@@ -303,8 +320,9 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
   // Aplicar lo que diga la reconciliación (sessions.js) a las pestañas.
   const reconcileSessions = (allRemote) => {
     if (!bootstrapped) return; // el arranque lo gestiona restoreSessions
-    const { list, actions, create } = reconcile(all(), allRemote);
+    const { list, actions, create } = reconcile(all(), allRemote, killed);
     lastSessionsList = list;
+    for (const id of killed) if (!list.some((r) => r.id === id)) killed.delete(id); // ya murió del todo
     for (const a of actions) {
       const s = sessions.get(a.id);
       if (a.do === 'remove') { removeTab(s.id); continue; }
@@ -371,10 +389,9 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
   document.addEventListener('visibilitychange', () => { if (!document.hidden) reviveControl(); });
   window.addEventListener('resize', () => { const s = active(); if (s?.launched) refit(s); });
 
-  tabs.addBtn.addEventListener('click', () => createSession());
   assets.wire(viewEl, stackEl);
   connectControl();
-  createSession(); // arranque: directo al selector del primer chat (sin chrome de pestañas)
+  createSession(); // arranque: el botón de abrir el chat (sin chrome de pestañas)
 
   return {
     active,

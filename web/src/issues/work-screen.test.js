@@ -121,7 +121,7 @@ test('la primera línea de una nota, recortada a 90; el arranque de la resoluci�
   assert.equal(firstLine('  una línea corta  '), 'una línea corta');
   assert.equal(firstLine('primera\nsegunda'), 'primera');
   assert.equal(firstLine('x'.repeat(95)), 'x'.repeat(90) + '…');
-  assert.match(assistHtml(), /<button class="lab-btn primary iss-assist-go" data-assist >Iniciar resolución asistida por IA<\/button>/);
-  assert.doesNotMatch(assistHtml(), /iss-assist-hint/);
-  assert.match(assistHtml('Claude <no> está'), /data-assist disabled>[^]*<p class="iss-assist-hint">Claude &lt;no&gt; está<\/p>/);
+  assert.match(assistHtml(), /<button class="lab-btn primary ai-start-go" data-assist >Iniciar resolución asistida por IA<\/button>/);
+  assert.doesNotMatch(assistHtml(), /ai-start-hint/);
+  assert.match(assistHtml('Claude <no> está'), /data-assist disabled>[^]*<p class="ai-start-hint">Claude &lt;no&gt; está<\/p>/);
 });

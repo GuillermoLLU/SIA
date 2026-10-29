@@ -1,15 +1,15 @@
 // Las reglas de las pestañas de chat (sin DOM): qué chats del bridge van en
 // pestañas, cómo se reconcilian con las de aquí cuando el bridge reemite su
-// lista (multidispositivo), los adjuntos y el arrastre de pestañas.
+// lista (multidispositivo) y los adjuntos.
 
 // Los chats de una issue viven en su pantalla de trabajo, no en las pestañas.
 export const chatSessions = (list) => (list || []).filter((r) => !r.issue);
 
 export const defaultLabel = (id) => `Chat ${id}`;
 
-// El chrome del chat (pestañas, "+", Skills) solo con un chat de verdad: en el
-// arranque solo se ve el selector, invitando a abrir el primero.
-export const chromeVisible = (sessions) => sessions.some((s) => s.launched || s.passive) || sessions.length > 1;
+// El chrome del chat (pestaña, Skills) solo con un chat de verdad: en el
+// arranque solo se ve el botón de abrirlo.
+export const chromeVisible = (sessions) => sessions.some((s) => s.launched || s.passive);
 
 // Al cerrar la activa, la última que quede.
 export const nextActive = (ids) => ids.at(-1) ?? null;
@@ -34,8 +34,10 @@ export const missingAssets = (have, list) => (list || []).filter((a) => !have.so
    assets si hay adjuntos nuevos.
    hold: un chat lanzado AQUÍ cuyo `started` aún no llegó (viaja por otro
    socket que el broadcast): no se crean pasivas hasta resolverlo, o el propio
-   chat recién creado aparecería como pestaña fantasma. */
-export const reconcile = (locals, all) => {
+   chat recién creado aparecería como pestaña fantasma.
+   killed: los chats cerrados AQUÍ (la X) que el bridge aún lista mientras
+   muere su CLI: tampoco se recrean como pasivos. */
+export const reconcile = (locals, all, killed = new Set()) => {
   const list = chatSessions(all);
   const remote = new Map(list.map((r) => [r.id, r]));
   const actions = [];
@@ -52,16 +54,6 @@ export const reconcile = (locals, all) => {
     actions.push(act);
   }
   const hold = locals.some((s) => s.launched && !s.remoteId && !s.passive);
-  return { list, actions, create: hold ? [] : [...remote.values()], hold };
-};
-
-// Arrastrar una pestaña: delante de la primera cuyo centro queda a la derecha
-// del cursor; null, al final. `boxes`: [{ el, left, width }] de las demás.
-export const dropBefore = (x, boxes) => {
-  let closest = { offset: Number.NEGATIVE_INFINITY, el: null };
-  for (const b of boxes) {
-    const offset = x - b.left - b.width / 2;
-    if (offset < 0 && offset > closest.offset) closest = { offset, el: b.el };
-  }
-  return closest.el;
+  const create = hold ? [] : [...remote.values()].filter((r) => !killed.has(r.id));
+  return { list, actions, create, hold };
 };
