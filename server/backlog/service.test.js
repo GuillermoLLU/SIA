@@ -32,7 +32,7 @@ test('una regla desconocida: la básica', async () => {
 
 test('las reglas: el catálogo de criterios y la básica (más las de la base)', async () => {
   const { criteria, rules } = await service([]).rules({ accessToken: 'jwt' });
-  assert.deepEqual(criteria.map((c) => c.id), ['recent', 'prio', 'month', 'severity', 'age', 'sisu', 'sga']);
+  assert.deepEqual(criteria.map((c) => c.id), ['recent', 'prio', 'month', 'severity', 'critical', 'high', 'medium', 'low', 'age', 'sisu', 'sga']);
   assert.deepEqual(rules.map((r) => [r.id, r.builtin]), [['basic', true]]);
 });
 

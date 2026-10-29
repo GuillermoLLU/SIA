@@ -1,18 +1,18 @@
 // Editar una regla de priorización (sin DOM): su nombre y sus criterios en
-// orden, como chips que se añaden del catálogo, se quitan y se suben o bajan.
-// Nada se muta: cada cambio devuelve una regla nueva.
+// orden, como chips que pasan del catálogo a la regla y vuelven, y que dentro
+// de la regla se colocan donde se quiera. Nada se muta: cada cambio devuelve
+// una regla nueva.
 
 export const NEW_RULE = { id: null, name: '', criteria: [] };
 
 export const addCriterion = (rule, id) => (rule.criteria.includes(id) ? rule : { ...rule, criteria: [...rule.criteria, id] });
 export const removeCriterion = (rule, id) => ({ ...rule, criteria: rule.criteria.filter((c) => c !== id) });
-// delta: -1 sube, +1 baja; en el borde se queda como está
-export const moveCriterion = (rule, id, delta) => {
-  const i = rule.criteria.indexOf(id), j = i + delta;
-  if (i < 0 || j < 0 || j >= rule.criteria.length) return rule;
-  const c = [...rule.criteria];
-  [c[i], c[j]] = [c[j], c[i]];
-  return { ...rule, criteria: c };
+// Colocar un criterio en el puesto `index` (contado sin él, por si ya estaba);
+// fuera de rango, al principio o al final.
+export const placeCriterion = (rule, id, index) => {
+  const rest = rule.criteria.filter((c) => c !== id);
+  const at = Math.max(0, Math.min(index, rest.length));
+  return { ...rule, criteria: [...rest.slice(0, at), id, ...rest.slice(at)] };
 };
 // del catálogo, lo que aún no está en la regla
 export const available = (catalog, rule) => catalog.filter((c) => !rule.criteria.includes(c.id));

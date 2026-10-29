@@ -17,13 +17,17 @@ const monthBucket = (i, now) => { const m = i.reported.slice(0, 7); return m ===
 const most = (score) => (a, b, now) => score(b, now) - score(a, now);
 
 export const CRITERIA = [
-  { id: 'recent', label: 'Del mes en curso o del anterior, antes que lo atrasado', cmp: most((i, now) => (monthBucket(i, now) < 2 ? 1 : 0)) },
-  { id: 'prio', label: 'Priorizadas por negocio, primero', cmp: most((i) => (i.prio ? 1 : 0)) },
-  { id: 'month', label: 'Mes de alta: en curso, anterior y más atrás', cmp: (a, b, now) => monthBucket(a, now) - monthBucket(b, now) },
-  { id: 'severity', label: 'Criticidad, la más alta primero', cmp: most((i) => SEVERITY[i.priority] || 0) },
-  { id: 'age', label: 'Antigüedad, la más antigua primero', cmp: (a, b) => a.reported.localeCompare(b.reported) },
-  { id: 'sisu', label: 'Origen: SISU primero', cmp: most((i) => (i.sisu ? 1 : 0)) },
-  { id: 'sga', label: 'Origen: SGA primero', cmp: most((i) => (i.sisu ? 0 : 1)) },
+  { id: 'recent', label: 'Mes en curso o anterior, antes que lo atrasado', cmp: most((i, now) => (monthBucket(i, now) < 2 ? 1 : 0)) },
+  { id: 'prio', label: 'Priorizadas por negocio', cmp: most((i) => (i.prio ? 1 : 0)) },
+  { id: 'month', label: 'Mes de alta: en curso, anterior, más atrás', cmp: (a, b, now) => monthBucket(a, now) - monthBucket(b, now) },
+  { id: 'severity', label: 'Criticidad, de mayor a menor', cmp: most((i) => SEVERITY[i.priority] || 0) },
+  { id: 'critical', label: 'Críticas primero', cmp: most((i) => (i.priority === 'CRITICAL' ? 1 : 0)) },
+  { id: 'high', label: 'Altas primero', cmp: most((i) => (i.priority === 'HIGH' ? 1 : 0)) },
+  { id: 'medium', label: 'Medias primero', cmp: most((i) => (i.priority === 'MEDIUM' ? 1 : 0)) },
+  { id: 'low', label: 'Bajas primero', cmp: most((i) => (i.priority === 'LOW' ? 1 : 0)) },
+  { id: 'age', label: 'Más antiguas primero', cmp: (a, b) => a.reported.localeCompare(b.reported) },
+  { id: 'sisu', label: 'SISU primero', cmp: most((i) => (i.sisu ? 1 : 0)) },
+  { id: 'sga', label: 'SGA primero', cmp: most((i) => (i.sisu ? 0 : 1)) },
 ];
 
 // La del equipo: priorizadas por negocio del mes en curso, luego las del mes

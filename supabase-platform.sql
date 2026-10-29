@@ -90,7 +90,7 @@ $$;
 -- lista ordenada de ellos; qué hace cada uno, en server/issues/queue.js.
 create or replace function platform.known_criteria() returns text[]
 language sql immutable set search_path = '' as $$
-  select array['recent', 'prio', 'month', 'severity', 'age', 'sisu', 'sga']
+  select array['recent', 'prio', 'month', 'severity', 'critical', 'high', 'medium', 'low', 'age', 'sisu', 'sga']
 $$;
 
 -- ── Tablas ────────────────────────────────────────────────────────────────
