@@ -23,6 +23,14 @@ test('filtrar no cambia el puesto; dentro de un grupo se suman y entre grupos se
   assert.deepEqual(filterIssues(I, F({ origin: ['sisu', 'sga'] })).length, 3);
 });
 
+test('texto: por código, centro o resumen, sin acentos ni mayúsculas, y cruzado con las tarjetas', () => {
+  assert.deepEqual(filterIssues(I, F({ q: 'inc2' })).map((i) => i.id), ['INC2']);
+  assert.deepEqual(filterIssues(I, F({ q: ' 000123 ' })).map((i) => i.id), ['INC1', 'INC3']);
+  assert.deepEqual(filterIssues(I, F({ q: 'ETIQUÉTAS' })).map((i) => i.id), ['INC1']);
+  assert.deepEqual(filterIssues(I, F({ q: '000123', severity: ['LOW'] })).map((i) => i.id), ['INC3']);
+  assert.equal(isFiltering(F({ q: ' ' })), false);
+});
+
 test('pulsar una tarjeta la marca; otra vez, la quita; otra del grupo se suma', () => {
   const f1 = toggle(EMPTY_FILTER, 'severity', 'CRITICAL');
   assert.deepEqual(f1.severity, ['CRITICAL']);

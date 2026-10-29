@@ -2,17 +2,20 @@
 // por origen (SISU / SGA), por criticidad y por priorizada por negocio. Se
 // pueden marcar varias: dentro de un grupo se suman (críticas y altas) y
 // entre grupos se cruzan (críticas y altas, solo de SISU, solo priorizadas).
-// La posición de cada issue es la de la cola completa: filtrar no la cambia.
+// Y por texto: código de la issue, centro o resumen. La posición de cada
+// issue es la de la cola completa: filtrar no la cambia.
+import { fold } from '../ui/html.js';
 
 export const SEVERITIES = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
-export const EMPTY_FILTER = { origin: [], severity: [], prio: false };
+export const EMPTY_FILTER = { origin: [], severity: [], prio: false, q: '' };
 
-const matches = (i, { origin, severity, prio }) =>
+const matches = (i, { origin, severity, prio, q }) =>
   (!origin.length || origin.includes(i.sisu ? 'sisu' : 'sga'))
   && (!severity.length || severity.includes(i.priority))
-  && (!prio || !!i.prio);
+  && (!prio || !!i.prio)
+  && (!q.trim() || fold(`${i.id} ${i.center} ${i.text}`).includes(fold(q.trim())));
 
-export const isFiltering = ({ origin, severity, prio }) => origin.length > 0 || severity.length > 0 || prio;
+export const isFiltering = ({ origin, severity, prio, q }) => origin.length > 0 || severity.length > 0 || prio || q.trim() !== '';
 
 // → [{ ...issue, rank }] con las que pasan el filtro
 export const filterIssues = (issues, filter = EMPTY_FILTER) =>

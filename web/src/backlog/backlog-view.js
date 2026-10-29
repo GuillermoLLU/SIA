@@ -2,8 +2,8 @@
 // que la regla lo iría repartiendo. Para quien reparte el trabajo: aquí se
 // mira la cola entera (Issues solo enseña la siguiente). Arriba, el panel:
 // cuánto hay de cada tipo, y las tarjetas filtran la lista al pulsarlas, varias
-// a la vez (filter.js); filtrar no cambia el puesto de cada una. Debajo, la lista con
-// su propio scroll. Se recarga al abrir la vista. Es una vista sobre el
+// a la vez, y el buscador acota por código, centro o texto (filter.js);
+// filtrar no cambia el puesto de cada una. Debajo, la lista con su propio scroll. Se recarga al abrir la vista. Es una vista sobre el
 // dominio de Issues (sus piezas y estilos).
 import '../issues/issues.css';
 import './backlog.css';
@@ -45,7 +45,10 @@ export const mountBacklogView = (root, { api }) => {
         ${tile('Priorizadas', c.prio, { key: 'prio', value: '', on: filter.prio, kind: 'prio' })}
         ${SEVERITIES.map((s) => tile(PLURAL[s], c.severity[s], { key: 'severity', value: s, on: filter.severity.includes(s), kind: s })).join('')}
       </div>
-      <p class="bl-shown">${filtering ? `<b>${shown.length}</b> de ${c.total} · <button class="bl-clear" data-key="all">Ver todas</button>` : 'En el orden de la regla básica'}</p>
+      <div class="bl-bar">
+        <p class="bl-shown">${filtering ? `<b>${shown.length}</b> de ${c.total} · <button class="bl-clear" data-key="all">Ver todas</button>` : 'En el orden de la regla básica'}</p>
+        <input type="search" class="bl-search" data-q placeholder="Buscar por código, centro o texto" value="${esc(filter.q)}" aria-label="Buscar en el backlog">
+      </div>
       ${shown.length ? `<div class="bl-list">${shown.map(row).join('')}</div>` : `<p class="bl-empty">${c.total ? 'Ninguna issue cumple lo marcado.' : 'La cola está vacía: no queda nada sin coger.'}</p>`}`,
       `<span class="bl-total"><b>${c.total}</b> sin coger</span><span class="iss-snap${snap.stale ? ' stale' : ''}">${snap.text}</span>`);
   };
@@ -56,6 +59,16 @@ export const mountBacklogView = (root, { api }) => {
     render();
   };
 
+  // el buscador repinta la lista sin perder el foco ni el cursor
+  root.addEventListener('input', (e) => {
+    if (!e.target.matches('[data-q]')) return;
+    filter = { ...filter, q: e.target.value };
+    const pos = e.target.selectionStart;
+    render();
+    const q = root.querySelector('[data-q]');
+    q.focus();
+    q.setSelectionRange(pos, pos);
+  });
   root.addEventListener('click', (e) => {
     const b = e.target.closest('[data-key]');
     if (!b) return;
