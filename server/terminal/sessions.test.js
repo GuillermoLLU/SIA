@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { appendBuffer, sessionList, pickMode, pickProjects, isIssueId, assetFrom, metaPatch } from './sessions.js';
+import { appendBuffer, sessionList, pickMode, pickProjects, isIssueId, assetFrom, metaPatch, firstPrompt, PROMPT_MAX } from './sessions.js';
 
 test('appendBuffer: acumula y, al pasar el tope, se queda con el 75 % final', () => {
   assert.equal(appendBuffer('ab', 'cd', 10), 'abcd');
@@ -20,6 +20,10 @@ test('pickMode, pickProjects, isIssueId', () => {
   assert.deepEqual(pickProjects([1, 2], null), [1, 2]);
   assert.equal(isIssueId('INC12'), true);
   assert.equal(isIssueId('x;drop'), false);
+  assert.equal(firstPrompt('  ¿Qué hace la PDA?  '), '¿Qué hace la PDA?');
+  assert.equal(firstPrompt('   '), null);
+  assert.equal(firstPrompt(7), null);
+  assert.equal(firstPrompt('a'.repeat(PROMPT_MAX + 5)).length, PROMPT_MAX);
 });
 
 test('assetFrom y metaPatch: acotados', () => {

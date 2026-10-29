@@ -723,6 +723,64 @@ body { display: flex; flex-direction: column; }
 .ai-start-go { padding: 12px 22px; font-size: 14px; }
 .ai-start-hint { margin: 0; max-width: 300px; font-size: 12.5px; line-height: 1.5; color: var(--text-low); }
 
+/* ── La portada del Chat: saludo, el campo de la pregunta y un fondo que
+   respira (tres manchas del color de acento, desenfocadas, a la deriva) ── */
+.ai-hero {
+  position: absolute; inset: 0; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px 16px;
+}
+.ai-hero-bg { position: absolute; inset: 0; pointer-events: none; }
+.ai-hero-bg i {
+  position: absolute; width: 46vmin; height: 46vmin; border-radius: 50%;
+  filter: blur(70px); opacity: 0.22; will-change: transform;
+  background: var(--accent);
+  animation: ai-drift 22s ease-in-out infinite alternate;
+}
+.ai-hero-bg i:nth-child(1) { left: 18%; top: 12%; }
+.ai-hero-bg i:nth-child(2) { right: 14%; top: 28%; background: color-mix(in srgb, var(--accent) 55%, #7c3aed); animation-duration: 27s; animation-delay: -9s; }
+.ai-hero-bg i:nth-child(3) { left: 36%; bottom: 6%; background: color-mix(in srgb, var(--accent) 55%, #06b6d4); animation-duration: 31s; animation-delay: -17s; }
+@keyframes ai-drift {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(9vmin, -6vmin) scale(1.12); }
+  100% { transform: translate(-7vmin, 8vmin) scale(0.94); }
+}
+.ai-hero-box {
+  position: relative; width: min(680px, 100%);
+  display: flex; flex-direction: column; align-items: center; gap: 22px;
+  animation: ai-in 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@keyframes ai-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.ai-hero-hi { margin: 0; font: 600 34px/1.15 var(--font-ui); letter-spacing: -0.02em; color: var(--text); text-align: center; }
+.ai-ask {
+  width: 100%; display: flex; align-items: flex-end; gap: 10px;
+  padding: 12px 12px 12px 18px;
+  background: var(--surface); border: 1px solid var(--border);
+  box-shadow: 0 14px 48px color-mix(in srgb, var(--accent) 12%, transparent), 0 1px 2px rgba(0,0,0,0.04);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.ai-ask:focus-within { border-color: var(--accent); box-shadow: 0 18px 56px color-mix(in srgb, var(--accent) 22%, transparent), 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); }
+.ai-ask textarea {
+  flex: 1; min-height: 28px; max-height: 180px; padding: 4px 0;
+  border: 0; outline: none; background: transparent; resize: none;
+  font: 16px/1.5 var(--font-ui); color: var(--text);
+}
+.ai-ask textarea::placeholder { color: var(--text-low); }
+.ai-ask textarea:disabled { opacity: 0.5; }
+.ai-ask-send {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 38px; height: 38px; border: 0; cursor: pointer;
+  background: var(--accent); color: #fff;
+  transition: opacity 0.15s ease, transform 0.1s ease;
+}
+.ai-ask-send:disabled { opacity: 0.35; cursor: default; }
+.ai-ask-send:not(:disabled):hover { filter: brightness(1.08); }
+.ai-ask-send:not(:disabled):active { transform: scale(0.95); }
+.ai-hero-hint { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--text-low); text-align: center; }
+.ai-hero-hint.err { color: #f25f5c; }
+body.phone .ai-hero-hi { font-size: 26px; }
+@media (prefers-reduced-motion: reduce) { .ai-hero-bg i, .ai-hero-box { animation: none; } }
+
 /* xterm fills its pane */
 .xterm { height: 100%; }
 .xterm-viewport { overscroll-behavior: contain; }

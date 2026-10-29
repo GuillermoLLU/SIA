@@ -100,7 +100,7 @@ const theme = createThemeController({
   pushToBridge: (t) => { if (!ctx.lanToken) api('/config', { method: 'PUT', body: { theme: { id: t.id, ui: t.ui } } }).catch(() => {}); },
 });
 chat = mountChatView({
-  api, apiBase, wsUrl, dialogs, theme: theme.current, phone: isPhone,
+  api, apiBase, wsUrl, dialogs, theme: theme.current, phone: isPhone, me: user?.name ?? null,
   mac: /Mac|iP(hone|ad)/i.test(navigator.platform || navigator.userAgent || ''),
   remote: () => !!ctx.lanToken, gate: gate.fromBridge, onRevoked: lanRevoked,
   onTheme: (id) => theme.apply(id), onSkills: (list) => palette.setSkills(list),

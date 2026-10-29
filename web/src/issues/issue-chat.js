@@ -42,7 +42,7 @@ export const mountIssueChat = (host, { issue, wsUrl, loadProjects, makeTerminal 
     // medir antes de arrancar: el CLI nace con el ancho real
     requestAnimationFrame(() => requestAnimationFrame(() => {
       try { fit.fit(); } catch { /* sin tamaño */ }
-      sendOn(ws, msg.start(launcher.id, knowledge, projects, term.cols, term.rows, issueId));
+      sendOn(ws, msg.start(launcher.id, knowledge, projects, term.cols, term.rows, { issue: issueId }));
     }));
   };
 

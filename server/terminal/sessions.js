@@ -30,6 +30,10 @@ export const pickProjects = (ceiling, chosen) => (Array.isArray(chosen) && chose
 
 export const isIssueId = (id) => /^INC\d+$/.test(String(id ?? ''));
 
+// La pregunta con la que arranca un chat (el primer mensaje al CLI), o nada.
+export const PROMPT_MAX = 4000;
+export const firstPrompt = (prompt) => (typeof prompt === 'string' && prompt.trim() ? prompt.trim().slice(0, PROMPT_MAX) : null);
+
 // Un adjunto anunciado por un cliente, acotado; null si no vale.
 export const assetFrom = (msg) => (msg?.name && msg?.absPath ? { name: String(msg.name).slice(0, 80), absPath: String(msg.absPath) } : null);
 

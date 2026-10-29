@@ -75,6 +75,19 @@ test('start: lanza el CLI con sus argumentos, engancha y avisa; data y history',
   x.done();
 });
 
+test('start con pregunta: va como primer mensaje del CLI; en blanco, nada', async () => {
+  const x = setup();
+  const ws = x.connect(fakeWs());
+  ws.say({ type: 'start', launcher: 'claude', prompt: '  ¿Qué hace la PDA?  ' });
+  await tick(); await tick();
+  assert.equal(x.pty.spawned[0].args[2], '¿Qué hace la PDA?');
+  const ws2 = x.connect(fakeWs());
+  ws2.say({ type: 'start', launcher: 'claude', prompt: '   ' });
+  await tick(); await tick();
+  assert.equal(x.pty.spawned[1].args[2], '');
+  x.done();
+});
+
 test('meta, asset y kill: se difunden y al morir el PTY se limpia la sesión', async () => {
   const x = setup();
   const ws = x.connect(fakeWs());

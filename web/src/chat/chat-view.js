@@ -7,19 +7,22 @@
 // no se roba, se reclama con un botón). Las reglas, en sessions.js y
 // protocol.js; la terminal, en terminal.js.
 import { esc } from '../ui/html.js';
-import { chatPlan, knowledgeLabel } from './start.js';
+import { chatPlan, knowledgeLabel, tabLabel } from './start.js';
 import { msg, parse, closeReason, sendOn, isOpen } from './protocol.js';
 import { chatSessions, defaultLabel, chromeVisible, nextActive, toAsset, reconcile } from './sessions.js';
 import { makeTerminal, useWebgl, enableTouchScroll, wireCopyPaste } from './terminal.js';
 import { createAssets } from './assets.js';
 import { createTabBar } from './tabs.js';
 
+const SEND_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
+
 // api/apiBase: el bridge · wsUrl(): el socket · theme(): el tema actual ·
-// phone/mac: dónde corre · remote(): si es un móvil emparejado · gate(): la
-// puerta del candado · onRevoked(): el ordenador cerró este móvil ·
-// onTheme(id): el ordenador cambió de tema (lo sigue el móvil) ·
-// onSkills(list): las skills de la paleta, cuando el bridge las manda
-export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac, remote, gate, onRevoked, onTheme, onSkills }) => {
+// phone/mac: dónde corre · me: el nombre de quien entra (saluda la portada) ·
+// remote(): si es un móvil emparejado · gate(): la puerta del candado ·
+// onRevoked(): el ordenador cerró este móvil · onTheme(id): el ordenador
+// cambió de tema (lo sigue el móvil) · onSkills(list): las skills de la
+// paleta, cuando el bridge las manda
+export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac, me = null, remote, gate, onRevoked, onTheme, onSkills }) => {
   const viewEl = document.getElementById('view-chat');
   const stackEl = document.getElementById('term-stack');
   const sessions = new Map();
@@ -65,26 +68,43 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
   /* Sincronizar nombre/color de la pestaña con el bridge (persisten entre recargas). */
   const sendMeta = (s) => { if (s.launched) sendOn(s.ws, msg.meta(s.label, s.color)); };
 
-  /* El arranque del chat: un botón y, debajo, con qué conocimiento se abre.
-     Los proyectos se vuelven a pedir al pulsar (recoge los creados al vuelo);
-     si falta algo (start.js), se explica en lugar del aviso. */
+  /* La portada del chat: un saludo, el campo «Pregunta lo que quieras…» y,
+     debajo, con qué conocimiento se abre. Al enviar, la terminal arranca con
+     esa pregunta como primer mensaje. Los proyectos se vuelven a pedir al
+     enviar (recoge los creados al vuelo); si falta algo (start.js), el campo
+     se apaga y se explica en su lugar. Intro envía; Mayús+Intro, salto. */
   const loadProjects = async () => {
     try { accessProjects = await api('/access/projects'); } catch { /* deja lo último conocido */ }
     return accessProjects;
   };
-  const startHtml = (hint, error = null) => `<div class="ai-start">
-    <button class="lab-btn primary ai-start-go" data-start ${error ? 'disabled' : ''}>Iniciar chat con IA</button>
-    <p class="ai-start-hint">${esc(error || hint)}</p></div>`;
+  const heroHtml = (hint, error = null) => `<div class="ai-hero">
+    <div class="ai-hero-bg" aria-hidden="true"><i></i><i></i><i></i></div>
+    <div class="ai-hero-box">
+      <h1 class="ai-hero-hi">${esc(me ? `Hola, ${me.split(' ')[0]}.` : 'Hola.')}</h1>
+      <form class="ai-ask" data-ask novalidate>
+        <textarea name="ask" rows="1" placeholder="Pregunta lo que quieras…" aria-label="Tu pregunta" ${error ? 'disabled' : ''}></textarea>
+        <button type="submit" class="ai-ask-send" aria-label="Enviar" title="Enviar (Intro)" disabled>${SEND_ICON}</button>
+      </form>
+      <p class="ai-hero-hint${error ? ' err' : ''}">${esc(error || hint)}</p>
+    </div></div>`;
   const renderStart = (s, launchers) => {
-    s.start.innerHTML = startHtml(knowledgeLabel(accessProjects));
-    const btn = s.start.querySelector('[data-start]');
-    btn.addEventListener('click', async () => {
-      btn.disabled = true;
+    s.start.innerHTML = heroHtml(knowledgeLabel(accessProjects));
+    const form = s.start.querySelector('[data-ask]');
+    const field = form.elements.ask, send = form.querySelector('.ai-ask-send');
+    const grow = () => { field.style.height = 'auto'; field.style.height = `${Math.min(field.scrollHeight, 180)}px`; send.disabled = !field.value.trim(); };
+    field.addEventListener('input', grow);
+    field.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); } });
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const prompt = field.value.trim();
+      if (!prompt || s.launched) return;
+      field.disabled = true; send.disabled = true;
       const projects = await loadProjects();
       const plan = chatPlan({ launchers, projects });
-      if (plan.error) { s.start.innerHTML = startHtml(null, plan.error); return; }
-      launchSession(s, plan.launcher, plan.knowledge, plan.projects);
+      if (plan.error) { s.start.innerHTML = heroHtml(null, plan.error); return; }
+      launchSession(s, plan.launcher, plan.knowledge, plan.projects, prompt);
     });
+    if (!phone && !typingElsewhere()) field.focus();
   };
 
   /* Montar la terminal de una sesión (común a lanzar nueva y re-enganchar). */
@@ -116,18 +136,20 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
     if (s.term) { try { s.term.dispose(); } catch { /* ya liberada */ } s.term = null; }
   };
 
-  /* Abrir de verdad el lanzador elegido: la terminal y el PTY. */
-  const launchSession = (s, launcher, knowledge, projects) => {
+  /* Abrir de verdad el chat: la terminal y el PTY, con la pregunta como
+     primer mensaje. La pestaña se llama como la pregunta (y así se queda en
+     el bridge, para que siga llamándose igual al recargar). */
+  const launchSession = (s, launcher, knowledge, projects, prompt = null) => {
     if (s.launched) return;
     s.launcher = launcher.id;
-    if (!s.renamed) tabs.setLabel(s, launcher.label); // el nombre del lanzador (se puede renombrar)
+    if (!s.renamed) { tabs.setLabel(s, tabLabel(prompt, launcher.label)); s.renamed = !!prompt; }
     materialize(s);
     // medir el terminal ANTES de lanzar y mandar el tamaño en el start, para que
     // el PTY nazca con el ancho real (si no, el CLI dibuja a 80 columnas y queda
     // estrecho hasta el primer resize). Doble rAF: deja asentar el layout.
     requestAnimationFrame(() => requestAnimationFrame(() => {
       try { s.fit.fit(); } catch { /* aún sin tamaño */ }
-      sendOn(s.ws, msg.start(launcher.id, knowledge, projects, s.term.cols, s.term.rows));
+      sendOn(s.ws, msg.start(launcher.id, knowledge, projects, s.term.cols, s.term.rows, { prompt }));
     }));
   };
 

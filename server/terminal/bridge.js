@@ -6,7 +6,7 @@
 //   deps: pty, launchers, workspace, env() → entorno de los chats,
 //         issues.find(id), accessibleProjects(base), currentBase(), skillsOf(base),
 //         skillSync, remote, lock, theme() → el tema del escritorio, isLoopback(req)
-import { CLOSE, MAX_ASSETS, appendBuffer, sessionList, pickMode, pickProjects, isIssueId, assetFrom, metaPatch } from './sessions.js';
+import { CLOSE, MAX_ASSETS, appendBuffer, sessionList, pickMode, pickProjects, isIssueId, assetFrom, metaPatch, firstPrompt } from './sessions.js';
 import { issueContext } from '../issues/context.js';
 
 export const createTerminalBridge = ({ pty, launchers, workspace, env, issues, accessibleProjects, currentBase, skillsOf, skillSync, remote, lock, theme, isLoopback }) => {
@@ -21,14 +21,15 @@ export const createTerminalBridge = ({ pty, launchers, workspace, env, issues, a
   const broadcastSessions = () => broadcast({ type: 'sessions', sessions: sessionList(sessions) });
   const closeQuietly = (ws, code, reason) => { try { ws.close(code, reason); } catch { /* ya cerrado */ } };
 
-  const spawnSession = async (ws, { launcherId, knowledge, projects, cols, rows, issue }) => {
+  // issue: el chat de una issue arranca con sus datos; prompt: el Chat, con la pregunta escrita
+  const spawnSession = async (ws, { launcherId, knowledge, projects, cols, rows, issue, prompt }) => {
     const def = launchers.byId(launcherId);
     if (!launchers.installed(def)) return send(ws, { type: 'error', message: `"${def.cmd}" no está instalado.` });
     const mode = pickMode(knowledge);
     const id = `s${++seq}`;
     const base = currentBase();
     const picked = pickProjects((await accessibleProjects(base)).map((p) => p.id), projects);
-    const spawn = launchers.prepare(def, id, picked, base, issue ? issueContext(issue) : null);
+    const spawn = launchers.prepare(def, id, picked, base, issue ? issueContext(issue) : prompt);
     let term;
     try {
       term = pty.spawn(spawn.cmd, spawn.args, { name: 'xterm-color', cols: cols > 0 ? cols : 80, rows: rows > 0 ? rows : 24, cwd: workspace.modeDirFor(mode, base), env: env() });
@@ -93,7 +94,7 @@ export const createTerminalBridge = ({ pty, launchers, workspace, env, issues, a
           const open = [...sessions.values()].find((x) => x.meta.issue === issue.id);
           if (open) { bind(open); send(ws, { type: 'started', sessionId: open.id }); return send(ws, { type: 'history', data: open.buffer }); }
         }
-        const s = await spawnSession(ws, { launcherId: msg.launcher, knowledge: msg.knowledge, projects: msg.projects, cols: msg.cols, rows: msg.rows, issue });
+        const s = await spawnSession(ws, { launcherId: msg.launcher, knowledge: msg.knowledge, projects: msg.projects, cols: msg.cols, rows: msg.rows, issue, prompt: firstPrompt(msg.prompt) });
         if (!s) return;
         bind(s);
         send(ws, { type: 'started', sessionId: s.id });
