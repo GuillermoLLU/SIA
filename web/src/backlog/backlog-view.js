@@ -16,7 +16,7 @@ const PLURAL = { CRITICAL: 'Críticas', HIGH: 'Altas', MEDIUM: 'Medias', LOW: 'B
 
 // toast: avisos de la app. Las reglas de priorización se gestionarán desde aquí (botón de la cabecera).
 export const mountBacklogView = (root, { api, toast }) => {
-  let data = null, filter = { ...EMPTY_FILTER }, now = new Date();
+  let data = null, filter = { ...EMPTY_FILTER }, now = new Date(), loading = false;
 
   const page = (body, head = '') => `<div class="bl-page"><div class="bl-top iss-top"><h2 class="iss-title">Backlog</h2>${head}</div>${body}</div>`;
 
@@ -51,12 +51,14 @@ export const mountBacklogView = (root, { api, toast }) => {
         <p class="bl-shown">${filtering ? `<b>${shown.length}</b> de ${c.total} · <button class="bl-clear" data-key="all">Ver todas</button>` : 'En el orden de la regla básica'}</p>
       </div>
       ${shown.length ? `<div class="bl-list">${shown.map(row).join('')}</div>` : `<p class="bl-empty">${c.total ? 'Ninguna issue cumple lo marcado.' : 'La cola está vacía: no queda nada sin coger.'}</p>`}`,
-      `<span class="bl-total"><b>${c.total}</b> sin coger</span><label class="bl-search"><input type="search" data-q placeholder="Buscar una issue, un centro o un texto" value="${esc(filter.q)}" aria-label="Buscar en el backlog"></label><button class="bl-rules" data-rules>Reglas de priorización</button>`);
+      `<label class="bl-search"><input type="search" data-q placeholder="Buscar una issue, un centro o un texto" value="${esc(filter.q)}" aria-label="Buscar en el backlog"></label><button class="bl-rules" data-rules>Reglas de priorización</button><button class="bl-rules" data-reload${loading ? ' disabled' : ''}>${loading ? 'Actualizando…' : 'Actualizar backlog'}</button>`);
   };
 
   const load = async () => {
-    data = await api.list();
-    now = new Date();
+    loading = true;
+    if (data) render(); // el botón de actualizar, ocupado
+    try { data = await api.list(); now = new Date(); }
+    finally { loading = false; }
     render();
   };
 
@@ -72,6 +74,7 @@ export const mountBacklogView = (root, { api, toast }) => {
   });
   root.addEventListener('click', (e) => {
     if (e.target.closest('[data-rules]')) return toast?.('Las reglas de priorización se crearán y ajustarán desde aquí; aún no está.');
+    if (e.target.closest('[data-reload]')) return load().catch((err) => toast?.(`No se pudo actualizar el backlog: ${err.message}`));
     const b = e.target.closest('[data-key]');
     if (!b) return;
     const { key, value } = b.dataset;
