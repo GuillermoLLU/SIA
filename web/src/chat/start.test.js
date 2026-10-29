@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { pickLauncher, chatPlan, knowledgeLabel, tabLabel } from './start.js';
+import { pickLauncher, chatPlan, tabLabel } from './start.js';
 
 const LAUNCHERS = [{ id: 'claude', label: 'Claude', available: true }, { id: 'copilot', label: 'Copilot', available: false }];
 const PROJECTS = [{ id: 5, name: 'SISU' }, { id: 6, name: 'SGA' }];
@@ -26,12 +26,4 @@ test('la pestaña se llama como la pregunta, recortada por palabra', () => {
   assert.equal(tabLabel('a'.repeat(40), 'Claude'), `${'a'.repeat(28)}…`);
   assert.equal(tabLabel('   ', 'Claude'), 'Claude');
   assert.equal(tabLabel(null, 'Claude'), 'Claude');
-});
-
-test('la etiqueta del conocimiento: uno, varios o ninguno', () => {
-  assert.equal(knowledgeLabel([PROJECTS[0]]), 'Con el conocimiento de SISU');
-  assert.equal(knowledgeLabel(PROJECTS), 'Con el conocimiento de SISU y SGA');
-  assert.equal(knowledgeLabel([...PROJECTS, { id: 7, name: ' Otro ' }]), 'Con el conocimiento de SISU, SGA y Otro');
-  assert.equal(knowledgeLabel([]), 'Sin conocimiento del equipo asignado');
-  assert.equal(knowledgeLabel([{ id: 1 }]), 'Sin conocimiento del equipo asignado');
 });

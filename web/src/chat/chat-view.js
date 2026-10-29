@@ -7,7 +7,7 @@
 // no se roba, se reclama con un botón). Las reglas, en sessions.js y
 // protocol.js; la terminal, en terminal.js.
 import { esc } from '../ui/html.js';
-import { chatPlan, knowledgeLabel, tabLabel } from './start.js';
+import { chatPlan, tabLabel } from './start.js';
 import { msg, parse, closeReason, sendOn, isOpen } from './protocol.js';
 import { chatSessions, defaultLabel, chromeVisible, nextActive, toAsset, reconcile } from './sessions.js';
 import { makeTerminal, useWebgl, enableTouchScroll, wireCopyPaste } from './terminal.js';
@@ -68,27 +68,26 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
   /* Sincronizar nombre/color de la pestaña con el bridge (persisten entre recargas). */
   const sendMeta = (s) => { if (s.launched) sendOn(s.ws, msg.meta(s.label, s.color)); };
 
-  /* La portada del chat: un saludo, el campo «Pregunta lo que quieras…» y,
-     debajo, con qué conocimiento se abre. Al enviar, la terminal arranca con
-     esa pregunta como primer mensaje. Los proyectos se vuelven a pedir al
-     enviar (recoge los creados al vuelo); si falta algo (start.js), el campo
-     se apaga y se explica en su lugar. Intro envía; Mayús+Intro, salto. */
+  /* La portada del chat: un saludo y el campo de la pregunta. Al enviar, la
+     terminal arranca con esa pregunta como primer mensaje. Los proyectos se
+     piden al enviar (recoge los creados al vuelo); si falta algo (start.js),
+     el campo se apaga y se explica debajo. Intro envía; Mayús+Intro, salto. */
   const loadProjects = async () => {
     try { accessProjects = await api('/access/projects'); } catch { /* deja lo último conocido */ }
     return accessProjects;
   };
-  const heroHtml = (hint, error = null) => `<div class="ai-hero">
+  const heroHtml = (error = null) => `<div class="ai-hero">
     <div class="ai-hero-bg" aria-hidden="true"><i></i><i></i><i></i></div>
     <div class="ai-hero-box">
       <h1 class="ai-hero-hi">${esc(me ? `Hola, ${me.split(' ')[0]}.` : 'Hola.')}</h1>
       <form class="ai-ask" data-ask novalidate>
-        <textarea name="ask" rows="1" placeholder="Pregunta lo que quieras…" aria-label="Tu pregunta" ${error ? 'disabled' : ''}></textarea>
+        <textarea name="ask" rows="1" placeholder="Describe la incidencia o lo que necesitas saber…" aria-label="Tu pregunta" ${error ? 'disabled' : ''}></textarea>
         <button type="submit" class="ai-ask-send" aria-label="Enviar" title="Enviar (Intro)" disabled>${SEND_ICON}</button>
       </form>
-      <p class="ai-hero-hint${error ? ' err' : ''}">${esc(error || hint)}</p>
+      ${error ? `<p class="ai-hero-err">${esc(error)}</p>` : ''}
     </div></div>`;
   const renderStart = (s, launchers) => {
-    s.start.innerHTML = heroHtml(knowledgeLabel(accessProjects));
+    s.start.innerHTML = heroHtml();
     const form = s.start.querySelector('[data-ask]');
     const field = form.elements.ask, send = form.querySelector('.ai-ask-send');
     const grow = () => { field.style.height = 'auto'; field.style.height = `${Math.min(field.scrollHeight, 180)}px`; send.disabled = !field.value.trim(); };
@@ -101,7 +100,7 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
       field.disabled = true; send.disabled = true;
       const projects = await loadProjects();
       const plan = chatPlan({ launchers, projects });
-      if (plan.error) { s.start.innerHTML = heroHtml(null, plan.error); return; }
+      if (plan.error) { s.start.innerHTML = heroHtml(plan.error); return; }
       launchSession(s, plan.launcher, plan.knowledge, plan.projects, prompt);
     });
     if (!phone && !typingElsewhere()) field.focus();

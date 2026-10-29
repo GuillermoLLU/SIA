@@ -30,11 +30,3 @@ export const tabLabel = (prompt, fallback, max = 28) => {
   const cut = text.slice(0, max);
   return `${(cut.includes(' ') ? cut.slice(0, cut.lastIndexOf(' ')) : cut).trimEnd()}…`;
 };
-
-// Qué conocimiento tendrá el chat, para decirlo bajo el campo: «SISU y SGA».
-export const knowledgeLabel = (projects = []) => {
-  const names = projects.map((p) => String(p.name ?? '').trim()).filter(Boolean);
-  if (!names.length) return 'Sin conocimiento del equipo asignado';
-  const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} y ${names.at(-1)}`;
-  return `Con el conocimiento de ${list}`;
-};

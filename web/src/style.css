@@ -776,8 +776,7 @@ body { display: flex; flex-direction: column; }
 .ai-ask-send:disabled { opacity: 0.35; cursor: default; }
 .ai-ask-send:not(:disabled):hover { filter: brightness(1.08); }
 .ai-ask-send:not(:disabled):active { transform: scale(0.95); }
-.ai-hero-hint { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--text-low); text-align: center; }
-.ai-hero-hint.err { color: #f25f5c; }
+.ai-hero-err { margin: 0; font-size: 12.5px; line-height: 1.5; color: #f25f5c; text-align: center; }
 body.phone .ai-hero-hi { font-size: 26px; }
 @media (prefers-reduced-motion: reduce) { .ai-hero-bg i, .ai-hero-box { animation: none; } }
 
