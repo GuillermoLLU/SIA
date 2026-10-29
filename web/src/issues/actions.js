@@ -3,19 +3,23 @@
 // instancia); resolver y escalar irán a Remedy por SIGLO y, de momento, no se
 // envían. Las notas internas se escriben en la pestaña Notas internas.
 import { esc } from '../ui/html.js';
-import { pickerHtml } from '../ui/picker.js';
+import { peoplePicker } from '../ui/picker.js';
 
 export const ACTIONS = {
   resolve: {
     label: 'Resolver', title: 'Resolver la issue', ok: 'Resolver',
-    fields: [{ name: 'resolution', label: 'Resolución', kind: 'text', required: true, hint: 'Qué se ha hecho. Es lo que verá el centro.' }],
-  },
-  escalate: {
-    label: 'Escalar', title: 'Escalar la issue', ok: 'Escalar',
+    // la nota interna y los tres puntos del mensaje al centro; el formulario
+    // es propio (resolve-form.js), aquí solo lo que hace falta para enviarlo
     fields: [
-      { name: 'to', label: 'A quién', kind: 'line', required: true, hint: 'Grupo o proveedor.' },
-      { name: 'reason', label: 'Motivo', kind: 'text', required: true },
+      { name: 'note', label: 'Nota interna de resolución', kind: 'text', required: true },
+      { name: 'what', label: '¿Qué ocurrió?', kind: 'text', required: true },
+      { name: 'how', label: '¿Cómo se resolvió?', kind: 'text', required: true },
+      { name: 'prevent', label: '¿Qué se hará para evitarlo?', kind: 'text', required: true },
     ],
+  },
+  // el formulario es propio (escalate-form.js) y se lee con readEscalate
+  escalate: {
+    label: 'Escalar',
   },
   transfer: {
     label: 'Traspasar', title: 'Traspasar a un compañero', ok: 'Traspasar', local: true,
@@ -28,7 +32,7 @@ export const ACTIONS = {
 
 // El selector de persona es el propio de la app (ui/picker.js); abrir,
 // elegir y cerrar lo lleva la vista (issues-view.js).
-const picker = (f, people) => pickerHtml({ name: f.name, id: `iss-f-${f.name}`, options: people, empty: 'No hay más personas en Issues' });
+const picker = (f, people) => peoplePicker({ name: f.name, id: `iss-f-${f.name}`, people, empty: 'No hay más personas en Issues' });
 
 const field = (f, people) => {
   const id = `iss-f-${f.name}`;

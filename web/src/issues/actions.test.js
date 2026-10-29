@@ -7,8 +7,7 @@ test('las tres acciones (las notas van en el histórico)', () => {
 });
 
 test('obligatorios: el primero que falte', () => {
-  assert.deepEqual(readAction('resolve', { resolution: '  ' }), { missing: 'Resolución' });
-  assert.deepEqual(readAction('escalate', { to: 'Proveedor X', reason: '' }), { missing: 'Motivo' });
+  assert.deepEqual(readAction('resolve', { note: 'Se relanzó', what: '  ' }), { missing: '¿Qué ocurrió?' });
   assert.deepEqual(readAction('transfer', { to: 'u1' }), { missing: 'Motivo' });
   assert.deepEqual(readAction('transfer', { to: 'u1', comment: ' Lleva dos llamadas. ' }), { values: { to: 'u1', comment: 'Lleva dos llamadas.' } });
 });
@@ -18,7 +17,6 @@ test('el botón de enviar empieza apagado y solo se enciende con todos los oblig
   assert.equal(isComplete('transfer', { to: 'u1', comment: '  ' }), false);
   assert.equal(isComplete('transfer', { to: '', comment: 'motivo' }), false);
   assert.equal(isComplete('transfer', { to: 'u1', comment: 'motivo' }), true);
-  assert.equal(isComplete('escalate', { to: 'x', reason: 'y' }), true);
 });
 
 test('traspasar: el equipo en el selector propio, escapado; se queda en SIA, sin el aviso de Remedy', () => {

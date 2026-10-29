@@ -7,7 +7,7 @@ import { esc } from '../ui/html.js';
 import { SEVERITY_ES, STATUS_ES, REASON_ES, when, whenIso, age } from '../issues/format.js';
 import { sev, origin } from '../issues/parts.js';
 import { worklogHtml } from '../issues/work-screen.js';
-import { pickerHtml } from '../ui/picker.js';
+import { peoplePicker } from '../ui/picker.js';
 
 // Priorizar: la prioridad es la etiqueta PRIO de Remedy, que pone negocio.
 const pinHtml = ({ prio }) => `<div class="bl-act"><h5>Priorizar</h5>
@@ -16,7 +16,7 @@ const pinHtml = ({ prio }) => `<div class="bl-act"><h5>Priorizar</h5>
 
 // Asignarla a alguien del equipo (people: [{ id, name }]), con el selector propio de la app.
 const assignHtml = ({ people, busy }) => `<form class="bl-act bl-act-form" data-assign-form><h5>Asignar</h5>
-    <div class="bl-act-row">${pickerHtml({ name: 'to', id: 'bl-assign-to', options: people, empty: 'Nadie en Issues' })}<button type="submit" class="lab-btn primary" ${busy ? 'disabled' : ''}>${busy ? 'Asignando…' : 'Asignar'}</button></div>
+    <div class="bl-act-row">${peoplePicker({ name: 'to', id: 'bl-assign-to', people, empty: 'Nadie en Issues' })}<button type="submit" class="lab-btn primary" ${busy ? 'disabled' : ''}>${busy ? 'Asignando…' : 'Asignar'}</button></div>
     <small class="bl-act-note">Pasará a su mesa como cogida.</small></form>`;
 
 // detail: lo que da GET /backlog/:id

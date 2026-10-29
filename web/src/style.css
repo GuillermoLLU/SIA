@@ -430,6 +430,7 @@ body { display: flex; flex-direction: column; }
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
   animation: toast-in .22s ease-out;
 }
+.toast.error { color: #fff; background: #d63c3a; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 .settings-status.ok { color: #40c463; }
 .settings-status.bad { color: #f25f5c; }
@@ -1136,3 +1137,9 @@ body.phone #nav-links, body.phone #view-links { display: none; }
 .pick-list li { padding: 8px 12px; font-size: 13px; color: var(--text); cursor: pointer; }
 .pick-list li:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
 .pick-list li[aria-selected="true"] { font-weight: 600; color: var(--accent); }
+/* los títulos de grupo de la lista: no se eligen */
+.pick-list .pick-group { position: sticky; top: -4px; z-index: 1; padding: 7px 12px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-low); cursor: default; background: color-mix(in srgb, var(--text-low) 9%, var(--surface)); border-block: 1px solid var(--border); }
+.pick-list .pick-group:first-child { border-top: 0; }
+.pick-list .pick-group:hover { background: color-mix(in srgb, var(--text-low) 9%, var(--surface)); }
+/* con grupos, las opciones van sangradas bajo su título */
+.pick-list:has(.pick-group) [role="option"] { padding-left: 24px; }

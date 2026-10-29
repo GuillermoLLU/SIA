@@ -18,6 +18,20 @@ export const statusChanges = (audit) => String(audit || '').split(' | ')
   .filter(Boolean)
   .map(([, at, from, to]) => [minute(at), from.trim(), to.trim()]);
 
+// WORKLOG_DETAIL: las notas de trabajo, troceadas con entries (shared/remedy-entries.js).
+// Las 120 últimas: la foto se guarda entera en este
+// ordenador (en octubre de 2026, la abierta con más notas tenía 65). Las notas
+// del método («[ETIQUETA] …») van enteras, hasta el tope del borrador, porque
+// Resolver las reutiliza; las automáticas, que pueden ser enormes, se recortan.
+// Se ordena por la fecha completa: el CSV trae primero la más reciente y dos
+// notas del mismo minuto quedarían al revés.
+const MAX_NOTES = 120, MAX_AUTO = 1000, MAX_METHOD = 20_000;
+const cut = (text) => text.slice(0, text.startsWith('[') ? MAX_METHOD : MAX_AUTO);
+export const worklog = (text) => entries(text)
+  .map((e) => ({ full: e.at.trim(), who: e.who.trim(), text: cut(e.text.trim()) }))
+  .sort((x, y) => x.full.localeCompare(y.full)).slice(-MAX_NOTES)
+  .map(({ full, ...n }) => ({ at: minute(full), ...n }));
+
 export const toIssue = (r) => {
   const m = r.SUMMARY.match(SUMMARY);
   const tags = r.TAGS.split(';').map((t) => t.trim().split('=')[0]);
@@ -42,6 +56,6 @@ export const toIssue = (r) => {
     related: r.CHILDREQUEST,
     link: r.LINKREMEDY,
     changes: statusChanges(r.AUDIT_DETAIL),
-    worklog: entries(r.WORKLOG_DETAIL).map(({ at, who, text }) => ({ at: minute(at), who, text })),
+    worklog: worklog(r.WORKLOG_DETAIL), // columna opcional: las consultas antiguas no la traen
   };
 };

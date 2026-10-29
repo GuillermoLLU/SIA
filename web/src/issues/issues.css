@@ -187,7 +187,10 @@
 .iss-chat-start { flex: 1; display: flex; flex-direction: column; gap: 14px; padding: 8px; overflow-y: auto; }
 .iss-chat-start[hidden] { display: none; }
 /* el arranque de la resolución asistida: un botón en el centro y con qué se abre */
-.iss-modal { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; background: rgba(0, 0, 0, .32); }
+.iss-assist { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px 16px; text-align: center; }
+.iss-assist-go { padding: 12px 22px; font-size: 14px; }
+.iss-assist-hint { margin: 0; max-width: 300px; font-size: 12.5px; line-height: 1.5; color: var(--text-low); }
+.iss-modal { position: fixed; inset: 0; z-index: 50; display: grid; place-items: safe center; padding: 16px; overflow-y: auto; background: rgba(0, 0, 0, .32); }
 .iss-act-form { width: min(560px, 100%); display: flex; flex-direction: column; gap: 14px; padding: 20px 22px; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 18px 50px rgba(0, 0, 0, .25); color: var(--text); }
 .iss-act-form header { display: flex; align-items: baseline; gap: 12px; }
 .iss-act-form h3 { margin: 0; font-size: 16px; font-weight: 650; }
@@ -203,6 +206,112 @@
 .iss-act-note { margin: 0; padding: 8px 10px; font-size: 12px; color: var(--text-low); background: color-mix(in srgb, var(--bg) 60%, var(--surface)); border: 1px dashed var(--border); }
 .iss-act-err { margin: 0; font-size: 12.5px; color: var(--iss-crit); }
 .iss-act-form footer { display: flex; justify-content: flex-end; gap: 8px; }
+/* antes de resolver: solo lo que falta, en el color de aviso */
+.iss-warn { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 10px 12px 10px 28px; font-size: 13px; color: var(--text); background: var(--bg); border-left: 3px solid var(--iss-high); }
+/* resolver: más ancho, por bloques numerados; cada bloque dice quién lo lee */
+.iss-resolve { width: min(720px, 100%); gap: 18px; }
+.iss-rs { display: flex; flex-direction: column; gap: 10px; padding-top: 14px; border-top: 1px solid var(--border); }
+.iss-rs h4 { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; font-size: 13.5px; font-weight: 650; }
+.iss-rs h4 em { font-style: normal; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-low); }
+.iss-rs blockquote { margin: 0; padding: 8px 12px; font-size: 13px; white-space: pre-wrap; color: var(--text); background: var(--bg); border-left: 3px solid var(--border); }
+.iss-done { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 28px; margin: 0; padding: 0; list-style: none; font-size: 13px; }
+@media (max-width: 640px) { .iss-done { grid-template-columns: 1fr; } }
+.iss-done li { display: flex; align-items: baseline; gap: 6px; }
+.iss-done li i { width: 12px; font-style: normal; font-weight: 700; }
+.iss-done .ok i { color: var(--iss-ok); }
+.iss-done .no { color: var(--text-low); }
+.iss-done small { margin-left: auto; font-size: 11.5px; color: var(--text-low); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* resolver: el identificador bien visible, para no equivocarse de incidencia */
+.iss-act-form header .iss-act-id { padding: 3px 10px; font-size: 14px; font-weight: 700; letter-spacing: .02em; color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); border: 1px solid var(--accent); }
+.iss-steps { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0; padding: 0 0 12px; list-style: none; font-size: 12.5px; color: var(--text-low); border-bottom: 1px solid var(--border); }
+.iss-steps li { display: flex; align-items: center; gap: 8px; }
+.iss-steps i { display: inline-grid; place-items: center; width: 20px; height: 20px; font-size: 11px; font-weight: 700; font-style: normal; border: 1px solid var(--border); }
+.iss-steps li[aria-current] { font-weight: 650; color: var(--text); }
+.iss-steps li[aria-current] i { color: var(--surface); background: var(--accent); border-color: var(--accent); }
+.iss-steps li.done i { font-size: 0; color: var(--iss-ok); border-color: var(--iss-ok); }
+.iss-steps li.done i::before { content: '✓'; font-size: 12px; }
+.iss-rstep { display: flex; flex-direction: column; gap: 18px; }
+.iss-rstep .iss-rs:first-child { padding-top: 0; border-top: 0; }
+.iss-drop { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 22px 16px; font-size: 13px; text-align: center; color: var(--text-low); cursor: pointer; border: 1px dashed var(--border); background: var(--bg); }
+.iss-drop b { font-weight: 600; color: var(--text); }
+.iss-drop:hover, .iss-drop:focus-within, .iss-resolve.over .iss-drop { border-color: var(--accent); color: var(--text); }
+/* un archivo arrastrado encima del modal (en el paso del adjunto): se suelta en cualquier parte */
+.iss-resolve.over { outline: 2px dashed var(--accent); outline-offset: -6px; }
+/* el selector de archivos, oculto a la vista pero no al teclado: Tab lo enfoca e Intro lo abre */
+.iss-drop input { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+.iss-drop:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* El idioma: a la derecha del título, dos botones de los que vale uno. Es un
+   radio por dentro (teclado y formulario), pero se pulsa todo el botón. */
+.iss-rs-h { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+.iss-lang { display: inline-flex; align-items: center; gap: 8px; margin: 0; padding: 0; border: 0; }
+.iss-lang legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.iss-lang::before { content: 'Idioma'; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-low); }
+.iss-lang label { position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 16px; font-size: 13px; color: var(--text); background: var(--bg); border: 1px solid var(--border); cursor: pointer; user-select: none; }
+.iss-lang label + label { margin-left: -9px; }
+.iss-lang label:hover { border-color: var(--text-low); }
+.iss-lang input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.iss-lang label:has(:checked) { z-index: 1; color: var(--bg); font-weight: 600; background: var(--accent); border-color: var(--accent); }
+.iss-lang label:has(:checked)::before { content: '✓'; }
+.iss-lang label:has(:focus-visible) { z-index: 2; outline: 2px solid var(--accent); outline-offset: 2px; }
+.iss-file-on { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0; padding: 10px 12px; font-size: 13px; background: var(--bg); border: 1px solid var(--border); }
+.iss-file-on span { overflow-wrap: anywhere; }
+.iss-file-on .lab-btn { margin-left: auto; }
+.iss-block { margin: 0; padding: 10px 12px; font-size: 13px; color: var(--text); border-left: 3px solid var(--iss-crit); background: color-mix(in srgb, var(--iss-crit) 8%, var(--surface)); }
+.iss-autosave { margin-right: auto; font-size: 12px; color: var(--text-low); }
+.iss-cf-file { color: var(--text-low); }
+/* resolver, confirmación: lo que se envía, limpio y como se va a leer */
+.iss-cf { display: flex; flex-direction: column; gap: 8px; }
+.iss-cf h4 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin: 0; font-size: 13.5px; font-weight: 650; }
+.iss-cf h4 em { font-style: normal; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-low); }
+.iss-cf-box { display: flex; flex-direction: column; gap: 12px; padding: 12px 14px; font-size: 13.5px; line-height: 1.5; background: var(--bg); border: 1px solid var(--border); }
+.iss-cf-box p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.iss-cf-mail { border-left: 3px solid var(--accent); }
+/* «?»: la ayuda sale al pasar el ratón o al llegar con el teclado */
+.iss-tip { position: relative; display: inline-flex; }
+.iss-tip button { width: 18px; height: 18px; padding: 0; font: inherit; font-size: 11px; font-weight: 700; line-height: 1; color: var(--text-low); background: transparent; border: 1px solid var(--border); cursor: help; }
+.iss-tip button:hover, .iss-tip button:focus-visible { color: var(--accent); border-color: var(--accent); outline: none; }
+.iss-tip [role="tooltip"] { position: absolute; top: calc(100% + 6px); left: 50%; z-index: 2; width: 300px; padding: 10px 12px; font-size: 12.5px; font-weight: 400; line-height: 1.45; text-transform: none; letter-spacing: 0; color: var(--text); background: var(--surface); border: 1px solid var(--border); box-shadow: 0 8px 24px rgba(0, 0, 0, .18); transform: translateX(-50%); visibility: hidden; opacity: 0; transition: opacity .12s; }
+.iss-tip:hover [role="tooltip"], .iss-tip:focus-within [role="tooltip"] { visibility: visible; opacity: 1; }
+/* Escalar: más alto que las demás acciones, con su propio scroll */
+.iss-esc { width: min(640px, 100%); max-height: 84vh; overflow-y: auto; }
+.iss-modal:has(.iss-esc) { padding-top: 6vh; }
+.iss-mono, .iss-esc code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; }
+.iss-esc [hidden] { display: none !important; }
+.iss-esc [data-esc-mode] { display: flex; flex-direction: column; gap: 14px; }
+/* Escalar: la lista de equipos, más alta (lleva los grupos del mapa) */
+.iss-esc .pick-list { max-height: 280px; }
+.iss-esc small.ok { color: var(--iss-ok); }
+.iss-esc small.bad { color: var(--iss-crit); }
+.iss-esc small b { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-weight: 600; }
+.iss-esc textarea::placeholder, .iss-esc input::placeholder { color: var(--text-low); opacity: .7; }
+.iss-esc-hint { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: 0; padding: 8px 10px; font-size: 12.5px; border: 1px solid color-mix(in srgb, var(--iss-high) 40%, var(--border)); }
+.iss-esc-hint .lab-btn { margin-left: auto; }
+/* Opciones que se eligen pulsando la tarjeta: el radio no se ve, la tarjeta marca la elegida */
+.iss-sr { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.iss-esc-card { position: relative; display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; font-size: 13px; line-height: 1.4; cursor: pointer; border: 1px solid var(--border); background: var(--surface); }
+.iss-esc-card:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.iss-esc-card:has(:checked) { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
+.iss-esc-card:has(:checked) > b { color: var(--accent); }
+.iss-esc-card:has(:checked)::after { content: "✓"; position: absolute; top: 9px; right: 12px; font-weight: 700; color: var(--accent); }
+.iss-esc-card:has(.iss-sr:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.iss-esc-card > b { padding-right: 18px; font-weight: 600; }
+.iss-esc-card small { font-size: 12px; color: var(--text-low); }
+.iss-esc-mode { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.iss-esc-open { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; border: 0; }
+.iss-esc-open legend { padding: 0 0 6px; font-size: 13px; font-weight: 600; }
+.iss-esc-open input[name=linkedOther] { margin-top: 4px; padding: 6px 8px; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border); }
+.iss-esc-dev { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; font-size: 12.5px; line-height: 1.45; border: 1px solid var(--border); background: color-mix(in srgb, var(--bg) 60%, var(--surface)); }
+.iss-esc-dev h4, .iss-esc-before h4 { margin: 0; font-size: 13px; font-weight: 600; }
+.iss-esc-before h4 i { font-weight: 400; font-style: normal; color: var(--text-low); }
+.iss-esc-dev ul { display: flex; flex-direction: column; gap: 4px; margin: 0; padding-left: 18px; }
+.iss-esc-before { display: flex; flex-direction: column; gap: 8px; }
+.iss-esc-check { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 13px; }
+.iss-esc-check li { display: flex; gap: 8px; }
+.iss-esc-check li > span { width: 14px; font-weight: 700; }
+.iss-esc-check li.ok > span { color: var(--iss-ok); }
+.iss-esc-check li.todo > span { color: var(--text-low); }
+.iss-esc-check i { font-style: normal; color: var(--text-low); }
+@media (max-width: 560px) { .iss-esc-mode { grid-template-columns: 1fr; } }
 .iss-take:focus-visible, .iss-item:focus-visible, .iss-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* la issue en el diálogo de confirmación (devolver a la cola) */
 .iss-dlg-issue { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; background: color-mix(in srgb, var(--bg) 60%, var(--surface)); border: 1px solid var(--border); }
@@ -223,3 +332,4 @@
   .iss-bars { gap: 3px; }
   .iss-kv, .iss-facts { grid-template-columns: 1fr; }
     }
+.iss-field textarea:disabled { opacity: .55; cursor: not-allowed; }
