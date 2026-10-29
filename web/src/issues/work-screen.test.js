@@ -45,7 +45,7 @@ test('el recorrido: por días, movimientos y notas por orden, el motivo del tras
   assert.match(html, /Motivo del traspaso.*Lleva &lt;dos&gt; llamadas\./);
   assert.match(html, /editada /);
   assert.match(html, /<b>Alguien<\/b> la devolvió a la cola/);
-  assert.match(trailHint(), /Nada de esto sale a Remedy/);
+  assert.match(trailHint(), /Solo las ve el equipo/);
   const withTrail = workScreen({ issue: issue(), sameCenter: [], timeline: [{ at: '2026-10-01T08:00:00+00:00', type: 'claimed', by: 'Ana', to: 'Ana' }], now, mine: false, tab: 'trail' });
   assert.match(withTrail, /data-wtab="trail" aria-selected="true">Histórico y notas<span>1<\/span>/);
 });

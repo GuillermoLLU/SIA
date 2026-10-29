@@ -41,7 +41,7 @@ export const trailHtml = (timeline = [], now = new Date()) => {
 };
 
 // Qué es esta pestaña, en una línea.
-export const trailHint = () => '<p class="iss-trail-hint">Aquí queda todo lo que pasa con esta issue en SIA: quién la coge, la devuelve o la traspasa, y las notas internas del equipo. Nada de esto sale a Remedy.</p>';
+export const trailHint = () => '<p class="iss-trail-hint">Por quién ha pasado esta issue y las notas internas del equipo. Solo las ve el equipo.</p>';
 
 // Escribir una nota interna, al pie del recorrido. Enviar se enciende con texto.
 const SEND = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>';
