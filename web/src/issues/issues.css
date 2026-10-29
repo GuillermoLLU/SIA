@@ -129,25 +129,23 @@
 .iss-trail-panel { overflow: hidden; gap: 10px; }
 .iss-trail-hint { align-self: flex-end; max-width: 60%; margin: 0; padding: 7px 12px; font-size: 11.5px; line-height: 1.45; color: var(--text-low); text-align: right; background: color-mix(in srgb, var(--accent) 6%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border)); border-right: 3px solid var(--accent); }
 .iss-trail-scroll { flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px; }
-.iss-trail-day { margin-bottom: 6px; }
-.iss-trail-day h5 { margin: 0 0 6px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-low); }
-.iss-trail-list { display: flex; flex-direction: column; gap: 10px; margin: 0 0 10px; padding: 2px 0 2px 22px; list-style: none; font-size: 13px; }
-.iss-trail-list li { position: relative; }
-/* el punto de cada entrada y, de cada una a la siguiente, el raíl */
-.iss-trail-list li::before { content: ""; position: absolute; left: -20px; top: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--surface); border: 2px solid var(--text-low); z-index: 1; }
-.iss-trail-list li:not(:last-child)::after { content: ""; position: absolute; left: -15px; top: 16px; bottom: -18px; width: 2px; background: color-mix(in srgb, var(--text-low) 45%, var(--border)); }
-.iss-trail-move { display: flex; align-items: baseline; gap: 10px; color: var(--text-low); line-height: 1.5; }
-.iss-trail-move b { color: var(--text); font-weight: 600; }
-.iss-trail-move time { margin-left: auto; font-size: 11.5px; font-variant-numeric: tabular-nums; }
-.iss-trail-note::before { border-color: var(--accent); background: var(--accent); }
-.iss-trail-card { background: color-mix(in srgb, var(--bg) 50%, var(--surface)); border: 1px solid var(--border); }
-.iss-trail-note.transfer .iss-trail-card { border-left: 3px solid var(--accent); }
-.iss-trail-card header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; padding: 8px 12px 0; }
-.iss-trail-card header b { font-weight: 600; }
-.iss-trail-card header time { margin-left: auto; font-size: 11.5px; color: var(--text-low); font-variant-numeric: tabular-nums; }
-.iss-trail-card header small { font-size: 11px; color: var(--text-low); }
-.iss-trail-card p { margin: 0; padding: 6px 12px 10px; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
-.iss-tag { padding: 1px 7px; font-style: normal; font-size: 11px; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent); }
+.iss-trail-day { margin-bottom: 4px; }
+.iss-trail-day h5 { display: flex; align-items: center; gap: 12px; margin: 6px 0 10px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-low); }
+.iss-trail-day h5::before, .iss-trail-day h5::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+.iss-trail-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; font-size: 13px; }
+/* cada entrada: avatar a la izquierda, conectados por una línea fina */
+.iss-feed-item { position: relative; display: grid; grid-template-columns: 28px 1fr; gap: 0 12px; padding: 0 0 14px; }
+.iss-feed-item:not(:last-child)::before { content: ""; position: absolute; left: 13px; top: 30px; bottom: 0; width: 2px; background: var(--border); }
+.iss-feed-item:last-child { padding-bottom: 4px; }
+.iss-avatar { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; font-size: 11px; font-weight: 600; letter-spacing: .02em; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border)); }
+.iss-avatar.unknown { color: var(--text-low); background: color-mix(in srgb, var(--bg) 60%, var(--surface)); border-color: var(--border); }
+.iss-feed-body { min-width: 0; padding-top: 5px; }
+.iss-feed-body header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; color: var(--text-low); line-height: 1.4; }
+.iss-feed-body header b { color: var(--text); font-weight: 600; }
+.iss-feed-body header time { margin-left: auto; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.iss-feed-body header small { font-size: 11px; }
+.iss-feed-text { margin-top: 8px; padding: 10px 12px; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; color: var(--text); background: color-mix(in srgb, var(--bg) 50%, var(--surface)); border: 1px solid var(--border); border-radius: 4px; }
+.iss-feed-label { display: block; margin-bottom: 4px; font-size: 10.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-low); }
 .iss-note-form { display: flex; gap: 8px; align-items: flex-end; padding-top: 12px; border-top: 1px solid var(--border); }
 .iss-note-form textarea { flex: 1; min-height: 40px; max-height: 160px; padding: 10px 12px; font: inherit; font-size: 13px; line-height: 1.45; color: var(--text); background: var(--bg); border: 1px solid var(--border); outline: none; resize: none; }
 .iss-note-form textarea:focus { border-color: var(--accent); }

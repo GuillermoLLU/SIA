@@ -12,18 +12,23 @@ const NOTES = [
   { id: 8, author_id: 'u2', author_name: 'Luis', kind: 'note', body: 'El centro confirma.', created_at: '2026-10-29T10:00:00+00:00', edited_at: '2026-10-29T10:30:00+00:00' },
 ];
 
-test('movimientos y notas en una sola lista, por tiempo; a igual hora, el movimiento antes que su nota', () => {
+test('movimientos y notas en una sola lista, por tiempo; el motivo del traspaso va dentro de su movimiento', () => {
   const t = timeline(EVENTS, NOTES);
   assert.deepEqual(t.map((x) => `${x.at.slice(11, 16)} ${x.type}${x.kind ? `/${x.kind}` : ''}`),
-    ['08:00 claimed', '09:00 transferred', '09:00 note/transfer', '10:00 note/note', '11:00 released']);
+    ['08:00 claimed', '09:00 transferred', '10:00 note/note', '11:00 released']);
 });
 
 test('cada entrada con lo que la pantalla necesita', () => {
-  const [claimed, transferred, motive, note] = timeline(EVENTS, NOTES);
+  const [claimed, transferred, note] = timeline(EVENTS, NOTES);
   assert.deepEqual(claimed, { at: '2026-10-29T08:00:00+00:00', type: 'claimed', by: 'Ana', from: null, to: 'Ana' });
-  assert.deepEqual(transferred, { at: '2026-10-29T09:00:00+00:00', type: 'transferred', by: 'Ana', from: 'Ana', to: 'Luis' });
-  assert.deepEqual(motive, { at: '2026-10-29T09:00:00+00:00', type: 'note', id: 7, kind: 'transfer', by: 'Ana', text: 'Lleva dos llamadas.', edited: null });
+  assert.deepEqual(transferred, { at: '2026-10-29T09:00:00+00:00', type: 'transferred', by: 'Ana', from: 'Ana', to: 'Luis', text: 'Lleva dos llamadas.' });
   assert.equal(note.edited, '2026-10-29T10:30:00+00:00');
+});
+
+test('una nota de traspaso sin su movimiento (otra hora u otra persona) se queda como nota', () => {
+  const t = timeline(EVENTS, [{ id: 9, author_name: 'Luis', kind: 'transfer', body: 'x', created_at: '2026-10-29T09:00:00+00:00', edited_at: null }]);
+  assert.equal(t.filter((x) => x.type === 'note').length, 1);
+  assert.equal(t.find((x) => x.type === 'transferred').text, undefined);
 });
 
 test('sin nada, lista vacía; una persona borrada sale sin nombre', () => {

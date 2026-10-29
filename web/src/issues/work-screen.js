@@ -19,15 +19,23 @@ const WORK_TABS = [
 // El recorrido en SIA: movimientos y notas por orden (lo que da el bridge en
 // `timeline`). Se pinta aparte para poder refrescarlo al añadir una nota.
 export const trailTab = (n) => `Histórico y notas${n ? `<span>${n}</span>` : ''}`;
-const MOVES = {
-  claimed: (t) => `<b>${esc(t.by || 'Alguien')}</b> la cogió`,
-  released: (t) => `<b>${esc(t.by || 'Alguien')}</b> la devolvió a la cola`,
-  transferred: (t) => `<b>${esc(t.by || 'Alguien')}</b> la traspasó a <b>${esc(t.to || 'alguien')}</b>`,
+// Quién: un avatar con sus iniciales (sin nombre, un interrogante).
+const initials = (name) => (name || '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('') || '?';
+const avatar = (name) => `<span class="iss-avatar${name ? '' : ' unknown'}" aria-hidden="true">${esc(initials(name))}</span>`;
+const who = (name) => `<b>${esc(name || 'Alguien')}</b>`;
+
+// Cada entrada del feed: avatar, cabecera (quién hizo qué, y la hora) y, si
+// lo hay, el texto (la nota o el motivo del traspaso) como comentario.
+const DID = {
+  claimed: (t) => `${who(t.by)} cogió la issue`,
+  released: (t) => `${who(t.by)} devolvió la issue a la cola`,
+  transferred: (t) => `${who(t.by)} traspasó la issue a ${who(t.to)}`,
+  note: (t) => `${who(t.by)} escribió una nota`,
 };
-// Un movimiento: una línea discreta. Una nota: una tarjeta con quién y cuándo.
-const trailItem = (t) => (t.type === 'note'
-  ? `<li class="iss-trail-note${t.kind === 'transfer' ? ' transfer' : ''}"><div class="iss-trail-card"><header><b>${esc(t.by || 'Alguien')}</b>${t.kind === 'transfer' ? '<i class="iss-tag">Motivo del traspaso</i>' : ''}<time>${timeIso(t.at)}</time>${t.edited ? `<small>· editada ${whenIso(t.edited)}</small>` : ''}</header><p>${esc(t.text)}</p></div></li>`
-  : `<li class="iss-trail-move"><span>${(MOVES[t.type] || ((x) => esc(x.type)))(t)}</span><time>${timeIso(t.at)}</time></li>`);
+const trailItem = (t) => `<li class="iss-feed-item${t.text ? ' has-text' : ''}">${avatar(t.by)}<div class="iss-feed-body">
+      <header>${(DID[t.type] || ((x) => esc(x.type)))(t)}<time>${timeIso(t.at)}</time>${t.edited ? `<small>editada ${whenIso(t.edited)}</small>` : ''}</header>
+      ${t.text ? `<div class="iss-feed-text">${t.type === 'transferred' ? '<span class="iss-feed-label">Motivo</span>' : ''}${esc(t.text)}</div>` : ''}
+    </div></li>`;
 // Agrupado por día, del más antiguo al más reciente. `now` solo decide «Hoy» y «Ayer».
 export const trailHtml = (timeline = [], now = new Date()) => {
   if (!timeline.length) return '<p class="iss-empty">Nadie la ha movido ni anotado en SIA todavía.</p>';
@@ -37,7 +45,7 @@ export const trailHtml = (timeline = [], now = new Date()) => {
     if (days.at(-1)?.day !== day) days.push({ day, items: [] });
     days.at(-1).items.push(t);
   }
-  return days.map(({ day, items }) => `<section class="iss-trail-day"><h5>${day}</h5><ol class="iss-trail-list">${items.map(trailItem).join('')}</ol></section>`).join('');
+  return days.map(({ day, items }) => `<section class="iss-trail-day"><h5><span>${day}</span></h5><ol class="iss-trail-list">${items.map(trailItem).join('')}</ol></section>`).join('');
 };
 
 // Qué es esta pestaña: una nota pequeña, a la derecha.

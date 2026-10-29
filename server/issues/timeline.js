@@ -3,11 +3,21 @@
 // lista por orden de tiempo. Lo que la base devuelve en platform_issue_events y
 // platform_issue_notes, unido para que la pantalla lo pinte de una vez.
 //
-//   movimiento → { at, type: 'claimed' | 'released' | 'transferred', by, from, to }
+//   movimiento → { at, type: 'claimed' | 'released' | 'transferred', by, from, to, text? }
 //   nota       → { at, type: 'note', id, kind: 'note' | 'transfer', by, text, edited }
+// El motivo de un traspaso (la nota 'transfer' escrita en el mismo instante por
+// la misma persona) va dentro del movimiento como `text`: una sola entrada.
 
 const event = (e) => ({ at: e.happened_at, type: e.action, by: e.actor_name ?? null, from: e.from_name ?? null, to: e.to_name ?? null });
 const note = (n) => ({ at: n.created_at, type: 'note', id: n.id, kind: n.kind || 'note', by: n.author_name ?? null, text: n.body, edited: n.edited_at ?? null });
+const sameMoment = (a, b) => new Date(a).getTime() === new Date(b).getTime();
 
-export const timeline = (events = [], notes = []) =>
-  [...events.map(event), ...notes.map(note)].sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+export const timeline = (events = [], notes = []) => {
+  const moves = events.map(event);
+  const loose = [];
+  for (const n of notes.map(note)) {
+    const move = n.kind === 'transfer' && moves.find((m) => m.type === 'transferred' && !m.text && m.by === n.by && sameMoment(m.at, n.at));
+    if (move) move.text = n.text; else loose.push(n);
+  }
+  return [...moves, ...loose].sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+};

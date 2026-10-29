@@ -29,22 +29,24 @@ test('mía y cogida en SIA: se puede devolver y se ve quién la tiene', () => {
   assert.match(html, /data-wtab="detail" aria-selected="true"/);
 });
 
-test('el recorrido: por días, movimientos y notas por orden, el motivo del traspaso etiquetado, todo escapado', () => {
+test('el feed: por días, con avatar, quién hizo qué y la hora; el motivo del traspaso como comentario; todo escapado', () => {
   const html = trailHtml([
-    { at: '2026-10-01T08:00:00+00:00', type: 'claimed', by: 'Ana', from: null, to: 'Ana' },
-    { at: '2026-10-01T09:00:00+00:00', type: 'transferred', by: 'Ana', from: 'Ana', to: 'Luis <x>' },
-    { at: '2026-10-01T09:00:00+00:00', type: 'note', id: 1, kind: 'transfer', by: 'Ana', text: 'Lleva <dos> llamadas.', edited: null },
+    { at: '2026-10-01T08:00:00+00:00', type: 'claimed', by: 'Ana López', from: null, to: 'Ana López' },
+    { at: '2026-10-01T09:00:00+00:00', type: 'transferred', by: 'Ana López', from: 'Ana López', to: 'Luis <x>', text: 'Lleva <dos> llamadas.' },
     { at: '2026-10-01T10:00:00+00:00', type: 'note', id: 2, kind: 'note', by: 'Luis', text: 'El centro confirma.', edited: '2026-10-01T10:30:00+00:00' },
     { at: '2026-10-01T11:00:00+00:00', type: 'released', by: null, from: null, to: null },
     { at: '2026-10-02T08:00:00+00:00', type: 'claimed', by: 'Luis', from: null, to: 'Luis' },
   ], new Date('2026-10-02T12:00:00'));
-  assert.equal((html.match(/<li /g) || []).length, 6);
-  assert.deepEqual([...html.matchAll(/<h5>([^<]+)<\/h5>/g)].map((m) => m[1]), ['Ayer', 'Hoy']);
-  assert.match(html, /<b>Ana<\/b> la cogió/);
-  assert.match(html, /la traspasó a <b>Luis &lt;x&gt;<\/b>/);
-  assert.match(html, /Motivo del traspaso.*Lleva &lt;dos&gt; llamadas\./);
+  assert.equal((html.match(/<li /g) || []).length, 5);
+  assert.deepEqual([...html.matchAll(/<h5><span>([^<]+)<\/span><\/h5>/g)].map((m) => m[1]), ['Ayer', 'Hoy']);
+  assert.match(html, /<span class="iss-avatar" aria-hidden="true">AL<\/span>/);
+  assert.match(html, /<span class="iss-avatar unknown" aria-hidden="true">\?<\/span>/);
+  assert.match(html, /<b>Ana López<\/b> cogió la issue/);
+  assert.match(html, /traspasó la issue a <b>Luis &lt;x&gt;<\/b>/);
+  assert.match(html, /<span class="iss-feed-label">Motivo<\/span>Lleva &lt;dos&gt; llamadas\./);
+  assert.match(html, /<b>Luis<\/b> escribió una nota/);
   assert.match(html, /editada /);
-  assert.match(html, /<b>Alguien<\/b> la devolvió a la cola/);
+  assert.match(html, /<b>Alguien<\/b> devolvió la issue a la cola/);
   assert.match(trailHint(), /Por quién ha pasado esta issue y las notas internas del equipo/);
   const withTrail = workScreen({ issue: issue(), sameCenter: [], timeline: [{ at: '2026-10-01T08:00:00+00:00', type: 'claimed', by: 'Ana', to: 'Ana' }], now, mine: false, tab: 'trail' });
   assert.match(withTrail, /data-wtab="trail" aria-selected="true">Histórico y notas<span>1<\/span>/);
