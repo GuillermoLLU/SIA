@@ -32,6 +32,7 @@
 --  Vistas: lo que cada persona puede ver y hacer en SIA (el Chat, siempre).
 --  La lista está en platform.known_views().
 --    issues     Issues: el gestor de incidencias de soporte
+--    backlog    Backlog: la cola del equipo (lo que nadie tiene aún), para quien reparte
 --    work       Panel de trabajo: métricas de los empleados
 --    metrics    Métricas: OKRs, KPIs y otros indicadores
 --    links      Enlaces rápidos
@@ -79,7 +80,7 @@ revoke all on schema platform from public, anon, authenticated;
 -- en web/src/users/views.js). Administrador las tiene siempre todas.
 create or replace function platform.known_views() returns text[]
 language sql immutable set search_path = '' as $$
-  select array['issues', 'work', 'metrics', 'links', 'lab', 'admin', 'people']
+  select array['issues', 'backlog', 'work', 'metrics', 'links', 'lab', 'admin', 'people']
 $$;
 
 -- ── Tablas ────────────────────────────────────────────────────────────────
@@ -699,7 +700,7 @@ returns table (issue_id text, user_id uuid, user_name text, claimed_at timestamp
 language plpgsql stable security definer set search_path = '' as $$
 #variable_conflict use_column
 begin
-  perform platform.require_view('issues');
+  perform platform.require_view('issues', 'backlog'); -- el Backlog también mira qué está cogido
   return query
     select c.issue_id, c.user_id, u.name, c.claimed_at
     from platform.issue_claims c join platform.users u on u.id = c.user_id

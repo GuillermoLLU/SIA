@@ -32,7 +32,7 @@ se vuelve a ejecutar su SQL (`node server/base/schema-sql.js`).
 ## Personas, roles y vistas
 
 Cada persona ve las **vistas** que se le den: el Chat siempre y, además,
-Issues, Equipo soporte, Métricas, Enlaces rápidos, Laboratorio, Administración
+Issues, Backlog, Equipo soporte, Métricas, Enlaces rápidos, Laboratorio, Administración
 y Personas (`platform.users.views`; la lista, en `platform.known_views()`).
 
 Lo cómodo es darlas con un **rol** (un nombre y unas vistas,

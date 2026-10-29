@@ -26,6 +26,7 @@ API y su vista:
 | `auth/` | Inicio de sesión y la sesión en el navegador |
 | `chat/` | El chat: su arranque (`start.js`: Claude, conocimiento autónomo y todo lo accesible), protocolo con el bridge, reconciliación entre dispositivos, terminal y adjuntos |
 | `issues/` | La mesa de issues de cada persona y la pantalla de trabajo de una issue (con su chat) |
+| `backlog/` | Backlog: la cola del equipo entera, para quien reparte; una vista sobre el dominio de Issues |
 | `metrics/` | Métricas: reglas (`rules.js`) y cálculo por pestaña en módulos puros; el HTML de cada pestaña en `metrics/tabs/` |
 | `work/` | Equipo soporte: una vista sobre el dominio de Métricas |
 | `users/` | Personas y roles |
@@ -49,7 +50,7 @@ las rutas de cada slice.
 | `users/`, `knowledge/` | Personas y roles; conocimiento asignado y claves de poder de cada persona |
 | `base/` | Cliente de la base de conocimiento, permisos y el esquema SQL |
 | `projects/` | Administración: proyectos y sus entradas |
-| `issues/`, `metrics/` | Issues (cola, mesa, estadísticas) y Métricas (cada actualización pide a Snowflake, con `snowflake-sdk` y el SSO de cada persona, solo las incidencias de Remedy nuevas o cambiadas desde la última, y las suma a un repositorio SQLite local con `node:sqlite`, `incidencias.sqlite`, que no sale del equipo; de él salen los datos por columnas; el periodo se elige por fechas) |
+| `issues/`, `backlog/`, `metrics/` | Issues (cola, mesa, estadísticas), Backlog (la cola entera, sobre el dominio de Issues) y Métricas (cada actualización pide a Snowflake, con `snowflake-sdk` y el SSO de cada persona, solo las incidencias de Remedy nuevas o cambiadas desde la última, y las suma a un repositorio SQLite local con `node:sqlite`, `incidencias.sqlite`, que no sale del equipo; de él salen los datos por columnas; el periodo se elige por fechas) |
 | `skills/`, `links/`, `uploads/` | Laboratorio y sincronización de skills, enlaces rápidos, adjuntos |
 | `config/`, `lock/` | Configuración personal (`~/.sia/config.json`: tema, Jira, GitHub) y candado |
 | `launchers/`, `workspace/` | Los CLIs (Claude, Copilot, Codex), sus argumentos y su MCP por sesión; los directorios de modo y skills por base |

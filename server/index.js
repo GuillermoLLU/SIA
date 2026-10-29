@@ -52,6 +52,8 @@ import { updatesRoutes } from './updates/routes.js';
 import { createIssuesSource } from './issues/source.js';
 import { createIssuesService } from './issues/service.js';
 import { issuesRoutes } from './issues/routes.js';
+import { createBacklogService } from './backlog/service.js';
+import { backlogRoutes } from './backlog/routes.js';
 import { DatabaseSync } from 'node:sqlite';
 import { createMetricsStore } from './metrics/store.js';
 import { createRepository } from './metrics/repository.js';
@@ -136,7 +138,9 @@ export const startBridge = async ({ env = process.env } = {}) => {
   const clearAssigned = async () => { assigned = null; await applyBase(); };
   const syncKeys = (jwt, userId, opts) => knowledge.syncPeople(jwt, userId ? [userId] : null, opts);
 
-  const issues = createIssuesService({ source: createIssuesSource(workspace.issuesDir), platform });
+  const issuesSource = createIssuesSource(workspace.issuesDir); // la foto, una sola para Issues y Backlog
+  const issues = createIssuesService({ source: issuesSource, platform });
+  const backlog = createBacklogService({ source: issuesSource, platform });
   const tunnel = createTunnel({ binDir: workspace.binDir, apiPort: ports.api, resolve: launchers.resolve, fetch: undiciFetch, insecureFetch: supaFetch, isWin });
   const remote = createRemote({ lock, tunnel, apiPort: ports.api, wsClients: () => bridge.clients(), idleMs: Number(env.SIA_LOCK_IDLE_MS) || undefined });
   const bridge = createTerminalBridge({
@@ -156,6 +160,7 @@ export const startBridge = async ({ env = process.env } = {}) => {
     users: usersRoutes(users, { ...http_, syncKeys, assignKnowledge: (jwt, userId, ids) => knowledge.setProjects(jwt, userId, ids), refreshProfile: (token) => auth.refreshProfile(token) }),
     knowledge: knowledgeRoutes(knowledge, { ...http_, syncKeys, onChange: () => loadAssigned() }),
     issues: issuesRoutes(issues, http_),
+    backlog: backlogRoutes(backlog, http_),
     metrics: metricsRoutes(createMetricsStore(workspace.metricsDir, {
       repo: createRepository({ DatabaseSync, file: path.join(workspace.metricsDir, 'incidencias.sqlite'), fs }),
       source: createSnowflake({ loadSdk: async () => (await import('snowflake-sdk')).default, config: () => cleanSnowflake(config.read().snowflake) }),
