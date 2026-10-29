@@ -28,9 +28,9 @@
 --    issue_notes        notas internas del equipo sobre una issue (editables por
 --                       quien las escribió); el comentario de un traspaso queda
 --                       como nota etiquetada «transfer»
---    priority_rules     reglas de priorización del backlog que crea el equipo: un
---                       nombre y una lista ordenada de criterios (el catálogo, en
---                       platform.known_criteria()); la regla básica va en código
+--    priority_rules     reglas de priorización del backlog: un nombre y una lista
+--                       ordenada de criterios (el catálogo, en platform.known_criteria()).
+--                       La básica viene de serie (builtin): se ajusta, no se borra
 --
 --  Vistas: lo que cada persona puede ver y hacer en SIA (el Chat, siempre).
 --  La lista está en platform.known_views().
@@ -209,10 +209,16 @@ create table if not exists platform.priority_rules (
   id          uuid primary key default gen_random_uuid(),
   name        text not null unique check (char_length(btrim(name)) between 1 and 60),
   criteria    text[] not null constraint rules_criteria_known check (criteria <@ platform.known_criteria() and cardinality(criteria) >= 1),
+  builtin     boolean not null default false,  -- la regla básica: se ajusta, no se borra
   created_by  uuid references platform.users (id) on delete set null,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
+create unique index if not exists priority_rules_builtin on platform.priority_rules (builtin) where builtin;
+-- La regla básica, la del equipo, de serie (si no está ya)
+insert into platform.priority_rules (name, criteria, builtin)
+  select 'Regla básica', array['recent', 'prio', 'month', 'severity', 'age'], true
+  where not exists (select 1 from platform.priority_rules where builtin);
 
 -- Administrador, con todas las vistas que haya (también las que se añadan)
 update platform.roles set views = platform.known_views() where builtin = 'admin' and views is distinct from platform.known_views();
@@ -858,17 +864,18 @@ end $$;
 -- ── Reglas de priorización del backlog ────────────────────────────────────
 -- Las ven quienes cogen issues o reparten (Issues, Backlog): un nombre y sus
 -- criterios en orden. Las crean, cambian y borran quienes reparten (Backlog).
--- La regla básica no está aquí: va en código y no se toca.
-create or replace function public.platform_list_rules()
-returns table (id uuid, name text, criteria text[], created_by uuid, updated_at timestamptz)
+-- La básica (builtin) va primero; se ajusta como las demás, pero no se borra.
+drop function if exists public.platform_list_rules();
+create function public.platform_list_rules()
+returns table (id uuid, name text, criteria text[], builtin boolean, created_by uuid, updated_at timestamptz)
 language plpgsql stable security definer set search_path = '' as $$
 #variable_conflict use_column
 begin
   perform platform.require_view('issues', 'backlog');
   return query
-    select r.id, r.name, r.criteria, r.created_by, r.updated_at
+    select r.id, r.name, r.criteria, r.builtin, r.created_by, r.updated_at
     from platform.priority_rules r
-    order by lower(r.name);
+    order by r.builtin desc, lower(r.name);
 end $$;
 
 -- Crear (p_rule null) o cambiar una regla. Los criterios, del catálogo y sin repetir.
@@ -897,6 +904,9 @@ create or replace function public.platform_delete_rule(p_rule uuid) returns void
 language plpgsql security definer set search_path = '' as $$
 declare v_me uuid := platform.require_view('backlog');
 begin
+  if exists (select 1 from platform.priority_rules r where r.id = p_rule and r.builtin) then
+    raise exception 'La regla básica no se borra; ajústala.' using errcode = '42501';
+  end if;
   delete from platform.priority_rules where id = p_rule;
   if not found then raise exception 'Esa regla no existe.' using errcode = 'P0002'; end if;
   perform platform.audit(v_me, 'rule.delete', null, jsonb_build_object('rule', p_rule));

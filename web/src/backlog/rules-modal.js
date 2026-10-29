@@ -1,5 +1,5 @@
 // El modal «Reglas de priorización» del Backlog: a la izquierda las reglas (la
-// básica, fija, y las del equipo); a la derecha, la elegida: su nombre y dos
+// básica, de serie, y las del equipo); a la derecha, la elegida: su nombre y dos
 // columnas de chips, el orden de la regla y los criterios disponibles. Un chip
 // pasa de una columna a la otra al pulsarlo o arrastrarlo, y dentro de la
 // regla se arrastra al puesto que se quiera (rule-editor.js). Guardar y borrar
@@ -11,7 +11,7 @@ import { NEW_RULE, addCriterion, removeCriterion, placeCriterion, available, lab
 export const openRulesModal = async ({ api, dialogs, toast, onChange }) => {
   let { criteria: catalog, rules } = await api.rules();
   let current = rules[0]; // la regla elegida en la lista (null: una nueva)
-  let draft = null;       // su copia editable (null: la básica, que no se edita)
+  let draft = draftOf(current); // su copia editable
   let error = null, busy = false;
 
   const overlay = document.createElement('div');
@@ -25,7 +25,7 @@ export const openRulesModal = async ({ api, dialogs, toast, onChange }) => {
   const offEscape = onEscape(close);
   overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
 
-  const select = (rule) => { current = rule; draft = rule.builtin ? null : draftOf(rule); error = null; render(); };
+  const select = (rule) => { current = rule; draft = draftOf(rule); error = null; render(); };
   const startNew = () => { current = null; draft = { ...NEW_RULE }; error = null; render(); };
 
   const ruleItem = (r) => `<button class="bl-rule${current?.id === r.id ? ' on' : ''}" data-pick="${esc(r.id)}"><b>${esc(r.label)}</b><small>${r.criteria.length} criterio${r.criteria.length === 1 ? '' : 's'}${r.builtin ? ' · de serie' : ''}</small></button>`;
@@ -36,10 +36,6 @@ export const openRulesModal = async ({ api, dialogs, toast, onChange }) => {
   const chosen = (list, editable) => `<ol class="bl-chips" data-chosen>${list.map((id, n) => chip(id, { n, editable })).join('')}${editable && !list.length ? '<li class="bl-chips-empty">Pulsa o arrastra aquí los criterios, el que más manda arriba.</li>' : ''}</ol>`;
 
   const renderEdit = () => {
-    if (!draft) {
-      return `<h4>${esc(current.label)}</h4><p class="bl-rules-lead">La regla del equipo. Viene de serie y no se cambia; sirve de modelo para crear otras.</p>
-        <div class="bl-cols one"><div class="bl-col"><h5>Orden de la regla</h5>${chosen(current.criteria, false)}</div></div>`;
-    }
     const free = available(catalog, draft);
     return `<label class="bl-rule-name">Nombre<input data-name value="${esc(draft.name)}" maxlength="60" placeholder="Por ejemplo: Urgencias SISU" spellcheck="false"></label>
       <div class="bl-cols">
@@ -47,7 +43,7 @@ export const openRulesModal = async ({ api, dialogs, toast, onChange }) => {
         <div class="bl-col" data-col="free"><h5>Criterios disponibles</h5><p class="bl-rules-lead">Pulsa uno o arrástralo a la regla.</p><ul class="bl-chips" data-free>${free.map((c) => chip(c.id, { editable: true })).join('')}${free.length ? '' : '<li class="bl-chips-empty">Están todos en la regla.</li>'}</ul></div>
       </div>
       ${error ? `<p class="bl-rules-err">${esc(error)}</p>` : ''}
-      <div class="bl-rules-foot">${draft.id ? '<button class="lab-btn" data-delete>Borrar</button>' : ''}<span class="modal-foot-spacer"></span><button class="lab-btn primary" data-save ${busy ? 'disabled' : ''}>${busy ? 'Guardando…' : 'Guardar'}</button></div>`;
+      <div class="bl-rules-foot">${draft.id && !current?.builtin ? '<button class="lab-btn" data-delete>Borrar</button>' : ''}${current?.builtin ? '<span class="bl-rules-lead">La regla del equipo, de serie: se ajusta, no se borra.</span>' : ''}<span class="modal-foot-spacer"></span><button class="lab-btn primary" data-save ${busy ? 'disabled' : ''}>${busy ? 'Guardando…' : 'Guardar'}</button></div>`;
   };
   const render = () => {
     overlay.querySelector('[data-list]').innerHTML = renderList();
@@ -73,7 +69,7 @@ export const openRulesModal = async ({ api, dialogs, toast, onChange }) => {
     const after = chips.findIndex((c) => { const r = c.getBoundingClientRect(); return y < r.top + r.height / 2; });
     return after < 0 ? chips.length : after;
   };
-  const clearMarks = () => overlay.querySelectorAll('.bl-drop-before, .bl-drop-end, .bl-col.over').forEach((el) => el.classList.remove('bl-drop-before', 'bl-drop-end', 'over'));
+  const clearMarks = () => overlay.querySelectorAll('.bl-drop-line, .bl-col.over').forEach((el) => (el.classList.contains('bl-col') ? el.classList.remove('over') : el.remove()));
   overlay.addEventListener('dragstart', (e) => {
     const el = e.target.closest('.bl-chip.act');
     if (!el || !draft) return;
@@ -94,7 +90,9 @@ export const openRulesModal = async ({ api, dialogs, toast, onChange }) => {
     const list = col.querySelector('[data-chosen]');
     const chips = [...list.querySelectorAll('.bl-chip[data-chip]')].filter((c) => c.dataset.chip !== dragging);
     const at = chosenIndexAt(list, e.clientY);
-    if (at < chips.length) chips[at].classList.add('bl-drop-before'); else list.classList.add('bl-drop-end');
+    const line = document.createElement('li');
+    line.className = 'bl-drop-line';
+    if (at < chips.length) chips[at].before(line); else list.querySelector('.bl-chips-empty')?.remove(), list.appendChild(line);
   });
   overlay.addEventListener('drop', (e) => {
     const col = e.target.closest('[data-col]');

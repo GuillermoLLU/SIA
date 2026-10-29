@@ -79,7 +79,6 @@
 .bl-rule-name input { height: 34px; padding: 0 10px; font: inherit; font-size: 14px; color: var(--text); background: var(--bg); border: 1px solid var(--border); outline: none; }
 .bl-rule-name input:focus { border-color: var(--accent); }
 .bl-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; flex: 1; min-height: 0; }
-.bl-cols.one { grid-template-columns: minmax(0, 1fr); }
 .bl-col { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 12px; border: 1px solid var(--border); }
 .bl-col h5 { margin: 0; font-size: 11.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-low); }
 .bl-col.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 4%, transparent); }
@@ -89,8 +88,8 @@
 .bl-chip.act:hover { border-color: color-mix(in srgb, var(--text) 35%, var(--border)); }
 .bl-chip.act:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .bl-chip.dragging { opacity: .35; }
-.bl-chip.bl-drop-before { box-shadow: 0 -8px 0 -6px var(--accent); }
-.bl-chips.bl-drop-end { box-shadow: 0 8px 0 -6px var(--accent); }
+.bl-drop-line { position: relative; height: 0; margin: -3px 0; border-top: 2px solid var(--accent); list-style: none; }
+.bl-drop-line::before { content: ''; position: absolute; left: -5px; top: -5px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
 .bl-chip-n { flex-shrink: 0; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; font-size: 11.5px; font-weight: 650; color: var(--surface); background: var(--text); border-radius: 50%; }
 .bl-chip-l { flex: 1; }
 .bl-chips-empty { margin: 0; padding: 14px; font-size: 12.5px; color: var(--text-low); text-align: center; border: 1px dashed var(--border); }

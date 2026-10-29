@@ -1,6 +1,7 @@
-// Las reglas de priorización: la básica (en código, queue.js) y las que el
-// equipo crea desde el Backlog (en la base, platform_list_rules). Y qué debe
-// cumplir una regla para guardarse.
+// Las reglas de priorización, que viven en la base (platform_list_rules): la
+// básica, de serie, y las que el equipo crea desde el Backlog. Si la base aún
+// no tiene la básica (SQL sin ejecutar), vale la de código (queue.js). Y qué
+// debe cumplir una regla para guardarse.
 import { BASIC_RULE, CRITERIA } from './queue.js';
 
 const NAME_MAX = 60;
@@ -16,9 +17,12 @@ export const ruleProblem = ({ name, criteria } = {}) => {
   return null;
 };
 
-const fromDb = (r) => ({ id: r.id, label: r.name, criteria: r.criteria, builtin: false });
+const fromDb = (r) => ({ id: r.id, label: r.name, criteria: r.criteria, builtin: !!r.builtin });
 
 // La básica primero y, detrás, las del equipo por nombre (así las da la base).
-export const loadRules = async (platform, jwt) => [BASIC_RULE, ...(await platform.rpc(jwt, 'platform_list_rules')).map(fromDb)];
-// La pedida o, si no existe, la básica.
-export const ruleById = (rules, id) => rules.find((r) => r.id === id) || rules[0];
+export const loadRules = async (platform, jwt) => {
+  const rules = (await platform.rpc(jwt, 'platform_list_rules')).map(fromDb);
+  return rules.some((r) => r.builtin) ? rules : [BASIC_RULE, ...rules];
+};
+// La pedida o, si no existe (o se pide 'basic'), la básica.
+export const ruleById = (rules, id) => rules.find((r) => r.id === id) || rules.find((r) => r.builtin) || rules[0];
