@@ -6,7 +6,7 @@
 
 export const FIELDS = ['note', 'what', 'how', 'prevent'];
 export const MAX_TEXT = 20_000;               // el mismo maxlength que tiene la web
-export const MAX_FILE = 20 * 1024 * 1024;     // el mismo límite que enseña la web (en base64 cabe en BODY_MAX)
+export const MAX_FILE = 15 * 1024 * 1024;     // el mismo límite que enseña la web (en base64 cabe en BODY_MAX)
 export const LANGS = ['es', 'en'];            // el idioma de la nota externa
 // Lo que se puede ejecutar no va como adjunto al centro.
 const RUNNABLE = /\.(exe|com|bat|cmd|msi|scr|pif|ps1|vbs|vbe|js|jse|wsf|wsh|hta|jar|sh|lnk|reg|cpl|dll)$/i;
@@ -42,7 +42,7 @@ export const cleanFile = (body) => {
   if (body.data.length % 4 || !BASE64.test(body.data)) throw fail('El archivo no ha llegado bien.');
   const data = Buffer.from(body.data, 'base64');
   if (!data.length) throw fail('El archivo está vacío.');
-  if (data.length > MAX_FILE) throw fail('El adjunto pasa de 20 MB: elige otro más pequeño.');
+  if (data.length > MAX_FILE) throw fail('El adjunto pasa de 15 MB: elige otro más pequeño.');
   const type = typeof body.type === 'string' && MIME.test(body.type) ? body.type.slice(0, 100) : '';
   return { name, type, data };
 };
