@@ -5,7 +5,7 @@
 // issue-chat.js), que vive mientras la issue esté abierta. El análisis (lo
 // hará el harness del equipo) y las parecidas, por conectar: solo sus huecos.
 import { esc } from '../ui/html.js';
-import { STATUS_ES, REASON_ES, SEVERITY_ES, when, whenIso, age } from './format.js';
+import { STATUS_ES, REASON_ES, SEVERITY_ES, when, whenIso, dayLabel, timeIso, age } from './format.js';
 import { item } from './parts.js';
 
 const pending = (text) => `<p class="iss-pending">${text}</p>`;
@@ -25,17 +25,30 @@ const MOVES = {
   released: (t) => `<b>${esc(t.by || 'Alguien')}</b> la devolvió a la cola`,
   transferred: (t) => `<b>${esc(t.by || 'Alguien')}</b> la traspasó a <b>${esc(t.to || 'alguien')}</b>`,
 };
+// Un movimiento: una línea discreta. Una nota: una tarjeta con quién y cuándo.
 const trailItem = (t) => (t.type === 'note'
-  ? `<li class="iss-trail-note${t.kind === 'transfer' ? ' transfer' : ''}"><time>${whenIso(t.at)}</time><div><span class="iss-trail-who"><b>${esc(t.by || 'Alguien')}</b>${t.kind === 'transfer' ? '<i class="iss-tag">Motivo del traspaso</i>' : ''}${t.edited ? `<small>editada ${whenIso(t.edited)}</small>` : ''}</span><p>${esc(t.text)}</p></div></li>`
-  : `<li class="iss-trail-move"><time>${whenIso(t.at)}</time><div>${(MOVES[t.type] || ((x) => esc(x.type)))(t)}</div></li>`);
-export const trailHtml = (timeline = []) => (timeline.length
-  ? `<ol class="iss-trail">${timeline.map(trailItem).join('')}</ol>`
-  : '<p class="iss-empty">Nadie la ha movido ni anotado en SIA todavía.</p>');
+  ? `<li class="iss-trail-note${t.kind === 'transfer' ? ' transfer' : ''}"><div class="iss-trail-card"><header><b>${esc(t.by || 'Alguien')}</b>${t.kind === 'transfer' ? '<i class="iss-tag">Motivo del traspaso</i>' : ''}<time>${timeIso(t.at)}</time>${t.edited ? `<small>· editada ${whenIso(t.edited)}</small>` : ''}</header><p>${esc(t.text)}</p></div></li>`
+  : `<li class="iss-trail-move"><span>${(MOVES[t.type] || ((x) => esc(x.type)))(t)}</span><time>${timeIso(t.at)}</time></li>`);
+// Agrupado por día, del más antiguo al más reciente. `now` solo decide «Hoy» y «Ayer».
+export const trailHtml = (timeline = [], now = new Date()) => {
+  if (!timeline.length) return '<p class="iss-empty">Nadie la ha movido ni anotado en SIA todavía.</p>';
+  const days = [];
+  for (const t of timeline) {
+    const day = dayLabel(t.at, now);
+    if (days.at(-1)?.day !== day) days.push({ day, items: [] });
+    days.at(-1).items.push(t);
+  }
+  return days.map(({ day, items }) => `<section class="iss-trail-day"><h5>${day}</h5><ol class="iss-trail-list">${items.map(trailItem).join('')}</ol></section>`).join('');
+};
 
-// Escribir una nota interna, al pie del recorrido. El botón se enciende con texto.
+// Qué es esta pestaña, en una línea.
+export const trailHint = () => '<p class="iss-trail-hint">Aquí queda todo lo que pasa con esta issue en SIA: quién la coge, la devuelve o la traspasa, y las notas internas del equipo. Nada de esto sale a Remedy.</p>';
+
+// Escribir una nota interna, al pie del recorrido. Enviar se enciende con texto.
+const SEND = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>';
 export const noteFormHtml = () => `<form class="iss-note-form" data-note-form novalidate>
-    <textarea name="note" rows="2" placeholder="Escribe una nota interna para el equipo…" aria-label="Nota interna"></textarea>
-    <button type="submit" class="lab-btn primary" disabled>Añadir nota</button>
+    <textarea name="note" rows="1" placeholder="Escribe una nota interna para el equipo…" aria-label="Nota interna"></textarea>
+    <button type="submit" class="iss-send" aria-label="Enviar" title="Enviar (Intro)" disabled>${SEND}</button>
   </form>`;
 
 // El cuerpo del diálogo de confirmación al devolver a la cola.
@@ -105,8 +118,8 @@ export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, tab
       </div>
 
       <div class="iss-wpanel iss-trail-panel" data-wpanel="trail"${tab === 'trail' ? '' : ' hidden'}>
-        <h4 class="iss-sub">Por dónde ha pasado en SIA <span class="iss-low">· quién la cogió, devolvió o traspasó, y las notas del equipo</span></h4>
-        <div class="iss-trail-scroll" data-trail>${trailHtml(timeline)}</div>
+        ${trailHint()}
+        <div class="iss-trail-scroll" data-trail>${trailHtml(timeline, now)}</div>
         ${noteFormHtml()}
       </div>
     </section>

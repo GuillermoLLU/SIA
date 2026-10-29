@@ -191,7 +191,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   const refreshTrail = async () => {
     const items = await api.timeline(opened);
     const box = root.querySelector('[data-trail]');
-    if (box) box.innerHTML = trailHtml(items);
+    if (box) box.innerHTML = trailHtml(items, new Date());
     const tab = root.querySelector('[data-wtab="trail"]');
     if (tab) tab.innerHTML = trailTab(items.length);
   };
@@ -219,6 +219,11 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       toast?.('Nota añadida.');
     } catch (err) { toast?.(err.message); btn.disabled = false; }
   };
+  root.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.shiftKey || !e.target.matches('[data-note-form] textarea')) return;
+    e.preventDefault();
+    sendNote(e.target.closest('[data-note-form]'));
+  });
   root.addEventListener('submit', async (e) => {
     const nf = e.target.closest('[data-note-form]');
     if (nf) { e.preventDefault(); return sendNote(nf); }
