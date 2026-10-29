@@ -17,7 +17,7 @@ const REFRESH_MS = 15000;
 // openChat(host, issueId) → { dispose }: el chat de la issue (lo pone main.js).
 // dialogs: los diálogos de la app (ui/dialog.js), para confirmar antes de devolver.
 export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => {
-  let data = null, rule = 'basic', now = new Date(), opened = null, onDesk = false, workTab = 'ai', chat = null, loading = false, picking = false;
+  let data = null, rule = 'basic', now = new Date(), opened = null, onDesk = false, workTab = 'detail', chat = null, loading = false, picking = false;
   const closeChat = () => { chat?.dispose(); chat = null; };
 
   // Cargar la foto (el CSV de la consulta de Remedy, hasta leer de Remedy).
@@ -92,7 +92,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   const renderIssue = ({ issue: i, sameCenter, timeline }) => {
     onDesk = false;
     const mine = i.claimedBy && data?.desk.some((d) => d.id === i.id && d.claimed);
-    if (opened !== i.id) workTab = 'ai';
+    if (opened !== i.id) workTab = 'detail';
     opened = i.id;
     closeChat();
     closeAction();

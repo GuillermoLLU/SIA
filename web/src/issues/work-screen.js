@@ -1,9 +1,9 @@
 // La pantalla de trabajo de una issue. A la izquierda, en pestañas: el
-// análisis de la IA, el detalle de la issue, las relacionadas y su recorrido
-// en SIA (por dónde ha pasado y las notas del equipo). A la derecha,
-// sus datos clave y debajo el chat de la issue (con el conocimiento,
-// issue-chat.js), que vive mientras la issue esté abierta. El análisis (lo
-// hará el harness del equipo) y las parecidas, por conectar: solo sus huecos.
+// detalle de la issue (por defecto), las relacionadas y su histórico en SIA
+// (por dónde ha pasado y las notas internas del equipo). A la derecha, sus
+// datos clave y debajo el chat de la issue (con el conocimiento,
+// issue-chat.js), que vive mientras la issue esté abierta. Las parecidas,
+// por conectar: solo su hueco.
 import { esc } from '../ui/html.js';
 import { STATUS_ES, REASON_ES, SEVERITY_ES, when, whenIso, dayLabel, timeIso, age } from './format.js';
 import { item } from './parts.js';
@@ -11,15 +11,14 @@ import { item } from './parts.js';
 const pending = (text) => `<p class="iss-pending">${text}</p>`;
 
 const WORK_TABS = [
-  { key: 'ai', label: 'Análisis de la IA' },
   { key: 'detail', label: 'Detalle' },
   { key: 'related', label: 'Relacionadas' },
-  { key: 'trail', label: 'Recorrido y notas' },
+  { key: 'trail', label: 'Histórico y notas' },
 ];
 
 // El recorrido en SIA: movimientos y notas por orden (lo que da el bridge en
 // `timeline`). Se pinta aparte para poder refrescarlo al añadir una nota.
-export const trailTab = (n) => `Recorrido y notas${n ? `<span>${n}</span>` : ''}`;
+export const trailTab = (n) => `Histórico y notas${n ? `<span>${n}</span>` : ''}`;
 const MOVES = {
   claimed: (t) => `<b>${esc(t.by || 'Alguien')}</b> la cogió`,
   released: (t) => `<b>${esc(t.by || 'Alguien')}</b> la devolvió a la cola`,
@@ -55,15 +54,7 @@ export const noteFormHtml = () => `<form class="iss-note-form" data-note-form no
 export const releaseDialogHtml = (id, text) => `<div class="iss-dlg-issue"><span class="iss-dlg-code">${esc(id)}</span><span class="iss-dlg-text">${esc(text || '')}</span></div>
   <p class="iss-dlg-p">Volverá a la cola y podrá cogerla cualquier compañero.</p>`;
 
-const aiSection = (title, text) => `<section class="iss-ai-sec"><h4 class="iss-sub">${title}</h4>${pending(text)}</section>`;
-const aiPanel = () => `
-  <div class="iss-panel-h"><span class="iss-badge">Por conectar</span></div>
-  ${aiSection('Resumen', 'Qué pasa, en pocas líneas.')}
-  ${aiSection('Causa probable', 'Lo que apuntan los datos y casos parecidos.')}
-  ${aiSection('Pasos sugeridos', 'Qué hacer para resolverla, en orden.')}
-  ${aiSection('Logs y datos recopilados', 'Lo que haya recogido el análisis automático, una fila por fuente.')}`;
-
-export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, tab = 'ai' }) => `<div class="iss-page iss-work-page">
+export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, tab = 'detail' }) => `<div class="iss-page iss-work-page">
   <header class="iss-work-h">
     <button class="iss-back" data-back>← Mi mesa</button>
     <div class="iss-title-row">
@@ -85,8 +76,6 @@ export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, tab
       <div class="iss-wtabs" role="tablist">
         ${WORK_TABS.map((t) => `<button role="tab" data-wtab="${t.key}" aria-selected="${t.key === tab}">${t.key === 'trail' ? trailTab(timeline.length) : t.label}${t.key === 'related' && sameCenter.length ? `<span>${sameCenter.length}</span>` : ''}</button>`).join('')}
       </div>
-
-      <div class="iss-wpanel" data-wpanel="ai"${tab === 'ai' ? '' : ' hidden'}>${aiPanel()}</div>
 
       <div class="iss-wpanel" data-wpanel="detail"${tab === 'detail' ? '' : ' hidden'}>
         <h4 class="iss-sub">Lo que dice el centro <span class="iss-low">· ${when(i.reported)}</span></h4>

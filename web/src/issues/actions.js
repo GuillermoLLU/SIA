@@ -1,7 +1,7 @@
 // Las acciones sobre una issue (resolver, escalar, traspasar): su formulario
 // y qué hace falta para enviarlo. Traspasar se queda en SIA (la base de la
 // instancia); resolver y escalar irán a Remedy por SIGLO y, de momento, no se
-// envían. Las notas internas se escriben en la pestaña Recorrido y notas.
+// envían. Las notas internas se escriben en la pestaña Histórico y notas.
 import { esc } from '../ui/html.js';
 
 export const ACTIONS = {

@@ -7,14 +7,16 @@ const issue = (o = {}) => ({ id: 'INC1', text: 'PDA <sin imagen>', priority: 'HI
   vendorTicket: '', changes: [['2026-10-01 10:00', '', 'ASSIGNED']], related: '', prio: false, sisu: false, center: '100', link: '', claimedBy: null, ...o });
 const now = new Date('2026-10-01T12:00:00');
 
-test('la pantalla: cuatro pestañas, el análisis por conectar y el texto escapado', () => {
+test('la pantalla: tres pestañas, Detalle por defecto, sin análisis de la IA y el texto escapado', () => {
   const html = workScreen({ issue: issue(), sameCenter: [], now, mine: false });
-  assert.equal((html.match(/data-wtab="/g) || []).length, 4);
+  assert.equal((html.match(/data-wtab="/g) || []).length, 3);
+  assert.match(html, /data-wtab="detail" aria-selected="true"/);
+  assert.doesNotMatch(html, /Análisis de la IA|data-wpanel="ai"/);
   assert.match(html, /Nadie la ha movido ni anotado en SIA todavía/);
   assert.doesNotMatch(html, /data-act="note"/);
   assert.match(html, /data-note-form/);
   assert.match(html, /Por conectar/);
-  assert.equal((html.match(/iss-pending/g) || []).length, 5);
+  assert.equal((html.match(/iss-pending/g) || []).length, 1);
   assert.match(html, /PDA &lt;sin imagen&gt;/);
   assert.match(html, /no &lt;arranca&gt;/);
   assert.doesNotMatch(html, /data-release/);
@@ -45,12 +47,12 @@ test('el recorrido: por días, movimientos y notas por orden, el motivo del tras
   assert.match(html, /<b>Alguien<\/b> la devolvió a la cola/);
   assert.match(trailHint(), /Nada de esto sale a Remedy/);
   const withTrail = workScreen({ issue: issue(), sameCenter: [], timeline: [{ at: '2026-10-01T08:00:00+00:00', type: 'claimed', by: 'Ana', to: 'Ana' }], now, mine: false, tab: 'trail' });
-  assert.match(withTrail, /data-wtab="trail" aria-selected="true">Recorrido y notas<span>1<\/span>/);
+  assert.match(withTrail, /data-wtab="trail" aria-selected="true">Histórico y notas<span>1<\/span>/);
 });
 
 test('la pestaña del recorrido lleva el contador solo si hay entradas; el diálogo de devolver, la issue escapada', () => {
-  assert.equal(trailTab(0), 'Recorrido y notas');
-  assert.equal(trailTab(3), 'Recorrido y notas<span>3</span>');
+  assert.equal(trailTab(0), 'Histórico y notas');
+  assert.equal(trailTab(3), 'Histórico y notas<span>3</span>');
   const html = releaseDialogHtml('INC1', 'PDA <x>');
   assert.match(html, /iss-dlg-code">INC1</);
   assert.match(html, /PDA &lt;x&gt;/);
