@@ -45,8 +45,8 @@ export const createIssuesService = ({ source, platform }) => {
       return (await platform.rpc(jwt, 'platform_claim_next_issue', { p_candidates: queue(issues, claimed, now, rule).slice(0, 500) })) || null;
     },
     release: ({ accessToken: jwt }, id) => platform.rpc(jwt, 'platform_release_issue', { p_issue: id }),
-    // a un compañero de Issues; el comentario queda como nota del traspaso
-    transfer: ({ accessToken: jwt }, id, { to, comment }) => platform.rpc(jwt, 'platform_transfer_issue', { p_issue: id, p_to: to, p_comment: comment || null }),
+    // a un compañero de Issues; el motivo queda como nota del traspaso
+    transfer: ({ accessToken: jwt }, id, { to, comment }) => platform.rpc(jwt, 'platform_transfer_issue', { p_issue: id, p_to: to, p_comment: comment }),
     // una nota interna del equipo → su id
     addNote: ({ accessToken: jwt }, id, body) => platform.rpc(jwt, 'platform_add_issue_note', { p_issue: id, p_body: body }),
     // su recorrido en SIA: movimientos y notas, por orden (timeline.js)

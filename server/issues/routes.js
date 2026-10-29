@@ -9,7 +9,7 @@
 //   GET  /teammates     → { teammates: [{ id, name }] }  (el equipo de Issues, sin mí)
 //   POST /next          { rule } → { id }  (null: no queda ninguna libre)
 //   POST /:id/release   → { ok }  (devolverla a la cola)
-//   POST /:id/transfer  { to, comment } → { ok }  (a un compañero; el comentario, nota del traspaso)
+//   POST /:id/transfer  { to, comment } → { ok }  (a un compañero; el motivo, obligatorio, queda como nota)
 //   POST /:id/notes     { body } → { id }  (una nota interna del equipo)
 //   POST /csv?name=<fichero>  cuerpo: el CSV de la consulta, tal cual → { meta }
 //                         (la foto de Issues; se queda en este ordenador, source.js)
@@ -35,8 +35,8 @@ export const issuesRoutes = (issues, { json, readBody }) => async (req, res, [id
     if (action === 'transfer' && req.method === 'POST') {
       const { to, comment } = await readBody(req);
       if (!isUuid(to)) return json(res, 400, { error: 'Elige a qué compañero traspasarla.' });
-      if (comment != null && typeof comment !== 'string') return json(res, 400, { error: 'El comentario no es válido.' });
-      await issues.transfer(who, id, { to, comment: comment?.trim() || null });
+      if (typeof comment !== 'string' || !comment.trim()) return json(res, 400, { error: 'Escribe el motivo del traspaso.' });
+      await issues.transfer(who, id, { to, comment: comment.trim() });
       return json(res, 200, { ok: true });
     }
     if (action === 'notes' && req.method === 'POST') {

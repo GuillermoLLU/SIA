@@ -63,15 +63,17 @@ test('GET /:id: el detalle completo, quién la tiene, las del mismo centro y su 
   assert.deepEqual(body.timeline.map((t) => [t.type, t.by, t.text]), [['claimed', 'Ana López', undefined], ['note', 'Ana López', 'ojo']]);
 });
 
-test('traspasar: a la base con el compañero y el comentario limpio; sin compañero válido, 400', async () => {
+test('traspasar: a la base con el compañero y el motivo limpio; sin compañero válido o sin motivo, 400', async () => {
   const { call, calls, loads } = setup();
   loads.n = 0;
   assert.deepEqual((await call('POST', ['INC1', 'transfer'], { to: '11111111-1111-1111-1111-111111111111', comment: '  Lleva dos llamadas.  ' })).body, { ok: true });
   assert.deepEqual(calls.at(-1), ['platform_transfer_issue', { p_issue: 'INC1', p_to: '11111111-1111-1111-1111-111111111111', p_comment: 'Lleva dos llamadas.' }]);
-  assert.deepEqual((await call('POST', ['INC1', 'transfer'], { to: '11111111-1111-1111-1111-111111111111', comment: '' })).body, { ok: true });
-  assert.equal(calls.at(-1)[1].p_comment, null);
-  assert.equal((await call('POST', ['INC1', 'transfer'], { to: 'luis' })).status, 400);
+  const n = calls.length;
+  assert.equal((await call('POST', ['INC1', 'transfer'], { to: '11111111-1111-1111-1111-111111111111', comment: '   ' })).status, 400);
+  assert.equal((await call('POST', ['INC1', 'transfer'], { to: '11111111-1111-1111-1111-111111111111' })).status, 400);
+  assert.equal((await call('POST', ['INC1', 'transfer'], { to: 'luis', comment: 'motivo' })).status, 400);
   assert.equal((await call('POST', ['INC1', 'transfer'], { to: '11111111-1111-1111-1111-111111111111', comment: 5 })).status, 400);
+  assert.equal(calls.length, n, 'nada llega a la base sin compañero y motivo');
   assert.equal(loads.n, 0);
 });
 

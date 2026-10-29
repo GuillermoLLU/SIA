@@ -8,7 +8,7 @@ import { esc } from '../ui/html.js';
 import { LISTS, when, age, stamp, weekBars } from './format.js';
 import { sev, origin, item } from './parts.js';
 import { workScreen, trailHtml } from './work-screen.js';
-import { ACTIONS, actionForm, readAction } from './actions.js';
+import { ACTIONS, actionForm, readAction, isComplete } from './actions.js';
 
 const GOAL = { min: 15, max: 20 }; // resueltas por turno, lo que dice el equipo
 const REFRESH_MS = 15000;
@@ -155,6 +155,10 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
     const tab = root.querySelector('[data-wtab="trail"]');
     if (tab) tab.innerHTML = `Recorrido y notas${items.length ? `<span>${items.length}</span>` : ''}`;
   };
+  // El botón de enviar, apagado hasta que estén todos los campos obligatorios.
+  const syncSubmit = (form) => { form.querySelector('[type=submit]').disabled = !isComplete(form.dataset.actForm, Object.fromEntries(new FormData(form))); };
+  root.addEventListener('input', (e) => { const form = e.target.closest('[data-act-form]'); if (form) syncSubmit(form); });
+  root.addEventListener('change', (e) => { const form = e.target.closest('[data-act-form]'); if (form) syncSubmit(form); });
   root.addEventListener('submit', async (e) => {
     const form = e.target.closest('[data-act-form]');
     if (!form) return;

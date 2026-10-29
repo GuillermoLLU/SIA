@@ -731,22 +731,22 @@ begin
 end $$;
 
 -- Traspasarla a un compañero (solo la propia, y solo a alguien activo con la
--- vista Issues). Pasa a ser suya desde ahora; el comentario, si lo hay, queda
--- como nota de la issue etiquetada 'transfer'.
-create or replace function public.platform_transfer_issue(p_issue text, p_to uuid, p_comment text default null) returns void
+-- vista Issues). Pasa a ser suya desde ahora. Un traspaso se justifica: el
+-- motivo es obligatorio y queda como nota de la issue etiquetada 'transfer'.
+drop function if exists public.platform_transfer_issue(text, uuid, text);
+create function public.platform_transfer_issue(p_issue text, p_to uuid, p_comment text) returns void
 language plpgsql security definer set search_path = '' as $$
 declare v_me uuid := platform.require_view('issues');
 begin
   if p_to is null or p_to = v_me then raise exception 'Elige a qué compañero traspasarla.' using errcode = '22023'; end if;
+  if nullif(btrim(p_comment), '') is null then raise exception 'Escribe el motivo del traspaso.' using errcode = '22023'; end if;
   if not exists (select 1 from platform.users u where u.id = p_to and u.active and 'issues' = any (u.views)) then
     raise exception 'Esa persona no está en Issues.' using errcode = 'P0002';
   end if;
   update platform.issue_claims set user_id = p_to, claimed_at = now() where issue_id = p_issue and user_id = v_me;
   if not found then raise exception 'Esa issue no es tuya.' using errcode = '42501'; end if;
   insert into platform.issue_events (issue_id, action, actor, from_user, to_user) values (p_issue, 'transferred', v_me, v_me, p_to);
-  if nullif(btrim(p_comment), '') is not null then
-    insert into platform.issue_notes (issue_id, author, kind, body) values (p_issue, v_me, 'transfer', left(btrim(p_comment), 4000));
-  end if;
+  insert into platform.issue_notes (issue_id, author, kind, body) values (p_issue, v_me, 'transfer', left(btrim(p_comment), 4000));
   perform platform.audit(v_me, 'issue.transferred', p_to, jsonb_build_object('issue', p_issue));
 end $$;
 

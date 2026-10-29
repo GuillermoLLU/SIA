@@ -24,7 +24,7 @@ export const ACTIONS = {
     label: 'Traspasar', title: 'Traspasar a un compañero', ok: 'Traspasar', local: true,
     fields: [
       { name: 'to', label: 'Compañero', kind: 'person', required: true },
-      { name: 'comment', label: 'Motivo', kind: 'text', required: false, hint: 'Lo que debe saber quien la recibe. Queda como nota de la issue.' },
+      { name: 'comment', label: 'Motivo', kind: 'text', required: true, hint: 'Un traspaso se justifica: lo que debe saber quien la recibe. Queda como nota de la issue.' },
     ],
   },
 };
@@ -44,9 +44,12 @@ export const actionForm = (key, issueId, people = []) => {
     ${a.fields.map((f) => field(f, people)).join('')}
     ${a.local ? '' : '<p class="iss-act-note">Aún no se envía a Remedy: irá por SIGLO cuando lo conectemos.</p>'}
     <p class="iss-act-err" hidden></p>
-    <footer><button type="button" class="lab-btn" data-act-cancel>Cancelar</button><button type="submit" class="lab-btn primary">${a.ok}</button></footer>
+    <footer><button type="button" class="lab-btn" data-act-cancel>Cancelar</button><button type="submit" class="lab-btn primary" disabled>${a.ok}</button></footer>
   </form>`;
 };
+
+// ¿Están todos los obligatorios? Mientras no, el botón de enviar sigue apagado.
+export const isComplete = (key, values) => ACTIONS[key].fields.every((f) => !f.required || String(values[f.name] ?? '').trim());
 
 // Los valores del formulario, o el primer campo obligatorio vacío.
 export const readAction = (key, values) => {

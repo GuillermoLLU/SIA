@@ -234,12 +234,14 @@ select expect_error($$select public.platform_claim_next_issue(array['x; drop'])$
 
 -- ── 6a². issues: traspaso e histórico ──
 select t_as(:U1);
-select expect_error($$select public.platform_transfer_issue('INC1', '00000000-0000-0000-0000-0000000000a3')$$, 'sin la vista Issues no se traspasa');
+select expect_error($$select public.platform_transfer_issue('INC1', '00000000-0000-0000-0000-0000000000a3', 'motivo')$$, 'sin la vista Issues no se traspasa');
 select expect_error($$select count(*) from public.platform_issue_events('INC1')$$, 'ni se ve el histórico');
 select t_as(:AD);
-select expect_error($$select public.platform_transfer_issue('INC1', '00000000-0000-0000-0000-0000000000a1')$$, 'no se traspasa a uno mismo');
-select expect_error($$select public.platform_transfer_issue('INC1', '00000000-0000-0000-0000-0000000000a2')$$, 'ni a quien no está en Issues');
-select expect_error($$select public.platform_transfer_issue('INC9', '00000000-0000-0000-0000-0000000000a3')$$, 'ni una que no se tiene');
+select expect_error($$select public.platform_transfer_issue('INC1', '00000000-0000-0000-0000-0000000000a1', 'motivo')$$, 'no se traspasa a uno mismo');
+select expect_error($$select public.platform_transfer_issue('INC1', '00000000-0000-0000-0000-0000000000a2', 'motivo')$$, 'ni a quien no está en Issues');
+select expect_error($$select public.platform_transfer_issue('INC9', '00000000-0000-0000-0000-0000000000a3', 'motivo')$$, 'ni una que no se tiene');
+select expect_error($$select public.platform_transfer_issue('INC1', '00000000-0000-0000-0000-0000000000a3', '   ')$$, 'ni sin motivo: un traspaso se justifica');
+select assert_eq((select string_agg(issue_id || ':' || user_name, ',' order by issue_id) from public.platform_issue_claims()), 'INC1:Admin', 'sin motivo, sigue siendo del mismo');
 select public.platform_transfer_issue('INC1', :U2, '  Lleva dos llamadas del centro.  ');
 select assert_eq((select string_agg(issue_id || ':' || user_name, ',' order by issue_id) from public.platform_issue_claims()), 'INC1:agente.dos', 'traspasada: ahora es del compañero');
 select expect_error($$select public.platform_release_issue('INC1')$$, 'quien la traspasó ya no la devuelve');
