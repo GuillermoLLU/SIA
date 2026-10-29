@@ -10,9 +10,9 @@ import { item } from './parts.js';
 
 const WORK_TABS = [
   { key: 'detail', label: 'Detalle' },
-  { key: 'remedy', label: 'Notas de Remedy' },
+  { key: 'remedy', label: 'Notas Remedy' },
+  { key: 'trail', label: 'Notas internas' },
   { key: 'related', label: 'Relacionadas' },
-  { key: 'trail', label: 'Histórico y notas' },
 ];
 
 // El histórico en SIA: lo que da el bridge en `timeline` (movimientos y notas,
@@ -137,6 +137,11 @@ export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, meI
         ${worklogHtml(i.worklog, now)}
       </div>
 
+      <div class="iss-wpanel iss-trail-panel" data-wpanel="trail"${tab === 'trail' ? '' : ' hidden'}>
+        <p class="iss-trail-hint">Por quién ha pasado esta issue y las notas internas del equipo</p>
+        <div class="iss-trail-scroll" data-trail>${trailHtml(timeline, now, meId)}</div>
+        ${noteFormHtml()}
+      </div>
       <div class="iss-wpanel" data-wpanel="related"${tab === 'related' ? '' : ' hidden'}>
         ${i.related ? `<h4 class="iss-sub">Enlazadas en Remedy</h4><p class="iss-linked">${i.related.split('|').map((x) => `<span>${esc(x.trim())}</span>`).join('')}</p>` : ''}
         <h4 class="iss-sub">Del mismo centro <span class="iss-low">· ${sameCenter.length}</span></h4>
@@ -145,11 +150,6 @@ export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, meI
         <p class="iss-pending">Issues de otros centros con el mismo problema y cómo se resolvieron.</p>
       </div>
 
-      <div class="iss-wpanel iss-trail-panel" data-wpanel="trail"${tab === 'trail' ? '' : ' hidden'}>
-        <p class="iss-trail-hint">Por quién ha pasado esta issue y las notas internas del equipo</p>
-        <div class="iss-trail-scroll" data-trail>${trailHtml(timeline, now, meId)}</div>
-        ${noteFormHtml()}
-      </div>
     </section>
 
     <div class="iss-side">

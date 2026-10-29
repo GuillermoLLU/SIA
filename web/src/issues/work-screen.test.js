@@ -10,7 +10,8 @@ const now = new Date('2026-10-01T12:00:00');
 test('la pantalla: cuatro pestañas, Detalle por defecto, sin análisis de la IA y el texto escapado', () => {
   const html = workScreen({ issue: issue(), sameCenter: [], now, mine: false });
   assert.equal((html.match(/data-wtab="/g) || []).length, 4);
-  assert.match(html, /data-wtab="remedy" aria-selected="false">Notas de Remedy</);
+  assert.match(html, /data-wtab="remedy" aria-selected="false">Notas Remedy</);
+  assert.deepEqual([...html.matchAll(/data-wtab="([a-z]+)"/g)].map((m) => m[1]), ['detail', 'remedy', 'trail', 'related'], 'Detalle, Notas Remedy, Notas internas, Relacionadas');
   assert.match(html, /data-wtab="detail" aria-selected="true"/);
   assert.doesNotMatch(html, /Análisis de la IA|data-wpanel="ai"/);
   assert.match(html, /Nadie la ha movido ni anotado en SIA todavía/);
@@ -56,12 +57,12 @@ test('el feed: lo más reciente arriba, con avatar, quién hizo qué y su cuánd
   assert.match(html, /editada /);
   assert.match(html, /<b>Alguien<\/b> devolvió la issue a la cola/);
   const withTrail = workScreen({ issue: issue(), sameCenter: [], timeline: [{ at: '2026-10-01T08:00:00+00:00', type: 'claimed', by: 'Ana', to: 'Ana' }], now, mine: false, tab: 'trail' });
-  assert.match(withTrail, /data-wtab="trail" aria-selected="true">Histórico y notas<span>1<\/span>/);
+  assert.match(withTrail, /data-wtab="trail" aria-selected="true">Notas internas<span>1<\/span>/);
 });
 
 test('la pestaña del histórico lleva el contador solo si hay entradas; el diálogo de devolver, la issue escapada', () => {
-  assert.equal(trailTab(0), 'Histórico y notas');
-  assert.equal(trailTab(3), 'Histórico y notas<span>3</span>');
+  assert.equal(trailTab(0), 'Notas internas');
+  assert.equal(trailTab(3), 'Notas internas<span>3</span>');
   const html = releaseDialogHtml('INC1', 'PDA <x>');
   assert.match(html, /iss-dlg-code">INC1</);
   assert.match(html, /PDA &lt;x&gt;/);
@@ -112,8 +113,8 @@ test('las notas de Remedy: lista con quién y cuándo, escapada; vacía o sin co
   assert.match(worklogHtml([]), /Sin notas de trabajo en Remedy/);
   assert.match(worklogHtml(undefined), /carga un CSV nuevo/);
   const screen = workScreen({ issue: issue({ worklog: wl }), sameCenter: [], now, mine: false, tab: 'remedy' });
-  assert.match(screen, /data-wtab="remedy" aria-selected="true">Notas de Remedy<span>2<\/span>/);
-  assert.doesNotMatch(workScreen({ issue: issue(), sameCenter: [], now, mine: false }), /Notas de Remedy<span>/);
+  assert.match(screen, /data-wtab="remedy" aria-selected="true">Notas Remedy<span>2<\/span>/);
+  assert.doesNotMatch(workScreen({ issue: issue(), sameCenter: [], now, mine: false }), /Notas Remedy<span>/);
 });
 
 test('la primera línea de una nota, recortada a 90; el arranque de la resolución asistida', () => {
