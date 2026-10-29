@@ -5,7 +5,6 @@
 .bl-view { --bl-medium: color-mix(in srgb, #bf8700 85%, var(--text)); --bl-low: color-mix(in srgb, #1a7f37 70%, var(--text)); overflow: hidden; }
 .bl-page { flex: 1; min-height: 0; width: 100%; box-sizing: border-box; padding: 24px 28px 28px; display: flex; flex-direction: column; gap: 14px; }
 .bl-top { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-.bl-top .iss-snap { margin-left: auto; }
 .bl-top .iss-title { line-height: 32px; }
 .bl-total { font-size: 14px; color: var(--text-low); }
 .bl-total b { font-size: 18px; color: var(--text); font-variant-numeric: tabular-nums; }
@@ -30,11 +29,12 @@
 .bl-tile.LOW { --tile: var(--bl-low); }
 @media (max-width: 1180px) { .bl-panel { grid-template-columns: repeat(4, minmax(0, 1fr)); } .bl-tile.prio { margin-right: 0; } }
 
-/* entre el panel y la lista: el buscador y cuántas se ven */
-.bl-bar { display: flex; align-items: center; gap: 16px; }
-.bl-search { position: relative; display: block; width: 340px; }
+/* entre el panel y la lista: de cuándo son los datos y cuántas se ven */
+.bl-bar { display: flex; align-items: center; gap: 16px; min-height: 24px; }
+.bl-bar .iss-snap { margin-left: 0; }
+.bl-search { position: relative; display: block; width: 340px; margin-left: auto; }
 .bl-search::before { content: ''; position: absolute; left: 10px; top: 50%; width: 15px; height: 15px; transform: translateY(-50%); background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E") center / contain no-repeat; pointer-events: none; }
-.bl-search input { box-sizing: border-box; width: 100%; height: 34px; padding: 0 10px 0 33px; font: inherit; font-size: 13px; color: var(--text); background: var(--surface); border: 1px solid var(--border); outline: none; -webkit-appearance: none; }
+.bl-search input { box-sizing: border-box; width: 100%; height: 32px; padding: 0 10px 0 33px; font: inherit; font-size: 13px; color: var(--text); background: var(--surface); border: 1px solid var(--border); outline: none; -webkit-appearance: none; }
 .bl-search input:focus { border-color: var(--accent); }
 .bl-search input::placeholder { color: var(--text-low); }
 .bl-rules { height: 32px; padding: 0 14px; font: inherit; font-size: 13px; font-weight: 600; color: var(--text); background: var(--surface); border: 1px solid var(--border); cursor: pointer; }
