@@ -77,16 +77,20 @@
 
       <!-- ── Vista CHAT ── -->
       <div class="window view" id="view-chat">
-        <div class="tabs" id="tabs">
-          <span class="tabs-spacer"></span>
-          <button class="tab-skills" id="assets-btn" title="Adjuntos compartidos en este chat" hidden>
+        <div class="chat-bar" id="chat-bar" hidden>
+          <span class="chat-bar-spacer"></span>
+          <button class="chat-bar-btn" id="assets-btn" title="Adjuntos compartidos en este chat" hidden>
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
             <span class="count"></span>
           </button>
-          <button class="tab-skills" id="skills-btn" title="Aplicar una skill al chat activo (⌘K)">
+          <button class="chat-bar-btn" id="skills-btn" title="Aplicar una skill al chat (⌘K)">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
             <span>Skills</span>
             <span class="kbd">⌘K</span>
+          </button>
+          <button class="chat-bar-btn" id="chat-close" title="Cerrar este chat y empezar otro">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            <span>Cerrar chat</span>
           </button>
         </div>
         <div class="chat-body">
@@ -226,12 +230,6 @@
           <div class="admin-rail-spacer"></div>
         </aside>
         <main class="admin-main" id="admin-main"></main>
-      </div>
-
-      <!-- Editor de pestaña (nombre + color) -->
-      <div class="tab-editor" id="tab-editor" hidden>
-        <input class="tab-name-input" id="tab-name-input" type="text" maxlength="24" placeholder="Nombre…" />
-        <div class="tab-colors" id="tab-colors"></div>
       </div>
 
       <!-- Configuración (modal) -->

@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chatSessions, chromeVisible, nextActive, isImageName, fileExt, toAsset, missingAssets, reconcile } from './sessions.js';
 
-const local = (o) => ({ id: 1, remoteId: 's1', passive: false, linkLost: false, launched: true, label: 'Chat 1', color: null, assets: [], ...o });
+const local = (o) => ({ id: 1, remoteId: 's1', passive: false, linkLost: false, launched: true, assets: [], ...o });
 
-test('chatSessions: fuera los chats de issues; chrome solo con un chat real', () => {
+test('chatSessions: fuera los chats de issues; la barra solo con un chat real', () => {
   assert.deepEqual(chatSessions([{ id: 'a' }, { id: 'b', issue: 'INC1' }]).map((r) => r.id), ['a']);
   assert.equal(chromeVisible([{ launched: false, passive: false }]), false);
   assert.equal(chromeVisible([{ launched: true }]), true);
@@ -33,11 +33,9 @@ test('reconcile: perdido el socket, vuelve solo si está libre o queda pasivo si
   assert.deepEqual(actions.map((a) => a.do), ['reattach', 'passive']);
 });
 
-test('reconcile: una pasiva refleja el nombre y el color del otro dispositivo; los adjuntos nuevos llegan', () => {
-  const { actions } = reconcile([local({ passive: true, assets: [{ name: 'a' }] })], [{ id: 's1', label: 'Otro', color: '#f00', assets: [{ name: 'a' }, { name: 'b' }] }]);
-  assert.deepEqual(actions, [{ id: 1, do: 'keep', assets: [{ name: 'b' }], label: 'Otro', color: '#f00' }]);
-  const same = reconcile([local({ passive: true, label: 'Otro', color: '#f00' })], [{ id: 's1', label: 'Otro', color: '#f00' }]).actions[0];
-  assert.equal('label' in same, false);
+test('reconcile: los adjuntos nuevos del otro dispositivo llegan', () => {
+  const { actions } = reconcile([local({ passive: true, assets: [{ name: 'a' }] })], [{ id: 's1', assets: [{ name: 'a' }, { name: 'b' }] }]);
+  assert.deepEqual(actions, [{ id: 1, do: 'keep', assets: [{ name: 'b' }] }]);
 });
 
 test('reconcile: los chats nuevos de otro dispositivo se crean, salvo con un lanzamiento a medias', () => {

@@ -1,18 +1,17 @@
 // La vista Chat: un chat, con su sesión del bridge (un CLI en un PTY) y su
-// terminal. Se abre con un botón y sin elegir nada: Claude, conocimiento
-// autónomo y todo el conocimiento al que la persona tiene acceso (start.js).
-// El chat vive en el bridge, no aquí: la pestaña se puede cerrar y reabrir,
-// recargar la página o abrir el mismo chat desde otro dispositivo
-// (multidispositivo: una pestaña pasiva es un chat que tiene otro dispositivo;
-// no se roba, se reclama con un botón). Las reglas, en sessions.js y
-// protocol.js; la terminal, en terminal.js.
+// terminal, que ocupa toda la vista. Se abre desde la portada escribiendo la
+// pregunta, sin elegir nada: Claude, conocimiento autónomo y todo el
+// conocimiento al que la persona tiene acceso (start.js). El chat vive en el
+// bridge, no aquí: se puede recargar la página o abrir el mismo chat desde
+// otro dispositivo (multidispositivo: una sesión pasiva es un chat que tiene
+// otro dispositivo; no se roba, se reclama con un botón). Las reglas, en
+// sessions.js y protocol.js; la terminal, en terminal.js.
 import { esc } from '../ui/html.js';
-import { chatPlan, tabLabel } from './start.js';
+import { chatPlan } from './start.js';
 import { msg, parse, closeReason, sendOn, isOpen } from './protocol.js';
-import { chatSessions, defaultLabel, chromeVisible, nextActive, toAsset, reconcile } from './sessions.js';
+import { chatSessions, chromeVisible, nextActive, toAsset, reconcile } from './sessions.js';
 import { makeTerminal, useWebgl, enableTouchScroll, wireCopyPaste } from './terminal.js';
 import { createAssets } from './assets.js';
-import { createTabBar } from './tabs.js';
 
 // api/apiBase: el bridge · wsUrl(): el socket · theme(): el tema actual ·
 // phone/mac: dónde corre · me: el nombre de quien entra (saluda la portada) ·
@@ -23,6 +22,7 @@ import { createTabBar } from './tabs.js';
 export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac, me = null, remote, gate, onRevoked, onTheme, onSkills }) => {
   const viewEl = document.getElementById('view-chat');
   const stackEl = document.getElementById('term-stack');
+  const barEl = document.getElementById('chat-bar');
   const sessions = new Map();
   let counter = 0;
   let activeId = null;
@@ -37,9 +37,9 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
   const sendResize = (s) => { if (s.launched) sendOn(s.ws, msg.resize(s.term.cols, s.term.rows)); };
   const refit = (s, { toBottom = false } = {}) => { try { s.fit.fit(); sendResize(s); if (toBottom) s.term.scrollToBottom(); } catch { /* aún sin tamaño */ } };
   const refitActive = (opts) => { const s = active(); if (s?.launched) requestAnimationFrame(() => refit(s, opts)); };
-  const updateChrome = () => { tabs.tabsEl.hidden = !chromeVisible(all()); };
+  const updateChrome = () => { barEl.hidden = !chromeVisible(all()); };
 
-  // ¿Está el usuario escribiendo en un campo (renombrar pestaña, ajustes, PIN…)?
+  // ¿Está el usuario escribiendo en un campo (ajustes, PIN…)?
   // Entonces la terminal NO debe robarle el foco. Cubre la carrera del doble
   // clic (los click→setActive→rAF aterrizan después de abrir el editor) y los
   // setActive de fondo que dispara la reconciliación multidispositivo.
@@ -51,20 +51,13 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
 
   const setActive = (id) => {
     activeId = id;
-    for (const s of sessions.values()) {
-      const on = s.id === id;
-      s.pane.hidden = !on;
-      s.tab.classList.toggle('active', on);
-    }
+    for (const s of sessions.values()) s.pane.hidden = s.id !== id;
     assets.render();
     const s = sessions.get(id);
     if (s?.launched) requestAnimationFrame(() => { refit(s); if (!typingElsewhere()) s.term.focus(); });
   };
 
   const assets = createAssets({ api, apiBase, dialogs, phone, active, onLayout: refitActive });
-  const tabs = createTabBar({ onPick: (s) => setActive(s.id), onClose: (s) => closeSession(s.id), onMeta: (s) => sendMeta(s) });
-  /* Sincronizar nombre/color de la pestaña con el bridge (persisten entre recargas). */
-  const sendMeta = (s) => { if (s.launched) sendOn(s.ws, msg.meta(s.label, s.color)); };
 
   /* La portada del chat: un saludo y el campo de la pregunta. Al enviar, la
      terminal arranca con esa pregunta como primer mensaje. Los proyectos se
@@ -113,7 +106,6 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
     if (phone) { useWebgl(s.term); enableTouchScroll(s.termHost, s.term); }
     if (!mac) wireCopyPaste(s.term, () => assets.pasteFromClipboard(s));
     s.term.onData((data) => sendOn(s.ws, msg.input(data)));
-    tabs.setStatus(s, 'ok');
     updateChrome();
     // Reajuste robusto: en cuanto el panel tiene su tamaño real (el layout flex
     // asienta, cambia la fuente del tema, o se muestra la pestaña), refit. Evita
@@ -133,12 +125,10 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
   };
 
   /* Abrir de verdad el chat: la terminal y el PTY, con la pregunta como
-     primer mensaje. La pestaña se llama como la pregunta (y así se queda en
-     el bridge, para que siga llamándose igual al recargar). */
+     primer mensaje. */
   const launchSession = (s, launcher, knowledge, projects, prompt = null) => {
     if (s.launched) return;
     s.launcher = launcher.id;
-    if (!s.renamed) { tabs.setLabel(s, tabLabel(prompt, launcher.label)); s.renamed = !!prompt; }
     materialize(s);
     // medir el terminal ANTES de lanzar y mandar el tamaño en el start, para que
     // el PTY nazca con el ancho real (si no, el CLI dibuja a 80 columnas y queda
@@ -150,8 +140,8 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
   };
 
   // attach: sesión viva del bridge a re-enganchar · passive: el chat existe en
-  // el bridge pero lo tiene OTRO dispositivo; se muestra la pestaña con un
-  // botón para traer los chats aquí (no se roba).
+  // el bridge pero lo tiene OTRO dispositivo; se muestra un botón para traerlo
+  // aquí (no se roba).
   const createSession = ({ attach = null, passive = false } = {}) => {
     const id = ++counter;
     const pane = document.createElement('div');
@@ -165,10 +155,9 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
     pane.append(start, termHost);
     stackEl.appendChild(pane);
     const s = {
-      id, label: attach?.label || defaultLabel(id), pane, start, termHost,
-      term: null, fit: null, ro: null, ws: null, passive, tab: null, dot: null, status: 'idle',
-      launched: false, renamed: !!attach?.label, launcher: attach?.launcher || null,
-      color: attach?.color || null, remoteId: attach?.id || null,
+      id, pane, start, termHost,
+      term: null, fit: null, ro: null, ws: null, passive,
+      launched: false, launcher: attach?.launcher || null, remoteId: attach?.id || null,
       dead: false,      // el PTY murió de verdad: no hay nada que recuperar
       linkLost: false,  // el socket cayó con el chat vivo: la reconciliación decide
       handoffEl: null,  // el aviso «abierto en otro dispositivo»
@@ -176,7 +165,6 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
       assetsOpen: true,
       pendingAssets: [], // subidos sin socket: entran al volver
     };
-    tabs.add(s);
     sessions.set(id, s);
     if (passive) showHandoff(s);
     else connectSession(s, attach);
@@ -192,7 +180,6 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
     // re-enganche: montar la terminal en cuanto abra el socket y pedir attach
     ws.onopen = () => {
       if (!attach) return;
-      tabs.applyColor(s);
       materialize(s);
       sendOn(ws, msg.attach(attach.id));
       assets.flushPending(s);
@@ -213,7 +200,6 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
           break;
         case 'started':
           s.remoteId = m.sessionId;
-          if (s.renamed || s.color) sendMeta(s); // sincroniza nombre/color previos
           // ya sabemos qué chat es el nuestro: re-reconciliar quita cualquier
           // pestaña fantasma de la carrera broadcast-vs-started y trae las
           // pasivas legítimas que se hubieran pospuesto en esa ventana
@@ -223,9 +209,9 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
         case 'data':
           if (s.term) s.term.write(m.data);
           break;
-        case 'exit':
+        case 'exit': // el CLI terminó: se deja leer lo último; «Cerrar chat» vuelve a la portada
           s.dead = true;
-          tabs.setStatus(s, 'off');
+          if (s.term) s.term.write('\r\n\x1b[2m[el chat ha terminado: pulsa «Cerrar chat» para empezar otro]\x1b[0m\r\n');
           break;
         case 'gone': // la sesión ya no existe en el bridge
           closeSession(s.id);
@@ -242,9 +228,8 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
       if (why === 'locked') { gate(); return; }
       if (why === 'revoked') { onRevoked(); return; }
       if (why === 'handoff') { setPassive(s); return; }
-      if (!sessions.has(s.id) || !s.launched) return; // pestaña ya cerrada aquí
+      if (!sessions.has(s.id) || !s.launched) return; // sesión ya cerrada aquí
       s.ws = null;
-      tabs.setStatus(s, 'off');
       if (s.dead) return; // el PTY ya había salido: es una muerte real
       // Sin reconciliar aquí a propósito: la lista que tenemos es de ANTES del
       // cierre y aún nos da como enganchados. El bridge emite una nueva al
@@ -252,18 +237,17 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
       // que decide si el chat vuelve solo o hay que ofrecer el botón.
       s.linkLost = true;
     };
-    ws.onerror = () => { if (s.ws === ws && s.launched && !s.passive) tabs.setStatus(s, 'off'); };
   };
 
-  /* Recargaste con chats vivos: re-crear sus pestañas y quitar el selector
-     inicial. Solo nos enganchamos a los chats LIBRES; los que ya tiene otro
-     dispositivo aparecen en modo pasivo con el botón de traerlos aquí. */
+  /* Recargaste con el chat vivo: re-crear su sesión y quitar la portada. Solo
+     nos enganchamos a los chats LIBRES; el que ya tiene otro dispositivo
+     aparece en modo pasivo con el botón de traerlo aquí. */
   const restoreSessions = (list, bootstrapId) => {
     for (const r of list) createSession({ attach: r, passive: !!r.attached });
     closeSession(bootstrapId);
   };
 
-  /* Una pestaña pasiva es un chat vivo en el bridge que tiene OTRO dispositivo
+  /* Una sesión pasiva es un chat vivo en el bridge que tiene OTRO dispositivo
      (o quedó libre al cerrarse aquel). No se roba: muestra un botón que lo
      trae a este dispositivo. */
   const showHandoff = (s) => {
@@ -279,7 +263,6 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
       s.pane.appendChild(s.handoffEl);
     }
     s.handoffEl.hidden = false;
-    tabs.setStatus(s, 'idle'); // punto neutro: ni vivo ni muerto
   };
   /* Otro dispositivo tomó este chat: desmontar la terminal local y quedar en
      pasivo, listo para recuperarlo con el botón. */
@@ -303,27 +286,26 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
     connectSession(s, { id: s.remoteId });
   };
   /* Traer el chat a este dispositivo (el que lo tenía pasa a pasivo). Cubre
-     tanto las pestañas pasivas como las que perdieron el enlace. */
+     tanto las sesiones pasivas como las que perdieron el enlace. */
   const claimAllHere = () => {
     for (const s of sessions.values()) if (s.remoteId && (s.passive || s.linkLost)) reattach(s);
     updateChrome();
   };
 
-  /* Quitar una pestaña. Con kill, también el chat del bridge (cerrar pestaña =
+  /* Quitar una sesión. Con kill, también el chat del bridge («Cerrar chat» =
      matar la sesión; recargar NO pasa por aquí). Sin kill, limpieza solo local
-     (el chat murió o dejó de existir). Sin chats, de vuelta al selector. */
-  const dropTab = (id, { kill }) => {
+     (el chat murió o dejó de existir). Sin chats, de vuelta a la portada. */
+  const dropSession = (id, { kill }) => {
     const s = sessions.get(id);
     if (!s) return;
     if (kill) {
       if (s.remoteId) killed.add(s.remoteId);
       if (s.launched && isOpen(s.ws)) sendOn(s.ws, msg.kill());
-      else if (s.remoteId) sendOn(controlWS, msg.kill(s.remoteId)); // pestaña pasiva o sin socket: la X es la X
+      else if (s.remoteId) sendOn(controlWS, msg.kill(s.remoteId)); // sesión pasiva o sin socket: cerrar es cerrar
     }
     try { s.ws?.close(); } catch { /* ya cerrado */ }
     teardownTerm(s);
     s.pane.remove();
-    tabs.remove(s);
     sessions.delete(id);
     if (activeId === id) {
       const next = nextActive([...sessions.keys()]);
@@ -332,10 +314,19 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
     }
     updateChrome();
   };
-  const closeSession = (id) => dropTab(id, { kill: true });
-  const removeTab = (id) => dropTab(id, { kill: false });
+  const closeSession = (id) => dropSession(id, { kill: true });
+  const removeSession = (id) => dropSession(id, { kill: false });
 
-  // Aplicar lo que diga la reconciliación (sessions.js) a las pestañas.
+  /* «Cerrar chat»: se confirma, porque el chat muere en el bridge para todos
+     los dispositivos; si el CLI ya había terminado, se cierra sin preguntar. */
+  barEl.querySelector('#chat-close').addEventListener('click', async () => {
+    const s = active();
+    if (!s) return;
+    if (!s.dead && !(await dialogs.confirm('Cerrar este chat', '<p class="dlg-lead">Se pierde la conversación y vuelves a la portada para empezar otro.</p>', 'Cerrar chat'))) return;
+    closeSession(s.id);
+  });
+
+  // Aplicar lo que diga la reconciliación (sessions.js) a las sesiones.
   const reconcileSessions = (allRemote) => {
     if (!bootstrapped) return; // el arranque lo gestiona restoreSessions
     const { list, actions, create } = reconcile(all(), allRemote, killed);
@@ -343,7 +334,7 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
     for (const id of killed) if (!list.some((r) => r.id === id)) killed.delete(id); // ya murió del todo
     for (const a of actions) {
       const s = sessions.get(a.id);
-      if (a.do === 'remove') { removeTab(s.id); continue; }
+      if (a.do === 'remove') { removeSession(s.id); continue; }
       if (a.do === 'dead') { s.linkLost = false; s.dead = true; continue; }
       // adjuntos subidos desde otro dispositivo (una foto desde el móvil): salen
       // aquí al momento, en el clip de la barra y en el panel
@@ -351,13 +342,11 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
         s.assets.push(...a.assets.map((x) => toAsset(x, apiBase)));
         if (s.id === activeId) { assets.render(); refitActive(); }
       }
-      if (a.do === 'passive') { setPassive(s); continue; }
-      if (a.do === 'reattach') { reattach(s); continue; }
-      if (a.label) tabs.setLabel(s, a.label);
-      if ('color' in a) { s.color = a.color; tabs.applyColor(s); }
+      if (a.do === 'passive') setPassive(s);
+      else if (a.do === 'reattach') reattach(s);
     }
-    // chats nuevos abiertos en otro dispositivo → pestaña pasiva aquí, sin
-    // robar el foco de lo que se esté haciendo en ESTE dispositivo
+    // un chat abierto en otro dispositivo → sesión pasiva aquí, sin robar el
+    // foco de lo que se esté haciendo en ESTE dispositivo
     const keep = activeId;
     for (const r of create) createSession({ attach: r, passive: true });
     if (keep && sessions.has(keep)) setActive(keep);
@@ -365,7 +354,7 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
 
   /* Socket de control: siempre conectado (aunque todos los chats estén en otro
      dispositivo) para recibir la lista sincronizada; reintenta si se cae.
-     También lleva la X de las pestañas pasivas (kill por sessionId). */
+     También lleva el cierre de las sesiones pasivas (kill por sessionId). */
   let controlWS = null;
   const connectControl = () => {
     controlWS = new WebSocket(wsUrl());
@@ -409,7 +398,7 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
 
   assets.wire(viewEl, stackEl);
   connectControl();
-  createSession(); // arranque: el botón de abrir el chat (sin chrome de pestañas)
+  createSession(); // arranque: la portada (sin la barra)
 
   return {
     active,

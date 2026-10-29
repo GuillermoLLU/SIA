@@ -10,7 +10,6 @@ export const msg = {
   attach: (sessionId) => ({ type: 'attach', sessionId }),
   input: (data) => ({ type: 'input', data }),
   resize: (cols, rows) => ({ type: 'resize', cols, rows }),
-  meta: (label, color) => ({ type: 'meta', label, color }),
   // matar la sesión propia del socket o, por el socket de control, otra
   kill: (sessionId = null) => (sessionId ? { type: 'kill', sessionId } : { type: 'kill' }),
   asset: ({ name, absPath }) => ({ type: 'asset', asset: { name, absPath } }),

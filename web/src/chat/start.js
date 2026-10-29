@@ -20,13 +20,3 @@ export const chatPlan = ({ launchers, projects = [] }) => {
   return { launcher: picked.launcher, knowledge: CHAT_KNOWLEDGE, projects: projects.map((p) => p.id) };
 };
 
-// La pestaña del chat toma el nombre de la pregunta: su primera línea,
-// recortada por palabra; sin pregunta, el del lanzador.
-export const tabLabel = (prompt, fallback, max = 28) => {
-  const line = String(prompt ?? '').split('\n').map((l) => l.trim()).find(Boolean) ?? '';
-  const text = line.replace(/\s+/g, ' ');
-  if (!text) return fallback;
-  if (text.length <= max) return text;
-  const cut = text.slice(0, max);
-  return `${(cut.includes(' ') ? cut.slice(0, cut.lastIndexOf(' ')) : cut).trimEnd()}…`;
-};

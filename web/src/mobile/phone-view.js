@@ -1,5 +1,5 @@
 // Lo que cambia en la web cuando se usa desde el móvil: los botones de
-// adjuntar, skills y candado en la barra de pestañas (como flotantes tapaban
+// adjuntar, skills y candado en la barra del chat (como flotantes tapaban
 // la esquina inferior derecha de la terminal, justo donde Claude pinta la
 // caja de entrada), la hoja de «de dónde sale la imagen», el candado de esta
 // sesión del teléfono y la altura de la app medida por lo VISIBLE.
@@ -10,8 +10,7 @@ import { askNewLockPin } from '../lock/controls.js';
 // · gate.fromBridge(): la puerta del candado
 export const mountPhoneView = ({ api, dialogs, toast, chat, palette, gate }) => {
   const $ = (id) => document.getElementById(id);
-  const tabsEl = $('tabs');
-  tabsEl.querySelector('.tabs-spacer').after($('attach-fab'), $('skills-fab'), $('lock-fab'));
+  $('chat-bar').querySelector('.chat-bar-spacer').after($('attach-fab'), $('skills-fab'), $('lock-fab'));
 
   $('skills-fab').addEventListener('click', (e) => { e.stopPropagation(); palette.toggle(); });
 
