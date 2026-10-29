@@ -1,8 +1,8 @@
 // Vista «Backlog»: la cola del equipo, lo que nadie tiene aún, en el orden en
 // que la regla lo iría repartiendo. Para quien reparte el trabajo: aquí se
 // mira la cola entera (Issues solo enseña la siguiente). Arriba, el panel:
-// cuánto hay y de qué tipo, y cada tarjeta filtra la lista al pulsarla
-// (filter.js); filtrar no cambia el puesto de cada una. Debajo, la lista con
+// cuánto hay de cada tipo, y las tarjetas filtran la lista al pulsarlas, varias
+// a la vez (filter.js); filtrar no cambia el puesto de cada una. Debajo, la lista con
 // su propio scroll. Se recarga al abrir la vista. Es una vista sobre el
 // dominio de Issues (sus piezas y estilos).
 import '../issues/issues.css';
@@ -10,14 +10,14 @@ import './backlog.css';
 import { esc } from '../ui/html.js';
 import { SEVERITY_ES, snapshotInfo, age } from '../issues/format.js';
 import { sev, origin } from '../issues/parts.js';
-import { EMPTY_FILTER, SEVERITIES, filterIssues, toggle, tileCounts } from './filter.js';
+import { EMPTY_FILTER, SEVERITIES, filterIssues, toggle, tileCounts, isFiltering } from './filter.js';
 
 const PLURAL = { CRITICAL: 'Críticas', HIGH: 'Altas', MEDIUM: 'Medias', LOW: 'Bajas' };
 
 export const mountBacklogView = (root, { api }) => {
   let data = null, filter = { ...EMPTY_FILTER }, now = new Date();
 
-  const page = (body, snap = '') => `<div class="bl-page"><div class="bl-top iss-top"><h2 class="iss-title">Backlog</h2>${snap}</div>${body}</div>`;
+  const page = (body, head = '') => `<div class="bl-page"><div class="bl-top iss-top"><h2 class="iss-title">Backlog</h2>${head}</div>${body}</div>`;
 
   // una tarjeta del panel: qué se mide y el número; pulsada, filtra la lista
   const tile = (label, value, { key, value: v, on, kind = '' }) =>
@@ -37,18 +37,17 @@ export const mountBacklogView = (root, { api }) => {
     const snap = snapshotInfo(data.taken, now);
     const c = tileCounts(data.issues, filter);
     const shown = filterIssues(data.issues, filter);
-    const filtering = filter.origin !== 'all' || filter.severity !== 'all' || filter.prio;
+    const filtering = isFiltering(filter);
     root.innerHTML = page(`
       <div class="bl-panel">
-        ${tile('Sin coger', c.total, { key: 'all', value: '', on: !filtering, kind: 'all' })}
-        ${tile('SISU', c.sisu, { key: 'origin', value: 'sisu', on: filter.origin === 'sisu', kind: 'sisu' })}
-        ${tile('SGA', c.sga, { key: 'origin', value: 'sga', on: filter.origin === 'sga', kind: 'sga' })}
-        ${tile('Priorizadas', c.prio, { key: 'prio', value: 'true', on: filter.prio, kind: 'prio' })}
-        ${SEVERITIES.map((s) => tile(PLURAL[s], c.severity[s], { key: 'severity', value: s, on: filter.severity === s, kind: s })).join('')}
+        ${tile('SISU', c.sisu, { key: 'origin', value: 'sisu', on: filter.origin.includes('sisu'), kind: 'sisu' })}
+        ${tile('SGA', c.sga, { key: 'origin', value: 'sga', on: filter.origin.includes('sga'), kind: 'sga' })}
+        ${tile('Priorizadas', c.prio, { key: 'prio', value: '', on: filter.prio, kind: 'prio' })}
+        ${SEVERITIES.map((s) => tile(PLURAL[s], c.severity[s], { key: 'severity', value: s, on: filter.severity.includes(s), kind: s })).join('')}
       </div>
-      <p class="bl-shown">${filtering ? `<b>${shown.length}</b> de ${c.total} · <button class="bl-clear" data-key="all">Ver todas</button>` : `<b>${c.total}</b> sin coger, en el orden de la regla básica`}</p>
+      <p class="bl-shown">${filtering ? `<b>${shown.length}</b> de ${c.total} · <button class="bl-clear" data-key="all">Ver todas</button>` : 'En el orden de la regla básica'}</p>
       ${shown.length ? `<div class="bl-list">${shown.map(row).join('')}</div>` : `<p class="bl-empty">${c.total ? 'Ninguna issue cumple lo marcado.' : 'La cola está vacía: no queda nada sin coger.'}</p>`}`,
-      `<span class="iss-snap${snap.stale ? ' stale' : ''}">${snap.text}</span>`);
+      `<span class="bl-total"><b>${c.total}</b> sin coger</span><span class="iss-snap${snap.stale ? ' stale' : ''}">${snap.text}</span>`);
   };
 
   const load = async () => {
@@ -61,7 +60,7 @@ export const mountBacklogView = (root, { api }) => {
     const b = e.target.closest('[data-key]');
     if (!b) return;
     const { key, value } = b.dataset;
-    filter = key === 'all' ? { ...EMPTY_FILTER } : toggle(filter, key, key === 'prio' ? true : value);
+    filter = key === 'all' ? { ...EMPTY_FILTER } : toggle(filter, key, value);
     render();
   });
 
