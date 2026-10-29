@@ -8,10 +8,10 @@ import { msg, parse, sendOn } from '../chat/protocol.js';
 import { esc } from '../ui/html.js';
 import { assistedPlan } from './assisted.js';
 
-// El arranque: el botón y, debajo, con qué se abre. `error`: por qué no se puede.
-export const assistHtml = (origin, error = null) => `<div class="iss-assist">
+// El arranque: solo el botón; si no se puede, el motivo debajo. `error`: por qué no.
+export const assistHtml = (error = null) => `<div class="iss-assist">
     <button class="lab-btn primary iss-assist-go" data-assist ${error ? 'disabled' : ''}>Iniciar resolución asistida por IA</button>
-    <p class="iss-assist-hint">${error ? esc(error) : `Claude, con el conocimiento de ${esc(origin)} y los datos de esta issue.`}</p>
+    ${error ? `<p class="iss-assist-hint">${esc(error)}</p>` : ''}
   </div>`;
 
 // host: el hueco del chat · origin: 'SGA' | 'SISU' · wsUrl(): socket del bridge
@@ -24,10 +24,13 @@ export const mountIssueChat = (host, { issueId, origin, wsUrl, loadProjects, mak
 
   const resize = () => { if (!term || termHost.hidden) return; try { fit.fit(); sendOn(ws, msg.resize(term.cols, term.rows)); } catch { /* aún sin tamaño */ } };
 
+  // La cabecera del panel solo tiene sentido con el chat en marcha.
+  const head = host.parentElement?.querySelector('[data-chat-head]');
   const showTerminal = () => {
     if (term) return;
     chooser.hidden = true;
     termHost.hidden = false;
+    if (head) head.hidden = false;
     ({ term, fit } = makeTerminal());
     term.open(termHost);
     term.onData((data) => sendOn(ws, msg.input(data)));
@@ -50,6 +53,7 @@ export const mountIssueChat = (host, { issueId, origin, wsUrl, loadProjects, mak
     if (term) { term.dispose(); term = null; }
     termHost.hidden = true;
     chooser.hidden = false;
+    if (head) head.hidden = true;
     chooser.innerHTML = `<p class="iss-empty">${esc(text)}</p><button class="lab-btn primary" data-chat-again>Abrir otro chat</button>`;
     chooser.querySelector('[data-chat-again]').addEventListener('click', () => { dispose(); mountIssueChat(host, { issueId, origin, wsUrl, loadProjects, makeTerminal }); });
   };
@@ -57,11 +61,11 @@ export const mountIssueChat = (host, { issueId, origin, wsUrl, loadProjects, mak
   // El botón: se decide con qué se abre (Claude, autónomo, el proyecto del
   // origen) y, si falta algo, se explica en su lugar.
   const offerAssist = async (launchers) => {
-    chooser.innerHTML = assistHtml(origin);
+    chooser.innerHTML = assistHtml();
     chooser.querySelector('[data-assist]').addEventListener('click', async () => {
       chooser.querySelector('[data-assist]').disabled = true;
       const plan = assistedPlan({ launchers, projects: await loadProjects(), origin });
-      if (plan.error) { chooser.innerHTML = assistHtml(origin, plan.error); return; }
+      if (plan.error) { chooser.innerHTML = assistHtml(plan.error); return; }
       launch(plan.launcher, plan.knowledge, plan.projects);
     });
   };

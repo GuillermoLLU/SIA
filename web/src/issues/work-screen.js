@@ -146,8 +146,7 @@ export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, meI
       <div class="k-moved"><span>Último movimiento</span><b>${i.modified ? `hace ${age(i.modified, now)}` : '—'}</b><small>${when(i.modified)}</small></div>
     </section>
     <aside class="iss-card iss-chat" aria-label="Chat de la issue">
-      <div class="iss-card-h"><h3>Resolución asistida por IA</h3></div>
-      <p class="iss-chat-note">Claude con el conocimiento de ${i.sisu ? 'SISU' : 'SGA'} y los datos de ${esc(i.id)}. El chat sigue abierto mientras la issue lo esté: puedes salir y volver.</p>
+      <div class="iss-card-h" data-chat-head hidden><h3>Resolución asistida por IA</h3></div>
       <div class="iss-chat-body"></div>
     </aside>
     </div>
