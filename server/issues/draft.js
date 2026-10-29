@@ -1,22 +1,48 @@
 // El borrador de Resolver (dominio, sin E/S): lo que el técnico lleva escrito y
-// el adjunto del mensaje al centro, mientras no se envía. Aquí, cómo se sanea lo
-// que llega de la web; se guarda en la BBDD local (drafts.js).
+// el adjunto del mensaje al centro, mientras no se envía. Aquí, cómo se valida
+// lo que llega de la web: no se fía del navegador (se puede tocar en devtools),
+// así que lo que no cuadra se rechaza en vez de arreglarlo. Se guarda en la BBDD
+// local (drafts.js).
 
 export const FIELDS = ['note', 'what', 'how', 'prevent'];
-const MAX_TEXT = 20_000;
-export const MAX_FILE = 10 * 1024 * 1024;   // el mismo límite que enseña la web
+export const MAX_TEXT = 20_000;               // el mismo maxlength que tiene la web
+export const MAX_FILE = 10 * 1024 * 1024;     // el mismo límite que enseña la web
+export const LANGS = ['es', 'en'];            // el idioma de la nota externa
+// Lo que se puede ejecutar no va como adjunto al centro.
+const RUNNABLE = /\.(exe|com|bat|cmd|msi|scr|pif|ps1|vbs|vbe|js|jse|wsf|wsh|hta|jar|sh|lnk|reg|cpl|dll)$/i;
+const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/;
+const MIME = /^[\w.+-]+\/[\w.+-]+$/;
 
-const fail = (message) => Object.assign(new Error(message), { status: 400 });
+export const fail = (message, status = 400) => Object.assign(new Error(message), { status });
+const isObject = (x) => x !== null && typeof x === 'object' && !Array.isArray(x);
 
-// { note, what, how, prevent } → los cuatro, como texto y recortados
-export const cleanFields = (body) => Object.fromEntries(FIELDS.map((f) => [f, String(body?.[f] ?? '').slice(0, MAX_TEXT)]));
+// { note, what, how, prevent, lang } → los cuatro textos y el idioma. Un campo
+// que falta, vacío; uno que no es texto o pasa de MAX_TEXT, fuera.
+export const cleanFields = (body) => {
+  if (!isObject(body)) throw fail('El borrador no es válido.');
+  const out = {};
+  for (const f of FIELDS) {
+    const v = body[f] ?? '';
+    if (typeof v !== 'string') throw fail('El borrador no es válido.');
+    if (v.length > MAX_TEXT) throw fail(`Un texto pasa de ${MAX_TEXT.toLocaleString('es-ES')} caracteres.`);
+    out[f] = v;
+  }
+  const lang = body.lang ?? 'es';
+  if (!LANGS.includes(lang)) throw fail('Ese idioma no está.');
+  return { ...out, lang };
+};
 
 // { name, type, data (base64) } → { name, type, data: Buffer }; un solo adjunto, de hasta MAX_FILE
 export const cleanFile = (body) => {
-  const name = String(body?.name ?? '').replace(/[\\/]/g, '_').trim().slice(0, 200);
-  if (!name || typeof body?.data !== 'string' || !body.data) throw fail('Falta el archivo.');
+  if (!isObject(body)) throw fail('Falta el archivo.');
+  // sin rutas ni caracteres de control (los que dan la vuelta al texto, tampoco)
+  const name = String(body.name ?? '').replace(/[\\/]/g, '_').replace(/[\p{Cc}\p{Cf}]/gu, '').trim().slice(0, 200);
+  if (!name || typeof body.data !== 'string' || !body.data) throw fail('Falta el archivo.');
+  if (RUNNABLE.test(name)) throw fail('Ese tipo de archivo no se puede adjuntar: es un ejecutable.');
+  if (body.data.length % 4 || !BASE64.test(body.data)) throw fail('El archivo no ha llegado bien.');
   const data = Buffer.from(body.data, 'base64');
   if (!data.length) throw fail('El archivo está vacío.');
   if (data.length > MAX_FILE) throw fail('El adjunto pasa de 10 MB: elige otro más pequeño.');
-  return { name, type: String(body.type ?? '').slice(0, 100), data };
+  const type = typeof body.type === 'string' && MIME.test(body.type) ? body.type.slice(0, 100) : '';
+  return { name, type, data };
 };

@@ -9,8 +9,7 @@ import { LISTS, when, age, stamp, weekBars } from './format.js';
 import { sev, origin, item } from './parts.js';
 import { workScreen } from './work-screen.js';
 import { ACTIONS, actionForm, readAction } from './actions.js';
-import { resolveDraft } from './resolve-draft.js';
-import { resolveForm, resolveReview, stepMissing, STEPS, MAX_FILE, fileSize, fileBox, localShort } from './resolve-form.js';
+import { resolveForm, resolveReview, stepMissing, STEPS, MAX_FILE, fileBox, localShort } from './resolve-form.js';
 
 const GOAL = { min: 15, max: 20 }; // resueltas por turno, lo que dice el equipo
 const REFRESH_MS = 15000;
@@ -18,7 +17,6 @@ const REFRESH_MS = 15000;
 // openChat(host, issueId) → { dispose }: el chat de la issue (lo pone main.js).
 export const mountIssuesView = (root, { api, me, toast, openChat }) => {
   let data = null, rule = 'basic', now = new Date(), opened = null, onDesk = false, workTab = 'ai', chat = null, loading = false, picking = false;
-  let issue = null; // la issue abierta: Resolver aprovecha sus notas de Remedy
   let attached = null; // Resolver: el adjunto guardado en el borrador abierto ({ name, type, size })
   const closeChat = () => { chat?.dispose(); chat = null; };
 
@@ -96,7 +94,6 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
     const mine = i.claimedBy && data?.desk.some((d) => d.id === i.id && d.claimed);
     if (opened !== i.id) workTab = 'ai';
     opened = i.id;
-    issue = i;
     closeChat();
     closeAction();
     root.innerHTML = workScreen({ issue: i, sameCenter, now, mine, tab: workTab });
@@ -132,12 +129,16 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
         return;
       }
       const act = t.closest('[data-act]');
-      if (act) return openAction(act.dataset.act);
+      if (act) {
+        if (act.disabled) return;   // un segundo clic mientras se abre: un solo modal
+        act.disabled = true;
+        try { return await openAction(act.dataset.act); } finally { act.disabled = false; }
+      }
       if (t.closest('[data-act-cancel]') || t.classList.contains('iss-modal')) return closeAction();
       if (t.closest('[data-step-next]')) return stepNext(t.closest('form'));
       if (t.closest('[data-step-back]')) { const form = t.closest('form'); return goStep(form, Number(form.dataset.step) - 1); }
       if (t.closest('[data-file-clear]')) return setFile(t.closest('form'), null);
-      if (t.closest('[data-saved-drop]')) { clearTimeout(autosave); autosave = null; await api.dropDraft(opened); return openAction('resolve'); }
+      if (t.closest('[data-saved-drop]')) { clearTimeout(autosave); autosave = null; await saving; await api.dropDraft(opened); return openAction('resolve'); }
       const r = t.closest('[data-id]');
       if (r) return openIssue(r.dataset.id);
       if (t.closest('[data-back]')) { renderDesk(); root.scrollTop = 0; return; }
@@ -165,7 +166,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
     const last = n === STEPS.length;
     if (last) {
       const { values } = readAction('resolve', Object.fromEntries(new FormData(form)));
-      form.querySelector('[data-rstep="3"]').innerHTML = resolveReview(values, attached);
+      form.querySelector('[data-rstep="3"]').innerHTML = resolveReview(values, attached, { lang: form.elements.lang.value, hour: new Date().getHours() });
     }
     form.querySelector('[data-act-cancel]').hidden = n !== 1;
     form.querySelector('[data-step-back]').hidden = n === 1;
@@ -192,7 +193,8 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
     r.readAsDataURL(file);
   });
   const setFile = async (form, file) => {
-    if (file && file.size > MAX_FILE) return showErr(form, `El adjunto pasa de ${fileSize(MAX_FILE)}: elige otro más pequeño.`);
+    if (file && file.size > MAX_FILE) return showErr(form, 'El adjunto pasa de 10 MB: elige otro más pequeño.');   // el mismo texto que el bridge
+    if (file && !file.size) return showErr(form, 'El archivo está vacío (o es una carpeta): elige otro.');
     showErr(form, null);
     const box = form.querySelector('[data-file-box]');
     box.innerHTML = '<p class="iss-file-on">Guardando…</p>';
@@ -203,12 +205,17 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
     } catch (e) { showErr(form, `No se ha podido guardar el adjunto: ${e.message}`); }
     box.innerHTML = fileBox(attached);
   };
-  // Lo escrito se guarda solo, un momento después de dejar de teclear, y al cerrar.
-  let autosave = null;
-  const saveNow = async (form) => {
+  // Lo escrito se guarda solo, un momento después de dejar de teclear, y al
+  // cerrar. `saving`: el guardado en curso, para que confirmar espere a que
+  // acabe (si no, llegaría después y volvería a crear el borrador).
+  let autosave = null, saving = Promise.resolve();
+  const saveNow = (form) => {
     const label = form.querySelector('[data-autosave]');
-    try { label.textContent = `Borrador guardado ${localShort((await api.saveDraft(opened, Object.fromEntries(new FormData(form)))).at)}`; }
-    catch { label.textContent = 'No se ha podido guardar el borrador'; }
+    const id = opened, fields = Object.fromEntries(new FormData(form));
+    saving = saving.then(() => api.saveDraft(id, fields))
+      .then(({ at }) => { label.textContent = `Borrador guardado ${localShort(at)}`; })
+      .catch((e) => { label.textContent = `No se ha podido guardar el borrador: ${e.message}`; });
+    return saving;
   };
   const flushSave = () => {
     if (!autosave) return;
@@ -225,16 +232,18 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
   const openAction = async (key) => {
     closeAction();
     if (key === 'transfer') people = await api.teammates();
-    let saved = null;
+    // Resolver: lo que hay en Remedy, lo que falta y mi borrador los da el
+    // bridge, que también dice si se puede (mía, en la foto y aún abierta)
+    let start = null;
     if (key === 'resolve') {
-      saved = await api.draft(opened).catch(() => null);   // sin borrador guardado se empieza con lo de Remedy
-      attached = saved?.file || null;
+      start = await api.startResolve(opened);
+      attached = start.draft?.file || null;
     }
-    const form = key === 'resolve' ? resolveForm(opened, resolveDraft(issue), saved) : actionForm(key, opened, people);
+    const form = key === 'resolve' ? resolveForm(opened, start.check, start.draft) : actionForm(key, opened, people);
     root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${form}</div>`);
     root.querySelector('.iss-act-form textarea, .iss-act-form input:not([type=hidden]), .iss-act-form select')?.focus();
   };
-  root.addEventListener('submit', (e) => {
+  root.addEventListener('submit', async (e) => {
     const form = e.target.closest('[data-act-form]');
     if (!form) return;
     e.preventDefault();
@@ -243,21 +252,38 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
     const { missing, values } = readAction(key, Object.fromEntries(new FormData(form)));
     const err = form.querySelector('.iss-act-err');
     if (missing) { err.textContent = `Falta: ${missing}.`; err.hidden = false; return; }
-    // Resolver solo se envía desde el último paso, ya revisado; el borrador deja de hacer falta
+    // Resolver solo se envía desde el último paso, ya revisado. El bridge lo
+    // vuelve a comprobar todo y, si cumple, borra el borrador.
     if (key === 'resolve') {
-      clearTimeout(autosave); autosave = null;
-      api.dropDraft(opened).catch(() => {});
+      const send = form.querySelector('[data-confirm-send]');
+      if (send.disabled) return;   // un segundo clic mientras se envía
+      send.disabled = true;
+      // lo último escrito, guardado antes: si el bridge lo rechaza, no se pierde
+      if (autosave) { clearTimeout(autosave); autosave = null; saveNow(form); }
+      try {
+        await saving;
+        await api.resolve(opened, Object.fromEntries(new FormData(form)));
+      } catch (err) { send.disabled = false; return showErr(form, err.message); }
       closeAction();
-      return toast?.('Resolver: preparado, pero aún no se envía a Remedy (falta conectar SIGLO).');
+      return toast?.('Resolver: comprobado, pero aún no se envía a Remedy (falta conectar SIGLO).');
     }
     closeAction();
     const who = key === 'transfer' ? people.find((p) => p.id === values.to)?.name : null;
     toast?.(`${ACTIONS[key].label}${who ? ` a ${who}` : ''}: preparado, pero aún no se envía a Remedy (falta conectar SIGLO).`);
   });
-  // Soltar el adjunto en su zona
+  // Soltar el adjunto en su zona. Fuera de ella no pasa nada: el navegador no
+  // abre ni descarga el archivo (en toda la página, no solo en esta vista).
   const dropZone = (e) => e.target.closest?.('[data-drop]');
-  root.addEventListener('dragover', (e) => { const z = dropZone(e); if (z) { e.preventDefault(); z.classList.add('over'); } });
-  root.addEventListener('dragleave', (e) => dropZone(e)?.classList.remove('over'));
+  const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
+  const ignoreDrop = (e) => {
+    if (!hasFiles(e) || (root.contains(e.target) && dropZone(e))) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'none';
+  };
+  document.addEventListener('dragover', ignoreDrop);
+  document.addEventListener('drop', ignoreDrop);
+  root.addEventListener('dragover', (e) => { const z = dropZone(e); if (z) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; z.classList.add('over'); } });
+  root.addEventListener('dragleave', (e) => { const z = dropZone(e); if (z && !z.contains(e.relatedTarget)) z.classList.remove('over'); });
   root.addEventListener('drop', (e) => {
     const z = dropZone(e);
     if (!z) return;
@@ -303,6 +329,6 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
 
   return {
     show: () => loadDesk().catch((err) => { root.innerHTML = `<div class="iss-page"><p class="iss-empty">No se pudieron cargar las issues: ${esc(err.message)}</p></div>`; }),
-    dispose: () => { clearInterval(refresher); window.removeEventListener('focus', picked); closeChat(); },
+    dispose: () => { clearInterval(refresher); window.removeEventListener('focus', picked); document.removeEventListener('dragover', ignoreDrop); document.removeEventListener('drop', ignoreDrop); closeChat(); },
   };
 };

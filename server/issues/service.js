@@ -5,7 +5,8 @@
 import { queue, RULES } from './queue.js';
 import { deskOf, brief } from './desk.js';
 import { today, history, dayKey } from './stats.js';
-import { cleanFields, cleanFile } from './draft.js';
+import { cleanFields, cleanFile, fail } from './draft.js';
+import { resolveDraft, checkResolve, OPEN } from './resolve.js';
 
 const WEEKS = 12;
 
@@ -15,6 +16,17 @@ export const createIssuesService = ({ source, platform, drafts }) => {
     const { taken, issues } = source.load();
     const claims = await platform.rpc(jwt, 'platform_issue_claims');
     return { taken, issues, claims, claimed: new Set(claims.map((c) => c.issue_id)), now: taken ? new Date(taken) : new Date() };
+  };
+
+  // Resolver (y su borrador) solo sobre una issue de la foto, mía y aún abierta:
+  // la web lo enseña así, pero el bridge no se fía de lo que le llegue.
+  const resolvable = async ({ user, accessToken: jwt }, id) => {
+    const { issues, claims } = await snapshot(jwt);
+    const issue = issues.find((i) => i.id === id);
+    if (!issue) throw fail('Esa issue ya no está en la foto.', 404);
+    if (!deskOf(issues, user, claims).some((i) => i.id === id)) throw fail('Solo puedes resolver tus issues.', 403);
+    if (!OPEN.has(issue.status)) throw fail('Esta issue ya está resuelta o cerrada.', 409);
+    return issue;
   };
 
   return {
@@ -58,12 +70,27 @@ export const createIssuesService = ({ source, platform, drafts }) => {
     },
     // una issue de la foto, por id (el chat de una issue)
     find: (id) => source.load().issues.find((i) => i.id === id) || null,
+    // Abrir Resolver → { check: lo que hay en Remedy y lo que falta (resolve.js), draft: mi borrador | null }
+    async startResolve(who, id) {
+      return { check: resolveDraft(await resolvable(who, id)), draft: drafts.get(who.user.id, id) };
+    },
+    // Confirmar: se comprueba todo otra vez y, si cumple, el borrador deja de
+    // hacer falta. Aún no sale nada hacia Remedy (falta SIGLO) → { ok, sent: false }
+    async resolve(who, id, body) {
+      checkResolve(await resolvable(who, id), cleanFields(body));
+      drafts.drop(who.user.id, id);
+      return { ok: true, sent: false };
+    },
     // el borrador de Resolver de quien lo escribe (drafts.js), en la BBDD local
-    draft: ({ user }, id) => drafts.get(user.id, id),
-    saveDraft: ({ user }, id, body) => ({ at: drafts.setText(user.id, id, cleanFields(body)) }),
-    saveDraftFile: ({ user }, id, body) => {
+    async saveDraft(who, id, body) {
+      const fields = cleanFields(body);
+      await resolvable(who, id);
+      return { at: drafts.setText(who.user.id, id, fields) };
+    },
+    async saveDraftFile(who, id, body) {
       const file = cleanFile(body);
-      return { at: drafts.setFile(user.id, id, file), file: { name: file.name, type: file.type, size: file.data.length } };
+      await resolvable(who, id);
+      return { at: drafts.setFile(who.user.id, id, file), file: { name: file.name, type: file.type, size: file.data.length } };
     },
     dropDraftFile: ({ user }, id) => ({ at: drafts.setFile(user.id, id, null) }),
     dropDraft: ({ user }, id) => { drafts.drop(user.id, id); return { ok: true }; },

@@ -7,8 +7,9 @@ import { FIELDS } from './draft.js';
 const SCHEMA = `
   CREATE TABLE IF NOT EXISTS resolve_drafts (user_id TEXT NOT NULL, issue_id TEXT NOT NULL, at TEXT NOT NULL,
     note TEXT, what TEXT, how TEXT, prevent TEXT, file_name TEXT, file_type TEXT, file_data BLOB,
-    PRIMARY KEY (user_id, issue_id));
-  PRAGMA user_version = 1;`;
+    PRIMARY KEY (user_id, issue_id));`;
+// v2: el idioma de la nota externa
+const COLS = [...FIELDS, 'lang'];
 
 // DatabaseSync: la clase de node:sqlite (se inyecta, como en metrics/repository.js).
 export const createResolveDrafts = ({ DatabaseSync, file, fs, now = () => new Date() }) => {
@@ -16,27 +17,28 @@ export const createResolveDrafts = ({ DatabaseSync, file, fs, now = () => new Da
   const db = new DatabaseSync(file);
   db.exec('PRAGMA journal_mode = WAL;');
   db.exec(SCHEMA);
+  if (db.prepare('PRAGMA user_version').get().user_version < 2) db.exec('ALTER TABLE resolve_drafts ADD COLUMN lang TEXT; PRAGMA user_version = 2;');
   const stamp = () => now().toISOString();
   // fila vacía si aún no hay borrador: guardar el texto o el adjunto la crea
   const ensure = db.prepare('INSERT OR IGNORE INTO resolve_drafts (user_id, issue_id, at) VALUES (?, ?, ?)');
-  const getRow = db.prepare(`SELECT at, ${FIELDS.join(', ')}, file_name, file_type, length(file_data) AS file_size FROM resolve_drafts WHERE user_id = ? AND issue_id = ?`);
-  const setText = db.prepare(`UPDATE resolve_drafts SET at = ?, ${FIELDS.map((f) => `${f} = ?`).join(', ')} WHERE user_id = ? AND issue_id = ?`);
+  const getRow = db.prepare(`SELECT at, ${COLS.join(', ')}, file_name, file_type, length(file_data) AS file_size FROM resolve_drafts WHERE user_id = ? AND issue_id = ?`);
+  const setText = db.prepare(`UPDATE resolve_drafts SET at = ?, ${COLS.map((f) => `${f} = ?`).join(', ')} WHERE user_id = ? AND issue_id = ?`);
   const setFile = db.prepare('UPDATE resolve_drafts SET at = ?, file_name = ?, file_type = ?, file_data = ? WHERE user_id = ? AND issue_id = ?');
   const drop = db.prepare('DELETE FROM resolve_drafts WHERE user_id = ? AND issue_id = ?');
 
   return {
-    // → { at, note, what, how, prevent, file: { name, type, size } | null } | null
+    // → { at, note, what, how, prevent, lang, file: { name, type, size } | null } | null
     get(user, issue) {
       const r = getRow.get(user, issue);
       if (!r) return null;
-      const { file_name: name, file_type: type, file_size: size, ...rest } = r;
-      return { ...rest, file: name ? { name, type, size } : null };
+      const { file_name: name, file_type: type, file_size: size, lang, ...rest } = r;
+      return { ...rest, lang: lang || 'es', file: name ? { name, type, size } : null };
     },
     // fields: cleanFields(…) → at
     setText(user, issue, fields) {
       const at = stamp();
       ensure.run(user, issue, at);
-      setText.run(at, ...FIELDS.map((f) => fields[f]), user, issue);
+      setText.run(at, ...COLS.map((f) => fields[f]), user, issue);
       return at;
     },
     // file: cleanFile(…) o null para quitarlo → at

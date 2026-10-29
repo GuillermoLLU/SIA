@@ -7,8 +7,11 @@
 //   GET  /teammates     → { teammates: [{ id, name }] }  (el equipo de Issues, sin mí)
 //   POST /next          { rule } → { id }  (null: no queda ninguna libre)
 //   POST /:id/release   → { ok }  (devolverla a la cola)
-//   GET  /:id/draft     → { draft }  (el borrador de Resolver, mío: drafts.js; null si no hay)
-//   PUT  /:id/draft     { note, what, how, prevent } → { at }
+//   GET  /:id/resolve   → { check, draft }  (abrir Resolver: lo que hay en Remedy y lo
+//                         que falta, resolve.js, y mi borrador, drafts.js, o null)
+//   POST /:id/resolve   { note, what, how, prevent, lang } → { ok, sent: false }
+//                         (lo comprueba todo otra vez y borra el borrador)
+//   PUT  /:id/draft     { note, what, how, prevent, lang } → { at }
 //   DELETE /:id/draft   → { ok }  (con su adjunto)
 //   PUT  /:id/draft/file { name, type, data (base64) } → { at, file: { name, type, size } }
 //   DELETE /:id/draft/file → { at }
@@ -32,13 +35,16 @@ export const issuesRoutes = (issues, { json, readBody }) => async (req, res, [id
     if (id === 'next' && !action && req.method === 'POST') return json(res, 200, { id: await issues.next(who, (await readBody(req)).rule) });
     if (!ISSUE_ID.test(id || '')) return json(res, 404, { error: 'No existe.' });
     if (action === 'release' && req.method === 'POST') { await issues.release(who, id); return json(res, 200, { ok: true }); }
+    if (action === 'resolve' && !part) {
+      if (req.method === 'GET') return json(res, 200, await issues.startResolve(who, id));
+      if (req.method === 'POST') return json(res, 200, await issues.resolve(who, id, await readBody(req)));
+    }
     if (action === 'draft' && !part) {
-      if (req.method === 'GET') return json(res, 200, { draft: issues.draft(who, id) });
-      if (req.method === 'PUT') return json(res, 200, issues.saveDraft(who, id, await readBody(req)));
+      if (req.method === 'PUT') return json(res, 200, await issues.saveDraft(who, id, await readBody(req)));
       if (req.method === 'DELETE') return json(res, 200, issues.dropDraft(who, id));
     }
     if (action === 'draft' && part === 'file') {
-      if (req.method === 'PUT') return json(res, 200, issues.saveDraftFile(who, id, await readBody(req)));
+      if (req.method === 'PUT') return json(res, 200, await issues.saveDraftFile(who, id, await readBody(req)));
       if (req.method === 'DELETE') return json(res, 200, issues.dropDraftFile(who, id));
     }
     if (!action && req.method === 'GET') {

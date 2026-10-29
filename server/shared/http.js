@@ -7,11 +7,17 @@ export const json = (res, code, obj) => {
   res.end(JSON.stringify(obj));
 };
 
+// Un cuerpo roto o demasiado grande es un error de quien llama (400 / 413), no nuestro.
 const BODY_MAX = 40_000_000;
+const bad = (message, status) => Object.assign(new Error(message), { status });
 export const readBody = (req) => new Promise((resolve, reject) => {
-  let b = '';
-  req.on('data', (c) => { b += c; if (b.length > BODY_MAX) req.destroy(); });
-  req.on('end', () => { try { resolve(b ? JSON.parse(b) : {}); } catch (e) { reject(e); } });
+  let b = '', over = false;
+  req.on('data', (c) => {
+    if (over) return;
+    b += c;
+    if (b.length > BODY_MAX) { over = true; b = ''; reject(bad('Lo enviado es demasiado grande.', 413)); req.destroy?.(); }
+  });
+  req.on('end', () => { if (over) return; try { resolve(b ? JSON.parse(b) : {}); } catch { reject(bad('Lo enviado no es JSON válido.', 400)); } });
 });
 
 export const failed = (json, res, e) => {

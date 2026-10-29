@@ -11,7 +11,7 @@ const open = () => {
   let t = 0;
   return { file, drafts: createResolveDrafts({ DatabaseSync, file, fs, now: () => new Date(Date.UTC(2026, 9, 28, 15, 20, t++)) }) };
 };
-const TEXT = { note: 'n', what: 'w', how: 'h', prevent: 'p' };
+const TEXT = { note: 'n', what: 'w', how: 'h', prevent: 'p', lang: 'en' };
 
 test('texto y adjunto, por persona e issue, y se recupera al volver a abrir', () => {
   const { file, drafts } = open();
@@ -37,4 +37,18 @@ test('el adjunto se puede guardar antes que el texto, quitar y, al descartar, se
   drafts.drop('u1', 'INC1');
   assert.equal(drafts.get('u1', 'INC1'), null);
   drafts.close();
+});
+
+test('una BBDD de antes del idioma se migra sin perder lo guardado', () => {
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'sia-drafts-')), 'b.sqlite');
+  const old = new DatabaseSync(file);
+  old.exec(`CREATE TABLE resolve_drafts (user_id TEXT NOT NULL, issue_id TEXT NOT NULL, at TEXT NOT NULL,
+    note TEXT, what TEXT, how TEXT, prevent TEXT, file_name TEXT, file_type TEXT, file_data BLOB, PRIMARY KEY (user_id, issue_id));
+    PRAGMA user_version = 1;
+    INSERT INTO resolve_drafts (user_id, issue_id, at, note) VALUES ('u1', 'INC1', 'x', 'antes');`);
+  old.close();
+  const drafts = createResolveDrafts({ DatabaseSync, file, fs });
+  assert.deepEqual([drafts.get('u1', 'INC1').note, drafts.get('u1', 'INC1').lang], ['antes', 'es']);
+  drafts.close();
+  createResolveDrafts({ DatabaseSync, file, fs }).close();   // la segunda vez no vuelve a migrar
 });
