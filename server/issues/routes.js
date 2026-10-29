@@ -11,6 +11,7 @@
 //   POST /:id/release   → { ok }  (devolverla a la cola)
 //   POST /:id/transfer  { to, comment } → { ok }  (a un compañero; el motivo, obligatorio, queda como nota)
 //   POST /:id/notes     { body } → { id }  (una nota interna del equipo)
+//   PUT  /:id/notes/:nota { body } → { ok }  (editar la propia, hasta 24 h después; si no, 403)
 //   POST /csv?name=<fichero>  cuerpo: el CSV de la consulta, tal cual → { meta }
 //                         (la foto de Issues; se queda en este ordenador, source.js)
 import { failed } from '../shared/http.js';
@@ -19,7 +20,7 @@ import { isUuid } from '../shared/ids.js';
 
 const ISSUE_ID = /^INC\d+$/;
 
-export const issuesRoutes = (issues, { json, readBody }) => async (req, res, [id, action], who, query) => {
+export const issuesRoutes = (issues, { json, readBody }) => async (req, res, [id, action, sub], who, query) => {
   try {
     if (id === 'csv' && !action && req.method === 'POST') {
       const name = query.get('name') || '';
@@ -43,6 +44,14 @@ export const issuesRoutes = (issues, { json, readBody }) => async (req, res, [id
       const { body } = await readBody(req);
       if (typeof body !== 'string' || !body.trim()) return json(res, 400, { error: 'Escribe la nota.' });
       return json(res, 200, { id: await issues.addNote(who, id, body.trim()) });
+    }
+    if (action === 'notes' && sub && req.method === 'PUT') {
+      const noteId = Number(sub);
+      if (!Number.isInteger(noteId) || noteId <= 0) return json(res, 404, { error: 'Esa nota no existe.' });
+      const { body } = await readBody(req);
+      if (typeof body !== 'string' || !body.trim()) return json(res, 400, { error: 'Escribe la nota.' });
+      const r = await issues.editNote(who, id, noteId, body.trim());
+      return r.error ? json(res, 403, { error: r.error }) : json(res, 200, { ok: true });
     }
     if (action === 'timeline' && req.method === 'GET') return json(res, 200, { timeline: await issues.timeline(who, id) });
     if (!action && req.method === 'GET') {

@@ -30,10 +30,21 @@ const DID = {
   transferred: (t) => `${who(t.by)} traspasó la issue a ${who(t.to)}`,
   note: (t) => `${who(t.by)} escribió una nota`,
 };
-const trailItem = (t) => `<li class="iss-feed-item">${avatar(t.by)}<div class="iss-feed-body">
-      <header>${(DID[t.type] || ((x) => esc(x.type)))(t)}<time>${timeIso(t.at)}</time>${t.edited ? `<small>editada ${whenIso(t.edited)}</small>` : ''}</header>
-      ${t.text ? `<div class="iss-feed-text">${t.type === 'transferred' ? '<span class="iss-feed-label">Motivo</span>' : ''}${esc(t.text)}</div>` : ''}
+// Una nota la edita quien la escribió, durante las 24 h siguientes (la misma
+// regla que el bridge, server/issues/notes.js; aquí solo decide si se enseña el botón).
+export const EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
+export const canEditNote = (t, meId, now) => t.type === 'note' && !!meId && t.byId === meId && now.getTime() - new Date(t.at).getTime() <= EDIT_WINDOW_MS;
+
+const trailItem = (t, meId, now) => `<li class="iss-feed-item" data-entry="${t.type === 'note' ? esc(String(t.id)) : ''}">${avatar(t.by)}<div class="iss-feed-body">
+      <header>${(DID[t.type] || ((x) => esc(x.type)))(t)}<time>${timeIso(t.at)}</time>${t.edited ? `<small>editada ${whenIso(t.edited)}</small>` : ''}${canEditNote(t, meId, now) ? `<button type="button" class="iss-feed-edit" data-edit-note="${esc(String(t.id))}">Editar</button>` : ''}</header>
+      ${t.text ? `<div class="iss-feed-text" data-note-text>${t.type === 'transferred' ? '<span class="iss-feed-label">Motivo</span>' : ''}${esc(t.text)}</div>` : ''}
     </div></li>`;
+
+// El editor de una nota, en el sitio de su texto: Intro guarda, Escape cancela.
+export const noteEditorHtml = (text) => `<form class="iss-note-edit" data-note-edit novalidate>
+    <textarea name="note" rows="3" aria-label="Editar la nota">${esc(text)}</textarea>
+    <footer><button type="button" class="lab-btn" data-edit-cancel>Cancelar</button><button type="submit" class="lab-btn primary">Guardar</button></footer>
+  </form>`;
 // Las entradas agrupadas por día, del más antiguo al más reciente → [{ day, items }].
 // `now` solo decide «Hoy» y «Ayer».
 export const groupByDay = (timeline, now) => {
@@ -45,8 +56,9 @@ export const groupByDay = (timeline, now) => {
   }
   return days;
 };
-export const trailHtml = (timeline = [], now = new Date()) => (timeline.length
-  ? groupByDay(timeline, now).map(({ day, items }) => `<section class="iss-trail-day"><h5><span>${day}</span></h5><ol class="iss-trail-list">${items.map(trailItem).join('')}</ol></section>`).join('')
+// meId: quién mira, para ofrecer «Editar» solo en sus notas recientes.
+export const trailHtml = (timeline = [], now = new Date(), meId = null) => (timeline.length
+  ? groupByDay(timeline, now).map(({ day, items }) => `<section class="iss-trail-day"><h5><span>${day}</span></h5><ol class="iss-trail-list">${items.map((t) => trailItem(t, meId, now)).join('')}</ol></section>`).join('')
   : '<p class="iss-empty">Nadie la ha movido ni anotado en SIA todavía.</p>');
 
 // En el campo de nota, Intro envía; Mayús+Intro salta de línea.
@@ -63,7 +75,7 @@ export const noteFormHtml = () => `<form class="iss-note-form" data-note-form no
 export const releaseDialogHtml = (id, text) => `<div class="iss-dlg-issue"><span class="iss-dlg-code">${esc(id)}</span><span class="iss-dlg-text">${esc(text || '')}</span></div>
   <p class="iss-dlg-p">Volverá a la cola y podrá cogerla cualquier compañero.</p>`;
 
-export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, tab = 'detail' }) => `<div class="iss-page iss-work-page">
+export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, meId = null, tab = 'detail' }) => `<div class="iss-page iss-work-page">
   <header class="iss-work-h">
     <button class="iss-back" data-back>← Mi mesa</button>
     <div class="iss-title-row">
@@ -117,7 +129,7 @@ export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, tab
 
       <div class="iss-wpanel iss-trail-panel" data-wpanel="trail"${tab === 'trail' ? '' : ' hidden'}>
         <p class="iss-trail-hint">Por quién ha pasado esta issue y las notas internas del equipo</p>
-        <div class="iss-trail-scroll" data-trail>${trailHtml(timeline, now)}</div>
+        <div class="iss-trail-scroll" data-trail>${trailHtml(timeline, now, meId)}</div>
         ${noteFormHtml()}
       </div>
     </section>

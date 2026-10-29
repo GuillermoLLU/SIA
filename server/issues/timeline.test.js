@@ -23,6 +23,7 @@ test('cada entrada con lo que la pantalla necesita', () => {
   assert.deepEqual(claimed, { at: '2026-10-29T08:00:00+00:00', type: 'claimed', by: 'Ana', from: null, to: 'Ana' });
   assert.deepEqual(transferred, { at: '2026-10-29T09:00:00+00:00', type: 'transferred', by: 'Ana', from: 'Ana', to: 'Luis', text: 'Lleva dos llamadas.' });
   assert.equal(note.edited, '2026-10-29T10:30:00+00:00');
+  assert.equal(note.byId, 'u2');
 });
 
 test('una nota de traspaso sin su movimiento (otra hora u otra persona) se queda como nota', () => {

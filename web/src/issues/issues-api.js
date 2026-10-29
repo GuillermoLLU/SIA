@@ -12,6 +12,7 @@ export const createIssuesApi = (api) => {
     release: (issueId) => api(`/issues/${id(issueId)}/release`, { method: 'POST', body: {} }),
     transfer: (issueId, to, comment) => api(`/issues/${id(issueId)}/transfer`, { method: 'POST', body: { to, comment } }),
     addNote: (issueId, body) => api(`/issues/${id(issueId)}/notes`, { method: 'POST', body: { body } }),
+    editNote: (issueId, noteId, body) => api(`/issues/${id(issueId)}/notes/${id(noteId)}`, { method: 'PUT', body: { body } }),
     timeline: async (issueId) => (await api(`/issues/${id(issueId)}/timeline`)).timeline,
     // el fichero tal cual: el bridge lo lee en streaming
     upload: (file) => api(`/issues/csv?name=${encodeURIComponent(file.name)}`, { method: 'POST', body: file, type: 'text/csv' }),

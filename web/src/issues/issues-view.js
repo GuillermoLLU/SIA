@@ -8,7 +8,7 @@ import { esc } from '../ui/html.js';
 import { LISTS, snapshotInfo, age, weekBars } from './format.js';
 import { sev, origin, item } from './parts.js';
 import { onEscape } from '../ui/dialog.js';
-import { workScreen, trailHtml, trailTab, releaseDialogHtml, sendsNote } from './work-screen.js';
+import { workScreen, trailHtml, trailTab, releaseDialogHtml, sendsNote, noteEditorHtml } from './work-screen.js';
 import { ACTIONS, actionForm, readAction, isComplete } from './actions.js';
 
 const GOAL = { min: 15, max: 20 }; // resueltas por turno, lo que dice el equipo
@@ -97,7 +97,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     closeChat();
     closeAction();
     now = new Date(); // el histórico y las edades, a la hora de abrirla
-    root.innerHTML = workScreen({ issue: i, sameCenter, timeline, now, mine, tab: workTab });
+    root.innerHTML = workScreen({ issue: i, sameCenter, timeline, now, mine, meId: me?.id, tab: workTab });
     chat = openChat?.(root.querySelector('.iss-chat-body'), i.id) || null;
     root.scrollTop = 0;
   };
@@ -160,6 +160,9 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       const act = t.closest('[data-act]');
       if (act) return openAction(act.dataset.act);
       if (t.closest('[data-act-cancel]') || t.classList.contains('iss-modal')) return closeAction();
+      const ed = t.closest('[data-edit-note]');
+      if (ed) return openNoteEditor(ed.dataset.editNote);
+      if (t.closest('[data-edit-cancel]')) return refreshTrail();
       const r = t.closest('[data-id]');
       if (r) return openIssue(r.dataset.id);
       if (t.closest('[data-back]')) { renderDesk(); root.scrollTop = 0; return; }
@@ -192,7 +195,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   const refreshTrail = async () => {
     const items = await api.timeline(opened);
     const box = root.querySelector('[data-trail]');
-    if (box) box.innerHTML = trailHtml(items, new Date());
+    if (box) box.innerHTML = trailHtml(items, new Date(), me?.id);
     const tab = root.querySelector('[data-wtab="trail"]');
     if (tab) tab.innerHTML = trailTab(items.length);
   };
@@ -204,6 +207,24 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     const nf = e.target.closest('[data-note-form]');
     if (nf) nf.querySelector('[type=submit]').disabled = !nf.note.value.trim();
   });
+  // Editar una nota propia: el editor ocupa el sitio del texto; Guardar manda
+  // el cambio y se repinta el histórico; Cancelar o Escape lo deja como estaba.
+  const openNoteEditor = (noteId) => {
+    const item = root.querySelector(`[data-entry="${noteId}"]`);
+    const text = item?.querySelector('[data-note-text]');
+    if (!text) return;
+    text.outerHTML = noteEditorHtml(text.textContent);
+    const ta = item.querySelector('[data-note-edit] textarea');
+    ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+  };
+  const saveNote = async (form) => {
+    const body = form.note.value.trim();
+    if (!body) return;
+    const noteId = Number(form.closest('[data-entry]').dataset.entry);
+    form.querySelector('[type=submit]').disabled = true;
+    try { await api.editNote(opened, noteId, body); await refreshTrail(); toast?.('Nota editada.'); }
+    catch (err) { toast?.(err.message); form.querySelector('[type=submit]').disabled = false; }
+  };
   // La nota interna, desde el pie del histórico: se guarda, se repinta y se
   // baja hasta ella.
   const sendNote = async (form) => {
@@ -221,11 +242,18 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     } catch (err) { toast?.(err.message); btn.disabled = false; }
   };
   root.addEventListener('keydown', (e) => {
+    if (e.target.matches('[data-note-edit] textarea')) {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); return refreshTrail(); }
+      if (sendsNote(e)) { e.preventDefault(); return saveNote(e.target.closest('[data-note-edit]')); }
+      return;
+    }
     if (!e.target.matches('[data-note-form] textarea') || !sendsNote(e)) return;
     e.preventDefault();
     sendNote(e.target.closest('[data-note-form]'));
   });
   root.addEventListener('submit', async (e) => {
+    const ne = e.target.closest('[data-note-edit]');
+    if (ne) { e.preventDefault(); return saveNote(ne); }
     const nf = e.target.closest('[data-note-form]');
     if (nf) { e.preventDefault(); return sendNote(nf); }
     const form = e.target.closest('[data-act-form]');

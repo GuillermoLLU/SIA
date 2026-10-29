@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { workScreen, trailHtml, trailTab, releaseDialogHtml, noteFormHtml, groupByDay, sendsNote } from './work-screen.js';
+import { workScreen, trailHtml, trailTab, releaseDialogHtml, noteFormHtml, groupByDay, sendsNote, canEditNote, noteEditorHtml } from './work-screen.js';
 
 const issue = (o = {}) => ({ id: 'INC1', text: 'PDA <sin imagen>', priority: 'HIGH', status: 'ASSIGNED', reason: '', notes: 'no <arranca>',
   resolution: '', category: 'SGA', group: 'AYS SOPORTE', assignee: '', reported: '2026-10-01 10:00', modified: '2026-10-01 11:00',
@@ -76,4 +76,22 @@ test('agrupar por día conserva el orden y parte donde cambia el día; Intro env
   assert.equal(sendsNote({ key: 'Enter', shiftKey: false }), true);
   assert.equal(sendsNote({ key: 'Enter', shiftKey: true }), false);
   assert.equal(sendsNote({ key: 'a', shiftKey: false }), false);
+});
+
+test('«Editar» solo en mis notas de las últimas 24 h; el editor lleva el texto escapado', () => {
+  const now = new Date('2026-10-29T12:00:00Z');
+  const mine = { at: '2026-10-29T10:00:00Z', type: 'note', id: 1, kind: 'note', by: 'Ana', byId: 'u1', text: 'a <b>', edited: null };
+  const old = { ...mine, id: 2, at: '2026-10-28T11:59:00Z' };
+  const other = { ...mine, id: 3, byId: 'u2' };
+  const move = { at: '2026-10-29T10:00:00Z', type: 'claimed', by: 'Ana', byId: 'u1' };
+  assert.equal(canEditNote(mine, 'u1', now), true);
+  assert.equal(canEditNote(old, 'u1', now), false);
+  assert.equal(canEditNote(other, 'u1', now), false);
+  assert.equal(canEditNote(move, 'u1', now), false);
+  assert.equal(canEditNote(mine, null, now), false);
+  const html = trailHtml([mine, old, other], now, 'u1');
+  assert.equal((html.match(/data-edit-note="/g) || []).length, 1);
+  assert.match(html, /data-edit-note="1"/);
+  assert.doesNotMatch(trailHtml([mine], now, null), /data-edit-note/);
+  assert.match(noteEditorHtml('a <b>'), /<textarea[^>]*>a &lt;b&gt;<\/textarea>/);
 });

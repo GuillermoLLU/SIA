@@ -4,12 +4,12 @@
 // platform_issue_notes, unido para que la pantalla lo pinte de una vez.
 //
 //   movimiento → { at, type: 'claimed' | 'released' | 'transferred', by, from, to, text? }
-//   nota       → { at, type: 'note', id, kind: 'note' | 'transfer', by, text, edited }
+//   nota       → { at, type: 'note', id, kind: 'note' | 'transfer', by, byId, text, edited }
 // El motivo de un traspaso (la nota 'transfer' escrita en el mismo instante por
 // la misma persona) va dentro del movimiento como `text`: una sola entrada.
 
 const event = (e) => ({ at: e.happened_at, type: e.action, by: e.actor_name ?? null, from: e.from_name ?? null, to: e.to_name ?? null });
-const note = (n) => ({ at: n.created_at, type: 'note', id: n.id, kind: n.kind || 'note', by: n.author_name ?? null, text: n.body, edited: n.edited_at ?? null });
+const note = (n) => ({ at: n.created_at, type: 'note', id: n.id, kind: n.kind || 'note', by: n.author_name ?? null, byId: n.author_id ?? null, text: n.body, edited: n.edited_at ?? null });
 const moment = (x) => `${x.by}|${new Date(x.at).getTime()}`;
 
 export const timeline = (events = [], notes = []) => {

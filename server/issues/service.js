@@ -6,6 +6,7 @@ import { queue, RULES } from './queue.js';
 import { deskOf, brief } from './desk.js';
 import { today, history, dayKey } from './stats.js';
 import { timeline } from './timeline.js';
+import { editProblem } from './notes.js';
 
 const WEEKS = 12;
 
@@ -57,6 +58,14 @@ export const createIssuesService = ({ source, platform, now = () => new Date() }
     transfer: ({ accessToken: jwt }, id, { to, comment }) => platform.rpc(jwt, 'platform_transfer_issue', { p_issue: id, p_to: to, p_comment: comment }),
     // una nota interna del equipo → su id
     addNote: ({ accessToken: jwt }, id, body) => platform.rpc(jwt, 'platform_add_issue_note', { p_issue: id, p_body: body }),
+    // editar una nota propia, dentro de su plazo (notes.js) → { ok } | { error }
+    async editNote({ user, accessToken: jwt }, id, noteId, body) {
+      const notes = await platform.rpc(jwt, 'platform_issue_notes', { p_issue: id });
+      const problem = editProblem(notes.find((n) => n.id === noteId), user.id, now());
+      if (problem) return { error: problem };
+      await platform.rpc(jwt, 'platform_edit_issue_note', { p_note: noteId, p_body: body });
+      return { ok: true };
+    },
     // su histórico en SIA: movimientos y notas, por orden (timeline.js)
     timeline: ({ accessToken: jwt }, id) => timelineOf(jwt, id),
     // → { issue (con claimedBy), sameCenter, timeline } | null si ya no está en la foto

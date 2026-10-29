@@ -18,7 +18,11 @@ const setup = (claims = [], transfers = []) => {
       if (fn === 'platform_issue_teammates') return [{ id: 'u-ana', name: 'Ana López' }, { id: 'u-luis', name: 'Luis' }];
       if (fn === 'platform_claim_next_issue') return args.p_candidates[0] ?? null;
       if (fn === 'platform_issue_events') return args.p_issue === 'INC1' ? [{ id: 1, action: 'claimed', actor_name: 'Ana López', from_name: null, to_name: 'Ana López', happened_at: '2026-10-06T08:00:00+00:00' }] : [];
-      if (fn === 'platform_issue_notes') return args.p_issue === 'INC1' ? [{ id: 5, author_id: 'u-ana', author_name: 'Ana López', kind: 'note', body: 'ojo', created_at: '2026-10-06T09:00:00+00:00', edited_at: null }] : [];
+      if (fn === 'platform_issue_notes') return args.p_issue === 'INC1' ? [
+        { id: 5, author_id: 'u-ana', author_name: 'Ana López', kind: 'note', body: 'ojo', created_at: '2026-10-04T09:00:00+00:00', edited_at: null },
+        { id: 6, author_id: 'u-luis', author_name: 'Luis', kind: 'note', body: 'ajena', created_at: '2026-10-04T09:30:00+00:00', edited_at: null },
+        { id: 7, author_id: 'u-ana', author_name: 'Ana López', kind: 'note', body: 'vieja', created_at: '2026-10-01T09:00:00+00:00', edited_at: null },
+      ] : [];
       if (fn === 'platform_add_issue_note') return 9;
       if (fn === 'platform_my_transfers') return transfers;
       return null;
@@ -68,7 +72,8 @@ test('GET /:id: el detalle completo, quién la tiene, las del mismo centro y su 
   assert.equal(body.issue.notes, 'detalle');
   assert.deepEqual(body.issue.claimedBy, { id: 'u-ana', name: 'Ana López', at: '2026-10-06T08:00:00Z' });
   assert.deepEqual(body.sameCenter.map((i) => i.id), ['INC2', 'INC3']);
-  assert.deepEqual(body.timeline.map((t) => [t.type, t.by, t.text]), [['claimed', 'Ana López', undefined], ['note', 'Ana López', 'ojo']]);
+  assert.deepEqual(body.timeline.map((t) => [t.type, t.by, t.text]), [['note', 'Ana López', 'vieja'], ['note', 'Ana López', 'ojo'], ['note', 'Luis', 'ajena'], ['claimed', 'Ana López', undefined]]);
+  assert.equal(body.timeline[1].byId, 'u-ana');
 });
 
 test('traspasar: a la base con el compañero y el motivo limpio; sin compañero válido o sin motivo, 400', async () => {
@@ -92,8 +97,24 @@ test('notas: añadir devuelve el id; vacía, 400; el histórico, aparte', async 
   assert.equal((await call('POST', ['INC1', 'notes'], { body: '   ' })).status, 400);
   assert.equal((await call('POST', ['INC1', 'notes'], {})).status, 400);
   const { body } = await call('GET', ['INC1', 'timeline']);
-  assert.deepEqual(body.timeline.map((t) => t.type), ['claimed', 'note']);
+  assert.deepEqual(body.timeline.map((t) => t.type), ['note', 'note', 'note', 'claimed']);
   assert.deepEqual((await call('GET', ['INC2', 'timeline'])).body, { timeline: [] });
+});
+
+test('editar una nota: la propia reciente va a la base; la ajena o la de hace más de 24 h, 403 con el motivo; vacía 400; id raro 404', async () => {
+  const { call, calls } = setup();
+  assert.deepEqual((await call('PUT', ['INC1', 'notes', '5'], { body: ' corregida ' })).body, { ok: true });
+  assert.deepEqual(calls.at(-1), ['platform_edit_issue_note', { p_note: 5, p_body: 'corregida' }]);
+  const n = calls.length;
+  const ajena = await call('PUT', ['INC1', 'notes', '6'], { body: 'x' });
+  assert.equal(ajena.status, 403); assert.match(ajena.body.error, /tus propias notas/);
+  const vieja = await call('PUT', ['INC1', 'notes', '7'], { body: 'x' });
+  assert.equal(vieja.status, 403); assert.match(vieja.body.error, /24 horas/);
+  assert.equal((await call('PUT', ['INC1', 'notes', '99'], { body: 'x' })).status, 403);
+  assert.equal((await call('PUT', ['INC1', 'notes', '5'], { body: '  ' })).status, 400);
+  assert.equal((await call('PUT', ['INC1', 'notes', 'abc'], { body: 'x' })).status, 404);
+  assert.equal(calls.filter((c) => c[0] === 'platform_edit_issue_note').length, 1, 'solo la válida llega a la base');
+  assert.ok(calls.length > n);
 });
 
 test('ids raros: 404; devolver: a la base, sin leer la foto', async () => {
