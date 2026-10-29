@@ -1,8 +1,9 @@
 // Vista «Backlog»: la cola del equipo, lo que nadie tiene aún, en el orden en
 // que la regla lo iría repartiendo. Para quien reparte el trabajo: aquí se
 // mira la cola entera (Issues solo enseña la siguiente). Se filtra por texto,
-// origen y criticidad; filtrar no cambia el puesto de cada una. Se recarga al
-// abrir la vista. Es una vista sobre el dominio de Issues (sus piezas y estilos).
+// origen y criticidad; filtrar no cambia el puesto de cada una. Arriba, el
+// panel: cuánto hay y de qué tipo; debajo, la lista con su propio scroll. Se
+// recarga al abrir la vista. Es una vista sobre el dominio de Issues (sus piezas y estilos).
 import '../issues/issues.css';
 import './backlog.css';
 import { esc } from '../ui/html.js';
@@ -14,6 +15,10 @@ export const mountBacklogView = (root, { api }) => {
   let data = null, filter = { ...EMPTY_FILTER }, now = new Date();
 
   const page = (body, snap = '') => `<div class="bl-page"><div class="bl-top iss-top"><h2 class="iss-title">Backlog</h2>${snap}</div>${body}</div>`;
+
+  // una tarjeta del panel: qué se mide, el número y un detalle
+  const tile = (label, value, hint, kind = '') => `<div class="bl-tile${kind ? ` ${kind}` : ''}"><span>${label}</span><b>${value}</b><small>${hint}</small></div>`;
+  const byOrigin = (c) => (c.total ? `${c.urgent} críticas o altas · ${c.prio} priorizadas` : 'ninguna sin coger');
 
   const row = (i) => `<div class="bl-row" data-id="${esc(i.id)}">
       <span class="bl-rank">${i.rank}</span>
@@ -31,7 +36,14 @@ export const mountBacklogView = (root, { api }) => {
     const shown = filterIssues(data.issues, filter);
     const option = (value, label, current) => `<option value="${value}"${value === current ? ' selected' : ''}>${label}</option>`;
     root.innerHTML = page(`
-      <p class="bl-sum"><span><b>${s.total}</b> sin coger</span><span><b>${s.urgent}</b> críticas o altas</span><span><b>${s.prio}</b> priorizadas por negocio</span><span><b>${s.sisu}</b> SISU · <b>${s.sga}</b> SGA</span></p>
+      <div class="bl-panel">
+        ${tile('Sin coger', s.total, Object.entries(s.bySeverity).filter(([, n]) => n).map(([k, n]) => `${n} ${SEVERITY_ES[k].toLowerCase()}${n === 1 ? '' : 's'}`).join(' · ') || 'la cola está vacía')}
+        ${tile('SISU', s.sisu.total, byOrigin(s.sisu), 'sisu')}
+        ${tile('SGA', s.sga.total, byOrigin(s.sga), 'sga')}
+        ${tile('Críticas o altas', s.urgent, s.total ? `${Math.round(s.urgent / s.total * 100)} % de la cola` : 'nada en la cola', s.urgent ? 'urgent' : '')}
+        ${tile('Priorizadas por negocio', s.prio, s.prio ? 'van las primeras de la cola' : 'ninguna marcada')}
+        ${tile('La más antigua', s.oldest ? age(s.oldest.reported, now) : '—', s.oldest ? `${esc(s.oldest.id)} · centro ${esc(s.oldest.center || '—')}` : 'nada en la cola')}
+      </div>
       <div class="bl-filters">
         <input type="search" data-q placeholder="Buscar por código, centro o texto" value="${esc(filter.q)}" aria-label="Buscar">
         <select data-origin aria-label="Origen">${option('all', 'SISU y SGA', filter.origin)}${option('sisu', 'Solo SISU', filter.origin)}${option('sga', 'Solo SGA', filter.origin)}</select>
