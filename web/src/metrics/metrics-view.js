@@ -50,8 +50,9 @@ export const mountMetricsView = (root, { api, toast }) => {
 
   const loadButton = () => `<button class="mt-load ${loading ? 'mt-busy' : ''}" data-update ${loading ? 'disabled' : ''}>${loading ? 'Actualizando…' : m ? LOAD : FIRST_LOAD}</button>`;
   // Los tres puntos: lo que se hace pocas veces (cargar un CSV, construir la consulta). Sin nada encima de la vista.
-  const moreMenu = () => `<div class="mt-menu"><button class="mt-btn mt-icon-btn mt-more" data-more aria-haspopup="menu" aria-expanded="false" aria-label="Más opciones" title="Más opciones"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
-    <div class="mt-pop mt-menu-pop" data-more-pop role="menu" hidden><button role="menuitem" data-open-csv>Cargar CSV…</button><button role="menuitem" data-open-sql>Construir SQL…</button><button role="menuitem" class="mt-danger-item" data-clear>Eliminar histórico…</button></div></div>`;
+  // Sin datos (withClear: false), no hay histórico que borrar.
+  const moreMenu = (withClear = true) => `<div class="mt-menu"><button class="mt-btn mt-icon-btn mt-more" data-more aria-haspopup="menu" aria-expanded="false" aria-label="Más opciones" title="Más opciones"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
+    <div class="mt-pop mt-menu-pop" data-more-pop role="menu" hidden><button role="menuitem" data-open-csv>Cargar CSV…</button><button role="menuitem" data-open-sql>Construir SQL…</button>${withClear ? '<button role="menuitem" class="mt-danger-item" data-clear>Eliminar histórico…</button>' : ''}</div></div>`;
   const setMenu = (on) => {
     const pop = $('[data-more-pop]');
     if (!pop) return;
@@ -63,7 +64,7 @@ export const mountMetricsView = (root, { api, toast }) => {
     root.innerHTML = `<div class="mt-page mt-empty-page"><header class="mt-top"><h2 class="mt-title">Métricas</h2></header>
       <div class="mt-empty"><b>Aún no hay datos</b>
         <span>Trae de Snowflake las incidencias de Remedy (con notas e historial) desde 2026, o carga un CSV de esa misma consulta. Se guardan en el repositorio local de este ordenador y de él salen las métricas; cada vez que actualices, solo llega lo nuevo y lo cambiado.</span>
-        <div class="mt-empty-actions">${loadButton()}${moreMenu()}</div></div></div>`;
+        <div class="mt-empty-actions">${loadButton()}${moreMenu(false)}</div></div></div>`;
   };
 
   const sideSlot = (k) => `<div class="mt-period mt-slot" data-slot="${k}"><button class="mt-btn mt-icon-btn mt-side" data-side="${k}" aria-haspopup="true"><i class="mt-c${k}"></i><span data-side-name="${k}"></span>${CHEVRON}</button><button class="mt-btn mt-x" data-side-remove="${k}" title="Quitar de la comparación">×</button>
