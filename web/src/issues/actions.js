@@ -29,14 +29,22 @@ export const ACTIONS = {
   },
 };
 
-// El selector de persona es propio (el desplegable nativo no se puede pintar):
-// un campo oculto con el id, un botón con el nombre elegido y la lista debajo.
-// Abrir, elegir y cerrar lo lleva la vista (issues-view.js) por data-pick-*.
-const picker = (f, people) => `<div class="iss-pick" data-pick>
-      <input type="hidden" name="${f.name}" value="">
-      <button type="button" id="iss-f-${f.name}" class="iss-pick-btn" data-pick-btn aria-haspopup="listbox" aria-expanded="false" ${people.length ? '' : 'disabled'}><span data-pick-label class="iss-pick-ph">${people.length ? 'Elige a quién' : 'No hay más personas en Issues'}</span></button>
-      <ul class="iss-pick-list" role="listbox" hidden>${people.map((p) => `<li role="option" data-pick-opt="${esc(p.id)}" aria-selected="false">${esc(p.name)}</li>`).join('')}</ul>
+// El desplegable de la web es propio (el nativo no se puede pintar): un campo
+// oculto con el valor, un botón con lo elegido y la lista debajo. Abrir, elegir
+// y cerrar lo lleva la vista (issues-view.js) por data-pick-*. `groups`:
+// [{ label?, options: [{ value, label }] }]; `name` o `attr`, el campo oculto.
+export const pickField = ({ id, name = '', attr = '', value = '', placeholder = '', groups, disabled = false }) => {
+  const chosen = groups.flatMap((g) => g.options).find((o) => o.value === value);
+  return `<div class="iss-pick" data-pick>
+      <input type="hidden"${name ? ` name="${name}"` : ''}${attr ? ` ${attr}` : ''} value="${esc(value)}">
+      <button type="button" id="${id}" class="iss-pick-btn" data-pick-btn aria-haspopup="listbox" aria-expanded="false"${disabled ? ' disabled' : ''}><span data-pick-label${chosen ? '' : ' class="iss-pick-ph"'}>${esc(chosen ? chosen.label : placeholder)}</span></button>
+      <ul class="iss-pick-list" role="listbox" hidden>${groups.map((g) => `${g.label ? `<li role="presentation" class="iss-pick-group">${esc(g.label)}</li>` : ''}${g.options.map((o) => `<li role="option" data-pick-opt="${esc(o.value)}" aria-selected="${o.value === value}">${esc(o.label)}</li>`).join('')}`).join('')}</ul>
     </div>`;
+};
+
+// El selector de persona de Traspasar.
+const picker = (f, people) => pickField({ id: `iss-f-${f.name}`, name: f.name, disabled: !people.length,
+  placeholder: people.length ? 'Elige a quién' : 'No hay más personas en Issues', groups: [{ options: people.map((p) => ({ value: p.id, label: p.name })) }] });
 
 const field = (f, people) => {
   const id = `iss-f-${f.name}`;

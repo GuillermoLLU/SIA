@@ -85,3 +85,15 @@ export const readEscalate = (v, dests) => {
     ...(dest?.opens === 'jira' ? { jiraPriority: s('jiraPriority') } : {}),
   } };
 };
+
+// Lo escrito en Escalar, por issue, hasta que se escala o se une: cerrar el
+// modal no lo pierde. → { get(id) → { values, at } | null, save(id, values), drop(id) }
+// shortcut: en memoria de esta ventana, se pierde al recargar; con la integración irá al bridge, como el borrador de Resolver.
+export const createEscalateDrafts = (clock = () => new Date()) => {
+  const drafts = new Map();
+  return {
+    get: (id) => drafts.get(id) ?? null,
+    save: (id, values) => { drafts.set(id, { values, at: clock() }); },
+    drop: (id) => { drafts.delete(id); },
+  };
+};

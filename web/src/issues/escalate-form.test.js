@@ -15,7 +15,8 @@ test('el modal se explica solo: qué es escalar, el reloj arriba y las dos opcio
   assert.match(html, /iss-esc-clock"><b>Quedan 4 h<\/b> para el escalado formal · media o baja: 8 h desde que se creó/);
   assert.match(html, /<label class="iss-esc-card"><input type="radio" class="iss-sr" name="mode" value="escalate" checked \/><b>Escalar a otro equipo<\/b>/);
   assert.match(html, /<b>Unir a un ticket ya abierto<\/b>/);
-  assert.equal((html.match(/<optgroup/g) || []).length, 3);
+  assert.equal((html.match(/class="iss-pick-group"/g) || []).length, 3);
+  assert.doesNotMatch(html, /<select/);   // todos los desplegables, con el formato de la web
   assert.match(html, /placeholder="Ej\.:/);
   assert.match(html, /<details class="iss-esc-box">/);
   assert.doesNotMatch(html, /nivel 1/);
@@ -86,4 +87,19 @@ test('los casos de prueba cambian la issue sin tocar la original', () => {
   assert.equal(crit.priority, 'CRITICAL');
   assert.equal(base.priority, 'MEDIUM');
   assert.equal(TEST_CASES[0].apply(base, now), base);
+});
+
+test('los desplegables de Escalar: el de la web, con lo elegido o lo que toca', () => {
+  assert.match(form({}, { dest: 'sisupac' }), /name="dest" value="sisupac">[\s\S]*data-pick-label>SISUPAC · N3 SISU</);
+  assert.match(form(), /name="dest" value="">[\s\S]*data-pick-label class="iss-pick-ph">Elige el equipo</);
+  assert.match(form({ priority: 'HIGH' }), /name="jiraPriority" value="HIGH"/);
+  assert.match(escalateForm({ issue: issue(), now, dests: DESTINATIONS, open: OPEN_TICKETS, cases: TEST_CASES, caseId: 'high' }), /data-esc-case value="high"/);
+});
+
+test('lo que se dejó escrito vuelve al abrir, con el aviso y cómo descartarlo', () => {
+  const saved = { at: new Date(2026, 9, 29, 12, 40) };
+  const html = escalateForm({ issue: issue(), now, dests: DESTINATIONS, open: OPEN_TICKETS, v: { dest: 'returns', reason: 'Lo mío' }, saved });
+  assert.match(html, /Sigues con lo que dejaste a las 12:40\. <button type="button" class="lab-btn" data-esc-drop>Descartar y empezar de nuevo/);
+  assert.match(html, />Lo mío<\/textarea>/);
+  assert.doesNotMatch(form(), /data-esc-drop/);
 });

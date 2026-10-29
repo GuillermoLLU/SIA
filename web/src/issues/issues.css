@@ -211,6 +211,9 @@
 .iss-pick-list li { padding: 8px 12px; font-size: 13px; color: var(--text); cursor: pointer; }
 .iss-pick-list li:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
 .iss-pick-list li[aria-selected="true"] { font-weight: 600; color: var(--accent); }
+/* los títulos de grupo de la lista: no se eligen */
+.iss-pick-list .iss-pick-group { padding: 10px 12px 4px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-low); cursor: default; }
+.iss-pick-list .iss-pick-group:hover { background: none; }
 .iss-field textarea { resize: vertical; min-height: 96px; }
 .iss-field small { font-size: 11.5px; color: var(--text-low); }
 .iss-act-note { margin: 0; padding: 8px 10px; font-size: 12px; color: var(--text-low); background: color-mix(in srgb, var(--bg) 60%, var(--surface)); border: 1px dashed var(--border); }
@@ -294,9 +297,8 @@
 .iss-esc [hidden] { display: none !important; }
 .iss-esc [data-esc-mode] { display: flex; flex-direction: column; gap: 14px; }
 .iss-esc .iss-field span[data-esc-live] { display: flex; flex-direction: column; gap: 4px; font-weight: 400; }
-/* los desplegables de Escalar son nativos (con grupos): como los demás campos, que ya no estilan select */
-.iss-esc .iss-field select { width: 100%; padding: 8px 10px; font: inherit; font-size: 13px; color: var(--text); background: var(--bg); border: 1px solid var(--border); outline: none; cursor: pointer; }
-.iss-esc .iss-field select:focus { border-color: var(--accent); }
+/* Escalar: la lista de equipos, más alta (lleva los grupos del mapa) */
+.iss-esc .iss-pick-list { max-height: 280px; }
 .iss-esc small.ok { color: var(--iss-ok); }
 .iss-esc small.bad { color: var(--iss-crit); }
 .iss-esc small b { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-weight: 600; }
@@ -339,7 +341,7 @@
 @media (max-width: 560px) { .iss-esc-mode { grid-template-columns: 1fr; } }
 /* solo en desarrollo: simular un caso sobre la issue abierta */
 .iss-test { display: flex; align-items: center; gap: 8px; padding: 6px 10px; font-size: 12px; color: var(--text-low); border: 1px dashed var(--border); }
-.iss-test select { flex: 1; min-width: 0; padding: 4px 6px; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border); }
+.iss-test .iss-pick { flex: 1; min-width: 0; }
 .iss-take:focus-visible, .iss-item:focus-visible, .iss-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* la issue en el diálogo de confirmación (devolver a la cola) */
 .iss-dlg-issue { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; background: color-mix(in srgb, var(--bg) 60%, var(--surface)); border: 1px solid var(--border); }

@@ -4,6 +4,8 @@
 // escrito son piezas que la vista vuelve a pintar al teclear: escalateLive.
 import { esc } from '../ui/html.js';
 import { when, duration } from './format.js';
+import { localShort } from './resolve-form.js';
+import { pickField } from './actions.js';
 import { ticketCheck, deadlines, formalClock, clockText, JIRA_PRIORITIES, jiraPriority, n3Subject, isDev, opensTicket } from './escalate.js';
 
 const VIA = { SIGLO: 'por SIGLO', IOP: 'por IOP', MoninBot: 'por MoninBot', Correo: 'por correo' };
@@ -14,9 +16,10 @@ const GROUPS = [
   ['Otros canales', (d) => !(d.level === 'N3' && d.via === 'SIGLO') && d.via !== 'IOP'],
 ];
 
-const destOptions = (dests, sel) => `<option value="">Elige el equipo</option>
-  ${GROUPS.map(([label, test]) => `<optgroup label="${label}">${dests.filter(test).map((d) => `<option value="${esc(d.id)}"${d.id === sel ? ' selected' : ''}>${esc(d.name)}</option>`).join('')}</optgroup>`).join('')}
-  <option value="other"${sel === 'other' ? ' selected' : ''}>Otro equipo, fuera del mapa</option>`;
+const destGroups = (dests) => [
+  ...GROUPS.map(([label, test]) => ({ label, options: dests.filter(test).map((d) => ({ value: d.id, label: d.name })) })),
+  { options: [{ value: 'other', label: 'Otro equipo, fuera del mapa' }] },
+];
 
 // Qué pasa al escalar a ese destino, dicho para quien no lo ha hecho nunca.
 const destText = (v, dest) => !v.dest ? 'Del mapa de escalado de soporte ECOM. Si no sabes cuál, busca el módulo que falla.'
@@ -88,8 +91,9 @@ const card = (name, value, checked, body) => `<label class="iss-esc-card"><input
 
 // `issue`: la issue (ya con el caso de prueba aplicado); `dests` y `open`:
 // el catálogo y los tickets abiertos; `v`: lo que ya hay escrito; `cases`:
-// los casos de prueba (solo en desarrollo) y `caseId`, el elegido.
-export const escalateForm = ({ issue, now, dests, open, v = {}, cases = null, caseId = '' }) => {
+// los casos de prueba (solo en desarrollo) y `caseId`, el elegido; `saved`:
+// { at } si lo escrito viene de antes de cerrar el modal.
+export const escalateForm = ({ issue, now, dests, open, v = {}, cases = null, caseId = '', saved = null }) => {
   const rootCause = issue.status === 'RESOLVED';
   // Si la foto ya trae un ticket, puede que esté escalada: se propone unirla a él.
   const known = ticketCheck(issue.vendorTicket);
@@ -102,7 +106,8 @@ export const escalateForm = ({ issue, now, dests, open, v = {}, cases = null, ca
   const link = values.mode === 'link';
   return `<form class="iss-act-form iss-esc" data-act-form="escalate" novalidate>
     <header><h3>${rootCause ? 'Escalar por la causa raíz' : 'Escalar la issue'}</h3><span class="iss-act-id">${esc(issue.id)}</span></header>
-    ${cases ? `<label class="iss-test">Datos de prueba <select data-esc-case>${cases.map((c) => `<option value="${c.id}"${c.id === caseId ? ' selected' : ''}>${esc(c.label)}</option>`).join('')}</select></label>` : ''}
+    ${cases ? `<div class="iss-test"><span>Datos de prueba</span>${pickField({ id: 'iss-f-case', attr: 'data-esc-case', value: caseId, groups: [{ options: cases.map((c) => ({ value: c.id, label: c.label })) }] })}</div>` : ''}
+    ${saved ? `<p class="iss-saved">Sigues con lo que dejaste a las ${localShort(saved.at.toISOString()).slice(-5)}. <button type="button" class="lab-btn" data-esc-drop>Descartar y empezar de nuevo</button></p>` : ''}
     <p class="iss-esc-intro">${rootCause
       ? 'Está Resuelta con una solución temporal: se registra el escalado de la causa raíz y la issue sigue Resuelta.'
       : 'Cuando en soporte no se puede resolver, se pasa al equipo que puede. La issue queda en Pendiente (proveedor) hasta que contesten.'}</p>
@@ -115,11 +120,11 @@ export const escalateForm = ({ issue, now, dests, open, v = {}, cases = null, ca
     </div>
 
     <div data-esc-mode="escalate"${link ? ' hidden' : ''}>
-      <label class="iss-field" for="iss-f-dest"><span>¿A qué equipo se escala?</span><select id="iss-f-dest" name="dest">${destOptions(dests, values.dest)}</select><span data-esc-live="dest">${live.html.dest}</span></label>
+      <div class="iss-field"><span>¿A qué equipo se escala?</span>${pickField({ id: 'iss-f-dest', name: 'dest', value: values.dest || '', placeholder: 'Elige el equipo', groups: destGroups(dests) })}<span data-esc-live="dest">${live.html.dest}</span></div>
       <label class="iss-field" for="iss-f-destOther" data-esc-when="other"${live.show.other ? '' : ' hidden'}><span>Equipo o proveedor</span><input id="iss-f-destOther" name="destOther" value="${esc(values.destOther || '')}" placeholder="Ej.: Soporte de transporte" /></label>
-      <label class="iss-field" for="iss-f-jira" data-esc-when="jira"${live.show.jira ? '' : ' hidden'}><span>Prioridad del Jira</span>
-        <select id="iss-f-jira" name="jiraPriority">${JIRA_PRIORITIES.map((p) => `<option value="${p.id}"${p.id === values.jiraPriority ? ' selected' : ''}>${p.label} · ${esc(p.when)}</option>`).join('')}</select>
-        <small>Por su criticidad le toca «${JIRA_PRIORITIES.find((p) => p.id === jiraPriority(issue.priority)).label}»: ya está puesta.</small></label>
+      <div class="iss-field" data-esc-when="jira"${live.show.jira ? '' : ' hidden'}><span>Prioridad del Jira</span>
+        ${pickField({ id: 'iss-f-jira', name: 'jiraPriority', value: values.jiraPriority, groups: [{ options: JIRA_PRIORITIES.map((p) => ({ value: p.id, label: `${p.label} · ${p.when}` })) }] })}
+        <small>Por su criticidad le toca «${JIRA_PRIORITIES.find((p) => p.id === jiraPriority(issue.priority)).label}»: ya está puesta.</small></div>
       <label class="iss-field" for="iss-f-reason"><span>¿Por qué se escala?</span><textarea id="iss-f-reason" name="reason" rows="3" placeholder="Ej.: desde las 10:00 el túnel RFID de la mesa 3 tarda de 8 a 12 s. Reiniciado el servicio, sigue igual.">${esc(values.reason || '')}</textarea><small>Qué has visto y qué has probado. Antes, mira si hay un procedimiento para resolverlo en soporte.</small></label>
       <label class="iss-field" for="iss-f-sent"><span>¿Qué se ha enviado? <i data-esc-live="sentTag">${live.html.sentTag}</i></span><textarea id="iss-f-sent" name="sent" rows="2" placeholder="Ej.: logs del proceso y una captura del error, por correo a las 10:12.">${esc(values.sent || '')}</textarea></label>
       ${devBox(issue, dest)}

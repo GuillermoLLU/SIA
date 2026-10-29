@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseTickets, ticketCheck, deadlines, formalClock, clockText, jiraPriority, n3Subject, escalateTodo, readEscalate } from './escalate.js';
+import { parseTickets, ticketCheck, deadlines, formalClock, clockText, jiraPriority, n3Subject, escalateTodo, readEscalate, createEscalateDrafts } from './escalate.js';
 import { DESTINATIONS } from './escalate-mock.js';
 
 const dest = (id) => DESTINATIONS.find((d) => d.id === id);
@@ -68,4 +68,17 @@ test('unir: a uno de la lista o a otro, siempre con un ticket válido', () => {
   assert.deepEqual(r({ linked: 'SISUPAC-9211' }).values, { mode: 'link', ticket: 'SISUPAC-9211', why: '' });
   assert.match(r({ linked: 'other', linkedOther: 'MOCA' }).missing, /ticket válido/);
   assert.equal(r({ linked: 'other', linkedOther: 'ITD: ERA-4170' }).values.ticket, 'ERA-4170');
+});
+
+test('el borrador de Escalar: por issue, con su hora, hasta que se descarta o se escala', () => {
+  const at = new Date('2026-10-29T12:40:00');
+  const d = createEscalateDrafts(() => at);
+  assert.equal(d.get('INC1'), null);
+  d.save('INC1', { dest: 'sisupac' });
+  assert.deepEqual(d.get('INC1'), { values: { dest: 'sisupac' }, at });
+  assert.equal(d.get('INC2'), null);
+  d.save('INC1', { dest: 'returns' });
+  assert.equal(d.get('INC1').values.dest, 'returns');
+  d.drop('INC1');
+  assert.equal(d.get('INC1'), null);
 });
