@@ -55,6 +55,25 @@ En **Administración** se gestionan los proyectos de la base de conocimiento
 (crear, ver sus entradas y borrarlos). Sin conocimiento asignado los chats
 funcionan igual, pero sin la base del equipo ni sus skills.
 
+## Backlog y reglas de priorización
+
+Quien tiene la vista **Backlog** ve la cola entera del equipo: las issues de
+la foto que nadie tiene (sin responsable en Remedy ni cogidas en SIA), en el
+orden de una **regla de priorización**. Una regla es un nombre y una lista
+ordenada de criterios de un catálogo cerrado (`platform.known_criteria()`; qué
+hace cada uno, en `server/issues/queue.js`): el primero manda y los demás
+desempatan; a igualdad, la más antigua primero. La **Regla básica**, la del
+equipo, viene de serie en `platform.priority_rules` (`builtin`): se ajusta
+desde el Backlog, no se borra. Las demás las crea el equipo desde «Reglas de
+priorización». Las reglas las ven Issues (al coger la siguiente) y Backlog;
+crearlas, cambiarlas y borrarlas exige Backlog.
+
+Desde el Backlog se **asigna** una issue a alguien del equipo de Issues: pasa a
+su mesa como cogida y en el histórico queda «asignada» por quien lo hizo
+(`platform_assign_issue`). La **prioridad** de una issue es la etiqueta PRIO
+de Remedy, que pone negocio; SIA no guarda una lista propia (pendiente:
+escribirla en Remedy desde el Backlog cuando haya acceso).
+
 ## Qué hay en cada máquina
 
 - Configuración personal (Jira, GitHub, tema, sesión guardada, PIN del
