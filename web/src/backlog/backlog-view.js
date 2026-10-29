@@ -14,7 +14,8 @@ import { EMPTY_FILTER, SEVERITIES, filterIssues, toggle, tileCounts, isFiltering
 
 const PLURAL = { CRITICAL: 'Críticas', HIGH: 'Altas', MEDIUM: 'Medias', LOW: 'Bajas' };
 
-export const mountBacklogView = (root, { api }) => {
+// toast: avisos de la app. Las reglas de priorización se gestionarán desde aquí (botón de la cabecera).
+export const mountBacklogView = (root, { api, toast }) => {
   let data = null, filter = { ...EMPTY_FILTER }, now = new Date();
 
   const page = (body, head = '') => `<div class="bl-page"><div class="bl-top iss-top"><h2 class="iss-title">Backlog</h2>${head}</div>${body}</div>`;
@@ -46,11 +47,11 @@ export const mountBacklogView = (root, { api }) => {
         ${SEVERITIES.map((s) => tile(PLURAL[s], c.severity[s], { key: 'severity', value: s, on: filter.severity.includes(s), kind: s })).join('')}
       </div>
       <div class="bl-bar">
+        <label class="bl-search"><input type="search" data-q placeholder="Buscar una issue, un centro o un texto" value="${esc(filter.q)}" aria-label="Buscar en el backlog"></label>
         <p class="bl-shown">${filtering ? `<b>${shown.length}</b> de ${c.total} · <button class="bl-clear" data-key="all">Ver todas</button>` : 'En el orden de la regla básica'}</p>
-        <input type="search" class="bl-search" data-q placeholder="Buscar por código, centro o texto" value="${esc(filter.q)}" aria-label="Buscar en el backlog">
       </div>
       ${shown.length ? `<div class="bl-list">${shown.map(row).join('')}</div>` : `<p class="bl-empty">${c.total ? 'Ninguna issue cumple lo marcado.' : 'La cola está vacía: no queda nada sin coger.'}</p>`}`,
-      `<span class="bl-total"><b>${c.total}</b> sin coger</span><span class="iss-snap${snap.stale ? ' stale' : ''}">${snap.text}</span>`);
+      `<span class="bl-total"><b>${c.total}</b> sin coger</span><span class="iss-snap${snap.stale ? ' stale' : ''}">${snap.text}</span><button class="bl-rules" data-rules>Reglas de priorización</button>`);
   };
 
   const load = async () => {
@@ -70,6 +71,7 @@ export const mountBacklogView = (root, { api }) => {
     q.setSelectionRange(pos, pos);
   });
   root.addEventListener('click', (e) => {
+    if (e.target.closest('[data-rules]')) return toast?.('Las reglas de priorización se crearán y ajustarán desde aquí; aún no está.');
     const b = e.target.closest('[data-key]');
     if (!b) return;
     const { key, value } = b.dataset;
