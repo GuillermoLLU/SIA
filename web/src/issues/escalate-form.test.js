@@ -15,7 +15,7 @@ test('el modal se explica solo: qué es escalar, el reloj arriba y las dos opcio
   assert.match(html, /iss-esc-clock"><b>Quedan 4 h<\/b> para el escalado formal · media o baja: 8 h desde que se creó/);
   assert.match(html, /<label class="iss-esc-card"><input type="radio" class="iss-sr" name="mode" value="escalate" checked \/><b>Escalar a otro equipo<\/b>/);
   assert.match(html, /<b>Unir a un ticket ya abierto<\/b>/);
-  assert.equal((html.match(/class="iss-pick-group"/g) || []).length, 3);
+  assert.equal((html.match(/class="iss-pick-group"/g) || []).length, 4);   // N3, N2, otros canales y fuera del mapa
   assert.doesNotMatch(html, /<select/);   // todos los desplegables, con el formato de la web
   assert.match(html, /placeholder="Ej\.:/);
   assert.match(html, /<details class="iss-esc-box">/);

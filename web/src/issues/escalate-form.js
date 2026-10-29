@@ -18,7 +18,7 @@ const GROUPS = [
 
 const destGroups = (dests) => [
   ...GROUPS.map(([label, test]) => ({ label, options: dests.filter(test).map((d) => ({ value: d.id, label: d.name })) })),
-  { options: [{ value: 'other', label: 'Otro equipo, fuera del mapa' }] },
+  { label: 'Fuera del mapa', options: [{ value: 'other', label: 'Otro equipo, fuera del mapa' }] },
 ];
 
 // Qué pasa al escalar a ese destino, dicho para quien no lo ha hecho nunca.
