@@ -47,11 +47,12 @@ export const mountBacklogView = (root, { api, toast }) => {
         ${SEVERITIES.map((s) => tile(PLURAL[s], c.severity[s], { key: 'severity', value: s, on: filter.severity.includes(s), kind: s })).join('')}
       </div>
       <div class="bl-bar">
+        <button class="bl-reload" data-reload${loading ? ' disabled' : ''}>${loading ? 'Actualizando…' : 'Actualizar backlog'}</button>
         <span class="iss-snap${snap.stale ? ' stale' : ''}">${snap.text}</span>
         <p class="bl-shown">${filtering ? `<b>${shown.length}</b> de ${c.total} · <button class="bl-clear" data-key="all">Ver todas</button>` : 'En el orden de la regla básica'}</p>
       </div>
       ${shown.length ? `<div class="bl-list">${shown.map(row).join('')}</div>` : `<p class="bl-empty">${c.total ? 'Ninguna issue cumple lo marcado.' : 'La cola está vacía: no queda nada sin coger.'}</p>`}`,
-      `<label class="bl-search"><input type="search" data-q placeholder="Buscar una issue, un centro o un texto" value="${esc(filter.q)}" aria-label="Buscar en el backlog"></label><button class="bl-rules" data-rules>Reglas de priorización</button><button class="bl-rules" data-reload${loading ? ' disabled' : ''}>${loading ? 'Actualizando…' : 'Actualizar backlog'}</button>`);
+      `<label class="bl-search"><input type="search" data-q placeholder="Buscar una issue, un centro o un texto" value="${esc(filter.q)}" aria-label="Buscar en el backlog"></label><button class="bl-rules" data-rules>Reglas de priorización</button>`);
   };
 
   const load = async () => {
