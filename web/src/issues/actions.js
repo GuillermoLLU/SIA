@@ -24,7 +24,7 @@ export const ACTIONS = {
     label: 'Traspasar', title: 'Traspasar a un compañero', ok: 'Traspasar', local: true,
     fields: [
       { name: 'to', label: 'Compañero', kind: 'person', required: true },
-      { name: 'comment', label: 'Motivo', kind: 'text', required: true, hint: 'Un traspaso se justifica: lo que debe saber quien la recibe. Queda como nota de la issue.' },
+      { name: 'comment', label: 'Motivo', kind: 'text', required: true },
     ],
   },
 };

@@ -152,7 +152,7 @@
 .iss-chat-chooser .launcher-grid { gap: 10px; }
 .iss-chat-chooser .launcher-btn { width: 104px; height: 92px; }
 .iss-chat-chooser .launcher-btn.wide { width: 180px; height: 124px; }
-.iss-modal { position: fixed; inset: 0; z-index: 50; display: grid; place-items: start center; padding: 10vh 16px 16px; background: rgba(0, 0, 0, .32); }
+.iss-modal { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; background: rgba(0, 0, 0, .32); }
 .iss-act-form { width: min(560px, 100%); display: flex; flex-direction: column; gap: 14px; padding: 20px 22px; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 18px 50px rgba(0, 0, 0, .25); color: var(--text); }
 .iss-act-form header { display: flex; align-items: baseline; gap: 12px; }
 .iss-act-form h3 { margin: 0; font-size: 16px; font-weight: 650; }
@@ -160,7 +160,12 @@
 .iss-field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
 .iss-field > span { font-weight: 600; }
 .iss-field i { font-style: normal; font-weight: 400; color: var(--text-low); }
-.iss-field input, .iss-field select, .iss-field textarea { width: 100%; padding: 8px 10px; font: inherit; font-size: 13px; color: var(--text); background: var(--bg); border: 1px solid var(--border); }
+.iss-field input, .iss-field select, .iss-field textarea { width: 100%; padding: 8px 10px; font: inherit; font-size: 13px; color: var(--text); background: var(--bg); border: 1px solid var(--border); outline: none; }
+.iss-field input:focus, .iss-field select:focus, .iss-field textarea:focus { border-color: var(--accent); }
+/* el desplegable, con la pinta de los campos de la web y no la nativa */
+.iss-field select { appearance: none; -webkit-appearance: none; height: 36px; padding: 0 36px 0 10px; cursor: pointer; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>"); background-repeat: no-repeat; background-position: right 12px center; }
+.iss-field select:invalid, .iss-field select option[value=""] { color: var(--text-low); }
+.iss-field select option { color: var(--text); background: var(--surface); }
 .iss-field textarea { resize: vertical; min-height: 96px; }
 .iss-field small { font-size: 11.5px; color: var(--text-low); }
 .iss-act-note { margin: 0; padding: 8px 10px; font-size: 12px; color: var(--text-low); background: color-mix(in srgb, var(--bg) 60%, var(--surface)); border: 1px dashed var(--border); }

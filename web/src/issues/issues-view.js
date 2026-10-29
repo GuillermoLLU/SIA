@@ -14,7 +14,8 @@ const GOAL = { min: 15, max: 20 }; // resueltas por turno, lo que dice el equipo
 const REFRESH_MS = 15000;
 
 // openChat(host, issueId) → { dispose }: el chat de la issue (lo pone main.js).
-export const mountIssuesView = (root, { api, me, toast, openChat }) => {
+// dialogs: los diálogos de la app (ui/dialog.js), para confirmar antes de devolver.
+export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => {
   let data = null, rule = 'basic', now = new Date(), opened = null, onDesk = false, workTab = 'ai', chat = null, loading = false, picking = false;
   const closeChat = () => { chat?.dispose(); chat = null; };
 
@@ -133,7 +134,15 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
       if (r) return openIssue(r.dataset.id);
       if (t.closest('[data-back]')) { renderDesk(); root.scrollTop = 0; return; }
       const rel = t.closest('[data-release]');
-      if (rel) { rel.disabled = true; await api.release(opened); await loadDesk(); return toast?.('Devuelta a la cola.'); }
+      if (rel) {
+        rel.disabled = true;
+        const ok = !dialogs || await dialogs.open({ title: 'Devolver a la cola', centered: true, okLabel: 'Devolver',
+          bodyHTML: `<b>${esc(opened)}</b> dejará de ser tuya y volverá a la cola para quien la coja. Quedará apuntado que la devolviste.` });
+        if (!ok) { rel.disabled = false; return; }
+        await api.release(opened);
+        await loadDesk();
+        return toast?.('Devuelta a la cola.');
+      }
     } catch (err) { toast?.(err.message); }
   });
   // Acciones: su formulario encima de la pantalla de trabajo. Traspasar y

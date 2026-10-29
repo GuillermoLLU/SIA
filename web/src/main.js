@@ -146,7 +146,7 @@ const usersView = canView(user, 'people')
 // el panel devuelve show(), se llama al abrirlo (Issues recarga su foto).
 const PANELS = [
   { name: 'issues', mount: (el) => user && mountIssuesView(el, {
-    api: createIssuesApi(api), me: user, toast,
+    api: createIssuesApi(api), me: user, toast, dialogs,
     openChat: (host, issueId) => mountIssueChat(host, { issueId, wsUrl, loadProjects: chat.loadProjects, makeTerminal: chat.makeTerminal }),
   }) },
   // clic en una persona de Equipo soporte: se abre en Métricas frente al resto de su equipo
