@@ -63,7 +63,7 @@ test('POST /next: manda la cola en orden de la regla y devuelve la que se lleva'
   assert.deepEqual(calls.at(-1), ['platform_claim_next_issue', { p_candidates: ['INC2', 'INC1'] }]);
 });
 
-test('GET /:id: el detalle completo, quién la tiene, las del mismo centro y su recorrido en SIA', async () => {
+test('GET /:id: el detalle completo, quién la tiene, las del mismo centro y su histórico en SIA', async () => {
   const { body } = await setup([{ issue_id: 'INC1', user_id: 'u-ana', user_name: 'Ana López', claimed_at: '2026-10-06T08:00:00Z' }]).call('GET', ['INC1']);
   assert.equal(body.issue.notes, 'detalle');
   assert.deepEqual(body.issue.claimedBy, { id: 'u-ana', name: 'Ana López', at: '2026-10-06T08:00:00Z' });
@@ -85,7 +85,7 @@ test('traspasar: a la base con el compañero y el motivo limpio; sin compañero 
   assert.equal(loads.n, 0);
 });
 
-test('notas: añadir devuelve el id; vacía, 400; el recorrido, aparte', async () => {
+test('notas: añadir devuelve el id; vacía, 400; el histórico, aparte', async () => {
   const { call, calls } = setup();
   assert.deepEqual((await call('POST', ['INC1', 'notes'], { body: ' El centro confirma. ' })).body, { id: 9 });
   assert.deepEqual(calls.at(-1), ['platform_add_issue_note', { p_issue: 'INC1', p_body: 'El centro confirma.' }]);

@@ -35,3 +35,18 @@ test('sin nada, lista vacía; una persona borrada sale sin nombre', () => {
   assert.deepEqual(timeline(), []);
   assert.equal(timeline([{ action: 'claimed', actor_name: null, to_name: null, happened_at: 'x' }])[0].by, null);
 });
+
+test('dos traspasos de la misma persona en el mismo instante: el primero lleva el primer motivo; el otro motivo queda como nota; nada se muta', () => {
+  const events = [
+    { action: 'transferred', actor_name: 'Ana', from_name: 'Ana', to_name: 'Luis', happened_at: '2026-10-29T09:00:00+00:00' },
+    { action: 'transferred', actor_name: 'Ana', from_name: 'Ana', to_name: 'Eva', happened_at: '2026-10-29T09:00:00+00:00' },
+  ];
+  const notes = [
+    { id: 1, author_name: 'Ana', kind: 'transfer', body: 'uno', created_at: '2026-10-29T09:00:00+00:00', edited_at: null },
+    { id: 2, author_name: 'Ana', kind: 'transfer', body: 'dos', created_at: '2026-10-29T09:00:00+00:00', edited_at: null },
+  ];
+  const t = timeline(events, notes);
+  assert.equal(t.filter((x) => x.type === 'transferred' && x.text === 'uno').length, 1);
+  assert.equal(t.filter((x) => x.type === 'note').length, 1);
+  assert.equal(events[0].text, undefined);
+});

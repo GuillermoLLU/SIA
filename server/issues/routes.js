@@ -4,7 +4,7 @@
 //                         (next: la que tocaría ahora; desk: mis issues, en breve;
 //                          history: lo medido en SIA, 12 semanas)
 //   GET  /:id           → { issue, sameCenter, timeline }
-//                         (timeline: su recorrido en SIA, movimientos y notas por orden)
+//                         (timeline: su histórico en SIA, movimientos y notas por orden)
 //   GET  /:id/timeline  → { timeline }
 //   GET  /teammates     → { teammates: [{ id, name }] }  (el equipo de Issues, sin mí)
 //   POST /next          { rule } → { id }  (null: no queda ninguna libre)

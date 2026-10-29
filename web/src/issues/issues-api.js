@@ -1,5 +1,5 @@
 // Cliente de /api/issues: mi mesa, coger la siguiente, el detalle, devolverla,
-// traspasarla, las notas y el recorrido en SIA, el equipo (para traspasar) y
+// traspasarla, las notas y el histórico en SIA, el equipo (para traspasar) y
 // cargar el CSV de la foto. `api`: el cliente del bridge (ui/api.js).
 
 export const createIssuesApi = (api) => {

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ACTIONS, actionForm, readAction, isComplete } from './actions.js';
 
-test('las tres acciones (las notas van en el recorrido)', () => {
+test('las tres acciones (las notas van en el histórico)', () => {
   assert.deepEqual(Object.keys(ACTIONS), ['resolve', 'escalate', 'transfer']);
 });
 

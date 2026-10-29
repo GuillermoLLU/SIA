@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { workScreen, trailHtml, trailTab, releaseDialogHtml, noteFormHtml, trailHint } from './work-screen.js';
+import { workScreen, trailHtml, trailTab, releaseDialogHtml, noteFormHtml, groupByDay, sendsNote } from './work-screen.js';
 
 const issue = (o = {}) => ({ id: 'INC1', text: 'PDA <sin imagen>', priority: 'HIGH', status: 'ASSIGNED', reason: '', notes: 'no <arranca>',
   resolution: '', category: 'SGA', group: 'AYS SOPORTE', assignee: '', reported: '2026-10-01 10:00', modified: '2026-10-01 11:00',
@@ -13,6 +13,7 @@ test('la pantalla: tres pestañas, Detalle por defecto, sin análisis de la IA y
   assert.match(html, /data-wtab="detail" aria-selected="true"/);
   assert.doesNotMatch(html, /Análisis de la IA|data-wpanel="ai"/);
   assert.match(html, /Nadie la ha movido ni anotado en SIA todavía/);
+  assert.match(html, /iss-trail-hint">Por quién ha pasado esta issue y las notas internas del equipo</);
   assert.doesNotMatch(html, /data-act="note"/);
   assert.match(html, /data-note-form/);
   assert.match(html, /Por conectar/);
@@ -47,12 +48,11 @@ test('el feed: por días, con avatar, quién hizo qué y la hora; el motivo del 
   assert.match(html, /<b>Luis<\/b> escribió una nota/);
   assert.match(html, /editada /);
   assert.match(html, /<b>Alguien<\/b> devolvió la issue a la cola/);
-  assert.match(trailHint(), /Por quién ha pasado esta issue y las notas internas del equipo/);
   const withTrail = workScreen({ issue: issue(), sameCenter: [], timeline: [{ at: '2026-10-01T08:00:00+00:00', type: 'claimed', by: 'Ana', to: 'Ana' }], now, mine: false, tab: 'trail' });
   assert.match(withTrail, /data-wtab="trail" aria-selected="true">Histórico y notas<span>1<\/span>/);
 });
 
-test('la pestaña del recorrido lleva el contador solo si hay entradas; el diálogo de devolver, la issue escapada', () => {
+test('la pestaña del histórico lleva el contador solo si hay entradas; el diálogo de devolver, la issue escapada', () => {
   assert.equal(trailTab(0), 'Histórico y notas');
   assert.equal(trailTab(3), 'Histórico y notas<span>3</span>');
   const html = releaseDialogHtml('INC1', 'PDA <x>');
@@ -62,8 +62,18 @@ test('la pestaña del recorrido lleva el contador solo si hay entradas; el diál
   assert.doesNotMatch(releaseDialogHtml('INC1'), /undefined/);
 });
 
-test('el campo de nota del recorrido: un textarea y el botón de enviar apagado de inicio', () => {
+test('el campo de nota del histórico: un textarea y el botón de enviar apagado de inicio', () => {
   const html = noteFormHtml();
   assert.match(html, /<textarea name="note"/);
   assert.match(html, /class="iss-send"[^>]*aria-label="Enviar"[^>]*disabled/);
+});
+
+test('agrupar por día conserva el orden y parte donde cambia el día; Intro envía y Mayús+Intro no', () => {
+  const now = new Date('2026-10-02T12:00:00');
+  const a = { at: '2026-10-01T08:00:00', type: 'claimed' }, b = { at: '2026-10-01T09:00:00', type: 'released' }, c = { at: '2026-10-02T08:00:00', type: 'claimed' };
+  assert.deepEqual(groupByDay([a, b, c], now), [{ day: 'Ayer', items: [a, b] }, { day: 'Hoy', items: [c] }]);
+  assert.deepEqual(groupByDay([], now), []);
+  assert.equal(sendsNote({ key: 'Enter', shiftKey: false }), true);
+  assert.equal(sendsNote({ key: 'Enter', shiftKey: true }), false);
+  assert.equal(sendsNote({ key: 'a', shiftKey: false }), false);
 });

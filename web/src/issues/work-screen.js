@@ -8,17 +8,15 @@ import { esc } from '../ui/html.js';
 import { STATUS_ES, REASON_ES, SEVERITY_ES, when, whenIso, dayLabel, timeIso, age } from './format.js';
 import { item } from './parts.js';
 
-const pending = (text) => `<p class="iss-pending">${text}</p>`;
-
 const WORK_TABS = [
   { key: 'detail', label: 'Detalle' },
   { key: 'related', label: 'Relacionadas' },
   { key: 'trail', label: 'Histórico y notas' },
 ];
 
-// El recorrido en SIA: movimientos y notas por orden (lo que da el bridge en
+// El histórico en SIA: movimientos y notas por orden (lo que da el bridge en
 // `timeline`). Se pinta aparte para poder refrescarlo al añadir una nota.
-export const trailTab = (n) => `Histórico y notas${n ? `<span>${n}</span>` : ''}`;
+export const trailTab = (n) => `${WORK_TABS.find((t) => t.key === 'trail').label}${n ? `<span>${n}</span>` : ''}`;
 // Quién: un avatar con sus iniciales (sin nombre, un interrogante).
 const initials = (name) => (name || '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('') || '?';
 const avatar = (name) => `<span class="iss-avatar${name ? '' : ' unknown'}" aria-hidden="true">${esc(initials(name))}</span>`;
@@ -32,26 +30,29 @@ const DID = {
   transferred: (t) => `${who(t.by)} traspasó la issue a ${who(t.to)}`,
   note: (t) => `${who(t.by)} escribió una nota`,
 };
-const trailItem = (t) => `<li class="iss-feed-item${t.text ? ' has-text' : ''}">${avatar(t.by)}<div class="iss-feed-body">
+const trailItem = (t) => `<li class="iss-feed-item">${avatar(t.by)}<div class="iss-feed-body">
       <header>${(DID[t.type] || ((x) => esc(x.type)))(t)}<time>${timeIso(t.at)}</time>${t.edited ? `<small>editada ${whenIso(t.edited)}</small>` : ''}</header>
       ${t.text ? `<div class="iss-feed-text">${t.type === 'transferred' ? '<span class="iss-feed-label">Motivo</span>' : ''}${esc(t.text)}</div>` : ''}
     </div></li>`;
-// Agrupado por día, del más antiguo al más reciente. `now` solo decide «Hoy» y «Ayer».
-export const trailHtml = (timeline = [], now = new Date()) => {
-  if (!timeline.length) return '<p class="iss-empty">Nadie la ha movido ni anotado en SIA todavía.</p>';
+// Las entradas agrupadas por día, del más antiguo al más reciente → [{ day, items }].
+// `now` solo decide «Hoy» y «Ayer».
+export const groupByDay = (timeline, now) => {
   const days = [];
   for (const t of timeline) {
     const day = dayLabel(t.at, now);
     if (days.at(-1)?.day !== day) days.push({ day, items: [] });
     days.at(-1).items.push(t);
   }
-  return days.map(({ day, items }) => `<section class="iss-trail-day"><h5><span>${day}</span></h5><ol class="iss-trail-list">${items.map(trailItem).join('')}</ol></section>`).join('');
+  return days;
 };
+export const trailHtml = (timeline = [], now = new Date()) => (timeline.length
+  ? groupByDay(timeline, now).map(({ day, items }) => `<section class="iss-trail-day"><h5><span>${day}</span></h5><ol class="iss-trail-list">${items.map(trailItem).join('')}</ol></section>`).join('')
+  : '<p class="iss-empty">Nadie la ha movido ni anotado en SIA todavía.</p>');
 
-// Qué es esta pestaña: una nota pequeña, a la derecha.
-export const trailHint = () => '<p class="iss-trail-hint">Por quién ha pasado esta issue y las notas internas del equipo</p>';
+// En el campo de nota, Intro envía; Mayús+Intro salta de línea.
+export const sendsNote = (e) => e.key === 'Enter' && !e.shiftKey;
 
-// Escribir una nota interna, al pie del recorrido. Enviar se enciende con texto.
+// Escribir una nota interna, al pie del histórico. Enviar se enciende con texto.
 const SEND = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>';
 export const noteFormHtml = () => `<form class="iss-note-form" data-note-form novalidate>
     <textarea name="note" rows="1" placeholder="Escribe una nota interna para el equipo…" aria-label="Nota interna"></textarea>
@@ -111,11 +112,11 @@ export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, tab
         <h4 class="iss-sub">Del mismo centro <span class="iss-low">· ${sameCenter.length}</span></h4>
         ${sameCenter.length ? `<div class="iss-items">${sameCenter.map((x) => item(x, 'doing', now)).join('')}</div>` : '<p class="iss-empty">Ninguna otra abierta de este centro.</p>'}
         <h4 class="iss-sub">Parecidas <span class="iss-badge">Por conectar</span></h4>
-        ${pending('Issues de otros centros con el mismo problema y cómo se resolvieron.')}
+        <p class="iss-pending">Issues de otros centros con el mismo problema y cómo se resolvieron.</p>
       </div>
 
       <div class="iss-wpanel iss-trail-panel" data-wpanel="trail"${tab === 'trail' ? '' : ' hidden'}>
-        ${trailHint()}
+        <p class="iss-trail-hint">Por quién ha pasado esta issue y las notas internas del equipo</p>
         <div class="iss-trail-scroll" data-trail>${trailHtml(timeline, now)}</div>
         ${noteFormHtml()}
       </div>

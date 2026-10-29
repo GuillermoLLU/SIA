@@ -8,7 +8,7 @@ import { esc } from '../ui/html.js';
 import { LISTS, snapshotInfo, age, weekBars } from './format.js';
 import { sev, origin, item } from './parts.js';
 import { onEscape } from '../ui/dialog.js';
-import { workScreen, trailHtml, trailTab, releaseDialogHtml } from './work-screen.js';
+import { workScreen, trailHtml, trailTab, releaseDialogHtml, sendsNote } from './work-screen.js';
 import { ACTIONS, actionForm, readAction, isComplete } from './actions.js';
 
 const GOAL = { min: 15, max: 20 }; // resueltas por turno, lo que dice el equipo
@@ -96,6 +96,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     opened = i.id;
     closeChat();
     closeAction();
+    now = new Date(); // el histórico y las edades, a la hora de abrirla
     root.innerHTML = workScreen({ issue: i, sameCenter, timeline, now, mine, tab: workTab });
     chat = openChat?.(root.querySelector('.iss-chat-body'), i.id) || null;
     root.scrollTop = 0;
@@ -174,9 +175,9 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       }
     } catch (err) { toast?.(err.message); }
   });
-  // Acciones: su formulario encima de la pantalla de trabajo. Traspasar y
-  // añadir nota van a la base de la instancia; resolver y escalar, de momento,
-  // se validan y se avisa: nada sale hacia Remedy hasta conectar SIGLO.
+  // Acciones: su formulario encima de la pantalla de trabajo. Traspasar va a la
+  // base de la instancia; resolver y escalar, de momento, se validan y se
+  // avisa: nada sale hacia Remedy hasta conectar SIGLO.
   let people = [], offEscape = null;
   const closeAction = () => { root.querySelector('.iss-modal')?.remove(); offEscape?.(); offEscape = null; };
   const openAction = async (key) => {
@@ -187,7 +188,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     // Escape: con la lista del selector abierta la cierra; si no, cierra el modal
     offEscape = onEscape(() => (pickOpen() ? closePick() : closeAction()));
   };
-  // Tras añadir una nota, el recorrido se repinta en su sitio.
+  // Tras añadir una nota, el histórico se repinta en su sitio.
   const refreshTrail = async () => {
     const items = await api.timeline(opened);
     const box = root.querySelector('[data-trail]');
@@ -203,7 +204,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     const nf = e.target.closest('[data-note-form]');
     if (nf) nf.querySelector('[type=submit]').disabled = !nf.note.value.trim();
   });
-  // La nota interna, desde el pie del recorrido: se guarda, se repinta y se
+  // La nota interna, desde el pie del histórico: se guarda, se repinta y se
   // baja hasta ella.
   const sendNote = async (form) => {
     const text = form.note.value.trim();
@@ -220,7 +221,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     } catch (err) { toast?.(err.message); btn.disabled = false; }
   };
   root.addEventListener('keydown', (e) => {
-    if (e.key !== 'Enter' || e.shiftKey || !e.target.matches('[data-note-form] textarea')) return;
+    if (!e.target.matches('[data-note-form] textarea') || !sendsNote(e)) return;
     e.preventDefault();
     sendNote(e.target.closest('[data-note-form]'));
   });

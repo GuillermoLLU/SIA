@@ -33,13 +33,17 @@ export const stamp = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d
 export const when = (s) => (s ? `${s.slice(8, 10)}/${s.slice(5, 7)} ${s.slice(11, 16)}` : '—');
 // Una fecha ISO de la base (UTC) en hora local, con el mismo formato.
 export const whenIso = (iso) => when(stamp(new Date(iso)));
-// El día de una fecha ISO para agrupar: «Hoy», «Ayer» o «29/10».
+// El día de una fecha ISO para agrupar: «Hoy», «Ayer» o «29/10» (con el año si es otro).
+const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 export const dayLabel = (iso, now) => {
-  const d = new Date(iso), days = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000);
-  return days === 0 ? 'Hoy' : days === 1 ? 'Ayer' : `${pad(d.getDate())}/${pad(d.getMonth() + 1)}${d.getFullYear() !== now.getFullYear() ? `/${d.getFullYear()}` : ''}`;
+  const d = new Date(iso);
+  const days = Math.round((startOfDay(now) - startOfDay(d)) / 86400000);
+  if (days === 0) return 'Hoy';
+  if (days === 1) return 'Ayer';
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}${d.getFullYear() !== now.getFullYear() ? `/${d.getFullYear()}` : ''}`;
 };
-// La hora de una fecha ISO: «12:42».
-export const timeIso = (iso) => { const d = new Date(iso); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+// La hora de una fecha ISO: «12:42» (lo que sigue al día en whenIso).
+export const timeIso = (iso) => whenIso(iso).slice(6);
 
 // La foto de Remedy frente a hoy: de cuándo es y si está al día (del mismo
 // día que ahora). Si no, la mesa lo avisa: lo medido en SIA sigue siendo de hoy.

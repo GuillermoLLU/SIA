@@ -18,7 +18,7 @@ export const createIssuesService = ({ source, platform, now = () => new Date() }
     const claims = await platform.rpc(jwt, 'platform_issue_claims');
     return { taken, issues, claims, claimed: new Set(claims.map((c) => c.issue_id)), now: now() };
   };
-  // el recorrido de una issue: sus movimientos y notas, unidos por orden
+  // el histórico de una issue: sus movimientos y notas, unidos por orden
   const timelineOf = async (jwt, id) => {
     const [events, notes] = await Promise.all([platform.rpc(jwt, 'platform_issue_events', { p_issue: id }), platform.rpc(jwt, 'platform_issue_notes', { p_issue: id })]);
     return timeline(events, notes);
@@ -57,7 +57,7 @@ export const createIssuesService = ({ source, platform, now = () => new Date() }
     transfer: ({ accessToken: jwt }, id, { to, comment }) => platform.rpc(jwt, 'platform_transfer_issue', { p_issue: id, p_to: to, p_comment: comment }),
     // una nota interna del equipo → su id
     addNote: ({ accessToken: jwt }, id, body) => platform.rpc(jwt, 'platform_add_issue_note', { p_issue: id, p_body: body }),
-    // su recorrido en SIA: movimientos y notas, por orden (timeline.js)
+    // su histórico en SIA: movimientos y notas, por orden (timeline.js)
     timeline: ({ accessToken: jwt }, id) => timelineOf(jwt, id),
     // → { issue (con claimedBy), sameCenter, timeline } | null si ya no está en la foto
     async get({ accessToken: jwt }, id) {
