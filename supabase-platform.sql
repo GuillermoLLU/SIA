@@ -712,7 +712,6 @@ begin
       on conflict (issue_id) do nothing returning issue_id into v_got;
     if v_got is not null then
       insert into platform.issue_events (issue_id, action, actor, to_user) values (v_got, 'claimed', v_me, v_me);
-      perform platform.audit(v_me, 'issue.claimed', v_me, jsonb_build_object('issue', v_got));
       return v_got;
     end if;
   end loop;
@@ -727,7 +726,6 @@ begin
   delete from platform.issue_claims where issue_id = p_issue and user_id = v_me;
   if not found then raise exception 'Esa issue no es tuya.' using errcode = '42501'; end if;
   insert into platform.issue_events (issue_id, action, actor, from_user) values (p_issue, 'released', v_me, v_me);
-  perform platform.audit(v_me, 'issue.released', v_me, jsonb_build_object('issue', p_issue));
 end $$;
 
 -- Traspasarla a un compañero (solo la propia, y solo a alguien activo con la
@@ -747,7 +745,6 @@ begin
   if not found then raise exception 'Esa issue no es tuya.' using errcode = '42501'; end if;
   insert into platform.issue_events (issue_id, action, actor, from_user, to_user) values (p_issue, 'transferred', v_me, v_me, p_to);
   insert into platform.issue_notes (issue_id, author, kind, body) values (p_issue, v_me, 'transfer', left(btrim(p_comment), 4000));
-  perform platform.audit(v_me, 'issue.transferred', p_to, jsonb_build_object('issue', p_issue));
 end $$;
 
 -- Lo que me han traspasado y aún tengo: de quién viene, cuándo y el motivo
@@ -813,7 +810,6 @@ language plpgsql security definer set search_path = '' as $$
 declare v_me uuid := platform.require_view('issues'); v_id bigint;
 begin
   insert into platform.issue_notes (issue_id, author, body) values (p_issue, v_me, btrim(p_body)) returning id into v_id;
-  perform platform.audit(v_me, 'note.added', v_me, jsonb_build_object('issue', p_issue, 'note', v_id));
   return v_id;
 exception
   when check_violation then raise exception 'La nota necesita texto, hasta 4.000 caracteres.' using errcode = '22023';
@@ -822,11 +818,10 @@ end $$;
 -- Editar una nota propia.
 create or replace function public.platform_edit_issue_note(p_note bigint, p_body text) returns void
 language plpgsql security definer set search_path = '' as $$
-declare v_me uuid := platform.require_view('issues'); v_issue text;
+declare v_me uuid := platform.require_view('issues');
 begin
-  update platform.issue_notes set body = btrim(p_body), edited_at = now() where id = p_note and author = v_me returning issue_id into v_issue;
+  update platform.issue_notes set body = btrim(p_body), edited_at = now() where id = p_note and author = v_me;
   if not found then raise exception 'Esa nota no es tuya.' using errcode = '42501'; end if;
-  perform platform.audit(v_me, 'note.edited', v_me, jsonb_build_object('issue', v_issue, 'note', p_note));
 exception
   when check_violation then raise exception 'La nota necesita texto, hasta 4.000 caracteres.' using errcode = '22023';
 end $$;
@@ -843,8 +838,9 @@ begin
   return query select u.id, u.name from platform.users u where u.active and 'issues' = any (u.views) order by u.name;
 end $$;
 
--- Mi historial en SIA: lo que he cogido y devuelto desde una fecha (sale de
--- la auditoría; con él se miden las métricas de cada persona).
+-- Mi historial en SIA desde una fecha (con él se miden las métricas de cada
+-- persona): claimed (la cogí), released (la devolví), received (me la
+-- traspasaron: desde entonces es mía) y handed (la traspasé: dejó de serlo).
 drop function if exists public.platform_my_issue_events(timestamptz);
 create function public.platform_my_issue_events(p_since timestamptz)
 returns table (issue_id text, action text, happened_at timestamptz)
@@ -853,11 +849,26 @@ language plpgsql stable security definer set search_path = '' as $$
 declare v_me uuid := platform.require_view('issues');
 begin
   return query
-    select a.details ->> 'issue', a.action, a.happened_at
-    from platform.audit_log a
-    where a.actor = v_me and a.action in ('issue.claimed', 'issue.released') and a.happened_at >= p_since
-    order by a.happened_at, a.id;
+    select e.issue_id,
+      case when e.action <> 'transferred' then e.action when e.to_user = v_me then 'received' else 'handed' end,
+      e.happened_at
+    from platform.issue_events e
+    where e.happened_at >= p_since
+      and ((e.action = 'claimed' and e.to_user = v_me) or (e.action = 'released' and e.from_user = v_me)
+        or (e.action = 'transferred' and (e.to_user = v_me or e.from_user = v_me)))
+    order by e.happened_at, e.id;
 end $$;
+
+-- Los movimientos de issues que se apuntaron en la auditoría antes de existir
+-- issue_events pasan al histórico, una sola vez: solo los anteriores al primer
+-- movimiento ya registrado (los posteriores están en las dos y no se repiten).
+insert into platform.issue_events (issue_id, action, actor, from_user, to_user, happened_at)
+select a.details ->> 'issue', substr(a.action, 7), a.actor,
+  case when a.action = 'issue.released' then a.actor end, case when a.action = 'issue.claimed' then a.actor end, a.happened_at
+from platform.audit_log a
+where a.action in ('issue.claimed', 'issue.released') and (a.details ->> 'issue') ~ '^INC[0-9]+$'
+  and a.happened_at < coalesce((select min(e.happened_at) from platform.issue_events e), 'infinity'::timestamptz)
+order by a.happened_at, a.id;
 
 -- ── Auditoría ─────────────────────────────────────────────────────────────
 create or replace function public.platform_list_audit(p_limit int default 100)

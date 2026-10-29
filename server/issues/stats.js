@@ -21,11 +21,14 @@ export const weekOf = (d) => {
   return dayKey(m);
 };
 
-// Las cogidas que siguen siendo suyas (las devueltas no cuentan).
+// Las que siguen siendo suyas: las cogió (claimed) o se las traspasaron
+// (received) y no las ha devuelto ni traspasado después. Lo que cuenta es el
+// último movimiento de cada issue.
+const MINE = new Set(['claimed', 'received']);
 const kept = (events) => {
   const last = new Map();
   for (const e of events) last.set(e.issue_id, e);
-  return events.filter((e) => e.action === 'issue.claimed' && last.get(e.issue_id) === e);
+  return events.filter((e) => MINE.has(e.action) && last.get(e.issue_id) === e);
 };
 
 export const history = (events, issuesById, now, weeks = 12) => {
@@ -41,7 +44,8 @@ export const history = (events, issuesById, now, weeks = 12) => {
     const at = new Date(e.happened_at), issue = issuesById.get(e.issue_id);
     const w = byWeek.get(weekOf(at));
     if (w) w[issue?.sisu ? 'sisu' : 'sga'] += 1;
-    const limit = issue && FIRST_TOUCH_MIN[issue.priority];
+    // a tiempo solo se mide en las que cogió uno mismo: una traspasada ya venía empezada
+    const limit = e.action === 'claimed' && issue && FIRST_TOUCH_MIN[issue.priority];
     if (limit) { timed += 1; if ((at - new Date(issue.reported.replace(' ', 'T'))) / 60000 <= limit) onTime += 1; }
   }
   return {

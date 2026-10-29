@@ -227,7 +227,7 @@ select assert_eq((select string_agg(issue_id || ':' || user_name, ',' order by i
 select expect_error($$select public.platform_release_issue('INC1')$$, 'no se devuelve una ajena');
 select public.platform_release_issue('INC2');
 select assert_eq((select count(*) from public.platform_issue_claims()), 1::bigint, 'la propia vuelve a la cola');
-select assert_eq((select string_agg(issue_id || ':' || action, ',' order by happened_at) from public.platform_my_issue_events(now() - interval '1 day')), 'INC2:issue.claimed,INC2:issue.released', 'mi historial: solo lo mío');
+select assert_eq((select string_agg(issue_id || ':' || action, ',' order by happened_at) from public.platform_my_issue_events(now() - interval '1 day')), 'INC2:claimed,INC2:released', 'mi historial: solo lo mío');
 select assert_eq((select count(*) from public.platform_my_issue_events(now() + interval '1 day')), 0::bigint, 'desde la fecha pedida');
 select assert_eq((select string_agg(name, ',' order by name) from public.platform_issue_teammates()), 'Admin,agente.dos', 'el equipo: activos con la vista Issues');
 select expect_error($$select public.platform_claim_next_issue(array['x; drop'])$$, 'solo números de incidencia');
@@ -251,8 +251,10 @@ select assert_eq((select string_agg(kind || ':' || author_name || ':' || body, '
 select assert_eq((select string_agg(action, ',' order by happened_at, id) from public.platform_issue_events('INC2')), 'claimed,released', 'la devuelta a la cola también queda');
 select assert_eq((select count(*) from public.platform_issue_events('INC3')), 0::bigint, 'sin movimientos: nada');
 select assert_eq((select count(*) from public.platform_my_transfers()), 0::bigint, 'quien traspasa no tiene nada traspasado');
+select assert_eq((select string_agg(issue_id || ':' || action, ',' order by happened_at, issue_id) from public.platform_my_issue_events(now() - interval '1 day')), 'INC1:claimed,INC1:handed', 'en mi historial, la traspasada dejó de ser mía');
 select t_as(:U2);
 select assert_eq((select string_agg(issue_id || ':' || from_name || ':' || reason, ',') from public.platform_my_transfers()), 'INC1:Admin:Lleva dos llamadas del centro.', 'quien la recibe ve de quién viene y por qué');
+select assert_eq((select string_agg(issue_id || ':' || action, ',' order by happened_at, issue_id) from public.platform_my_issue_events(now() - interval '1 day')), 'INC2:claimed,INC2:released,INC1:received', 'y en el suyo, la recibida es suya desde ese momento');
 select public.platform_release_issue('INC1');
 select assert_eq((select count(*) from public.platform_issue_claims()), 0::bigint, 'quien la recibe sí puede devolverla');
 select assert_eq((select count(*) from public.platform_my_transfers()), 0::bigint, 'devuelta: ya no consta como traspasada');
@@ -280,6 +282,7 @@ select assert_eq((select count(*) from public.platform_issue_notes('INC2')), 0::
 
 -- ── 6b. cambiar de base y desactivar ──
 reset role;
+select assert_eq((select count(*) from platform.audit_log where action like 'issue.%' or action like 'note.%'), 0::bigint, 'los movimientos de issues y las notas no pasan por la auditoría: viven en issue_events e issue_notes');
 select platform.set_knowledge_base('Logística', 'https://abcdefghijklmnopqrsu.supabase.co', 'sb_publishable_abcdefghijklmnopqrstuvwxyz', 'pk-admin-logistica-1');
 select assert_eq((select string_agg(name, ',') from platform.knowledge_bases), 'Logística', 'otra URL: otra base');
 select assert_eq((select count(*) from vault.secrets where name like 'sia-base-%'), 1::bigint, 'la clave de la anterior sale de Vault');
