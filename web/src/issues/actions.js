@@ -3,6 +3,7 @@
 // instancia); resolver y escalar irán a Remedy por SIGLO y, de momento, no se
 // envían. Las notas internas se escriben en la pestaña Notas internas.
 import { esc } from '../ui/html.js';
+import { pickerHtml } from '../ui/picker.js';
 
 export const ACTIONS = {
   resolve: {
@@ -25,14 +26,9 @@ export const ACTIONS = {
   },
 };
 
-// El selector de persona es propio (el desplegable nativo no se puede pintar):
-// un campo oculto con el id, un botón con el nombre elegido y la lista debajo.
-// Abrir, elegir y cerrar lo lleva la vista (issues-view.js) por data-pick-*.
-const picker = (f, people) => `<div class="iss-pick" data-pick>
-      <input type="hidden" name="${f.name}" value="">
-      <button type="button" id="iss-f-${f.name}" class="iss-pick-btn" data-pick-btn aria-haspopup="listbox" aria-expanded="false" ${people.length ? '' : 'disabled'}><span data-pick-label class="iss-pick-ph">${people.length ? 'Elige a quién' : 'No hay más personas en Issues'}</span></button>
-      <ul class="iss-pick-list" role="listbox" hidden>${people.map((p) => `<li role="option" data-pick-opt="${esc(p.id)}" aria-selected="false">${esc(p.name)}</li>`).join('')}</ul>
-    </div>`;
+// El selector de persona es el propio de la app (ui/picker.js); abrir,
+// elegir y cerrar lo lleva la vista (issues-view.js).
+const picker = (f, people) => pickerHtml({ name: f.name, id: `iss-f-${f.name}`, options: people, empty: 'No hay más personas en Issues' });
 
 const field = (f, people) => {
   const id = `iss-f-${f.name}`;

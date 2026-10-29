@@ -7,15 +7,17 @@ import { esc } from '../ui/html.js';
 import { SEVERITY_ES, STATUS_ES, REASON_ES, when, whenIso, age } from '../issues/format.js';
 import { sev, origin } from '../issues/parts.js';
 import { worklogHtml } from '../issues/work-screen.js';
+import { pickerHtml } from '../ui/picker.js';
 
 // Priorizar: la prioridad es la etiqueta PRIO de Remedy, que pone negocio.
-const pinHtml = ({ prio }) => `<div class="bl-act"><h5>Priorizar</h5><p>${prio ? 'Ya está priorizada por negocio.' : 'Pasará a priorizada por negocio.'}</p>
-    <button class="lab-btn primary" data-pin ${prio ? 'disabled' : ''}>Priorizar</button>
-    <small class="bl-act-note">Pendiente: la prioridad es la etiqueta PRIO de Remedy y SIA aún no puede escribirla.</small></div>`;
+const pinHtml = ({ prio }) => `<div class="bl-act"><h5>Priorizar</h5>
+    <button class="lab-btn primary" data-pin ${prio ? 'disabled' : ''}>${prio ? 'Ya priorizada' : 'Priorizar'}</button>
+    <small class="bl-act-note">Pendiente: es la etiqueta PRIO de Remedy y SIA aún no puede escribirla.</small></div>`;
 
-// Asignarla a alguien del equipo (people: [{ id, name }]).
-const assignHtml = ({ people, busy }) => `<form class="bl-act bl-act-form" data-assign-form><h5>Asignar</h5><p>Pasará a la mesa de esa persona, como cogida.</p>
-    <div class="bl-act-row"><select name="to" required><option value="">Elige a quién…</option>${people.map((u) => `<option value="${esc(u.id)}">${esc(u.name)}</option>`).join('')}</select><button type="submit" class="lab-btn primary" ${busy ? 'disabled' : ''}>${busy ? 'Asignando…' : 'Asignar'}</button></div></form>`;
+// Asignarla a alguien del equipo (people: [{ id, name }]), con el selector propio de la app.
+const assignHtml = ({ people, busy }) => `<form class="bl-act bl-act-form" data-assign-form><h5>Asignar</h5>
+    <div class="bl-act-row">${pickerHtml({ name: 'to', id: 'bl-assign-to', options: people, empty: 'Nadie en Issues' })}<button type="submit" class="lab-btn primary" ${busy ? 'disabled' : ''}>${busy ? 'Asignando…' : 'Asignar'}</button></div>
+    <small class="bl-act-note">Pasará a su mesa como cogida.</small></form>`;
 
 // detail: lo que da GET /backlog/:id
 export const sidePanel = ({ detail, people, busy, error, now }) => {

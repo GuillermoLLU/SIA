@@ -15,6 +15,7 @@ import { sev, origin } from '../issues/parts.js';
 import { EMPTY_FILTER, SEVERITIES, filterIssues, toggle, tileCounts, isFiltering } from './filter.js';
 import { openRulesModal } from './rules-modal.js';
 import { sidePanel } from './side-panel.js';
+import { pickClick } from '../ui/picker.js';
 
 const PLURAL = { CRITICAL: 'Críticas', HIGH: 'Altas', MEDIUM: 'Medias', LOW: 'Bajas' };
 
@@ -115,11 +116,13 @@ export const mountBacklogView = (root, { api, dialogs, toast }) => {
     if (!e.target.matches('[data-assign-form]')) return;
     e.preventDefault();
     const to = e.target.elements.to.value;
+    if (!to) { side = { ...side, error: 'Elige a quién asignarla.' }; return paintSide(); }
     const name = people.find((u) => u.id === to)?.name || 'esa persona';
     act(() => api.assign(opened, to), () => { toast?.(`Asignada a ${name}: ya está en su mesa.`); closeSide(); });
   });
 
   root.addEventListener('click', (e) => {
+    if (pickClick(root, e.target)) return;
     const rowEl = e.target.closest('.bl-row');
     if (rowEl) return rowEl.dataset.id === opened ? closeSide() : openIssue(rowEl.dataset.id);
     if (e.target.closest('[data-side-close]')) return closeSide();

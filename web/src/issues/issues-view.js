@@ -8,6 +8,7 @@ import { esc } from '../ui/html.js';
 import { LISTS, snapshotInfo, age, weekBars } from './format.js';
 import { sev, origin, item } from './parts.js';
 import { onEscape } from '../ui/dialog.js';
+import { pickClick, openPicker, closePickers } from '../ui/picker.js';
 import { workScreen, trailHtml, trailTab, releaseDialogHtml, sendsNote, noteEditorHtml } from './work-screen.js';
 import { ACTIONS, actionForm, readAction, isComplete } from './actions.js';
 
@@ -119,32 +120,9 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     root.querySelectorAll('[data-wpanel]').forEach((p) => { p.hidden = p.dataset.wpanel !== key; });
     if (key === 'trail') scrollTrailToStart();
   };
-  // El selector de persona de las acciones: abrir, elegir, cerrar.
-  const pickOpen = () => root.querySelector('[data-pick] [aria-expanded="true"]');
-  const closePick = () => root.querySelectorAll('[data-pick] [aria-expanded="true"]').forEach((b) => { b.setAttribute('aria-expanded', 'false'); b.nextElementSibling.hidden = true; });
-  const pickClick = (t) => {
-    const btn = t.closest('[data-pick-btn]');
-    if (btn) {
-      const open = btn.getAttribute('aria-expanded') === 'true';
-      closePick();
-      if (!open) { btn.setAttribute('aria-expanded', 'true'); btn.nextElementSibling.hidden = false; }
-      return true;
-    }
-    const opt = t.closest('[data-pick-opt]');
-    if (!opt) { closePick(); return false; }
-    const pick = opt.closest('[data-pick]');
-    pick.querySelector('input[type=hidden]').value = opt.dataset.pickOpt;
-    pick.querySelectorAll('[data-pick-opt]').forEach((o) => o.setAttribute('aria-selected', String(o === opt)));
-    const label = pick.querySelector('[data-pick-label]');
-    label.textContent = opt.textContent;
-    label.classList.remove('iss-pick-ph');
-    closePick();
-    syncSubmit(pick.closest('[data-act-form]'));
-    return true;
-  };
   root.addEventListener('click', async (e) => {
     const t = e.target;
-    if (pickClick(t)) return;
+    if (pickClick(root, t, (pick) => syncSubmit(pick.closest('[data-act-form]')))) return;
     // con el diálogo de elegir fichero abierto no se repinta la mesa: el
     // cambio llegaría a un input que ya no está en la página
     if (t.matches('[data-csv]')) { picking = true; return; }
@@ -193,7 +171,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${actionForm(key, opened, people)}</div>`);
     root.querySelector('.iss-act-form [name]')?.focus();
     // Escape: con la lista del selector abierta la cierra; si no, cierra el modal
-    offEscape = onEscape(() => (pickOpen() ? closePick() : closeAction()));
+    offEscape = onEscape(() => (openPicker(root) ? closePickers(root) : closeAction()));
   };
   // Tras añadir una nota, el histórico se repinta en su sitio.
   const refreshTrail = async () => {
