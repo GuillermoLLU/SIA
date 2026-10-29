@@ -189,6 +189,9 @@ create table if not exists platform.issue_notes (
 );
 alter table platform.issue_events drop constraint if exists issue_events_note_fk;
 alter table platform.issue_events add constraint issue_events_note_fk foreign key (note_id) references platform.issue_notes (id) on delete set null;
+-- traspasos anteriores a note_id: su nota es la 'transfer' del mismo autor e instante
+update platform.issue_events e set note_id = n.id from platform.issue_notes n
+  where e.action = 'transferred' and e.note_id is null and n.issue_id = e.issue_id and n.kind = 'transfer' and n.author is not distinct from e.actor and n.created_at = e.happened_at;
 create index if not exists issue_notes_issue on platform.issue_notes (issue_id, created_at);
 
 -- Administrador, con todas las vistas que haya (también las que se añadan)
