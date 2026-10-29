@@ -1,5 +1,5 @@
 // Vista «Backlog»: la cola del equipo, lo que nadie tiene aún, en el orden en
-// que la regla lo iría repartiendo. Para quien reparte el trabajo: aquí se
+// que la regla elegida lo iría repartiendo (la básica, u otra del selector). Para quien reparte el trabajo: aquí se
 // mira la cola entera (Issues solo enseña la siguiente). Arriba, el panel:
 // cuánto hay de cada tipo, y las tarjetas filtran la lista al pulsarlas, varias
 // a la vez, y el buscador acota por código, centro o texto (filter.js);
@@ -16,7 +16,7 @@ const PLURAL = { CRITICAL: 'Críticas', HIGH: 'Altas', MEDIUM: 'Medias', LOW: 'B
 
 // toast: avisos de la app. Las reglas de priorización se gestionarán desde aquí (botón de la cabecera).
 export const mountBacklogView = (root, { api, toast }) => {
-  let data = null, filter = { ...EMPTY_FILTER }, now = new Date(), loading = false;
+  let data = null, filter = { ...EMPTY_FILTER }, now = new Date(), loading = false, rule = 'basic';
 
   const page = (body) => `<div class="bl-page"><h2 class="iss-title">Backlog</h2>${body}</div>`;
 
@@ -50,6 +50,7 @@ export const mountBacklogView = (root, { api, toast }) => {
         <button class="bl-reload" data-reload${loading ? ' disabled' : ''}>${loading ? 'Actualizando…' : 'Actualizar backlog'}</button>
         <span class="iss-snap${snap.stale ? ' stale' : ''}">${snap.text}</span>
         ${filtering ? `<p class="bl-shown"><b>${shown.length}</b> de ${c.total} · <button class="bl-clear" data-key="all">Ver todas</button></p>` : ''}
+        <label class="bl-order">Orden <select data-rule>${data.rules.map((r) => `<option value="${esc(r.id)}"${r.id === data.rule ? ' selected' : ''}>${esc(r.label)}</option>`).join('')}</select></label>
         <label class="bl-search"><input type="search" data-q placeholder="Buscar una issue, un centro o un texto" value="${esc(filter.q)}" aria-label="Buscar en el backlog"></label>
         <button class="bl-rules" data-rules>Reglas de priorización</button>
       </div>
@@ -59,7 +60,7 @@ export const mountBacklogView = (root, { api, toast }) => {
   const load = async () => {
     loading = true;
     if (data) render(); // el botón de actualizar, ocupado
-    try { data = await api.list(); now = new Date(); }
+    try { data = await api.list(rule); now = new Date(); }
     finally { loading = false; }
     render();
   };
@@ -73,6 +74,11 @@ export const mountBacklogView = (root, { api, toast }) => {
     const q = root.querySelector('[data-q]');
     q.focus();
     q.setSelectionRange(pos, pos);
+  });
+  root.addEventListener('change', (e) => {
+    if (!e.target.matches('[data-rule]')) return;
+    rule = e.target.value;
+    load().catch((err) => toast?.(`No se pudo ordenar el backlog: ${err.message}`));
   });
   root.addEventListener('click', (e) => {
     if (e.target.closest('[data-rules]')) return toast?.('Las reglas de priorización se crearán y ajustarán desde aquí; aún no está.');

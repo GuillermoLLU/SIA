@@ -45,7 +45,7 @@ const setup = (claims = [], transfers = []) => {
 test('GET /: libres, reglas y mi mesa (responsable en Remedy o cogida en SIA)', async () => {
   const { body } = await setup([{ issue_id: 'INC1', user_id: 'u-ana', user_name: 'Ana López' }]).call('GET', []);
   assert.equal(body.free, 1);
-  assert.deepEqual(body.rules, [{ id: 'basic', label: 'Regla básica' }]);
+  assert.deepEqual(body.rules.map((r) => r.id), ['basic', 'oldest', 'severity']);
   assert.deepEqual(body.desk.map((i) => [i.id, i.claimed]), [['INC1', true], ['INC3', false]]);
   assert.equal(body.desk[0].notes, undefined);
   assert.equal(body.next.id, 'INC2');

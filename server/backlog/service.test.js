@@ -19,9 +19,18 @@ test('solo lo libre: ni con responsable en Remedy ni cogida en SIA; en el orden 
     issue('INC4'),
     issue('INC5', { status: 'PENDING' }),
   ];
-  const { taken, issues: out } = await service(issues, [{ issue_id: 'INC4', user_id: 'u1' }]).list({ accessToken: 'jwt' });
+  const { taken, rule, rules, issues: out } = await service(issues, [{ issue_id: 'INC4', user_id: 'u1' }]).list({ accessToken: 'jwt' });
   assert.equal(taken, '2026-10-29T08:00:00.000Z');
   assert.deepEqual(out.map((i) => i.id), ['INC3', 'INC1']);
+  assert.equal(rule, 'basic');
+  assert.deepEqual(rules.map((r) => r.id), ['basic', 'oldest', 'severity']);
+});
+
+test('con otra regla, su orden; una desconocida, la básica', async () => {
+  const issues = [issue('INC1', { priority: 'LOW', reported: '2026-10-01 09:00' }), issue('INC2', { priority: 'CRITICAL', reported: '2026-10-20 09:00' })];
+  assert.deepEqual((await service(issues).list({ accessToken: 'jwt' }, 'oldest')).issues.map((i) => i.id), ['INC1', 'INC2']);
+  assert.deepEqual((await service(issues).list({ accessToken: 'jwt' }, 'severity')).issues.map((i) => i.id), ['INC2', 'INC1']);
+  assert.equal((await service(issues).list({ accessToken: 'jwt' }, 'nope')).rule, 'basic');
 });
 
 test('cada fila va en breve (sin notas ni worklog) y sin marca de cogida', async () => {
@@ -31,5 +40,6 @@ test('cada fila va en breve (sin notas ni worklog) y sin marca de cogida', async
 
 test('sin foto, nada que repartir', async () => {
   const s = createBacklogService({ source: { load: () => ({ taken: null, issues: [] }) }, platform: { rpc: async () => [] }, now: NOW });
-  assert.deepEqual(await s.list({ accessToken: 'jwt' }), { taken: null, issues: [] });
+  const r = await s.list({ accessToken: 'jwt' });
+  assert.deepEqual([r.taken, r.issues], [null, []]);
 });
