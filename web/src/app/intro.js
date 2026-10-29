@@ -21,9 +21,14 @@ export const hurry = (body = document.body) => {
   return true;
 };
 
+// Se escucha el ratón solo mientras dura el arranque: en cuanto termina (por el
+// ratón o por sus fases), el oyente se quita.
 export const startIntro = (body = document.body, doc = document) => {
   body.classList.add('booting');
-  const onMove = (e) => { if (wantsSidebar(e.clientX)) { hurry(body); doc.removeEventListener('mousemove', onMove); } };
+  const onMove = (e) => {
+    if (wantsSidebar(e.clientX)) hurry(body);
+    if (!body.classList.contains('booting')) doc.removeEventListener('mousemove', onMove);
+  };
   doc.addEventListener('mousemove', onMove);
 };
 
