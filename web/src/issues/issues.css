@@ -223,7 +223,6 @@
 .iss-rs { display: flex; flex-direction: column; gap: 10px; padding-top: 14px; border-top: 1px solid var(--border); }
 .iss-rs h4 { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; font-size: 13.5px; font-weight: 650; }
 .iss-rs h4 em { font-style: normal; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-low); }
-.iss-rs-have { margin: 0; font-size: 13px; color: var(--iss-ok); }
 .iss-rs blockquote { margin: 0; padding: 8px 12px; font-size: 13px; white-space: pre-wrap; color: var(--text); background: var(--bg); border-left: 3px solid var(--border); }
 .iss-done { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 28px; margin: 0; padding: 0; list-style: none; font-size: 13px; }
 @media (max-width: 640px) { .iss-done { grid-template-columns: 1fr; } }
@@ -234,8 +233,6 @@
 .iss-done small { margin-left: auto; font-size: 11.5px; color: var(--text-low); font-variant-numeric: tabular-nums; white-space: nowrap; }
 /* resolver: el identificador bien visible, para no equivocarse de incidencia */
 .iss-act-form header .iss-act-id { padding: 3px 10px; font-size: 14px; font-weight: 700; letter-spacing: .02em; color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); border: 1px solid var(--accent); }
-.iss-saved { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0; padding: 8px 12px; font-size: 13px; background: var(--bg); border-left: 3px solid var(--accent); }
-.iss-saved .lab-btn { margin-left: auto; }
 .iss-steps { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0; padding: 0 0 12px; list-style: none; font-size: 12.5px; color: var(--text-low); border-bottom: 1px solid var(--border); }
 .iss-steps li { display: flex; align-items: center; gap: 8px; }
 .iss-steps i { display: inline-grid; place-items: center; width: 20px; height: 20px; font-size: 11px; font-weight: 700; font-style: normal; border: 1px solid var(--border); }
@@ -247,7 +244,9 @@
 .iss-rstep .iss-rs:first-child { padding-top: 0; border-top: 0; }
 .iss-drop { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 22px 16px; font-size: 13px; text-align: center; color: var(--text-low); cursor: pointer; border: 1px dashed var(--border); background: var(--bg); }
 .iss-drop b { font-weight: 600; color: var(--text); }
-.iss-drop:hover, .iss-drop.over, .iss-drop:focus-within { border-color: var(--accent); color: var(--text); }
+.iss-drop:hover, .iss-drop:focus-within, .iss-resolve.over .iss-drop { border-color: var(--accent); color: var(--text); }
+/* un archivo arrastrado encima del modal (en el paso del adjunto): se suelta en cualquier parte */
+.iss-resolve.over { outline: 2px dashed var(--accent); outline-offset: -6px; }
 /* el selector de archivos, oculto a la vista pero no al teclado: Tab lo enfoca e Intro lo abre */
 .iss-drop input { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
 .iss-drop:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -271,16 +270,12 @@
 .iss-autosave { margin-right: auto; font-size: 12px; color: var(--text-low); }
 .iss-cf-file { color: var(--text-low); }
 /* resolver, confirmación: lo que se envía, limpio y como se va a leer */
-.iss-cf-lead { margin: 0; font-size: 13px; color: var(--text-low); }
 .iss-cf { display: flex; flex-direction: column; gap: 8px; }
 .iss-cf h4 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin: 0; font-size: 13.5px; font-weight: 650; }
 .iss-cf h4 em { font-style: normal; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-low); }
 .iss-cf-box { display: flex; flex-direction: column; gap: 12px; padding: 12px 14px; font-size: 13.5px; line-height: 1.5; background: var(--bg); border: 1px solid var(--border); }
 .iss-cf-box p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .iss-cf-mail { border-left: 3px solid var(--accent); }
-.iss-cf-state { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 0; padding-top: 12px; font-size: 13px; color: var(--text-low); border-top: 1px solid var(--border); }
-.iss-cf-state span { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
-.iss-cf-state b { color: var(--iss-ok); }
 /* «?»: la ayuda sale al pasar el ratón o al llegar con el teclado */
 .iss-tip { position: relative; display: inline-flex; }
 .iss-tip button { width: 18px; height: 18px; padding: 0; font: inherit; font-size: 11px; font-weight: 700; line-height: 1; color: var(--text-low); background: transparent; border: 1px solid var(--border); cursor: help; }

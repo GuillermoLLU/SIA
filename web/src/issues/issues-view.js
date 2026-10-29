@@ -174,7 +174,6 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       if (t.closest('[data-step-next]')) return stepNext(t.closest('form'));
       if (t.closest('[data-step-back]')) { const form = t.closest('form'); return moveTo(form, Number(form.dataset.step) - 1); }
       if (t.closest('[data-file-clear]')) return setFile(t.closest('form'), null);
-      if (t.closest('[data-saved-drop]')) { clearTimeout(autosave); autosave = null; await saving; await api.dropDraft(opened); return openAction('resolve'); }
       const ed = t.closest('[data-edit-note]');
       if (ed) return openNoteEditor(ed.dataset.editNote);
       if (t.closest('[data-edit-cancel]')) return refreshTrail();
@@ -416,9 +415,10 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       toast?.(`${ACTIONS[key].label}: preparado, pero aún no se envía a Remedy (falta conectar SIGLO).`);
     } catch (e2) { fail(e2.message); }
   });
-  // Soltar el adjunto en su zona. Fuera de ella no pasa nada: el navegador no
-  // abre ni descarga el archivo (en toda la página, no solo en esta vista).
-  const dropZone = (e) => e.target.closest?.('[data-drop]');
+  // Soltar el adjunto en cualquier parte del modal de Resolver, en el paso del
+  // mensaje al centro, que es el que lo lleva. Fuera de ahí no pasa nada: el
+  // navegador no abre ni descarga el archivo (en toda la página, no solo aquí).
+  const dropZone = (e) => e.target.closest?.('[data-act-form="resolve"][data-step="2"]');
   const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
   const ignoreDrop = (e) => {
     if (!hasFiles(e) || (root.contains(e.target) && dropZone(e))) return;
@@ -433,9 +433,10 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     const z = dropZone(e);
     if (!z) return;
     e.preventDefault();
+    z.classList.remove('over');
     const files = e.dataTransfer.files;
-    if (!files.length) return z.classList.remove('over');
-    setFile(z.closest('form'), files[0]);
+    if (!files.length) return;
+    setFile(z, files[0]);
     if (files.length > 1) toast?.('Solo se adjunta uno: el primero.');
   });
 

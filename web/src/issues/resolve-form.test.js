@@ -8,12 +8,14 @@ const n = (at, text) => ({ at, who: 'ANA', text });
 // las cuatro notas del procedimiento: con ellas se puede escribir la de cierre
 const ALL = ['SITUACION INICIAL', 'ANTECEDENTES', 'ANALISIS', 'DIAGNOSTICO'].map((t) => n('2026-10-28 11:05', `[${t}] Cola llena`));
 
-test('dos bloques separados, con su ayuda, y lo de Remedy ya puesto y escapado', () => {
+test('dos bloques separados, con su ayuda, y lo de Remedy ya puesto y escapado, sin texto de relleno', () => {
   const html = resolveForm('INC1', resolveDraft({ priority: 'HIGH', category: 'x', worklog: [n('2026-10-28 11:05', '[DIAGNOSTICO] Cola <llena>')] }));
   assert.match(html, /Nota interna de resolución <em>Solo la ve el equipo<\/em>/);
   assert.match(html, /Mensaje al centro <em>Lo reciben el centro y quien haya participado<\/em>/);
   assert.equal((html.match(/role="tooltip"/g) || []).length, 4);
-  assert.match(html, /name="what" rows="3" maxlength="20000">Cola &lt;llena&gt;<\/textarea>\s*<small>Sale de tu nota de diagnóstico \(28\/10 11:05, ANA\)\. Cuéntalo sin jerga/);
+  assert.match(html, /name="what" rows="3" maxlength="20000">Cola &lt;llena&gt;<\/textarea><\/label>/);
+  // los títulos y las ayudas «?» bastan: sin frases bajo los campos ni avisos de lo obvio
+  assert.doesNotMatch(html, /Sale de tu nota|Cuéntalo sin jerga|Técnico y concreto|fallo del sistema|Seguimos con|Sigues en el paso/);
   assert.match(html, /<textarea id="iss-f-note" name="note"/);
   assert.match(html, /<span>¿Qué se ha hecho\?<\/span>/);
   assert.match(html, /aria-label="¿Qué es esto\?"/);
@@ -22,7 +24,8 @@ test('dos bloques separados, con su ayuda, y lo de Remedy ya puesto y escapado',
 
 test('si la nota de resolución ya está en Remedy, se enseña y no se pide', () => {
   const html = resolveForm('INC1', resolveDraft({ priority: 'HIGH', category: 'x', worklog: [n('2026-10-28 11:40', '[RESOLUCION] Se libera')] }));
-  assert.match(html, /Ya la escribiste en Remedy \(28\/10 11:40, ANA\)/);
+  assert.match(html, /<blockquote>Se libera<\/blockquote>/);
+  assert.doesNotMatch(html, /Ya la escribiste/);
   assert.match(html, /<input type="hidden" name="note" value="Se libera" \/>/);
   assert.doesNotMatch(html, /<textarea id="iss-f-note"/);
 });
@@ -30,7 +33,7 @@ test('si la nota de resolución ya está en Remedy, se enseña y no se pide', ()
 test('tres pasos: la nota interna, el mensaje con su adjunto, y revisar; solo el primero a la vista', () => {
   const html = resolveForm('INC1', resolveDraft({ priority: 'HIGH', category: 'x', worklog: ALL }));
   assert.match(html, /<li data-step-mark="1" aria-current="step"><i>1<\/i>Nota interna<\/li><li data-step-mark="2"><i>2<\/i>Mensaje al centro<\/li><li data-step-mark="3"><i>3<\/i>Revisar y enviar<\/li>/);
-  assert.match(html, /data-rstep="1">[\s\S]*Nota interna de resolución[\s\S]*data-rstep="2" hidden>[\s\S]*Mensaje al centro[\s\S]*<label class="iss-drop" data-drop><input type="file" data-file \/><b>Arrastra aquí el archivo<\/b>[\s\S]*data-rstep="3" hidden>/);
+  assert.match(html, /data-rstep="1">[\s\S]*Nota interna de resolución[\s\S]*data-rstep="2" hidden>[\s\S]*Mensaje al centro[\s\S]*<label class="iss-drop"><input type="file" data-file \/><b>Arrastra aquí el archivo<\/b>[\s\S]*data-rstep="3" hidden>/);
   assert.doesNotMatch(html, /multiple/);
   assert.match(html, /data-step-next>Siguiente: mensaje al centro/);
   assert.match(html, /data-confirm-send hidden>Confirmar y resolver/);
@@ -44,7 +47,7 @@ test('no se sale de un paso sin lo obligatorio', () => {
   assert.equal(stepMissing(3, {}), null);
 });
 
-test('revisar: la nota y la nota externa con la plantilla, escapadas, con el adjunto y el estado final', () => {
+test('revisar: la nota y la nota externa con la plantilla, escapadas, con el adjunto y nada más', () => {
   const v = { note: 'Relanzada <ok>', what: 'Se paró', how: 'Se relanzó', prevent: 'Corrección pedida' };
   const msg = { lang: 'es', hour: 16 };
   const html = resolveReview(v, { name: 'cola<1>.png', size: 2048 }, msg);
@@ -54,12 +57,12 @@ test('revisar: la nota y la nota externa con la plantilla, escapadas, con el adj
   assert.match(resolveReview(v, null, { ...msg, lang: 'en' }), /<p>Good afternoon,<\/p>/);
   assert.doesNotMatch(html, /Qué ocurrió|Cómo se resolvió|Qué se hará|Correo/);
   assert.match(html, /Adjunto: cola&lt;1&gt;\.png · 2 KB/);
-  assert.match(html, /<b>Resuelta<\/b>/);
+  assert.doesNotMatch(html, /Así quedará|Estado final|Resuelta|5 días|Aún no se envía/);
   assert.doesNotMatch(resolveReview(v, null, msg), /Adjunto/);
   assert.equal(fileSize(3.5 * 1024 * 1024), '3,5 MB');
 });
 
-test('título, identificador visible, guardado automático y lo que se dejó escrito', () => {
+test('título, identificador visible, guardado automático y lo que se dejó escrito, sin aviso de que viene de antes', () => {
   const r = resolveDraft({ priority: 'HIGH', category: 'x', worklog: ALL });
   assert.match(resolveForm('INC1', r), /<h3>Resolver incidencia<\/h3><span class="iss-act-id">INC1<\/span>/);
   assert.doesNotMatch(resolveForm('INC1', r), /Guardar para después/);
@@ -67,10 +70,10 @@ test('título, identificador visible, guardado automático y lo que se dejó esc
   assert.match(resolveForm('INC1', r), /<span>¿Qué ocurrió\?<\/span>[\s\S]*<span>¿Cómo se resolvió\?<\/span>[\s\S]*<span>¿Qué se hará para evitarlo\?<\/span>/);
   const at = new Date(2026, 9, 28, 15, 20).toISOString();
   const html = resolveForm('INC1', r, { at, note: 'Mi nota', what: 'Lo mío', how: '', prevent: 'P', file: { name: 'cola.png', size: 2048 } });
-  assert.match(html, /Seguimos con lo que dejaste el 28\/10 15:20/);
+  assert.doesNotMatch(html, /Seguimos con|Descartar/);
   assert.match(html, /data-autosave>Borrador guardado 28\/10 15:20</);
   assert.match(html, /data-file-name>cola\.png · 2 KB<\/span><button type="button" class="lab-btn" data-file-clear>Quitar/);
-  assert.doesNotMatch(html, /data-drop/);
+  assert.doesNotMatch(html, /iss-drop/);
   assert.match(html, /name="what" rows="3" maxlength="20000">Lo mío<\/textarea>/);
   assert.match(html, /name="note" rows="4" maxlength="20000">Mi nota<\/textarea>/);
   assert.match(html, /name="prevent" rows="2" maxlength="20000">P<\/textarea>/);
@@ -93,9 +96,7 @@ test('un borrador se retoma en el paso en el que se quedó, si los de antes sigu
   assert.equal(resumeStep(done, { ...full, note: '', step: 2 }), 2);  // la nota ya está en Remedy
   const blocked = resolveDraft({ priority: 'HIGH', category: '', worklog: ALL });
   assert.equal(resumeStep(blocked, { ...full, step: 3 }), 1);         // falta algo en Remedy: donde se avisa
-  const html = resolveForm('INC1', r, { ...full, step: 2 });
-  assert.match(html, /<input type="hidden" name="step" value="1" \/>/);
-  assert.match(html, /Sigues en el paso 2, «Mensaje al centro», donde lo dejaste el 28\/10 15:20/);
+  assert.match(resolveForm('INC1', r, { ...full, step: 2 }), /<input type="hidden" name="step" value="1" \/>/);
 });
 
 test('sin las notas del procedimiento en Remedy no se escribe la nota de cierre ni se pasa de paso', () => {
@@ -109,7 +110,7 @@ test('sin las notas del procedimiento en Remedy no se escribe la nota de cierre 
 });
 
 test('la zona del adjunto y la hora en la de este equipo', () => {
-  assert.match(fileBox(null), /data-drop>.*o pulsa para elegirlo · uno, hasta 15 MB/);
+  assert.match(fileBox(null), /class="iss-drop">.*o pulsa para elegirlo · uno, hasta 15 MB/);
   assert.match(fileBox({ name: 'a<b>.txt', size: 10 }), /a&lt;b&gt;\.txt · 1 KB/);
   assert.equal(localShort(new Date(2026, 0, 5, 7, 3).toISOString()), '05/01 07:03');
 });

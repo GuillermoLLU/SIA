@@ -15,7 +15,6 @@ export const createIssuesApi = (api) => {
     resolve: (issueId, fields) => api(`/issues/${id(issueId)}/resolve`, { method: 'POST', body: fields }),
     // el borrador de Resolver, en la BBDD local: el texto y su adjunto ({ name, type, data en base64 })
     saveDraft: (issueId, fields) => api(`/issues/${id(issueId)}/draft`, { method: 'PUT', body: fields }),
-    dropDraft: (issueId) => api(`/issues/${id(issueId)}/draft`, { method: 'DELETE' }),
     saveDraftFile: (issueId, file) => api(`/issues/${id(issueId)}/draft/file`, { method: 'PUT', body: file }),
     dropDraftFile: (issueId) => api(`/issues/${id(issueId)}/draft/file`, { method: 'DELETE' }),
     transfer: (issueId, to, comment) => api(`/issues/${id(issueId)}/transfer`, { method: 'POST', body: { to, comment } }),

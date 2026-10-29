@@ -54,20 +54,18 @@ export const localShort = (iso) => {
   return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
 };
 
-// La zona del adjunto: se suelta el archivo encima o se pulsa para elegirlo.
+// La zona del adjunto: el archivo subido o, si no hay, pulsar para elegirlo.
+// Soltarlo vale en todo el modal (lo atiende la vista).
 export const fileBox = (file) => file
   ? `<p class="iss-file-on"><span data-file-name>${esc(file.name)} · ${fileSize(file.size)}</span><button type="button" class="lab-btn" data-file-clear>Quitar</button></p>`
-  : `<label class="iss-drop" data-drop><input type="file" data-file /><b>Arrastra aquí el archivo</b><span>o pulsa para elegirlo · uno, hasta 15 MB</span></label>`;
+  : `<label class="iss-drop"><input type="file" data-file /><b>Arrastra aquí el archivo</b><span>o pulsa para elegirlo · uno, hasta 15 MB</span></label>`;
 
-const area = (name, rows, d, empty, saved) => `<textarea id="iss-f-${name}" name="${name}" rows="${rows}" maxlength="${MAX_TEXT}">${esc(saved?.[name] ?? d?.value ?? '')}</textarea>
-      <small>${d ? `Sale de tu nota de ${esc(d.from)}. Cuéntalo sin jerga: lo lee el centro.` : empty}</small>`;
+const area = (name, rows, d, saved) => `<textarea id="iss-f-${name}" name="${name}" rows="${rows}" maxlength="${MAX_TEXT}">${esc(saved?.[name] ?? d?.value ?? '')}</textarea>`;
 
 // El paso 3: lo que se va a enviar, ya limpio y como se va a leer: la nota
 // externa con la plantilla (centerMessage). `v`: los valores del formulario, ya
 // completos; `file`: { name, size } o null; `msg`: { lang, hour }.
-export const resolveReview = (v, file, msg) => `<p class="iss-cf-lead">Así quedará. Si algo no está bien, vuelve atrás y cámbialo.</p>
-
-      <section class="iss-cf">
+export const resolveReview = (v, file, msg) => `<section class="iss-cf">
         <h4>Nota interna en Remedy <em>Solo la ve el equipo</em></h4>
         <div class="iss-cf-box"><p>[RESOLUCION] ${esc(v.note)}</p></div>
       </section>
@@ -76,23 +74,17 @@ export const resolveReview = (v, file, msg) => `<p class="iss-cf-lead">Así qued
         <h4>Nota externa para el centro en Remedy <em>Lo reciben el centro y quien haya participado</em></h4>
         <div class="iss-cf-box iss-cf-mail">${centerMessage(v, msg).map((p) => `<p>${esc(p)}</p>`).join('')}
           ${file ? `<p class="iss-cf-file">Adjunto: ${esc(file.name)} · ${fileSize(file.size)}</p>` : ''}</div>
-      </section>
-
-      <p class="iss-cf-state"><span>Estado final</span><b>Resuelta</b> Si el centro no la reabre, se cierra sola a los 5 días.</p>
-      <p class="iss-act-note">Aún no se envía a Remedy: irá por SIGLO cuando lo conectemos.</p>`;
+      </section>`;
 
 const done = (n) => `<li class="${n.note ? 'ok' : 'no'}"><i>${n.note ? '✓' : '—'}</i><span>${n.label}</span><small>${n.note ? `${short(n.note.at)} · ${esc(n.note.who)}` : n.key === 'resolution' ? 'la escribes ahora' : 'no está'}</small></li>`;
 
 const steps = () => `<ol class="iss-steps">${STEPS.map((s) => `<li data-step-mark="${s.n}"${s.n === 1 ? ' aria-current="step"' : ''}><i>${s.n}</i>${s.title}</li>`).join('')}</ol>`;
 
 // Se pinta en el paso 1; la vista lo lleva después al de resumeStep (goStep).
-export const resolveForm = (issueId, r, saved = null) => {
-  const at = resumeStep(r, saved);
-  return `<form class="iss-act-form iss-resolve" data-act-form="resolve" data-step="1" novalidate>
+export const resolveForm = (issueId, r, saved = null) => `<form class="iss-act-form iss-resolve" data-act-form="resolve" data-step="1" novalidate>
     <header><h3>Resolver incidencia</h3><span class="iss-act-id">${esc(issueId)}</span></header>
     ${steps()}
     <input type="hidden" name="step" value="1" />
-    ${saved ? `<p class="iss-saved">${at > 1 ? `Sigues en el paso ${at}, «${STEPS[at - 1].title}», donde lo dejaste el ${localShort(saved.at)}.` : `Seguimos con lo que dejaste el ${localShort(saved.at)}.`} <button type="button" class="lab-btn" data-saved-drop>Descartar y empezar de nuevo</button></p>` : ''}
 
     <div class="iss-rstep" data-rstep="1">
       <section class="iss-rs">
@@ -105,11 +97,9 @@ export const resolveForm = (issueId, r, saved = null) => {
       <section class="iss-rs">
         <h4>Nota interna de resolución <em>Solo la ve el equipo</em> ${tip('Se guarda en el historial de Remedy como <b>[RESOLUCION]</b>. No le llega al centro. La leen la auditoría de calidad y quien coja la issue si se reabre: cuenta qué se hizo, con el detalle técnico que haga falta.')}</h4>
         ${r.resolution
-          ? `<p class="iss-rs-have">Ya la escribiste en Remedy (${short(r.resolution.at)}, ${esc(r.resolution.who)}): no hace falta repetirla.</p>
-        <blockquote>${esc(r.resolution.text)}</blockquote><input type="hidden" name="note" value="${esc(r.resolution.text)}" />`
+          ? `<blockquote>${esc(r.resolution.text)}</blockquote><input type="hidden" name="note" value="${esc(r.resolution.text)}" />`
           : `<label class="iss-field" for="iss-f-note"><span>¿Qué se ha hecho?</span>
-        <textarea id="iss-f-note" name="note" rows="4" maxlength="${MAX_TEXT}"${r.missing.length ? ' disabled' : ''}>${esc(saved?.note || '')}</textarea>
-        <small>Técnico y concreto: la query, el script o el cambio aplicado.</small></label>`}
+        <textarea id="iss-f-note" name="note" rows="4" maxlength="${MAX_TEXT}"${r.missing.length ? ' disabled' : ''}>${esc(saved?.note || '')}</textarea></label>`}
       </section>
     </div>
 
@@ -118,11 +108,11 @@ export const resolveForm = (issueId, r, saved = null) => {
         <div class="iss-rs-h"><h4>Mensaje al centro <em>Lo reciben el centro y quien haya participado</em> ${tip('Es la nota externa de resolución en Remedy. Le llega a quien abrió la issue y a todos los que han participado (proveedor, desarrollo…). Lo lee gente que no es técnica, así que va sin jerga. La auditoría comprueba que trae los tres puntos y que «¿Qué ocurrió?» coincide con tu nota de diagnóstico. El saludo y la despedida se ponen solos.')}</h4>
         <fieldset class="iss-lang"><legend>Idioma del mensaje</legend>${LANGS.map((l) => `<label><input type="radio" name="lang" value="${l.key}"${(saved?.lang || 'es') === l.key ? ' checked' : ''} /><span>${l.label}</span></label>`).join('')}</fieldset></div>
         <label class="iss-field" for="iss-f-what"><span>¿Qué ocurrió?</span>
-        ${area('what', 3, r.draft.what, 'Lo que pasó, contado para el centro. Tiene que coincidir con tu diagnóstico.', saved)}</label>
+        ${area('what', 3, r.draft.what, saved)}</label>
         <label class="iss-field" for="iss-f-how"><span>¿Cómo se resolvió?</span>
-        ${area('how', 3, r.draft.how, 'Lo que se hizo, en palabras del centro. Si es temporal, dilo: puede volver a pasar.', saved)}</label>
+        ${area('how', 3, r.draft.how, saved)}</label>
         <label class="iss-field" for="iss-f-prevent"><span>¿Qué se hará para evitarlo?</span>
-        ${area('prevent', 2, null, 'Si es un fallo del sistema, basta con decir que se ha pedido su corrección: la gestiona A&S Proyectos. Si no, una pauta para el centro.', saved)}</label>
+        ${area('prevent', 2, null, saved)}</label>
       </section>
 
       <section class="iss-rs">
@@ -142,4 +132,3 @@ export const resolveForm = (issueId, r, saved = null) => {
       <button type="submit" class="lab-btn primary" data-confirm-send hidden>Confirmar y resolver</button>
     </footer>
   </form>`;
-};
