@@ -5,6 +5,7 @@
 import { queue, RULES } from './queue.js';
 import { deskOf, brief } from './desk.js';
 import { today, history, dayKey } from './stats.js';
+import { timeline } from './timeline.js';
 
 const WEEKS = 12;
 
@@ -44,15 +45,25 @@ export const createIssuesService = ({ source, platform }) => {
       return (await platform.rpc(jwt, 'platform_claim_next_issue', { p_candidates: queue(issues, claimed, now, rule).slice(0, 500) })) || null;
     },
     release: ({ accessToken: jwt }, id) => platform.rpc(jwt, 'platform_release_issue', { p_issue: id }),
-    // → { issue (con claimedBy), sameCenter } | null si ya no está en la foto
-    async get({ accessToken: jwt }, id) {
-      const { issues, claims } = await snapshot(jwt);
+    // a un compañero de Issues; el comentario queda como nota del traspaso
+    transfer: ({ accessToken: jwt }, id, { to, comment }) => platform.rpc(jwt, 'platform_transfer_issue', { p_issue: id, p_to: to, p_comment: comment || null }),
+    // una nota interna del equipo → su id
+    addNote: ({ accessToken: jwt }, id, body) => platform.rpc(jwt, 'platform_add_issue_note', { p_issue: id, p_body: body }),
+    // su recorrido en SIA: movimientos y notas, por orden (timeline.js)
+    async timeline({ accessToken: jwt }, id) {
+      const [events, notes] = await Promise.all([platform.rpc(jwt, 'platform_issue_events', { p_issue: id }), platform.rpc(jwt, 'platform_issue_notes', { p_issue: id })]);
+      return timeline(events, notes);
+    },
+    // → { issue (con claimedBy), sameCenter, timeline } | null si ya no está en la foto
+    async get(who, id) {
+      const { issues, claims } = await snapshot(who.accessToken);
       const issue = issues.find((i) => i.id === id);
       if (!issue) return null;
       const holder = claims.find((c) => c.issue_id === id);
       return {
         issue: { ...issue, claimedBy: holder ? { id: holder.user_id, name: holder.user_name, at: holder.claimed_at } : null },
         sameCenter: issue.center ? issues.filter((i) => i.center === issue.center && i.id !== id).map(brief) : [],
+        timeline: await this.timeline(who, id),
       };
     },
     // una issue de la foto, por id (el chat de una issue)

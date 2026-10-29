@@ -1,5 +1,6 @@
 // La pantalla de trabajo de una issue. A la izquierda, en pestañas: el
-// análisis de la IA, el detalle de la issue y las relacionadas. A la derecha,
+// análisis de la IA, el detalle de la issue, las relacionadas y su recorrido
+// en SIA (por dónde ha pasado y las notas del equipo). A la derecha,
 // sus datos clave y debajo el chat de la issue (con el conocimiento,
 // issue-chat.js), que vive mientras la issue esté abierta. El análisis (lo
 // hará el harness del equipo) y las parecidas, por conectar: solo sus huecos.
@@ -13,7 +14,23 @@ const WORK_TABS = [
   { key: 'ai', label: 'Análisis de la IA' },
   { key: 'detail', label: 'Detalle' },
   { key: 'related', label: 'Relacionadas' },
+  { key: 'trail', label: 'Recorrido y notas' },
 ];
+
+// El recorrido en SIA: movimientos y notas por orden (lo que da el bridge en
+// `timeline`). Se pinta aparte para poder refrescarlo al añadir una nota.
+const at = (iso) => when(stamp(new Date(iso)));
+const MOVES = {
+  claimed: (t) => `<b>${esc(t.by || 'Alguien')}</b> la cogió`,
+  released: (t) => `<b>${esc(t.by || 'Alguien')}</b> la devolvió a la cola`,
+  transferred: (t) => `<b>${esc(t.by || 'Alguien')}</b> la traspasó a <b>${esc(t.to || 'alguien')}</b>`,
+};
+const trailItem = (t) => (t.type === 'note'
+  ? `<li class="iss-trail-note${t.kind === 'transfer' ? ' transfer' : ''}"><time>${at(t.at)}</time><div><span class="iss-trail-who"><b>${esc(t.by || 'Alguien')}</b>${t.kind === 'transfer' ? '<i class="iss-tag">Motivo del traspaso</i>' : ''}${t.edited ? `<small>editada ${at(t.edited)}</small>` : ''}</span><p>${esc(t.text)}</p></div></li>`
+  : `<li class="iss-trail-move"><time>${at(t.at)}</time><div>${(MOVES[t.type] || ((x) => esc(x.type)))(t)}</div></li>`);
+export const trailHtml = (timeline = []) => (timeline.length
+  ? `<ol class="iss-trail">${timeline.map(trailItem).join('')}</ol>`
+  : '<p class="iss-empty">Nadie la ha movido ni anotado en SIA todavía.</p>');
 
 const aiSection = (title, text) => `<section class="iss-ai-sec"><h4 class="iss-sub">${title}</h4>${pending(text)}</section>`;
 const aiPanel = () => `
@@ -23,7 +40,7 @@ const aiPanel = () => `
   ${aiSection('Pasos sugeridos', 'Qué hacer para resolverla, en orden.')}
   ${aiSection('Logs y datos recopilados', 'Lo que haya recogido el análisis automático, una fila por fuente.')}`;
 
-export const workScreen = ({ issue: i, sameCenter, now, mine, tab = 'ai' }) => `<div class="iss-page iss-work-page">
+export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, tab = 'ai' }) => `<div class="iss-page iss-work-page">
   <header class="iss-work-h">
     <button class="iss-back" data-back>← Mi mesa</button>
     <div class="iss-title-row">
@@ -44,7 +61,7 @@ export const workScreen = ({ issue: i, sameCenter, now, mine, tab = 'ai' }) => `
   <div class="iss-work">
     <section class="iss-card iss-work-main">
       <div class="iss-wtabs" role="tablist">
-        ${WORK_TABS.map((t) => `<button role="tab" data-wtab="${t.key}" aria-selected="${t.key === tab}">${t.label}${t.key === 'related' && sameCenter.length ? `<span>${sameCenter.length}</span>` : ''}</button>`).join('')}
+        ${WORK_TABS.map((t) => `<button role="tab" data-wtab="${t.key}" aria-selected="${t.key === tab}">${t.label}${t.key === 'related' && sameCenter.length ? `<span>${sameCenter.length}</span>` : ''}${t.key === 'trail' && timeline.length ? `<span>${timeline.length}</span>` : ''}</button>`).join('')}
       </div>
 
       <div class="iss-wpanel" data-wpanel="ai"${tab === 'ai' ? '' : ' hidden'}>${aiPanel()}</div>
@@ -76,6 +93,11 @@ export const workScreen = ({ issue: i, sameCenter, now, mine, tab = 'ai' }) => `
         ${sameCenter.length ? `<div class="iss-items">${sameCenter.map((x) => item(x, 'doing', now)).join('')}</div>` : '<p class="iss-empty">Ninguna otra abierta de este centro.</p>'}
         <h4 class="iss-sub">Parecidas <span class="iss-badge">Por conectar</span></h4>
         ${pending('Issues de otros centros con el mismo problema y cómo se resolvieron.')}
+      </div>
+
+      <div class="iss-wpanel" data-wpanel="trail"${tab === 'trail' ? '' : ' hidden'}>
+        <h4 class="iss-sub">Por dónde ha pasado en SIA <span class="iss-low">· quién la cogió, devolvió o traspasó, y las notas del equipo</span></h4>
+        <div data-trail>${trailHtml(timeline)}</div>
       </div>
     </section>
 

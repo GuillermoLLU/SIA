@@ -1,6 +1,7 @@
 // Las acciones sobre una issue (resolver, escalar, añadir nota, traspasar):
-// su formulario y qué hace falta para enviarlo. Irán a Remedy por SIGLO; de
-// momento el formulario está activo pero no se envía nada.
+// su formulario y qué hace falta para enviarlo. Añadir nota y traspasar se
+// quedan en SIA (la base de la instancia); resolver y escalar irán a Remedy
+// por SIGLO y, de momento, no se envían.
 import { esc } from '../ui/html.js';
 
 export const ACTIONS = {
@@ -16,14 +17,14 @@ export const ACTIONS = {
     ],
   },
   note: {
-    label: 'Añadir nota', title: 'Añadir una nota', ok: 'Añadir',
-    fields: [{ name: 'note', label: 'Nota', kind: 'text', required: true }],
+    label: 'Añadir nota', title: 'Añadir una nota', ok: 'Añadir', local: true,
+    fields: [{ name: 'note', label: 'Nota', kind: 'text', required: true, hint: 'Interna, para el equipo. La verá quien abra la issue en SIA.' }],
   },
   transfer: {
-    label: 'Traspasar', title: 'Traspasar a un compañero', ok: 'Traspasar',
+    label: 'Traspasar', title: 'Traspasar a un compañero', ok: 'Traspasar', local: true,
     fields: [
       { name: 'to', label: 'Compañero', kind: 'person', required: true },
-      { name: 'comment', label: 'Comentario', kind: 'text', required: false, hint: 'Lo que debe saber quien la recibe.' },
+      { name: 'comment', label: 'Motivo', kind: 'text', required: false, hint: 'Lo que debe saber quien la recibe. Queda como nota de la issue.' },
     ],
   },
 };
@@ -41,7 +42,7 @@ export const actionForm = (key, issueId, people = []) => {
   return `<form class="iss-act-form" data-act-form="${key}" novalidate>
     <header><h3>${a.title}</h3><span>${esc(issueId)}</span></header>
     ${a.fields.map((f) => field(f, people)).join('')}
-    <p class="iss-act-note">Aún no se envía a Remedy: irá por SIGLO cuando lo conectemos.</p>
+    ${a.local ? '' : '<p class="iss-act-note">Aún no se envía a Remedy: irá por SIGLO cuando lo conectemos.</p>'}
     <p class="iss-act-err" hidden></p>
     <footer><button type="button" class="lab-btn" data-act-cancel>Cancelar</button><button type="submit" class="lab-btn primary">${a.ok}</button></footer>
   </form>`;

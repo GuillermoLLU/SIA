@@ -26,7 +26,8 @@
 --    issue_events       histórico de cada issue: cogida, devuelta a la cola o
 --                       traspasada, quién lo hizo y de quién a quién
 --    issue_notes        notas internas del equipo sobre una issue (editables por
---                       quien las escribió)
+--                       quien las escribió); el comentario de un traspaso queda
+--                       como nota etiquetada «transfer»
 --
 --  Vistas: lo que cada persona puede ver y hacer en SIA (el Chat, siempre).
 --  La lista está en platform.known_views().
@@ -168,21 +169,24 @@ create table if not exists platform.issue_events (
   actor        uuid references platform.users (id) on delete set null,      -- quién lo hizo
   from_user    uuid references platform.users (id) on delete set null,      -- quién la tenía
   to_user      uuid references platform.users (id) on delete set null,      -- quién la tiene ahora
-  comment      text check (comment is null or char_length(comment) <= 2000),
   happened_at  timestamptz not null default now()
 );
 create index if not exists issue_events_issue on platform.issue_events (issue_id, happened_at);
+alter table platform.issue_events drop column if exists comment;  -- el comentario del traspaso es una nota
 
 -- Notas internas del equipo sobre una issue. Las ve todo Issues; las edita
--- quien las escribió (el plazo para editarlas lo pone la web).
+-- quien las escribió (el plazo para editarlas lo pone la web). `kind` las
+-- etiqueta: 'note' (escrita a mano) o 'transfer' (el motivo de un traspaso).
 create table if not exists platform.issue_notes (
   id          bigint generated always as identity primary key,
   issue_id    text not null check (issue_id ~ '^INC[0-9]+$'),
   author      uuid references platform.users (id) on delete set null,
+  kind        text not null default 'note' check (kind in ('note', 'transfer')),
   body        text not null check (char_length(btrim(body)) between 1 and 4000),
   created_at  timestamptz not null default now(),
   edited_at   timestamptz
 );
+alter table platform.issue_notes add column if not exists kind text not null default 'note' check (kind in ('note', 'transfer'));
 create index if not exists issue_notes_issue on platform.issue_notes (issue_id, created_at);
 
 -- Administrador, con todas las vistas que haya (también las que se añadan)
@@ -727,7 +731,8 @@ begin
 end $$;
 
 -- Traspasarla a un compañero (solo la propia, y solo a alguien activo con la
--- vista Issues). Pasa a ser suya desde ahora; el comentario es para quien la recibe.
+-- vista Issues). Pasa a ser suya desde ahora; el comentario, si lo hay, queda
+-- como nota de la issue etiquetada 'transfer'.
 create or replace function public.platform_transfer_issue(p_issue text, p_to uuid, p_comment text default null) returns void
 language plpgsql security definer set search_path = '' as $$
 declare v_me uuid := platform.require_view('issues');
@@ -738,8 +743,10 @@ begin
   end if;
   update platform.issue_claims set user_id = p_to, claimed_at = now() where issue_id = p_issue and user_id = v_me;
   if not found then raise exception 'Esa issue no es tuya.' using errcode = '42501'; end if;
-  insert into platform.issue_events (issue_id, action, actor, from_user, to_user, comment)
-    values (p_issue, 'transferred', v_me, v_me, p_to, nullif(btrim(p_comment), ''));
+  insert into platform.issue_events (issue_id, action, actor, from_user, to_user) values (p_issue, 'transferred', v_me, v_me, p_to);
+  if nullif(btrim(p_comment), '') is not null then
+    insert into platform.issue_notes (issue_id, author, kind, body) values (p_issue, v_me, 'transfer', left(btrim(p_comment), 4000));
+  end if;
   perform platform.audit(v_me, 'issue.transferred', p_to, jsonb_build_object('issue', p_issue));
 end $$;
 
@@ -747,13 +754,13 @@ end $$;
 -- quién a quién, del más antiguo al más reciente.
 drop function if exists public.platform_issue_events(text);
 create function public.platform_issue_events(p_issue text)
-returns table (id bigint, action text, actor_name text, from_name text, to_name text, comment text, happened_at timestamptz)
+returns table (id bigint, action text, actor_name text, from_name text, to_name text, happened_at timestamptz)
 language plpgsql stable security definer set search_path = '' as $$
 #variable_conflict use_column
 begin
   perform platform.require_view('issues');
   return query
-    select e.id, e.action, ua.name, uf.name, ut.name, e.comment, e.happened_at
+    select e.id, e.action, ua.name, uf.name, ut.name, e.happened_at
     from platform.issue_events e
     left join platform.users ua on ua.id = e.actor
     left join platform.users uf on uf.id = e.from_user
@@ -766,13 +773,13 @@ end $$;
 -- Las notas de una issue, de la más antigua a la más reciente.
 drop function if exists public.platform_issue_notes(text);
 create function public.platform_issue_notes(p_issue text)
-returns table (id bigint, author_id uuid, author_name text, body text, created_at timestamptz, edited_at timestamptz)
+returns table (id bigint, author_id uuid, author_name text, kind text, body text, created_at timestamptz, edited_at timestamptz)
 language plpgsql stable security definer set search_path = '' as $$
 #variable_conflict use_column
 begin
   perform platform.require_view('issues');
   return query
-    select n.id, n.author, u.name, n.body, n.created_at, n.edited_at
+    select n.id, n.author, u.name, n.kind, n.body, n.created_at, n.edited_at
     from platform.issue_notes n left join platform.users u on u.id = n.author
     where n.issue_id = p_issue
     order by n.created_at, n.id;

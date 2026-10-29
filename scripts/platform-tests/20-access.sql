@@ -245,7 +245,7 @@ select assert_eq((select string_agg(issue_id || ':' || user_name, ',' order by i
 select expect_error($$select public.platform_release_issue('INC1')$$, 'quien la traspasó ya no la devuelve');
 select assert_eq((select string_agg(action || ':' || coalesce(actor_name, '-') || ':' || coalesce(from_name, '-') || ':' || coalesce(to_name, '-'), ',' order by happened_at, id) from public.platform_issue_events('INC1')),
   'claimed:Admin:-:Admin,transferred:Admin:Admin:agente.dos', 'el histórico de la issue: cogida y traspasada, con quién y a quién');
-select assert_eq((select comment from public.platform_issue_events('INC1') where action = 'transferred'), 'Lleva dos llamadas del centro.', 'el comentario del traspaso, sin espacios de más');
+select assert_eq((select string_agg(kind || ':' || author_name || ':' || body, '|') from public.platform_issue_notes('INC1')), 'transfer:Admin:Lleva dos llamadas del centro.', 'el comentario del traspaso queda como nota etiquetada, sin espacios de más');
 select assert_eq((select string_agg(action, ',' order by happened_at, id) from public.platform_issue_events('INC2')), 'claimed,released', 'la devuelta a la cola también queda');
 select assert_eq((select count(*) from public.platform_issue_events('INC3')), 0::bigint, 'sin movimientos: nada');
 select t_as(:U2);
@@ -262,15 +262,15 @@ select expect_error($$select public.platform_add_issue_note('x; drop', 'hola')$$
 select assert_eq(public.platform_add_issue_note('INC1', '  El centro confirma que el pedido salió.  ') > 0, true, 'añadir devuelve el id');
 select t_as(:AD);
 select assert_eq(public.platform_add_issue_note('INC1', 'Revisado con el proveedor.') > 0, true, 'otra persona de Issues añade la suya');
-select assert_eq((select string_agg(author_name || ':' || body, '|' order by created_at, id) from public.platform_issue_notes('INC1')),
-  'agente.dos:El centro confirma que el pedido salió.|Admin:Revisado con el proveedor.', 'las notas de la issue, por orden y con su autor');
+select assert_eq((select string_agg(kind || ':' || author_name || ':' || body, '|' order by created_at, id) from public.platform_issue_notes('INC1')),
+  'transfer:Admin:Lleva dos llamadas del centro.|note:agente.dos:El centro confirma que el pedido salió.|note:Admin:Revisado con el proveedor.', 'las notas de la issue, por orden, con su autor y su etiqueta');
 select assert_eq((select count(*) from public.platform_issue_notes('INC1') where edited_at is not null), 0::bigint, 'recién escritas: sin editar');
-select expect_error($$select public.platform_edit_issue_note((select min(id) from public.platform_issue_notes('INC1')), 'cambio ajeno')$$, 'nadie edita la nota de otro');
+select expect_error($$select public.platform_edit_issue_note((select min(id) from public.platform_issue_notes('INC1') where kind = 'note'), 'cambio ajeno')$$, 'nadie edita la nota de otro');
 select t_as(:U2);
-select public.platform_edit_issue_note((select min(id) from public.platform_issue_notes('INC1')), 'El centro confirma que el pedido salió ayer.');
-select assert_eq((select body from public.platform_issue_notes('INC1') order by created_at, id limit 1), 'El centro confirma que el pedido salió ayer.', 'la propia sí se edita');
-select assert_eq((select edited_at is not null from public.platform_issue_notes('INC1') order by created_at, id limit 1), true, 'y queda marcada como editada');
-select expect_error($$select public.platform_edit_issue_note((select min(id) from public.platform_issue_notes('INC1')), '')$$, 'editar a vacío no vale');
+select public.platform_edit_issue_note((select min(id) from public.platform_issue_notes('INC1') where kind = 'note'), 'El centro confirma que el pedido salió ayer.');
+select assert_eq((select body from public.platform_issue_notes('INC1') where kind = 'note' order by created_at, id limit 1), 'El centro confirma que el pedido salió ayer.', 'la propia sí se edita');
+select assert_eq((select edited_at is not null from public.platform_issue_notes('INC1') where kind = 'note' order by created_at, id limit 1), true, 'y queda marcada como editada');
+select expect_error($$select public.platform_edit_issue_note((select min(id) from public.platform_issue_notes('INC1') where kind = 'note'), '')$$, 'editar a vacío no vale');
 select assert_eq((select count(*) from public.platform_issue_notes('INC2')), 0::bigint, 'cada issue, sus notas');
 
 -- ── 6b. cambiar de base y desactivar ──

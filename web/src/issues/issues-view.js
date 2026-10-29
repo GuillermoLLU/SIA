@@ -7,7 +7,7 @@ import './issues.css';
 import { esc } from '../ui/html.js';
 import { LISTS, when, age, stamp, weekBars } from './format.js';
 import { sev, origin, item } from './parts.js';
-import { workScreen } from './work-screen.js';
+import { workScreen, trailHtml } from './work-screen.js';
 import { ACTIONS, actionForm, readAction } from './actions.js';
 
 const GOAL = { min: 15, max: 20 }; // resueltas por turno, lo que dice el equipo
@@ -87,14 +87,14 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
     </div>`;
   };
 
-  const renderIssue = ({ issue: i, sameCenter }) => {
+  const renderIssue = ({ issue: i, sameCenter, timeline }) => {
     onDesk = false;
     const mine = i.claimedBy && data?.desk.some((d) => d.id === i.id && d.claimed);
     if (opened !== i.id) workTab = 'ai';
     opened = i.id;
     closeChat();
     closeAction();
-    root.innerHTML = workScreen({ issue: i, sameCenter, now, mine, tab: workTab });
+    root.innerHTML = workScreen({ issue: i, sameCenter, timeline, now, mine, tab: workTab });
     chat = openChat?.(root.querySelector('.iss-chat-body'), i.id) || null;
     root.scrollTop = 0;
   };
@@ -136,8 +136,9 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
       if (rel) { rel.disabled = true; await api.release(opened); await loadDesk(); return toast?.('Devuelta a la cola.'); }
     } catch (err) { toast?.(err.message); }
   });
-  // Acciones: su formulario encima de la pantalla de trabajo. De momento se
-  // valida y se avisa: nada sale hacia Remedy hasta conectar SIGLO.
+  // Acciones: su formulario encima de la pantalla de trabajo. Traspasar y
+  // añadir nota van a la base de la instancia; resolver y escalar, de momento,
+  // se validan y se avisa: nada sale hacia Remedy hasta conectar SIGLO.
   let people = [];
   const closeAction = () => root.querySelector('.iss-modal')?.remove();
   const openAction = async (key) => {
@@ -146,17 +147,44 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
     root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${actionForm(key, opened, people)}</div>`);
     root.querySelector('.iss-act-form [name]')?.focus();
   };
-  root.addEventListener('submit', (e) => {
+  // Tras añadir una nota, el recorrido se repinta en su sitio.
+  const refreshTrail = async () => {
+    const items = await api.timeline(opened);
+    const box = root.querySelector('[data-trail]');
+    if (box) box.innerHTML = trailHtml(items);
+    const tab = root.querySelector('[data-wtab="trail"]');
+    if (tab) tab.innerHTML = `Recorrido y notas${items.length ? `<span>${items.length}</span>` : ''}`;
+  };
+  root.addEventListener('submit', async (e) => {
     const form = e.target.closest('[data-act-form]');
     if (!form) return;
     e.preventDefault();
     const key = form.dataset.actForm;
     const { missing, values } = readAction(key, Object.fromEntries(new FormData(form)));
     const err = form.querySelector('.iss-act-err');
-    if (missing) { err.textContent = `Falta: ${missing}.`; err.hidden = false; return; }
-    closeAction();
-    const who = key === 'transfer' ? people.find((p) => p.id === values.to)?.name : null;
-    toast?.(`${ACTIONS[key].label}${who ? ` a ${who}` : ''}: preparado, pero aún no se envía a Remedy (falta conectar SIGLO).`);
+    const fail = (text) => { err.textContent = text; err.hidden = false; form.querySelector('[type=submit]').disabled = false; };
+    if (missing) return fail(`Falta: ${missing}.`);
+    form.querySelector('[type=submit]').disabled = true;
+    try {
+      if (key === 'transfer') {
+        const who = people.find((p) => p.id === values.to)?.name || 'un compañero';
+        await api.transfer(opened, values.to, values.comment);
+        closeAction();
+        await loadDesk();
+        return toast?.(`Traspasada a ${who}.`);
+      }
+      if (key === 'note') {
+        await api.addNote(opened, values.note);
+        closeAction();
+        workTab = 'trail';
+        root.querySelectorAll('[data-wtab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.wtab === 'trail')));
+        root.querySelectorAll('[data-wpanel]').forEach((p) => { p.hidden = p.dataset.wpanel !== 'trail'; });
+        await refreshTrail();
+        return toast?.('Nota añadida.');
+      }
+      closeAction();
+      toast?.(`${ACTIONS[key].label}: preparado, pero aún no se envía a Remedy (falta conectar SIGLO).`);
+    } catch (e2) { fail(e2.message); }
   });
   root.addEventListener('keydown', (e) => { if (e.key === 'Escape' && root.querySelector('.iss-modal')) closeAction(); });
 
