@@ -6,7 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createDataset, checkColumns, DataError, FORMAT, GROUP } from './dataset.js';
-import { rangeOf, buildQuery } from './query.js';
+import { rangeOf, buildQuery, firstLoadRange } from './query.js';
 import { csvReader } from '../shared/csv.js';
 
 const SOURCE = 'Snowflake';
@@ -73,7 +73,8 @@ export const createMetricsStore = (dir, { repo, source, now = () => new Date(), 
 
   // Lo nuevo y lo cambiado, con los criterios de siempre (incidents.js: decide), en
   // una transacción: si algo falla, no entra nada y la siguiente lo vuelve a pedir.
-  const update = async () => {
+  // range: { from, to } solo con la base vacía (la primera carga con un periodo elegido); con datos, se ignora.
+  const update = async (range = null) => {
     if (loading) throw Object.assign(new Error('Ya se está actualizando: espera a que termine.'), { status: 409 });
     loading = true;
     abort = new AbortController();
@@ -81,7 +82,8 @@ export const createMetricsStore = (dir, { repo, source, now = () => new Date(), 
     progress = { phase: 'prepare', done: 0, total: 0 };
     const t = { start: Date.now() };
     try {
-      const { sql, binds } = buildQuery(rangeOf(repo.extremes()));
+      const empty = repo.extremes().first === null;
+      const { sql, binds } = buildQuery(empty && range?.from ? firstLoadRange(range) : rangeOf(repo.extremes()));
       const run = repo.begin();
       let counts;
       try {
@@ -164,5 +166,22 @@ export const createMetricsStore = (dir, { repo, source, now = () => new Date(), 
     }
   };
 
-  return { load, update, importCsv, cancel, progress: () => progress };
+  // Borra todo lo guardado en este ordenador (la base local y su copia calculada). Snowflake no se toca.
+  // Con el avance de lo borrado (progress: { phase: 'clear', done, total }), igual que las otras tareas.
+  const clear = async () => {
+    if (loading) throw Object.assign(new Error('Hay una carga en marcha: espera a que termine.'), { status: 409 });
+    loading = true;
+    progress = { phase: 'clear', done: 0, total: repo.count() };
+    try {
+      await repo.clearAll((done, total) => { progress = { phase: 'clear', done, total }; });
+      fs.rmSync(file, { force: true });
+      cache = null;
+      return { cleared: true };
+    } finally {
+      loading = false;
+      progress = null;
+    }
+  };
+
+  return { load, update, importCsv, cancel, clear, progress: () => progress };
 };

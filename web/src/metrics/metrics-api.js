@@ -3,7 +3,10 @@
 
 export const createMetricsApi = (api) => ({
   load: async () => (await api('/metrics')).data,
-  update: () => api('/metrics/update', { method: 'POST' }),
+  // range: { from, to } solo con la base vacía (la primera carga de ese periodo); sin él, la actualización de siempre
+  update: (range) => api('/metrics/update', { method: 'POST', ...(range ? { body: range } : {}) }),
+  // borra todo lo guardado en este ordenador (Snowflake no se toca) → { cleared }
+  clear: () => api('/metrics/clear', { method: 'POST' }),
   // por dónde va la actualización en curso (null: ninguna)
   progress: async () => (await api('/metrics/progress')).progress,
   // cancela lo que está en marcha, si aún no ha entrado nada en la base → { cancelled }

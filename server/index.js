@@ -165,7 +165,7 @@ export const startBridge = async ({ env = process.env } = {}) => {
       repo: createRepository({ DatabaseSync, file: path.join(workspace.metricsDir, 'incidencias.sqlite'), fs }),
       source: createSnowflake({ loadSdk, config: () => cleanSnowflake(config.read().snowflake) }),
       log: console.log,
-    }), { json }),
+    }), { json, readBody }),
     lan: lanRoutes(remote, lock, http_),
     projects: projectsRoutes(createProjects({ newId: randomUUID, fetchAll }), { ...http_, onProjectRemoved: () => skillSync.sync(assigned) }),
     skills: skillsRoutes({ ...http_, sync: skillSync, drafts: createDrafts(workspace.draftsDir), workspace }),

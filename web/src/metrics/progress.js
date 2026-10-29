@@ -16,6 +16,10 @@ export const CSV_PHASES = [
   { id: 'download', label: 'Leer el CSV y guardar sus incidencias', usual: 5 },
   { id: 'compute', label: 'Recalcular el informe', usual: 35 },
 ];
+// Eliminar el histórico: una sola fase, con cuántas incidencias quedan por borrar.
+export const CLEAR_PHASES = [
+  { id: 'clear', label: 'Borrar lo guardado en este ordenador', usual: 5 },
+];
 // Antes de esto, el ritmo de una fase aún no dice nada.
 const SETTLE_MS = 2000;
 
@@ -30,7 +34,7 @@ const guess = (usual, ms) => Math.max(usual - ms / 1000, usual * 0.15);
 export const estimate = (p, phaseMs, phases = PHASES) => {
   const phase = phaseOf(phases, p), rest = ahead(phases, phase), id = phases[phase].id;
   if (id === 'download' && !p.total) return { s: rest, known: true };
-  const msEach = (id === 'download' || id === 'compute') && p.done && phaseMs >= SETTLE_MS ? phaseMs / p.done : null;
+  const msEach = (id === 'download' || id === 'compute' || id === 'clear') && p.done && phaseMs >= SETTLE_MS ? phaseMs / p.done : null;
   if (msEach !== null) return { s: ((p.total - p.done) * msEach) / 1000 + rest, known: true };
   return { s: guess(phases[phase].usual, phaseMs) + rest, known: id === 'compute' };
 };
@@ -45,6 +49,7 @@ export const leftLabel = (s) => {
 const DETAIL = {
   prepare: 'Cargando el conector: la primera vez tras arrancar SIA puede tardar un poco.',
   connect: 'Si se abre el navegador, entra con tu cuenta de Inditex.',
+  clear: '',   // al borrar, ningún texto de detalle: solo el porcentaje y la barra
 };
 const MB = (bytes) => `${(bytes / 1048576).toLocaleString('es-ES', { maximumFractionDigits: 1 })} MB`;
 
@@ -59,7 +64,8 @@ export const progressOf = (last, { elapsed, phaseMs }, phases = PHASES) => {
   const detail = DETAIL[id]
     ?? (p.unit === 'bytes' ? (p.total ? `${MB(p.done)} de ${MB(p.total)}` : `${MB(p.done)} leídos`)
       : id === 'download' && !p.total ? 'Sin cambios desde la última actualización.'
-        : `${num(p.done)} de ${num(p.total)} incidencias`);
+        : !Number.isFinite(p.total) ? 'Preparando…'   // todavía no hay cifras del servidor
+          : `${num(p.done ?? 0)} de ${num(p.total)} incidencias`);
   return { phase, percent, detail, left: known ? leftLabel(s) : 'Calculando cuánto queda…' };
 };
 

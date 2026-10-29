@@ -17,25 +17,13 @@ import { createTabs, TABS } from './tabs.js';
 import { periodLabel } from './period.js';
 import { mountPeriodPanel } from './period-panel.js';
 import { attachTip } from './tip.js';
-import { PHASES, CSV_PHASES, progressOf, progressHtml } from './progress.js';
+import { PHASES, CSV_PHASES, CLEAR_PHASES, progressOf, progressHtml } from './progress.js';
 import { mountMetricsModals } from './metrics-modals.js';
 import { COLORS, defaultColors, freeColor, dayOf, coverage, freeCompany, withoutSide, togglePerson, filterKey } from './view.js';
 
 const SEARCH_MS = 250;
 const LOAD = 'Actualizar y generar informe';
 const FIRST_LOAD = 'Cargar datos';   // la primera vez, con la base local vacía
-const DAY_MS = 864e5, MIN_MS = 6e4;
-
-// Sin datos guardados, el periodo de la consulta va del 1 de enero de 2026 (la primera carga) a hoy, con las mismas
-// medidas (en minutos desde BASE) que el modelo de Métricas (model.js) para que el panel de periodo funcione igual.
-const emptyPeriod = () => {
-  const BASE = Date.UTC(2026, 0, 1);
-  const END_D = Math.floor((Date.now() - BASE) / DAY_MS + 1) * 1440;
-  const minuteOf = (k, d = 1) => (Date.UTC(2026, k, d) - BASE) / MIN_MS;
-  const monthAt = (min) => { const t = new Date(BASE + min * MIN_MS); return (t.getUTCFullYear() - 2026) * 12 + t.getUTCMonth(); };
-  // data.meta.start: el año que escribe el panel (sideHtml, period.js)
-  return { BASE, MIN_D: 0, END_D, LASTM: monthAt(END_D - 1), minuteOf, monthAt, data: { meta: { start: 2026 } } };
-};
 const POLL_MS = 400;     // cada cuánto se pregunta al bridge por el avance de la actualización
 const TICK_MS = 200;     // y cada cuánto se repinta (el porcentaje es de tiempo: se mueve aunque no haya cifras nuevas)
 const FINISH_MS = 450;   // el 100 % a la vista un momento antes de abrir las métricas nuevas
@@ -53,24 +41,17 @@ export const mountMetricsView = (root, { api, toast }) => {
   const ui = { exp: {}, sort: {} };
   const $ = (s) => root.querySelector(s);
   // Las ventanas de «Cargar CSV» y «Construir SQL»: al cargar, se vuelven a leer los datos y se abren como siempre.
-  const modals = mountMetricsModals({ api, toast, onUpload: (file) => uploadCsv(file).catch((e) => toast?.(e.name === 'AbortError' ? 'Cancelado: no ha entrado nada nuevo.' : e.message)) });
+  const modals = mountMetricsModals({
+    api, toast,
+    onUpload: (file) => uploadCsv(file).catch((e) => toast?.(e.name === 'AbortError' ? 'Cancelado: no ha entrado nada nuevo.' : e.message)),
+    onFirstLoad: (range) => update(range),
+    onClear: () => clearHistory(),
+  });
 
   const loadButton = () => `<button class="mt-load ${loading ? 'mt-busy' : ''}" data-update ${loading ? 'disabled' : ''}>${loading ? 'Actualizando…' : m ? LOAD : FIRST_LOAD}</button>`;
   // Los tres puntos: lo que se hace pocas veces (cargar un CSV, construir la consulta). Sin nada encima de la vista.
   const moreMenu = () => `<div class="mt-menu"><button class="mt-btn mt-icon-btn mt-more" data-more aria-haspopup="menu" aria-expanded="false" aria-label="Más opciones" title="Más opciones"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
-    <div class="mt-pop mt-menu-pop" data-more-pop role="menu" hidden><button role="menuitem" data-open-csv>Cargar CSV…</button><button role="menuitem" data-open-sql>Construir SQL…</button></div></div>`;
-  // El periodo de la consulta: un modelo derivado del de Métricas, con su propio periodo (de partida, el mes en
-  // curso). Así, elegirlo en la ventana de SQL no cambia el periodo de la vista.
-  const sqlPeriod = () => {
-    const base = m ?? emptyPeriod();
-    const model = Object.create(base);
-    model.S = { d0: base.minuteOf(base.LASTM), d1: base.END_D };
-    model.setPeriod = (d0, d1) => {
-      model.S.d0 = Math.max(base.MIN_D, Math.min(d0, base.END_D - 1440));
-      model.S.d1 = Math.min(base.END_D, Math.max(d1, model.S.d0 + 1440));
-    };
-    return model;
-  };
+    <div class="mt-pop mt-menu-pop" data-more-pop role="menu" hidden><button role="menuitem" data-open-csv>Cargar CSV…</button><button role="menuitem" data-open-sql>Construir SQL…</button><button role="menuitem" class="mt-danger-item" data-clear>Eliminar histórico…</button></div></div>`;
   const setMenu = (on) => {
     const pop = $('[data-more-pop]');
     if (!pop) return;
@@ -79,7 +60,7 @@ export const mountMetricsView = (root, { api, toast }) => {
   };
 
   const renderEmpty = () => {
-    root.innerHTML = `<div class="mt-page"><header class="mt-top"><h2 class="mt-title">Métricas</h2></header>
+    root.innerHTML = `<div class="mt-page mt-empty-page"><header class="mt-top"><h2 class="mt-title">Métricas</h2></header>
       <div class="mt-empty"><b>Aún no hay datos</b>
         <span>Trae de Snowflake las incidencias de Remedy (con notas e historial) desde 2026, o carga un CSV de esa misma consulta. Se guardan en el repositorio local de este ordenador y de él salen las métricas; cada vez que actualices, solo llega lo nuevo y lo cambiado.</span>
         <div class="mt-empty-actions">${loadButton()}${moreMenu()}</div></div></div>`;
@@ -197,7 +178,6 @@ export const mountMetricsView = (root, { api, toast }) => {
       if (!el.firstElementChild) {
         el.innerHTML = progressHtml(view, phases);
         el.querySelector('.mt-load-card').insertAdjacentHTML('beforeend', '<button class="mt-btn mt-load-cancel" data-cancel>Cancelar</button>');
-        return;
       }
       el.querySelector('[role=progressbar]').setAttribute('aria-valuenow', view.percent);
       el.querySelector('.mt-load-figure b').textContent = view.percent;
@@ -205,7 +185,8 @@ export const mountMetricsView = (root, { api, toast }) => {
       el.querySelector('.mt-load-now b').textContent = phases[view.phase].label;
       el.querySelector('.mt-load-now span').textContent = view.left;
       el.querySelector('.mt-load-detail').textContent = view.detail;
-      el.querySelector('[data-cancel]').hidden = phases[view.phase].id === 'compute';   // ya no se puede cancelar: se recalcula
+      // ya no se puede cancelar: se recalcula, o se está borrando
+      el.querySelector('[data-cancel]').hidden = ['compute', 'clear'].includes(phases[view.phase].id);
       el.querySelectorAll('.mt-load-steps li').forEach((li, i) => { li.className = i < view.phase ? 'mt-done' : i === view.phase ? 'mt-now' : ''; });
     };
     // el último avance del bridge, cuándo empezó su fase (para su ritmo) y lo más alto que ha llegado la barra (nunca retrocede)
@@ -221,13 +202,13 @@ export const mountMetricsView = (root, { api, toast }) => {
         top = Math.max(top, view.percent);
         paint({ ...view, percent: top });
       },
-      finish: () => paint({ phase: phases.length - 1, percent: 100, detail: 'Abriendo las métricas con los datos nuevos…', left: 'Hecho' }),
+      finish: (text = 'Abriendo las métricas con los datos nuevos…') => paint({ phase: phases.length - 1, percent: 100, detail: text, left: 'Hecho' }),
     };
   };
 
   // Mientras el servidor trabaja en algo largo (cargar un CSV), la misma capa con su avance que la actualización,
   // con las fases de esa tarea. Si falla, se quita y la vista sigue como estaba.
-  const track = async (phases, task, onAbort = () => {}) => {
+  const track = async (phases, task, onAbort = () => {}, doneText) => {
     const c = cover(Date.now(), phases, () => { onAbort(); api.cancel(); });
     const stop = () => { clearInterval(poll); clearInterval(ticker); };
     let poll = null, ticker = null;
@@ -241,7 +222,7 @@ export const mountMetricsView = (root, { api, toast }) => {
       ticker = setInterval(c.tick, TICK_MS);
       const out = await task();
       stop();
-      c.finish();
+      c.finish(doneText);
       return out;
     } catch (e) {
       stop();
@@ -264,8 +245,20 @@ export const mountMetricsView = (root, { api, toast }) => {
       : 'CSV cargado: nada nuevo respecto a lo guardado.');
   };
 
+  // Borra lo guardado en este ordenador y vuelve a la pantalla de base vacía (Snowflake no se toca).
+  const clearHistory = async () => {
+    try {
+      await track(CLEAR_PHASES, () => api.clear(), () => {}, 'Histórico eliminado.');
+      start(null);
+      toast?.('Histórico eliminado: la próxima carga empieza de cero.');
+    } catch (e) {
+      toast?.(e.message);
+    }
+  };
+
   // La primera vez puede abrirse el navegador para entrar en Snowflake con la cuenta de Inditex.
-  const update = async () => {
+  // range: { from, to } con la base vacía (la primera carga del periodo elegido); sin él, la actualización de siempre.
+  const update = async (range) => {
     if (loading) return;
     loading = true;
     if (m) $('.mt-load').outerHTML = loadButton(); else renderEmpty();
@@ -279,7 +272,7 @@ export const mountMetricsView = (root, { api, toast }) => {
     const ticker = setInterval(c.tick, TICK_MS);
     const stop = () => { clearInterval(poll); clearInterval(ticker); };
     try {
-      const { counts } = await api.update();
+      const { counts } = await api.update(range);
       stop();
       c.finish();
       const data = await api.load();
@@ -301,10 +294,16 @@ export const mountMetricsView = (root, { api, toast }) => {
   };
 
   root.addEventListener('click', (e) => {
-    if (e.target.closest('[data-update]')) return update();
+    // con datos, actualizar; sin datos, la primera carga con el periodo que se elige
+    if (e.target.closest('[data-update]')) return m ? update() : modals.firstLoad();
     if (e.target.closest('[data-more]')) return setMenu($('[data-more-pop]')?.hidden === true);
-    const item = e.target.closest('[data-open-csv],[data-open-sql]');
-    if (item) { setMenu(false); return item.hasAttribute('data-open-csv') ? modals.csv() : modals.sql(sqlPeriod()); }
+    const item = e.target.closest('[data-open-csv],[data-open-sql],[data-clear]');
+    if (item) {
+      setMenu(false);
+      if (item.hasAttribute('data-open-csv')) return modals.csv();
+      if (item.hasAttribute('data-clear')) return modals.clear();
+      return modals.sql();
+    }
     if (!e.target.closest('.mt-menu')) setMenu(false);
     if (!m || e.target.closest('a')) return;
     const { S } = m;

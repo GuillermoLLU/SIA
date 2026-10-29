@@ -212,3 +212,24 @@ test('cancelar una actualización a mitad de la descarga: no entra nada; ya guar
   assert.deepEqual(store.cancel(), { cancelled: false }, 'sin nada en marcha, no hace nada');
   clean(dir);
 });
+
+test('la primera carga con un periodo pide ese periodo; luego, lo cambiado de siempre', async () => {
+  const dir = tmp(), source = fakeSource([ISSUE], []);
+  const { store } = open(dir, source);
+  await store.update({ from: '2026-03-01', to: '2026-03-31' });
+  assert.deepEqual(source.asked[0], ['2026-03-01 00:00:00.000', '2026-04-01 00:00:00.000'], 'desde el primer día, hasta el último incluido');
+  await store.update({ from: '2020-01-01', to: '2020-01-02' });   // con datos, el periodo se ignora
+  assert.deepEqual(source.asked[1], ['2026-02-01 10:00:00.000', '2026-02-01 06:00:00.000'], 'sigue con lo cambiado de siempre: desde la apertura más antigua; lo modificado desde la última menos 6 horas');
+  clean(dir);
+});
+
+test('borrar el histórico: la base y su copia quedan vacías; Snowflake no se toca', async () => {
+  const dir = tmp(), { store, repo } = open(dir, fakeSource([ISSUE]));
+  await store.update();
+  assert.equal(repo.count(), 1);
+  assert.deepEqual(await store.clear(), { cleared: true });
+  assert.equal(repo.count(), 0);
+  assert.equal(await store.load(), null);
+  assert.equal(fs.existsSync(path.join(dir, 'datos.json')), false);
+  clean(dir);
+});

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { metricsRoutes } from './routes.js';
 
 const setup = (store) => {
-  const route = metricsRoutes(store, { json: (res, status, body) => Object.assign(res, { status, body }) });
+  const route = metricsRoutes(store, { json: (res, status, body) => Object.assign(res, { status, body }), readBody: async () => ({}) });
   return async (method, path) => {
     const res = {};
     await route({ method }, res, path);
@@ -63,4 +63,25 @@ test('GET /sql: el SQL del periodo; fechas que no valen, 400', async () => {
   const bad = {};
   await route({ method: 'GET' }, bad, ['sql'], null, new URLSearchParams('from=2026-01-31&to=2026-01-01'));
   assert.equal(bad.status, 400);
+});
+
+test('POST /update: con { from, to } es la primera carga del periodo; un periodo que no vale, 400', async () => {
+  const got = [];
+  const store = { update: async (range) => { got.push(range); return { meta: {}, counts: {} }; } };
+  const route = metricsRoutes(store, { json: (res, status, body) => Object.assign(res, { status, body }), readBody: async () => ({ from: '2026-03-01', to: '2026-03-31' }) });
+  const ok = {};
+  await route({ method: 'POST' }, ok, ['update']);
+  assert.equal(ok.status, 200);
+  assert.deepEqual(got, [{ from: '2026-03-01', to: '2026-03-31' }]);
+  const bad = metricsRoutes({ update: async () => { throw new RangeError('Periodo no válido'); } }, { json: (res, status, body) => Object.assign(res, { status, body }), readBody: async () => ({}) });
+  const res = {};
+  await bad({ method: 'POST' }, res, ['update']);
+  assert.equal(res.status, 400);
+});
+
+test('POST /clear: borra lo guardado en este ordenador', async () => {
+  const route = metricsRoutes({ clear: () => ({ cleared: true }) }, { json: (res, status, body) => Object.assign(res, { status, body }), readBody: async () => ({}) });
+  const res = {};
+  await route({ method: 'POST' }, res, ['clear']);
+  assert.deepEqual(res.body, { cleared: true });
 });

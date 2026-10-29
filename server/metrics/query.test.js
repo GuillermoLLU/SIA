@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { rangeOf, buildQuery, periodSql, FIRST_LOAD, SESSION } from './query.js';
+import { rangeOf, buildQuery, periodSql, firstLoadRange, FIRST_LOAD, SESSION } from './query.js';
 
 test('rangeOf: sin nada guardado, la primera carga desde 2026 y sin filtro de cambios', () => {
   assert.deepEqual(rangeOf({ first: null, last: null }), { floor: FIRST_LOAD, since: null });
@@ -76,4 +76,18 @@ test('periodSql: rechaza fechas que no existen, al revés o en otro formato', ()
   assert.throws(() => periodSql({ from: '2026-02-30', to: '2026-03-01' }), RangeError);
   assert.throws(() => periodSql({ from: '2026-03-02', to: '2026-03-01' }), RangeError);
   assert.throws(() => periodSql({ from: '01/03/2026', to: '2026-03-01' }), RangeError);
+});
+
+test('buildQuery: con until, la primera carga de un periodo llega hasta ese día, sin incluirlo', () => {
+  const { sql, binds } = buildQuery({ floor: '2026-03-01 00:00:00.000', since: null, until: '2026-04-01 00:00:00.000' });
+  assert.match(sql, /AND REPORTEDDATE < TO_TIMESTAMP_NTZ\(\?, 'YYYY-MM-DD HH24:MI:SS.FF3'\)/);
+  assert.deepEqual(binds, ['2026-03-01 00:00:00.000', '2026-04-01 00:00:00.000']);
+  assert.deepEqual(buildQuery({ floor: FIRST_LOAD, since: null }).binds, [FIRST_LOAD]);
+});
+
+test('firstLoadRange: desde el primer día hasta el último incluido; fechas que no valen, RangeError', () => {
+  assert.deepEqual(firstLoadRange({ from: '2026-02-28', to: '2026-03-01' }),
+    { floor: '2026-02-28 00:00:00.000', since: null, until: '2026-03-02 00:00:00.000' });
+  assert.throws(() => firstLoadRange({ from: '2026-02-30', to: '2026-03-01' }), RangeError);
+  assert.throws(() => firstLoadRange({ from: '2026-03-02', to: '2026-03-01' }), RangeError);
 });

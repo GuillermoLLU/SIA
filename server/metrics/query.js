@@ -90,9 +90,14 @@ LEFT JOIN worklog_agg t2 ON t1.INCIDENTNUMBER = t2.INCIDENTNUMBER
 LEFT JOIN association_agg t3 ON t1.INCIDENTNUMBER = t3.PARENTREQUEST
 LEFT JOIN audit_agg t4 ON t1.INCIDENTNUMBER = t4.ORIGINAL_REQUEST_ID`;
 
-export const buildQuery = ({ floor, since }) => {
+// until (solo la primera carga con un periodo elegido): hasta ese instante, sin incluirlo.
+export const buildQuery = ({ floor, since, until }) => {
   const changed = since ? `\n      AND COALESCE(LASTMODIFIEDDATE, REPORTEDDATE) >= TO_TIMESTAMP_NTZ(?, '${FMT}')` : '';
-  return { sql: statement(`REPORTEDDATE >= TO_TIMESTAMP_NTZ(?, '${FMT}')${changed}`), binds: since ? [floor, since] : [floor] };
+  const upto = until ? `\n      AND REPORTEDDATE < TO_TIMESTAMP_NTZ(?, '${FMT}')` : '';
+  return {
+    sql: statement(`REPORTEDDATE >= TO_TIMESTAMP_NTZ(?, '${FMT}')${changed}${upto}`),
+    binds: [floor, ...(since ? [since] : []), ...(until ? [until] : [])],
+  };
 };
 
 // Fecha AAAA-MM-DD real (no 2026-02-30).
@@ -102,7 +107,18 @@ const nextDay = (d) => { const t = new Date(`${d}T00:00:00Z`); t.setUTCDate(t.ge
 
 // El SQL para copiar a Snowflake de un periodo: las incidencias abiertas entre `from` y `to` (los dos días incluidos).
 // Solo es texto: SIA no lo ejecuta. Las fechas van escritas en el texto, así que se validan antes.
-export const periodSql = ({ from, to }) => {
+// Un periodo de días (desde y hasta incluidos) válido; si no, RangeError.
+const checkPeriod = (from, to) => {
   if (!validDay(from) || !validDay(to) || from > to) throw new RangeError('Periodo no válido: desde y hasta, con fecha AAAA-MM-DD, y desde no posterior a hasta.');
+};
+
+// La primera carga con un periodo elegido (solo con la base vacía): desde `from` y hasta `to`, incluidos.
+export const firstLoadRange = ({ from, to }) => {
+  checkPeriod(from, to);
+  return { floor: `${from} 00:00:00.000`, since: null, until: `${nextDay(to)} 00:00:00.000` };
+};
+
+export const periodSql = ({ from, to }) => {
+  checkPeriod(from, to);
   return statement(`REPORTEDDATE >= TO_TIMESTAMP_NTZ('${from} 00:00:00.000', '${FMT}') AND REPORTEDDATE < TO_TIMESTAMP_NTZ('${nextDay(to)} 00:00:00.000', '${FMT}') AND TRIM(ASSIGNEDGROUP) = '${GROUP}'`);
 };

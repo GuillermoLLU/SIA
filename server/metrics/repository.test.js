@@ -163,3 +163,13 @@ test('remove: quita una incidencia dentro de una transacción, y cuenta lo quita
   assert.equal(repo.count(), 0);
   s.done();
 });
+
+test('clearAll: lo borra por lotes, con el avance, y deja la base vacía', async () => {
+  const s = scratch(), repo = s.open();
+  run(repo, inc(), inc({ INCIDENTNUMBER: 'INC2' }), inc({ INCIDENTNUMBER: 'INC3' }));
+  const seen = [];
+  await repo.clearAll((done, total) => seen.push([done, total]), 2);
+  assert.deepEqual(seen, [[2, 3], [3, 3]]);
+  assert.equal(repo.count(), 0);
+  s.done();
+});

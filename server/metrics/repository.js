@@ -153,5 +153,33 @@ export const createRepository = ({ DatabaseSync, file, fs, now = () => new Date(
     return { first: r.first ?? null, last: r.last ?? null };
   };
 
-  return { begin, incidents, count, reportCount, firstYear, extremes, purgeOtherGroups, close: () => db.close() };
+  // Borra todas las incidencias con sus cambios y notas, y luego el WAL, para que el fichero no conserve lo borrado.
+  // Por lotes (cada uno, una transacción) para poder enseñar el avance: onBatch(borradas, total). Entre lotes cede el
+  // turno, para que siga atendiendo las consultas de avance.
+  const clearAll = async (onBatch = () => {}, batch = 2000) => {
+    const total = count();
+    const next = db.prepare(`SELECT ${ID} AS id FROM incidents ORDER BY ${ID} LIMIT ?`);
+    let done = 0;
+    for (;;) {
+      const ids = next.all(batch).map((r) => r.id);
+      if (!ids.length) break;
+      const marks = ids.map(() => '?').join(', ');
+      db.exec('BEGIN');
+      try {
+        db.prepare(`DELETE FROM audit_events WHERE incident IN (${marks})`).run(...ids);
+        db.prepare(`DELETE FROM worklog_entries WHERE incident IN (${marks})`).run(...ids);
+        db.prepare(`DELETE FROM incidents WHERE ${ID} IN (${marks})`).run(...ids);
+        db.exec('COMMIT');
+      } catch (e) {
+        db.exec('ROLLBACK');
+        throw e;
+      }
+      done += ids.length;
+      onBatch(done, total);
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+  };
+
+  return { begin, incidents, count, reportCount, firstYear, extremes, purgeOtherGroups, clearAll, close: () => db.close() };
 };

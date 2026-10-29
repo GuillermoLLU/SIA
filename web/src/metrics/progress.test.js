@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { progressOf, estimate, leftLabel, progressHtml, PHASES, CSV_PHASES } from './progress.js';
+import { progressOf, estimate, leftLabel, progressHtml, PHASES, CSV_PHASES, CLEAR_PHASES } from './progress.js';
 
 const prepare = { phase: 'prepare', done: 0, total: 0 };
 const connect = { phase: 'connect', done: 0, total: 0 };
@@ -77,4 +77,10 @@ test('el CSV: el avance en MB leídos, con sus propias fases (leer y guardar, re
 test('sin avance aún (null), la primera pintura no falla, ni en el CSV (su primera fase es leer)', () => {
   assert.doesNotThrow(() => progressOf(null, { elapsed: 0, phaseMs: 0 }, CSV_PHASES));
   assert.equal(progressOf(null, { elapsed: 0, phaseMs: 0 }, CSV_PHASES).phase, 0);
+});
+
+test('sin cifras aún, el detalle dice que se prepara; nunca NaN', () => {
+  const v = progressOf(null, { elapsed: 0, phaseMs: 0 }, CLEAR_PHASES);
+  assert.equal(v.detail, '', 'al borrar no hay detalle');
+  assert.doesNotMatch(progressOf({ phase: 'clear', done: 10, total: 100 }, { elapsed: 5000, phaseMs: 5000 }, CLEAR_PHASES).detail, /NaN/);
 });
