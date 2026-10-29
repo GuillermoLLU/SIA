@@ -102,9 +102,12 @@ test('«Editar» solo en mis notas de las últimas 24 h; el editor lleva el text
 test('las notas de Remedy: lista con quién y cuándo, escapada; vacía o sin columna, su aviso; el contador en la pestaña', () => {
   const wl = [{ at: '2026-10-06 14:40', who: 'ANA <L>', text: 'Llamada <al> centro' }, { at: '2026-10-06 15:10', who: 'LUIS', text: 'Sin respuesta' }];
   const html = worklogHtml(wl);
-  assert.equal((html.match(/<li>/g) || []).length, 2);
-  assert.match(html, /<b>ANA &lt;L&gt;<\/b><time>06\/10 14:40<\/time>/);
-  assert.match(html, /Llamada &lt;al&gt; centro/);
+  assert.equal((html.match(/<details /g) || []).length, 2);
+  assert.equal((html.match(/<details class="iss-wl-card" open>/g) || []).length, 1, 'solo la última va abierta');
+  assert.match(html, /<details class="iss-wl-card">\s*<summary><b>ANA &lt;L&gt;<\/b><span class="iss-wl-peek">Llamada &lt;al&gt; centro<\/span><time>06\/10 14:40<\/time>/);
+  assert.match(html, /<details class="iss-wl-card" open>\s*<summary><b>LUIS<\/b>/);
+  const long = worklogHtml([{ at: '2026-10-06 14:40', who: 'X', text: 'a'.repeat(120) + '\nsegunda línea' }]);
+  assert.match(long, new RegExp(`<span class="iss-wl-peek">${'a'.repeat(90)}…</span>`));
   assert.match(worklogHtml([]), /Sin notas de trabajo en Remedy/);
   assert.match(worklogHtml(undefined), /carga un CSV nuevo/);
   const screen = workScreen({ issue: issue({ worklog: wl }), sameCenter: [], now, mine: false, tab: 'remedy' });

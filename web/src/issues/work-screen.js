@@ -20,12 +20,17 @@ const WORK_TABS = [
 // `timeline`). Se pinta aparte para poder refrescarlo al añadir una nota.
 export const trailTab = (n) => `${WORK_TABS.find((t) => t.key === 'trail').label}${n ? `<span>${n}</span>` : ''}`;
 // Las notas de trabajo de Remedy (worklog de la foto): quién, cuándo y qué,
-// de la más antigua a la más reciente. Sin la columna en la foto (cargada
-// antes de leerla), se pide un CSV nuevo.
+// de la más antigua a la más reciente. Solo la más reciente va abierta; el
+// resto, plegadas con su primera línea, y se abren al pulsar la tarjeta. Sin
+// la columna en la foto (cargada antes de leerla), se pide un CSV nuevo.
+const firstLine = (text) => { const l = String(text).trim().split('\n')[0]; return l.length > 90 ? `${l.slice(0, 90)}…` : l; };
 export const worklogHtml = (worklog) => {
   if (!worklog) return '<p class="iss-empty">La foto cargada no trae las notas de Remedy: carga un CSV nuevo de la consulta.</p>';
   if (!worklog.length) return '<p class="iss-empty">Sin notas de trabajo en Remedy.</p>';
-  return `<ol class="iss-wl">${worklog.map((n) => `<li><header><b>${esc(n.who)}</b><time>${when(n.at)}</time></header><p>${esc(n.text)}</p></li>`).join('')}</ol>`;
+  return `<div class="iss-wl">${worklog.map((n, k) => `<details class="iss-wl-card"${k === worklog.length - 1 ? ' open' : ''}>
+      <summary><b>${esc(n.who)}</b><span class="iss-wl-peek">${esc(firstLine(n.text))}</span><time>${when(n.at)}</time></summary>
+      <p>${esc(n.text)}</p>
+    </details>`).join('')}</div>`;
 };
 
 // Quién: un avatar con sus iniciales (sin nombre, un interrogante).
