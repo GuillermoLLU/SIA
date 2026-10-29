@@ -12,6 +12,9 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="SIA" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <!-- Nada se ve hasta que main.js ha cargado los estilos (si no, un instante
+         de botones sin estilo al recargar); main.js marca <html class="styled"> -->
+    <style>html { background: #f5f6f8; } html:not(.styled) body { visibility: hidden; }</style>
   </head>
   <body>
     <div class="app">
