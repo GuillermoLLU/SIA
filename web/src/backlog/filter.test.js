@@ -42,7 +42,7 @@ test('pulsar una tarjeta la marca; otra vez, la quita; otra del grupo se suma', 
 });
 
 test('cada tarjeta dice cuántas son lo suyo, con lo marcado en los otros grupos', () => {
-  assert.deepEqual(tileCounts(I, EMPTY_FILTER), { total: 3, shown: 3, sisu: 1, sga: 2, prio: 1, severity: { CRITICAL: 1, HIGH: 1, MEDIUM: 0, LOW: 1 } });
+  assert.deepEqual(tileCounts(I, EMPTY_FILTER), { total: 3, sisu: 1, sga: 2, prio: 1, severity: { CRITICAL: 1, HIGH: 1, MEDIUM: 0, LOW: 1 } });
   const sga = tileCounts(I, F({ origin: ['sga'], severity: ['LOW'] }));
-  assert.deepEqual([sga.shown, sga.sisu, sga.sga, sga.prio, sga.severity.HIGH], [1, 0, 1, 0, 1]);
+  assert.deepEqual([sga.sisu, sga.sga, sga.prio, sga.severity.HIGH], [0, 1, 0, 1]);
 });

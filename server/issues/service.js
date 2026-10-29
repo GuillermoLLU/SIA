@@ -14,7 +14,6 @@ const WEEKS = 12;
 // now: el reloj (inyectable en pruebas). «Ahora» es ahora: la foto de Remedy
 // solo dice de cuándo son los datos (taken); lo medido en SIA se mide a día de hoy.
 export const createIssuesService = ({ source, platform, now = () => new Date() }) => {
-  // la foto y lo cogido en SIA
   // la foto, lo cogido en SIA y las reglas de priorización
   const snapshot = async (jwt) => {
     const { taken, issues } = source.load();

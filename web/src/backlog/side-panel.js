@@ -11,7 +11,7 @@ import { pickerHtml } from '../ui/picker.js';
 
 // Priorizar: la prioridad es la etiqueta PRIO de Remedy, que pone negocio.
 const pinHtml = ({ prio }) => `<div class="bl-act"><h5>Priorizar</h5>
-    <button class="lab-btn primary" data-pin ${prio ? 'disabled' : ''}>${prio ? 'Ya priorizada' : 'Priorizar'}</button>
+    <button class="lab-btn primary" data-prioritize ${prio ? 'disabled' : ''}>${prio ? 'Ya priorizada' : 'Priorizar'}</button>
     <small class="bl-act-note">Pendiente: es la etiqueta PRIO de Remedy y SIA aún no puede escribirla.</small></div>`;
 
 // Asignarla a alguien del equipo (people: [{ id, name }]), con el selector propio de la app.
@@ -30,7 +30,7 @@ export const sidePanel = ({ detail, people, busy, error, now }) => {
       <h3 class="bl-side-title">${esc(i.text)}</h3>
       <p class="iss-line">${sev(i.priority)}<span class="iss-code">${esc(i.center || '—')}</span>${origin(i)}${i.prio ? '<span class="iss-prio">Priorizada por negocio</span>' : ''}<span class="iss-when">hace ${age(i.reported, now)}</span></p>
       ${claimedBy ? `<p class="bl-side-warn">Ya la tiene ${esc(claimedBy.name)} desde el ${whenIso(claimedBy.at)}: ha salido de la cola.</p>` : ''}
-      ${error ? `<p class="bl-rules-err">${esc(error)}</p>` : ''}
+      ${error ? `<p class="bl-err">${esc(error)}</p>` : ''}
       <div class="bl-acts">${claimedBy ? '' : pinHtml({ prio: i.prio }) + assignHtml({ people, busy })}</div>
       <h4 class="iss-sub">Lo que dice el centro <span class="iss-low">· ${when(i.reported)}</span></h4>
       <div class="iss-notes">${esc(i.notes || 'Sin descripción.')}</div>

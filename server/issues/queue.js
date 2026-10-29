@@ -38,7 +38,7 @@ export const BASIC_RULE = { id: 'basic', label: 'Regla básica', criteria: ['rec
 const byId = new Map(CRITERIA.map((c) => [c.id, c]));
 
 // El comparador de una lista de criterios (uno desconocido no cuenta).
-export const orderBy = (criteria, now) => {
+const orderBy = (criteria, now) => {
   const cmps = criteria.map((id) => byId.get(id)?.cmp).filter(Boolean);
   return (a, b) => {
     for (const cmp of cmps) { const d = cmp(a, b, now); if (d) return d; }

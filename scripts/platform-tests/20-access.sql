@@ -296,6 +296,38 @@ select assert_eq((select edited_at is not null from public.platform_issue_notes(
 select expect_error($$select public.platform_edit_issue_note((select min(id) from public.platform_issue_notes('INC1') where kind = 'note'), '')$$, 'editar a vacío no vale');
 select assert_eq((select count(*) from public.platform_issue_notes('INC2')), 0::bigint, 'cada issue, sus notas');
 
+-- ── 6a⁴. backlog: asignar y las reglas de priorización ──
+-- Todo está libre tras 6a². Backlog lo tiene el admin (todas las vistas), que coge INC1 para las pruebas.
+select t_as(:AD);
+select assert_eq(public.platform_claim_next_issue(array['INC1']), 'INC1', 'el admin coge INC1');
+select t_as(:U2);
+select expect_error($$select public.platform_assign_issue('INC3', '00000000-0000-0000-0000-0000000000a1')$$, 'sin la vista Backlog no se asigna');
+select expect_error($$select public.platform_save_rule(null, 'Urgencias', array['severity'])$$, 'ni se crean reglas');
+select assert_eq((select string_agg(name || ':' || builtin, ',') from public.platform_list_rules()), 'Regla básica:true', 'pero sí se ven: la básica, de serie');
+select t_as(:AD);
+select expect_error($$select public.platform_assign_issue('INC3', '00000000-0000-0000-0000-0000000000a2')$$, 'solo a alguien con la vista Issues');
+select expect_error($$select public.platform_assign_issue('INC1', '00000000-0000-0000-0000-0000000000a3')$$, 'una que ya tiene alguien, no');
+select public.platform_assign_issue('INC3', :U2);
+select assert_eq((select user_name from public.platform_issue_claims() where issue_id = 'INC3'), 'agente.dos', 'asignada: ya es suya');
+select assert_eq((select string_agg(action || ':' || coalesce(actor_name, '-') || ':' || coalesce(from_name, '-') || ':' || coalesce(to_name, '-'), ',') from public.platform_issue_events('INC3')), 'assigned:Admin:-:agente.dos', 'en el histórico, quién la asignó y a quién');
+select t_as(:U2);
+select assert_eq((select action from public.platform_my_issue_events(now() - interval '1 day') where issue_id = 'INC3'), 'received', 'para quien la recibe cuenta como recibida');
+select assert_eq((select count(*) from public.platform_my_transfers() where issue_id = 'INC3'), 0::bigint, 'y no es un traspaso');
+select t_as(:AD);
+select expect_error($$select public.platform_save_rule(null, 'Urgencias', array[]::text[])$$, 'una regla necesita criterios');
+select expect_error($$select public.platform_save_rule(null, 'Urgencias', array['nope'])$$, 'del catálogo');
+select expect_error($$select public.platform_save_rule(null, 'Urgencias', array['age', 'age'])$$, 'sin repetir');
+select expect_error($$select public.platform_save_rule(null, 'Regla básica', array['age'])$$, 'ni con el nombre de otra');
+\set RURG '(select id from public.platform_list_rules() where name = ''Urgencias'')'
+select assert_eq(public.platform_save_rule(null, '  Urgencias  ', array['severity', 'age']) is not null, true, 'crear devuelve el id');
+select assert_eq((select string_agg(name || ':' || array_to_string(criteria, '+'), ',' order by builtin desc, name) from public.platform_list_rules()), 'Regla básica:recent+prio+month+severity+age,Urgencias:severity+age', 'la básica primero y las del equipo detrás, con sus criterios');
+select assert_eq(public.platform_save_rule(:RURG, 'Urgencias SISU', array['sisu', 'severity', 'age']), :RURG, 'cambiarla devuelve el mismo id');
+select assert_eq((select array_to_string(criteria, '+') from public.platform_list_rules() where name = 'Urgencias SISU'), 'sisu+severity+age', 'y el orden de los criterios se respeta');
+select expect_error($$select public.platform_delete_rule((select id from public.platform_list_rules() where builtin))$$, 'la básica no se borra');
+select public.platform_delete_rule((select id from public.platform_list_rules() where name = 'Urgencias SISU'));
+select assert_eq((select count(*) from public.platform_list_rules()), 1::bigint, 'borrada: queda la básica');
+select expect_error($$select public.platform_delete_rule('00000000-0000-0000-0000-00000000dead')$$, 'una que no existe, error');
+
 -- ── 6b. cambiar de base y desactivar ──
 reset role;
 select assert_eq((select count(*) from platform.audit_log where (action like 'issue.%' or action like 'note.%') and happened_at > now() - interval '1 day'), 0::bigint, 'los movimientos de issues y las notas no pasan por la auditoría: viven en issue_events e issue_notes');

@@ -27,12 +27,12 @@
 
 /* entre el panel y la lista: actualizar y de cuándo son los datos; a la derecha,
    cuántas se ven, el buscador y las reglas */
+.bl-btn { height: 28px; padding: 0 12px; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--text); background: var(--surface); border: 1px solid var(--border); cursor: pointer; }
+.bl-btn:hover:not(:disabled) { border-color: color-mix(in srgb, var(--text) 35%, var(--border)); }
+.bl-btn:disabled { opacity: .6; cursor: progress; }
 .bl-bar { display: flex; align-items: center; gap: 14px; }
 .bl-bar .iss-snap { margin-left: 0; white-space: nowrap; }
 .bl-bar button, .bl-order { white-space: nowrap; }
-.bl-reload { height: 28px; padding: 0 12px; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--text); background: var(--surface); border: 1px solid var(--border); cursor: pointer; }
-.bl-reload:hover:not(:disabled) { border-color: color-mix(in srgb, var(--text) 35%, var(--border)); }
-.bl-reload:disabled { opacity: .6; cursor: progress; }
 .bl-order { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; flex-shrink: 0; font-size: 12.5px; color: var(--text-low); }
 .bl-order select { height: 28px; padding: 0 8px; font: inherit; font-size: 12.5px; color: var(--text); background: var(--surface); border: 1px solid var(--border); }
 .bl-shown + .bl-order { margin-left: 0; }
@@ -41,9 +41,6 @@
 .bl-search input { box-sizing: border-box; width: 100%; height: 28px; padding: 0 10px 0 33px; font: inherit; font-size: 13px; color: var(--text); background: var(--surface); border: 1px solid var(--border); outline: none; -webkit-appearance: none; }
 .bl-search input:focus { border-color: var(--accent); }
 .bl-search input::placeholder { color: var(--text-low); }
-.bl-rules { height: 28px; padding: 0 12px; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--text); background: var(--surface); border: 1px solid var(--border); cursor: pointer; }
-.bl-rules:hover:not(:disabled) { border-color: color-mix(in srgb, var(--text) 35%, var(--border)); }
-.bl-rules:disabled { opacity: .6; cursor: progress; }
 
 /* la lista y, al abrir una issue, su detalle a la derecha */
 .bl-main { flex: 1; min-height: 0; display: flex; gap: 16px; }
@@ -82,9 +79,11 @@
 .bl-rule-name input { height: 34px; padding: 0 10px; font: inherit; font-size: 14px; color: var(--text); background: var(--bg); border: 1px solid var(--border); outline: none; }
 .bl-rule-name input:focus { border-color: var(--accent); }
 .bl-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; flex: 1; min-height: 0; }
+.bl-cols.one { grid-template-columns: minmax(0, 1fr); }
 .bl-col { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 12px; border: 1px solid var(--border); }
 .bl-col h5 { margin: 0; font-size: 11.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-low); }
 .bl-col.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 4%, transparent); }
+.bl-col.over .bl-chips-empty { display: none; } /* mientras se arrastra, el hueco lo marca la línea */
 .bl-chips { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0 0 8px; list-style: none; flex: 1; min-height: 60px; }
 .bl-chip { display: flex; align-items: center; gap: 10px; padding: 8px 12px; font-size: 13px; background: var(--bg); border: 1px solid var(--border); user-select: none; }
 .bl-chip.act { cursor: grab; }
@@ -96,7 +95,7 @@
 .bl-chip-n { flex-shrink: 0; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; font-size: 11.5px; font-weight: 650; color: var(--surface); background: var(--text); border-radius: 50%; }
 .bl-chip-l { flex: 1; }
 .bl-chips-empty { margin: 0; padding: 14px; font-size: 12.5px; color: var(--text-low); text-align: center; border: 1px dashed var(--border); }
-.bl-rules-err { margin: 0; padding: 9px 12px; font-size: 12.5px; color: #d1242f; border: 1px solid #d1242f; background: color-mix(in srgb, #d1242f 8%, transparent); }
+.bl-err { margin: 0; padding: 9px 12px; font-size: 12.5px; color: #d1242f; border: 1px solid #d1242f; background: color-mix(in srgb, #d1242f 8%, transparent); }
 .bl-rules-foot { display: flex; align-items: center; gap: 8px; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--border); }
 
 /* el panel lateral: la issue y qué hacer con ella */
@@ -113,13 +112,11 @@
 .bl-acts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; align-items: stretch; }
 .bl-act { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); }
 .bl-act h5 { margin: 0; font-size: 11.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-low); }
-.bl-act p { margin: 0; font-size: 12.5px; color: var(--text-low); }
 .bl-act > .lab-btn { align-self: flex-start; }
 .bl-act-note { margin-top: auto; font-size: 10.5px; line-height: 1.35; color: var(--text-low); }
 .bl-act-row { display: flex; gap: 8px; }
-.bl-act-row .iss-pick { flex: 1; min-width: 0; }
-.bl-act-row .iss-pick-btn { height: 32px; background-color: var(--surface); }
+.bl-act-row .pick { flex: 1; min-width: 0; }
+.bl-act-row .pick-btn { height: 32px; background-color: var(--surface); }
 .bl-side-wl > summary { cursor: pointer; font-size: 12px; font-weight: 600; color: var(--text); }
 .bl-side-wl > summary span { margin-left: 6px; font-weight: 400; color: var(--text-low); }
 .bl-side-wl[open] > summary { margin-bottom: 8px; }
-@media (max-width: 1100px) { .bl-side { flex-basis: 50%; } }

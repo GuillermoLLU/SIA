@@ -34,7 +34,6 @@ export const tileCounts = (issues, filter) => {
   const n = (f) => filterIssues(issues, f).length;
   return {
     total: issues.length,
-    shown: n(filter),
     sisu: n({ ...filter, origin: ['sisu'] }),
     sga: n({ ...filter, origin: ['sga'] }),
     prio: n({ ...filter, prio: true }),

@@ -28,7 +28,7 @@ export const openRulesModal = async ({ api, dialogs, toast, onChange }) => {
   const select = (rule) => { current = rule; draft = draftOf(rule); error = null; render(); };
   const startNew = () => { current = null; draft = { ...NEW_RULE }; error = null; render(); };
 
-  const ruleItem = (r) => `<button class="bl-rule${current?.id === r.id ? ' on' : ''}" data-pick="${esc(r.id)}"><b>${esc(r.label)}</b><small>${r.criteria.length} criterio${r.criteria.length === 1 ? '' : 's'}${r.builtin ? ' · de serie' : ''}</small></button>`;
+  const ruleItem = (r) => `<button class="bl-rule${current?.id === r.id ? ' on' : ''}" data-rule="${esc(r.id)}"><b>${esc(r.label)}</b><small>${r.criteria.length} criterio${r.criteria.length === 1 ? '' : 's'}${r.builtin ? ' · de serie' : ''}</small></button>`;
   const renderList = () => `${rules.map(ruleItem).join('')}${!current ? `<button class="bl-rule on" disabled><b>${esc(draft.name.trim() || 'Nueva regla')}</b><small>sin guardar</small></button>` : ''}<button class="bl-rule-new" data-new>+ Nueva regla</button>`;
 
   // un chip: en la regla va numerado; editable, se arrastra y al pulsarlo pasa al otro lado
@@ -36,13 +36,18 @@ export const openRulesModal = async ({ api, dialogs, toast, onChange }) => {
   const chosen = (list, editable) => `<ol class="bl-chips" data-chosen>${list.map((id, n) => chip(id, { n, editable })).join('')}${editable && !list.length ? '<li class="bl-chips-empty">Pulsa o arrastra aquí los criterios, el que más manda arriba.</li>' : ''}</ol>`;
 
   const renderEdit = () => {
+    // la básica de código (la base aún no tiene la de serie): se enseña, no se ajusta
+    if (draft.id === 'basic') {
+      return `<h4>${esc(draft.name)}</h4><p class="bl-rules-lead">La regla del equipo, de serie. Para ajustarla hace falta ejecutar el SQL de la instancia: aún no está en la base.</p>
+        <div class="bl-cols one"><div class="bl-col"><h5>Orden de la regla</h5>${chosen(draft.criteria, false)}</div></div>`;
+    }
     const free = available(catalog, draft);
     return `<label class="bl-rule-name">Nombre<input data-name value="${esc(draft.name)}" maxlength="60" placeholder="Por ejemplo: Urgencias SISU" spellcheck="false"></label>
       <div class="bl-cols">
         <div class="bl-col" data-col="chosen"><h5>Orden de la regla</h5><p class="bl-rules-lead">Arriba, lo que más manda; lo de abajo desempata. A igualdad, la más antigua primero.</p>${chosen(draft.criteria, true)}</div>
         <div class="bl-col" data-col="free"><h5>Criterios disponibles</h5><p class="bl-rules-lead">Pulsa uno o arrástralo a la regla.</p><ul class="bl-chips" data-free>${free.map((c) => chip(c.id, { editable: true })).join('')}${free.length ? '' : '<li class="bl-chips-empty">Están todos en la regla.</li>'}</ul></div>
       </div>
-      ${error ? `<p class="bl-rules-err">${esc(error)}</p>` : ''}
+      ${error ? `<p class="bl-err">${esc(error)}</p>` : ''}
       <div class="bl-rules-foot">${draft.id && !current?.builtin ? '<button class="lab-btn" data-delete>Borrar</button>' : ''}${current?.builtin ? '<span class="bl-rules-lead">La regla del equipo, de serie: se ajusta, no se borra.</span>' : ''}<span class="modal-foot-spacer"></span><button class="lab-btn primary" data-save ${busy ? 'disabled' : ''}>${busy ? 'Guardando…' : 'Guardar'}</button></div>`;
   };
   const render = () => {
@@ -64,15 +69,16 @@ export const openRulesModal = async ({ api, dialogs, toast, onChange }) => {
 
   // arrastrar: a la regla (al puesto donde se suelte), dentro de ella, o fuera (al catálogo)
   let dragging = null;
+  // en qué puesto caería (contado sin el chip que se arrastra) y los chips que quedan
   const chosenIndexAt = (list, y) => {
     const chips = [...list.querySelectorAll('.bl-chip[data-chip]')].filter((c) => c.dataset.chip !== dragging);
     const after = chips.findIndex((c) => { const r = c.getBoundingClientRect(); return y < r.top + r.height / 2; });
-    return after < 0 ? chips.length : after;
+    return { at: after < 0 ? chips.length : after, chips };
   };
   const clearMarks = () => overlay.querySelectorAll('.bl-drop-line, .bl-col.over').forEach((el) => (el.classList.contains('bl-col') ? el.classList.remove('over') : el.remove()));
   overlay.addEventListener('dragstart', (e) => {
     const el = e.target.closest('.bl-chip.act');
-    if (!el || !draft) return;
+    if (!el) return;
     dragging = el.dataset.chip;
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', dragging);
@@ -88,29 +94,28 @@ export const openRulesModal = async ({ api, dialogs, toast, onChange }) => {
     col.classList.add('over');
     if (col.dataset.col !== 'chosen') return;
     const list = col.querySelector('[data-chosen]');
-    const chips = [...list.querySelectorAll('.bl-chip[data-chip]')].filter((c) => c.dataset.chip !== dragging);
-    const at = chosenIndexAt(list, e.clientY);
+    const { at, chips } = chosenIndexAt(list, e.clientY);
     const line = document.createElement('li');
     line.className = 'bl-drop-line';
-    if (at < chips.length) chips[at].before(line); else list.querySelector('.bl-chips-empty')?.remove(), list.appendChild(line);
+    if (at < chips.length) chips[at].before(line); else list.appendChild(line);
   });
   overlay.addEventListener('drop', (e) => {
     const col = e.target.closest('[data-col]');
     if (!col || !dragging) return;
     e.preventDefault();
-    draft = col.dataset.col === 'chosen' ? placeCriterion(draft, dragging, chosenIndexAt(col.querySelector('[data-chosen]'), e.clientY)) : removeCriterion(draft, dragging);
+    draft = col.dataset.col === 'chosen' ? placeCriterion(draft, dragging, chosenIndexAt(col.querySelector('[data-chosen]'), e.clientY).at) : removeCriterion(draft, dragging);
     dragging = null;
     render();
   });
 
   overlay.addEventListener('click', async (e) => {
     const chipEl = e.target.closest('.bl-chip.act');
-    if (chipEl && draft) return toggleChip(chipEl);
+    if (chipEl) return toggleChip(chipEl);
     const t = e.target.closest('button');
     if (!t) return;
     if (t.matches('[data-close]')) return close();
     if (t.matches('[data-new]')) return startNew();
-    if (t.dataset.pick) return select(rules.find((r) => r.id === t.dataset.pick));
+    if (t.dataset.rule) return select(rules.find((r) => r.id === t.dataset.rule));
     if (t.matches('[data-save]')) {
       busy = true; error = null; render();
       try {

@@ -899,13 +899,13 @@ end $$;
 -- La básica (builtin) va primero; se ajusta como las demás, pero no se borra.
 drop function if exists public.platform_list_rules();
 create function public.platform_list_rules()
-returns table (id uuid, name text, criteria text[], builtin boolean, created_by uuid, updated_at timestamptz)
+returns table (id uuid, name text, criteria text[], builtin boolean)
 language plpgsql stable security definer set search_path = '' as $$
 #variable_conflict use_column
 begin
   perform platform.require_view('issues', 'backlog');
   return query
-    select r.id, r.name, r.criteria, r.builtin, r.created_by, r.updated_at
+    select r.id, r.name, r.criteria, r.builtin
     from platform.priority_rules r
     order by r.builtin desc, lower(r.name);
 end $$;

@@ -52,6 +52,7 @@ test('el feed: lo más reciente arriba, con avatar, quién hizo qué y su cuánd
   assert.match(html, /<span class="iss-avatar unknown" aria-hidden="true">\?<\/span>/);
   assert.match(html, /<b>Ana López<\/b> cogió la issue/);
   assert.match(html, /traspasó la issue a <b>Luis &lt;x&gt;<\/b>/);
+  assert.match(trailHtml([{ at: '2026-10-01T10:00:00+00:00', type: 'assigned', by: 'Guillermo', from: null, to: 'Elvis' }]), /asignó la issue a <b>Elvis<\/b> desde el Backlog/);
   assert.match(html, /<span class="iss-feed-label">Motivo<\/span>Lleva &lt;dos&gt; llamadas\./);
   assert.match(html, /<b>Luis<\/b> escribió una nota/);
   assert.match(html, /editada /);

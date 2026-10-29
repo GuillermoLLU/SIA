@@ -1123,3 +1123,15 @@ body.phone #nav-links, body.phone #view-links { display: none; }
 .tp-line { height: 5px; width: 80%; border-radius: 3px; opacity: .85; }
 .tp-line.short { width: 50%; opacity: .6; }
 .tp-btn { margin-top: auto; width: 34%; height: 10px; border-radius: 2px; }
+
+/* ── El selector propio (ui/picker.js): un botón con lo elegido y la lista debajo ── */
+.pick { position: relative; }
+.pick-btn { display: flex; align-items: center; width: 100%; height: 36px; padding: 0 36px 0 10px; font: inherit; font-size: 13px; color: var(--text); text-align: left; background: var(--bg); border: 1px solid var(--border); cursor: pointer; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>"); background-repeat: no-repeat; background-position: right 12px center; }
+.pick-btn:focus-visible, .pick-btn[aria-expanded="true"] { outline: none; border-color: var(--accent); }
+.pick-btn:disabled { color: var(--text-low); cursor: default; }
+.pick-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pick-ph { color: var(--text-low); }
+.pick-list { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 2; max-height: 220px; margin: 0; padding: 4px 0; overflow-y: auto; list-style: none; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0, 0, 0, .18); }
+.pick-list li { padding: 8px 12px; font-size: 13px; color: var(--text); cursor: pointer; }
+.pick-list li:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.pick-list li[aria-selected="true"] { font-weight: 600; color: var(--accent); }
