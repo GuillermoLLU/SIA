@@ -1,6 +1,7 @@
 // La pantalla de trabajo de una issue. A la izquierda, en pestañas: el
-// detalle de la issue (por defecto), las relacionadas y su histórico en SIA
-// (por dónde ha pasado y las notas internas del equipo). A la derecha, sus
+// detalle de la issue (por defecto), las notas de trabajo de Remedy, las
+// relacionadas y su histórico en SIA (por dónde ha pasado y las notas
+// internas del equipo). A la derecha, sus
 // datos clave y debajo el chat de la issue (con el conocimiento,
 // issue-chat.js), que vive mientras la issue esté abierta. Las parecidas,
 // por conectar: solo su hueco.
@@ -10,6 +11,7 @@ import { item } from './parts.js';
 
 const WORK_TABS = [
   { key: 'detail', label: 'Detalle' },
+  { key: 'remedy', label: 'Notas de Remedy' },
   { key: 'related', label: 'Relacionadas' },
   { key: 'trail', label: 'Histórico y notas' },
 ];
@@ -17,6 +19,15 @@ const WORK_TABS = [
 // El histórico en SIA: movimientos y notas por orden (lo que da el bridge en
 // `timeline`). Se pinta aparte para poder refrescarlo al añadir una nota.
 export const trailTab = (n) => `${WORK_TABS.find((t) => t.key === 'trail').label}${n ? `<span>${n}</span>` : ''}`;
+// Las notas de trabajo de Remedy (worklog de la foto): quién, cuándo y qué,
+// de la más antigua a la más reciente. Sin la columna en la foto (cargada
+// antes de leerla), se pide un CSV nuevo.
+export const worklogHtml = (worklog) => {
+  if (!worklog) return '<p class="iss-empty">La foto cargada no trae las notas de Remedy: carga un CSV nuevo de la consulta.</p>';
+  if (!worklog.length) return '<p class="iss-empty">Sin notas de trabajo en Remedy.</p>';
+  return `<ol class="iss-wl">${worklog.map((n) => `<li><header><b>${esc(n.who)}</b><time>${when(n.at)}</time></header><p>${esc(n.text)}</p></li>`).join('')}</ol>`;
+};
+
 // Quién: un avatar con sus iniciales (sin nombre, un interrogante).
 const initials = (name) => (name || '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('') || '?';
 const avatar = (name) => `<span class="iss-avatar${name ? '' : ' unknown'}" aria-hidden="true">${esc(initials(name))}</span>`;
@@ -95,7 +106,7 @@ export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, meI
   <div class="iss-work">
     <section class="iss-card iss-work-main">
       <div class="iss-wtabs" role="tablist">
-        ${WORK_TABS.map((t) => `<button role="tab" data-wtab="${t.key}" aria-selected="${t.key === tab}">${t.key === 'trail' ? trailTab(timeline.length) : t.label}${t.key === 'related' && sameCenter.length ? `<span>${sameCenter.length}</span>` : ''}</button>`).join('')}
+        ${WORK_TABS.map((t) => `<button role="tab" data-wtab="${t.key}" aria-selected="${t.key === tab}">${t.key === 'trail' ? trailTab(timeline.length) : t.label}${t.key === 'related' && sameCenter.length ? `<span>${sameCenter.length}</span>` : ''}${t.key === 'remedy' && i.worklog?.length ? `<span>${i.worklog.length}</span>` : ''}</button>`).join('')}
       </div>
 
       <div class="iss-wpanel" data-wpanel="detail"${tab === 'detail' ? '' : ' hidden'}>
@@ -117,6 +128,11 @@ export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, meI
             <ol class="iss-tl">${i.changes.map(([t, a, b]) => `<li><time>${when(t)}</time>${a && a !== b ? `${esc(STATUS_ES[a] || a)} → ` : ''}${esc(STATUS_ES[b] || b)}</li>`).join('') || '<li>Sin cambios de estado.</li>'}</ol>
           </div>
         </div>
+      </div>
+
+      <div class="iss-wpanel" data-wpanel="remedy"${tab === 'remedy' ? '' : ' hidden'}>
+        <p class="iss-trail-hint">Lo que se ha ido anotando en Remedy sobre esta issue</p>
+        ${worklogHtml(i.worklog)}
       </div>
 
       <div class="iss-wpanel" data-wpanel="related"${tab === 'related' ? '' : ' hidden'}>

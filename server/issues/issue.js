@@ -2,7 +2,10 @@
 // de SIA. Solo lo que el equipo ha explicado:
 // - el número del summary es el código del centro afectado; tras él va la
 //   criticidad escrita a mano, que no hace falta repetir;
-// - en TAGS, SISUINC = abierta desde SISU; PRIO = priorizada por negocio.
+// - en TAGS, SISUINC = abierta desde SISU; PRIO = priorizada por negocio;
+// - WORKLOG_DETAIL son las notas de trabajo de Remedy: cada una con fecha,
+//   quién y texto (worklog), de la más antigua a la más reciente.
+import { entries } from '../shared/remedy-entries.js';
 
 const SUMMARY = /^(\d{6})\s+(?:(?:cr[ií]tic[ao]|critical|alta|high|m[eé]dia|medium|baja|baixa|low)\b\s*)?/i;
 
@@ -39,5 +42,6 @@ export const toIssue = (r) => {
     related: r.CHILDREQUEST,
     link: r.LINKREMEDY,
     changes: statusChanges(r.AUDIT_DETAIL),
+    worklog: entries(r.WORKLOG_DETAIL).map(({ at, who, text }) => ({ at: minute(at), who, text })),
   };
 };
