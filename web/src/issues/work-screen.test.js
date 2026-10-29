@@ -42,7 +42,7 @@ test('el feed: por días, con avatar, quién hizo qué y la hora; el motivo del 
     { at: '2026-10-02T08:00:00+00:00', type: 'claimed', by: 'Luis', from: null, to: 'Luis' },
   ], new Date('2026-10-02T12:00:00'));
   assert.equal((html.match(/<li /g) || []).length, 5);
-  assert.deepEqual([...html.matchAll(/<h5><span>([^<]+)<\/span><\/h5>/g)].map((m) => m[1]), ['Ayer', 'Hoy']);
+  assert.deepEqual([...html.matchAll(/<h5><span>([^<]+)<\/span><\/h5>/g)].map((m) => m[1]), ['Hoy', 'Ayer'], 'lo más reciente arriba');
   assert.match(html, /<span class="iss-avatar" aria-hidden="true">AL<\/span>/);
   assert.match(html, /<span class="iss-avatar unknown" aria-hidden="true">\?<\/span>/);
   assert.match(html, /<b>Ana López<\/b> cogió la issue/);
@@ -71,10 +71,10 @@ test('el campo de nota del histórico: un textarea y el botón de enviar apagado
   assert.match(html, /class="iss-send"[^>]*aria-label="Enviar"[^>]*disabled/);
 });
 
-test('agrupar por día conserva el orden y parte donde cambia el día; Intro envía y Mayús+Intro no', () => {
+test('agrupar por día invierte el orden (lo más reciente arriba) y parte donde cambia el día; Intro envía y Mayús+Intro no', () => {
   const now = new Date('2026-10-02T12:00:00');
   const a = { at: '2026-10-01T08:00:00', type: 'claimed' }, b = { at: '2026-10-01T09:00:00', type: 'released' }, c = { at: '2026-10-02T08:00:00', type: 'claimed' };
-  assert.deepEqual(groupByDay([a, b, c], now), [{ day: 'Ayer', items: [a, b] }, { day: 'Hoy', items: [c] }]);
+  assert.deepEqual(groupByDay([a, b, c], now), [{ day: 'Hoy', items: [c] }, { day: 'Ayer', items: [b, a] }]);
   assert.deepEqual(groupByDay([], now), []);
   assert.equal(sendsNote({ key: 'Enter', shiftKey: false }), true);
   assert.equal(sendsNote({ key: 'Enter', shiftKey: true }), false);
@@ -103,9 +103,9 @@ test('las notas de Remedy: lista con quién y cuándo, escapada; vacía o sin co
   const wl = [{ at: '2026-10-06 14:40', who: 'ANA <L>', text: 'Llamada <al> centro' }, { at: '2026-10-06 15:10', who: 'LUIS', text: 'Sin respuesta' }];
   const html = worklogHtml(wl);
   assert.equal((html.match(/<details /g) || []).length, 2);
-  assert.equal((html.match(/<details class="iss-wl-card" open>/g) || []).length, 1, 'solo la última va abierta');
+  assert.equal((html.match(/<details class="iss-wl-card" open>/g) || []).length, 1, 'solo la más reciente va abierta');
+  assert.match(html, /^<div class="iss-wl"><details class="iss-wl-card" open>\s*<summary><b>LUIS<\/b>/, 'y es la primera');
   assert.match(html, /<details class="iss-wl-card">\s*<summary><b>ANA &lt;L&gt;<\/b><span class="iss-wl-peek">Llamada &lt;al&gt; centro<\/span><time>06\/10 14:40<\/time>/);
-  assert.match(html, /<details class="iss-wl-card" open>\s*<summary><b>LUIS<\/b>/);
   const long = worklogHtml([{ at: '2026-10-06 14:40', who: 'X', text: 'a'.repeat(120) + '\nsegunda línea' }]);
   assert.match(long, new RegExp(`<span class="iss-wl-peek">${'a'.repeat(90)}…</span>`));
   assert.match(worklogHtml([]), /Sin notas de trabajo en Remedy/);

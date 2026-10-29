@@ -98,7 +98,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     closeAction();
     now = new Date(); // el histórico y las edades, a la hora de abrirla
     root.innerHTML = workScreen({ issue: i, sameCenter, timeline, now, mine, meId: me?.id, tab: workTab });
-    if (workTab === 'trail') scrollTrailToEnd();
+    if (workTab === 'trail') scrollTrailToStart();
     chat = openChat?.(root.querySelector('.iss-chat-body'), i) || null;
     root.scrollTop = 0;
   };
@@ -110,14 +110,14 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   };
   const openIssue = async (id) => renderIssue(await api.get(id));
 
-  // El histórico se enseña por el final: lo más reciente, sin hacer scroll.
-  const scrollTrailToEnd = () => { const box = root.querySelector('[data-trail]'); if (box) box.scrollTop = box.scrollHeight; };
+  // El histórico va con lo más reciente arriba: al enseñarlo, arriba del todo.
+  const scrollTrailToStart = () => { const box = root.querySelector('[data-trail]'); if (box) box.scrollTop = 0; };
   // Las pestañas de la pantalla de trabajo.
   const showTab = (key) => {
     workTab = key;
     root.querySelectorAll('[data-wtab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.wtab === key)));
     root.querySelectorAll('[data-wpanel]').forEach((p) => { p.hidden = p.dataset.wpanel !== key; });
-    if (key === 'trail') scrollTrailToEnd();
+    if (key === 'trail') scrollTrailToStart();
   };
   // El selector de persona de las acciones: abrir, elegir, cerrar.
   const pickOpen = () => root.querySelector('[data-pick] [aria-expanded="true"]');
@@ -200,7 +200,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     const items = await api.timeline(opened);
     const box = root.querySelector('[data-trail]');
     if (box) box.innerHTML = trailHtml(items, new Date(), me?.id);
-    scrollTrailToEnd();
+    scrollTrailToStart();
     const tab = root.querySelector('[data-wtab="trail"]');
     if (tab) tab.innerHTML = trailTab(items.length);
   };
