@@ -10,7 +10,7 @@ import { sev, origin, item } from './parts.js';
 import { onEscape } from '../ui/dialog.js';
 import { workScreen, trailHtml, trailTab, releaseDialogHtml, sendsNote, noteEditorHtml } from './work-screen.js';
 import { ACTIONS, actionForm, readAction, isComplete } from './actions.js';
-import { resolveForm, resolveReview, stepMissing, STEPS, MAX_FILE, fileBox, localShort } from './resolve-form.js';
+import { resolveForm, resolveReview, resumeStep, stepMissing, STEPS, MAX_FILE, fileBox, localShort } from './resolve-form.js';
 
 const GOAL = { min: 15, max: 20 }; // resueltas por turno, lo que dice el equipo
 const REFRESH_MS = 15000;
@@ -172,7 +172,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       }
       if (t.closest('[data-act-cancel]') || t.classList.contains('iss-modal')) return closeAction();
       if (t.closest('[data-step-next]')) return stepNext(t.closest('form'));
-      if (t.closest('[data-step-back]')) { const form = t.closest('form'); return goStep(form, Number(form.dataset.step) - 1); }
+      if (t.closest('[data-step-back]')) { const form = t.closest('form'); return moveTo(form, Number(form.dataset.step) - 1); }
       if (t.closest('[data-file-clear]')) return setFile(t.closest('form'), null);
       if (t.closest('[data-saved-drop]')) { clearTimeout(autosave); autosave = null; await saving; await api.dropDraft(opened); return openAction('resolve'); }
       const ed = t.closest('[data-edit-note]');
@@ -203,6 +203,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   const showErr = (form, text) => { const err = form.querySelector('.iss-act-err'); err.textContent = text || ''; err.hidden = !text; };
   const goStep = (form, n) => {
     form.dataset.step = String(n);
+    form.elements.step.value = String(n);   // va en el borrador: al volver se retoma aquí
     showErr(form, null);
     form.querySelectorAll('[data-rstep]').forEach((p) => { p.hidden = p.dataset.rstep !== String(n); });
     form.querySelectorAll('[data-step-mark]').forEach((m) => {
@@ -234,8 +235,10 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       return [...form.querySelectorAll(`[data-rstep="${n}"] textarea`)].find((a) => !a.value.trim())?.focus();
     }
     if (n + 1 === STEPS.length) await saving;   // la revisión enseña el adjunto aunque aún se estuviera guardando
-    if (form.isConnected) goStep(form, n + 1);
+    if (form.isConnected) moveTo(form, n + 1);
   };
+  // Cambiar de paso guarda el borrador, aunque no se haya escrito nada más.
+  const moveTo = (form, n) => { goStep(form, n); saveNow(form); };
   // El adjunto (uno): se guarda en el borrador en cuanto se elige o se suelta.
   const base64 = (file) => new Promise((ok, ko) => {
     const r = new FileReader();
@@ -303,6 +306,9 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     const form = key === 'resolve' ? resolveForm(opened, start.check, start.draft) : actionForm(key, opened, people);
     root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${form}</div>`);
     root.querySelector('.iss-act-form textarea, .iss-act-form input:not([type=hidden]), .iss-act-form select')?.focus();
+    // Resolver se retoma en el paso en el que se quedó (también enfoca lo suyo)
+    const resume = key === 'resolve' ? resumeStep(start.check, start.draft) : 1;
+    if (resume > 1) goStep(root.querySelector('[data-act-form="resolve"]'), resume);
     // Escape: con la lista del selector abierta la cierra; si no, cierra el modal
     offEscape = onEscape(() => (pickOpen() ? closePick() : closeAction()));
   };

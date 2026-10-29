@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveForm, resolveReview, stepMissing, fileSize, fileBox, localShort } from './resolve-form.js';
+import { resolveForm, resolveReview, resumeStep, stepMissing, fileSize, fileBox, localShort } from './resolve-form.js';
 // lo que manda el bridge al abrir Resolver
 import { resolveDraft } from '../../../server/issues/resolve.js';
 
@@ -77,6 +77,25 @@ test('título, identificador visible, guardado automático y lo que se dejó esc
   assert.match(html, /value="es" checked \/><span>Español<\/span>/);   // un borrador sin idioma, en español
   assert.match(resolveForm('INC1', r, { at, lang: 'en' }), /value="en" checked \/><span>English<\/span>/);
   assert.match(resolveForm('INC1', r), /value="es" checked \/><span>Español<\/span><\/label><label><input type="radio" name="lang" value="en" \/><span>English<\/span>/);
+});
+
+test('un borrador se retoma en el paso en el que se quedó, si los de antes siguen completos', () => {
+  const r = resolveDraft({ priority: 'HIGH', category: 'x', worklog: ALL });
+  const at = new Date(2026, 9, 28, 15, 20).toISOString();
+  const full = { at, note: 'N', what: 'W', how: 'H', prevent: 'P' };
+  assert.equal(resumeStep(r, null), 1);
+  assert.equal(resumeStep(r, { ...full }), 1);                        // de antes de guardar el paso
+  assert.equal(resumeStep(r, { ...full, step: 2 }), 2);
+  assert.equal(resumeStep(r, { ...full, step: 3 }), 3);
+  assert.equal(resumeStep(r, { ...full, what: '', step: 3 }), 2);     // falta algo del 2: vuelve al 2
+  assert.equal(resumeStep(r, { ...full, note: '', step: 2 }), 1);
+  const done = resolveDraft({ priority: 'HIGH', category: 'x', worklog: [...ALL, n('2026-10-28 11:30', '[RESOLUCION] Ya está')] });
+  assert.equal(resumeStep(done, { ...full, note: '', step: 2 }), 2);  // la nota ya está en Remedy
+  const blocked = resolveDraft({ priority: 'HIGH', category: '', worklog: ALL });
+  assert.equal(resumeStep(blocked, { ...full, step: 3 }), 1);         // falta algo en Remedy: donde se avisa
+  const html = resolveForm('INC1', r, { ...full, step: 2 });
+  assert.match(html, /<input type="hidden" name="step" value="1" \/>/);
+  assert.match(html, /Sigues en el paso 2, «Mensaje al centro», donde lo dejaste el 28\/10 15:20/);
 });
 
 test('sin las notas del procedimiento en Remedy no se escribe la nota de cierre ni se pasa de paso', () => {

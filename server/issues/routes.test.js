@@ -165,7 +165,7 @@ test('borrador de Resolver: guardar, adjuntar, quitar el adjunto y descartar, si
   const { call } = setup([], { issues: RES });
   assert.deepEqual((await call('GET', ['INC4', 'resolve'])).body.draft, null);
   assert.deepEqual((await call('PUT', ['INC4', 'draft'], { note: 'n', what: 'w', lang: 'en', extra: 'x' })).body, { at: 'at' });
-  assert.deepEqual((await call('GET', ['INC4', 'resolve'])).body.draft, { note: 'n', what: 'w', how: '', prevent: '', lang: 'en' });
+  assert.deepEqual((await call('GET', ['INC4', 'resolve'])).body.draft, { note: 'n', what: 'w', how: '', prevent: '', lang: 'en', step: 1 });
   const up = await call('PUT', ['INC4', 'draft', 'file'], { name: 'cola.png', type: 'image/png', data: b64 });
   assert.deepEqual(up.body, { at: 'at', file: { name: 'cola.png', type: 'image/png', size: 4 } });
   assert.equal((await call('PUT', ['INC4', 'draft', 'file'], { name: 'x.png' })).status, 400);

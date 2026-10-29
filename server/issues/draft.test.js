@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import { cleanFields, cleanFile, MAX_FILE, MAX_TEXT } from './draft.js';
 
 test('los cuatro campos y el idioma; lo que falta, vacío y en español; lo demás fuera', () => {
-  assert.deepEqual(cleanFields({ note: 'n', what: 'w', extra: 'x' }), { note: 'n', what: 'w', how: '', prevent: '', lang: 'es' });
+  assert.deepEqual(cleanFields({ note: 'n', what: 'w', extra: 'x' }), { note: 'n', what: 'w', how: '', prevent: '', lang: 'es', step: 1 });
   assert.equal(cleanFields({ lang: 'en' }).lang, 'en');
+  assert.equal(cleanFields({ step: '2' }).step, 2);   // del formulario llega como texto
   assert.equal(cleanFields({ note: 'a'.repeat(MAX_TEXT) }).note.length, MAX_TEXT);
 });
 
@@ -16,6 +17,7 @@ test('lo forzado desde devtools se rechaza, no se arregla', () => {
   bad({ note: 'a'.repeat(MAX_TEXT + 1) }, /pasa de 20\.000 caracteres/);
   bad({ lang: 'fr' }, 'Ese idioma no está.');
   bad({ lang: ['es'] }, 'Ese idioma no está.');
+  for (const step of ['4', 0, 'x', 1.5]) bad({ step }, 'El borrador no es válido.');
 });
 
 test('el adjunto: con nombre sin rutas, no vacío y de hasta 15 MB', () => {

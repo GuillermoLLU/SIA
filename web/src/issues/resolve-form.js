@@ -30,6 +30,15 @@ export const stepMissing = (n, values) => {
   return f ? f.label : null;
 };
 
+// El paso en el que se retoma un borrador: en el que se quedó, si los de antes
+// siguen completos; si falta algo en Remedy, el 1, que es donde se avisa.
+export const resumeStep = (r, saved) => {
+  if (!saved || r.missing.length) return 1;
+  const step = saved.step || 1;   // los borradores de antes no lo guardaban
+  for (let n = 1; n < step; n++) if (stepMissing(n, { ...saved, note: r.resolution?.text ?? saved.note })) return n;
+  return step;
+};
+
 // «2026-10-27 09:12» → «27/10 09:12», como en el resto de SIA
 const short = (at) => `${at.slice(8, 10)}/${at.slice(5, 7)} ${at.slice(11, 16)}`;
 // el mismo tope que el bridge (draft.js): más no se guarda
@@ -76,10 +85,14 @@ const done = (n) => `<li class="${n.note ? 'ok' : 'no'}"><i>${n.note ? '✓' : '
 
 const steps = () => `<ol class="iss-steps">${STEPS.map((s) => `<li data-step-mark="${s.n}"${s.n === 1 ? ' aria-current="step"' : ''}><i>${s.n}</i>${s.title}</li>`).join('')}</ol>`;
 
-export const resolveForm = (issueId, r, saved = null) => `<form class="iss-act-form iss-resolve" data-act-form="resolve" data-step="1" novalidate>
+// Se pinta en el paso 1; la vista lo lleva después al de resumeStep (goStep).
+export const resolveForm = (issueId, r, saved = null) => {
+  const at = resumeStep(r, saved);
+  return `<form class="iss-act-form iss-resolve" data-act-form="resolve" data-step="1" novalidate>
     <header><h3>Resolver incidencia</h3><span class="iss-act-id">${esc(issueId)}</span></header>
     ${steps()}
-    ${saved ? `<p class="iss-saved">Seguimos con lo que dejaste el ${localShort(saved.at)}. <button type="button" class="lab-btn" data-saved-drop>Descartar y empezar de nuevo</button></p>` : ''}
+    <input type="hidden" name="step" value="1" />
+    ${saved ? `<p class="iss-saved">${at > 1 ? `Sigues en el paso ${at}, «${STEPS[at - 1].title}», donde lo dejaste el ${localShort(saved.at)}.` : `Seguimos con lo que dejaste el ${localShort(saved.at)}.`} <button type="button" class="lab-btn" data-saved-drop>Descartar y empezar de nuevo</button></p>` : ''}
 
     <div class="iss-rstep" data-rstep="1">
       <section class="iss-rs">
@@ -129,3 +142,4 @@ export const resolveForm = (issueId, r, saved = null) => `<form class="iss-act-f
       <button type="submit" class="lab-btn primary" data-confirm-send hidden>Confirmar y resolver</button>
     </footer>
   </form>`;
+};
