@@ -140,9 +140,6 @@
 .iss-trail-panel { overflow: hidden; gap: 10px; }
 .iss-trail-hint { align-self: flex-end; max-width: 60%; margin: 0; padding: 7px 12px; font-size: 11.5px; line-height: 1.45; color: var(--text-low); text-align: right; background: color-mix(in srgb, var(--accent) 6%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border)); border-right: 3px solid var(--accent); }
 .iss-trail-scroll { flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px; }
-.iss-trail-day { margin-bottom: 4px; }
-.iss-trail-day h5 { display: flex; align-items: center; gap: 12px; margin: 6px 0 10px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-low); }
-.iss-trail-day h5::before, .iss-trail-day h5::after { content: ""; flex: 1; height: 1px; background: var(--border); }
 .iss-trail-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; font-size: 13px; }
 /* cada entrada: avatar a la izquierda, conectados por una línea fina */
 .iss-feed-item { position: relative; display: grid; grid-template-columns: 28px 1fr; gap: 0 12px; padding: 0 0 14px; }
@@ -151,9 +148,10 @@
 .iss-avatar { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; font-size: 11px; font-weight: 600; letter-spacing: .02em; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border)); }
 .iss-avatar.unknown { color: var(--text-low); background: color-mix(in srgb, var(--bg) 60%, var(--surface)); border-color: var(--border); }
 .iss-feed-body { min-width: 0; padding-top: 5px; }
-.iss-feed-body header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; color: var(--text-low); line-height: 1.4; }
+.iss-feed-body header { display: flex; align-items: baseline; gap: 8px; color: var(--text-low); line-height: 1.4; }
 .iss-feed-body header b { color: var(--text); font-weight: 600; }
-.iss-feed-body header time { margin-left: auto; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.iss-feed-did { flex: 1; min-width: 0; }
+.iss-feed-body header time { flex: none; font-size: 11.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .iss-feed-body header small { font-size: 11px; }
 .iss-feed-text { margin-top: 8px; padding: 10px 12px; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; color: var(--text); background: color-mix(in srgb, var(--bg) 50%, var(--surface)); border: 1px solid var(--border); border-radius: 4px; }
 .iss-feed-label { display: block; margin-bottom: 4px; font-size: 10.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-low); }

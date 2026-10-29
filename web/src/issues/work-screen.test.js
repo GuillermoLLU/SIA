@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { workScreen, trailHtml, trailTab, releaseDialogHtml, noteFormHtml, groupByDay, sendsNote, canEditNote, noteEditorHtml, worklogHtml } from './work-screen.js';
+import { workScreen, trailHtml, trailTab, releaseDialogHtml, noteFormHtml, sendsNote, canEditNote, noteEditorHtml, worklogHtml } from './work-screen.js';
 
 const issue = (o = {}) => ({ id: 'INC1', text: 'PDA <sin imagen>', priority: 'HIGH', status: 'ASSIGNED', reason: '', notes: 'no <arranca>',
   resolution: '', category: 'SGA', group: 'AYS SOPORTE', assignee: '', reported: '2026-10-01 10:00', modified: '2026-10-01 11:00',
@@ -33,7 +33,7 @@ test('mía y cogida en SIA: se puede devolver y se ve quién la tiene', () => {
   assert.match(html, /data-wtab="detail" aria-selected="true"/);
 });
 
-test('el feed: por días, con avatar, quién hizo qué y la hora; el motivo del traspaso como comentario; todo escapado', () => {
+test('el feed: lo más reciente arriba, con avatar, quién hizo qué y su cuándo; el motivo del traspaso como comentario; todo escapado', () => {
   const html = trailHtml([
     { at: '2026-10-01T08:00:00+00:00', type: 'claimed', by: 'Ana López', from: null, to: 'Ana López' },
     { at: '2026-10-01T09:00:00+00:00', type: 'transferred', by: 'Ana López', from: 'Ana López', to: 'Luis <x>', text: 'Lleva <dos> llamadas.' },
@@ -42,7 +42,11 @@ test('el feed: por días, con avatar, quién hizo qué y la hora; el motivo del 
     { at: '2026-10-02T08:00:00+00:00', type: 'claimed', by: 'Luis', from: null, to: 'Luis' },
   ], new Date('2026-10-02T12:00:00'));
   assert.equal((html.match(/<li /g) || []).length, 5);
-  assert.deepEqual([...html.matchAll(/<h5><span>([^<]+)<\/span><\/h5>/g)].map((m) => m[1]), ['Hoy', 'Ayer'], 'lo más reciente arriba');
+  assert.doesNotMatch(html, /<h5>/, 'sin separadores de día');
+  const hm = (iso) => { const d = new Date(iso); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+  assert.deepEqual([...html.matchAll(/<time>([^<]+)<\/time>/g)].map((m) => m[1]),
+    [`HOY ${hm('2026-10-02T08:00:00+00:00')}`, `01/10 ${hm('2026-10-01T11:00:00+00:00')}`, `01/10 ${hm('2026-10-01T10:00:00+00:00')}`, `01/10 ${hm('2026-10-01T09:00:00+00:00')}`, `01/10 ${hm('2026-10-01T08:00:00+00:00')}`],
+    'cada entrada con su día y hora, de la más nueva a la más antigua');
   assert.match(html, /<span class="iss-avatar" aria-hidden="true">AL<\/span>/);
   assert.match(html, /<span class="iss-avatar unknown" aria-hidden="true">\?<\/span>/);
   assert.match(html, /<b>Ana López<\/b> cogió la issue/);
@@ -71,11 +75,7 @@ test('el campo de nota del histórico: un textarea y el botón de enviar apagado
   assert.match(html, /class="iss-send"[^>]*aria-label="Enviar"[^>]*disabled/);
 });
 
-test('agrupar por día invierte el orden (lo más reciente arriba) y parte donde cambia el día; Intro envía y Mayús+Intro no', () => {
-  const now = new Date('2026-10-02T12:00:00');
-  const a = { at: '2026-10-01T08:00:00', type: 'claimed' }, b = { at: '2026-10-01T09:00:00', type: 'released' }, c = { at: '2026-10-02T08:00:00', type: 'claimed' };
-  assert.deepEqual(groupByDay([a, b, c], now), [{ day: 'Hoy', items: [c] }, { day: 'Ayer', items: [b, a] }]);
-  assert.deepEqual(groupByDay([], now), []);
+test('Intro envía y Mayús+Intro no', () => {
   assert.equal(sendsNote({ key: 'Enter', shiftKey: false }), true);
   assert.equal(sendsNote({ key: 'Enter', shiftKey: true }), false);
   assert.equal(sendsNote({ key: 'a', shiftKey: false }), false);
@@ -106,6 +106,7 @@ test('las notas de Remedy: lista con quién y cuándo, escapada; vacía o sin co
   assert.equal((html.match(/<details class="iss-wl-card" open>/g) || []).length, 1, 'solo la más reciente va abierta');
   assert.match(html, /^<div class="iss-wl"><details class="iss-wl-card" open>\s*<summary><b>LUIS<\/b>/, 'y es la primera');
   assert.match(html, /<details class="iss-wl-card">\s*<summary><b>ANA &lt;L&gt;<\/b><span class="iss-wl-peek">Llamada &lt;al&gt; centro<\/span><time>06\/10 14:40<\/time>/);
+  assert.match(worklogHtml([{ at: '2026-10-01 09:30', who: 'X', text: 'hoy' }], new Date('2026-10-01T12:00:00')), /<time>HOY 09:30<\/time>/);
   const long = worklogHtml([{ at: '2026-10-06 14:40', who: 'X', text: 'a'.repeat(120) + '\nsegunda línea' }]);
   assert.match(long, new RegExp(`<span class="iss-wl-peek">${'a'.repeat(90)}…</span>`));
   assert.match(worklogHtml([]), /Sin notas de trabajo en Remedy/);

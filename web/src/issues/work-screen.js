@@ -6,7 +6,7 @@
 // issue-chat.js), que vive mientras la issue esté abierta. Las parecidas,
 // por conectar: solo su hueco.
 import { esc } from '../ui/html.js';
-import { STATUS_ES, REASON_ES, SEVERITY_ES, when, whenIso, dayLabel, timeIso, age } from './format.js';
+import { STATUS_ES, REASON_ES, SEVERITY_ES, when, whenIso, whenLabel, age } from './format.js';
 import { item } from './parts.js';
 
 const WORK_TABS = [
@@ -24,11 +24,11 @@ export const trailTab = (n) => `${WORK_TABS.find((t) => t.key === 'trail').label
 // y se abren al pulsar la tarjeta. Sin la columna en la foto (cargada antes
 // de leerla), se pide un CSV nuevo.
 const firstLine = (text) => { const l = String(text).trim().split('\n')[0]; return l.length > 90 ? `${l.slice(0, 90)}…` : l; };
-export const worklogHtml = (worklog) => {
+export const worklogHtml = (worklog, now = new Date()) => {
   if (!worklog) return '<p class="iss-empty">La foto cargada no trae las notas de Remedy: carga un CSV nuevo de la consulta.</p>';
   if (!worklog.length) return '<p class="iss-empty">Sin notas de trabajo en Remedy.</p>';
   return `<div class="iss-wl">${[...worklog].reverse().map((n, k) => `<details class="iss-wl-card"${k === 0 ? ' open' : ''}>
-      <summary><b>${esc(n.who)}</b><span class="iss-wl-peek">${esc(firstLine(n.text))}</span><time>${when(n.at)}</time></summary>
+      <summary><b>${esc(n.who)}</b><span class="iss-wl-peek">${esc(firstLine(n.text))}</span><time>${whenLabel(n.at, now)}</time></summary>
       <p>${esc(n.text)}</p>
     </details>`).join('')}</div>`;
 };
@@ -52,7 +52,7 @@ export const EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
 export const canEditNote = (t, meId, now) => t.type === 'note' && !!meId && t.byId === meId && now.getTime() - new Date(t.at).getTime() <= EDIT_WINDOW_MS;
 
 const trailItem = (t, meId, now) => `<li class="iss-feed-item" data-entry="${t.type === 'note' ? esc(String(t.id)) : ''}">${avatar(t.by)}<div class="iss-feed-body">
-      <header>${(DID[t.type] || ((x) => esc(x.type)))(t)}<time>${timeIso(t.at)}</time>${t.edited ? `<small>editada ${whenIso(t.edited)}</small>` : ''}${canEditNote(t, meId, now) ? `<button type="button" class="iss-feed-edit" data-edit-note="${esc(String(t.id))}">Editar</button>` : ''}</header>
+      <header><span class="iss-feed-did">${(DID[t.type] || ((x) => esc(x.type)))(t)}</span>${canEditNote(t, meId, now) ? `<button type="button" class="iss-feed-edit" data-edit-note="${esc(String(t.id))}">Editar</button>` : ''}${t.edited ? `<small>editada ${whenLabel(t.edited, now)}</small>` : ''}<time>${whenLabel(t.at, now)}</time></header>
       ${t.text ? `<div class="iss-feed-text" data-note-text>${t.type === 'transferred' ? '<span class="iss-feed-label">Motivo</span>' : ''}${esc(t.text)}</div>` : ''}
     </div></li>`;
 
@@ -61,20 +61,10 @@ export const noteEditorHtml = (text) => `<form class="iss-note-edit" data-note-e
     <textarea name="note" rows="3" aria-label="Editar la nota">${esc(text)}</textarea>
     <footer><button type="button" class="lab-btn" data-edit-cancel>Cancelar</button><button type="submit" class="lab-btn primary">Guardar</button></footer>
   </form>`;
-// Las entradas agrupadas por día, lo más reciente arriba → [{ day, items }].
-// `now` solo decide «Hoy» y «Ayer».
-export const groupByDay = (timeline, now) => {
-  const days = [];
-  for (const t of [...timeline].reverse()) {
-    const day = dayLabel(t.at, now);
-    if (days.at(-1)?.day !== day) days.push({ day, items: [] });
-    days.at(-1).items.push(t);
-  }
-  return days;
-};
+// Lo más reciente arriba; cada entrada con su cuándo («HOY 13:05» o «22/10 12:06»).
 // meId: quién mira, para ofrecer «Editar» solo en sus notas recientes.
 export const trailHtml = (timeline = [], now = new Date(), meId = null) => (timeline.length
-  ? groupByDay(timeline, now).map(({ day, items }) => `<section class="iss-trail-day"><h5><span>${day}</span></h5><ol class="iss-trail-list">${items.map((t) => trailItem(t, meId, now)).join('')}</ol></section>`).join('')
+  ? `<ol class="iss-trail-list">${[...timeline].reverse().map((t) => trailItem(t, meId, now)).join('')}</ol>`
   : '<p class="iss-empty">Nadie la ha movido ni anotado en SIA todavía.</p>');
 
 // En el campo de nota, Intro envía; Mayús+Intro salta de línea.
@@ -137,7 +127,7 @@ export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, meI
 
       <div class="iss-wpanel" data-wpanel="remedy"${tab === 'remedy' ? '' : ' hidden'}>
         <p class="iss-trail-hint">Lo que se ha ido anotando en Remedy sobre esta issue</p>
-        ${worklogHtml(i.worklog)}
+        ${worklogHtml(i.worklog, now)}
       </div>
 
       <div class="iss-wpanel" data-wpanel="related"${tab === 'related' ? '' : ' hidden'}>
