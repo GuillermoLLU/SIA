@@ -1,6 +1,7 @@
-// Las acciones sobre una issue (resolver, escalar, añadir nota, traspasar):
-// su formulario y qué hace falta para enviarlo. Irán a Remedy por SIGLO; de
-// momento el formulario está activo pero no se envía nada.
+// Las acciones sobre una issue (resolver, escalar, traspasar): su formulario
+// y qué hace falta para enviarlo. Traspasar se queda en SIA (la base de la
+// instancia); resolver y escalar irán a Remedy por SIGLO y, de momento, no se
+// envían. Las notas internas se escriben en la pestaña Histórico y notas.
 import { esc } from '../ui/html.js';
 
 export const ACTIONS = {
@@ -22,25 +23,32 @@ export const ACTIONS = {
       { name: 'reason', label: 'Motivo', kind: 'text', required: true },
     ],
   },
-  note: {
-    label: 'Añadir nota', title: 'Añadir una nota', ok: 'Añadir',
-    fields: [{ name: 'note', label: 'Nota', kind: 'text', required: true }],
-  },
   transfer: {
-    label: 'Traspasar', title: 'Traspasar a un compañero', ok: 'Traspasar',
+    label: 'Traspasar', title: 'Traspasar a un compañero', ok: 'Traspasar', local: true,
     fields: [
       { name: 'to', label: 'Compañero', kind: 'person', required: true },
-      { name: 'comment', label: 'Comentario', kind: 'text', required: false, hint: 'Lo que debe saber quien la recibe.' },
+      { name: 'comment', label: 'Motivo', kind: 'text', required: true },
     ],
   },
 };
 
+// El selector de persona es propio (el desplegable nativo no se puede pintar):
+// un campo oculto con el id, un botón con el nombre elegido y la lista debajo.
+// Abrir, elegir y cerrar lo lleva la vista (issues-view.js) por data-pick-*.
+const picker = (f, people) => `<div class="iss-pick" data-pick>
+      <input type="hidden" name="${f.name}" value="">
+      <button type="button" id="iss-f-${f.name}" class="iss-pick-btn" data-pick-btn aria-haspopup="listbox" aria-expanded="false" ${people.length ? '' : 'disabled'}><span data-pick-label class="iss-pick-ph">${people.length ? 'Elige a quién' : 'No hay más personas en Issues'}</span></button>
+      <ul class="iss-pick-list" role="listbox" hidden>${people.map((p) => `<li role="option" data-pick-opt="${esc(p.id)}" aria-selected="false">${esc(p.name)}</li>`).join('')}</ul>
+    </div>`;
+
 const field = (f, people) => {
   const id = `iss-f-${f.name}`;
-  const input = f.kind === 'text' ? `<textarea id="${id}" name="${f.name}" rows="5"></textarea>`
-    : f.kind === 'person' ? `<select id="${id}" name="${f.name}"><option value="">${people.length ? 'Elige a quién' : 'No hay más personas en Issues'}</option>${people.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}</select>`
-    : `<input id="${id}" name="${f.name}" />`;
-  return `<label class="iss-field" for="${id}"><span>${f.label}${f.required ? '' : ' <i>(opcional)</i>'}</span>${input}${f.hint ? `<small>${f.hint}</small>` : ''}</label>`;
+  const label = `<span>${f.label}${f.required ? '' : ' <i>(opcional)</i>'}</span>`;
+  const hint = f.hint ? `<small>${f.hint}</small>` : '';
+  // el selector no va dentro de un <label>: un clic en su lista rebotaría al botón
+  if (f.kind === 'person') return `<div class="iss-field">${label}${picker(f, people)}${hint}</div>`;
+  const input = f.kind === 'text' ? `<textarea id="${id}" name="${f.name}" rows="5"></textarea>` : `<input id="${id}" name="${f.name}" />`;
+  return `<label class="iss-field" for="${id}">${label}${input}${hint}</label>`;
 };
 
 export const actionForm = (key, issueId, people = []) => {
@@ -48,11 +56,14 @@ export const actionForm = (key, issueId, people = []) => {
   return `<form class="iss-act-form" data-act-form="${key}" novalidate>
     <header><h3>${a.title}</h3><span>${esc(issueId)}</span></header>
     ${a.fields.map((f) => field(f, people)).join('')}
-    <p class="iss-act-note">Aún no se envía a Remedy: irá por SIGLO cuando lo conectemos.</p>
+    ${a.local ? '' : '<p class="iss-act-note">Aún no se envía a Remedy: irá por SIGLO cuando lo conectemos.</p>'}
     <p class="iss-act-err" hidden></p>
-    <footer><button type="button" class="lab-btn" data-act-cancel>Cancelar</button><button type="submit" class="lab-btn primary">${a.ok}</button></footer>
+    <footer><button type="button" class="lab-btn" data-act-cancel>Cancelar</button><button type="submit" class="lab-btn primary" disabled>${a.ok}</button></footer>
   </form>`;
 };
+
+// ¿Están todos los obligatorios? Mientras no, el botón de enviar sigue apagado.
+export const isComplete = (key, values) => !readAction(key, values).missing;
 
 // Los valores del formulario, o el primer campo obligatorio vacío.
 export const readAction = (key, values) => {

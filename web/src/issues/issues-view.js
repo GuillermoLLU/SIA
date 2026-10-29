@@ -5,19 +5,21 @@
 // trabajo (work-screen.js). La mesa se refresca sola.
 import './issues.css';
 import { esc } from '../ui/html.js';
-import { LISTS, when, age, stamp, weekBars } from './format.js';
+import { LISTS, snapshotInfo, age, weekBars } from './format.js';
 import { sev, origin, item } from './parts.js';
-import { workScreen } from './work-screen.js';
-import { ACTIONS, actionForm, readAction } from './actions.js';
+import { onEscape } from '../ui/dialog.js';
+import { workScreen, trailHtml, trailTab, releaseDialogHtml, sendsNote, noteEditorHtml } from './work-screen.js';
+import { ACTIONS, actionForm, readAction, isComplete } from './actions.js';
 import { resolveForm, resolveReview, stepMissing, STEPS, MAX_FILE, fileBox, localShort } from './resolve-form.js';
 
 const GOAL = { min: 15, max: 20 }; // resueltas por turno, lo que dice el equipo
 const REFRESH_MS = 15000;
 
 // openChat(host, issueId) → { dispose }: el chat de la issue (lo pone main.js).
-export const mountIssuesView = (root, { api, me, toast, openChat }) => {
+// dialogs: los diálogos de la app (ui/dialog.js), para confirmar antes de devolver.
+export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => {
   const failed = (text) => (toast?.error || toast)?.(text);   // lo que falla, en rojo
-  let data = null, rule = 'basic', now = new Date(), opened = null, onDesk = false, workTab = 'ai', chat = null, loading = false, picking = false;
+  let data = null, rule = 'basic', now = new Date(), opened = null, onDesk = false, workTab = 'detail', chat = null, loading = false, picking = false;
   let attached = null; // Resolver: el adjunto guardado en el borrador abierto ({ name, type, size })
   const closeChat = () => { chat?.dispose(); chat = null; };
 
@@ -45,7 +47,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
     const count = (key) => lists.find((l) => l.key === key).items.length;
     const used = history.weeks.some((w) => w.sga + w.sisu);
     root.innerHTML = `<div class="iss-page">
-      <header class="iss-top"><h2 class="iss-title">Hola, ${esc((me?.name || '').split(' ')[0] || 'equipo')}</h2><span class="iss-snap">Datos de Remedy del ${when(stamp(now))}</span>${loadButton('Cargar otro CSV')}</header>
+      <header class="iss-top"><h2 class="iss-title">Hola, ${esc((me?.name || '').split(' ')[0] || 'equipo')}</h2>${(({ text, stale }) => `<span class="iss-snap${stale ? ' stale' : ''}" ${stale ? 'title="La foto de Remedy no es de hoy: carga un CSV nuevo para ponerla al día. Lo medido en SIA sí es de hoy."' : ''}>${text}${stale ? ' · sin actualizar' : ''}</span>`)(snapshotInfo(data.taken, now))}${loadButton('Cargar otro CSV')}</header>
 
       <div class="iss-row1">
         <section class="iss-card iss-next">
@@ -90,27 +92,65 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
     </div>`;
   };
 
-  const renderIssue = ({ issue: i, sameCenter }) => {
+  const renderIssue = ({ issue: i, sameCenter, timeline }) => {
     onDesk = false;
     const mine = i.claimedBy && data?.desk.some((d) => d.id === i.id && d.claimed);
-    if (opened !== i.id) workTab = 'ai';
+    if (opened !== i.id) workTab = 'detail';
     opened = i.id;
     closeChat();
     closeAction();
-    root.innerHTML = workScreen({ issue: i, sameCenter, now, mine, tab: workTab });
+    now = new Date(); // el histórico y las edades, a la hora de abrirla
+    root.innerHTML = workScreen({ issue: i, sameCenter, timeline, now, mine, meId: me?.id, tab: workTab });
+    if (workTab === 'trail') scrollTrailToEnd();
     chat = openChat?.(root.querySelector('.iss-chat-body'), i.id) || null;
     root.scrollTop = 0;
   };
 
   const loadDesk = async () => {
     data = await api.desk();
-    now = data.taken ? new Date(data.taken) : new Date();
+    now = new Date();
     renderDesk();
   };
   const openIssue = async (id) => renderIssue(await api.get(id));
 
+  // El histórico se enseña por el final: lo más reciente, sin hacer scroll.
+  const scrollTrailToEnd = () => { const box = root.querySelector('[data-trail]'); if (box) box.scrollTop = box.scrollHeight; };
+  // Las pestañas de la pantalla de trabajo.
+  const showTab = (key) => {
+    workTab = key;
+    root.querySelectorAll('[data-wtab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.wtab === key)));
+    root.querySelectorAll('[data-wpanel]').forEach((p) => { p.hidden = p.dataset.wpanel !== key; });
+    if (key === 'trail') scrollTrailToEnd();
+  };
+  // El selector de persona de las acciones: abrir, elegir, cerrar.
+  const pickOpen = () => root.querySelector('[data-pick] [aria-expanded="true"]');
+  const closePick = () => root.querySelectorAll('[data-pick] [aria-expanded="true"]').forEach((b) => { b.setAttribute('aria-expanded', 'false'); b.nextElementSibling.hidden = true; });
+  const pickClick = (t) => {
+    const btn = t.closest('[data-pick-btn]');
+    if (btn) {
+      const open = btn.getAttribute('aria-expanded') === 'true';
+      closePick();
+      if (!open) { btn.setAttribute('aria-expanded', 'true'); btn.nextElementSibling.hidden = false; }
+      return true;
+    }
+    const opt = t.closest('[data-pick-opt]');
+    if (!opt) { closePick(); return false; }
+    const pick = opt.closest('[data-pick]');
+    pick.querySelector('input[type=hidden]').value = opt.dataset.pickOpt;
+    pick.querySelectorAll('[data-pick-opt]').forEach((o) => o.setAttribute('aria-selected', String(o === opt)));
+    const label = pick.querySelector('[data-pick-label]');
+    label.textContent = opt.textContent;
+    label.classList.remove('iss-pick-ph');
+    closePick();
+    syncSubmit(pick.closest('[data-act-form]'));
+    return true;
+  };
   root.addEventListener('click', async (e) => {
     const t = e.target;
+    if (pickClick(t)) return;
+    // con el diálogo de elegir fichero abierto no se repinta la mesa: el
+    // cambio llegaría a un input que ya no está en la página
+    if (t.matches('[data-csv]')) { picking = true; return; }
     try {
       const take = t.closest('[data-take]');
       if (take) {
@@ -123,12 +163,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
         return openIssue(id);
       }
       const wt = t.closest('[data-wtab]');
-      if (wt) {
-        workTab = wt.dataset.wtab;
-        root.querySelectorAll('[data-wtab]').forEach((b) => b.setAttribute('aria-selected', String(b === wt)));
-        root.querySelectorAll('[data-wpanel]').forEach((p) => { p.hidden = p.dataset.wpanel !== workTab; });
-        return;
-      }
+      if (wt) return showTab(wt.dataset.wtab);
       const act = t.closest('[data-act]');
       if (act) {
         if (act.disabled) return;   // un segundo clic mientras se abre: un solo modal
@@ -140,17 +175,28 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
       if (t.closest('[data-step-back]')) { const form = t.closest('form'); return goStep(form, Number(form.dataset.step) - 1); }
       if (t.closest('[data-file-clear]')) return setFile(t.closest('form'), null);
       if (t.closest('[data-saved-drop]')) { clearTimeout(autosave); autosave = null; await saving; await api.dropDraft(opened); return openAction('resolve'); }
+      const ed = t.closest('[data-edit-note]');
+      if (ed) return openNoteEditor(ed.dataset.editNote);
+      if (t.closest('[data-edit-cancel]')) return refreshTrail();
       const r = t.closest('[data-id]');
       if (r) return openIssue(r.dataset.id);
       if (t.closest('[data-back]')) { renderDesk(); root.scrollTop = 0; return; }
       const rel = t.closest('[data-release]');
-      if (rel) { rel.disabled = true; await api.release(opened); await loadDesk(); return toast?.('Devuelta a la cola.'); }
+      if (rel) {
+        rel.disabled = true;
+        const ok = !dialogs || await dialogs.open({ title: 'Devolver a la cola', centered: true, okLabel: 'Devolver',
+          bodyHTML: releaseDialogHtml(opened, data?.desk.find((d) => d.id === opened)?.text) });
+        if (!ok) { rel.disabled = false; return; }
+        await api.release(opened);
+        await loadDesk();
+        return toast?.('Devuelta a la cola.');
+      }
     } catch (err) { failed(err.message); }
   });
   // Acciones: su formulario encima de la pantalla de trabajo. De momento se
   // valida y se avisa: nada sale hacia Remedy hasta conectar SIGLO.
-  let people = [];
-  const closeAction = () => { flushSave(); root.querySelector('.iss-modal')?.remove(); };
+  let people = [], offEscape = null;
+  const closeAction = () => { flushSave(); root.querySelector('.iss-modal')?.remove(); offEscape?.(); offEscape = null; };
 
   // Resolver: los tres pasos. No se sale de uno sin lo obligatorio; el 3 se
   // pinta con lo escrito, como se va a enviar.
@@ -257,8 +303,74 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
     const form = key === 'resolve' ? resolveForm(opened, start.check, start.draft) : actionForm(key, opened, people);
     root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${form}</div>`);
     root.querySelector('.iss-act-form textarea, .iss-act-form input:not([type=hidden]), .iss-act-form select')?.focus();
+    // Escape: con la lista del selector abierta la cierra; si no, cierra el modal
+    offEscape = onEscape(() => (pickOpen() ? closePick() : closeAction()));
   };
+  // Tras añadir una nota, el histórico se repinta en su sitio.
+  const refreshTrail = async () => {
+    const items = await api.timeline(opened);
+    const box = root.querySelector('[data-trail]');
+    if (box) box.innerHTML = trailHtml(items, new Date(), me?.id);
+    scrollTrailToEnd();
+    const tab = root.querySelector('[data-wtab="trail"]');
+    if (tab) tab.innerHTML = trailTab(items.length);
+  };
+  // El botón de enviar, apagado hasta que estén todos los campos obligatorios.
+  // Resolver valida por pasos (su botón es el último): aquí solo cuentan los demás.
+  const syncSubmit = (form) => { if (form.dataset.actForm === 'resolve') return; form.querySelector('[type=submit]').disabled = !isComplete(form.dataset.actForm, Object.fromEntries(new FormData(form))); };
+  root.addEventListener('input', (e) => {
+    const form = e.target.closest('[data-act-form]');
+    if (form) return syncSubmit(form);
+    const nf = e.target.closest('[data-note-form]');
+    if (nf) nf.querySelector('[type=submit]').disabled = !nf.note.value.trim();
+  });
+  // Editar una nota propia: el editor ocupa el sitio del texto; Guardar manda
+  // el cambio y se repinta el histórico; Cancelar o Escape lo deja como estaba.
+  const openNoteEditor = (noteId) => {
+    const item = root.querySelector(`[data-entry="${noteId}"]`);
+    const text = item?.querySelector('[data-note-text]');
+    if (!text) return;
+    text.outerHTML = noteEditorHtml(text.textContent);
+    const ta = item.querySelector('[data-note-edit] textarea');
+    ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+  };
+  const saveNote = async (form) => {
+    const body = form.note.value.trim();
+    if (!body) return;
+    const noteId = Number(form.closest('[data-entry]').dataset.entry);
+    form.querySelector('[type=submit]').disabled = true;
+    try { await api.editNote(opened, noteId, body); await refreshTrail(); toast?.('Nota editada.'); }
+    catch (err) { toast?.(err.message); form.querySelector('[type=submit]').disabled = false; }
+  };
+  // La nota interna, desde el pie del histórico: se guarda, se repinta y se
+  // baja hasta ella.
+  const sendNote = async (form) => {
+    const text = form.note.value.trim();
+    if (!text) return;
+    const btn = form.querySelector('[type=submit]');
+    btn.disabled = true;
+    try {
+      await api.addNote(opened, text);
+      form.note.value = '';
+      await refreshTrail();
+      toast?.('Nota añadida.');
+    } catch (err) { toast?.(err.message); btn.disabled = false; }
+  };
+  root.addEventListener('keydown', (e) => {
+    if (e.target.matches('[data-note-edit] textarea')) {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); return refreshTrail(); }
+      if (sendsNote(e)) { e.preventDefault(); return saveNote(e.target.closest('[data-note-edit]')); }
+      return;
+    }
+    if (!e.target.matches('[data-note-form] textarea') || !sendsNote(e)) return;
+    e.preventDefault();
+    sendNote(e.target.closest('[data-note-form]'));
+  });
   root.addEventListener('submit', async (e) => {
+    const ne = e.target.closest('[data-note-edit]');
+    if (ne) { e.preventDefault(); return saveNote(ne); }
+    const nf = e.target.closest('[data-note-form]');
+    if (nf) { e.preventDefault(); return sendNote(nf); }
     const form = e.target.closest('[data-act-form]');
     if (!form) return;
     e.preventDefault();
@@ -266,7 +378,8 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
     if (key === 'resolve' && Number(form.dataset.step) < STEPS.length) return stepNext(form);
     const { missing, values } = readAction(key, Object.fromEntries(new FormData(form)));
     const err = form.querySelector('.iss-act-err');
-    if (missing) { err.textContent = `Falta: ${missing}.`; err.hidden = false; return; }
+    const fail = (text) => { err.textContent = text; err.hidden = false; form.querySelector('[type=submit]').disabled = false; };
+    if (missing) return fail(`Falta: ${missing}.`);
     // Resolver solo se envía desde el último paso, ya revisado. El bridge lo
     // vuelve a comprobar todo y, si cumple, borra el borrador.
     if (key === 'resolve') {
@@ -284,9 +397,18 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
       if (form.isConnected) closeAction();   // si ya se cerró, no se cierra el de otra issue
       return toast?.('Resolver: comprobado, pero aún no se envía a Remedy (falta conectar SIGLO).');
     }
-    closeAction();
-    const who = key === 'transfer' ? people.find((p) => p.id === values.to)?.name : null;
-    toast?.(`${ACTIONS[key].label}${who ? ` a ${who}` : ''}: preparado, pero aún no se envía a Remedy (falta conectar SIGLO).`);
+    form.querySelector('[type=submit]').disabled = true;
+    try {
+      if (key === 'transfer') {
+        const who = people.find((p) => p.id === values.to)?.name || 'un compañero';
+        await api.transfer(opened, values.to, values.comment);
+        closeAction();
+        await loadDesk();
+        return toast?.(`Traspasada a ${who}.`);
+      }
+      closeAction();
+      toast?.(`${ACTIONS[key].label}: preparado, pero aún no se envía a Remedy (falta conectar SIGLO).`);
+    } catch (e2) { fail(e2.message); }
   });
   // Soltar el adjunto en su zona. Fuera de ella no pasa nada: el navegador no
   // abre ni descarga el archivo (en toda la página, no solo en esta vista).
@@ -310,7 +432,6 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
     setFile(z.closest('form'), files[0]);
     if (files.length > 1) toast?.('Solo se adjunta uno: el primero.');
   });
-  root.addEventListener('keydown', (e) => { if (e.key === 'Escape' && root.querySelector('.iss-modal')) closeAction(); });
 
   const upload = async (file) => {
     if (!file) return;
@@ -327,13 +448,12 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
   };
 
   root.addEventListener('change', (e) => {
+    if (e.target.matches('[data-file]') && e.target.files[0]) return setFile(e.target.closest('form'), e.target.files[0]);
+    const form = e.target.closest('[data-act-form]');
+    if (form) return syncSubmit(form);
     if (e.target.matches('[data-rule]')) rule = e.target.value;
     if (e.target.matches('[data-csv]')) { picking = false; upload(e.target.files[0]); }
-    if (e.target.matches('[data-file]') && e.target.files[0]) setFile(e.target.closest('form'), e.target.files[0]);
   });
-  // Con el diálogo de elegir fichero abierto no se repinta la mesa: el
-  // cambio llegaría a un input que ya no está en la página.
-  root.addEventListener('click', (e) => { if (e.target.matches('[data-csv]')) picking = true; });
   const picked = () => { picking = false; };
   window.addEventListener('focus', picked);
 
@@ -341,7 +461,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
   const refresher = setInterval(() => {
     if (!onDesk || picking || root.hidden || document.visibilityState !== 'visible') return;
     const y = root.scrollTop;
-    api.desk().then((d) => { data = d; now = d.taken ? new Date(d.taken) : new Date(); if (onDesk) { renderDesk(); root.scrollTop = y; } }).catch(() => {});
+    api.desk().then((d) => { data = d; now = new Date(); if (onDesk) { renderDesk(); root.scrollTop = y; } }).catch(() => {});
   }, REFRESH_MS);
 
   return {

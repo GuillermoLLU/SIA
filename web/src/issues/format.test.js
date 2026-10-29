@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LISTS, when, age, stamp, duration, since, weekBars } from './format.js';
+import { LISTS, when, whenIso, dayLabel, timeIso, snapshotInfo, age, stamp, duration, since, weekBars } from './format.js';
 
 const NOW = new Date('2026-10-04T11:44:00');
 
@@ -40,4 +40,25 @@ test('weekBars: alturas sobre el máximo, nunca por debajo de 5', () => {
   assert.deepEqual([a.total, a.sgaPct, a.sisuPct], [2, 20, 0]);
   assert.deepEqual([b.total, b.sgaPct, b.sisuPct], [10, 60, 40]);
   assert.equal(weekBars([{ week: 'w', sga: 1, sisu: 0 }])[0].sgaPct, 20);
+});
+
+test('una fecha ISO de la base sale en hora local con el formato de la mesa', () => {
+  assert.equal(whenIso('2026-10-29T10:12:42+00:00'), when(stamp(new Date('2026-10-29T10:12:42+00:00'))));
+  assert.match(whenIso('2026-10-29T10:12:42+00:00'), /^29\/10 \d\d:12$/);
+});
+
+test('la foto de Remedy: al día si es de hoy; si no, avisa', () => {
+  const now = new Date('2026-10-29T12:00:00');
+  assert.deepEqual(snapshotInfo('2026-10-29T09:30:00', now), { text: `Datos de Remedy del ${when(stamp(new Date('2026-10-29T09:30:00')))}`, stale: false });
+  assert.equal(snapshotInfo('2026-10-21T10:09:00', now).stale, true);
+  assert.equal(snapshotInfo('2026-10-28T23:59:00', now).stale, true);
+});
+
+test('día y hora de la línea de tiempo: Hoy, Ayer, dd/mm y el año solo si es otro', () => {
+  const now = new Date('2026-10-29T12:00:00');
+  assert.equal(dayLabel('2026-10-29T01:00:00', now), 'Hoy');
+  assert.equal(dayLabel('2026-10-28T23:30:00', now), 'Ayer');
+  assert.equal(dayLabel('2026-10-06T10:05:00', now), '06/10');
+  assert.equal(dayLabel('2025-12-31T10:05:00', now), '31/12/2025');
+  assert.equal(timeIso('2026-10-29T12:42:00'), '12:42');
 });
