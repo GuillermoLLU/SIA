@@ -13,6 +13,9 @@ test('la pantalla: tres pestañas, Detalle por defecto, sin análisis de la IA y
   assert.match(html, /data-wtab="detail" aria-selected="true"/);
   assert.doesNotMatch(html, /Análisis de la IA|data-wpanel="ai"/);
   assert.match(html, /Nadie la ha movido ni anotado en SIA todavía/);
+  assert.match(html, /Resolución asistida por IA/);
+  assert.match(html, /conocimiento de SGA y los datos de INC1/);
+  assert.match(workScreen({ issue: issue({ sisu: true }), sameCenter: [], now, mine: false }), /conocimiento de SISU/);
   assert.match(html, /iss-trail-hint">Por quién ha pasado esta issue y las notas internas del equipo</);
   assert.doesNotMatch(html, /data-act="note"/);
   assert.match(html, /data-note-form/);
