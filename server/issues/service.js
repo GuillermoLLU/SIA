@@ -2,7 +2,8 @@
 // quién ha cogido qué, que lleva la base de la instancia (platform_*). Todo
 // con el JWT de quien actúa; «coger» es un simulacro: se da por hecho que
 // SIGLO la asigna en Remedy.
-import { queue, RULES } from './queue.js';
+import { queue } from './queue.js';
+import { loadRules, ruleById } from './rules.js';
 import { deskOf, brief } from './desk.js';
 import { today, history, dayKey } from './stats.js';
 import { timeline } from './timeline.js';
@@ -30,13 +31,13 @@ export const createIssuesService = ({ source, platform, now = () => new Date() }
     async desk({ user, accessToken: jwt }) {
       const { taken, issues, claims, claimed, now } = await snapshot(jwt);
       const since = new Date(now.getTime() - WEEKS * 7 * 86400000).toISOString();
-      const [transfers, events] = await Promise.all([platform.rpc(jwt, 'platform_my_transfers'), platform.rpc(jwt, 'platform_my_issue_events', { p_since: since })]);
+      const [transfers, events, rules] = await Promise.all([platform.rpc(jwt, 'platform_my_transfers'), platform.rpc(jwt, 'platform_my_issue_events', { p_since: since }), loadRules(platform, jwt)]);
       const free = queue(issues, claimed, now);
       const desk = deskOf(issues, user, claims, transfers);
       const nextIssue = free.length ? issues.find((i) => i.id === free[0]) : null;
       return {
         taken,
-        rules: RULES.map(({ id, label }) => ({ id, label })),
+        rules: rules.map(({ id, label }) => ({ id, label })),
         free: free.length,
         next: nextIssue ? brief(nextIssue) : null,
         desk: desk.map(brief),
@@ -49,9 +50,10 @@ export const createIssuesService = ({ source, platform, now = () => new Date() }
       return (await platform.rpc(jwt, 'platform_issue_teammates')).filter((t) => t.id !== user.id);
     },
     // la base se queda con la primera libre que nadie tenga → id | null
-    async next({ accessToken: jwt }, rule) {
-      const { issues, claimed, now } = await snapshot(jwt);
-      return (await platform.rpc(jwt, 'platform_claim_next_issue', { p_candidates: queue(issues, claimed, now, rule).slice(0, 500) })) || null;
+    async next({ accessToken: jwt }, ruleId) {
+      const [{ issues, claimed, now }, rules] = await Promise.all([snapshot(jwt), loadRules(platform, jwt)]);
+      const rule = ruleById(rules, ruleId);
+      return (await platform.rpc(jwt, 'platform_claim_next_issue', { p_candidates: queue(issues, claimed, now, rule.criteria).slice(0, 500) })) || null;
     },
     release: ({ accessToken: jwt }, id) => platform.rpc(jwt, 'platform_release_issue', { p_issue: id }),
     // a un compañero de Issues; el motivo queda como nota del traspaso

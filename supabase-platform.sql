@@ -28,6 +28,9 @@
 --    issue_notes        notas internas del equipo sobre una issue (editables por
 --                       quien las escribió); el comentario de un traspaso queda
 --                       como nota etiquetada «transfer»
+--    priority_rules     reglas de priorización del backlog que crea el equipo: un
+--                       nombre y una lista ordenada de criterios (el catálogo, en
+--                       platform.known_criteria()); la regla básica va en código
 --
 --  Vistas: lo que cada persona puede ver y hacer en SIA (el Chat, siempre).
 --  La lista está en platform.known_views().
@@ -81,6 +84,13 @@ revoke all on schema platform from public, anon, authenticated;
 create or replace function platform.known_views() returns text[]
 language sql immutable set search_path = '' as $$
   select array['issues', 'backlog', 'work', 'metrics', 'links', 'lab', 'admin', 'people']
+$$;
+
+-- Los criterios con que se ordena el backlog. Una regla de priorización es una
+-- lista ordenada de ellos; qué hace cada uno, en server/issues/queue.js.
+create or replace function platform.known_criteria() returns text[]
+language sql immutable set search_path = '' as $$
+  select array['recent', 'prio', 'month', 'severity', 'age', 'sisu', 'sga']
 $$;
 
 -- ── Tablas ────────────────────────────────────────────────────────────────
@@ -195,6 +205,15 @@ update platform.issue_events e set note_id = n.id from platform.issue_notes n
   where e.action = 'transferred' and e.note_id is null and n.issue_id = e.issue_id and n.kind = 'transfer' and n.author is not distinct from e.actor and n.created_at = e.happened_at;
 create index if not exists issue_notes_issue on platform.issue_notes (issue_id, created_at);
 
+create table if not exists platform.priority_rules (
+  id          uuid primary key default gen_random_uuid(),
+  name        text not null unique check (char_length(btrim(name)) between 1 and 60),
+  criteria    text[] not null constraint rules_criteria_known check (criteria <@ platform.known_criteria() and cardinality(criteria) >= 1),
+  created_by  uuid references platform.users (id) on delete set null,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
 -- Administrador, con todas las vistas que haya (también las que se añadan)
 update platform.roles set views = platform.known_views() where builtin = 'admin' and views is distinct from platform.known_views();
 update platform.users u set views = r.views from platform.roles r where r.builtin = 'admin' and u.role_id = r.id and u.views is distinct from r.views;
@@ -209,6 +228,7 @@ alter table platform.roles            enable row level security;
 alter table platform.issue_claims     enable row level security;
 alter table platform.issue_events     enable row level security;
 alter table platform.issue_notes      enable row level security;
+alter table platform.priority_rules  enable row level security;
 revoke all on all tables in schema platform from public, anon, authenticated;
 revoke all on all sequences in schema platform from public, anon, authenticated;
 
@@ -835,6 +855,53 @@ end $$;
 
 -- El equipo de Issues: las personas activas con la vista Issues (para
 -- traspasar una issue a un compañero).
+-- ── Reglas de priorización del backlog ────────────────────────────────────
+-- Las ven quienes cogen issues o reparten (Issues, Backlog): un nombre y sus
+-- criterios en orden. Las crean, cambian y borran quienes reparten (Backlog).
+-- La regla básica no está aquí: va en código y no se toca.
+create or replace function public.platform_list_rules()
+returns table (id uuid, name text, criteria text[], created_by uuid, updated_at timestamptz)
+language plpgsql stable security definer set search_path = '' as $$
+#variable_conflict use_column
+begin
+  perform platform.require_view('issues', 'backlog');
+  return query
+    select r.id, r.name, r.criteria, r.created_by, r.updated_at
+    from platform.priority_rules r
+    order by lower(r.name);
+end $$;
+
+-- Crear (p_rule null) o cambiar una regla. Los criterios, del catálogo y sin repetir.
+create or replace function public.platform_save_rule(p_rule uuid, p_name text, p_criteria text[]) returns uuid
+language plpgsql security definer set search_path = '' as $$
+declare v_me uuid := platform.require_view('backlog'); v_id uuid;
+begin
+  if coalesce(cardinality(p_criteria), 0) = 0 then raise exception 'Una regla necesita al menos un criterio.' using errcode = '22023'; end if;
+  if not (p_criteria <@ platform.known_criteria()) then raise exception 'Criterio desconocido.' using errcode = '22023'; end if;
+  if (select count(distinct c) from unnest(p_criteria) c) <> cardinality(p_criteria) then raise exception 'Un criterio no se repite.' using errcode = '22023'; end if;
+  if p_rule is null then
+    insert into platform.priority_rules (name, criteria, created_by) values (btrim(p_name), p_criteria, v_me) returning id into v_id;
+    perform platform.audit(v_me, 'rule.create', null, jsonb_build_object('rule', v_id, 'name', btrim(p_name), 'criteria', to_jsonb(p_criteria)));
+    return v_id;
+  end if;
+  update platform.priority_rules set name = btrim(p_name), criteria = p_criteria, updated_at = now() where id = p_rule;
+  if not found then raise exception 'Esa regla no existe.' using errcode = 'P0002'; end if;
+  perform platform.audit(v_me, 'rule.update', null, jsonb_build_object('rule', p_rule, 'name', btrim(p_name), 'criteria', to_jsonb(p_criteria)));
+  return p_rule;
+exception
+  when unique_violation then raise exception 'Ya hay una regla con ese nombre.' using errcode = '23505';
+  when check_violation then raise exception 'Nombre no válido (1-60 caracteres).' using errcode = '23514';
+end $$;
+
+create or replace function public.platform_delete_rule(p_rule uuid) returns void
+language plpgsql security definer set search_path = '' as $$
+declare v_me uuid := platform.require_view('backlog');
+begin
+  delete from platform.priority_rules where id = p_rule;
+  if not found then raise exception 'Esa regla no existe.' using errcode = 'P0002'; end if;
+  perform platform.audit(v_me, 'rule.delete', null, jsonb_build_object('rule', p_rule));
+end $$;
+
 drop function if exists public.platform_issue_teammates();
 create function public.platform_issue_teammates()
 returns table (id uuid, name text)

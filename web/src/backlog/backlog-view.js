@@ -11,11 +11,12 @@ import { esc } from '../ui/html.js';
 import { SEVERITY_ES, snapshotInfo, age } from '../issues/format.js';
 import { sev, origin } from '../issues/parts.js';
 import { EMPTY_FILTER, SEVERITIES, filterIssues, toggle, tileCounts, isFiltering } from './filter.js';
+import { openRulesModal } from './rules-modal.js';
 
 const PLURAL = { CRITICAL: 'Críticas', HIGH: 'Altas', MEDIUM: 'Medias', LOW: 'Bajas' };
 
-// toast: avisos de la app. Las reglas de priorización se gestionarán desde aquí (botón de la cabecera).
-export const mountBacklogView = (root, { api, toast }) => {
+// dialogs y toast: los de la app. «Reglas de priorización» abre el modal (rules-modal.js).
+export const mountBacklogView = (root, { api, dialogs, toast }) => {
   let data = null, filter = { ...EMPTY_FILTER }, now = new Date(), loading = false, rule = 'basic';
 
   const page = (body) => `<div class="bl-page"><h2 class="iss-title">Backlog</h2>${body}</div>`;
@@ -81,7 +82,7 @@ export const mountBacklogView = (root, { api, toast }) => {
     load().catch((err) => toast?.(`No se pudo ordenar el backlog: ${err.message}`));
   });
   root.addEventListener('click', (e) => {
-    if (e.target.closest('[data-rules]')) return toast?.('Las reglas de priorización se crearán y ajustarán desde aquí; aún no está.');
+    if (e.target.closest('[data-rules]')) return openRulesModal({ api, dialogs, toast, onChange: () => load().catch(() => {}) }).catch((err) => toast?.(`No se pudieron cargar las reglas: ${err.message}`));
     if (e.target.closest('[data-reload]')) return load().catch((err) => toast?.(`No se pudo actualizar el backlog: ${err.message}`));
     const b = e.target.closest('[data-key]');
     if (!b) return;

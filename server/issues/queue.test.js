@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { queue, isFree, RULES } from './queue.js';
+import { queue, isFree, BASIC_RULE } from './queue.js';
 
 const NOW = new Date('2026-10-04T11:44:00');
 const issue = (id, o = {}) => ({ id, priority: 'MEDIUM', status: 'ASSIGNED', assignee: '', prio: false, reported: '2026-10-02 10:00', ...o });
@@ -36,6 +36,6 @@ test('mes anterior también al cambiar de año', () => {
 });
 
 test('regla desconocida: la básica', () => {
-  assert.equal(RULES[0].id, 'basic');
-  assert.deepEqual(queue([issue('a')], new Set(), NOW, 'otra'), ['a']);
+  assert.equal(BASIC_RULE.id, 'basic');
+  assert.deepEqual(queue([issue('a')], new Set(), NOW, ['otra']), ['a']);
 });
