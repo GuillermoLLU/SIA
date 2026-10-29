@@ -41,7 +41,7 @@ echo "── re-ejecutar el SQL (sin perder datos) ──"
 psql -d t -f /sql/10-platform.sql 2>&1 | quiet
 psql -d t -c "do \$\$ begin if (select count(*) from platform.users) <> 3 or (select count(*) from platform.knowledge_bases) <> 1 or (select count(*) from vault.secrets) <> 1 then raise exception 'FALLO: re-ejecutar perdió datos'; end if; end \$\$;"
 # el movimiento antiguo de la auditoría (20-access lo deja en INC0) pasa al histórico una sola vez, aunque el SQL se ejecute otra vez
-psql -d t -c "do \$\$ begin if (select count(*) from platform.issue_events where issue_id = 'INC0' and action = 'claimed') <> 1 then raise exception 'FALLO: la auditoría antigua no se migró a issue_events'; end if; end \$\$;"
+psql -d t -c "do \$\$ begin if (select count(*) from platform.issue_events where issue_id = 'INC0' and action = 'claimed' and actor is not null) <> 1 or (select count(*) from platform.issue_events where issue_id = 'INC00' and actor is null) <> 1 then raise exception 'FALLO: la auditoría antigua no se migró a issue_events (incluida la de quien ya no existe)'; end if; end \$\$;"
 psql -d t -f /sql/10-platform.sql 2>&1 | quiet
 psql -d t -c "do \$\$ begin if (select count(*) from platform.issue_events where issue_id = 'INC0') <> 1 then raise exception 'FALLO: la migración se repitió'; end if; end \$\$;"
 echo "── verificación (verify.sql, la que se pega en el SQL Editor) ──"

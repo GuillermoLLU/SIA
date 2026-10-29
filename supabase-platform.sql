@@ -868,10 +868,12 @@ end $$;
 -- Los movimientos de issues que se apuntaron en la auditoría antes de existir
 -- issue_events pasan al histórico, una sola vez: solo los anteriores al primer
 -- movimiento ya registrado (los posteriores están en las dos y no se repiten).
+-- Si quien lo hizo ya no existe en users, el movimiento queda sin persona.
 insert into platform.issue_events (issue_id, action, actor, from_user, to_user, happened_at)
-select a.details ->> 'issue', substr(a.action, 7), a.actor,
-  case when a.action = 'issue.released' then a.actor end, case when a.action = 'issue.claimed' then a.actor end, a.happened_at
+select a.details ->> 'issue', substr(a.action, 7), u.id,
+  case when a.action = 'issue.released' then u.id end, case when a.action = 'issue.claimed' then u.id end, a.happened_at
 from platform.audit_log a
+left join platform.users u on u.id = a.actor
 where a.action in ('issue.claimed', 'issue.released') and (a.details ->> 'issue') ~ '^INC[0-9]+$'
   and a.happened_at < coalesce((select min(e.happened_at) from platform.issue_events e), 'infinity'::timestamptz)
 order by a.happened_at, a.id;

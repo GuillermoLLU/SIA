@@ -214,7 +214,9 @@ select assert_eq((select power_key from public.platform_my_knowledge()), 'pk-adm
 -- ── 6a. issues: la cola, una issue por persona ──
 -- un movimiento antiguo apuntado en la auditoría (antes de existir issue_events): se migra al re-ejecutar el SQL (lo comprueba run.sh)
 reset role;
-insert into platform.audit_log (actor, action, details, happened_at) values (:AD, 'issue.claimed', '{"issue":"INC0"}', now() - interval '30 days');
+insert into platform.audit_log (actor, action, details, happened_at) values
+  (:AD, 'issue.claimed', '{"issue":"INC0"}', now() - interval '30 days'),
+  ('99999999-9999-9999-9999-999999999999', 'issue.claimed', '{"issue":"INC00"}', now() - interval '29 days');  -- de alguien que ya no existe
 set role authenticated;
 select t_as(:U1);
 select expect_error($$select public.platform_claim_next_issue(array['INC1'])$$, 'sin la vista Issues no se coge nada');
