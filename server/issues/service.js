@@ -134,8 +134,6 @@ export const createIssuesService = ({ source, platform, drafts, now = () => new 
       await resolvable(who, id);
       return { at: write((d) => d.setFile(who.user.id, id, null)) };
     },
-    // descartar lo mío vale siempre, aunque la issue ya no esté abierta
-    dropDraft: ({ user }, id) => { write((d) => d.drop(user.id, id)); return { ok: true }; },
     // el CSV de la consulta, tal cual, por trozos → { file, taken, issues }
     importCsv: (chunks, name) => source.importCsv(chunks, name),
   };

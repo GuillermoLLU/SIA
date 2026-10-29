@@ -14,7 +14,6 @@
 //   POST /:id/resolve   { note, what, how, prevent, lang } → { ok, sent: false }
 //                         (lo comprueba todo otra vez y borra el borrador)
 //   PUT  /:id/draft     { note, what, how, prevent, lang } → { at }
-//   DELETE /:id/draft   → { ok }  (con su adjunto)
 //   PUT  /:id/draft/file { name, type, data (base64) } → { at, file: { name, type, size } }
 //   DELETE /:id/draft/file → { at }
 //   POST /:id/transfer  { to, comment } → { ok }  (a un compañero; el motivo, obligatorio, queda como nota)
@@ -47,7 +46,6 @@ export const issuesRoutes = (issues, { json, readBody }) => async (req, res, [id
     }
     if (action === 'draft' && !part) {
       if (req.method === 'PUT') return json(res, 200, await issues.saveDraft(who, id, await readBody(req)));
-      if (req.method === 'DELETE') return json(res, 200, issues.dropDraft(who, id));
     }
     if (action === 'draft' && part === 'file') {
       if (req.method === 'PUT') return json(res, 200, await issues.saveDraftFile(who, id, await readBody(req)));

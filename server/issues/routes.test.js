@@ -161,7 +161,7 @@ const RES = [...ISSUES, issue('INC4', { ...ANA, status: 'IN_PROGRESS' }), issue(
 const SEND = { note: 'Se relanza', what: 'Se paró', how: 'Se relanzó', prevent: 'Corrección pedida', lang: 'es' };
 const b64 = Buffer.from('hola').toString('base64');
 
-test('borrador de Resolver: guardar, adjuntar, quitar el adjunto y descartar, siempre el mío', async () => {
+test('borrador de Resolver: guardar, adjuntar y quitar el adjunto, siempre el mío; se borra al confirmar', async () => {
   const { call } = setup([], { issues: RES });
   assert.deepEqual((await call('GET', ['INC4', 'resolve'])).body.draft, null);
   assert.deepEqual((await call('PUT', ['INC4', 'draft'], { note: 'n', what: 'w', lang: 'en', extra: 'x' })).body, { at: 'at' });
@@ -172,8 +172,8 @@ test('borrador de Resolver: guardar, adjuntar, quitar el adjunto y descartar, si
   assert.equal((await call('GET', ['INC4', 'resolve'])).body.draft.file, 'cola.png');
   await call('DELETE', ['INC4', 'draft', 'file']);
   assert.equal((await call('GET', ['INC4', 'resolve'])).body.draft.file, null);
-  assert.deepEqual((await call('DELETE', ['INC4', 'draft'])).body, { ok: true });
-  assert.equal((await call('GET', ['INC4', 'resolve'])).body.draft, null);
+  assert.equal((await call('DELETE', ['INC4', 'draft'])).status, 404);   // no hay «descartar»: el borrador sigue
+  assert.equal((await call('GET', ['INC4', 'resolve'])).body.draft.note, 'n');
   assert.equal((await call('GET', ['../x', 'resolve'])).status, 404);
   assert.equal((await call('GET', ['INC4', 'draft'])).status, 404);   // el borrador se lee al abrir Resolver
 });
