@@ -287,6 +287,59 @@
 .iss-tip button:hover, .iss-tip button:focus-visible { color: var(--accent); border-color: var(--accent); outline: none; }
 .iss-tip [role="tooltip"] { position: absolute; top: calc(100% + 6px); left: 50%; z-index: 2; width: 300px; padding: 10px 12px; font-size: 12.5px; font-weight: 400; line-height: 1.45; text-transform: none; letter-spacing: 0; color: var(--text); background: var(--surface); border: 1px solid var(--border); box-shadow: 0 8px 24px rgba(0, 0, 0, .18); transform: translateX(-50%); visibility: hidden; opacity: 0; transition: opacity .12s; }
 .iss-tip:hover [role="tooltip"], .iss-tip:focus-within [role="tooltip"] { visibility: visible; opacity: 1; }
+/* Escalar: más alto que las demás acciones, con su propio scroll */
+.iss-esc { width: min(640px, 100%); max-height: 84vh; overflow-y: auto; }
+.iss-modal:has(.iss-esc) { padding-top: 6vh; }
+.iss-mono, .iss-esc code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; }
+.iss-esc [hidden] { display: none !important; }
+.iss-esc [data-esc-mode] { display: flex; flex-direction: column; gap: 14px; }
+.iss-esc .iss-field span[data-esc-live] { display: flex; flex-direction: column; gap: 4px; font-weight: 400; }
+/* los desplegables de Escalar son nativos (con grupos): como los demás campos, que ya no estilan select */
+.iss-esc .iss-field select { width: 100%; padding: 8px 10px; font: inherit; font-size: 13px; color: var(--text); background: var(--bg); border: 1px solid var(--border); outline: none; cursor: pointer; }
+.iss-esc .iss-field select:focus { border-color: var(--accent); }
+.iss-esc small.ok { color: var(--iss-ok); }
+.iss-esc small.bad { color: var(--iss-crit); }
+.iss-esc small b { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-weight: 600; }
+.iss-esc textarea::placeholder, .iss-esc input::placeholder { color: var(--text-low); opacity: .7; }
+.iss-esc-intro { margin: 0; font-size: 13px; line-height: 1.45; color: var(--text-low); }
+.iss-esc-clock { margin: 0; padding: 6px 10px; font-size: 12.5px; border-left: 3px solid var(--accent); background: color-mix(in srgb, var(--accent) 5%, var(--surface)); }
+.iss-esc-clock.late { border-left-color: var(--iss-crit); background: color-mix(in srgb, var(--iss-crit) 6%, var(--surface)); }
+.iss-esc-clock.late b { color: var(--iss-crit); }
+.iss-esc-hint { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: 0; padding: 8px 10px; font-size: 12.5px; border: 1px solid color-mix(in srgb, var(--iss-high) 40%, var(--border)); }
+.iss-esc-hint .lab-btn { margin-left: auto; }
+/* Opciones que se eligen pulsando la tarjeta: el radio no se ve, la tarjeta marca la elegida */
+.iss-sr { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.iss-esc-card { position: relative; display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; font-size: 13px; line-height: 1.4; cursor: pointer; border: 1px solid var(--border); background: var(--surface); }
+.iss-esc-card:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.iss-esc-card:has(:checked) { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
+.iss-esc-card:has(:checked) > b { color: var(--accent); }
+.iss-esc-card:has(:checked)::after { content: "✓"; position: absolute; top: 9px; right: 12px; font-weight: 700; color: var(--accent); }
+.iss-esc-card:has(.iss-sr:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.iss-esc-card > b { padding-right: 18px; font-weight: 600; }
+.iss-esc-card small { font-size: 12px; color: var(--text-low); }
+.iss-esc-mode { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.iss-esc-open { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; border: 0; }
+.iss-esc-open legend { padding: 0 0 6px; font-size: 13px; font-weight: 600; }
+.iss-esc-open input[name=linkedOther] { margin-top: 4px; padding: 6px 8px; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border); }
+.iss-esc-box, .iss-esc-dev { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; font-size: 12.5px; line-height: 1.45; border: 1px solid var(--border); background: color-mix(in srgb, var(--bg) 60%, var(--surface)); }
+.iss-esc-box p, .iss-esc-dev ul { margin: 0; }
+.iss-esc-box summary { font-weight: 600; cursor: pointer; }
+.iss-esc-box i { font-style: normal; color: var(--text-low); }
+.iss-esc-levels { padding-top: 6px; border-top: 1px dashed var(--border); }
+.iss-esc-dev h4, .iss-esc-before h4 { margin: 0; font-size: 13px; font-weight: 600; }
+.iss-esc-before h4 i { font-weight: 400; font-style: normal; color: var(--text-low); }
+.iss-esc-dev ul { padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.iss-esc-before { display: flex; flex-direction: column; gap: 8px; }
+.iss-esc-check { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 13px; }
+.iss-esc-check li { display: flex; gap: 8px; }
+.iss-esc-check li > span { width: 14px; font-weight: 700; }
+.iss-esc-check li.ok > span { color: var(--iss-ok); }
+.iss-esc-check li.todo > span { color: var(--text-low); }
+.iss-esc-check i { font-style: normal; color: var(--text-low); }
+@media (max-width: 560px) { .iss-esc-mode { grid-template-columns: 1fr; } }
+/* solo en desarrollo: simular un caso sobre la issue abierta */
+.iss-test { display: flex; align-items: center; gap: 8px; padding: 6px 10px; font-size: 12px; color: var(--text-low); border: 1px dashed var(--border); }
+.iss-test select { flex: 1; min-width: 0; padding: 4px 6px; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border); }
 .iss-take:focus-visible, .iss-item:focus-visible, .iss-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* la issue en el diálogo de confirmación (devolver a la cola) */
 .iss-dlg-issue { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; background: color-mix(in srgb, var(--bg) 60%, var(--surface)); border: 1px solid var(--border); }

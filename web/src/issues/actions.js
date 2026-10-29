@@ -16,12 +16,9 @@ export const ACTIONS = {
       { name: 'prevent', label: '¿Qué se hará para evitarlo?', kind: 'text', required: true },
     ],
   },
+  // el formulario es propio (escalate-form.js) y se lee con readEscalate
   escalate: {
-    label: 'Escalar', title: 'Escalar la issue', ok: 'Escalar',
-    fields: [
-      { name: 'to', label: 'A quién', kind: 'line', required: true, hint: 'Grupo o proveedor.' },
-      { name: 'reason', label: 'Motivo', kind: 'text', required: true },
-    ],
+    label: 'Escalar',
   },
   transfer: {
     label: 'Traspasar', title: 'Traspasar a un compañero', ok: 'Traspasar', local: true,
