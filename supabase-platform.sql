@@ -22,6 +22,11 @@
 --                       Personas; el de la persona la usa. Quien tiene
 --                       Administración usa la del dueño de la base.
 --    audit_log          registro de todo cambio (solo se añade, nunca se edita)
+--    issue_claims       quién tiene cada issue en SIA (una fila por issue: la cola)
+--    issue_events       histórico de cada issue: cogida, devuelta a la cola o
+--                       traspasada, quién lo hizo y de quién a quién
+--    issue_notes        notas internas del equipo sobre una issue (editables por
+--                       quien las escribió)
 --
 --  Vistas: lo que cada persona puede ver y hacer en SIA (el Chat, siempre).
 --  La lista está en platform.known_views().
@@ -153,6 +158,33 @@ create table if not exists platform.issue_claims (
   claimed_at  timestamptz not null default now()
 );
 
+-- Histórico de cada issue en SIA: quién la cogió, la devolvió a la cola o la
+-- traspasó, y a quién. Solo se añade. Si se borra a una persona, sus
+-- movimientos se quedan (sin nombre).
+create table if not exists platform.issue_events (
+  id           bigint generated always as identity primary key,
+  issue_id     text not null check (issue_id ~ '^INC[0-9]+$'),
+  action       text not null check (action in ('claimed', 'released', 'transferred')),
+  actor        uuid references platform.users (id) on delete set null,      -- quién lo hizo
+  from_user    uuid references platform.users (id) on delete set null,      -- quién la tenía
+  to_user      uuid references platform.users (id) on delete set null,      -- quién la tiene ahora
+  comment      text check (comment is null or char_length(comment) <= 2000),
+  happened_at  timestamptz not null default now()
+);
+create index if not exists issue_events_issue on platform.issue_events (issue_id, happened_at);
+
+-- Notas internas del equipo sobre una issue. Las ve todo Issues; las edita
+-- quien las escribió (el plazo para editarlas lo pone la web).
+create table if not exists platform.issue_notes (
+  id          bigint generated always as identity primary key,
+  issue_id    text not null check (issue_id ~ '^INC[0-9]+$'),
+  author      uuid references platform.users (id) on delete set null,
+  body        text not null check (char_length(btrim(body)) between 1 and 4000),
+  created_at  timestamptz not null default now(),
+  edited_at   timestamptz
+);
+create index if not exists issue_notes_issue on platform.issue_notes (issue_id, created_at);
+
 -- Administrador, con todas las vistas que haya (también las que se añadan)
 update platform.roles set views = platform.known_views() where builtin = 'admin' and views is distinct from platform.known_views();
 update platform.users u set views = r.views from platform.roles r where r.builtin = 'admin' and u.role_id = r.id and u.views is distinct from r.views;
@@ -165,6 +197,8 @@ alter table platform.audit_log        enable row level security;
 alter table platform.person_keys      enable row level security;
 alter table platform.roles            enable row level security;
 alter table platform.issue_claims     enable row level security;
+alter table platform.issue_events     enable row level security;
+alter table platform.issue_notes      enable row level security;
 revoke all on all tables in schema platform from public, anon, authenticated;
 revoke all on all sequences in schema platform from public, anon, authenticated;
 
@@ -673,6 +707,7 @@ begin
     insert into platform.issue_claims (issue_id, user_id) values (v_id, v_me)
       on conflict (issue_id) do nothing returning issue_id into v_got;
     if v_got is not null then
+      insert into platform.issue_events (issue_id, action, actor, to_user) values (v_got, 'claimed', v_me, v_me);
       perform platform.audit(v_me, 'issue.claimed', v_me, jsonb_build_object('issue', v_got));
       return v_got;
     end if;
@@ -687,7 +722,84 @@ declare v_me uuid := platform.require_view('issues');
 begin
   delete from platform.issue_claims where issue_id = p_issue and user_id = v_me;
   if not found then raise exception 'Esa issue no es tuya.' using errcode = '42501'; end if;
+  insert into platform.issue_events (issue_id, action, actor, from_user) values (p_issue, 'released', v_me, v_me);
   perform platform.audit(v_me, 'issue.released', v_me, jsonb_build_object('issue', p_issue));
+end $$;
+
+-- Traspasarla a un compañero (solo la propia, y solo a alguien activo con la
+-- vista Issues). Pasa a ser suya desde ahora; el comentario es para quien la recibe.
+create or replace function public.platform_transfer_issue(p_issue text, p_to uuid, p_comment text default null) returns void
+language plpgsql security definer set search_path = '' as $$
+declare v_me uuid := platform.require_view('issues');
+begin
+  if p_to is null or p_to = v_me then raise exception 'Elige a qué compañero traspasarla.' using errcode = '22023'; end if;
+  if not exists (select 1 from platform.users u where u.id = p_to and u.active and 'issues' = any (u.views)) then
+    raise exception 'Esa persona no está en Issues.' using errcode = 'P0002';
+  end if;
+  update platform.issue_claims set user_id = p_to, claimed_at = now() where issue_id = p_issue and user_id = v_me;
+  if not found then raise exception 'Esa issue no es tuya.' using errcode = '42501'; end if;
+  insert into platform.issue_events (issue_id, action, actor, from_user, to_user, comment)
+    values (p_issue, 'transferred', v_me, v_me, p_to, nullif(btrim(p_comment), ''));
+  perform platform.audit(v_me, 'issue.transferred', p_to, jsonb_build_object('issue', p_issue));
+end $$;
+
+-- El histórico de una issue en SIA: cada movimiento con quién lo hizo y de
+-- quién a quién, del más antiguo al más reciente.
+drop function if exists public.platform_issue_events(text);
+create function public.platform_issue_events(p_issue text)
+returns table (id bigint, action text, actor_name text, from_name text, to_name text, comment text, happened_at timestamptz)
+language plpgsql stable security definer set search_path = '' as $$
+#variable_conflict use_column
+begin
+  perform platform.require_view('issues');
+  return query
+    select e.id, e.action, ua.name, uf.name, ut.name, e.comment, e.happened_at
+    from platform.issue_events e
+    left join platform.users ua on ua.id = e.actor
+    left join platform.users uf on uf.id = e.from_user
+    left join platform.users ut on ut.id = e.to_user
+    where e.issue_id = p_issue
+    order by e.happened_at, e.id;
+end $$;
+
+-- ── Notas internas de una issue ───────────────────────────────────────────
+-- Las notas de una issue, de la más antigua a la más reciente.
+drop function if exists public.platform_issue_notes(text);
+create function public.platform_issue_notes(p_issue text)
+returns table (id bigint, author_id uuid, author_name text, body text, created_at timestamptz, edited_at timestamptz)
+language plpgsql stable security definer set search_path = '' as $$
+#variable_conflict use_column
+begin
+  perform platform.require_view('issues');
+  return query
+    select n.id, n.author, u.name, n.body, n.created_at, n.edited_at
+    from platform.issue_notes n left join platform.users u on u.id = n.author
+    where n.issue_id = p_issue
+    order by n.created_at, n.id;
+end $$;
+
+-- Añadir una nota → su id.
+create or replace function public.platform_add_issue_note(p_issue text, p_body text) returns bigint
+language plpgsql security definer set search_path = '' as $$
+declare v_me uuid := platform.require_view('issues'); v_id bigint;
+begin
+  insert into platform.issue_notes (issue_id, author, body) values (p_issue, v_me, btrim(p_body)) returning id into v_id;
+  perform platform.audit(v_me, 'note.added', v_me, jsonb_build_object('issue', p_issue, 'note', v_id));
+  return v_id;
+exception
+  when check_violation then raise exception 'La nota necesita texto, hasta 4.000 caracteres.' using errcode = '22023';
+end $$;
+
+-- Editar una nota propia.
+create or replace function public.platform_edit_issue_note(p_note bigint, p_body text) returns void
+language plpgsql security definer set search_path = '' as $$
+declare v_me uuid := platform.require_view('issues'); v_issue text;
+begin
+  update platform.issue_notes set body = btrim(p_body), edited_at = now() where id = p_note and author = v_me returning issue_id into v_issue;
+  if not found then raise exception 'Esa nota no es tuya.' using errcode = '42501'; end if;
+  perform platform.audit(v_me, 'note.edited', v_me, jsonb_build_object('issue', v_issue, 'note', p_note));
+exception
+  when check_violation then raise exception 'La nota necesita texto, hasta 4.000 caracteres.' using errcode = '22023';
 end $$;
 
 -- El equipo de Issues: las personas activas con la vista Issues (para

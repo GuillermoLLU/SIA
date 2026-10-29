@@ -232,6 +232,47 @@ select assert_eq((select count(*) from public.platform_my_issue_events(now() + i
 select assert_eq((select string_agg(name, ',' order by name) from public.platform_issue_teammates()), 'Admin,agente.dos', 'el equipo: activos con la vista Issues');
 select expect_error($$select public.platform_claim_next_issue(array['x; drop'])$$, 'solo números de incidencia');
 
+-- ── 6a². issues: traspaso e histórico ──
+select t_as(:U1);
+select expect_error($$select public.platform_transfer_issue('INC1', '00000000-0000-0000-0000-0000000000a3')$$, 'sin la vista Issues no se traspasa');
+select expect_error($$select count(*) from public.platform_issue_events('INC1')$$, 'ni se ve el histórico');
+select t_as(:AD);
+select expect_error($$select public.platform_transfer_issue('INC1', '00000000-0000-0000-0000-0000000000a1')$$, 'no se traspasa a uno mismo');
+select expect_error($$select public.platform_transfer_issue('INC1', '00000000-0000-0000-0000-0000000000a2')$$, 'ni a quien no está en Issues');
+select expect_error($$select public.platform_transfer_issue('INC9', '00000000-0000-0000-0000-0000000000a3')$$, 'ni una que no se tiene');
+select public.platform_transfer_issue('INC1', :U2, '  Lleva dos llamadas del centro.  ');
+select assert_eq((select string_agg(issue_id || ':' || user_name, ',' order by issue_id) from public.platform_issue_claims()), 'INC1:agente.dos', 'traspasada: ahora es del compañero');
+select expect_error($$select public.platform_release_issue('INC1')$$, 'quien la traspasó ya no la devuelve');
+select assert_eq((select string_agg(action || ':' || coalesce(actor_name, '-') || ':' || coalesce(from_name, '-') || ':' || coalesce(to_name, '-'), ',' order by happened_at, id) from public.platform_issue_events('INC1')),
+  'claimed:Admin:-:Admin,transferred:Admin:Admin:agente.dos', 'el histórico de la issue: cogida y traspasada, con quién y a quién');
+select assert_eq((select comment from public.platform_issue_events('INC1') where action = 'transferred'), 'Lleva dos llamadas del centro.', 'el comentario del traspaso, sin espacios de más');
+select assert_eq((select string_agg(action, ',' order by happened_at, id) from public.platform_issue_events('INC2')), 'claimed,released', 'la devuelta a la cola también queda');
+select assert_eq((select count(*) from public.platform_issue_events('INC3')), 0::bigint, 'sin movimientos: nada');
+select t_as(:U2);
+select public.platform_release_issue('INC1');
+select assert_eq((select count(*) from public.platform_issue_claims()), 0::bigint, 'quien la recibe sí puede devolverla');
+
+-- ── 6a³. issues: notas internas ──
+select t_as(:U1);
+select expect_error($$select public.platform_add_issue_note('INC1', 'hola')$$, 'sin la vista Issues no se anota');
+select expect_error($$select count(*) from public.platform_issue_notes('INC1')$$, 'ni se leen las notas');
+select t_as(:U2);
+select expect_error($$select public.platform_add_issue_note('INC1', '   ')$$, 'una nota vacía no vale');
+select expect_error($$select public.platform_add_issue_note('x; drop', 'hola')$$, 'solo números de incidencia');
+select assert_eq(public.platform_add_issue_note('INC1', '  El centro confirma que el pedido salió.  ') > 0, true, 'añadir devuelve el id');
+select t_as(:AD);
+select assert_eq(public.platform_add_issue_note('INC1', 'Revisado con el proveedor.') > 0, true, 'otra persona de Issues añade la suya');
+select assert_eq((select string_agg(author_name || ':' || body, '|' order by created_at, id) from public.platform_issue_notes('INC1')),
+  'agente.dos:El centro confirma que el pedido salió.|Admin:Revisado con el proveedor.', 'las notas de la issue, por orden y con su autor');
+select assert_eq((select count(*) from public.platform_issue_notes('INC1') where edited_at is not null), 0::bigint, 'recién escritas: sin editar');
+select expect_error($$select public.platform_edit_issue_note((select min(id) from public.platform_issue_notes('INC1')), 'cambio ajeno')$$, 'nadie edita la nota de otro');
+select t_as(:U2);
+select public.platform_edit_issue_note((select min(id) from public.platform_issue_notes('INC1')), 'El centro confirma que el pedido salió ayer.');
+select assert_eq((select body from public.platform_issue_notes('INC1') order by created_at, id limit 1), 'El centro confirma que el pedido salió ayer.', 'la propia sí se edita');
+select assert_eq((select edited_at is not null from public.platform_issue_notes('INC1') order by created_at, id limit 1), true, 'y queda marcada como editada');
+select expect_error($$select public.platform_edit_issue_note((select min(id) from public.platform_issue_notes('INC1')), '')$$, 'editar a vacío no vale');
+select assert_eq((select count(*) from public.platform_issue_notes('INC2')), 0::bigint, 'cada issue, sus notas');
+
 -- ── 6b. cambiar de base y desactivar ──
 reset role;
 select platform.set_knowledge_base('Logística', 'https://abcdefghijklmnopqrsu.supabase.co', 'sb_publishable_abcdefghijklmnopqrstuvwxyz', 'pk-admin-logistica-1');
