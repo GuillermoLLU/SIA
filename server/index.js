@@ -45,6 +45,7 @@ import { createProjects } from './projects/service.js';
 import { projectsRoutes } from './projects/routes.js';
 import { createSkillSync } from './skills/sync.js';
 import { skillList, createDrafts } from './skills/catalog.js';
+import { createResolveDrafts } from './issues/drafts.js';
 import { skillsRoutes } from './skills/routes.js';
 import { linksRoutes } from './links/routes.js';
 import { uploadsRoutes } from './uploads/routes.js';
@@ -136,7 +137,11 @@ export const startBridge = async ({ env = process.env } = {}) => {
   const clearAssigned = async () => { assigned = null; await applyBase(); };
   const syncKeys = (jwt, userId, opts) => knowledge.syncPeople(jwt, userId ? [userId] : null, opts);
 
-  const issues = createIssuesService({ source: createIssuesSource(workspace.issuesDir), platform });
+  // Sin la BBDD de borradores el bridge arranca igual: Resolver va sin borrador.
+  let drafts = null;
+  try { drafts = createResolveDrafts({ DatabaseSync, file: path.join(workspace.issuesDir, 'borradores.sqlite'), fs }); }
+  catch (e) { console.warn(`[sia] no se pudo abrir la BBDD de borradores de Resolver: ${e.message}`); }
+  const issues = createIssuesService({ source: createIssuesSource(workspace.issuesDir), platform, drafts });
   const tunnel = createTunnel({ binDir: workspace.binDir, apiPort: ports.api, resolve: launchers.resolve, fetch: undiciFetch, insecureFetch: supaFetch, isWin });
   const remote = createRemote({ lock, tunnel, apiPort: ports.api, wsClients: () => bridge.clients(), idleMs: Number(env.SIA_LOCK_IDLE_MS) || undefined });
   const bridge = createTerminalBridge({

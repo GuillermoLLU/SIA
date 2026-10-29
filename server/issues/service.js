@@ -5,6 +5,8 @@
 import { queue, RULES } from './queue.js';
 import { deskOf, brief } from './desk.js';
 import { today, history, dayKey } from './stats.js';
+import { cleanFields, cleanFile, fail } from './draft.js';
+import { resolveDraft, checkResolve, OPEN } from './resolve.js';
 import { timeline } from './timeline.js';
 import { editProblem } from './notes.js';
 
@@ -12,7 +14,7 @@ const WEEKS = 12;
 
 // now: el reloj (inyectable en pruebas). «Ahora» es ahora: la foto de Remedy
 // solo dice de cuándo son los datos (taken); lo medido en SIA se mide a día de hoy.
-export const createIssuesService = ({ source, platform, now = () => new Date() }) => {
+export const createIssuesService = ({ source, platform, drafts, now = () => new Date() }) => {
   // la foto y lo cogido en SIA
   const snapshot = async (jwt) => {
     const { taken, issues } = source.load();
@@ -23,6 +25,29 @@ export const createIssuesService = ({ source, platform, now = () => new Date() }
   const timelineOf = async (jwt, id) => {
     const [events, notes] = await Promise.all([platform.rpc(jwt, 'platform_issue_events', { p_issue: id }), platform.rpc(jwt, 'platform_issue_notes', { p_issue: id })]);
     return timeline(events, notes);
+  };
+
+  // El borrador es una ayuda: si la BBDD local no se pudo abrir (drafts null) o
+  // falla, Resolver sigue; leer da «sin borrador» y guardar, un 503 que la web
+  // enseña en el pie.
+  const store = () => {
+    if (!drafts) throw fail('La BBDD local de borradores no está disponible.', 503);
+    return drafts;
+  };
+  const write = (fn) => {
+    try { return fn(store()); } catch (e) { throw e.status ? e : fail('No se ha podido guardar en la BBDD local de borradores.', 503); }
+  };
+  const quiet = (fn, fallback) => { try { return fn(store()); } catch { return fallback; } };
+
+  // Resolver (y su borrador) solo sobre una issue de la foto, mía y aún abierta:
+  // la web lo enseña así, pero el bridge no se fía de lo que le llegue.
+  const resolvable = async ({ user, accessToken: jwt }, id) => {
+    const { issues, claims } = await snapshot(jwt);
+    const issue = issues.find((i) => i.id === id);
+    if (!issue) throw fail('Esa issue ya no está en la foto.', 404);
+    if (!deskOf(issues, user, claims).some((i) => i.id === id)) throw fail('Solo puedes resolver tus issues.', 403);
+    if (!OPEN.has(issue.status)) throw fail('Esta issue ya está resuelta o cerrada.', 409);
+    return issue;
   };
 
   return {
@@ -82,6 +107,33 @@ export const createIssuesService = ({ source, platform, now = () => new Date() }
     },
     // una issue de la foto, por id (el chat de una issue)
     find: (id) => source.load().issues.find((i) => i.id === id) || null,
+    // Abrir Resolver → { check: lo que hay en Remedy y lo que falta (resolve.js), draft: mi borrador | null }
+    async startResolve(who, id) {
+      return { check: resolveDraft(await resolvable(who, id)), draft: quiet((d) => d.get(who.user.id, id), null) };
+    },
+    // Confirmar: se comprueba todo otra vez y, si cumple, el borrador deja de
+    // hacer falta (si no se puede borrar, se queda: no impide resolver). Aún no
+    // sale nada hacia Remedy (falta SIGLO) → { ok, sent: false }
+    async resolve(who, id, body) {
+      checkResolve(await resolvable(who, id), cleanFields(body));
+      quiet((d) => d.drop(who.user.id, id));
+      return { ok: true, sent: false };
+    },
+    // el borrador de Resolver de quien lo escribe (drafts.js), en la BBDD local
+    async saveDraft(who, id, body) {
+      const fields = cleanFields(body);
+      await resolvable(who, id);
+      return { at: write((d) => d.setText(who.user.id, id, fields)) };
+    },
+    async saveDraftFile(who, id, body) {
+      const file = cleanFile(body);
+      await resolvable(who, id);
+      return { at: write((d) => d.setFile(who.user.id, id, file)), file: { name: file.name, type: file.type, size: file.data.length } };
+    },
+    async dropDraftFile(who, id) {
+      await resolvable(who, id);
+      return { at: write((d) => d.setFile(who.user.id, id, null)) };
+    },
     // el CSV de la consulta, tal cual, por trozos → { file, taken, issues }
     importCsv: (chunks, name) => source.importCsv(chunks, name),
   };
