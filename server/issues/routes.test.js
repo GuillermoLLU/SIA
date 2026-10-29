@@ -30,7 +30,7 @@ const setup = (claims = [], transfers = []) => {
     load: () => { loads.n++; return { taken: '2026-10-04T09:44:00.000Z', issues: ISSUES }; },
     importCsv: async (chunks, name) => { const got = [name]; for await (const c of chunks) got.push(c); imports.push(got); return { file: name, taken: 't', issues: 1 }; },
   };
-  const route = issuesRoutes(createIssuesService({ source, platform }), { json: (res, status, body) => Object.assign(res, { status, body }), readBody: async (req) => req.body || {} });
+  const route = issuesRoutes(createIssuesService({ source, platform, now: () => new Date('2026-10-04T12:00:00Z') }), { json: (res, status, body) => Object.assign(res, { status, body }), readBody: async (req) => req.body || {} });
   const call = async (method, path, body, query = '') => {
     const res = {}, req = { method, body, setEncoding() {}, resume() {}, [Symbol.asyncIterator]: async function* () { yield body; } };
     await route(req, res, path, WHO, new URLSearchParams(query)); return res;

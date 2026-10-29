@@ -14,6 +14,7 @@
 .iss-top { display: flex; align-items: baseline; gap: 12px; }
 .iss-title { margin: 0; font-size: 22px; font-weight: 680; }
 .iss-snap { margin-left: auto; font-size: 12px; color: var(--text-low); }
+.iss-snap.stale { padding: 2px 8px; color: var(--iss-high); font-weight: 600; border: 1px solid color-mix(in srgb, var(--iss-high) 45%, transparent); background: color-mix(in srgb, var(--iss-high) 8%, transparent); }
 .iss-load { display: inline-flex; align-items: center; height: 32px; padding: 0 14px; font-size: 13px; font-weight: 600; color: var(--surface); background: var(--accent); cursor: pointer; white-space: nowrap; }
 .iss-load:hover { filter: brightness(1.08); }
 .iss-load.iss-busy { opacity: .6; cursor: progress; }

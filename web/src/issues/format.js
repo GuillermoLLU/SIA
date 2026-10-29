@@ -34,6 +34,14 @@ export const when = (s) => (s ? `${s.slice(8, 10)}/${s.slice(5, 7)} ${s.slice(11
 // Una fecha ISO de la base (UTC) en hora local, con el mismo formato.
 export const whenIso = (iso) => when(stamp(new Date(iso)));
 
+// La foto de Remedy frente a hoy: de cuándo es y si está al día (del mismo
+// día que ahora). Si no, la mesa lo avisa: lo medido en SIA sigue siendo de hoy.
+export const snapshotInfo = (taken, now) => {
+  const t = new Date(taken);
+  const stale = t.toDateString() !== now.toDateString();
+  return { text: `Datos de Remedy del ${when(stamp(t))}`, stale };
+};
+
 // Minutos legibles: «30 min», «3 h», «3 d».
 export const duration = (m) => (m < 60 ? `${Math.max(0, Math.round(m))} min` : m < 1440 ? `${Math.round(m / 60)} h` : `${Math.round(m / 1440)} d`);
 

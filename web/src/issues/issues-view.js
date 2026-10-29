@@ -5,7 +5,7 @@
 // trabajo (work-screen.js). La mesa se refresca sola.
 import './issues.css';
 import { esc } from '../ui/html.js';
-import { LISTS, when, age, stamp, weekBars } from './format.js';
+import { LISTS, snapshotInfo, age, weekBars } from './format.js';
 import { sev, origin, item } from './parts.js';
 import { onEscape } from '../ui/dialog.js';
 import { workScreen, trailHtml, trailTab, releaseDialogHtml } from './work-screen.js';
@@ -44,7 +44,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     const count = (key) => lists.find((l) => l.key === key).items.length;
     const used = history.weeks.some((w) => w.sga + w.sisu);
     root.innerHTML = `<div class="iss-page">
-      <header class="iss-top"><h2 class="iss-title">Hola, ${esc((me?.name || '').split(' ')[0] || 'equipo')}</h2><span class="iss-snap">Datos de Remedy del ${when(stamp(now))}</span>${loadButton('Cargar otro CSV')}</header>
+      <header class="iss-top"><h2 class="iss-title">Hola, ${esc((me?.name || '').split(' ')[0] || 'equipo')}</h2>${(({ text, stale }) => `<span class="iss-snap${stale ? ' stale' : ''}" ${stale ? 'title="La foto de Remedy no es de hoy: carga un CSV nuevo para ponerla al día. Lo medido en SIA sí es de hoy."' : ''}>${text}${stale ? ' · sin actualizar' : ''}</span>`)(snapshotInfo(data.taken, now))}${loadButton('Cargar otro CSV')}</header>
 
       <div class="iss-row1">
         <section class="iss-card iss-next">
@@ -103,7 +103,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
 
   const loadDesk = async () => {
     data = await api.desk();
-    now = data.taken ? new Date(data.taken) : new Date();
+    now = new Date();
     renderDesk();
   };
   const openIssue = async (id) => renderIssue(await api.get(id));
@@ -255,7 +255,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   const refresher = setInterval(() => {
     if (!onDesk || picking || root.hidden || document.visibilityState !== 'visible') return;
     const y = root.scrollTop;
-    api.desk().then((d) => { data = d; now = d.taken ? new Date(d.taken) : new Date(); if (onDesk) { renderDesk(); root.scrollTop = y; } }).catch(() => {});
+    api.desk().then((d) => { data = d; now = new Date(); if (onDesk) { renderDesk(); root.scrollTop = y; } }).catch(() => {});
   }, REFRESH_MS);
 
   return {

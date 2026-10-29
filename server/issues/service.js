@@ -9,12 +9,14 @@ import { timeline } from './timeline.js';
 
 const WEEKS = 12;
 
-export const createIssuesService = ({ source, platform }) => {
-  // la foto y lo cogido en SIA; `now` es la hora de la foto, no la de ahora
+// now: el reloj (inyectable en pruebas). «Ahora» es ahora: la foto de Remedy
+// solo dice de cuándo son los datos (taken); lo medido en SIA se mide a día de hoy.
+export const createIssuesService = ({ source, platform, now = () => new Date() }) => {
+  // la foto y lo cogido en SIA
   const snapshot = async (jwt) => {
     const { taken, issues } = source.load();
     const claims = await platform.rpc(jwt, 'platform_issue_claims');
-    return { taken, issues, claims, claimed: new Set(claims.map((c) => c.issue_id)), now: taken ? new Date(taken) : new Date() };
+    return { taken, issues, claims, claimed: new Set(claims.map((c) => c.issue_id)), now: now() };
   };
   // el recorrido de una issue: sus movimientos y notas, unidos por orden
   const timelineOf = async (jwt, id) => {
