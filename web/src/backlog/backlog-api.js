@@ -1,9 +1,17 @@
-// Cliente de /api/backlog: la cola del equipo y las reglas de priorización.
+// Cliente de /api/backlog: la cola del equipo, el detalle de una issue (para
+// priorizarla o asignarla) y las reglas de priorización.
 // `api`: el cliente del bridge (ui/api.js).
 
 export const createBacklogApi = (api) => ({
   // → { taken, rule, rules, issues } en el orden de la regla pedida
   list: (rule) => api(`/backlog${rule ? `?rule=${encodeURIComponent(rule)}` : ''}`),
+  // → { issue, pinned, claimedBy }
+  get: (id) => api(`/backlog/${encodeURIComponent(id)}`),
+  people: async () => (await api('/backlog/people')).people,
+  // rules vacío: la primera de la cola en todas las reglas
+  prioritize: (id, rules) => api(`/backlog/${encodeURIComponent(id)}/prioritize`, { method: 'POST', body: { rules } }),
+  unprioritize: (id) => api(`/backlog/${encodeURIComponent(id)}/prioritize`, { method: 'DELETE' }),
+  assign: (id, to) => api(`/backlog/${encodeURIComponent(id)}/assign`, { method: 'POST', body: { to } }),
   // → { criteria, rules }: el catálogo de criterios y las reglas con los suyos
   rules: () => api('/backlog/rules'),
   // crear (id null) o cambiar → { id }

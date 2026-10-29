@@ -2,7 +2,7 @@
 // quién ha cogido qué, que lleva la base de la instancia (platform_*). Todo
 // con el JWT de quien actúa; «coger» es un simulacro: se da por hecho que
 // SIGLO la asigna en Remedy.
-import { queue } from './queue.js';
+import { queue, pinnedFor } from './queue.js';
 import { loadRules, ruleById } from './rules.js';
 import { deskOf, brief } from './desk.js';
 import { today, history, dayKey } from './stats.js';
@@ -15,10 +15,16 @@ const WEEKS = 12;
 // solo dice de cuándo son los datos (taken); lo medido en SIA se mide a día de hoy.
 export const createIssuesService = ({ source, platform, now = () => new Date() }) => {
   // la foto y lo cogido en SIA
+  // la foto, lo cogido en SIA, las reglas y lo priorizado a mano desde el Backlog
   const snapshot = async (jwt) => {
     const { taken, issues } = source.load();
-    const claims = await platform.rpc(jwt, 'platform_issue_claims');
-    return { taken, issues, claims, claimed: new Set(claims.map((c) => c.issue_id)), now: now() };
+    const [claims, rules, priorities] = await Promise.all([platform.rpc(jwt, 'platform_issue_claims'), loadRules(platform, jwt), platform.rpc(jwt, 'platform_issue_priorities')]);
+    return { taken, issues, claims, claimed: new Set(claims.map((c) => c.issue_id)), rules, priorities, now: now() };
+  };
+  // la cola de una regla: sus priorizadas delante y el resto por sus criterios
+  const queueOf = ({ issues, claimed, rules, priorities, now }, ruleId) => {
+    const rule = ruleById(rules, ruleId);
+    return queue(issues, claimed, now, rule.criteria, pinnedFor(priorities, rule.id));
   };
   // el histórico de una issue: sus movimientos y notas, unidos por orden
   const timelineOf = async (jwt, id) => {
@@ -29,10 +35,11 @@ export const createIssuesService = ({ source, platform, now = () => new Date() }
   return {
     // → { taken, rules, free, next, desk, today, history }
     async desk({ user, accessToken: jwt }) {
-      const { taken, issues, claims, claimed, now } = await snapshot(jwt);
+      const snap = await snapshot(jwt);
+      const { taken, issues, claims, rules, now } = snap;
       const since = new Date(now.getTime() - WEEKS * 7 * 86400000).toISOString();
-      const [transfers, events, rules] = await Promise.all([platform.rpc(jwt, 'platform_my_transfers'), platform.rpc(jwt, 'platform_my_issue_events', { p_since: since }), loadRules(platform, jwt)]);
-      const free = queue(issues, claimed, now);
+      const [transfers, events] = await Promise.all([platform.rpc(jwt, 'platform_my_transfers'), platform.rpc(jwt, 'platform_my_issue_events', { p_since: since })]);
+      const free = queueOf(snap);
       const desk = deskOf(issues, user, claims, transfers);
       const nextIssue = free.length ? issues.find((i) => i.id === free[0]) : null;
       return {
@@ -51,9 +58,8 @@ export const createIssuesService = ({ source, platform, now = () => new Date() }
     },
     // la base se queda con la primera libre que nadie tenga → id | null
     async next({ accessToken: jwt }, ruleId) {
-      const [{ issues, claimed, now }, rules] = await Promise.all([snapshot(jwt), loadRules(platform, jwt)]);
-      const rule = ruleById(rules, ruleId);
-      return (await platform.rpc(jwt, 'platform_claim_next_issue', { p_candidates: queue(issues, claimed, now, rule.criteria).slice(0, 500) })) || null;
+      const candidates = queueOf(await snapshot(jwt), ruleId);
+      return (await platform.rpc(jwt, 'platform_claim_next_issue', { p_candidates: candidates.slice(0, 500) })) || null;
     },
     release: ({ accessToken: jwt }, id) => platform.rpc(jwt, 'platform_release_issue', { p_issue: id }),
     // a un compañero de Issues; el motivo queda como nota del traspaso

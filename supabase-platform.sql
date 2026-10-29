@@ -23,14 +23,16 @@
 --                       Administración usa la del dueño de la base.
 --    audit_log          registro de todo cambio (solo se añade, nunca se edita)
 --    issue_claims       quién tiene cada issue en SIA (una fila por issue: la cola)
---    issue_events       histórico de cada issue: cogida, devuelta a la cola o
---                       traspasada, quién lo hizo y de quién a quién
+--    issue_events       histórico de cada issue: cogida, devuelta a la cola,
+--                       traspasada o asignada desde el Backlog, quién lo hizo y de quién a quién
 --    issue_notes        notas internas del equipo sobre una issue (editables por
 --                       quien las escribió); el comentario de un traspaso queda
 --                       como nota etiquetada «transfer»
 --    priority_rules     reglas de priorización del backlog: un nombre y una lista
 --                       ordenada de criterios (el catálogo, en platform.known_criteria()).
 --                       La básica viene de serie (builtin): se ajusta, no se borra
+--    issue_priorities   issues priorizadas a mano desde el Backlog: van las primeras
+--                       de la cola, para todas las reglas o solo para algunas
 --
 --  Vistas: lo que cada persona puede ver y hacer en SIA (el Chat, siempre).
 --  La lista está en platform.known_views().
@@ -176,7 +178,7 @@ create table if not exists platform.issue_claims (
 create table if not exists platform.issue_events (
   id           bigint generated always as identity primary key,
   issue_id     text not null check (issue_id ~ '^INC[0-9]+$'),
-  action       text not null check (action in ('claimed', 'released', 'transferred')),
+  action       text not null check (action in ('claimed', 'released', 'transferred', 'assigned')),
   actor        uuid references platform.users (id) on delete set null,      -- quién lo hizo
   from_user    uuid references platform.users (id) on delete set null,      -- quién la tenía
   to_user      uuid references platform.users (id) on delete set null,      -- quién la tiene ahora
@@ -215,6 +217,16 @@ create table if not exists platform.priority_rules (
   updated_at  timestamptz not null default now()
 );
 create unique index if not exists priority_rules_builtin on platform.priority_rules (builtin) where builtin;
+
+create table if not exists platform.issue_priorities (
+  issue_id    text primary key check (issue_id ~ '^INC[0-9]+$'),
+  rules       uuid[] not null default '{}',  -- vacío: en todas las reglas
+  set_by      uuid references platform.users (id) on delete set null,
+  set_at      timestamptz not null default now()
+);
+-- la acción 'assigned' llegó después: la restricción de las bases ya montadas se renueva
+alter table platform.issue_events drop constraint if exists issue_events_action_check;
+alter table platform.issue_events add constraint issue_events_action_check check (action in ('claimed', 'released', 'transferred', 'assigned'));
 -- La regla básica, la del equipo, de serie (si no está ya)
 insert into platform.priority_rules (name, criteria, builtin)
   select 'Regla básica', array['recent', 'prio', 'month', 'severity', 'age'], true
@@ -235,6 +247,7 @@ alter table platform.issue_claims     enable row level security;
 alter table platform.issue_events     enable row level security;
 alter table platform.issue_notes      enable row level security;
 alter table platform.priority_rules  enable row level security;
+alter table platform.issue_priorities enable row level security;
 revoke all on all tables in schema platform from public, anon, authenticated;
 revoke all on all sequences in schema platform from public, anon, authenticated;
 
@@ -861,6 +874,63 @@ end $$;
 
 -- El equipo de Issues: las personas activas con la vista Issues (para
 -- traspasar una issue a un compañero).
+-- ── Priorizar a mano y asignar desde el Backlog ───────────────────────────
+-- Una issue priorizada va la primera de la cola (de todas las reglas, o solo
+-- de las que se digan). Las ve quien coge issues o reparte; las pone y quita
+-- quien reparte (Backlog).
+drop function if exists public.platform_issue_priorities();
+create function public.platform_issue_priorities()
+returns table (issue_id text, rules uuid[], by_name text, set_at timestamptz)
+language plpgsql stable security definer set search_path = '' as $$
+#variable_conflict use_column
+begin
+  perform platform.require_view('issues', 'backlog');
+  return query
+    select p.issue_id, p.rules, u.name, p.set_at
+    from platform.issue_priorities p left join platform.users u on u.id = p.set_by
+    order by p.set_at;
+end $$;
+
+create or replace function public.platform_prioritize_issue(p_issue text, p_rules uuid[]) returns void
+language plpgsql security definer set search_path = '' as $$
+declare v_me uuid := platform.require_view('backlog');
+        v_rules uuid[] := coalesce(p_rules, '{}');
+begin
+  if not (v_rules <@ array(select r.id from platform.priority_rules r)) then raise exception 'Alguna de esas reglas no existe.' using errcode = '22023'; end if;
+  insert into platform.issue_priorities (issue_id, rules, set_by) values (p_issue, v_rules, v_me)
+    on conflict (issue_id) do update set rules = excluded.rules, set_by = excluded.set_by, set_at = now();
+  perform platform.audit(v_me, 'issue.prioritize', null, jsonb_build_object('issue', p_issue, 'rules', to_jsonb(v_rules)));
+exception
+  when check_violation then raise exception 'Esa issue no vale.' using errcode = '23514';
+end $$;
+
+create or replace function public.platform_unprioritize_issue(p_issue text) returns void
+language plpgsql security definer set search_path = '' as $$
+declare v_me uuid := platform.require_view('backlog');
+begin
+  delete from platform.issue_priorities where issue_id = p_issue;
+  if not found then raise exception 'Esa issue no estaba priorizada.' using errcode = 'P0002'; end if;
+  perform platform.audit(v_me, 'issue.unprioritize', null, jsonb_build_object('issue', p_issue));
+end $$;
+
+-- Asignarla a alguien del equipo de Issues: pasa a su mesa como cogida, y en
+-- el histórico queda quién la asignó. Si ya la tiene alguien, no.
+create or replace function public.platform_assign_issue(p_issue text, p_to uuid) returns void
+language plpgsql security definer set search_path = '' as $$
+declare v_me uuid := platform.require_view('backlog'); v_holder text;
+begin
+  if not exists (select 1 from platform.users u where u.id = p_to and u.active and 'issues' = any (u.views)) then
+    raise exception 'Solo se asigna a alguien activo con la vista Issues.' using errcode = '22023';
+  end if;
+  select u.name into v_holder from platform.issue_claims c join platform.users u on u.id = c.user_id where c.issue_id = p_issue;
+  if found then raise exception 'Esa issue ya la tiene %.', v_holder using errcode = '23505'; end if;
+  insert into platform.issue_claims (issue_id, user_id) values (p_issue, p_to);
+  insert into platform.issue_events (issue_id, action, actor, to_user) values (p_issue, 'assigned', v_me, p_to);
+  delete from platform.issue_priorities where issue_id = p_issue; -- ya no está en la cola
+exception
+  when check_violation then raise exception 'Esa issue no vale.' using errcode = '23514';
+end $$;
+
 -- ── Reglas de priorización del backlog ────────────────────────────────────
 -- Las ven quienes cogen issues o reparten (Issues, Backlog): un nombre y sus
 -- criterios en orden. Las crean, cambian y borran quienes reparten (Backlog).
@@ -918,7 +988,7 @@ returns table (id uuid, name text)
 language plpgsql stable security definer set search_path = '' as $$
 #variable_conflict use_column
 begin
-  perform platform.require_view('issues');
+  perform platform.require_view('issues', 'backlog'); -- el Backlog también, para asignar
   return query select u.id, u.name from platform.users u where u.active and 'issues' = any (u.views) order by u.name;
 end $$;
 

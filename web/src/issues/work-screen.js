@@ -44,6 +44,7 @@ const DID = {
   claimed: (t) => `${who(t.by)} cogió la issue`,
   released: (t) => `${who(t.by)} devolvió la issue a la cola`,
   transferred: (t) => `${who(t.by)} traspasó la issue a ${who(t.to)}`,
+  assigned: (t) => `${who(t.by)} asignó la issue a ${who(t.to)} desde el Backlog`,
   note: (t) => `${who(t.by)} escribió una nota`,
 };
 // Una nota la edita quien la escribió, durante las 24 h siguientes (la misma
