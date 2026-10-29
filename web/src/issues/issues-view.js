@@ -16,6 +16,7 @@ const REFRESH_MS = 15000;
 
 // openChat(host, issueId) → { dispose }: el chat de la issue (lo pone main.js).
 export const mountIssuesView = (root, { api, me, toast, openChat }) => {
+  const failed = (text) => (toast?.error || toast)?.(text);   // lo que falla, en rojo
   let data = null, rule = 'basic', now = new Date(), opened = null, onDesk = false, workTab = 'ai', chat = null, loading = false, picking = false;
   let attached = null; // Resolver: el adjunto guardado en el borrador abierto ({ name, type, size })
   const closeChat = () => { chat?.dispose(); chat = null; };
@@ -144,7 +145,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
       if (t.closest('[data-back]')) { renderDesk(); root.scrollTop = 0; return; }
       const rel = t.closest('[data-release]');
       if (rel) { rel.disabled = true; await api.release(opened); await loadDesk(); return toast?.('Devuelta a la cola.'); }
-    } catch (err) { toast?.(err.message); }
+    } catch (err) { failed(err.message); }
   });
   // Acciones: su formulario encima de la pantalla de trabajo. De momento se
   // valida y se avisa: nada sale hacia Remedy hasta conectar SIGLO.
@@ -226,6 +227,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
   root.addEventListener('input', (e) => {
     const form = e.target.closest('[data-act-form="resolve"]');
     if (!form || e.target.matches('[data-file]')) return;   // el adjunto se guarda aparte (setFile)
+    showErr(form, null);   // lo que faltaba ya se está escribiendo
     clearTimeout(autosave);
     autosave = setTimeout(() => { autosave = null; saveNow(form); }, 800);
   });
@@ -303,7 +305,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat }) => {
       const { meta } = await api.upload(file);
       toast?.(`Foto cargada: ${meta.issues} issues.`);
     } catch (e) {
-      toast?.(e.message);
+      failed(e.message);
     }
     loading = false;
     await loadDesk();
