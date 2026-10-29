@@ -16,7 +16,7 @@ const REFRESH_MS = 15000;
 // openChat(host, issueId) → { dispose }: el chat de la issue (lo pone main.js).
 // dialogs: los diálogos de la app (ui/dialog.js), para confirmar antes de devolver.
 export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => {
-  let data = null, rule = 'basic', now = new Date(), opened = null, onDesk = false, workTab = 'ai', chat = null, loading = false, picking = false;
+  let data = null, rule = 'basic', now = new Date(), opened = null, openedText = '', onDesk = false, workTab = 'ai', chat = null, loading = false, picking = false;
   const closeChat = () => { chat?.dispose(); chat = null; };
 
   // Cargar la foto (el CSV de la consulta de Remedy, hasta leer de Remedy).
@@ -93,6 +93,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     const mine = i.claimedBy && data?.desk.some((d) => d.id === i.id && d.claimed);
     if (opened !== i.id) workTab = 'ai';
     opened = i.id;
+    openedText = i.text || '';
     closeChat();
     closeAction();
     root.innerHTML = workScreen({ issue: i, sameCenter, timeline, now, mine, tab: workTab });
@@ -137,7 +138,8 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       if (rel) {
         rel.disabled = true;
         const ok = !dialogs || await dialogs.open({ title: 'Devolver a la cola', centered: true, okLabel: 'Devolver',
-          bodyHTML: `<b>${esc(opened)}</b> dejará de ser tuya y volverá a la cola para quien la coja. Quedará apuntado que la devolviste.` });
+          bodyHTML: `<div class="iss-dlg-issue"><span class="iss-dlg-code">${esc(opened)}</span><span class="iss-dlg-text">${esc(openedText)}</span></div>
+            <p class="iss-dlg-p">Volverá a la cola y podrá cogerla cualquier compañero.</p>` });
         if (!ok) { rel.disabled = false; return; }
         await api.release(opened);
         await loadDesk();
