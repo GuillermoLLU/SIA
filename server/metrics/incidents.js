@@ -1,7 +1,7 @@
 // Qué hacer con una fila de Remedy frente a la incidencia que ya está guardada
 // (la fila es una foto del origen, no manda sobre lo más nuevo), y cómo
 // se abren AUDIT_DETAIL y WORKLOG_DETAIL para consultarlos por fecha. Dominio puro.
-import { entries } from './remedy.js';
+import { entries } from '../shared/remedy-entries.js';
 
 const STAMP = /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d/;
 // «2026-02-01 10:00:00.000» y «2026-02-01 10:00:00» son el mismo instante; sin fecha, la más antigua

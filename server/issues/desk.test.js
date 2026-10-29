@@ -16,6 +16,17 @@ test('mi mesa: responsable en Remedy o cogida en SIA', () => {
   assert.deepEqual(desk.map((i) => [i.id, i.claimed]), [['INC1', false], ['INC2', true]]);
 });
 
+test('mi mesa: las que me han traspasado llevan de quién vienen y por qué', () => {
+  const issues = [{ id: 'INC2', assignee: '' }, { id: 'INC4', assignee: '' }];
+  const claims = [{ issue_id: 'INC2', user_id: 'u-ana' }, { issue_id: 'INC4', user_id: 'u-ana' }];
+  const transfers = [{ issue_id: 'INC4', from_name: 'Luis', happened_at: '2026-10-29T10:00:00+00:00', reason: 'Es de tu centro.' }];
+  const desk = deskOf(issues, { id: 'u-ana', name: 'Ana López' }, claims, transfers);
+  assert.equal(desk[0].transferred, undefined);
+  assert.deepEqual(desk[1].transferred, { from: 'Luis', at: '2026-10-29T10:00:00+00:00', reason: 'Es de tu centro.' });
+  assert.deepEqual(brief(desk[1]).transferred, desk[1].transferred);
+  assert.equal(brief(desk[0]).transferred, undefined);
+});
+
 test('brief: sin notas ni historial', () => {
   const b = brief({ id: 'INC1', notes: 'largo', changes: [], text: 't' });
   assert.equal(b.notes, undefined);

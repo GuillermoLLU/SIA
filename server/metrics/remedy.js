@@ -6,6 +6,7 @@
 // readIssue es la entrada; las piezas en que se descompone (fechas, historial,
 // notas, ticket, ámbito, operación) van públicas para probarse una a una.
 import { readTitle } from './themes.js';
+import { entries } from '../shared/remedy-entries.js';
 import { fold, norm, key, toCode } from './text.js';
 import { OPEN_STATES, DONE_STATES, CANCELLED, PENDING } from './states.js';
 
@@ -58,14 +59,6 @@ export const vendorOf = (text) => {
   return { type, project: jira ? jira[1] : '', key: jira ? `${jira[1]}-${jira[2]}` : '' };
 };
 
-// AUDIT_DETAIL y WORKLOG_DETAIL: entradas «fecha - quién - texto» separadas
-// por « | » delante de una fecha.
-const ENTRY = / \| (?=\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d{3} - )/;
-export const entries = (text) => (text || '').split(ENTRY).flatMap((e) => {
-  const a = e.indexOf(' - ');
-  const b = a < 0 ? -1 : e.indexOf(' - ', a + 3);
-  return b < 0 ? [] : [{ at: e.slice(0, a), who: e.slice(a + 3, b), text: e.slice(b + 3) }];
-});
 
 // Recorrido del historial de estados (los estados y motivos, con sus códigos: states.js): tiempo en cada estado,
 // primera actuación (primer cambio de estado real), primer paso a En curso (SLA de inicio), devoluciones a la

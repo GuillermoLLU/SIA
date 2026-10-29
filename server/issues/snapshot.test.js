@@ -33,3 +33,12 @@ test('sin las columnas de la consulta, o sin issues del grupo: error con estado 
   s.add(row('INC1', 'ASSIGNED', 'OTRO', '2026-10-20 09:00:00', '2026-10-20 09:00:00'));
   assert.throws(() => s.build(), (e) => e.status === 400 && /grupo AYS SOPORTE/.test(e.message));
 });
+
+test('WORKLOG_DETAIL es obligatoria y la foto guarda las notas de trabajo de cada issue', () => {
+  const sin = { ...row('INC1', 'ASSIGNED', 'AYS SOPORTE', '2026-10-20 09:00:00', '2026-10-20 09:00:00') };
+  delete sin.WORKLOG_DETAIL;
+  assert.throws(() => createSnapshot({ now: NOW }).add(sin), (e) => e.status === 400 && /le falta WORKLOG_DETAIL/.test(e.message));
+  const s = createSnapshot({ now: NOW });
+  s.add({ ...row('INC1', 'ASSIGNED', 'AYS SOPORTE', '2026-10-20 09:00:00', '2026-10-20 09:00:00'), WORKLOG_DETAIL: '2026-10-20 09:30:00.000 - ANA - Llamada al centro' });
+  assert.deepEqual(s.build().issues[0].worklog, [{ at: '2026-10-20 09:30', who: 'ANA', text: 'Llamada al centro' }]);
+});
