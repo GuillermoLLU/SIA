@@ -147,7 +147,7 @@ const usersView = canView(user, 'people')
 const PANELS = [
   { name: 'issues', mount: (el) => user && mountIssuesView(el, {
     api: createIssuesApi(api), me: user, toast, dialogs,
-    openChat: (host, issueId) => mountIssueChat(host, { issueId, wsUrl, loadProjects: chat.loadProjects, makeTerminal: chat.makeTerminal }),
+    openChat: (host, issue) => mountIssueChat(host, { issue, wsUrl, loadProjects: chat.loadProjects, makeTerminal: chat.makeTerminal }),
   }) },
   // clic en una persona de Equipo soporte: se abre en Métricas frente al resto de su equipo
   { name: 'work', mount: (el) => user && mountWorkView(el, { api: createMetricsApi(api),

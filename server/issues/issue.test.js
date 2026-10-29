@@ -5,7 +5,7 @@ import { toIssue, statusChanges, worklog } from './issue.js';
 const row = (o) => ({
   INCIDENTNUMBER: 'INC1', SUMMARY: '', PRIORITY: 'HIGH', STATUS: 'ASSIGNED', STATUSREASON: '', ASSIGNEE: '',
   ASSIGNEDGROUP: 'G', TAGS: '', REPORTEDDATE: '2026-10-01 08:00:12.000', LASTMODIFIEDDATE: '', LASTRESOLUTIONDATE: '',
-  NOTES: '', CATEGORIZATIONTIER1: '', CATEGORIZATIONTIER2: '', CATEGORIZATIONTIER3: '', RESOLUTION: '', VENDORTICKETNUMBER: '', CHILDREQUEST: '', LINKREMEDY: '', AUDIT_DETAIL: '', ...o,
+  NOTES: '', CATEGORIZATIONTIER1: '', CATEGORIZATIONTIER2: '', CATEGORIZATIONTIER3: '', RESOLUTION: '', VENDORTICKETNUMBER: '', CHILDREQUEST: '', LINKREMEDY: '', AUDIT_DETAIL: '', WORKLOG_DETAIL: '', ...o,
 });
 
 test('summary: código de centro aparte y sin la criticidad escrita a mano', () => {
@@ -61,4 +61,13 @@ test('worklog: las notas del método, enteras; las automáticas, recortadas', ()
   const long = 'x'.repeat(5000);
   const [auto, method] = worklog(`2026-10-22 20:25:00.000 - ANA - [RESOLUCION] ${long} | 2026-10-22 20:24:00.000 - REMEDY - ${long}`);
   assert.deepEqual([auto.text.length, method.text.length], [1000, 5000 + '[RESOLUCION] '.length]);
+});
+
+test('las notas de trabajo de Remedy, troceadas y por orden, con la fecha al minuto', () => {
+  const i = toIssue(row({ WORKLOG_DETAIL: '2026-10-06 14:40:00.000 - ANA LOPEZ - Llamada al centro | 2026-10-06 15:10:00.000 - LUIS - [CALL] Sin respuesta' }));
+  assert.deepEqual(i.worklog, [
+    { at: '2026-10-06 14:40', who: 'ANA LOPEZ', text: 'Llamada al centro' },
+    { at: '2026-10-06 15:10', who: 'LUIS', text: '[CALL] Sin respuesta' },
+  ]);
+  assert.deepEqual(toIssue(row()).worklog, []);
 });
