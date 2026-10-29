@@ -24,15 +24,7 @@ const basic = (now) => {
   return (a, b) => group(a) - group(b) || (b.prio - a.prio) || (SEVERITY[b.priority] || 0) - (SEVERITY[a.priority] || 0) || a.reported.localeCompare(b.reported);
 };
 
-// Dos órdenes simples más: la más antigua primero, y por criticidad (a igualdad, la más antigua).
-const oldest = () => (a, b) => a.reported.localeCompare(b.reported);
-const severity = () => (a, b) => (SEVERITY[b.priority] || 0) - (SEVERITY[a.priority] || 0) || a.reported.localeCompare(b.reported);
-
-export const RULES = [
-  { id: 'basic', label: 'Regla básica', order: basic },
-  { id: 'oldest', label: 'Más antigua primero', order: oldest },
-  { id: 'severity', label: 'Por criticidad', order: severity },
-];
+export const RULES = [{ id: 'basic', label: 'Regla básica', order: basic }];
 
 // Ids libres en el orden de la regla (la base se queda con la primera que nadie tenga).
 export const queue = (issues, claimed, now, ruleId = 'basic') => {

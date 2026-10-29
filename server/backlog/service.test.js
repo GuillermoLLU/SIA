@@ -23,14 +23,11 @@ test('solo lo libre: ni con responsable en Remedy ni cogida en SIA; en el orden 
   assert.equal(taken, '2026-10-29T08:00:00.000Z');
   assert.deepEqual(out.map((i) => i.id), ['INC3', 'INC1']);
   assert.equal(rule, 'basic');
-  assert.deepEqual(rules.map((r) => r.id), ['basic', 'oldest', 'severity']);
+  assert.deepEqual(rules, [{ id: 'basic', label: 'Regla básica' }]);
 });
 
-test('con otra regla, su orden; una desconocida, la básica', async () => {
-  const issues = [issue('INC1', { priority: 'LOW', reported: '2026-10-01 09:00' }), issue('INC2', { priority: 'CRITICAL', reported: '2026-10-20 09:00' })];
-  assert.deepEqual((await service(issues).list({ accessToken: 'jwt' }, 'oldest')).issues.map((i) => i.id), ['INC1', 'INC2']);
-  assert.deepEqual((await service(issues).list({ accessToken: 'jwt' }, 'severity')).issues.map((i) => i.id), ['INC2', 'INC1']);
-  assert.equal((await service(issues).list({ accessToken: 'jwt' }, 'nope')).rule, 'basic');
+test('una regla desconocida: la básica', async () => {
+  assert.equal((await service([issue('INC1')]).list({ accessToken: 'jwt' }, 'nope')).rule, 'basic');
 });
 
 test('cada fila va en breve (sin notas ni worklog) y sin marca de cogida', async () => {
