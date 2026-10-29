@@ -5,7 +5,7 @@
 // issue-chat.js), que vive mientras la issue esté abierta. El análisis (lo
 // hará el harness del equipo) y las parecidas, por conectar: solo sus huecos.
 import { esc } from '../ui/html.js';
-import { STATUS_ES, REASON_ES, SEVERITY_ES, when, age, stamp } from './format.js';
+import { STATUS_ES, REASON_ES, SEVERITY_ES, when, whenIso, age } from './format.js';
 import { item } from './parts.js';
 
 const pending = (text) => `<p class="iss-pending">${text}</p>`;
@@ -19,18 +19,22 @@ const WORK_TABS = [
 
 // El recorrido en SIA: movimientos y notas por orden (lo que da el bridge en
 // `timeline`). Se pinta aparte para poder refrescarlo al añadir una nota.
-const at = (iso) => when(stamp(new Date(iso)));
+export const trailTab = (n) => `Recorrido y notas${n ? `<span>${n}</span>` : ''}`;
 const MOVES = {
   claimed: (t) => `<b>${esc(t.by || 'Alguien')}</b> la cogió`,
   released: (t) => `<b>${esc(t.by || 'Alguien')}</b> la devolvió a la cola`,
   transferred: (t) => `<b>${esc(t.by || 'Alguien')}</b> la traspasó a <b>${esc(t.to || 'alguien')}</b>`,
 };
 const trailItem = (t) => (t.type === 'note'
-  ? `<li class="iss-trail-note${t.kind === 'transfer' ? ' transfer' : ''}"><time>${at(t.at)}</time><div><span class="iss-trail-who"><b>${esc(t.by || 'Alguien')}</b>${t.kind === 'transfer' ? '<i class="iss-tag">Motivo del traspaso</i>' : ''}${t.edited ? `<small>editada ${at(t.edited)}</small>` : ''}</span><p>${esc(t.text)}</p></div></li>`
-  : `<li class="iss-trail-move"><time>${at(t.at)}</time><div>${(MOVES[t.type] || ((x) => esc(x.type)))(t)}</div></li>`);
+  ? `<li class="iss-trail-note${t.kind === 'transfer' ? ' transfer' : ''}"><time>${whenIso(t.at)}</time><div><span class="iss-trail-who"><b>${esc(t.by || 'Alguien')}</b>${t.kind === 'transfer' ? '<i class="iss-tag">Motivo del traspaso</i>' : ''}${t.edited ? `<small>editada ${whenIso(t.edited)}</small>` : ''}</span><p>${esc(t.text)}</p></div></li>`
+  : `<li class="iss-trail-move"><time>${whenIso(t.at)}</time><div>${(MOVES[t.type] || ((x) => esc(x.type)))(t)}</div></li>`);
 export const trailHtml = (timeline = []) => (timeline.length
   ? `<ol class="iss-trail">${timeline.map(trailItem).join('')}</ol>`
   : '<p class="iss-empty">Nadie la ha movido ni anotado en SIA todavía.</p>');
+
+// El cuerpo del diálogo de confirmación al devolver a la cola.
+export const releaseDialogHtml = (id, text) => `<div class="iss-dlg-issue"><span class="iss-dlg-code">${esc(id)}</span><span class="iss-dlg-text">${esc(text || '')}</span></div>
+  <p class="iss-dlg-p">Volverá a la cola y podrá cogerla cualquier compañero.</p>`;
 
 const aiSection = (title, text) => `<section class="iss-ai-sec"><h4 class="iss-sub">${title}</h4>${pending(text)}</section>`;
 const aiPanel = () => `
@@ -61,7 +65,7 @@ export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, tab
   <div class="iss-work">
     <section class="iss-card iss-work-main">
       <div class="iss-wtabs" role="tablist">
-        ${WORK_TABS.map((t) => `<button role="tab" data-wtab="${t.key}" aria-selected="${t.key === tab}">${t.label}${t.key === 'related' && sameCenter.length ? `<span>${sameCenter.length}</span>` : ''}${t.key === 'trail' && timeline.length ? `<span>${timeline.length}</span>` : ''}</button>`).join('')}
+        ${WORK_TABS.map((t) => `<button role="tab" data-wtab="${t.key}" aria-selected="${t.key === tab}">${t.key === 'trail' ? trailTab(timeline.length) : t.label}${t.key === 'related' && sameCenter.length ? `<span>${sameCenter.length}</span>` : ''}</button>`).join('')}
       </div>
 
       <div class="iss-wpanel" data-wpanel="ai"${tab === 'ai' ? '' : ' hidden'}>${aiPanel()}</div>
@@ -108,7 +112,7 @@ export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, tab
       <div class="k-center"><span>Centro</span><b class="iss-code">${esc(i.center || '—')}</b><small>&nbsp;</small></div>
       <div class="k-link"><span>Remedy</span><b>${i.link ? `<a href="${esc(i.link)}" target="_blank" rel="noopener">Abrir ↗</a>` : '—'}</b><small>${esc(i.id)}</small></div>
       <div class="k-created"><span>Creada</span><b>${when(i.reported)}</b><small>hace ${age(i.reported, now)}</small></div>
-      <div class="k-claimed"><span>Asignada</span><b>${i.claimedBy?.at ? when(stamp(new Date(i.claimedBy.at))) : '—'}</b><small>${i.claimedBy ? `en SIA, ${esc(i.claimedBy.name)}` : 'nadie la ha cogido en SIA'}</small></div>
+      <div class="k-claimed"><span>Asignada</span><b>${i.claimedBy?.at ? whenIso(i.claimedBy.at) : '—'}</b><small>${i.claimedBy ? `en SIA, ${esc(i.claimedBy.name)}` : 'nadie la ha cogido en SIA'}</small></div>
       <div class="k-open"><span>Abierta</span><b>${age(i.reported, now)}</b><small>desde que se creó</small></div>
       <div class="k-moved"><span>Último movimiento</span><b>${i.modified ? `hace ${age(i.modified, now)}` : '—'}</b><small>${when(i.modified)}</small></div>
     </section>

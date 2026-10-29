@@ -169,10 +169,11 @@ create table if not exists platform.issue_events (
   actor        uuid references platform.users (id) on delete set null,      -- quién lo hizo
   from_user    uuid references platform.users (id) on delete set null,      -- quién la tenía
   to_user      uuid references platform.users (id) on delete set null,      -- quién la tiene ahora
+  note_id      bigint,                                                        -- en un traspaso, la nota con el motivo
   happened_at  timestamptz not null default now()
 );
 create index if not exists issue_events_issue on platform.issue_events (issue_id, happened_at);
-alter table platform.issue_events drop column if exists comment;  -- el comentario del traspaso es una nota
+alter table platform.issue_events add column if not exists note_id bigint;
 
 -- Notas internas del equipo sobre una issue. Las ve todo Issues; las edita
 -- quien las escribió (el plazo para editarlas lo pone la web). `kind` las
@@ -186,7 +187,8 @@ create table if not exists platform.issue_notes (
   created_at  timestamptz not null default now(),
   edited_at   timestamptz
 );
-alter table platform.issue_notes add column if not exists kind text not null default 'note' check (kind in ('note', 'transfer'));
+alter table platform.issue_events drop constraint if exists issue_events_note_fk;
+alter table platform.issue_events add constraint issue_events_note_fk foreign key (note_id) references platform.issue_notes (id) on delete set null;
 create index if not exists issue_notes_issue on platform.issue_notes (issue_id, created_at);
 
 -- Administrador, con todas las vistas que haya (también las que se añadan)
@@ -734,17 +736,19 @@ end $$;
 drop function if exists public.platform_transfer_issue(text, uuid, text);
 create function public.platform_transfer_issue(p_issue text, p_to uuid, p_comment text) returns void
 language plpgsql security definer set search_path = '' as $$
-declare v_me uuid := platform.require_view('issues');
+declare v_me uuid := platform.require_view('issues'); v_note bigint;
 begin
-  if p_to is null or p_to = v_me then raise exception 'Elige a qué compañero traspasarla.' using errcode = '22023'; end if;
+  if p_to is null then raise exception 'Elige a qué compañero traspasarla.' using errcode = '22023'; end if;
+  if p_to = v_me then raise exception 'No puedes traspasarte una issue a ti mismo.' using errcode = '22023'; end if;
   if nullif(btrim(p_comment), '') is null then raise exception 'Escribe el motivo del traspaso.' using errcode = '22023'; end if;
+  if char_length(btrim(p_comment)) > 4000 then raise exception 'El motivo admite hasta 4.000 caracteres.' using errcode = '22023'; end if;
   if not exists (select 1 from platform.users u where u.id = p_to and u.active and 'issues' = any (u.views)) then
     raise exception 'Esa persona no está en Issues.' using errcode = 'P0002';
   end if;
   update platform.issue_claims set user_id = p_to, claimed_at = now() where issue_id = p_issue and user_id = v_me;
   if not found then raise exception 'Esa issue no es tuya.' using errcode = '42501'; end if;
-  insert into platform.issue_events (issue_id, action, actor, from_user, to_user) values (p_issue, 'transferred', v_me, v_me, p_to);
-  insert into platform.issue_notes (issue_id, author, kind, body) values (p_issue, v_me, 'transfer', left(btrim(p_comment), 4000));
+  insert into platform.issue_notes (issue_id, author, kind, body) values (p_issue, v_me, 'transfer', btrim(p_comment)) returning id into v_note;
+  insert into platform.issue_events (issue_id, action, actor, from_user, to_user, note_id) values (p_issue, 'transferred', v_me, v_me, p_to, v_note);
 end $$;
 
 -- Lo que me han traspasado y aún tengo: de quién viene, cuándo y el motivo
@@ -758,15 +762,13 @@ language plpgsql stable security definer set search_path = '' as $$
 declare v_me uuid := platform.require_view('issues');
 begin
   return query
-    select distinct on (e.issue_id) e.issue_id, uf.name, e.happened_at,
-      (select n.body from platform.issue_notes n
-        where n.issue_id = e.issue_id and n.kind = 'transfer' and n.author is not distinct from e.actor and n.created_at = e.happened_at
-        order by n.id desc limit 1)
-    from platform.issue_events e
-    join platform.issue_claims c on c.issue_id = e.issue_id and c.user_id = v_me and c.claimed_at = e.happened_at
+    select e.issue_id, uf.name, e.happened_at, n.body
+    from platform.issue_claims c
+    join lateral (select * from platform.issue_events x where x.issue_id = c.issue_id order by x.happened_at desc, x.id desc limit 1) e on true
     left join platform.users uf on uf.id = e.from_user
-    where e.action = 'transferred' and e.to_user = v_me
-    order by e.issue_id, e.happened_at desc, e.id desc;
+    left join platform.issue_notes n on n.id = e.note_id
+    where c.user_id = v_me and e.action = 'transferred' and e.to_user = v_me
+    order by e.happened_at;
 end $$;
 
 -- El histórico de una issue en SIA: cada movimiento con quién lo hizo y de
@@ -809,6 +811,7 @@ create or replace function public.platform_add_issue_note(p_issue text, p_body t
 language plpgsql security definer set search_path = '' as $$
 declare v_me uuid := platform.require_view('issues'); v_id bigint;
 begin
+  if p_issue !~ '^INC[0-9]+$' then raise exception 'Esa issue no existe.' using errcode = 'P0002'; end if;
   insert into platform.issue_notes (issue_id, author, body) values (p_issue, v_me, btrim(p_body)) returning id into v_id;
   return v_id;
 exception

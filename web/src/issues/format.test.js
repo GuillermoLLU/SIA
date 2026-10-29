@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LISTS, when, age, stamp, duration, since, weekBars } from './format.js';
+import { LISTS, when, whenIso, age, stamp, duration, since, weekBars } from './format.js';
 
 const NOW = new Date('2026-10-04T11:44:00');
 
@@ -40,4 +40,9 @@ test('weekBars: alturas sobre el máximo, nunca por debajo de 5', () => {
   assert.deepEqual([a.total, a.sgaPct, a.sisuPct], [2, 20, 0]);
   assert.deepEqual([b.total, b.sgaPct, b.sisuPct], [10, 60, 40]);
   assert.equal(weekBars([{ week: 'w', sga: 1, sisu: 0 }])[0].sgaPct, 20);
+});
+
+test('una fecha ISO de la base sale en hora local con el formato de la mesa', () => {
+  assert.equal(whenIso('2026-10-29T10:12:42+00:00'), when(stamp(new Date('2026-10-29T10:12:42+00:00'))));
+  assert.match(whenIso('2026-10-29T10:12:42+00:00'), /^29\/10 \d\d:12$/);
 });

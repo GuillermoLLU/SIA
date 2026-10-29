@@ -212,6 +212,10 @@ select t_as(:AD);
 select assert_eq((select power_key from public.platform_my_knowledge()), 'pk-admin-soporte-456', 'con Administración, la clave del dueño');
 
 -- ── 6a. issues: la cola, una issue por persona ──
+-- un movimiento antiguo apuntado en la auditoría (antes de existir issue_events): se migra al re-ejecutar el SQL (lo comprueba run.sh)
+reset role;
+insert into platform.audit_log (actor, action, details, happened_at) values (:AD, 'issue.claimed', '{"issue":"INC0"}', now() - interval '30 days');
+set role authenticated;
 select t_as(:U1);
 select expect_error($$select public.platform_claim_next_issue(array['INC1'])$$, 'sin la vista Issues no se coge nada');
 select expect_error('select count(*) from public.platform_issue_claims()', 'ni se ve quién tiene qué');
@@ -241,6 +245,7 @@ select expect_error($$select public.platform_transfer_issue('INC1', '00000000-00
 select expect_error($$select public.platform_transfer_issue('INC1', '00000000-0000-0000-0000-0000000000a2', 'motivo')$$, 'ni a quien no está en Issues');
 select expect_error($$select public.platform_transfer_issue('INC9', '00000000-0000-0000-0000-0000000000a3', 'motivo')$$, 'ni una que no se tiene');
 select expect_error($$select public.platform_transfer_issue('INC1', '00000000-0000-0000-0000-0000000000a3', '   ')$$, 'ni sin motivo: un traspaso se justifica');
+select expect_error($$select public.platform_transfer_issue('INC1', '00000000-0000-0000-0000-0000000000a3', repeat('x', 4001))$$, 'ni con un motivo de más de 4.000 caracteres');
 select assert_eq((select string_agg(issue_id || ':' || user_name, ',' order by issue_id) from public.platform_issue_claims()), 'INC1:Admin', 'sin motivo, sigue siendo del mismo');
 select public.platform_transfer_issue('INC1', :U2, '  Lleva dos llamadas del centro.  ');
 select assert_eq((select string_agg(issue_id || ':' || user_name, ',' order by issue_id) from public.platform_issue_claims()), 'INC1:agente.dos', 'traspasada: ahora es del compañero');
@@ -255,6 +260,15 @@ select assert_eq((select string_agg(issue_id || ':' || action, ',' order by happ
 select t_as(:U2);
 select assert_eq((select string_agg(issue_id || ':' || from_name || ':' || reason, ',') from public.platform_my_transfers()), 'INC1:Admin:Lleva dos llamadas del centro.', 'quien la recibe ve de quién viene y por qué');
 select assert_eq((select string_agg(issue_id || ':' || action, ',' order by happened_at, issue_id) from public.platform_my_issue_events(now() - interval '1 day')), 'INC2:claimed,INC2:released,INC1:received', 'y en el suyo, la recibida es suya desde ese momento');
+-- encadenado: agente.dos se la devuelve al admin con otro motivo; el admin ve el último traspaso, no el primero
+select public.platform_transfer_issue('INC1', :AD, 'Al final es tuya: el centro pregunta por ti.');
+select assert_eq((select count(*) from public.platform_my_transfers()), 0::bigint, 'quien la vuelve a traspasar deja de tenerla');
+select t_as(:AD);
+select assert_eq((select string_agg(issue_id || ':' || from_name || ':' || reason, ',') from public.platform_my_transfers()), 'INC1:agente.dos:Al final es tuya: el centro pregunta por ti.', 'un traspaso encadenado enseña el último motivo');
+select assert_eq((select count(*) from public.platform_issue_notes('INC1') where kind = 'transfer'), 2::bigint, 'y los dos motivos quedan como notas');
+select public.platform_transfer_issue('INC1', :U2, 'Me equivoqué, sigue tú.');
+select t_as(:U2);
+select assert_eq((select reason from public.platform_my_transfers()), 'Me equivoqué, sigue tú.', 'de vuelta: el motivo es el de este traspaso');
 select public.platform_release_issue('INC1');
 select assert_eq((select count(*) from public.platform_issue_claims()), 0::bigint, 'quien la recibe sí puede devolverla');
 select assert_eq((select count(*) from public.platform_my_transfers()), 0::bigint, 'devuelta: ya no consta como traspasada');
@@ -270,7 +284,7 @@ select assert_eq(public.platform_add_issue_note('INC1', '  El centro confirma qu
 select t_as(:AD);
 select assert_eq(public.platform_add_issue_note('INC1', 'Revisado con el proveedor.') > 0, true, 'otra persona de Issues añade la suya');
 select assert_eq((select string_agg(kind || ':' || author_name || ':' || body, '|' order by created_at, id) from public.platform_issue_notes('INC1')),
-  'transfer:Admin:Lleva dos llamadas del centro.|note:agente.dos:El centro confirma que el pedido salió.|note:Admin:Revisado con el proveedor.', 'las notas de la issue, por orden, con su autor y su etiqueta');
+  'transfer:Admin:Lleva dos llamadas del centro.|transfer:agente.dos:Al final es tuya: el centro pregunta por ti.|transfer:Admin:Me equivoqué, sigue tú.|note:agente.dos:El centro confirma que el pedido salió.|note:Admin:Revisado con el proveedor.', 'las notas de la issue, por orden, con su autor y su etiqueta');
 select assert_eq((select count(*) from public.platform_issue_notes('INC1') where edited_at is not null), 0::bigint, 'recién escritas: sin editar');
 select expect_error($$select public.platform_edit_issue_note((select min(id) from public.platform_issue_notes('INC1') where kind = 'note'), 'cambio ajeno')$$, 'nadie edita la nota de otro');
 select t_as(:U2);
@@ -282,7 +296,7 @@ select assert_eq((select count(*) from public.platform_issue_notes('INC2')), 0::
 
 -- ── 6b. cambiar de base y desactivar ──
 reset role;
-select assert_eq((select count(*) from platform.audit_log where action like 'issue.%' or action like 'note.%'), 0::bigint, 'los movimientos de issues y las notas no pasan por la auditoría: viven en issue_events e issue_notes');
+select assert_eq((select count(*) from platform.audit_log where (action like 'issue.%' or action like 'note.%') and happened_at > now() - interval '1 day'), 0::bigint, 'los movimientos de issues y las notas no pasan por la auditoría: viven en issue_events e issue_notes');
 select platform.set_knowledge_base('Logística', 'https://abcdefghijklmnopqrsu.supabase.co', 'sb_publishable_abcdefghijklmnopqrstuvwxyz', 'pk-admin-logistica-1');
 select assert_eq((select string_agg(name, ',') from platform.knowledge_bases), 'Logística', 'otra URL: otra base');
 select assert_eq((select count(*) from vault.secrets where name like 'sia-base-%'), 1::bigint, 'la clave de la anterior sale de Vault');

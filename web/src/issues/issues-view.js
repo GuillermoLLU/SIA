@@ -7,7 +7,8 @@ import './issues.css';
 import { esc } from '../ui/html.js';
 import { LISTS, when, age, stamp, weekBars } from './format.js';
 import { sev, origin, item } from './parts.js';
-import { workScreen, trailHtml } from './work-screen.js';
+import { onEscape } from '../ui/dialog.js';
+import { workScreen, trailHtml, trailTab, releaseDialogHtml } from './work-screen.js';
 import { ACTIONS, actionForm, readAction, isComplete } from './actions.js';
 
 const GOAL = { min: 15, max: 20 }; // resueltas por turno, lo que dice el equipo
@@ -16,7 +17,7 @@ const REFRESH_MS = 15000;
 // openChat(host, issueId) → { dispose }: el chat de la issue (lo pone main.js).
 // dialogs: los diálogos de la app (ui/dialog.js), para confirmar antes de devolver.
 export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => {
-  let data = null, rule = 'basic', now = new Date(), opened = null, openedText = '', onDesk = false, workTab = 'ai', chat = null, loading = false, picking = false;
+  let data = null, rule = 'basic', now = new Date(), opened = null, onDesk = false, workTab = 'ai', chat = null, loading = false, picking = false;
   const closeChat = () => { chat?.dispose(); chat = null; };
 
   // Cargar la foto (el CSV de la consulta de Remedy, hasta leer de Remedy).
@@ -93,7 +94,6 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     const mine = i.claimedBy && data?.desk.some((d) => d.id === i.id && d.claimed);
     if (opened !== i.id) workTab = 'ai';
     opened = i.id;
-    openedText = i.text || '';
     closeChat();
     closeAction();
     root.innerHTML = workScreen({ issue: i, sameCenter, timeline, now, mine, tab: workTab });
@@ -108,33 +108,41 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   };
   const openIssue = async (id) => renderIssue(await api.get(id));
 
+  // Las pestañas de la pantalla de trabajo.
+  const showTab = (key) => {
+    workTab = key;
+    root.querySelectorAll('[data-wtab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.wtab === key)));
+    root.querySelectorAll('[data-wpanel]').forEach((p) => { p.hidden = p.dataset.wpanel !== key; });
+  };
   // El selector de persona de las acciones: abrir, elegir, cerrar.
+  const pickOpen = () => root.querySelector('[data-pick] [aria-expanded="true"]');
   const closePick = () => root.querySelectorAll('[data-pick] [aria-expanded="true"]').forEach((b) => { b.setAttribute('aria-expanded', 'false'); b.nextElementSibling.hidden = true; });
-  root.addEventListener('click', (e) => {
-    const t = e.target;
+  const pickClick = (t) => {
     const btn = t.closest('[data-pick-btn]');
     if (btn) {
       const open = btn.getAttribute('aria-expanded') === 'true';
       closePick();
       if (!open) { btn.setAttribute('aria-expanded', 'true'); btn.nextElementSibling.hidden = false; }
-      return;
+      return true;
     }
     const opt = t.closest('[data-pick-opt]');
-    if (opt) {
-      const pick = opt.closest('[data-pick]');
-      pick.querySelector('input[type=hidden]').value = opt.dataset.pickOpt;
-      pick.querySelectorAll('[data-pick-opt]').forEach((o) => o.setAttribute('aria-selected', String(o === opt)));
-      const label = pick.querySelector('[data-pick-label]');
-      label.textContent = opt.textContent;
-      label.classList.remove('iss-pick-ph');
-      closePick();
-      syncSubmit(pick.closest('[data-act-form]'));
-      return;
-    }
+    if (!opt) { closePick(); return false; }
+    const pick = opt.closest('[data-pick]');
+    pick.querySelector('input[type=hidden]').value = opt.dataset.pickOpt;
+    pick.querySelectorAll('[data-pick-opt]').forEach((o) => o.setAttribute('aria-selected', String(o === opt)));
+    const label = pick.querySelector('[data-pick-label]');
+    label.textContent = opt.textContent;
+    label.classList.remove('iss-pick-ph');
     closePick();
-  });
+    syncSubmit(pick.closest('[data-act-form]'));
+    return true;
+  };
   root.addEventListener('click', async (e) => {
     const t = e.target;
+    if (pickClick(t)) return;
+    // con el diálogo de elegir fichero abierto no se repinta la mesa: el
+    // cambio llegaría a un input que ya no está en la página
+    if (t.matches('[data-csv]')) { picking = true; return; }
     try {
       const take = t.closest('[data-take]');
       if (take) {
@@ -147,12 +155,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
         return openIssue(id);
       }
       const wt = t.closest('[data-wtab]');
-      if (wt) {
-        workTab = wt.dataset.wtab;
-        root.querySelectorAll('[data-wtab]').forEach((b) => b.setAttribute('aria-selected', String(b === wt)));
-        root.querySelectorAll('[data-wpanel]').forEach((p) => { p.hidden = p.dataset.wpanel !== workTab; });
-        return;
-      }
+      if (wt) return showTab(wt.dataset.wtab);
       const act = t.closest('[data-act]');
       if (act) return openAction(act.dataset.act);
       if (t.closest('[data-act-cancel]') || t.classList.contains('iss-modal')) return closeAction();
@@ -163,8 +166,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       if (rel) {
         rel.disabled = true;
         const ok = !dialogs || await dialogs.open({ title: 'Devolver a la cola', centered: true, okLabel: 'Devolver',
-          bodyHTML: `<div class="iss-dlg-issue"><span class="iss-dlg-code">${esc(opened)}</span><span class="iss-dlg-text">${esc(openedText)}</span></div>
-            <p class="iss-dlg-p">Volverá a la cola y podrá cogerla cualquier compañero.</p>` });
+          bodyHTML: releaseDialogHtml(opened, data?.desk.find((d) => d.id === opened)?.text) });
         if (!ok) { rel.disabled = false; return; }
         await api.release(opened);
         await loadDesk();
@@ -175,13 +177,15 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   // Acciones: su formulario encima de la pantalla de trabajo. Traspasar y
   // añadir nota van a la base de la instancia; resolver y escalar, de momento,
   // se validan y se avisa: nada sale hacia Remedy hasta conectar SIGLO.
-  let people = [];
-  const closeAction = () => root.querySelector('.iss-modal')?.remove();
+  let people = [], offEscape = null;
+  const closeAction = () => { root.querySelector('.iss-modal')?.remove(); offEscape?.(); offEscape = null; };
   const openAction = async (key) => {
     closeAction();
     if (key === 'transfer') people = await api.teammates();
     root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${actionForm(key, opened, people)}</div>`);
     root.querySelector('.iss-act-form [name]')?.focus();
+    // Escape: con la lista del selector abierta la cierra; si no, cierra el modal
+    offEscape = onEscape(() => (pickOpen() ? closePick() : closeAction()));
   };
   // Tras añadir una nota, el recorrido se repinta en su sitio.
   const refreshTrail = async () => {
@@ -189,12 +193,11 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     const box = root.querySelector('[data-trail]');
     if (box) box.innerHTML = trailHtml(items);
     const tab = root.querySelector('[data-wtab="trail"]');
-    if (tab) tab.innerHTML = `Recorrido y notas${items.length ? `<span>${items.length}</span>` : ''}`;
+    if (tab) tab.innerHTML = trailTab(items.length);
   };
   // El botón de enviar, apagado hasta que estén todos los campos obligatorios.
   const syncSubmit = (form) => { form.querySelector('[type=submit]').disabled = !isComplete(form.dataset.actForm, Object.fromEntries(new FormData(form))); };
   root.addEventListener('input', (e) => { const form = e.target.closest('[data-act-form]'); if (form) syncSubmit(form); });
-  root.addEventListener('change', (e) => { const form = e.target.closest('[data-act-form]'); if (form) syncSubmit(form); });
   root.addEventListener('submit', async (e) => {
     const form = e.target.closest('[data-act-form]');
     if (!form) return;
@@ -216,20 +219,13 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       if (key === 'note') {
         await api.addNote(opened, values.note);
         closeAction();
-        workTab = 'trail';
-        root.querySelectorAll('[data-wtab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.wtab === 'trail')));
-        root.querySelectorAll('[data-wpanel]').forEach((p) => { p.hidden = p.dataset.wpanel !== 'trail'; });
+        showTab('trail');
         await refreshTrail();
         return toast?.('Nota añadida.');
       }
       closeAction();
       toast?.(`${ACTIONS[key].label}: preparado, pero aún no se envía a Remedy (falta conectar SIGLO).`);
     } catch (e2) { fail(e2.message); }
-  });
-  root.addEventListener('keydown', (e) => {
-    if (e.key !== 'Escape' || !root.querySelector('.iss-modal')) return;
-    if (root.querySelector('[data-pick] [aria-expanded="true"]')) return closePick();
-    closeAction();
   });
 
   const upload = async (file) => {
@@ -247,12 +243,11 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   };
 
   root.addEventListener('change', (e) => {
+    const form = e.target.closest('[data-act-form]');
+    if (form) return syncSubmit(form);
     if (e.target.matches('[data-rule]')) rule = e.target.value;
     if (e.target.matches('[data-csv]')) { picking = false; upload(e.target.files[0]); }
   });
-  // Con el diálogo de elegir fichero abierto no se repinta la mesa: el
-  // cambio llegaría a un input que ya no está en la página.
-  root.addEventListener('click', (e) => { if (e.target.matches('[data-csv]')) picking = true; });
   const picked = () => { picking = false; };
   window.addEventListener('focus', picked);
 

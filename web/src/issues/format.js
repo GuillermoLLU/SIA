@@ -31,6 +31,8 @@ export const stamp = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d
 
 // «2026-10-04 11:44» → «04/10 11:44»
 export const when = (s) => (s ? `${s.slice(8, 10)}/${s.slice(5, 7)} ${s.slice(11, 16)}` : '—');
+// Una fecha ISO de la base (UTC) en hora local, con el mismo formato.
+export const whenIso = (iso) => when(stamp(new Date(iso)));
 
 // Minutos legibles: «30 min», «3 h», «3 d».
 export const duration = (m) => (m < 60 ? `${Math.max(0, Math.round(m))} min` : m < 1440 ? `${Math.round(m / 60)} h` : `${Math.round(m / 1440)} d`);

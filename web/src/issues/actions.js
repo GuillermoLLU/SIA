@@ -60,7 +60,7 @@ export const actionForm = (key, issueId, people = []) => {
 };
 
 // ¿Están todos los obligatorios? Mientras no, el botón de enviar sigue apagado.
-export const isComplete = (key, values) => ACTIONS[key].fields.every((f) => !f.required || String(values[f.name] ?? '').trim());
+export const isComplete = (key, values) => !readAction(key, values).missing;
 
 // Los valores del formulario, o el primer campo obligatorio vacío.
 export const readAction = (key, values) => {

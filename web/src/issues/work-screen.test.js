@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { workScreen, trailHtml } from './work-screen.js';
+import { workScreen, trailHtml, trailTab, releaseDialogHtml } from './work-screen.js';
 
 const issue = (o = {}) => ({ id: 'INC1', text: 'PDA <sin imagen>', priority: 'HIGH', status: 'ASSIGNED', reason: '', notes: 'no <arranca>',
   resolution: '', category: 'SGA', group: 'AYS SOPORTE', assignee: '', reported: '2026-10-01 10:00', modified: '2026-10-01 11:00',
@@ -41,4 +41,14 @@ test('el recorrido: movimientos y notas por orden, el motivo del traspaso etique
   assert.match(html, /<b>Alguien<\/b> la devolvió a la cola/);
   const withTrail = workScreen({ issue: issue(), sameCenter: [], timeline: [{ at: '2026-10-01T08:00:00+00:00', type: 'claimed', by: 'Ana', to: 'Ana' }], now, mine: false, tab: 'trail' });
   assert.match(withTrail, /data-wtab="trail" aria-selected="true">Recorrido y notas<span>1<\/span>/);
+});
+
+test('la pestaña del recorrido lleva el contador solo si hay entradas; el diálogo de devolver, la issue escapada', () => {
+  assert.equal(trailTab(0), 'Recorrido y notas');
+  assert.equal(trailTab(3), 'Recorrido y notas<span>3</span>');
+  const html = releaseDialogHtml('INC1', 'PDA <x>');
+  assert.match(html, /iss-dlg-code">INC1</);
+  assert.match(html, /PDA &lt;x&gt;/);
+  assert.match(html, /Volverá a la cola/);
+  assert.doesNotMatch(releaseDialogHtml('INC1'), /undefined/);
 });

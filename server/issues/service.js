@@ -16,15 +16,21 @@ export const createIssuesService = ({ source, platform }) => {
     const claims = await platform.rpc(jwt, 'platform_issue_claims');
     return { taken, issues, claims, claimed: new Set(claims.map((c) => c.issue_id)), now: taken ? new Date(taken) : new Date() };
   };
+  // el recorrido de una issue: sus movimientos y notas, unidos por orden
+  const timelineOf = async (jwt, id) => {
+    const [events, notes] = await Promise.all([platform.rpc(jwt, 'platform_issue_events', { p_issue: id }), platform.rpc(jwt, 'platform_issue_notes', { p_issue: id })]);
+    return timeline(events, notes);
+  };
 
   return {
     // → { taken, rules, free, next, desk, today, history }
     async desk({ user, accessToken: jwt }) {
       const { taken, issues, claims, claimed, now } = await snapshot(jwt);
-      const free = queue(issues, claimed, now);
-      const desk = deskOf(issues, user, claims, await platform.rpc(jwt, 'platform_my_transfers'));
-      const nextIssue = free.length ? issues.find((i) => i.id === free[0]) : null;
       const since = new Date(now.getTime() - WEEKS * 7 * 86400000).toISOString();
+      const [transfers, events] = await Promise.all([platform.rpc(jwt, 'platform_my_transfers'), platform.rpc(jwt, 'platform_my_issue_events', { p_since: since })]);
+      const free = queue(issues, claimed, now);
+      const desk = deskOf(issues, user, claims, transfers);
+      const nextIssue = free.length ? issues.find((i) => i.id === free[0]) : null;
       return {
         taken,
         rules: RULES.map(({ id, label }) => ({ id, label })),
@@ -32,7 +38,7 @@ export const createIssuesService = ({ source, platform }) => {
         next: nextIssue ? brief(nextIssue) : null,
         desk: desk.map(brief),
         today: today(desk, dayKey(now)),
-        history: history(await platform.rpc(jwt, 'platform_my_issue_events', { p_since: since }), new Map(issues.map((i) => [i.id, i])), now, WEEKS),
+        history: history(events, new Map(issues.map((i) => [i.id, i])), now, WEEKS),
       };
     },
     // el equipo de Issues, sin mí
@@ -50,20 +56,17 @@ export const createIssuesService = ({ source, platform }) => {
     // una nota interna del equipo → su id
     addNote: ({ accessToken: jwt }, id, body) => platform.rpc(jwt, 'platform_add_issue_note', { p_issue: id, p_body: body }),
     // su recorrido en SIA: movimientos y notas, por orden (timeline.js)
-    async timeline({ accessToken: jwt }, id) {
-      const [events, notes] = await Promise.all([platform.rpc(jwt, 'platform_issue_events', { p_issue: id }), platform.rpc(jwt, 'platform_issue_notes', { p_issue: id })]);
-      return timeline(events, notes);
-    },
+    timeline: ({ accessToken: jwt }, id) => timelineOf(jwt, id),
     // → { issue (con claimedBy), sameCenter, timeline } | null si ya no está en la foto
-    async get(who, id) {
-      const { issues, claims } = await snapshot(who.accessToken);
+    async get({ accessToken: jwt }, id) {
+      const { issues, claims } = await snapshot(jwt);
       const issue = issues.find((i) => i.id === id);
       if (!issue) return null;
       const holder = claims.find((c) => c.issue_id === id);
       return {
         issue: { ...issue, claimedBy: holder ? { id: holder.user_id, name: holder.user_name, at: holder.claimed_at } : null },
         sameCenter: issue.center ? issues.filter((i) => i.center === issue.center && i.id !== id).map(brief) : [],
-        timeline: await this.timeline(who, id),
+        timeline: await timelineOf(jwt, id),
       };
     },
     // una issue de la foto, por id (el chat de una issue)
