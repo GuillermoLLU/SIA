@@ -11,6 +11,9 @@ import { onEscape } from '../ui/dialog.js';
 import { workScreen, trailHtml, trailTab, releaseDialogHtml, sendsNote, noteEditorHtml } from './work-screen.js';
 import { ACTIONS, actionForm, readAction, isComplete } from './actions.js';
 import { resolveForm, resolveReview, resumeStep, stepMissing, STEPS, MAX_FILE, fileBox, localShort } from './resolve-form.js';
+import { readEscalate, createEscalateDrafts } from './escalate.js';
+import { escalateForm, escalateLive } from './escalate-form.js';
+import { DESTINATIONS, OPEN_TICKETS } from './escalate-mock.js';
 
 const GOAL = { min: 15, max: 20 }; // resueltas por turno, lo que dice el equipo
 const REFRESH_MS = 15000;
@@ -21,6 +24,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   const failed = (text) => (toast?.error || toast)?.(text);   // lo que falla, en rojo
   let data = null, rule = 'basic', now = new Date(), opened = null, onDesk = false, workTab = 'detail', chat = null, loading = false, picking = false;
   let attached = null; // Resolver: el adjunto guardado en el borrador abierto ({ name, type, size })
+  let issue = null; // la issue abierta: Escalar mira su criticidad, su estado y su ticket
   const closeChat = () => { chat?.dispose(); chat = null; };
 
   // Cargar la foto (el CSV de la consulta de Remedy, hasta leer de Remedy).
@@ -97,6 +101,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     const mine = i.claimedBy && data?.desk.some((d) => d.id === i.id && d.claimed);
     if (opened !== i.id) workTab = 'detail';
     opened = i.id;
+    issue = i;
     closeChat();
     closeAction();
     now = new Date(); // el histórico y las edades, a la hora de abrirla
@@ -142,7 +147,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     label.textContent = opt.textContent;
     label.classList.remove('iss-pick-ph');
     closePick();
-    syncSubmit(pick.closest('[data-act-form]'));
+    pick.querySelector('input[type=hidden]').dispatchEvent(new Event('input', { bubbles: true }));   // como teclear: cada formulario reacciona en su «input»
     return true;
   };
   root.addEventListener('click', async (e) => {
@@ -291,6 +296,33 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     clearTimeout(autosave);
     autosave = setTimeout(() => { autosave = null; saveNow(form); }, 800);
   });
+  // Escalar: el catálogo y los tickets abiertos son de prueba (escalate-mock.js).
+  // Lo escrito se guarda por issue hasta escalar o unir (escDrafts).
+  const escDrafts = createEscalateDrafts();
+  const escalateModal = () => escalateForm({ issue, dests: DESTINATIONS, open: OPEN_TICKETS, v: escDrafts.get(opened) || {} });
+  const refreshEscalate = (form) => {
+    const v = Object.fromEntries(new FormData(form));
+    escDrafts.save(opened, v);
+    const live = escalateLive(v, { issue, dests: DESTINATIONS });
+    for (const [k, html] of Object.entries(live.html)) form.querySelector(`[data-esc-live="${k}"]`).innerHTML = html;
+    for (const k of ['other', 'jira', 'dev']) form.querySelector(`[data-esc-when="${k}"]`).hidden = !live.show[k];
+    const link = v.mode === 'link';
+    form.querySelector('[data-esc-mode="escalate"]').hidden = link;
+    form.querySelector('[data-esc-mode="link"]').hidden = !link;
+    form.querySelector('.iss-esc-hint')?.toggleAttribute('hidden', link);
+    form.querySelector('[data-esc-ok]').textContent = link ? 'Unir al ticket' : 'Escalar';
+  };
+  root.addEventListener('input', (e) => { const form = e.target.closest('[data-act-form="escalate"]'); if (form) refreshEscalate(form); });
+  // Escribir en «Otro ticket» o pulsar «Unirla a…» elige esa opción sin buscar el radio.
+  root.addEventListener('focusin', (e) => { if (e.target.name === 'linkedOther') e.target.closest('label').querySelector('[name="linked"]').checked = true; });
+  root.addEventListener('click', (e) => {
+    const use = e.target.closest('[data-esc-use-link]');
+    if (!use) return;
+    const form = use.closest('form');
+    form.querySelector('[name="mode"][value="link"]').checked = true;
+    refreshEscalate(form);
+  });
+
   const openAction = async (key) => {
     closeAction();
     if (key === 'transfer') people = await api.teammates();
@@ -302,9 +334,9 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       start = await api.startResolve(opened);
       attached = start.draft?.file || null;
     }
-    const form = key === 'resolve' ? resolveForm(opened, start.check, start.draft) : actionForm(key, opened, people);
+    const form = key === 'resolve' ? resolveForm(opened, start.check, start.draft) : key === 'escalate' ? escalateModal() : actionForm(key, opened, people);
     root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${form}</div>`);
-    root.querySelector('.iss-act-form textarea, .iss-act-form input:not([type=hidden]), .iss-act-form select')?.focus();
+    root.querySelector(key === 'escalate' ? '#iss-f-dest' : '.iss-act-form textarea, .iss-act-form input:not([type=hidden]), .iss-act-form select')?.focus();
     // Resolver se retoma en el paso en el que se quedó (también enfoca lo suyo)
     const resume = key === 'resolve' ? resumeStep(start.check, start.draft) : 1;
     if (resume > 1) goStep(root.querySelector('[data-act-form="resolve"]'), resume);
@@ -321,8 +353,8 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     if (tab) tab.innerHTML = trailTab(items.length);
   };
   // El botón de enviar, apagado hasta que estén todos los campos obligatorios.
-  // Resolver valida por pasos (su botón es el último): aquí solo cuentan los demás.
-  const syncSubmit = (form) => { if (form.dataset.actForm === 'resolve') return; form.querySelector('[type=submit]').disabled = !isComplete(form.dataset.actForm, Object.fromEntries(new FormData(form))); };
+  // Resolver (por pasos) y Escalar (no bloquea) llevan su propia validación: aquí, los demás.
+  const syncSubmit = (form) => { if (['resolve', 'escalate'].includes(form.dataset.actForm)) return; form.querySelector('[type=submit]').disabled = !isComplete(form.dataset.actForm, Object.fromEntries(new FormData(form))); };
   root.addEventListener('input', (e) => {
     const form = e.target.closest('[data-act-form]');
     if (form) return syncSubmit(form);
@@ -381,7 +413,8 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     e.preventDefault();
     const key = form.dataset.actForm;
     if (key === 'resolve' && Number(form.dataset.step) < STEPS.length) return stepNext(form);
-    const { missing, values } = readAction(key, Object.fromEntries(new FormData(form)));
+    const raw = Object.fromEntries(new FormData(form));
+    const { missing, values } = key === 'escalate' ? readEscalate(raw, DESTINATIONS) : readAction(key, raw);
     const err = form.querySelector('.iss-act-err');
     const fail = (text) => { err.textContent = text; err.hidden = false; form.querySelector('[type=submit]').disabled = false; };
     if (missing) return fail(`Falta: ${missing}.`);
@@ -401,6 +434,14 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       } catch (err) { send.disabled = false; return showErr(form, err.message); }
       if (form.isConnected) closeAction();   // si ya se cerró, no se cierra el de otra issue
       return toast?.('Resolver: comprobado, pero aún no se envía a Remedy (falta conectar SIGLO).');
+    }
+    if (key === 'escalate') {
+      const rootCause = issue.status === 'RESOLVED';
+      escDrafts.drop(opened);   // escalada o unida: ya no hay nada pendiente
+      closeAction();
+      return toast?.(values.mode === 'link'
+        ? `Unida a ${values.ticket}: pasa a Pendiente (proveedor), sin otro escalado. Aún no se envía a Remedy.`
+        : `Escalada a ${values.destName}: ${rootCause ? 'queda registrada la causa raíz y sigue Resuelta' : 'pasa a Pendiente (proveedor) y se avisa al centro'}.${values.todo.length ? ` Añádele ${values.todo.join(' y ')} en «Notas internas».` : ''} Aún no se envía a Remedy.`);
     }
     form.querySelector('[type=submit]').disabled = true;
     try {
