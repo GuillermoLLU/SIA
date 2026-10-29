@@ -18,4 +18,3 @@ test('sin Claude, un motivo claro', () => {
   assert.match(pickLauncher([{ id: 'claude', available: false }]).error, /no está instalado/);
   assert.match(chatPlan({ launchers: [], projects: PROJECTS }).error, /no está configurado/);
 });
-

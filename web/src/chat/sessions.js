@@ -31,9 +31,10 @@ export const missingAssets = (have, list) => (list || []).filter((a) => !have.so
    Además, assets si hay adjuntos nuevos.
    hold: un chat lanzado AQUÍ cuyo `started` aún no llegó (viaja por otro
    socket que el broadcast): no se crean pasivas hasta resolverlo, o el propio
-   chat recién creado aparecería como pestaña fantasma.
-   killed: los chats cerrados AQUÍ (la X) que el bridge aún lista mientras
-   muere su CLI: tampoco se recrean como pasivos. */
+   chat recién creado aparecería como sesión fantasma.
+   killed: los chats cerrados AQUÍ («Cerrar chat») que el bridge aún lista
+   mientras muere su CLI: tampoco se recrean como pasivos; se devuelve podado
+   a los que el bridge aún lista (los demás ya murieron del todo). */
 export const reconcile = (locals, all, killed = new Set()) => {
   const list = chatSessions(all);
   const remote = new Map(list.map((r) => [r.id, r]));
@@ -47,5 +48,5 @@ export const reconcile = (locals, all, killed = new Set()) => {
   }
   const hold = locals.some((s) => s.launched && !s.remoteId && !s.passive);
   const create = hold ? [] : [...remote.values()].filter((r) => !killed.has(r.id));
-  return { list, actions, create, hold };
+  return { list, actions, create, hold, killed: new Set([...killed].filter((id) => list.some((r) => r.id === id))) };
 };

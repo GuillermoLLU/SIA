@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { appendBuffer, sessionList, pickMode, pickProjects, isIssueId, assetFrom, metaPatch, firstPrompt, PROMPT_MAX } from './sessions.js';
+import { appendBuffer, sessionList, pickMode, pickProjects, isIssueId, assetFrom, firstPrompt, PROMPT_MAX } from './sessions.js';
 
 test('appendBuffer: acumula y, al pasar el tope, se queda con el 75 % final', () => {
   assert.equal(appendBuffer('ab', 'cd', 10), 'abcd');
@@ -8,8 +8,8 @@ test('appendBuffer: acumula y, al pasar el tope, se queda con el 75 % final', ()
 });
 
 test('sessionList: lo que ve el cliente de cada sesión', () => {
-  const sessions = new Map([['s1', { id: 's1', meta: { launcher: 'claude', label: 'Chat 1' }, assets: [], ws: {} }], ['s2', { id: 's2', meta: { launcher: 'codex', label: 'x' }, assets: [{ name: 'a' }], ws: null }]]);
-  assert.deepEqual(sessionList(sessions), [{ id: 's1', launcher: 'claude', label: 'Chat 1', assets: [], attached: true }, { id: 's2', launcher: 'codex', label: 'x', assets: [{ name: 'a' }], attached: false }]);
+  const sessions = new Map([['s1', { id: 's1', meta: { launcher: 'claude', knowledge: 'auto' }, assets: [], ws: {} }], ['s2', { id: 's2', meta: { launcher: 'codex', knowledge: 'auto', issue: 'INC1' }, assets: [{ name: 'a' }], ws: null }]]);
+  assert.deepEqual(sessionList(sessions), [{ id: 's1', launcher: 'claude', knowledge: 'auto', assets: [], attached: true }, { id: 's2', launcher: 'codex', knowledge: 'auto', issue: 'INC1', assets: [{ name: 'a' }], attached: false }]);
 });
 
 test('pickMode, pickProjects, isIssueId', () => {
@@ -26,10 +26,7 @@ test('pickMode, pickProjects, isIssueId', () => {
   assert.equal(firstPrompt('a'.repeat(PROMPT_MAX + 5)).length, PROMPT_MAX);
 });
 
-test('assetFrom y metaPatch: acotados', () => {
+test('assetFrom: acotado', () => {
   assert.deepEqual(assetFrom({ name: 'a'.repeat(100), absPath: '/p' }), { name: 'a'.repeat(80), absPath: '/p' });
   assert.equal(assetFrom({ name: 'a' }), null);
-  const meta = { launcher: 'claude', label: 'Chat 1', color: '#fff' };
-  assert.deepEqual(metaPatch(meta, { label: '  Mi chat largo '.repeat(5), color: 7 }), { ...meta, label: 'Mi chat largo   Mi chat largo   Mi chat ', color: null });
-  assert.deepEqual(metaPatch(meta, { label: '  ', color: '#000' }), { ...meta, color: '#000' });
 });

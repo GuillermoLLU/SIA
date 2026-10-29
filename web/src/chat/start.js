@@ -19,4 +19,3 @@ export const chatPlan = ({ launchers, projects = [] }) => {
   if (picked.error) return picked;
   return { launcher: picked.launcher, knowledge: CHAT_KNOWLEDGE, projects: projects.map((p) => p.id) };
 };
-

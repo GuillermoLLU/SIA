@@ -650,16 +650,12 @@ body { display: flex; flex-direction: column; }
 .term-host { height: 100%; }
 .term-host[hidden] { display: none; }
 
-/* ── Arranque de un chat con IA (el Chat y el chat de una issue): un botón
-   centrado y, debajo, con qué se abre o por qué no se puede ─────────── */
-.launcher {
-  height: 100%;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  gap: 18px; text-align: center;
-}
-.launcher[hidden] { display: none; }
-.launcher-err { font-size: 13px; color: #f25f5c; margin-top: 4px; }
+/* El hueco de la portada del Chat dentro del panel (la portada es absoluta) */
+.ai-hero-host { height: 100%; }
+.ai-hero-host[hidden] { display: none; }
+
+/* ── Arranque del chat de una issue: un botón centrado y, debajo, por qué no
+   se puede ─────────────────────────────────────────────────────────────── */
 .ai-start { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px 16px; text-align: center; }
 .ai-start-go { padding: 12px 22px; font-size: 14px; }
 .ai-start-hint { margin: 0; max-width: 300px; font-size: 12.5px; line-height: 1.5; color: var(--text-low); }

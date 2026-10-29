@@ -13,8 +13,10 @@
     <meta name="apple-mobile-web-app-title" content="SIA" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <!-- Nada se ve hasta que main.js ha cargado los estilos (si no, un instante
-         de botones sin estilo al recargar); main.js marca <html class="styled"> -->
+         de botones sin estilo al recargar); main.js marca <html class="styled">.
+         Mientras tanto, el fondo del último tema (la copia que guarda theme/apply.js) -->
     <style>html { background: #f5f6f8; } html:not(.styled) body { visibility: hidden; }</style>
+    <script>try { var ui = JSON.parse(localStorage.getItem('sia-theme-ui')); if (ui && ui.bg) document.documentElement.style.background = ui.bg; } catch (e) { /* sin copia: el fondo claro */ }</script>
   </head>
   <body>
     <div class="app">

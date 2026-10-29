@@ -46,7 +46,12 @@ test('reconcile: los chats nuevos de otro dispositivo se crean, salvo con un lan
   assert.deepEqual([held.create, held.hold], [[], true]);
 });
 
-test('reconcile: un chat cerrado aquí que el bridge aún lista no vuelve como pasivo', () => {
-  const r = reconcile([local({ remoteId: null, launched: false })], [{ id: 's1' }, { id: 's9' }], new Set(['s1']));
+test('reconcile: un chat cerrado aquí que el bridge aún lista no vuelve como pasivo; los ya muertos se olvidan', () => {
+  const r = reconcile([local({ remoteId: null, launched: false })], [{ id: 's1' }, { id: 's9' }], new Set(['s1', 's0']));
   assert.deepEqual(r.create.map((x) => x.id), ['s9']);
+  assert.deepEqual([...r.killed], ['s1'], 's0 ya no está en el bridge');
+  // cerrado aquí pero aún con sesión local (el exit no ha llegado): sigue en actions
+  const still = reconcile([local({ remoteId: 's1' })], [{ id: 's1' }], new Set(['s1']));
+  assert.deepEqual(still.actions.map((a) => a.do), ['keep']);
+  assert.deepEqual(still.create, []);
 });

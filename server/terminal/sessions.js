@@ -1,9 +1,9 @@
 // Las sesiones de chat (dominio, sin E/S). El PTY vive en el bridge: si el
 // navegador se recarga o se cae el WebSocket, la sesión sigue; el cliente se
-// re-engancha con `attach` y recibe el scrollback. Cerrar la pestaña manda
-// `kill` explícito. Protocolo (todo JSON): bridge→cliente: launchers /
-// started / history / data / exit / gone / error / sessions / theme ·
-// cliente→bridge: start / attach / input / resize / meta / asset / kill.
+// re-engancha con `attach` y recibe el scrollback. «Cerrar chat» manda `kill`
+// explícito. Protocolo (todo JSON): bridge→cliente: launchers / started /
+// history / data / exit / gone / error / sessions / theme · cliente→bridge:
+// start / attach / input / resize / asset / kill.
 
 // Códigos de cierre con significado para el cliente: 4409 («otro dispositivo
 // tomó los chats») se distingue de una caída de red y pasa a modo pasivo.
@@ -11,7 +11,6 @@ export const CLOSE = { UNAUTHORIZED: 4403, HANDOFF: 4409, LOCKED: 4423 };
 
 export const BUFFER_CAP = 400_000; // ~400 KB de scrollback por sesión
 export const MAX_ASSETS = 100;
-export const LABEL_MAX = 40;
 
 // El scrollback, recortado al 75 % del tope cuando lo pasa.
 export const appendBuffer = (buffer, data, cap = BUFFER_CAP) => {
@@ -20,7 +19,7 @@ export const appendBuffer = (buffer, data, cap = BUFFER_CAP) => {
 };
 
 // `attached`: algún dispositivo tiene esta sesión enganchada ahora mismo. Los
-// clientes lo usan para ofrecer «usar los chats aquí» en vez de robarla.
+// clientes lo usan para ofrecer «usar el chat aquí» en vez de robarla.
 export const sessionList = (sessions) => [...sessions.values()].map((s) => ({ id: s.id, ...s.meta, assets: s.assets, attached: !!s.ws }));
 
 export const pickMode = (knowledge) => (knowledge === 'demand' ? 'demand' : 'auto');
@@ -36,10 +35,3 @@ export const firstPrompt = (prompt) => (typeof prompt === 'string' && prompt.tri
 
 // Un adjunto anunciado por un cliente, acotado; null si no vale.
 export const assetFrom = (msg) => (msg?.name && msg?.absPath ? { name: String(msg.name).slice(0, 80), absPath: String(msg.absPath) } : null);
-
-// Nombre y color de una pestaña, acotados.
-export const metaPatch = (meta, msg) => ({
-  ...meta,
-  label: typeof msg.label === 'string' && msg.label.trim() ? msg.label.trim().slice(0, LABEL_MAX) : meta.label,
-  color: typeof msg.color === 'string' ? msg.color : null,
-});
