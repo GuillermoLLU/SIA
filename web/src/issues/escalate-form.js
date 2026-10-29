@@ -4,7 +4,7 @@
 // escrito son piezas que la vista vuelve a pintar al teclear: escalateLive.
 import { esc } from '../ui/html.js';
 import { when } from './format.js';
-import { pickField } from './actions.js';
+import { pickerHtml } from '../ui/picker.js';
 import { ticketCheck, JIRA_PRIORITIES, jiraPriority, n3Subject, isDev, opensTicket } from './escalate.js';
 
 const GROUPS = [
@@ -83,10 +83,10 @@ export const escalateForm = ({ issue, dests, open, v = {} }) => {
     </div>
 
     <div data-esc-mode="escalate"${link ? ' hidden' : ''}>
-      <div class="iss-field"><span>¿A qué equipo se escala?</span>${pickField({ id: 'iss-f-dest', name: 'dest', value: values.dest || '', placeholder: 'Elige el equipo', groups: destGroups(dests) })}</div>
+      <div class="iss-field"><span>¿A qué equipo se escala?</span>${pickerHtml({ id: 'iss-f-dest', name: 'dest', value: values.dest || '', placeholder: 'Elige el equipo', groups: destGroups(dests) })}</div>
       <label class="iss-field" for="iss-f-destOther" data-esc-when="other"${live.show.other ? '' : ' hidden'}><span>Equipo o proveedor</span><input id="iss-f-destOther" name="destOther" value="${esc(values.destOther || '')}" placeholder="Ej.: Soporte de transporte" /></label>
       <div class="iss-field" data-esc-when="jira"${live.show.jira ? '' : ' hidden'}><span>Prioridad del Jira</span>
-        ${pickField({ id: 'iss-f-jira', name: 'jiraPriority', value: values.jiraPriority, groups: [{ options: JIRA_PRIORITIES.map((p) => ({ value: p.id, label: `${p.label} · ${p.when}` })) }] })}</div>
+        ${pickerHtml({ id: 'iss-f-jira', name: 'jiraPriority', value: values.jiraPriority, groups: [{ options: JIRA_PRIORITIES.map((p) => ({ value: p.id, label: `${p.label} · ${p.when}` })) }] })}</div>
       <label class="iss-field" for="iss-f-reason"><span>¿Por qué se escala?</span><textarea id="iss-f-reason" name="reason" rows="3" placeholder="Ej.: desde las 10:00 el túnel RFID de la mesa 3 tarda de 8 a 12 s. Reiniciado el servicio, sigue igual.">${esc(values.reason || '')}</textarea></label>
       <label class="iss-field" for="iss-f-sent"><span>¿Qué se ha enviado? <i data-esc-live="sentTag">${live.html.sentTag}</i></span><textarea id="iss-f-sent" name="sent" rows="2" placeholder="Ej.: logs del proceso y una captura del error, por correo a las 10:12.">${esc(values.sent || '')}</textarea></label>
       ${devBox(issue, dest)}

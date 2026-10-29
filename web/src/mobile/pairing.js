@@ -52,7 +52,7 @@ const pair = (api, logoHtml, pairToken) => new Promise((resolve) => {
 // ctx.lanToken (este arranque la va poniendo) · pairToken: el ?p= del QR ·
 // gate(): la puerta del PIN de bloqueo. → { lanToken, wsUrl }
 export const bootPhone = async ({ api, ctx, pairToken, logoHtml, gate }) => {
-  document.body.classList.add('phone'); // vista reducida: solo pestañas + terminal
+  document.body.classList.add('phone'); // vista reducida: solo el chat
   document.documentElement.classList.add('phone'); // html también: bloquea el scroll de página
   ctx.lanToken = localStorage.getItem(TOKEN_KEY) || null;
   // el tema del ordenador, antes de enseñar nada (el ping responde sin llave

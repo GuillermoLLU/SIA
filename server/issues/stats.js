@@ -21,8 +21,8 @@ export const weekOf = (d) => {
   return dayKey(m);
 };
 
-// Las que siguen siendo suyas: las cogió (claimed) o se las traspasaron
-// (received) y no las ha devuelto ni traspasado después. Lo que cuenta es el
+// Las que siguen siendo suyas: las cogió (claimed) o se las traspasaron o
+// asignaron desde el Backlog (received) y no las ha devuelto ni traspasado después. Lo que cuenta es el
 // último movimiento de cada issue.
 const MINE = new Set(['claimed', 'received']);
 const kept = (events) => {

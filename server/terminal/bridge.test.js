@@ -75,15 +75,32 @@ test('start: lanza el CLI con sus argumentos, engancha y avisa; data y history',
   x.done();
 });
 
-test('meta, asset y kill: se difunden y al morir el PTY se limpia la sesión', async () => {
+test('start con pregunta: va como primer mensaje del CLI; en blanco, nada', async () => {
+  const x = setup();
+  const ws = x.connect(fakeWs());
+  ws.say({ type: 'start', launcher: 'claude', prompt: '  ¿Qué hace la PDA?  ' });
+  await tick(); await tick();
+  assert.equal(x.pty.spawned[0].args[2], '¿Qué hace la PDA?');
+  const ws2 = x.connect(fakeWs());
+  ws2.say({ type: 'start', launcher: 'claude', prompt: '   ' });
+  await tick(); await tick();
+  assert.equal(x.pty.spawned[1].args[2], '');
+  // con issue y prompt a la vez, mandan los datos de la issue
+  const ws3 = x.connect(fakeWs());
+  ws3.say({ type: 'start', launcher: 'claude', issue: 'INC1', prompt: 'otra cosa' });
+  await tick(); await tick();
+  assert.match(x.pty.spawned[2].args[2], /incidencia INC1/);
+  x.done();
+});
+
+test('asset y kill: se difunden y al morir el PTY se limpia la sesión', async () => {
   const x = setup();
   const ws = x.connect(fakeWs());
   ws.say({ type: 'start', launcher: 'claude' });
   await tick(); await tick();
-  ws.say({ type: 'meta', label: ' Mío ', color: '#abc' });
   ws.say({ type: 'asset', asset: { name: 'foto.png', absPath: '/u/foto.png' } });
   const last = ws.sent.filter((m) => m.type === 'sessions').at(-1).sessions[0];
-  assert.deepEqual([last.label, last.color, last.assets], ['Mío', '#abc', [{ name: 'foto.png', absPath: '/u/foto.png' }]]);
+  assert.deepEqual(last.assets, [{ name: 'foto.png', absPath: '/u/foto.png' }]);
   ws.say({ type: 'kill' });
   assert.deepEqual(x.cleaned, ['s1']);
   assert.ok(ws.sent.some((m) => m.type === 'exit'));

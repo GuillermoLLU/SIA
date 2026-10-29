@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ACTIONS, actionForm, readAction, isComplete, pickField } from './actions.js';
+import { ACTIONS, actionForm, readAction, isComplete } from './actions.js';
 
 test('las tres acciones (las notas van en el histórico)', () => {
   assert.deepEqual(Object.keys(ACTIONS), ['resolve', 'escalate', 'transfer']);
@@ -26,13 +26,4 @@ test('traspasar: el equipo en el selector propio, escapado; se queda en SIA, sin
   assert.match(actionForm('transfer', 'INC1', []), /data-pick-btn[^>]*disabled[^>]*>.*No hay más personas en Issues/);
   assert.doesNotMatch(html, /Aún no se envía a Remedy/);
   assert.match(actionForm('resolve', 'INC1'), /Aún no se envía a Remedy/);
-});
-
-test('el desplegable de la web: valor, grupos, lo elegido y escapado', () => {
-  const html = pickField({ id: 'x', name: 'dest', value: 'b', placeholder: 'Elige', groups: [{ label: 'G <1>', options: [{ value: 'a', label: 'A' }, { value: 'b', label: 'B & C' }] }] });
-  assert.match(html, /<input type="hidden" name="dest" value="b">/);
-  assert.match(html, /data-pick-btn[^>]*><span data-pick-label>B &amp; C<\/span>/);
-  assert.match(html, /<li role="presentation" class="iss-pick-group">G &lt;1&gt;<\/li>/);
-  assert.match(html, /data-pick-opt="b" aria-selected="true"/);
-  assert.match(pickField({ id: 'x', name: 'y', placeholder: 'Elige', groups: [{ options: [] }] }), /<input type="hidden" name="y" value="">[\s\S]*class="iss-pick-ph">Elige</);
 });

@@ -3,6 +3,7 @@
 // instancia); resolver y escalar irán a Remedy por SIGLO y, de momento, no se
 // envían. Las notas internas se escriben en la pestaña Notas internas.
 import { esc } from '../ui/html.js';
+import { peoplePicker } from '../ui/picker.js';
 
 export const ACTIONS = {
   resolve: {
@@ -29,22 +30,9 @@ export const ACTIONS = {
   },
 };
 
-// El desplegable de la web es propio (el nativo no se puede pintar): un campo
-// oculto con el valor, un botón con lo elegido y la lista debajo. Abrir, elegir
-// y cerrar lo lleva la vista (issues-view.js) por data-pick-*. `groups`:
-// [{ label?, options: [{ value, label }] }]; `name`, el del campo oculto.
-export const pickField = ({ id, name, value = '', placeholder = '', groups, disabled = false }) => {
-  const chosen = groups.flatMap((g) => g.options).find((o) => o.value === value);
-  return `<div class="iss-pick" data-pick>
-      <input type="hidden" name="${name}" value="${esc(value)}">
-      <button type="button" id="${id}" class="iss-pick-btn" data-pick-btn aria-haspopup="listbox" aria-expanded="false"${disabled ? ' disabled' : ''}><span data-pick-label${chosen ? '' : ' class="iss-pick-ph"'}>${esc(chosen ? chosen.label : placeholder)}</span></button>
-      <ul class="iss-pick-list" role="listbox" hidden>${groups.map((g) => `${g.label ? `<li role="presentation" class="iss-pick-group">${esc(g.label)}</li>` : ''}${g.options.map((o) => `<li role="option" data-pick-opt="${esc(o.value)}" aria-selected="${o.value === value}">${esc(o.label)}</li>`).join('')}`).join('')}</ul>
-    </div>`;
-};
-
-// El selector de persona de Traspasar.
-const picker = (f, people) => pickField({ id: `iss-f-${f.name}`, name: f.name, disabled: !people.length,
-  placeholder: people.length ? 'Elige a quién' : 'No hay más personas en Issues', groups: [{ options: people.map((p) => ({ value: p.id, label: p.name })) }] });
+// El selector de persona es el propio de la app (ui/picker.js); abrir,
+// elegir y cerrar lo lleva la vista (issues-view.js).
+const picker = (f, people) => peoplePicker({ name: f.name, id: `iss-f-${f.name}`, people, empty: 'No hay más personas en Issues' });
 
 const field = (f, people) => {
   const id = `iss-f-${f.name}`;

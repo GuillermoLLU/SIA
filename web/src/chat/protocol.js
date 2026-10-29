@@ -3,12 +3,13 @@
 // los del bridge y qué significa cada código de cierre.
 
 export const msg = {
-  // lanzar un CLI en una sesión nueva (issue: el chat ligado a esa issue)
-  start: (launcher, knowledge, projects, cols, rows, issue = null) => ({ type: 'start', launcher, knowledge, projects, cols, rows, ...(issue ? { issue } : {}) }),
+  // lanzar un CLI en una sesión nueva. issue: el chat ligado a esa issue;
+  // prompt: la pregunta con la que arranca el Chat
+  start: (launcher, knowledge, projects, cols, rows, { issue = null, prompt = null } = {}) =>
+    ({ type: 'start', launcher, knowledge, projects, cols, rows, ...(issue ? { issue } : {}), ...(prompt ? { prompt } : {}) }),
   attach: (sessionId) => ({ type: 'attach', sessionId }),
   input: (data) => ({ type: 'input', data }),
   resize: (cols, rows) => ({ type: 'resize', cols, rows }),
-  meta: (label, color) => ({ type: 'meta', label, color }),
   // matar la sesión propia del socket o, por el socket de control, otra
   kill: (sessionId = null) => (sessionId ? { type: 'kill', sessionId } : { type: 'kill' }),
   asset: ({ name, absPath }) => ({ type: 'asset', asset: { name, absPath } }),

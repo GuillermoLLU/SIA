@@ -12,7 +12,7 @@ test('el modal: el identificador y las dos opciones como tarjetas, sin texto de 
   assert.match(html, /<h3>Escalar la issue<\/h3><span class="iss-act-id">INC000027698079<\/span>/);
   assert.match(html, /<label class="iss-esc-card"><input type="radio" class="iss-sr" name="mode" value="escalate" checked \/><b>Escalar a otro equipo<\/b>/);
   assert.match(html, /<b>Unir a un ticket ya abierto<\/b>/);
-  assert.equal((html.match(/class="iss-pick-group"/g) || []).length, 4);   // N3, N2, otros canales y fuera del mapa
+  assert.equal((html.match(/class="pick-group"/g) || []).length, 4);   // N3, N2, otros canales y fuera del mapa
   assert.doesNotMatch(html, /<select/);   // todos los desplegables, con el formato de la web
   assert.match(html, /placeholder="Ej\.:/);
   assert.match(html, /Para que llegue bien/);
@@ -71,7 +71,7 @@ test('el asunto del chat de N3 cambia con el destino elegido', () => {
 
 test('los desplegables de Escalar: el de la web, con lo elegido o lo que toca', () => {
   assert.match(form({}, { dest: 'sisupac' }), /name="dest" value="sisupac">[\s\S]*data-pick-label>SISUPAC · N3 SISU</);
-  assert.match(form(), /name="dest" value="">[\s\S]*data-pick-label class="iss-pick-ph">Elige el equipo</);
+  assert.match(form(), /name="dest" value="">[\s\S]*data-pick-label class="pick-ph">Elige el equipo</);
   assert.match(form({ priority: 'HIGH' }), /name="jiraPriority" value="HIGH"/);
 });
 

@@ -6,7 +6,7 @@
 //   deps: pty, launchers, workspace, env() → entorno de los chats,
 //         issues.find(id), accessibleProjects(base), currentBase(), skillsOf(base),
 //         skillSync, remote, lock, theme() → el tema del escritorio, isLoopback(req)
-import { CLOSE, MAX_ASSETS, appendBuffer, sessionList, pickMode, pickProjects, isIssueId, assetFrom, metaPatch } from './sessions.js';
+import { CLOSE, MAX_ASSETS, appendBuffer, sessionList, pickMode, pickProjects, isIssueId, assetFrom, firstPrompt } from './sessions.js';
 import { issueContext } from '../issues/context.js';
 
 export const createTerminalBridge = ({ pty, launchers, workspace, env, issues, accessibleProjects, currentBase, skillsOf, skillSync, remote, lock, theme, isLoopback }) => {
@@ -17,25 +17,26 @@ export const createTerminalBridge = ({ pty, launchers, workspace, env, issues, a
   const clients = () => servers.flatMap((s) => [...s.clients]);
   const send = (ws, obj) => { if (ws && ws.readyState === ws.OPEN) ws.send(JSON.stringify(obj)); };
   const broadcast = (obj) => { const msg = JSON.stringify(obj); for (const c of clients()) if (c.readyState === c.OPEN) c.send(msg); };
-  // la lista de chats en TODOS los dispositivos: en cada cambio (crear, matar, renombrar, engancharse…)
+  // la lista de chats en TODOS los dispositivos: en cada cambio (crear, matar, engancharse, adjuntar…)
   const broadcastSessions = () => broadcast({ type: 'sessions', sessions: sessionList(sessions) });
   const closeQuietly = (ws, code, reason) => { try { ws.close(code, reason); } catch { /* ya cerrado */ } };
 
-  const spawnSession = async (ws, { launcherId, knowledge, projects, cols, rows, issue }) => {
+  // issue: el chat de una issue arranca con sus datos; prompt: el Chat, con la pregunta escrita
+  const spawnSession = async (ws, { launcherId, knowledge, projects, cols, rows, issue, prompt }) => {
     const def = launchers.byId(launcherId);
     if (!launchers.installed(def)) return send(ws, { type: 'error', message: `"${def.cmd}" no está instalado.` });
     const mode = pickMode(knowledge);
     const id = `s${++seq}`;
     const base = currentBase();
     const picked = pickProjects((await accessibleProjects(base)).map((p) => p.id), projects);
-    const spawn = launchers.prepare(def, id, picked, base, issue ? issueContext(issue) : null);
+    const spawn = launchers.prepare(def, id, picked, base, issue ? issueContext(issue) : prompt);
     let term;
     try {
       term = pty.spawn(spawn.cmd, spawn.args, { name: 'xterm-color', cols: cols > 0 ? cols : 80, rows: rows > 0 ? rows : 24, cwd: workspace.modeDirFor(mode, base), env: env() });
     } catch (err) {
       return send(ws, { type: 'error', message: `No se pudo lanzar: ${err.message}` });
     }
-    const s = { id, term, buffer: '', meta: { launcher: def.id, knowledge: mode, label: issue ? issue.id : def.label, color: null, ...(issue ? { issue: issue.id } : {}) }, assets: [], ws: null };
+    const s = { id, term, buffer: '', meta: { launcher: def.id, knowledge: mode, ...(issue ? { issue: issue.id } : {}) }, assets: [], ws: null };
     sessions.set(id, s);
     console.log(`[sia] session open (${def.id}${issue ? `, issue ${issue.id}` : ''}, conocimiento ${mode}, base ${base?.name || '-'}, proyectos [${picked.join(',')}], id ${id}, pid ${term.pid})`);
     term.onData((data) => { s.buffer = appendBuffer(s.buffer, data); send(s.ws, { type: 'data', data }); });
@@ -81,7 +82,7 @@ export const createTerminalBridge = ({ pty, launchers, workspace, env, issues, a
 
     let starting = false;
     // El chat de una issue es uno por issue y vive hasta que se cierre: arranca
-    // con sus datos como primer mensaje y no sale en las pestañas del Chat.
+    // con sus datos como primer mensaje y no cuenta como el chat del Chat.
     const start = async (msg) => {
       if (sess || starting) return;
       starting = true;
@@ -93,7 +94,7 @@ export const createTerminalBridge = ({ pty, launchers, workspace, env, issues, a
           const open = [...sessions.values()].find((x) => x.meta.issue === issue.id);
           if (open) { bind(open); send(ws, { type: 'started', sessionId: open.id }); return send(ws, { type: 'history', data: open.buffer }); }
         }
-        const s = await spawnSession(ws, { launcherId: msg.launcher, knowledge: msg.knowledge, projects: msg.projects, cols: msg.cols, rows: msg.rows, issue });
+        const s = await spawnSession(ws, { launcherId: msg.launcher, knowledge: msg.knowledge, projects: msg.projects, cols: msg.cols, rows: msg.rows, issue, prompt: firstPrompt(msg.prompt) });
         if (!s) return;
         bind(s);
         send(ws, { type: 'started', sessionId: s.id });
@@ -117,10 +118,9 @@ export const createTerminalBridge = ({ pty, launchers, workspace, env, issues, a
       else if (msg.type === 'asset' && sess) {
         const asset = assetFrom(msg.asset);
         if (asset && sess.assets.length < MAX_ASSETS) { sess.assets.push(asset); broadcastSessions(); } // p. ej. una foto subida desde el móvil
-      } else if (msg.type === 'meta' && sess) { sess.meta = metaPatch(sess.meta, msg); broadcastSessions(); }
-      else if (msg.type === 'kill') {
+      } else if (msg.type === 'kill') {
         // con sessionId se puede matar un chat aunque lo tenga otro dispositivo
-        // (la X de una pestaña pasiva); sin él, el enganchado a este socket
+        // («Cerrar chat» sobre una sesión pasiva); sin él, el enganchado a este socket
         const target = sess || sessions.get(msg.sessionId);
         if (target) { try { target.term.kill(); } catch { /* ya muerto */ } } // onExit limpia y notifica
       }

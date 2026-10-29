@@ -15,6 +15,7 @@ const setup = (claims = [], { issues = ISSUES, broken, transfers = [] } = {}) =>
       calls.push([fn, args]);
       if (fn === 'platform_issue_claims') return claims;
       if (fn === 'platform_my_issue_events') return [];
+      if (fn === 'platform_list_rules') return [];
       if (fn === 'platform_issue_teammates') return [{ id: 'u-ana', name: 'Ana López' }, { id: 'u-luis', name: 'Luis' }];
       if (fn === 'platform_claim_next_issue') return args.p_candidates[0] ?? null;
       if (fn === 'platform_issue_events') return args.p_issue === 'INC1' ? [{ id: 1, action: 'claimed', actor_name: 'Ana López', from_name: null, to_name: 'Ana López', happened_at: '2026-10-06T08:00:00+00:00' }] : [];

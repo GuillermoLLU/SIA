@@ -52,6 +52,7 @@ test('el feed: lo más reciente arriba, con avatar, quién hizo qué y su cuánd
   assert.match(html, /<span class="iss-avatar unknown" aria-hidden="true">\?<\/span>/);
   assert.match(html, /<b>Ana López<\/b> cogió la issue/);
   assert.match(html, /traspasó la issue a <b>Luis &lt;x&gt;<\/b>/);
+  assert.match(trailHtml([{ at: '2026-10-01T10:00:00+00:00', type: 'assigned', by: 'Guillermo', from: null, to: 'Elvis' }]), /asignó la issue a <b>Elvis<\/b> desde el Backlog/);
   assert.match(html, /<span class="iss-feed-label">Motivo<\/span>Lleva &lt;dos&gt; llamadas\./);
   assert.match(html, /<b>Luis<\/b> escribió una nota/);
   assert.match(html, /editada /);
@@ -121,7 +122,7 @@ test('la primera línea de una nota, recortada a 90; el arranque de la resoluci�
   assert.equal(firstLine('  una línea corta  '), 'una línea corta');
   assert.equal(firstLine('primera\nsegunda'), 'primera');
   assert.equal(firstLine('x'.repeat(95)), 'x'.repeat(90) + '…');
-  assert.match(assistHtml(), /<button class="lab-btn primary iss-assist-go" data-assist >Iniciar resolución asistida por IA<\/button>/);
-  assert.doesNotMatch(assistHtml(), /iss-assist-hint/);
-  assert.match(assistHtml('Claude <no> está'), /data-assist disabled>[^]*<p class="iss-assist-hint">Claude &lt;no&gt; está<\/p>/);
+  assert.match(assistHtml(), /<button class="lab-btn primary ai-start-go" data-assist >Iniciar resolución asistida por IA<\/button>/);
+  assert.doesNotMatch(assistHtml(), /ai-start-hint/);
+  assert.match(assistHtml('Claude <no> está'), /data-assist disabled>[^]*<p class="ai-start-hint">Claude &lt;no&gt; está<\/p>/);
 });
