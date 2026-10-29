@@ -531,3 +531,53 @@
 .mt-view table.mt-pair th.mt-gl { padding: 9px 10px; font-size: 11px; font-weight: 700; letter-spacing: .4px; text-align: left; vertical-align: top; text-transform: uppercase; white-space: normal; color: var(--text); background: var(--mt-soft); }
 .mt-view table.mt-pair th.mt-gl small { display: block; margin-top: 4px; font-size: 11px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--mt-low); }
 .mt-view table.mt-pair tr.mt-gfirst > * { border-top: 3px solid var(--mt-line); }
+
+/* Los tres puntos (cargar CSV, construir SQL): discretos, junto a «Actualizar». */
+.mt-menu { position: relative; }
+.mt-more { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 32px; padding: 0; background: var(--surface); border-color: var(--mt-line); }
+.mt-more svg { width: 18px; height: 18px; color: var(--text); }
+.mt-more:hover, .mt-more[aria-expanded="true"] { background: var(--mt-soft); }
+.mt-menu-pop { left: auto; right: 0; top: calc(100% + 4px); min-width: 188px; padding: 4px; }
+.mt-menu-pop button { display: block; width: 100%; padding: 8px 12px; font: inherit; font-size: 13px; color: var(--text); text-align: left; white-space: nowrap; background: transparent; border: 0; cursor: pointer; }
+.mt-menu-pop button:hover { background: var(--mt-soft); }
+
+/* Base vacía: cargar los datos y, al lado, el CSV. */
+/* El botón de cargar, centrado en la página; los tres puntos, a su derecha. */
+.mt-empty-actions { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; width: min(360px, 100%); margin-top: 10px; }
+.mt-empty-actions .mt-load { grid-column: 2; height: 34px; padding: 0 18px; font-size: 13px; }
+.mt-empty-actions .mt-menu { grid-column: 3; justify-self: start; margin-left: 8px; }
+
+/* Las ventanas: encima de la app, centradas, con el contenido largo desplazado dentro de la propia ventana. */
+.mt-modal-back { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 20px; background: rgba(15, 18, 24, .32); }
+.mt-modal { display: flex; flex-direction: column; width: min(540px, 100%); max-height: min(82vh, 720px); background: var(--surface); border: 1px solid var(--mt-line); box-shadow: 0 18px 48px rgba(0, 0, 0, .22); outline: none; }
+.mt-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px 12px; border-bottom: 1px solid var(--mt-line); }
+.mt-modal-head h3 { margin: 0; font-size: 15px; font-weight: 600; color: var(--text); }
+.mt-modal-x { width: 28px; height: 28px; padding: 0; font-size: 18px; line-height: 1; color: var(--mt-low); background: transparent; border: 0; cursor: pointer; }
+.mt-modal-x:hover { color: var(--text); background: var(--mt-soft); }
+.mt-modal-body { display: grid; gap: 14px; min-height: 0; padding: 18px; overflow: auto; }
+.mt-modal-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--mt-line); }
+.mt-modal-foot .mt-btn { height: 32px; padding: 0 14px; }
+.mt-modal-foot .mt-primary { color: var(--surface); background: var(--accent); border-color: var(--accent); }
+.mt-modal-foot .mt-primary:disabled { opacity: .45; cursor: default; }
+.mt-modal-hint { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--mt-low); }
+.mt-modal-err { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--mt-bad); }
+
+/* Soltar el CSV aquí, o elegirlo; con teclado también (Enter o espacio). */
+.mt-drop { display: grid; justify-items: center; gap: 6px; padding: 30px 20px; text-align: center; font-size: 13px; color: var(--mt-low); border: 1.5px dashed var(--mt-line); cursor: pointer; transition: background .15s, border-color .15s; }
+.mt-drop svg { width: 26px; height: 26px; margin-bottom: 4px; color: var(--mt-low); }
+.mt-drop b { font-size: 14px; font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
+.mt-drop u { text-underline-offset: 2px; color: var(--text); }
+.mt-drop:hover, .mt-drop:focus-visible, .mt-drop.mt-drop-on { border-color: var(--accent); background: var(--mt-sel); outline: none; }
+
+/* El periodo de la consulta: el mismo panel que en Métricas, fijo arriba (sin scroll ni que lo tape nada). La consulta
+   va debajo, en su propia zona con scroll: nunca compite con el calendario por el espacio. */
+.mt-modal.mt-modal-wide { width: min(860px, 100%); max-height: min(88vh, 820px); }
+.mt-modal-wide .mt-modal-body { display: flex; flex-direction: column; gap: 14px; overflow: hidden; }
+.mt-modal-wide .mt-modal-body > * { flex: none; }
+.mt-sql-cal { position: relative; z-index: 1; }
+.mt-modal-wide .mt-sql { flex: 1 1 180px; min-height: 120px; max-height: none; }
+.mt-sql { margin: 0; max-height: min(44vh, 360px); overflow: auto; padding: 12px 14px; font: 12px/1.5 ui-monospace, Consolas, monospace; color: var(--text); background: var(--mt-soft); border: 1px solid var(--mt-line); white-space: pre; tab-size: 2; }
+
+/* Cancelar, dentro de la tarjeta de avance. */
+.mt-load-cancel { margin-top: 14px; height: 30px; padding: 0 14px; font-size: 13px; }
+.mt-load-cancel:disabled { opacity: .6; cursor: progress; }

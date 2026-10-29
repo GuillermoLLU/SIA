@@ -149,6 +149,11 @@ export const startBridge = async ({ env = process.env } = {}) => {
   });
 
   const http_ = { json, readBody };
+  // El conector de Snowflake pesa: se carga al arrancar, en segundo plano, para que el primer clic en Métricas
+  // no espere. Si falla, se reintenta al actualizar.
+  let snowflakeSdk = null;
+  const loadSdk = async () => (snowflakeSdk ??= (await import('snowflake-sdk')).default);
+  loadSdk().catch((e) => console.error(`[sia] conector de Snowflake sin cargar (se reintenta al actualizar): ${e.message}`));
   const routes = {
     auth: authRoutes(auth, { ...http_, onSession: loadAssigned, onLogout: clearAssigned, platform }),
     lock: lockRoutes(lock, http_),
@@ -158,7 +163,7 @@ export const startBridge = async ({ env = process.env } = {}) => {
     issues: issuesRoutes(issues, http_),
     metrics: metricsRoutes(createMetricsStore(workspace.metricsDir, {
       repo: createRepository({ DatabaseSync, file: path.join(workspace.metricsDir, 'incidencias.sqlite'), fs }),
-      source: createSnowflake({ loadSdk: async () => (await import('snowflake-sdk')).default, config: () => cleanSnowflake(config.read().snowflake) }),
+      source: createSnowflake({ loadSdk, config: () => cleanSnowflake(config.read().snowflake) }),
       log: console.log,
     }), { json }),
     lan: lanRoutes(remote, lock, http_),

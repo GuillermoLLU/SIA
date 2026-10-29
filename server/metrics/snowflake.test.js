@@ -32,7 +32,7 @@ const collect = async (it) => { const out = []; for await (const r of it) out.pu
 test('conecta por SSO con el usuario de la persona, fija el formato de fechas y trae las filas como texto', async () => {
   const { sdk, log } = fakeSdk({ rows: [{ INCIDENTNUMBER: 'INC1', NOTES: null }, { INCIDENTNUMBER: 'INC2', NOTES: 'x' }] });
   const sf = createSnowflake({ loadSdk: async () => sdk, config: () => CONFIG });
-  // sin valor, '' como en el CSV (si no, decide vería un cambio en cada vuelta)
+  // sin valor, '' (si no, decide vería un cambio en cada vuelta)
   let total = null, connected = 0;
   assert.deepEqual(await collect(sf.rows('SELECT 1', ['2026-01-01 00:00:00.000'], { onConnect: () => connected++, onTotal: (n) => { total = n; } })), [{ INCIDENTNUMBER: 'INC1', NOTES: '' }, { INCIDENTNUMBER: 'INC2', NOTES: 'x' }]);
   assert.equal(total, 2, 'avisa de cuántas filas van a llegar');

@@ -4,8 +4,8 @@
 // no se abre; SIA no guarda ninguna contraseña. Se conecta en cada
 // actualización y se cierra al acabar.
 //
-// loadSdk: () => el módulo snowflake-sdk (se carga al usarse: pesa y solo lo
-// necesita Métricas). Desde la 3.4 (la 2.x la rechaza la política de Inditex).
+// loadSdk: () => el módulo snowflake-sdk (SIA lo carga al arrancar, en segundo plano:
+// pesa y solo lo necesita Métricas). Desde la 3.4 (la 2.x la rechaza la política de Inditex).
 // config: () => { user, role, warehouse } (config/config.js: cleanSnowflake).
 import { SESSION } from './query.js';
 
@@ -29,7 +29,7 @@ export const createSnowflake = ({ loadSdk, config }) => {
   const run = (conn, sqlText) => new Promise((ok, ko) => conn.execute({ sqlText, complete: (e) => (e ? ko(e) : ok()) }));
 
   // Las filas de la consulta, una a una y como texto, con '' donde no hay valor:
-  // igual que las del CSV, para que decide (incidents.js) no vea cambios que no hay. onConnect(): el conector ya
+  // para que decide (incidents.js) no vea cambios que no hay. onConnect(): el conector ya
   // está cargado y empieza la conexión; onTotal(n): cuántas van a llegar, en cuanto Snowflake acaba la consulta.
   async function* rows(sql, binds, { onConnect = () => {}, onTotal = () => {} } = {}) {
     const { user, role, warehouse } = config();

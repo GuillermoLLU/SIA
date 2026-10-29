@@ -34,8 +34,33 @@ test('POST /update: sin configurar, 400; Snowflake no responde, 503 con su expli
   assert.deepEqual([res.status, res.body], [503, { error: 'No se llega a Snowflake' }]);
 });
 
-test('lo demás, 404 (también la carga de CSV, que ya no existe); un fallo inesperado, 500 sin detalles', async () => {
+test('lo demás, 404 (también leer el CSV por GET); un fallo inesperado, 500 sin detalles', async () => {
   assert.equal((await setup({})('GET', ['otra'])).status, 404);
-  assert.equal((await setup({})('POST', ['csv'])).status, 404);
+  assert.equal((await setup({})('GET', ['csv'])).status, 404);
   assert.deepEqual((await setup({ load: () => { throw new Error('disco'); } })('GET', [])).body, { error: 'Error interno.' });
+});
+
+test('POST /csv: solo ficheros .csv, y el cuerpo va al importador', async () => {
+  const got = [];
+  const store = { importCsv: async (chunks, name) => { got.push(name); return { meta: { file: name }, counts: {} }; } };
+  const route = metricsRoutes(store, { json: (res, status, body) => Object.assign(res, { status, body }) });
+  const fake = () => ({ method: 'POST', resume() {}, setEncoding() {} });
+  const ok = {};
+  await route(fake(), ok, ['csv'], null, new URLSearchParams('name=issues.csv'));
+  assert.equal(ok.status, 200);
+  assert.deepEqual(got, ['issues.csv']);
+  const bad = {};
+  await route(fake(), bad, ['csv'], null, new URLSearchParams('name=x.txt'));
+  assert.equal(bad.status, 400);
+});
+
+test('GET /sql: el SQL del periodo; fechas que no valen, 400', async () => {
+  const route = metricsRoutes({}, { json: (res, status, body) => Object.assign(res, { status, body }) });
+  const ok = {};
+  await route({ method: 'GET' }, ok, ['sql'], null, new URLSearchParams('from=2026-01-01&to=2026-01-31'));
+  assert.equal(ok.status, 200);
+  assert.match(ok.body.sql, /REPORTEDDATE < TO_TIMESTAMP_NTZ\('2026-02-01 00:00:00.000'/);
+  const bad = {};
+  await route({ method: 'GET' }, bad, ['sql'], null, new URLSearchParams('from=2026-01-31&to=2026-01-01'));
+  assert.equal(bad.status, 400);
 });
