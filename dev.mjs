@@ -5,15 +5,24 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const isWin = process.platform === 'win32';
 
-// First run on a fresh clone: install whatever is missing, no manual steps.
+// Las dependencias declaradas en el package.json de cada carpeta que no estén en su node_modules (una rama que añade
+// un paquete nuevo, o una carpeta a medio instalar). Sin node_modules, todas.
+const missingDeps = (dir) => {
+  const pkg = JSON.parse(readFileSync(join(root, dir, 'package.json'), 'utf8'));
+  const names = [...Object.keys(pkg.dependencies || {}), ...Object.keys(pkg.devDependencies || {})];
+  return names.filter((name) => !existsSync(join(root, dir, 'node_modules', name)));
+};
+
+// First run on a fresh clone, or after a branch adds dependencies: install whatever is missing, no manual steps.
 for (const dir of ['server', 'web', 'mcp']) {
-  if (!existsSync(join(root, dir, 'node_modules'))) {
-    console.log(`[setup] instalando dependencias de ${dir}/…`);
+  const missing = existsSync(join(root, dir, 'node_modules')) ? missingDeps(dir) : ['node_modules'];
+  if (missing.length) {
+    console.log(`[setup] instalando dependencias de ${dir}/ (faltan: ${missing.join(', ')})…`);
     const r = spawnSync('npm', ['install'], { cwd: join(root, dir), stdio: 'inherit', shell: isWin });
     if (r.status !== 0) { console.error(`[setup] npm install falló en ${dir}/`); process.exit(1); }
   }

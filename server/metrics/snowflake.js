@@ -25,6 +25,14 @@ export const explain = (e) => {
   return fail(`Snowflake: ${e?.message || 'error desconocido'}`);
 };
 
+// Si el conector no carga (falta el paquete en esta copia de SIA), un mensaje que dice qué hacer, no un error genérico.
+export const connectorError = (e) => {
+  if (e?.code === 'ERR_MODULE_NOT_FOUND' || /snowflake-sdk/.test(e?.message ?? '')) {
+    return fail('Falta el conector de Snowflake en esta copia de SIA: en server/ ejecuta npm install y vuelve a arrancar SIA.');
+  }
+  return fail(`No se pudo cargar el conector de Snowflake: ${e?.message || 'error desconocido'}`);
+};
+
 export const createSnowflake = ({ loadSdk, config }) => {
   const run = (conn, sqlText) => new Promise((ok, ko) => conn.execute({ sqlText, complete: (e) => (e ? ko(e) : ok()) }));
 
@@ -34,7 +42,12 @@ export const createSnowflake = ({ loadSdk, config }) => {
   async function* rows(sql, binds, { onConnect = () => {}, onTotal = () => {} } = {}) {
     const { user, role, warehouse } = config();
     if (!user) throw fail('Configura tu usuario de Snowflake en Configuración → Snowflake.', 400);
-    const sdk = await loadSdk();
+    let sdk;
+    try {
+      sdk = await loadSdk();
+    } catch (e) {
+      throw connectorError(e);
+    }
     onConnect();
     sdk.configure({ logLevel: 'ERROR' });
     const conn = sdk.createConnection({ account: ACCOUNT, username: user, role, warehouse,

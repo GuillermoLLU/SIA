@@ -39,3 +39,16 @@ test('sendFile: el tipo por la extensión; lo raro, binario', () => {
   sendFile({ writeHead: (c, h) => out.push(c, h), end: (b) => out.push(b) }, '.png', 'img');
   assert.deepEqual(out, [200, { 'Content-Type': 'image/png' }, 'img']);
 });
+
+test('un fallo sin estado: 500 genérico al cliente, y el log dice qué pasó', () => {
+  const logged = [], original = console.error;
+  console.error = (m) => logged.push(m);
+  try {
+    let body = null;
+    failed((res, status, b) => { body = b; }, {}, new Error('boom'));
+    assert.deepEqual(body, { error: 'Error interno.' });
+    assert.match(logged[0], /boom/);
+  } finally {
+    console.error = original;
+  }
+});

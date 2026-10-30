@@ -15,7 +15,11 @@ export const readBody = (req) => new Promise((resolve, reject) => {
 });
 
 export const failed = (json, res, e) => {
-  if (!e.status) return json(res, 500, { error: 'Error interno.' });
+  // Sin estado, es un fallo nuestro: se responde genérico, pero el log dice qué pasó.
+  if (!e.status) {
+    console.error(`[sia] error interno en la API: ${e.stack || e}`);
+    return json(res, 500, { error: 'Error interno.' });
+  }
   return json(res, e.status >= 500 ? 503 : e.status, { error: e.message });
 };
 

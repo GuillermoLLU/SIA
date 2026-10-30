@@ -67,3 +67,9 @@ test('explain: cada error en lo que se puede hacer', () => {
   assert.match(explain({ message: 'self-signed certificate in certificate chain' }).message, /VPN/);
   assert.equal(explain({ code: '1', message: 'otro' }).message, 'Snowflake: otro');
 });
+
+test('si el conector no carga (falta el paquete en esta copia), 503 con lo que hay que hacer, no un error genérico', async () => {
+  const missing = Object.assign(new Error("Cannot find package 'snowflake-sdk'"), { code: 'ERR_MODULE_NOT_FOUND' });
+  const sf = createSnowflake({ loadSdk: async () => { throw missing; }, config: () => CONFIG });
+  await assert.rejects(collect(sf.rows('SELECT 1', [])), (e) => e.status === 503 && /npm install/.test(e.message));
+});
