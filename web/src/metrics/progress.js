@@ -9,7 +9,7 @@ import { num } from './format.js';
 export const PHASES = [
   { id: 'prepare', label: 'Preparar el conector de Snowflake', usual: 5 },
   { id: 'connect', label: 'Conectar con Snowflake', usual: 5 },
-  { id: 'download', label: 'Traer lo nuevo y lo cambiado', usual: 10 },
+  { id: 'download', label: 'Sincronizando nuevas y modificadas', usual: 10 },
   { id: 'compute', label: 'Recalcular el informe', usual: 35 },
 ];
 export const CSV_PHASES = [

@@ -61,7 +61,7 @@ test('la tarjeta: el porcentaje, la barra, lo que queda y los pasos hechos, el d
   assert.match(html, /aria-valuenow="19"/);
   assert.match(html, /<b>19<\/b><span>%<\/span>/);
   assert.match(html, /width:19%/);
-  assert.match(html, /<b>Traer lo nuevo y lo cambiado<\/b><span>Quedan unos 40 s<\/span>/);
+  assert.match(html, /<b>Sincronizando nuevas y modificadas<\/b><span>Quedan unos 40 s<\/span>/);
   assert.deepEqual([...html.matchAll(/<li class="([^"]*)">/g)].map((x) => x[1]), ['mt-done', 'mt-done', 'mt-now', '']);
 });
 
