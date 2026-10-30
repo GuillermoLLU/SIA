@@ -5,12 +5,13 @@
 // se cierran solos: no son trabajo del equipo y no se guardan.
 //
 // Lo que sale (lo lee web/src/metrics/):
-//   meta    { format, file, start, group, rows, total, snapshot, first, last, generated }
+//   meta    { format, file, start, group, rows, total, snapshot, first, last, generated, jira }
 //           format: FORMAT; unos datos de otro formato se vuelven a calcular desde el repositorio.
 //           start: el año de la primera issue; el 1 de enero de ese año es el origen de los minutos.
 //           rows: issues del grupo; total: incidencias guardadas;
 //           snapshot: el último minuto con movimiento (la «hora de la foto»);
 //           first/last: la apertura de la primera y de la última issue (minutos).
+//           jira: { at, tickets, message }: cuándo se trajo de Jira, cuántos tickets hay y, si no se pudo, por qué.
 //   dict    textos por columna; el 0 es siempre ''.
 //   themes  nombres de los temas (bit i de `th`).
 //   reasons los motivos de Pendiente que son esperar al cliente o a un tercero (states.js), para la situación.
@@ -24,13 +25,16 @@
 //           fr primera actuación · ip primer paso a En curso (minutos desde la apertura; -1 no hay)
 //           tA/tI/tPc/tPv/tPo minutos en cola, en curso y pendiente del centro, de un tercero u otros
 //           nb devoluciones a la cola · np pendientes · rz resolución repetida (4 veces o más; 0 si no)
-import { readIssue, FLAG } from './remedy.js';
+//           the/tes/tcr/tsr THesc, Tesc, Tcr y Tesc-r con sus tickets Jira (escalation.js; minutos, -1 no hay,
+//           the -2 ticket previo); fl lleva además la marca de mal escalada
+import { readIssue, minutesSince, FLAG } from './remedy.js';
 import { loginsOf, companyOf } from './companies.js';
 import { THEME_NAMES, problemKey } from './themes.js';
-import { PENDING } from './states.js';
+import { PENDING, OPEN_STATES } from './states.js';
+import { escalationOf } from './escalation.js';
 
 export const GROUP = 'AYS SOPORTE';
-export const FORMAT = 4;
+export const FORMAT = 5;
 
 export const REQUIRED = ['INCIDENTNUMBER', 'ASSIGNEDGROUP', 'ASSIGNEE', 'SUMMARY', 'PRIORITY', 'STATUS', 'STATUSREASON', 'SERVICETYPE', 'TAGS',
   'REPORTEDDATE', 'LASTRESOLUTIONDATE', 'LASTMODIFIEDDATE', 'RESOLUTION', 'VENDORTICKETNUMBER', 'PRODUCTCATEGORIZATIONTIER1',
@@ -68,6 +72,7 @@ export const createDataset = ({ start }) => {
   const cols = Object.fromEntries(COLS.map((c) => [c, []]));
   const resolutions = [], resolutionCount = new Map(), resolvers = new Map();
   const spellings = [];   // por problema: cuántas veces se escribe de cada forma
+  const jira = [], keys = new Set();   // las claves Jira de cada issue (las cuentas de escalado se hacen en build)
   let total = 0, snapshot = 0, first = Infinity, last = -1;
 
   const add = (r) => {
@@ -97,10 +102,27 @@ export const createDataset = ({ start }) => {
       nb: i.bounces, np: i.pendings, th: i.themes, su: own(i.title), de,
     };
     for (const c of COLS) cols[c].push(row[c]);
+    jira.push({ keys: i.jira, open: OPEN_STATES.includes(i.status) });
+    for (const k of i.jira) keys.add(k);
   };
 
-  const build = ({ file, generated }) => {
+  // Los tiempos de escalado de cada issue con sus tickets (Map clave → { created, resolved, status, found }, en hora
+  // de Madrid como Remedy); «ahora», la foto. Una clave sin ticket guardado no cuenta.
+  const escalations = (tickets) => {
+    const at = (s) => minutesSince(base, s), out = { the: [], tes: [], tcr: [], tsr: [] };
+    jira.forEach(({ keys: ks, open }, n) => {
+      const ts = ks.map((k) => tickets.get(k)).filter((t) => t?.found).map((t) => ({ created: at(t.created), resolved: at(t.resolved), status: t.status }));
+      const e = escalationOf({ reported: cols.rep[n], resolved: cols.res[n], open, escalated: !!(cols.fl[n] & FLAG.THIRD_PARTY) }, ts, snapshot);
+      out.the.push(e.thesc); out.tes.push(e.tesc); out.tcr.push(e.tcr); out.tsr.push(e.tescr);
+      if (e.bad) cols.fl[n] |= FLAG.BAD_ESCALATION;
+    });
+    return out;
+  };
+
+  // tickets: los tickets Jira guardados (repository.js: jiraTickets); jiraMeta: lo que va en meta.jira.
+  const build = ({ file, generated, tickets = new Map(), jira: jiraMeta = null }) => {
     if (!cols.id.length) throw new DataError(`No hay issues del grupo ${GROUP} en los datos cargados.`);
+    Object.assign(cols, escalations(tickets));
     cols.rz = resolutions.map((z) => (z && resolutionCount.get(z) >= 4 ? D.resol.id(z) : 0));
     const logins = new Map();
     for (const [login, name] of loginsOf(resolvers)) logins.set(name, [...(logins.get(name) || []), login]);
@@ -108,7 +130,7 @@ export const createDataset = ({ start }) => {
     const dict = Object.fromEntries(Object.entries(D).map(([k, d]) => [k, d.values]));
     dict.problem = dict.problem.map((k, n) => (n ? [...spellings[n]].reduce((a, b) => (b[1] > a[1] ? b : a))[0] : ''));
     return {
-      meta: { format: FORMAT, file, start, group: GROUP, rows: cols.id.length, total, snapshot, first, last, generated },
+      meta: { format: FORMAT, file, start, group: GROUP, rows: cols.id.length, total, snapshot, first, last, generated, jira: jiraMeta },
       dict,
       themes: THEME_NAMES,
       reasons: PENDING,
@@ -117,5 +139,6 @@ export const createDataset = ({ start }) => {
     };
   };
 
-  return { add, build };
+  // Las claves Jira de todas las issues, sin repetir (para pedirlas a Jira antes de build).
+  return { add, build, jiraKeys: () => [...keys] };
 };

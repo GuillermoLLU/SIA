@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readIssue, statusHistory, noteFlags, vendorOf, scopeOf, operationOf, minutesSince, FLAG, SCOPE } from './remedy.js';
+import { readIssue, statusHistory, noteFlags, vendorOf, jiraKeys, scopeOf, operationOf, minutesSince, FLAG, SCOPE } from './remedy.js';
 
 const BASE = Date.UTC(2026, 0, 1);
 const at = (s) => minutesSince(BASE, s);
@@ -46,6 +46,25 @@ test('notas: marcas entre corchetes y notas del agente de IA', () => {
     ['10:03', 'pepe', '[HITL_REVIEW_OK] bien'], ['10:04', 'pepe', '[IA_FAIL] mal'], ['10:05', 'pepe', '[RECURRENCIA]']);
   assert.equal(noteFlags(w), FLAG.MAJOR | FLAG.CALL | FLAG.IA | FLAG.HITL_OK | FLAG.IA_FAIL | FLAG.RECURRENCE);
   assert.equal(noteFlags(''), 0);
+});
+
+test('notas de análisis con IA (#58): [DIAGNOSTICO_IA] marca; [ANALISIS] sin _IA, no (TC-06)', () => {
+  assert.equal(noteFlags(audit(['10:00', 'pepe', '[DIAGNOSTICO_IA] causa'])), FLAG.IA_NOTE);
+  assert.equal(noteFlags(audit(['10:00', 'pepe', '[Análisis_IA] revisado'], ['10:01', 'pepe', '[ANTECEDENTES_IA] INC1'])), FLAG.IA_NOTE);
+  assert.equal(noteFlags(audit(['10:00', 'pepe', '[ANALISIS] a mano'])), 0);
+});
+
+test('escalada (#48): en Pendiente con motivo Third Party Vendor Action Reqd en algún momento, aunque luego cambie', () => {
+  const o = { reported: 600, modified: 900, openNow: false, at };
+  assert.equal(statusHistory(audit(['10:00', 'ana', 'Status: Assigned → Pending'], ['10:00', 'ana', 'Status_Reason:  → Third Party Vendor Action Reqd'],
+    ['11:00', 'ana', 'Status_Reason: Third Party Vendor Action Reqd → Client Action Required']), o).thirdParty, true);
+  assert.equal(statusHistory(audit(['10:00', 'ana', 'Status: Assigned → Pending'], ['10:00', 'ana', 'Status_Reason:  → Supplier Delivery']), o).thirdParty, false);
+});
+
+test('claves Jira: todas las del ticket de tercero y las de las notas, sin repetir', () => {
+  assert.deepEqual(jiraKeys('TEC: ITSMECOM-5356582 / ITSMECOM-5321940', audit(['10:00', 'ana', 'Escalado a SGAXWMSAP-15631 y ITSMECOM-5321940'])),
+    ['ITSMECOM-5356582', 'ITSMECOM-5321940', 'SGAXWMSAP-15631']);
+  assert.deepEqual(jiraKeys('', ''), []);
 });
 
 test('ticket de tercero: prefijo conocido, clave Jira, otro texto', () => {

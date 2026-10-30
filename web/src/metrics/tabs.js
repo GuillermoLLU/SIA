@@ -13,12 +13,13 @@ import { resolucionTab } from './tabs/resolucion.js';
 import { slaTab } from './tabs/sla.js';
 import { iaTab } from './tabs/ia.js';
 import { turnosTab } from './tabs/turnos.js';
+import { servicioTab } from './tabs/servicio.js';
 
 export { TABS } from './tabs/common.js';
 
 export const createTabs = (m, ch, ui) => {
   const t = createCommon(m, ch, ui);
   const VIEWS = { resumen: resumenTab(t), hoy: hoyTab(t), entrada: entradaTab(t), backlog: backlogTab(t), modulos: modulosTab(t),
-    resolucion: resolucionTab(t), sla: slaTab(t), ia: iaTab(t), turnos: turnosTab(t) };
+    resolucion: resolucionTab(t), sla: slaTab(t), ia: iaTab(t), turnos: turnosTab(t), servicio: servicioTab(t) };
   return { render: (tab, A) => VIEWS[tab](A) };
 };

@@ -531,3 +531,12 @@
 .mt-view table.mt-pair th.mt-gl { padding: 9px 10px; font-size: 11px; font-weight: 700; letter-spacing: .4px; text-align: left; vertical-align: top; text-transform: uppercase; white-space: normal; color: var(--text); background: var(--mt-soft); }
 .mt-view table.mt-pair th.mt-gl small { display: block; margin-top: 4px; font-size: 11px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--mt-low); }
 .mt-view table.mt-pair tr.mt-gfirst > * { border-top: 3px solid var(--mt-line); }
+
+/* Servicio y SLA (tabs/servicio.js): los botones de comparar y cada cifra frente a su objetivo */
+.mt-svc-bar { grid-column: span 12; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: var(--mt-low); }
+.mt-svc-bar .mt-btn.mt-on { color: var(--text); background: var(--mt-sel); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.mt-view td.mt-svc-ok, .mt-view .mt-kpi.mt-svc-ok .mt-kpi-v { font-weight: 650; color: var(--mt-good); }
+.mt-view td.mt-svc-ok { background: color-mix(in srgb, var(--mt-good) 9%, transparent); }
+.mt-view td.mt-svc-ko, .mt-view .mt-kpi.mt-svc-ko .mt-kpi-v { font-weight: 650; color: color-mix(in srgb, #c98a2b 70%, var(--text)); }
+.mt-view td.mt-svc-ko { background: color-mix(in srgb, #c98a2b 16%, var(--mt-card)); }
+.mt-view .mt-card .mt-tablewrap + .mt-tablewrap { margin-top: 14px; }

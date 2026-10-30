@@ -14,6 +14,9 @@ import { OPEN_STATES, DONE_STATES, CANCELLED, PENDING } from './states.js';
 export const FLAG = {
   SISU: 1, PRIO: 2, PETREQ: 4, AUTO_NOTICE: 8, REPROCESS: 16, IA_SOLVED: 32, IA_FAIL_TAG: 64, DB2_LOCK: 128,
   MAJOR: 256, REOPENED: 512, CALL: 1024, IA: 2048, HITL_OK: 4096, IA_FAIL: 8192, RECURRENCE: 16384, NO_RESOLUTION: 32768,
+  // Métricas del servicio (#58): nota [ANALISIS_IA], [DIAGNOSTICO_IA] o [ANTECEDENTES_IA]; escalada (#48: estuvo en
+  // Pendiente con motivo Third Party Vendor Action Reqd); mal escalada (escalada y cerrada sin Jira de solución final: jira.js)
+  IA_NOTE: 65536, THIRD_PARTY: 131072, BAD_ESCALATION: 262144,
 };
 
 const STAMP = /^(\d{4})-(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d)/;
@@ -59,22 +62,38 @@ export const vendorOf = (text) => {
   return { type, project: jira ? jira[1] : '', key: jira ? `${jira[1]}-${jira[2]}` : '' };
 };
 
+// Todos los tickets Jira de una issue: las claves del «Vendor Ticket Number» (puede llevar varias) y las de las
+// notas, sin repetir. En las notas sale también lo que solo lo parece (FINISHED-1): Jira lo descarta (jira.js).
+const JIRA_ALL = new RegExp(JIRA.source, 'g');
+export const jiraKeys = (vendor, worklog) => {
+  const keys = new Set();
+  for (const text of [vendor, ...entries(worklog).map((e) => e.text)]) for (const m of (text || '').matchAll(JIRA_ALL)) keys.add(m[0]);
+  return [...keys];
+};
+
 
 // Recorrido del historial de estados (los estados y motivos, con sus códigos: states.js): tiempo en cada estado,
 // primera actuación (primer cambio de estado real), primer paso a En curso (SLA de inicio), devoluciones a la
-// cola, pendientes, reapertura y quién resuelve.
+// cola, pendientes, reapertura, si se escaló a un tercero (#48: Pendiente con motivo Third Party Vendor Action Reqd en
+// algún momento, también si el motivo cambia sin cambiar el estado) y quién resuelve.
 const [ASSIGNED, IN_PROGRESS, PENDING_ST] = OPEN_STATES, RESOLVED = DONE_STATES[0];
+const THIRD_PARTY = PENDING.vendor[0];
 export const statusHistory = (audit, { reported, modified, openNow, at }) => {
   const changes = [], reasonAt = new Map();
+  let thirdParty = false;
   for (const e of entries(audit)) {
     const arrow = e.text.indexOf(' → ');
     if (arrow < 0) continue;
     if (e.text.startsWith('Status: ')) changes.push({ at: e.at, who: e.who, from: toCode(e.text.slice(8, arrow)), to: toCode(e.text.slice(arrow + 3)) });
-    else if (e.text.startsWith('Status_Reason: ')) { const r = toCode(e.text.slice(arrow + 3)); if (r) reasonAt.set(e.at, r); }
+    else if (e.text.startsWith('Status_Reason: ')) {
+      const r = toCode(e.text.slice(arrow + 3));
+      if (r) reasonAt.set(e.at, r);
+      if (r === THIRD_PARTY) thirdParty = true;
+    }
   }
   changes.sort((x, y) => (x.at < y.at ? -1 : x.at > y.at ? 1 : 0));
   const time = { queue: 0, work: 0, client: 0, vendor: 0, other: 0 };
-  const out = { first: -1, start: -1, bounces: 0, pendings: 0, reopened: false, resolvedBy: [] };
+  const out = { first: -1, start: -1, bounces: 0, pendings: 0, reopened: false, thirdParty, resolvedBy: [] };
   let cur = null, since = reported, pending = 'other';
   const spend = (minutes) => {
     if (cur === ASSIGNED) time.queue += minutes;
@@ -105,6 +124,8 @@ export const statusHistory = (audit, { reported, modified, openNow, at }) => {
 // Notas de trabajo: marcas entre corchetes al principio ([MAJOR INCIDENT],
 // [ACT IA], [HITL_REVIEW_OK]…) y notas del agente de IA.
 const NOTE_TAG = /^\s*\[([^\]]{2,25})\]/;
+// Las notas que se escriben como [ANALISIS], [DIAGNOSTICO] y [ANTECEDENTES], con _IA cuando se usó la IA (#58).
+const IA_NOTE_TAGS = ['ANALISIS_IA', 'DIAGNOSTICO_IA', 'ANTECEDENTES_IA'];
 export const noteFlags = (worklog) => {
   let flags = 0;
   for (const e of entries(worklog)) {
@@ -118,6 +139,7 @@ export const noteFlags = (worklog) => {
     else if (['HITL_REVIEW_OK', 'HITL-REVIEW-OK'].includes(tag)) flags |= FLAG.HITL_OK;
     else if (['HITL_REVIEW_NOT_OK', 'HITL_IA_FAIL', 'IA_FAIL', 'IA_WRONG_DIAG'].includes(tag)) flags |= FLAG.IA_FAIL;
     else if (tag === 'RECURRENCIA') flags |= FLAG.RECURRENCE;
+    else if (IA_NOTE_TAGS.includes(tag)) flags |= FLAG.IA_NOTE;
   }
   return flags;
 };
@@ -134,7 +156,8 @@ export const readIssue = (r, base) => {
   const tags = new Set(r.TAGS.split(/[;,:]/).map((t) => t.trim()).filter(Boolean).map((t) => t.split('=')[0]));
   const openNow = OPEN_STATES.includes(r.STATUS);
   const h = statusHistory(r.AUDIT_DETAIL, { reported, modified, openNow, at });
-  const flags = tagFlags(tags) | noteFlags(r.WORKLOG_DETAIL) | (h.reopened ? FLAG.REOPENED : 0) | (r.RESOLUTION.trim() ? 0 : FLAG.NO_RESOLUTION);
+  const flags = tagFlags(tags) | noteFlags(r.WORKLOG_DETAIL) | (h.reopened ? FLAG.REOPENED : 0) | (r.RESOLUTION.trim() ? 0 : FLAG.NO_RESOLUTION)
+    | (h.thirdParty ? FLAG.THIRD_PARTY : 0);
   return {
     id: Number(r.INCIDENTNUMBER.slice(3)),
     reported, resolved: at(r.LASTRESOLUTIONDATE), modified,
@@ -147,6 +170,7 @@ export const readIssue = (r, base) => {
     scope: scopeOf(r.SUMMARY, r.SERVICETYPE, tags),
     flags,
     vendor: vendorOf(r.VENDORTICKETNUMBER),
+    jira: jiraKeys(r.VENDORTICKETNUMBER, r.WORKLOG_DETAIL),
     first: h.first, start: h.start, time: h.time, bounces: h.bounces, pendings: h.pendings,
     resolvedBy: h.resolvedBy,
     ...readTitle(r.SUMMARY),   // problem y themes

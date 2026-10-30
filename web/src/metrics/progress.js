@@ -4,12 +4,14 @@ import { esc } from '../ui/html.js';
 import { num } from './format.js';
 
 // Las fases y lo que suelen tardar (s), medido: cargar el conector unos segundos (con poca memoria, 25–35 s; solo la
-// primera vez tras arrancar SIA), conectar ~5 s, traer unas 3.000 incidencias ~10 s, recalcular 30–40 s.
+// primera vez tras arrancar SIA), conectar ~5 s, traer unas 3.000 incidencias ~10 s, recalcular 30–40 s; los tickets de
+// Jira, de 100 en 100 (la primera vez, todos; después, los que seguían sin resolver). unit: lo que cuentan sus cifras.
 export const PHASES = [
   { id: 'prepare', label: 'Preparar el conector de Snowflake', usual: 5 },
   { id: 'connect', label: 'Conectar con Snowflake', usual: 5 },
   { id: 'download', label: 'Traer lo nuevo y lo cambiado', usual: 10 },
   { id: 'compute', label: 'Recalcular el informe', usual: 35 },
+  { id: 'jira', label: 'Traer los tickets de Jira', usual: 10, unit: 'tickets' },
 ];
 const [, , DOWNLOAD, COMPUTE] = PHASES.keys();
 // Antes de esto, el ritmo de una fase aún no dice nada.
@@ -50,7 +52,7 @@ export const progressOf = (p, { elapsed, phaseMs }) => {
   const phase = phaseOf(p), { s, known } = estimate(p, phaseMs);
   const percent = Math.min(99, Math.floor((100 * elapsed) / (elapsed + s * 1000)));
   const detail = DETAIL[PHASES[phase].id]
-    ?? (phase === DOWNLOAD && !p.total ? 'Sin cambios desde la última actualización.' : `${num(p.done)} de ${num(p.total)} incidencias`);
+    ?? (phase === DOWNLOAD && !p.total ? 'Sin cambios desde la última actualización.' : `${num(p.done)} de ${num(p.total)} ${PHASES[phase].unit || 'incidencias'}`);
   return { phase, percent, detail, left: known ? leftLabel(s) : 'Calculando cuánto queda…' };
 };
 

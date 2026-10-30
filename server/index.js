@@ -23,7 +23,7 @@ import { choosePair } from './shared/ports.js';
 import { trustSystemCerts } from './shared/certs.js';
 import { createRouter } from './router.js';
 import { createConfigStore } from './config/store.js';
-import { cleanTheme, userEnv, cleanEnv, cleanSnowflake } from './config/config.js';
+import { cleanTheme, userEnv, cleanEnv, cleanSnowflake, cleanJira } from './config/config.js';
 import { configRoutes } from './config/routes.js';
 import { createLock } from './lock/service.js';
 import { lockRoutes } from './lock/routes.js';
@@ -60,6 +60,7 @@ import { createMetricsStore } from './metrics/store.js';
 import { createRepository } from './metrics/repository.js';
 import { metricsRoutes } from './metrics/routes.js';
 import { createSnowflake } from './metrics/snowflake.js';
+import { createJira } from './metrics/jira.js';
 import { createTunnel } from './remote/tunnel.js';
 import { createRemote } from './remote/service.js';
 import { lanRoutes } from './remote/routes.js';
@@ -169,6 +170,7 @@ export const startBridge = async ({ env = process.env } = {}) => {
     metrics: metricsRoutes(createMetricsStore(workspace.metricsDir, {
       repo: createRepository({ DatabaseSync, file: path.join(workspace.metricsDir, 'incidencias.sqlite'), fs }),
       source: createSnowflake({ loadSdk: async () => (await import('snowflake-sdk')).default, config: () => cleanSnowflake(config.read().snowflake) }),
+      jira: createJira({ config: () => cleanJira(config.read().jira) }),
       log: console.log,
     }), { json }),
     lan: lanRoutes(remote, lock, http_),

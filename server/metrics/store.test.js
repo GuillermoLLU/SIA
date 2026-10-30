@@ -41,12 +41,12 @@ test('sin datos: null', async () => {
   clean(dir);
 });
 
-test('la primera actualización, con el repositorio vacío: todo desde 2026; calcula y lo vuelve a leer', async () => {
+test('la primera actualización, con el repositorio vacío: todo desde FIRST_LOAD; calcula y lo vuelve a leer', async () => {
   const dir = tmp(), source = fakeSource([ISSUE]);
   const { meta, counts } = await open(dir, source).store.update();
   assert.deepEqual(source.asked, [[FIRST_LOAD]]);
   assert.deepEqual({ ...meta, snapshot: undefined, first: undefined, last: undefined }, { format: FORMAT, file: 'Snowflake', start: 2026, group: 'AYS SOPORTE', rows: 1, total: 1,
-    snapshot: undefined, first: undefined, last: undefined, generated: '2026-10-14T08:00:00.000Z' });
+    snapshot: undefined, first: undefined, last: undefined, generated: '2026-10-14T08:00:00.000Z', jira: { at: null, tickets: 0, message: '' } });
   assert.deepEqual(counts, { inserted: 1, updated: 0, unchanged: 0, kept: 0 });
   assert.deepEqual((await open(dir).store.load()).cols.id, [7]);
   assert.deepEqual(fs.readdirSync(dir).filter((f) => !/-(wal|shm)$/.test(f)).sort(), ['datos.json', 'incidencias.sqlite']);   // sin los -wal y -shm de SQLite
@@ -71,8 +71,8 @@ test('las siguientes piden solo lo cambiado y aplican los criterios de siempre: 
   const { store } = open(dir, source);
   await store.update();
   const { meta, counts } = await store.update();
-  // el suelo, la apertura más antigua guardada; desde, la última modificación menos 2 días
-  assert.deepEqual(source.asked[1], ['2025-11-20 08:00:00.000', '2026-02-27 09:00:00.000']);
+  // el suelo, la apertura más antigua guardada; desde, la última modificación menos 2 días; y lo que falta hasta FIRST_LOAD
+  assert.deepEqual(source.asked[1], ['2025-11-20 08:00:00.000', '2026-02-27 09:00:00.000', FIRST_LOAD, '2025-11-20 08:00:00.000']);
   assert.deepEqual(counts, { inserted: 1, updated: 2, unchanged: 1, kept: 1 });
   assert.equal(meta.start, 2025);
   const data = await store.load();
@@ -103,7 +103,51 @@ test('cada actualización apunta en el registro cuánto tardó cada fase', async
   const dir = tmp(), lines = [];
   await open(dir, fakeSource([ISSUE]), (l) => lines.push(l)).store.update();
   assert.equal(lines.length, 1);
-  assert.match(lines[0], /^\[sia\] métricas actualizadas en \d+,\d s: conector \d+,\d s · conexión y consulta \d+,\d s · 1 incidencias de Snowflake \(1 nuevas, 0 actualizadas\) en \d+,\d s · informe de 1 incidencias en \d+,\d s$/);
+  assert.match(lines[0], /^\[sia\] métricas actualizadas en \d+,\d s: conector \d+,\d s · conexión y consulta \d+,\d s · 1 incidencias de Snowflake \(1 nuevas, 0 actualizadas\) en \d+,\d s · informe de 1 incidencias y Jira en \d+,\d s · 0 tickets de Jira$/);
+  clean(dir);
+});
+
+// Jira falso: devuelve los tickets que tiene de las claves que se le piden y apunta qué se le pidió.
+const fakeJira = (known, error) => {
+  const asked = [];
+  return {
+    asked,
+    tickets: async (keys, { onBatch }) => {
+      asked.push(keys);
+      if (error) throw error;
+      onBatch(keys.length);
+      return { found: keys.filter((k) => known[k]).map((k) => ({ key: k, ...known[k] })), missing: keys.filter((k) => !known[k]) };
+    },
+  };
+};
+const ESCALATED = row({ ...ISSUE, STATUS: 'ASSIGNED', VENDORTICKETNUMBER: 'TEC: SGA-1', WORKLOG_DETAIL: '2026-02-01 10:30:00.000 - ana - Abierto SGA-2 y FINISHED-1',
+  AUDIT_DETAIL: '2026-02-01 10:20:00.000 - ana - Status_Reason:  → Third Party Vendor Action Reqd', LASTMODIFIEDDATE: '2026-02-03 10:00:00.000' });
+
+test('Jira: pide las claves de las issues y calcula los tiempos de escalado; la siguiente, solo las que seguían sin resolver', async () => {
+  const dir = tmp();
+  const jira = fakeJira({ 'SGA-1': { created: '2026-02-01 11:00:00', resolved: '2026-02-02 11:00:00', status: 'Closed' }, 'SGA-2': { created: '2026-02-01 12:00:00', resolved: '', status: 'Open' } });
+  const repo = createRepository({ DatabaseSync, file: path.join(dir, 'incidencias.sqlite'), fs, now });
+  repos.push(repo);
+  const store = createMetricsStore(dir, { repo, source: fakeSource([ESCALATED], []), jira, now });
+  const { jira: meta } = await store.update();
+  assert.deepEqual(jira.asked[0].sort(), ['FINISHED-1', 'SGA-1', 'SGA-2']);
+  assert.deepEqual(meta, { at: now().toISOString(), tickets: 2, message: '' });
+  const { cols } = await store.load();
+  // abierta el 1/2 a las 10:00: el primer Jira, a la hora; la solución final (SGA-1), al día siguiente; sigue abierta
+  // en Remedy hasta la foto (el último cambio, el 3/2 a las 10:00)
+  assert.deepEqual([cols.the[0], cols.tes[0], cols.tcr[0], cols.tsr[0]], [60, 1440, -1, 23 * 60]);
+  await store.update();
+  assert.deepEqual(jira.asked[1], ['SGA-2'], 'FINISHED-1 no existe y SGA-1 ya está resuelto');
+  clean(dir);
+});
+
+test('Jira sin configurar o sin respuesta: el informe sale igual y meta.jira dice por qué', async () => {
+  const dir = tmp();
+  const jira = fakeJira({}, Object.assign(new Error('Configura Jira en ⚙️ Credenciales → Jira para medir THesc, Tesc y Tesc-r.'), { status: 400 }));
+  const repo = createRepository({ DatabaseSync, file: path.join(dir, 'incidencias.sqlite'), fs, now });
+  repos.push(repo);
+  const { jira: meta } = await createMetricsStore(dir, { repo, source: fakeSource([ESCALATED]), jira, now }).update();
+  assert.deepEqual(meta, { at: null, tickets: 0, message: 'Configura Jira en ⚙️ Credenciales → Jira para medir THesc, Tesc y Tesc-r.' });
   clean(dir);
 });
 

@@ -9,6 +9,8 @@
 //   worklog_entries  WORKLOG_DETAIL abierto: una nota por fila
 // Las dos últimas se rehacen con cada alta o cambio y sirven para consultar por fecha
 // (cambios de estado, actividad…) sin volver a leer los textos largos.
+//   jira_tickets     los tickets Jira de las issues (jira.js): creación, resolución y estado, en hora de Madrid;
+//                    found 0, una clave que Jira no conoce (no se vuelve a pedir); fetched, cuándo se pidió
 import path from 'node:path';
 import { decide, auditEvents, worklogEntries } from './incidents.js';
 
@@ -22,6 +24,7 @@ const SCHEMA = `
   CREATE INDEX IF NOT EXISTS audit_field_at ON audit_events (field, at);
   CREATE TABLE IF NOT EXISTS worklog_entries (incident TEXT NOT NULL, seq INTEGER NOT NULL, at TEXT, who TEXT, text TEXT, PRIMARY KEY (incident, seq));
   CREATE INDEX IF NOT EXISTS worklog_at ON worklog_entries (at);
+  CREATE TABLE IF NOT EXISTS jira_tickets (key TEXT PRIMARY KEY, created TEXT, resolved TEXT, status TEXT, found INTEGER NOT NULL, fetched TEXT);
   PRAGMA user_version = 1;`;
 
 // Las columnas que se consultan por rango o por grupo llevan índice.
@@ -121,5 +124,24 @@ export const createRepository = ({ DatabaseSync, file, fs, now = () => new Date(
     return { first: r.first ?? null, last: r.last ?? null };
   };
 
-  return { begin, incidents, count, firstYear, extremes, close: () => db.close() };
+  // Los tickets Jira guardados: Map clave → { created, resolved, status, found }.
+  const jiraTickets = () => new Map(db.prepare('SELECT * FROM jira_tickets').all().map((t) => [t.key, t]));
+  // Lo que se ha traído de Jira (found) y las claves que no conoce (missing), en una transacción.
+  const saveJira = ({ found, missing }) => {
+    const stamp = now().toISOString();
+    const put = db.prepare('INSERT OR REPLACE INTO jira_tickets (key, created, resolved, status, found, fetched) VALUES (?, ?, ?, ?, ?, ?)');
+    db.exec('BEGIN');
+    try {
+      for (const t of found) put.run(t.key, t.created, t.resolved, t.status, 1, stamp);
+      for (const k of missing) put.run(k, '', '', '', 0, stamp);
+      db.exec('COMMIT');
+    } catch (e) {
+      db.exec('ROLLBACK');
+      throw e;
+    }
+  };
+  // Cuándo se trajo de Jira por última vez (null: nunca).
+  const jiraFetched = () => db.prepare('SELECT MAX(fetched) AS at FROM jira_tickets').get().at ?? null;
+
+  return { begin, incidents, count, firstYear, extremes, jiraTickets, saveJira, jiraFetched, close: () => db.close() };
 };

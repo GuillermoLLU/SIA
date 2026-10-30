@@ -44,7 +44,7 @@ export const mountMetricsView = (root, { api, toast }) => {
   const renderEmpty = () => {
     root.innerHTML = `<div class="mt-page"><header class="mt-top"><h2 class="mt-title">Métricas</h2></header>
       <div class="mt-empty"><b>Aún no hay datos</b>
-        <span>Trae de Snowflake las incidencias de Remedy (con notas e historial) desde 2026. Se guardan en el repositorio local de este ordenador y de él salen las métricas; cada vez que actualices, solo llega lo nuevo y lo cambiado.</span>
+        <span>Trae de Snowflake las incidencias de Remedy (con notas e historial) desde 2025, para comparar con el año anterior. Se guardan en el repositorio local de este ordenador y de él salen las métricas; cada vez que actualices, solo llega lo nuevo y lo cambiado.</span>
         ${loadButton()}</div></div>`;
   };
 
@@ -198,9 +198,10 @@ export const mountMetricsView = (root, { api, toast }) => {
       await new Promise((r) => setTimeout(r, FINISH_MS));
       loading = false;
       start(data);
-      toast?.(counts.inserted || counts.updated
+      const jira = data?.meta?.jira?.message ? ` Jira: ${data.meta.jira.message}` : '';
+      toast?.(`${counts.inserted || counts.updated
         ? `Informe actualizado: ${num(counts.inserted)} nuevas y ${num(counts.updated)} actualizadas.`
-        : 'Informe actualizado: sin cambios desde la última vez.');
+        : 'Informe actualizado: sin cambios desde la última vez.'}${jira}`);
     } catch (e) {
       loading = false;
       c.el.remove();
@@ -249,10 +250,11 @@ export const mountMetricsView = (root, { api, toast }) => {
       if (searching) $('[data-q]').focus();
       return;
     }
-    const t = e.target.closest('[data-tab],[data-go],[data-rm],[data-exp],[data-sort],[data-f2],[data-f]');
+    const t = e.target.closest('[data-tab],[data-go],[data-rm],[data-exp],[data-sort],[data-svc],[data-f2],[data-f]');
     if (!t) return;
     const d = t.dataset;
     if (d.tab || d.go) { tab = d.tab || d.go; root.scrollTop = 0; }
+    else if (d.svc) ui.svc[d.svc] = !ui.svc[d.svc];   // Servicio y SLA: comparar con el año anterior o con T-Systems
     else if (d.rm) { const [dim, k] = filterKey(d.rm); S.f[dim].delete(k); }
     else if (d.exp) ui.exp[d.exp] = !ui.exp[d.exp];
     else if (d.sort) { const [id, c] = d.sort.split(':'), cur = ui.sort[id]; ui.sort[id] = [c, cur && cur[0] === c ? -cur[1] : -1]; }
