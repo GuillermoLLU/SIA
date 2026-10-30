@@ -9,7 +9,7 @@
 // config: () => { user, role, warehouse } (config/config.js: cleanSnowflake).
 import { SESSION } from './query.js';
 
-export const ACCOUNT = 'INDITEX-INDITEX';
+const ACCOUNT = 'INDITEX-INDITEX';
 
 const fail = (message, status = 503) => Object.assign(new Error(message), { status });
 

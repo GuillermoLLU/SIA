@@ -103,23 +103,6 @@ export const createRepository = ({ DatabaseSync, file, fs, now = () => new Date(
     };
   };
 
-  // Quita de la base lo que no es de ese grupo, con sus cambios y notas (una sola transacción). Devuelve cuántas.
-  const purgeOtherGroups = (group) => {
-    if (!columns().includes('ASSIGNEDGROUP')) return 0;
-    const others = `SELECT ${ID} FROM incidents WHERE TRIM(ASSIGNEDGROUP) <> ?`;
-    db.exec('BEGIN');
-    try {
-      db.prepare(`DELETE FROM audit_events WHERE incident IN (${others})`).run(group);
-      db.prepare(`DELETE FROM worklog_entries WHERE incident IN (${others})`).run(group);
-      const n = db.prepare('DELETE FROM incidents WHERE TRIM(ASSIGNEDGROUP) <> ?').run(group).changes;
-      db.exec('COMMIT');
-      return n;
-    } catch (e) {
-      db.exec('ROLLBACK');
-      throw e;
-    }
-  };
-
   // Las incidencias, una a una, como filas de la consulta: las columnas que no tenía (de una carga anterior) salen
   // vacías. count: cuántas son (para el avance del cálculo).
   function* incidents() {
@@ -181,5 +164,5 @@ export const createRepository = ({ DatabaseSync, file, fs, now = () => new Date(
     db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
   };
 
-  return { begin, incidents, count, reportCount, firstYear, extremes, purgeOtherGroups, clearAll, close: () => db.close() };
+  return { begin, incidents, count, reportCount, firstYear, extremes, clearAll, close: () => db.close() };
 };

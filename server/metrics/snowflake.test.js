@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Readable } from 'node:stream';
-import { createSnowflake, explain, ACCOUNT } from './snowflake.js';
+import { createSnowflake, explain } from './snowflake.js';
 import { SESSION } from './query.js';
 
 // Un snowflake-sdk falso: apunta lo que se le pide y devuelve las filas dadas.
@@ -37,7 +37,7 @@ test('conecta por SSO con el usuario de la persona, fija el formato de fechas y 
   assert.deepEqual(await collect(sf.rows('SELECT 1', ['2026-01-01 00:00:00.000'], { onConnect: () => connected++, onTotal: (n) => { total = n; } })), [{ INCIDENTNUMBER: 'INC1', NOTES: '' }, { INCIDENTNUMBER: 'INC2', NOTES: 'x' }]);
   assert.equal(total, 2, 'avisa de cuántas filas van a llegar');
   assert.equal(connected, 1, 'y de cuándo, cargado el conector, empieza a conectar');
-  assert.deepEqual(log.opts, { account: ACCOUNT, username: CONFIG.user, role: CONFIG.role, warehouse: CONFIG.warehouse,
+  assert.deepEqual(log.opts, { account: 'INDITEX-INDITEX', username: CONFIG.user, role: CONFIG.role, warehouse: CONFIG.warehouse,
     authenticator: 'EXTERNALBROWSER', clientStoreTemporaryCredential: true, representNullAsStringNull: false });
   assert.deepEqual(log.sql, [...SESSION, 'SELECT 1']);
   assert.deepEqual([log.binds, log.fetchAsString], [['2026-01-01 00:00:00.000'], ['Date', 'Number']]);

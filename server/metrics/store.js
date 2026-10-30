@@ -1,26 +1,22 @@
 // Los datos de las Métricas de este ordenador. Cada actualización pide a
 // Snowflake las incidencias nuevas o cambiadas desde la última (query.js), las
 // suma al repositorio local de incidencias (repository.js, SQLite) y de él se
-// calculan las métricas; el cálculo se guarda en <dir>/datos.json para abrir la
-// vista al instante. Nada de esto sale de aquí ni va a la base.
-import fs from 'node:fs';
-import path from 'node:path';
-import { createDataset, checkColumns, DataError, FORMAT, GROUP } from './dataset.js';
+// calculan las métricas (publish.js); el cálculo se guarda en <dir>/datos.json para
+// abrir la vista al instante. Nada de esto sale de aquí ni va a la base.
+import { checkColumns, DataError, GROUP } from './dataset.js';
 import { rangeOf, buildQuery, firstLoadRange } from './query.js';
+import { createPublisher } from './publish.js';
 import { csvReader } from '../shared/csv.js';
 
 const SOURCE = 'Snowflake';
-// El cálculo recorre todas las incidencias (decenas de miles, medio minuto): cada
-// tantas cede el turno para que el bridge siga atendiendo (el avance, los terminales…).
-const BATCH = 2000;
-const pause = () => new Promise((resolve) => setImmediate(resolve));
 const secs = (from, to) => `${((to - from) / 1000).toFixed(1).replace('.', ',')} s`;
 const num = (n) => n.toLocaleString('es-ES');
 
-// source: { rows(sql, binds, { onConnect, onTotal }) } (snowflake.js), las filas de la consulta una a una. log: dónde se
-// apunta cuánto tardó cada fase de una actualización (el registro del bridge).
-export const createMetricsStore = (dir, { repo, source, now = () => new Date(), log = () => {} }) => {
-  const file = path.join(dir, 'datos.json');
+// source: { rows(sql, binds, { onConnect, onTotal }) } (snowflake.js), las filas de la consulta una a una. fs: el
+// sistema de ficheros (datos.json), now: el reloj, log: dónde se apunta cuánto tardó cada fase (el registro del bridge).
+export const createMetricsStore = (dir, { repo, source, fs, now = () => new Date(), log = () => {} }) => {
+  const publisher = createPublisher({ repo, dir, fs, now });
+  const ms = () => now().getTime();
   let cache;            // undefined: sin leer aún; null: no hay datos
   let loading = false;
   // Mientras se actualiza, por dónde va: { phase: 'prepare' (cargar el conector) | 'connect' | 'download' | 'compute', done, total }.
@@ -38,24 +34,12 @@ export const createMetricsStore = (dir, { repo, source, now = () => new Date(), 
     if (row.ASSIGNEDGROUP.trim() === GROUP) run.add(row);
     else run.remove(row.INCIDENTNUMBER);
   };
+  // El avance cuenta lo que entra en el informe.
+  const counted = () => { if (progress) progress.done++; };
 
-  // Las métricas de todo lo guardado en el repositorio.
-  const compute = async (name) => {
-    const dataset = createDataset({ start: repo.firstYear(GROUP) ?? now().getUTCFullYear() });
-    let n = 0;
-    for (const row of repo.incidents()) {
-      if (dataset.add(row) && progress) progress.done++;   // el avance cuenta lo que entra en el informe
-      if (++n % BATCH === 0) await pause();
-    }
-    return dataset.build({ file: name, generated: now().toISOString() });
-  };
-
-  // Calcula desde el repositorio y lo guarda en datos.json (y en memoria): lo que ve la vista.
+  // Calcula desde el repositorio y guarda la copia: lo que ve la vista.
   const publish = async (name) => {
-    const data = await compute(name);
-    fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(`${file}.tmp`, JSON.stringify(data));
-    fs.renameSync(`${file}.tmp`, file);
+    const data = await publisher.publish(name, counted);
     cache = data;
     return data;
   };
@@ -63,9 +47,9 @@ export const createMetricsStore = (dir, { repo, source, now = () => new Date(), 
   // datos.json es una copia: si falta o es de otro formato, se recalcula desde el repositorio.
   const load = async () => {
     if (cache === undefined) {
-      try { cache = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { cache = null; }
-      if (cache?.meta?.format !== FORMAT) {
-        try { cache = await compute('repositorio local'); } catch { cache = null; }
+      cache = publisher.read();
+      if (!cache) {
+        try { cache = await publisher.compute('repositorio local'); } catch { cache = null; }
       }
     }
     return cache;
@@ -80,7 +64,7 @@ export const createMetricsStore = (dir, { repo, source, now = () => new Date(), 
     abort = new AbortController();
     const { signal } = abort;
     progress = { phase: 'prepare', done: 0, total: 0 };
-    const t = { start: Date.now() };
+    const t = { start: ms() };
     try {
       const empty = repo.extremes().first === null;
       const { sql, binds } = buildQuery(empty && range?.from ? firstLoadRange(range) : rangeOf(repo.extremes()));
@@ -88,8 +72,8 @@ export const createMetricsStore = (dir, { repo, source, now = () => new Date(), 
       let counts;
       try {
         let rows = 0;
-        const onConnect = () => { t.connect = Date.now(); progress = { phase: 'connect', done: 0, total: 0 }; };
-        const onTotal = (total) => { t.query = Date.now(); progress = { phase: 'download', done: 0, total }; };
+        const onConnect = () => { t.connect = ms(); progress = { phase: 'connect', done: 0, total: 0 }; };
+        const onTotal = (total) => { t.query = ms(); progress = { phase: 'download', done: 0, total }; };
         // Cada fila, con la cancelación a la vista: si se cancela mientras Snowflake sigue, no hay que esperar a la siguiente fila.
         const stop = new Promise((ok) => signal.addEventListener('abort', () => ok(ABORTED), { once: true }));
         const it = source.rows(sql, binds, { onConnect, onTotal })[Symbol.asyncIterator]();
@@ -104,7 +88,7 @@ export const createMetricsStore = (dir, { repo, source, now = () => new Date(), 
         }
         counts = run.commit();
         abort = null;   // lo guardado ya está en la base: a partir de aquí no se cancela
-        t.saved = Date.now();
+        t.saved = ms();
       } catch (e) {
         run.rollback();
         log(`[sia] la actualización no ha entrado: ${e.message}`);
@@ -112,7 +96,7 @@ export const createMetricsStore = (dir, { repo, source, now = () => new Date(), 
       }
       progress = { phase: 'compute', done: 0, total: repo.reportCount(GROUP) };
       const data = await publish(SOURCE);
-      t.done = Date.now();
+      t.done = ms();
       t.query ??= t.saved;   // una fuente que no avisa: lo que no se sabe cuenta con la fase siguiente
       t.connect ??= t.start;
       const fetched = counts.inserted + counts.updated + counts.unchanged + counts.kept;
@@ -174,7 +158,7 @@ export const createMetricsStore = (dir, { repo, source, now = () => new Date(), 
     progress = { phase: 'clear', done: 0, total: repo.count() };
     try {
       await repo.clearAll((done, total) => { progress = { phase: 'clear', done, total }; });
-      fs.rmSync(file, { force: true });
+      publisher.remove();
       cache = null;
       return { cleared: true };
     } finally {

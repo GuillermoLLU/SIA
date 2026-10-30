@@ -144,14 +144,6 @@ test('reportCount: del grupo y sin avisos automáticos; 0 si aún no hay nada ca
   s.done();
 });
 
-test('purgeOtherGroups: quita lo de otros grupos y deja el del grupo', () => {
-  const s = scratch(), repo = s.open();
-  run(repo, inc(), inc({ INCIDENTNUMBER: 'INC2', ASSIGNEDGROUP: 'OTRO' }));
-  assert.equal(repo.purgeOtherGroups('AYS SOPORTE'), 1);
-  assert.deepEqual(load(repo).map((r) => r.INCIDENTNUMBER), ['INC1']);
-  s.done();
-});
-
 test('remove: quita una incidencia dentro de una transacción, y cuenta lo quitado', () => {
   const s = scratch(), repo = s.open();
   run(repo, inc());

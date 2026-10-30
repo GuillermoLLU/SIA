@@ -174,6 +174,7 @@ export const startBridge = async ({ env = process.env } = {}) => {
     metrics: metricsRoutes(createMetricsStore(workspace.metricsDir, {
       repo: createRepository({ DatabaseSync, file: path.join(workspace.metricsDir, 'incidencias.sqlite'), fs }),
       source: createSnowflake({ loadSdk, config: () => cleanSnowflake(config.read().snowflake) }),
+      fs,
       log: console.log,
     }), { json, readBody }),
     lan: lanRoutes(remote, lock, http_),

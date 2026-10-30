@@ -10,7 +10,7 @@ import { GROUP } from './dataset.js';
 export const FIRST_LOAD = '2026-01-01 00:00:00.000';
 // Margen hacia atrás sobre lo último guardado: Snowflake carga Remedy cada hora en punto, y una modificación puede
 // tardar en llegar una carga entera más el retraso. Pedir de más no cambia nada (decide: same), así que va holgado.
-export const MARGIN_HOURS = 6;
+const MARGIN_HOURS = 6;
 
 const FMT = 'YYYY-MM-DD HH24:MI:SS.FF3';
 // Las fechas salen con milisegundos (las de dentro de LISTAGG también): las leen

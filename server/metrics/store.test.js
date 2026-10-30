@@ -31,7 +31,7 @@ const repos = [];   // se cierran al acabar cada prueba: Windows no borra un fic
 const open = (dir, source = fakeSource(), log) => {
   const repo = createRepository({ DatabaseSync, file: path.join(dir, 'incidencias.sqlite'), fs, now });
   repos.push(repo);
-  return { store: createMetricsStore(dir, { repo, source, now, log }), repo };
+  return { store: createMetricsStore(dir, { repo, source, fs, now, log }), repo };
 };
 const clean = (dir) => { repos.splice(0).forEach((r) => r.close()); fs.rmSync(dir, { recursive: true }); };
 

@@ -17,8 +17,9 @@ import { createTabs, TABS } from './tabs.js';
 import { periodLabel } from './period.js';
 import { mountPeriodPanel } from './period-panel.js';
 import { attachTip } from './tip.js';
-import { PHASES, CSV_PHASES, CLEAR_PHASES, progressOf, progressHtml } from './progress.js';
+import { PHASES, CSV_PHASES, CLEAR_PHASES } from './progress.js';
 import { mountMetricsModals } from './metrics-modals.js';
+import { progressCover } from './progress-cover.js';
 import { COLORS, defaultColors, freeColor, dayOf, coverage, freeCompany, withoutSide, togglePerson, filterKey } from './view.js';
 
 const SEARCH_MS = 250;
@@ -163,54 +164,10 @@ export const mountMetricsView = (root, { api, toast }) => {
     render();
   };
 
-  // Mientras se actualiza, una capa encima con el avance (progress.js): lo de debajo se queda viejo, así que no se
-  // puede tocar (inert). La capa se pinta una vez y luego solo cambian sus cifras, para que la barra avance suave.
-  const cover = (t0, phases = PHASES, onCancel = () => {}) => {
-    const el = document.createElement('div');
-    el.className = 'mt-loading';
-    el.addEventListener('click', (e) => {
-      const b = e.target.closest('[data-cancel]');
-      if (!b) return;
-      b.disabled = true;
-      b.textContent = 'Cancelando…';
-      onCancel();
-    });
-    const paint = (view) => {
-      if (!el.firstElementChild) {
-        el.innerHTML = progressHtml(view, phases);
-        el.querySelector('.mt-load-card').insertAdjacentHTML('beforeend', '<button class="mt-btn mt-load-cancel" data-cancel>Cancelar</button>');
-      }
-      el.querySelector('[role=progressbar]').setAttribute('aria-valuenow', view.percent);
-      el.querySelector('.mt-load-figure b').textContent = view.percent;
-      el.querySelector('.mt-load-bar i').style.width = `${view.percent}%`;
-      el.querySelector('.mt-load-now b').textContent = phases[view.phase].label;
-      el.querySelector('.mt-load-now span').textContent = view.left;
-      el.querySelector('.mt-load-detail').textContent = view.detail;
-      // ya no se puede cancelar: se recalcula, o se está borrando
-      el.querySelector('[data-cancel]').hidden = ['compute', 'clear'].includes(phases[view.phase].id);
-      el.querySelectorAll('.mt-load-steps li').forEach((li, i) => { li.className = i < view.phase ? 'mt-done' : i === view.phase ? 'mt-now' : ''; });
-    };
-    // el último avance del bridge, cuándo empezó su fase (para su ritmo) y lo más alto que ha llegado la barra (nunca retrocede)
-    let last = null, phaseT0 = t0, top = 0;
-    return {
-      el,
-      set: (p) => {
-        if ((p?.phase ?? null) !== (last?.phase ?? null)) phaseT0 = Date.now();
-        last = p ?? last;
-      },
-      tick: () => {
-        const now = Date.now(), view = progressOf(last, { elapsed: now - t0, phaseMs: now - phaseT0 }, phases);
-        top = Math.max(top, view.percent);
-        paint({ ...view, percent: top });
-      },
-      finish: (text = 'Abriendo las métricas con los datos nuevos…') => paint({ phase: phases.length - 1, percent: 100, detail: text, left: 'Hecho' }),
-    };
-  };
-
   // Mientras el servidor trabaja en algo largo (cargar un CSV), la misma capa con su avance que la actualización,
   // con las fases de esa tarea. Si falla, se quita y la vista sigue como estaba.
   const track = async (phases, task, onAbort = () => {}, doneText) => {
-    const c = cover(Date.now(), phases, () => { onAbort(); api.cancel(); });
+    const c = progressCover(Date.now(), phases, () => { onAbort(); api.cancel(); });
     const stop = () => { clearInterval(poll); clearInterval(ticker); };
     let poll = null, ticker = null;
     try {
@@ -263,7 +220,7 @@ export const mountMetricsView = (root, { api, toast }) => {
     if (loading) return;
     loading = true;
     if (m) $('.mt-load').outerHTML = loadButton(); else renderEmpty();
-    const c = cover(Date.now(), PHASES, () => api.cancel());
+    const c = progressCover(Date.now(), PHASES, () => api.cancel());
     root.scrollTop = 0;
     root.classList.add('mt-updating');
     $('.mt-page').inert = true;
