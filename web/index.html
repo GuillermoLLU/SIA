@@ -12,6 +12,11 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="SIA" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <!-- Nada se ve hasta que main.js ha cargado los estilos (si no, un instante
+         de botones sin estilo al recargar); main.js marca <html class="styled">.
+         Mientras tanto, el fondo del último tema (la copia que guarda theme/apply.js) -->
+    <style>html { background: #f5f6f8; } html:not(.styled) body { visibility: hidden; }</style>
+    <script>try { var ui = JSON.parse(localStorage.getItem('sia-theme-ui')); if (ui && ui.bg) document.documentElement.style.background = ui.bg; } catch (e) { /* sin copia: el fondo claro */ }</script>
   </head>
   <body>
     <div class="app">
@@ -48,6 +53,7 @@
         </button>
         <!-- Paneles (su icono lo pone web/src/users/views.js) -->
         <button class="nav-btn" id="nav-issues" title="Issues" aria-label="Issues" hidden></button>
+        <button class="nav-btn" id="nav-backlog" title="Backlog" aria-label="Backlog" hidden></button>
         <button class="nav-btn" id="nav-work" title="Equipo soporte" aria-label="Equipo soporte" hidden></button>
         <button class="nav-btn" id="nav-metrics" title="Métricas" aria-label="Métricas" hidden></button>
         <!-- Laboratorio (con la vista y el permiso lab de la base) -->
@@ -77,17 +83,20 @@
 
       <!-- ── Vista CHAT ── -->
       <div class="window view" id="view-chat">
-        <div class="tabs" id="tabs">
-          <button class="tab-add" id="tab-add" title="Nuevo chat" aria-label="Nuevo chat">+</button>
-          <span class="tabs-spacer"></span>
-          <button class="tab-skills" id="assets-btn" title="Adjuntos compartidos en este chat" hidden>
+        <div class="chat-bar" id="chat-bar" hidden>
+          <span class="chat-bar-spacer"></span>
+          <button class="chat-bar-btn" id="assets-btn" title="Adjuntos compartidos en este chat" hidden>
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
             <span class="count"></span>
           </button>
-          <button class="tab-skills" id="skills-btn" title="Aplicar una skill al chat activo (⌘K)">
+          <button class="chat-bar-btn" id="skills-btn" title="Aplicar una skill al chat (⌘K)">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
             <span>Skills</span>
             <span class="kbd">⌘K</span>
+          </button>
+          <button class="chat-bar-btn" id="chat-close" title="Cerrar este chat y empezar otro">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            <span>Cerrar chat</span>
           </button>
         </div>
         <div class="chat-body">
@@ -215,6 +224,7 @@
       <!-- ── Vista PERSONAS (web/src/users/) ── -->
       <div class="window view" id="view-users" hidden></div>
       <div class="window view iss-view" id="view-issues" hidden></div>
+      <div class="window view iss-view bl-view" id="view-backlog" hidden></div>
       <div class="window view mt-view" id="view-work" hidden></div>
       <div class="window view mt-view" id="view-metrics" hidden></div>
 
@@ -227,12 +237,6 @@
           <div class="admin-rail-spacer"></div>
         </aside>
         <main class="admin-main" id="admin-main"></main>
-      </div>
-
-      <!-- Editor de pestaña (nombre + color) -->
-      <div class="tab-editor" id="tab-editor" hidden>
-        <input class="tab-name-input" id="tab-name-input" type="text" maxlength="24" placeholder="Nombre…" />
-        <div class="tab-colors" id="tab-colors"></div>
       </div>
 
       <!-- Configuración (modal) -->

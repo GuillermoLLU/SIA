@@ -22,10 +22,20 @@
 --                       Personas; el de la persona la usa. Quien tiene
 --                       Administración usa la del dueño de la base.
 --    audit_log          registro de todo cambio (solo se añade, nunca se edita)
+--    issue_claims       quién tiene cada issue en SIA (una fila por issue: la cola)
+--    issue_events       histórico de cada issue: cogida, devuelta a la cola,
+--                       traspasada o asignada desde el Backlog, quién lo hizo y de quién a quién
+--    issue_notes        notas internas del equipo sobre una issue (editables por
+--                       quien las escribió); el comentario de un traspaso queda
+--                       como nota etiquetada «transfer»
+--    priority_rules     reglas de priorización del backlog: un nombre y una lista
+--                       ordenada de criterios (el catálogo, en platform.known_criteria()).
+--                       La básica viene de serie (builtin): se ajusta, no se borra
 --
 --  Vistas: lo que cada persona puede ver y hacer en SIA (el Chat, siempre).
 --  La lista está en platform.known_views().
 --    issues     Issues: el gestor de incidencias de soporte
+--    backlog    Backlog: la cola del equipo (lo que nadie tiene aún), para quien reparte
 --    work       Panel de trabajo: métricas de los empleados
 --    metrics    Métricas: OKRs, KPIs y otros indicadores
 --    links      Enlaces rápidos
@@ -73,7 +83,14 @@ revoke all on schema platform from public, anon, authenticated;
 -- en web/src/users/views.js). Administrador las tiene siempre todas.
 create or replace function platform.known_views() returns text[]
 language sql immutable set search_path = '' as $$
-  select array['issues', 'work', 'metrics', 'links', 'lab', 'admin', 'people']
+  select array['issues', 'backlog', 'work', 'metrics', 'links', 'lab', 'admin', 'people']
+$$;
+
+-- Los criterios con que se ordena el backlog. Una regla de priorización es una
+-- lista ordenada de ellos; qué hace cada uno, en server/issues/queue.js.
+create or replace function platform.known_criteria() returns text[]
+language sql immutable set search_path = '' as $$
+  select array['recent', 'prio', 'month', 'severity', 'critical', 'high', 'medium', 'low', 'age', 'sisu', 'sga']
 $$;
 
 -- ── Tablas ────────────────────────────────────────────────────────────────
@@ -153,6 +170,61 @@ create table if not exists platform.issue_claims (
   claimed_at  timestamptz not null default now()
 );
 
+-- Histórico de cada issue en SIA: quién la cogió, la devolvió a la cola o la
+-- traspasó, y a quién. Solo se añade. Si se borra a una persona, sus
+-- movimientos se quedan (sin nombre).
+create table if not exists platform.issue_events (
+  id           bigint generated always as identity primary key,
+  issue_id     text not null check (issue_id ~ '^INC[0-9]+$'),
+  action       text not null check (action in ('claimed', 'released', 'transferred', 'assigned')),
+  actor        uuid references platform.users (id) on delete set null,      -- quién lo hizo
+  from_user    uuid references platform.users (id) on delete set null,      -- quién la tenía
+  to_user      uuid references platform.users (id) on delete set null,      -- quién la tiene ahora
+  note_id      bigint,                                                        -- en un traspaso, la nota con el motivo
+  happened_at  timestamptz not null default now()
+);
+create index if not exists issue_events_issue on platform.issue_events (issue_id, happened_at);
+alter table platform.issue_events add column if not exists note_id bigint;
+
+-- Notas internas del equipo sobre una issue. Las ve todo Issues; las edita
+-- quien las escribió (el plazo para editarlas lo pone la web). `kind` las
+-- etiqueta: 'note' (escrita a mano) o 'transfer' (el motivo de un traspaso).
+create table if not exists platform.issue_notes (
+  id          bigint generated always as identity primary key,
+  issue_id    text not null check (issue_id ~ '^INC[0-9]+$'),
+  author      uuid references platform.users (id) on delete set null,
+  kind        text not null default 'note' check (kind in ('note', 'transfer')),
+  body        text not null check (char_length(btrim(body)) between 1 and 4000),
+  created_at  timestamptz not null default now(),
+  edited_at   timestamptz
+);
+alter table platform.issue_events drop constraint if exists issue_events_note_fk;
+alter table platform.issue_events add constraint issue_events_note_fk foreign key (note_id) references platform.issue_notes (id) on delete set null;
+-- traspasos anteriores a note_id: su nota es la 'transfer' del mismo autor e instante
+update platform.issue_events e set note_id = n.id from platform.issue_notes n
+  where e.action = 'transferred' and e.note_id is null and n.issue_id = e.issue_id and n.kind = 'transfer' and n.author is not distinct from e.actor and n.created_at = e.happened_at;
+create index if not exists issue_notes_issue on platform.issue_notes (issue_id, created_at);
+
+create table if not exists platform.priority_rules (
+  id          uuid primary key default gen_random_uuid(),
+  name        text not null unique check (char_length(btrim(name)) between 1 and 60),
+  criteria    text[] not null constraint rules_criteria_known check (criteria <@ platform.known_criteria() and cardinality(criteria) >= 1),
+  builtin     boolean not null default false,  -- la regla básica: se ajusta, no se borra
+  created_by  uuid references platform.users (id) on delete set null,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+alter table platform.priority_rules add column if not exists builtin boolean not null default false; -- bases montadas antes de la básica de serie
+create unique index if not exists priority_rules_builtin on platform.priority_rules (builtin) where builtin;
+
+-- la acción 'assigned' llegó después: la restricción de las bases ya montadas se renueva
+alter table platform.issue_events drop constraint if exists issue_events_action_check;
+alter table platform.issue_events add constraint issue_events_action_check check (action in ('claimed', 'released', 'transferred', 'assigned'));
+-- La regla básica, la del equipo, de serie (si no está ya)
+insert into platform.priority_rules (name, criteria, builtin)
+  select 'Regla básica', array['recent', 'prio', 'month', 'severity', 'age'], true
+  where not exists (select 1 from platform.priority_rules where builtin);
+
 -- Administrador, con todas las vistas que haya (también las que se añadan)
 update platform.roles set views = platform.known_views() where builtin = 'admin' and views is distinct from platform.known_views();
 update platform.users u set views = r.views from platform.roles r where r.builtin = 'admin' and u.role_id = r.id and u.views is distinct from r.views;
@@ -165,6 +237,9 @@ alter table platform.audit_log        enable row level security;
 alter table platform.person_keys      enable row level security;
 alter table platform.roles            enable row level security;
 alter table platform.issue_claims     enable row level security;
+alter table platform.issue_events     enable row level security;
+alter table platform.issue_notes      enable row level security;
+alter table platform.priority_rules  enable row level security;
 revoke all on all tables in schema platform from public, anon, authenticated;
 revoke all on all sequences in schema platform from public, anon, authenticated;
 
@@ -656,7 +731,7 @@ returns table (issue_id text, user_id uuid, user_name text, claimed_at timestamp
 language plpgsql stable security definer set search_path = '' as $$
 #variable_conflict use_column
 begin
-  perform platform.require_view('issues');
+  perform platform.require_view('issues', 'backlog'); -- el Backlog también mira qué está cogido
   return query
     select c.issue_id, c.user_id, u.name, c.claimed_at
     from platform.issue_claims c join platform.users u on u.id = c.user_id
@@ -673,7 +748,7 @@ begin
     insert into platform.issue_claims (issue_id, user_id) values (v_id, v_me)
       on conflict (issue_id) do nothing returning issue_id into v_got;
     if v_got is not null then
-      perform platform.audit(v_me, 'issue.claimed', v_me, jsonb_build_object('issue', v_got));
+      insert into platform.issue_events (issue_id, action, actor, to_user) values (v_got, 'claimed', v_me, v_me);
       return v_got;
     end if;
   end loop;
@@ -687,23 +762,201 @@ declare v_me uuid := platform.require_view('issues');
 begin
   delete from platform.issue_claims where issue_id = p_issue and user_id = v_me;
   if not found then raise exception 'Esa issue no es tuya.' using errcode = '42501'; end if;
-  perform platform.audit(v_me, 'issue.released', v_me, jsonb_build_object('issue', p_issue));
+  insert into platform.issue_events (issue_id, action, actor, from_user) values (p_issue, 'released', v_me, v_me);
+end $$;
+
+-- Traspasarla a un compañero (solo la propia, y solo a alguien activo con la
+-- vista Issues). Pasa a ser suya desde ahora. Un traspaso se justifica: el
+-- motivo es obligatorio y queda como nota de la issue etiquetada 'transfer'.
+drop function if exists public.platform_transfer_issue(text, uuid, text);
+create function public.platform_transfer_issue(p_issue text, p_to uuid, p_comment text) returns void
+language plpgsql security definer set search_path = '' as $$
+declare v_me uuid := platform.require_view('issues'); v_note bigint;
+begin
+  if p_to is null then raise exception 'Elige a qué compañero traspasarla.' using errcode = '22023'; end if;
+  if p_to = v_me then raise exception 'No puedes traspasarte una issue a ti mismo.' using errcode = '22023'; end if;
+  if nullif(btrim(p_comment), '') is null then raise exception 'Escribe el motivo del traspaso.' using errcode = '22023'; end if;
+  if char_length(btrim(p_comment)) > 4000 then raise exception 'El motivo admite hasta 4.000 caracteres.' using errcode = '22023'; end if;
+  if not exists (select 1 from platform.users u where u.id = p_to and u.active and 'issues' = any (u.views)) then
+    raise exception 'Esa persona no está en Issues.' using errcode = 'P0002';
+  end if;
+  update platform.issue_claims set user_id = p_to, claimed_at = now() where issue_id = p_issue and user_id = v_me;
+  if not found then raise exception 'Esa issue no es tuya.' using errcode = '42501'; end if;
+  insert into platform.issue_notes (issue_id, author, kind, body) values (p_issue, v_me, 'transfer', btrim(p_comment)) returning id into v_note;
+  insert into platform.issue_events (issue_id, action, actor, from_user, to_user, note_id) values (p_issue, 'transferred', v_me, v_me, p_to, v_note);
+end $$;
+
+-- Lo que me han traspasado y aún tengo: de quién viene, cuándo y el motivo
+-- (la nota 'transfer' que se escribió en el mismo instante). Para marcarlas
+-- en la mesa. Una issue devuelta o traspasada de nuevo ya no sale.
+drop function if exists public.platform_my_transfers();
+create function public.platform_my_transfers()
+returns table (issue_id text, from_name text, happened_at timestamptz, reason text)
+language plpgsql stable security definer set search_path = '' as $$
+#variable_conflict use_column
+declare v_me uuid := platform.require_view('issues');
+begin
+  return query
+    select e.issue_id, uf.name, e.happened_at, n.body
+    from platform.issue_claims c
+    join lateral (select * from platform.issue_events x where x.issue_id = c.issue_id order by x.happened_at desc, x.id desc limit 1) e on true
+    left join platform.users uf on uf.id = e.from_user
+    left join platform.issue_notes n on n.id = e.note_id
+    where c.user_id = v_me and e.action = 'transferred' and e.to_user = v_me
+    order by e.happened_at;
+end $$;
+
+-- El histórico de una issue en SIA: cada movimiento con quién lo hizo y de
+-- quién a quién, del más antiguo al más reciente.
+drop function if exists public.platform_issue_events(text);
+create function public.platform_issue_events(p_issue text)
+returns table (id bigint, action text, actor_name text, from_name text, to_name text, happened_at timestamptz)
+language plpgsql stable security definer set search_path = '' as $$
+#variable_conflict use_column
+begin
+  perform platform.require_view('issues');
+  return query
+    select e.id, e.action, ua.name, uf.name, ut.name, e.happened_at
+    from platform.issue_events e
+    left join platform.users ua on ua.id = e.actor
+    left join platform.users uf on uf.id = e.from_user
+    left join platform.users ut on ut.id = e.to_user
+    where e.issue_id = p_issue
+    order by e.happened_at, e.id;
+end $$;
+
+-- ── Notas internas de una issue ───────────────────────────────────────────
+-- Las notas de una issue, de la más antigua a la más reciente.
+drop function if exists public.platform_issue_notes(text);
+create function public.platform_issue_notes(p_issue text)
+returns table (id bigint, author_id uuid, author_name text, kind text, body text, created_at timestamptz, edited_at timestamptz)
+language plpgsql stable security definer set search_path = '' as $$
+#variable_conflict use_column
+begin
+  perform platform.require_view('issues');
+  return query
+    select n.id, n.author, u.name, n.kind, n.body, n.created_at, n.edited_at
+    from platform.issue_notes n left join platform.users u on u.id = n.author
+    where n.issue_id = p_issue
+    order by n.created_at, n.id;
+end $$;
+
+-- Añadir una nota → su id.
+create or replace function public.platform_add_issue_note(p_issue text, p_body text) returns bigint
+language plpgsql security definer set search_path = '' as $$
+declare v_me uuid := platform.require_view('issues'); v_id bigint;
+begin
+  if p_issue !~ '^INC[0-9]+$' then raise exception 'Esa issue no existe.' using errcode = 'P0002'; end if;
+  insert into platform.issue_notes (issue_id, author, body) values (p_issue, v_me, btrim(p_body)) returning id into v_id;
+  return v_id;
+exception
+  when check_violation then raise exception 'La nota necesita texto, hasta 4.000 caracteres.' using errcode = '22023';
+end $$;
+
+-- Editar una nota propia.
+create or replace function public.platform_edit_issue_note(p_note bigint, p_body text) returns void
+language plpgsql security definer set search_path = '' as $$
+declare v_me uuid := platform.require_view('issues');
+begin
+  update platform.issue_notes set body = btrim(p_body), edited_at = now() where id = p_note and author = v_me;
+  if not found then raise exception 'Esa nota no es tuya.' using errcode = '42501'; end if;
+exception
+  when check_violation then raise exception 'La nota necesita texto, hasta 4.000 caracteres.' using errcode = '22023';
 end $$;
 
 -- El equipo de Issues: las personas activas con la vista Issues (para
 -- traspasar una issue a un compañero).
+-- ── Asignar desde el Backlog ──────────────────────────────────────────────
+-- La prioridad de una issue es la etiqueta PRIO de Remedy (la pone negocio);
+-- SIA no lleva una lista propia. Hubo una (issue_priorities) en una versión
+-- intermedia: se retira de las bases que la montaron.
+drop function if exists public.platform_issue_priorities();
+drop function if exists public.platform_prioritize_issue(text, uuid[]);
+drop function if exists public.platform_prioritize_issue(text);
+drop function if exists public.platform_unprioritize_issue(text);
+drop table if exists platform.issue_priorities;
+
+-- Asignarla a alguien del equipo de Issues: pasa a su mesa como cogida, y en
+-- el histórico queda quién la asignó. Si ya la tiene alguien, no.
+create or replace function public.platform_assign_issue(p_issue text, p_to uuid) returns void
+language plpgsql security definer set search_path = '' as $$
+declare v_me uuid := platform.require_view('backlog'); v_holder text;
+begin
+  if not exists (select 1 from platform.users u where u.id = p_to and u.active and 'issues' = any (u.views)) then
+    raise exception 'Solo se asigna a alguien activo con la vista Issues.' using errcode = '22023';
+  end if;
+  select u.name into v_holder from platform.issue_claims c join platform.users u on u.id = c.user_id where c.issue_id = p_issue;
+  if found then raise exception 'Esa issue ya la tiene %.', v_holder using errcode = '23505'; end if;
+  insert into platform.issue_claims (issue_id, user_id) values (p_issue, p_to);
+  insert into platform.issue_events (issue_id, action, actor, to_user) values (p_issue, 'assigned', v_me, p_to);
+exception
+  when check_violation then raise exception 'Esa issue no vale.' using errcode = '23514';
+end $$;
+
+-- ── Reglas de priorización del backlog ────────────────────────────────────
+-- Las ven quienes cogen issues o reparten (Issues, Backlog): un nombre y sus
+-- criterios en orden. Las crean, cambian y borran quienes reparten (Backlog).
+-- La básica (builtin) va primero; se ajusta como las demás, pero no se borra.
+drop function if exists public.platform_list_rules();
+create function public.platform_list_rules()
+returns table (id uuid, name text, criteria text[], builtin boolean)
+language plpgsql stable security definer set search_path = '' as $$
+#variable_conflict use_column
+begin
+  perform platform.require_view('issues', 'backlog');
+  return query
+    select r.id, r.name, r.criteria, r.builtin
+    from platform.priority_rules r
+    order by r.builtin desc, lower(r.name);
+end $$;
+
+-- Crear (p_rule null) o cambiar una regla. Los criterios, del catálogo y sin repetir.
+create or replace function public.platform_save_rule(p_rule uuid, p_name text, p_criteria text[]) returns uuid
+language plpgsql security definer set search_path = '' as $$
+declare v_me uuid := platform.require_view('backlog'); v_id uuid;
+begin
+  if coalesce(cardinality(p_criteria), 0) = 0 then raise exception 'Una regla necesita al menos un criterio.' using errcode = '22023'; end if;
+  if not (p_criteria <@ platform.known_criteria()) then raise exception 'Criterio desconocido.' using errcode = '22023'; end if;
+  if (select count(distinct c) from unnest(p_criteria) c) <> cardinality(p_criteria) then raise exception 'Un criterio no se repite.' using errcode = '22023'; end if;
+  if p_rule is null then
+    insert into platform.priority_rules (name, criteria, created_by) values (btrim(p_name), p_criteria, v_me) returning id into v_id;
+    perform platform.audit(v_me, 'rule.create', null, jsonb_build_object('rule', v_id, 'name', btrim(p_name), 'criteria', to_jsonb(p_criteria)));
+    return v_id;
+  end if;
+  update platform.priority_rules set name = btrim(p_name), criteria = p_criteria, updated_at = now() where id = p_rule;
+  if not found then raise exception 'Esa regla no existe.' using errcode = 'P0002'; end if;
+  perform platform.audit(v_me, 'rule.update', null, jsonb_build_object('rule', p_rule, 'name', btrim(p_name), 'criteria', to_jsonb(p_criteria)));
+  return p_rule;
+exception
+  when unique_violation then raise exception 'Ya hay una regla con ese nombre.' using errcode = '23505';
+  when check_violation then raise exception 'Nombre no válido (1-60 caracteres).' using errcode = '23514';
+end $$;
+
+create or replace function public.platform_delete_rule(p_rule uuid) returns void
+language plpgsql security definer set search_path = '' as $$
+declare v_me uuid := platform.require_view('backlog');
+begin
+  if exists (select 1 from platform.priority_rules r where r.id = p_rule and r.builtin) then
+    raise exception 'La regla básica no se borra; ajústala.' using errcode = '42501';
+  end if;
+  delete from platform.priority_rules where id = p_rule;
+  if not found then raise exception 'Esa regla no existe.' using errcode = 'P0002'; end if;
+  perform platform.audit(v_me, 'rule.delete', null, jsonb_build_object('rule', p_rule));
+end $$;
+
 drop function if exists public.platform_issue_teammates();
 create function public.platform_issue_teammates()
 returns table (id uuid, name text)
 language plpgsql stable security definer set search_path = '' as $$
 #variable_conflict use_column
 begin
-  perform platform.require_view('issues');
+  perform platform.require_view('issues', 'backlog'); -- el Backlog también, para asignar
   return query select u.id, u.name from platform.users u where u.active and 'issues' = any (u.views) order by u.name;
 end $$;
 
--- Mi historial en SIA: lo que he cogido y devuelto desde una fecha (sale de
--- la auditoría; con él se miden las métricas de cada persona).
+-- Mi historial en SIA desde una fecha (con él se miden las métricas de cada
+-- persona): claimed (la cogí), released (la devolví), received (me la
+-- traspasaron: desde entonces es mía) y handed (la traspasé: dejó de serlo).
 drop function if exists public.platform_my_issue_events(timestamptz);
 create function public.platform_my_issue_events(p_since timestamptz)
 returns table (issue_id text, action text, happened_at timestamptz)
@@ -712,11 +965,30 @@ language plpgsql stable security definer set search_path = '' as $$
 declare v_me uuid := platform.require_view('issues');
 begin
   return query
-    select a.details ->> 'issue', a.action, a.happened_at
-    from platform.audit_log a
-    where a.actor = v_me and a.action in ('issue.claimed', 'issue.released') and a.happened_at >= p_since
-    order by a.happened_at, a.id;
+    select e.issue_id,
+      case when e.action = 'assigned' then 'received'  -- asignada desde el Backlog: mía desde entonces, como un traspaso recibido
+           when e.action <> 'transferred' then e.action when e.to_user = v_me then 'received' else 'handed' end,
+      e.happened_at
+    from platform.issue_events e
+    where e.happened_at >= p_since
+      and ((e.action = 'claimed' and e.to_user = v_me) or (e.action = 'released' and e.from_user = v_me)
+        or (e.action = 'assigned' and e.to_user = v_me)
+        or (e.action = 'transferred' and (e.to_user = v_me or e.from_user = v_me)))
+    order by e.happened_at, e.id;
 end $$;
+
+-- Los movimientos de issues que se apuntaron en la auditoría antes de existir
+-- issue_events pasan al histórico, una sola vez: solo los anteriores al primer
+-- movimiento ya registrado (los posteriores están en las dos y no se repiten).
+-- Si quien lo hizo ya no existe en users, el movimiento queda sin persona.
+insert into platform.issue_events (issue_id, action, actor, from_user, to_user, happened_at)
+select a.details ->> 'issue', substr(a.action, 7), u.id,
+  case when a.action = 'issue.released' then u.id end, case when a.action = 'issue.claimed' then u.id end, a.happened_at
+from platform.audit_log a
+left join platform.users u on u.id = a.actor
+where a.action in ('issue.claimed', 'issue.released') and (a.details ->> 'issue') ~ '^INC[0-9]+$'
+  and a.happened_at < coalesce((select min(e.happened_at) from platform.issue_events e), 'infinity'::timestamptz)
+order by a.happened_at, a.id;
 
 -- ── Auditoría ─────────────────────────────────────────────────────────────
 create or replace function public.platform_list_audit(p_limit int default 100)

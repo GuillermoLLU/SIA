@@ -1,0 +1,122 @@
+/* Vista Backlog: la cola del equipo en el orden de la regla, a todo lo ancho.
+   Es una vista sobre el dominio de Issues: sus piezas (criticidad, origen,
+   centro) y sus estilos vienen de issues.css; lo suyo, aquí. Arriba el panel
+   de tarjetas, que son los filtros; la lista ocupa el resto y hace scroll sola. */
+.bl-view { --bl-medium: color-mix(in srgb, #bf8700 85%, var(--text)); --bl-low: color-mix(in srgb, #1a7f37 70%, var(--text)); overflow: hidden; }
+.bl-page { flex: 1; min-height: 0; width: 100%; box-sizing: border-box; padding: 24px 28px 28px; display: flex; flex-direction: column; gap: 14px; }
+
+/* el panel: cada tarjeta es un filtro; la pulsada queda marcada. Sobrias: el
+   color del tipo, solo en un punto junto al nombre */
+.bl-panel { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 12px; }
+.bl-tile.prio { margin-right: 12px; } /* separa los grupos: origen y priorizadas | criticidad */
+.bl-tile { --tile: var(--text-low); display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 14px 16px; font: inherit; text-align: left; color: var(--text); background: var(--surface); border: 1px solid var(--border); cursor: pointer; transition: border-color .12s ease, background-color .12s ease; }
+.bl-tile span { display: flex; align-items: center; gap: 7px; font-size: 11.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-low); white-space: nowrap; overflow: hidden; }
+.bl-tile span::before { content: ''; flex-shrink: 0; width: 7px; height: 7px; border-radius: 50%; background: var(--tile); }
+.bl-tile b { font-size: 24px; font-weight: 650; line-height: 1.1; color: var(--text); font-variant-numeric: tabular-nums; }
+.bl-tile:hover { border-color: color-mix(in srgb, var(--text) 35%, var(--border)); }
+.bl-tile[aria-pressed="true"] { border-color: var(--text); box-shadow: inset 0 0 0 1px var(--text); background: color-mix(in srgb, var(--text) 4%, var(--surface)); }
+.bl-tile[aria-pressed="true"] span { color: var(--text); }
+.bl-tile.sisu { --tile: var(--iss-sisu); }
+.bl-tile.sga { --tile: var(--accent); }
+.bl-tile.prio { --tile: var(--iss-crit); }
+.bl-tile.CRITICAL { --tile: var(--iss-crit); }
+.bl-tile.HIGH { --tile: var(--iss-high); }
+.bl-tile.MEDIUM { --tile: var(--bl-medium); }
+.bl-tile.LOW { --tile: var(--bl-low); }
+@media (max-width: 1180px) { .bl-panel { grid-template-columns: repeat(4, minmax(0, 1fr)); } .bl-tile.prio { margin-right: 0; } }
+
+/* entre el panel y la lista: actualizar y de cuándo son los datos; a la derecha,
+   cuántas se ven, el buscador y las reglas */
+.bl-btn { height: 28px; padding: 0 12px; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--text); background: var(--surface); border: 1px solid var(--border); cursor: pointer; }
+.bl-btn:hover:not(:disabled) { border-color: color-mix(in srgb, var(--text) 35%, var(--border)); }
+.bl-btn:disabled { opacity: .6; cursor: progress; }
+.bl-bar { display: flex; align-items: center; gap: 14px; }
+.bl-bar .iss-snap { margin-left: 0; white-space: nowrap; }
+.bl-bar button, .bl-order { white-space: nowrap; }
+.bl-order { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; flex-shrink: 0; font-size: 12.5px; color: var(--text-low); }
+.bl-order select { height: 28px; padding: 0 8px; font: inherit; font-size: 12.5px; color: var(--text); background: var(--surface); border: 1px solid var(--border); }
+.bl-shown + .bl-order { margin-left: 0; }
+.bl-search { position: relative; display: block; flex: 0 1 280px; min-width: 150px; } /* cede ancho cuando la barra va justa */
+.bl-search::before { content: ''; position: absolute; left: 10px; top: 50%; width: 15px; height: 15px; transform: translateY(-50%); background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E") center / contain no-repeat; pointer-events: none; }
+.bl-search input { box-sizing: border-box; width: 100%; height: 28px; padding: 0 10px 0 33px; font: inherit; font-size: 13px; color: var(--text); background: var(--surface); border: 1px solid var(--border); outline: none; -webkit-appearance: none; }
+.bl-search input:focus { border-color: var(--accent); }
+.bl-search input::placeholder { color: var(--text-low); }
+
+/* la lista y, al abrir una issue, su detalle a la derecha */
+.bl-main { flex: 1; min-height: 0; display: flex; gap: 16px; }
+.bl-shown { display: flex; align-items: baseline; gap: 6px; margin: 0 2px 0 auto; font-size: 12.5px; color: var(--text-low); white-space: nowrap; }
+.bl-shown b { color: var(--text); font-variant-numeric: tabular-nums; }
+.bl-clear { padding: 0; font: inherit; font-size: 12.5px; color: var(--accent); background: none; border: 0; cursor: pointer; }
+.bl-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); }
+.bl-row { flex-shrink: 0; display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 4px 14px; width: 100%; padding: 10px 18px; font: inherit; text-align: left; color: var(--text); background: none; border: 0; border-top: 1px solid var(--border); cursor: pointer; }
+.bl-row:hover { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+.bl-row.on { background: color-mix(in srgb, var(--accent) 9%, transparent); box-shadow: inset 3px 0 0 var(--accent); }
+.bl-row:first-child { border-top: 0; }
+.bl-rank { grid-row: span 2; align-self: center; font-size: 15px; font-weight: 650; text-align: right; color: var(--text-low); font-variant-numeric: tabular-nums; }
+.bl-row .iss-text { white-space: normal; }
+.bl-row .iss-sev.MEDIUM { color: var(--bl-medium); }
+.bl-row .iss-sev.LOW { color: var(--bl-low); }
+.bl-empty { margin: 0; padding: 40px 20px; text-align: center; font-size: 13px; color: var(--text-low); }
+.bl-empty b { display: block; margin-bottom: 6px; font-size: 15px; color: var(--text); }
+
+/* el modal de reglas: a la izquierda la lista, a la derecha la regla elegida
+   con sus criterios en orden (chips) */
+.bl-rules-overlay { align-items: center; padding-top: 0; }
+.bl-rules-modal { width: min(960px, calc(100vw - 48px)); height: min(640px, calc(100vh - 80px)); }
+.bl-rules-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 240px minmax(0, 1fr); }
+.bl-rules-list { display: flex; flex-direction: column; gap: 4px; padding: 14px; overflow-y: auto; border-right: 1px solid var(--border); background: var(--bg); }
+.bl-rule, .bl-rule-new { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; font: inherit; text-align: left; color: var(--text); background: none; border: 1px solid transparent; cursor: pointer; }
+.bl-rule b { font-size: 13px; font-weight: 600; }
+.bl-rule small { font-size: 11.5px; color: var(--text-low); }
+.bl-rule:hover:not(:disabled) { background: var(--surface); }
+.bl-rule.on { background: var(--surface); border-color: var(--border); }
+.bl-rule-new { margin-top: 6px; font-size: 13px; font-weight: 600; color: var(--accent); }
+.bl-rule-new:hover { background: var(--surface); }
+.bl-rules-edit { display: flex; flex-direction: column; gap: 12px; padding: 20px 24px; overflow-y: auto; }
+.bl-rules-edit h4 { margin: 0; font-size: 16px; font-weight: 650; }
+.bl-rules-lead { margin: 0; font-size: 12.5px; color: var(--text-low); }
+.bl-rule-name { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--text-low); }
+.bl-rule-name input { height: 34px; padding: 0 10px; font: inherit; font-size: 14px; color: var(--text); background: var(--bg); border: 1px solid var(--border); outline: none; }
+.bl-rule-name input:focus { border-color: var(--accent); }
+.bl-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; flex: 1; min-height: 0; }
+.bl-cols.one { grid-template-columns: minmax(0, 1fr); }
+.bl-col { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 12px; border: 1px solid var(--border); }
+.bl-col h5 { margin: 0; font-size: 11.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-low); }
+.bl-col.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 4%, transparent); }
+.bl-col.over .bl-chips-empty { display: none; } /* mientras se arrastra, el hueco lo marca la línea */
+.bl-chips { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0 0 8px; list-style: none; flex: 1; min-height: 60px; }
+.bl-chip { display: flex; align-items: center; gap: 10px; padding: 8px 12px; font-size: 13px; background: var(--bg); border: 1px solid var(--border); user-select: none; }
+.bl-chip.act { cursor: grab; }
+.bl-chip.act:hover { border-color: color-mix(in srgb, var(--text) 35%, var(--border)); }
+.bl-chip.act:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.bl-chip.dragging { opacity: .35; }
+.bl-drop-line { position: relative; height: 0; margin: -3px 0; border-top: 2px solid var(--accent); list-style: none; }
+.bl-drop-line::before { content: ''; position: absolute; left: -5px; top: -5px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+.bl-chip-n { flex-shrink: 0; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; font-size: 11.5px; font-weight: 650; color: var(--surface); background: var(--text); border-radius: 50%; }
+.bl-chip-l { flex: 1; }
+.bl-chips-empty { margin: 0; padding: 14px; font-size: 12.5px; color: var(--text-low); text-align: center; border: 1px dashed var(--border); }
+.bl-err { margin: 0; padding: 9px 12px; font-size: 12.5px; color: #d1242f; border: 1px solid #d1242f; background: color-mix(in srgb, #d1242f 8%, transparent); }
+.bl-rules-foot { display: flex; align-items: center; gap: 8px; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--border); }
+
+/* el panel lateral: la issue y qué hacer con ella */
+.bl-side { flex: 0 0 50%; min-height: 0; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); }
+.bl-side-h { display: flex; align-items: center; gap: 12px; padding: 10px 12px 10px 18px; border-bottom: 1px solid var(--border); }
+.bl-side-h .modal-close { margin-left: auto; }
+.bl-side-link { font-size: 12.5px; color: var(--accent); text-decoration: none; }
+.bl-side-link:hover { text-decoration: underline; }
+.bl-side-body { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 16px 18px 20px; }
+.bl-side-title { margin: 0; font-size: 16px; font-weight: 650; line-height: 1.35; overflow-wrap: anywhere; }
+.bl-side-body .iss-line { margin: 0; }
+.bl-side-body .iss-notes { font-size: 13px; line-height: 1.5; }
+.bl-side-warn { margin: 0; padding: 9px 12px; font-size: 12.5px; color: var(--iss-high); border: 1px solid color-mix(in srgb, var(--iss-high) 45%, transparent); background: color-mix(in srgb, var(--iss-high) 8%, transparent); }
+.bl-acts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; align-items: stretch; }
+.bl-act { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); }
+.bl-act h5 { margin: 0; font-size: 11.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-low); }
+.bl-act > .lab-btn { align-self: flex-start; }
+.bl-act-note { margin-top: auto; font-size: 10.5px; line-height: 1.35; color: var(--text-low); }
+.bl-act-row { display: flex; gap: 8px; }
+.bl-act-row .pick { flex: 1; min-width: 0; }
+.bl-act-row .pick-btn { height: 32px; background-color: var(--surface); }
+.bl-side-wl > summary { cursor: pointer; font-size: 12px; font-weight: 600; color: var(--text); }
+.bl-side-wl > summary span { margin-left: 6px; font-weight: 400; color: var(--text-low); }
+.bl-side-wl[open] > summary { margin-bottom: 8px; }

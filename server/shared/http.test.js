@@ -15,11 +15,12 @@ test('json: estado, cabecera y cuerpo', () => {
   assert.deepEqual(out, [404, { 'Content-Type': 'application/json' }, '{"error":"no"}']);
 });
 
-test('readBody: el JSON del cuerpo; vacío, {}; roto, error', async () => {
+test('readBody: el JSON del cuerpo; vacío, {}; roto, 400; demasiado grande, 413', async () => {
   const body = (chunks) => { const req = new EventEmitter(); setImmediate(() => { chunks.forEach((c) => req.emit('data', c)); req.emit('end'); }); return readBody(req); };
   assert.deepEqual(await body(['{"a":', '1}']), { a: 1 });
   assert.deepEqual(await body([]), {});
-  await assert.rejects(body(['{']));
+  await assert.rejects(body(['{']), { status: 400 });
+  await assert.rejects(body(['"', 'x'.repeat(40_000_001)]), { status: 413 });
 });
 
 test('failed: con estado, su texto (5xx como 503); sin estado, 500 sin detalles', () => {

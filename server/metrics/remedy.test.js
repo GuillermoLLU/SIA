@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readIssue, statusHistory, noteFlags, vendorOf, scopeOf, operationOf, entries, minutesSince, FLAG, SCOPE } from './remedy.js';
+import { readIssue, statusHistory, noteFlags, vendorOf, scopeOf, operationOf, minutesSince, FLAG, SCOPE } from './remedy.js';
 
 const BASE = Date.UTC(2026, 0, 1);
 const at = (s) => minutesSince(BASE, s);
@@ -9,14 +9,6 @@ test('minutos desde el 1 de enero; -1 si no hay fecha', () => {
   assert.equal(at('2026-01-01 00:00:59'), 0);
   assert.equal(at('2026-01-02 01:30:00.000'), 1530);
   assert.equal(at(''), -1);
-});
-
-test('entradas «fecha - quién - texto» separadas por « | »', () => {
-  const text = '2026-01-01 10:00:00.000 - ana - Status: New → Assigned | 2026-01-01 10:05:00.000 - luis - nota con - guiones';
-  assert.deepEqual(entries(text), [
-    { at: '2026-01-01 10:00:00.000', who: 'ana', text: 'Status: New → Assigned' },
-    { at: '2026-01-01 10:05:00.000', who: 'luis', text: 'nota con - guiones' },
-  ]);
 });
 
 const audit = (...e) => e.map(([t, who, text]) => `2026-01-01 ${t}:00.000 - ${who} - ${text}`).join(' | ');

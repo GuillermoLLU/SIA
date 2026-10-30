@@ -45,6 +45,7 @@ import { createProjects } from './projects/service.js';
 import { projectsRoutes } from './projects/routes.js';
 import { createSkillSync } from './skills/sync.js';
 import { skillList, createDrafts } from './skills/catalog.js';
+import { createResolveDrafts } from './issues/drafts.js';
 import { skillsRoutes } from './skills/routes.js';
 import { linksRoutes } from './links/routes.js';
 import { uploadsRoutes } from './uploads/routes.js';
@@ -52,6 +53,8 @@ import { updatesRoutes } from './updates/routes.js';
 import { createIssuesSource } from './issues/source.js';
 import { createIssuesService } from './issues/service.js';
 import { issuesRoutes } from './issues/routes.js';
+import { createBacklogService } from './backlog/service.js';
+import { backlogRoutes } from './backlog/routes.js';
 import { DatabaseSync } from 'node:sqlite';
 import { createMetricsStore } from './metrics/store.js';
 import { createRepository } from './metrics/repository.js';
@@ -136,7 +139,13 @@ export const startBridge = async ({ env = process.env } = {}) => {
   const clearAssigned = async () => { assigned = null; await applyBase(); };
   const syncKeys = (jwt, userId, opts) => knowledge.syncPeople(jwt, userId ? [userId] : null, opts);
 
-  const issues = createIssuesService({ source: createIssuesSource(workspace.issuesDir), platform });
+  // Sin la BBDD de borradores el bridge arranca igual: Resolver va sin borrador.
+  let drafts = null;
+  try { drafts = createResolveDrafts({ DatabaseSync, file: path.join(workspace.issuesDir, 'borradores.sqlite'), fs }); }
+  catch (e) { console.warn(`[sia] no se pudo abrir la BBDD de borradores de Resolver: ${e.message}`); }
+  const issuesSource = createIssuesSource(workspace.issuesDir); // la foto, una sola para Issues y Backlog
+  const issues = createIssuesService({ source: issuesSource, platform, drafts });
+  const backlog = createBacklogService({ source: issuesSource, platform });
   const tunnel = createTunnel({ binDir: workspace.binDir, apiPort: ports.api, resolve: launchers.resolve, fetch: undiciFetch, insecureFetch: supaFetch, isWin });
   const remote = createRemote({ lock, tunnel, apiPort: ports.api, wsClients: () => bridge.clients(), idleMs: Number(env.SIA_LOCK_IDLE_MS) || undefined });
   const bridge = createTerminalBridge({
@@ -161,6 +170,7 @@ export const startBridge = async ({ env = process.env } = {}) => {
     users: usersRoutes(users, { ...http_, syncKeys, assignKnowledge: (jwt, userId, ids) => knowledge.setProjects(jwt, userId, ids), refreshProfile: (token) => auth.refreshProfile(token) }),
     knowledge: knowledgeRoutes(knowledge, { ...http_, syncKeys, onChange: () => loadAssigned() }),
     issues: issuesRoutes(issues, http_),
+    backlog: backlogRoutes(backlog, http_),
     metrics: metricsRoutes(createMetricsStore(workspace.metricsDir, {
       repo: createRepository({ DatabaseSync, file: path.join(workspace.metricsDir, 'incidencias.sqlite'), fs }),
       source: createSnowflake({ loadSdk, config: () => cleanSnowflake(config.read().snowflake) }),

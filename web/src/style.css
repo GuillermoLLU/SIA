@@ -430,43 +430,10 @@ body { display: flex; flex-direction: column; }
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
   animation: toast-in .22s ease-out;
 }
+.toast.error { color: #fff; background: #d63c3a; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 .settings-status.ok { color: #40c463; }
 .settings-status.bad { color: #f25f5c; }
-
-/* ── Tab editor popover (name + color) ─────────────────────── */
-.tab-editor {
-  position: fixed; z-index: 20;
-  width: 220px; padding: 10px;
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 0; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
-}
-.tab-editor[hidden] { display: none; }
-.tab-name-input {
-  width: 100%; height: 32px; padding: 0 10px;
-  border: 1px solid var(--border); border-radius: 0;
-  background: var(--bg); color: var(--text);
-  font-size: 13px; outline: none;
-}
-.tab-name-input:focus { border-color: var(--accent); }
-.tab-colors {
-  display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;
-}
-.tab-colors .swatch {
-  width: 22px; height: 22px; border-radius: 0;
-  cursor: pointer; border: 2px solid transparent;
-}
-.tab-colors .swatch:hover { transform: scale(1.1); }
-.tab-colors .swatch.active { border-color: var(--text); }
-.tab-colors .swatch.none {
-  background: transparent;
-  border: 1px dashed var(--text-low);
-  position: relative;
-}
-.tab-colors .swatch.none::after {
-  content: ""; position: absolute; left: 2px; right: 2px; top: 50%;
-  height: 1px; background: var(--text-low); transform: rotate(-45deg);
-}
 
 /* ── Configuración: pestañas internas ──────────────────────── */
 .settings-tabs {
@@ -581,33 +548,29 @@ body { display: flex; flex-direction: column; }
   overflow: hidden; background: var(--bg);
 }
 
-/* ── Tabs ──────────────────────────────────────────────────── */
-.tabs {
+/* ── La barra del chat: Skills (y adjuntos) a la derecha y Cerrar chat;
+   solo se ve con el chat en marcha ──────────────────────────────── */
+.chat-bar {
   display: flex; align-items: center; gap: 4px;
   height: 42px; padding: 0 8px;
   border-bottom: 1px solid var(--border);
-  overflow-x: auto; overflow-y: hidden;
 }
-.tabs[hidden] { display: none; }
-.tab {
-  display: flex; align-items: center; gap: 8px;
-  height: 30px; padding: 0 8px 0 12px;
-  border: 0; border-radius: 0;
+.chat-bar[hidden] { display: none; }
+.chat-bar-spacer { flex: 1; min-width: 12px; }
+.chat-bar-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 30px; padding: 0 10px; flex-shrink: 0;
+  border: 1px solid var(--border); border-radius: 0;
   background: transparent; color: var(--text-low);
-  font-size: 13px; cursor: pointer; white-space: nowrap;
-  flex-shrink: 0; user-select: none;
-  transition: background 0.15s ease, color 0.15s ease;
+  font-size: 12.5px; cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
 }
-.tab.dragging { opacity: 0.45; }
-.tab:hover { background: var(--border); color: var(--text); }
-.tab.active { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--text); }
-.tab.colored { box-shadow: inset 3px 0 0 var(--tab-color); }
-.tab.colored.active { background: color-mix(in srgb, var(--tab-color) 16%, transparent); }
-.tab .tab-dot {
-  width: 7px; height: 7px; border-radius: 0; background: var(--text-low);
+.chat-bar-btn:hover { color: var(--text); border-color: var(--accent); }
+.chat-bar-btn svg { flex-shrink: 0; }
+.chat-bar-btn .kbd {
+  padding: 0 5px; border: 1px solid var(--border); border-radius: 0;
+  font-size: 10px; color: var(--text-low);
 }
-.tab .tab-dot.ok { background: #40c463; }
-.tab .tab-dot.off { background: #f25f5c; }
 
 /* Chat abierto en otro dispositivo: aviso centrado con el botón de traerlo */
 .handoff {
@@ -616,37 +579,6 @@ body { display: flex; flex-direction: column; }
   gap: 14px; text-align: center; padding: 24px;
 }
 .handoff p { margin: 0; font: 14px var(--font-ui); color: var(--text-low); }
-.tab .tab-close {
-  display: flex; align-items: center; justify-content: center;
-  width: 18px; height: 18px; border: 0; border-radius: 0;
-  background: transparent; color: inherit; cursor: pointer;
-  font-size: 15px; line-height: 1; opacity: 0.6;
-}
-.tab .tab-close:hover { background: rgba(127,127,127,0.25); opacity: 1; }
-.tab-add {
-  display: flex; align-items: center; justify-content: center;
-  width: 30px; height: 30px; flex-shrink: 0;
-  border: 0; border-radius: 0;
-  background: transparent; color: var(--text-low);
-  font-size: 20px; line-height: 1; cursor: pointer;
-}
-.tab-add:hover { background: var(--border); color: var(--text); }
-
-.tabs-spacer { flex: 1; min-width: 12px; }
-.tab-skills {
-  display: inline-flex; align-items: center; gap: 7px;
-  height: 30px; padding: 0 10px; flex-shrink: 0;
-  border: 1px solid var(--border); border-radius: 0;
-  background: transparent; color: var(--text-low);
-  font-size: 12.5px; cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease;
-}
-.tab-skills:hover { color: var(--text); border-color: var(--accent); }
-.tab-skills svg { flex-shrink: 0; }
-.tab-skills .kbd {
-  padding: 0 5px; border: 1px solid var(--border); border-radius: 0;
-  font-size: 10px; color: var(--text-low);
-}
 
 /* ── Chat body: terminal + panel de assets ─────────────────── */
 .chat-body { flex: 1; min-height: 0; display: flex; }
@@ -719,64 +651,72 @@ body { display: flex; flex-direction: column; }
 .term-host { height: 100%; }
 .term-host[hidden] { display: none; }
 
-/* ── Launcher chooser (new chat) ───────────────────────────── */
-.launcher {
-  height: 100%;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  gap: 18px; text-align: center;
-}
-.launcher[hidden] { display: none; }
-.launcher-title { font-size: 15px; color: var(--text); }
-.launcher-grid { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
-.launcher-btn {
-  width: 120px; height: 104px;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center; gap: 8px;
-  border: 1px solid var(--border); border-radius: 0;
-  background: var(--surface); color: var(--text);
-  cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
-}
-.launcher-btn:hover:not(:disabled) {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
-}
-.launcher-btn:active:not(:disabled) { transform: scale(0.97); }
-.launcher-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.launcher-btn.wide { width: 200px; height: 136px; }
+/* El hueco de la portada del Chat dentro del panel (la portada es absoluta) */
+.ai-hero-host { height: 100%; }
+.ai-hero-host[hidden] { display: none; }
 
-/* Selector de fuentes: incluida = encendida (acento) · excluida = apagada */
-.source-btn { transition: opacity 0.15s ease, border-color 0.15s ease, background 0.15s ease, filter 0.15s ease; }
-.source-btn.selected {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+/* ── Arranque del chat de una issue: un botón centrado y, debajo, por qué no
+   se puede ─────────────────────────────────────────────────────────────── */
+.ai-start { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px 16px; text-align: center; }
+.ai-start-go { padding: 12px 22px; font-size: 14px; }
+.ai-start-hint { margin: 0; max-width: 300px; font-size: 12.5px; line-height: 1.5; color: var(--text-low); }
+
+/* ── La portada del Chat: saludo, el campo de la pregunta y un fondo que
+   respira (tres manchas del color de acento, desenfocadas, a la deriva) ── */
+.ai-hero {
+  position: absolute; inset: 0; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px 16px;
 }
-.source-btn.selected .launcher-ico svg { color: var(--accent); }
-.source-btn.selected .src-state { color: var(--accent); }
-.source-btn:not(.selected) {
-  opacity: 0.45;
-  filter: grayscale(1);
-  border-style: dashed;
+.ai-hero-bg { position: absolute; inset: 0; pointer-events: none; }
+.ai-hero-bg i {
+  position: absolute; width: 46vmin; height: 46vmin; border-radius: 50%;
+  filter: blur(70px); opacity: 0.22; will-change: transform;
+  background: var(--accent);
+  animation: ai-drift 22s ease-in-out infinite alternate;
 }
-.source-btn:not(.selected):hover { opacity: 0.7; }
-.source-btn:not(.selected) .launcher-ico svg { color: var(--text-low); }
-.launcher-desc {
-  font-size: 11px; color: var(--text-low);
-  line-height: 1.4; padding: 0 12px;
+.ai-hero-bg i:nth-child(1) { left: 18%; top: 12%; }
+.ai-hero-bg i:nth-child(2) { right: 14%; top: 28%; background: color-mix(in srgb, var(--accent) 55%, #7c3aed); animation-duration: 27s; animation-delay: -9s; }
+.ai-hero-bg i:nth-child(3) { left: 36%; bottom: 6%; background: color-mix(in srgb, var(--accent) 55%, #06b6d4); animation-duration: 31s; animation-delay: -17s; }
+@keyframes ai-drift {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(9vmin, -6vmin) scale(1.12); }
+  100% { transform: translate(-7vmin, 8vmin) scale(0.94); }
 }
-.launcher-back {
-  border: 0; background: transparent;
-  color: var(--text-low); font-size: 12.5px; cursor: pointer;
+.ai-hero-box {
+  position: relative; width: min(680px, 100%);
+  display: flex; flex-direction: column; align-items: center; gap: 26px;
+  animation: ai-in 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
-.launcher-back:hover { color: var(--text); }
-.launcher-ico svg { width: 30px; height: 30px; color: var(--accent); }
-.launcher-name { font-size: 14px; }
-.launcher-na {
-  font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
-  color: var(--text-low);
+@keyframes ai-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.ai-hero-hi { margin: 0; font: 600 34px/1.15 var(--font-ui); letter-spacing: -0.02em; color: var(--text); text-align: center; }
+/* El campo, sin caja: texto grande centrado sobre una línea fina que se
+   enciende con el foco. Se funde con la portada en vez de flotar encima. */
+.ai-ask { width: min(560px, 100%); display: flex; }
+.ai-ask textarea {
+  flex: 1; min-height: 40px; max-height: 180px; padding: 6px 4px 10px;
+  border: 0; border-bottom: 1px solid color-mix(in srgb, var(--text-low) 45%, transparent);
+  outline: none; background: transparent; resize: none;
+  font: 400 20px/1.5 var(--font-ui); color: var(--text); text-align: center;
+  transition: border-color 0.2s ease;
 }
-.launcher-err { font-size: 13px; color: #f25f5c; margin-top: 4px; }
+.ai-ask textarea:focus { border-bottom-color: var(--accent); }
+.ai-ask textarea::placeholder { color: var(--text-low); transition: opacity 0.2s ease; }
+.ai-ask textarea:focus::placeholder { opacity: 0.6; }
+.ai-ask textarea:disabled { opacity: 0.5; }
+.ai-hero-err { margin: 0; font-size: 12.5px; line-height: 1.5; color: #f25f5c; text-align: center; }
+body.phone .ai-hero-hi { font-size: 26px; }
+
+/* El arranque (app/intro.js), por fases: mientras `booting`, la barra lateral
+   espera fuera de pantalla y el campo no se ve; con `asking` aparece el campo;
+   con `ready` la barra entra desde la izquierda. El hueco de la barra ya está
+   reservado, así que el saludo no se mueve. */
+body.booting .sidebar { transform: translateX(calc(-100% - 1px)); } /* el píxel extra esconde su borde */
+body.ready .sidebar { transition: transform 0.65s cubic-bezier(0.2, 0.7, 0.2, 1); }
+body.booting .ai-ask { opacity: 0; transition: opacity 0.6s ease; }
+body.booting.asking .ai-ask { opacity: 1; }
+body.ready .ai-ask { transition: opacity 0.6s ease; } /* si la barra se adelanta, el campo aparece con ella, no de golpe */
+@media (prefers-reduced-motion: reduce) { .ai-hero-bg i, .ai-hero-box { animation: none; } body.ready .sidebar, body.ready .ai-ask { transition: none; } }
 
 /* xterm fills its pane */
 .xterm { height: 100%; }
@@ -898,7 +838,7 @@ body.phone {
 }
 body.phone .sidebar { display: none; }              /* fuera la barra izquierda (nav + ajustes) */
 body.phone #skills-btn { display: none; }            /* el botón de skills se sustituye por el de la barra */
-body.phone .tab-skills .kbd { display: none; }       /* el atajo ⌘K no aplica en táctil */
+body.phone .chat-bar-btn .kbd { display: none; }     /* el atajo ⌘K no aplica en táctil */
 body.phone .term-pane { padding: 6px 8px; }          /* cada columna cuenta en una pantalla estrecha */
 /* Scroll NATIVO en el móvil: el viewport de xterm (un elemento con scroll de
    verdad, que en escritorio queda debajo de la pantalla y solo aporta la
@@ -916,10 +856,10 @@ body.phone .xterm .xterm-viewport {
   touch-action: pan-y; -webkit-overflow-scrolling: touch;
 }
 body.phone .xterm .xterm-viewport::-webkit-scrollbar { display: none; }
-/* Barra de pestañas: objetivos táctiles más generosos */
-body.phone .tabs { height: 48px; }
-body.phone .tab, body.phone .tab-add, body.phone .tab-skills { height: 36px; }
-/* Skills y adjuntar viven en la barra de pestañas (main.js los mueve ahí):
+/* Barra del chat: objetivos táctiles más generosos */
+body.phone .chat-bar { height: 48px; }
+body.phone .chat-bar-btn { height: 36px; }
+/* Skills y adjuntar viven en la barra del chat (phone-view.js los mueve ahí):
    como botones flotantes tapaban la esquina donde va la entrada del chat */
 body.phone .skills-fab, body.phone .attach-fab, body.phone .lock-fab {
   display: flex; align-items: center; justify-content: center;
@@ -1185,3 +1125,21 @@ body.phone #nav-links, body.phone #view-links { display: none; }
 .tp-line { height: 5px; width: 80%; border-radius: 3px; opacity: .85; }
 .tp-line.short { width: 50%; opacity: .6; }
 .tp-btn { margin-top: auto; width: 34%; height: 10px; border-radius: 2px; }
+
+/* ── El selector propio (ui/picker.js): un botón con lo elegido y la lista debajo ── */
+.pick { position: relative; }
+.pick-btn { display: flex; align-items: center; width: 100%; height: 36px; padding: 0 36px 0 10px; font: inherit; font-size: 13px; color: var(--text); text-align: left; background: var(--bg); border: 1px solid var(--border); cursor: pointer; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>"); background-repeat: no-repeat; background-position: right 12px center; }
+.pick-btn:focus-visible, .pick-btn[aria-expanded="true"] { outline: none; border-color: var(--accent); }
+.pick-btn:disabled { color: var(--text-low); cursor: default; }
+.pick-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pick-ph { color: var(--text-low); }
+.pick-list { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 2; max-height: 220px; margin: 0; padding: 4px 0; overflow-y: auto; list-style: none; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0, 0, 0, .18); }
+.pick-list li { padding: 8px 12px; font-size: 13px; color: var(--text); cursor: pointer; }
+.pick-list li:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.pick-list li[aria-selected="true"] { font-weight: 600; color: var(--accent); }
+/* los títulos de grupo de la lista: no se eligen */
+.pick-list .pick-group { position: sticky; top: -4px; z-index: 1; padding: 7px 12px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-low); cursor: default; background: color-mix(in srgb, var(--text-low) 9%, var(--surface)); border-block: 1px solid var(--border); }
+.pick-list .pick-group:first-child { border-top: 0; }
+.pick-list .pick-group:hover { background: color-mix(in srgb, var(--text-low) 9%, var(--surface)); }
+/* con grupos, las opciones van sangradas bajo su título */
+.pick-list:has(.pick-group) [role="option"] { padding-left: 24px; }

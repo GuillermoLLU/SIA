@@ -79,6 +79,7 @@ export const createRouter = ({ webDist, ping, base, auth, lock, remote, routes }
       if (parts[1] === 'users') return routes.users(req, res, rest, who);
       if (parts[1] === 'knowledge') return routes.knowledge(req, res, rest, who);
       if (parts[1] === 'issues') return routes.issues(req, res, rest, who, url.searchParams);
+      if (parts[1] === 'backlog') return routes.backlog(req, res, rest, who, url.searchParams);
       if (parts[1] === 'metrics') return routes.metrics(req, res, rest, who, url.searchParams);
       if (parts[1] === 'lan') return routes.lan(req, res, url, rest);
       if (parts[1] === 'config') return routes.config(req, res);
@@ -91,7 +92,7 @@ export const createRouter = ({ webDist, ping, base, auth, lock, remote, routes }
       const ctx = { db: kb ? base.clientFor(kb) : noDbClient, base: kb, perms: await base.permsFor(kb) };
       if (parts[1] === 'version') return routes.updates(req, res, ctx.db);
       if (parts[1] === 'admin') return routes.projects(req, res, rest, url.searchParams, ctx);
-      // los proyectos que ve la persona (selector de fuentes), siempre frescos
+      // los proyectos que ve la persona (el conocimiento con que abre un chat), siempre frescos
       if (parts[1] === 'access' && parts[2] === 'projects' && req.method === 'GET') return json(res, 200, await base.accessibleProjects(kb));
       if (parts[1] === 'links') return routes.links(req, res, rest, { ...ctx, projects: await base.accessibleProjects(kb) });
       if (['skills', 'drafts', 'groups'].includes(parts[1])) return routes.skills(req, res, parts.slice(1), ctx);

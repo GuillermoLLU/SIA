@@ -1,7 +1,7 @@
 // El arranque de la web: dónde está el bridge, quién eres (sesión en el
 // escritorio; emparejamiento en el móvil) y el cableado de las vistas. Cada
 // funcionalidad vive en su carpeta (chat/, lock/, mobile/, skills/, settings/,
-// lab/, links/, issues/, users/, projects/, work/, metrics/).
+// lab/, links/, issues/, backlog/, users/, projects/, work/, metrics/).
 import './style.css';
 import logoUrl from './logo.png';
 import { createApi } from './ui/api.js';
@@ -10,6 +10,7 @@ import { createToast } from './ui/dom.js';
 import { bridgeFromQuery, isPhoneLocation, discoverBridge } from './app/discover.js';
 import { canView, baseNav, panelNav, teamView } from './app/nav.js';
 import { createPermsWatch } from './app/perms.js';
+import { startIntro, reveal } from './app/intro.js';
 import { createAuthSession } from './auth/session.js';
 import { ensureLogin } from './auth/login-view.js';
 import { wireLogout } from './auth/logout-button.js';
@@ -33,11 +34,15 @@ import { createKnowledgeApi } from './knowledge/knowledge-api.js';
 import { mountIssuesView } from './issues/issues-view.js';
 import { createIssuesApi } from './issues/issues-api.js';
 import { mountIssueChat } from './issues/issue-chat.js';
+import { mountBacklogView } from './backlog/backlog-view.js';
+import { createBacklogApi } from './backlog/backlog-api.js';
 import { mountWorkView } from './work/work-view.js';
 import { mountMetricsView } from './metrics/metrics-view.js';
 import { createMetricsApi } from './metrics/metrics-api.js';
 
 const $ = (id) => document.getElementById(id);
+document.documentElement.classList.add('styled'); // los estilos ya están: la página puede verse (index.html)
+startIntro(); // la barra lateral espera al saludo de la portada (app/intro.js)
 
 // Favicon de la pestaña (la S) y la S de las pantallas completas.
 document.head.appendChild(Object.assign(document.createElement('link'), { rel: 'icon', href: logoUrl }));
@@ -100,10 +105,11 @@ const theme = createThemeController({
   pushToBridge: (t) => { if (!ctx.lanToken) api('/config', { method: 'PUT', body: { theme: { id: t.id, ui: t.ui } } }).catch(() => {}); },
 });
 chat = mountChatView({
-  api, apiBase, wsUrl, dialogs, theme: theme.current, phone: isPhone,
+  api, apiBase, wsUrl, dialogs, theme: theme.current, phone: isPhone, me: user?.name ?? null,
   mac: /Mac|iP(hone|ad)/i.test(navigator.platform || navigator.userAgent || ''),
   remote: () => !!ctx.lanToken, gate: gate.fromBridge, onRevoked: lanRevoked,
   onTheme: (id) => theme.apply(id), onSkills: (list) => palette.setSkills(list),
+  onFirstScreen: reveal,
 });
 palette = mountPalette({ chat, phone: isPhone });
 
@@ -142,13 +148,14 @@ const projectsView = mountProjectsView(views.admin, { api, dialogs, toast });
 const usersView = canView(user, 'people')
   ? mountPeopleView(views.users, { usersApi: createUsersApi(api), knowledgeApi: createKnowledgeApi(api), me: user, toast, onMetrics: canView(user, 'work') ? () => showView('work') : undefined })
   : null;
-// Paneles (Issues, Equipo soporte, Métricas): una vista cada uno, sin base. Si
+// Paneles (Issues, Backlog, Equipo soporte, Métricas): una vista cada uno, sin base. Si
 // el panel devuelve show(), se llama al abrirlo (Issues recarga su foto).
 const PANELS = [
   { name: 'issues', mount: (el) => user && mountIssuesView(el, {
-    api: createIssuesApi(api), me: user, toast,
-    openChat: (host, issueId) => mountIssueChat(host, { issueId, wsUrl, loadProjects: chat.loadProjects, makeTerminal: chat.makeTerminal }),
+    api: createIssuesApi(api), me: user, toast, dialogs,
+    openChat: (host, issue) => mountIssueChat(host, { issue, wsUrl, loadProjects: chat.loadProjects, makeTerminal: chat.makeTerminal }),
   }) },
+  { name: 'backlog', mount: (el) => user && mountBacklogView(el, { api: createBacklogApi(api), dialogs, toast }) },
   // clic en una persona de Equipo soporte: se abre en Métricas frente al resto de su equipo
   { name: 'work', mount: (el) => user && mountWorkView(el, { api: createMetricsApi(api),
     openPerson: (person) => { PANELS.find((p) => p.name === 'metrics').ui?.focus(person); showView('metrics'); },

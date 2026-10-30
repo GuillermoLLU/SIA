@@ -7,7 +7,8 @@
 # Qué prueba (20-access.sql): anon no ve ni ejecuta nada; el agente solo usa
 # su conocimiento y cambia su nombre; cada vista abre lo suyo (Personas,
 # Conocimiento) y el rol pone las de partida; la cola de Issues da una issue
-# a una sola persona; nadie cambia su propio rol ni
+# a una sola persona, se traspasa solo a alguien de Issues y deja histórico, y
+# las notas internas las edita solo su autor; nadie cambia su propio rol ni
 # sus vistas ni se desactiva; claves secret y
 # URLs ajenas rechazadas; tokens enmascarados para los admins; usuarios
 # desactivados sin acceso; auditoría inmutable y sin tokens. Después vuelve a
@@ -39,6 +40,10 @@ psql -d t -f /sql/20-access.sql 2>&1 | quiet
 echo "── re-ejecutar el SQL (sin perder datos) ──"
 psql -d t -f /sql/10-platform.sql 2>&1 | quiet
 psql -d t -c "do \$\$ begin if (select count(*) from platform.users) <> 3 or (select count(*) from platform.knowledge_bases) <> 1 or (select count(*) from vault.secrets) <> 1 then raise exception 'FALLO: re-ejecutar perdió datos'; end if; end \$\$;"
+# el movimiento antiguo de la auditoría (20-access lo deja en INC0) pasa al histórico una sola vez, aunque el SQL se ejecute otra vez
+psql -d t -c "do \$\$ begin if (select count(*) from platform.issue_events where issue_id = 'INC0' and action = 'claimed' and actor is not null) <> 1 or (select count(*) from platform.issue_events where issue_id = 'INC00' and actor is null) <> 1 then raise exception 'FALLO: la auditoría antigua no se migró a issue_events (incluida la de quien ya no existe)'; end if; end \$\$;"
+psql -d t -f /sql/10-platform.sql 2>&1 | quiet
+psql -d t -c "do \$\$ begin if (select count(*) from platform.issue_events where issue_id = 'INC0') <> 1 then raise exception 'FALLO: la migración se repitió'; end if; end \$\$;"
 echo "── verificación (verify.sql, la que se pega en el SQL Editor) ──"
 psql -d t -f /sql/verify.sql | quiet | tee "$WORK/verify.out"
 if grep -q FALLO "$WORK/verify.out"; then echo "FALLO: la verificación no sale toda en OK"; exit 1; fi
