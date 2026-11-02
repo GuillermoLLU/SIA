@@ -51,8 +51,9 @@ desactiva, así que siempre queda alguien con Personas. Todo pasa por
 funciones de la base que comprueban quién llama y sus vistas; las tablas no
 se pueden leer ni con la publishable.
 
-En **Administración** se gestionan los proyectos de la base de conocimiento
-(crear, ver sus entradas y borrarlos). Sin conocimiento asignado los chats
+En **Configuración → Administración**, solo para quien tiene ese poder, se crean
+y eliminan los proyectos de la base de conocimiento. Sus entradas se consultan y
+se nutren desde el Chat. Sin conocimiento asignado los chats
 funcionan igual, pero sin la base del equipo ni sus skills.
 
 ## Backlog y reglas de priorización

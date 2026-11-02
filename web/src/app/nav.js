@@ -6,7 +6,7 @@
 export const viewsOf = (user) => (user?.views || []);
 export const canView = (user, view) => viewsOf(user).includes(view);
 
-// Los iconos que dependen de la base: perms = { lab, admin, links, owner… } |
+// Lo que depende de la base (los iconos y la pestaña Administración): perms = { lab, admin, links, owner… } |
 // null (sin base, o sin clave que la abra); access = lo que respondió el
 // bridge (null sin base).
 export const baseNav = (user, access) => {

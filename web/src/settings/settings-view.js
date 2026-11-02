@@ -97,5 +97,11 @@ export const mountSettings = ({ api }) => {
   return {
     onOpen: (fn) => opens.push(fn),
     onClose: (fn) => closes.push(fn),
+    // enseñar o quitar una pestaña; si se quita estando en ella, a la primera
+    showTab: (pane, on) => {
+      const tab = tabs.find((t) => t.dataset.pane === pane);
+      tab.hidden = !on;
+      if (!on && tab.classList.contains('active')) showPane(tabs[0].dataset.pane);
+    },
   };
 };

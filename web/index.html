@@ -30,10 +30,6 @@
         <button class="nav-btn" id="nav-links" title="Enlaces rápidos" aria-label="Enlaces rápidos" hidden>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
         </button>
-        <!-- Administración (con la vista y el permiso admin de la base) -->
-        <button class="nav-btn" id="nav-admin" title="Administración" aria-label="Administración" hidden>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9v.01M9 12v.01M9 15v.01M9 18v.01"/></svg>
-        </button>
 
         <span class="nav-spacer"></span>
 
@@ -190,17 +186,6 @@
       <div class="window view mt-view" id="view-work" hidden></div>
       <div class="window view mt-view" id="view-metrics" hidden></div>
 
-      <div class="window view admin-view" id="view-admin" hidden>
-        <aside class="admin-rail">
-          <div class="admin-rail-head">Administración</div>
-          <input class="admin-search" id="admin-search" type="text" placeholder="Buscar proyecto…" autocomplete="off" />
-          <div class="admin-rail-label">Proyectos</div>
-          <ul class="admin-rail-list" id="admin-rail-list"></ul>
-          <div class="admin-rail-spacer"></div>
-        </aside>
-        <main class="admin-main" id="admin-main"></main>
-      </div>
-
       <!-- Configuración (modal) -->
       <div class="modal-overlay" id="settings-modal" hidden>
         <div class="modal settings-modal">
@@ -212,6 +197,8 @@
             <button class="settings-tab active" data-pane="credenciales" role="tab">Credenciales</button>
             <!-- Todos los temas, claros y oscuros -->
             <button class="settings-tab" data-pane="apariencia" role="tab">Apariencia</button>
+            <!-- solo con la Administración abierta (main.js) -->
+            <button class="settings-tab" data-pane="administracion" role="tab" hidden>Administración</button>
             <!-- Claro / Oscuro: el interruptor de la app; los iconos también lo cambian -->
             <div class="theme-toggle" id="theme-toggle" title="Claro / Oscuro">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
@@ -223,6 +210,21 @@
             <div class="settings-main">
               <div class="settings-pane" data-pane="apariencia" hidden>
                 <div id="theme-picker"></div>
+              </div>
+              <div class="settings-pane" data-pane="administracion" hidden>
+                <section class="settings-section">
+                  <h3>Proyectos</h3>
+                  <p class="settings-hint">
+                    Los proyectos de la base de conocimiento. A quién se habilita cada uno
+                    se decide en Equipo soporte; su contenido se consulta y se nutre desde el Chat.
+                  </p>
+                  <div class="settings-row">
+                    <input class="settings-input" id="project-name" type="text" maxlength="80" placeholder="Nombre del nuevo proyecto" autocomplete="off" />
+                    <button class="lab-btn primary" id="project-add">Crear proyecto</button>
+                  </div>
+                  <div class="settings-status" id="project-status"></div>
+                  <ul class="token-list" id="project-list"></ul>
+                </section>
               </div>
               <div class="settings-pane" data-pane="credenciales">
               <section class="settings-section">

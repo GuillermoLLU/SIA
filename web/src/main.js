@@ -21,7 +21,7 @@ import { mountPalette } from './skills/palette-view.js';
 import { mountSettings } from './settings/settings-view.js';
 import { mountLabView } from './lab/lab-view.js';
 import { mountLinksView } from './links/links-view.js';
-import { mountProjectsView } from './projects/projects-view.js';
+import { mountProjectsPanel } from './projects/projects-panel.js';
 import { VIEWS } from './users/views.js';
 import { createUsersApi } from './users/users-api.js';
 import { mountPeopleView } from './users/people-view.js';
@@ -92,29 +92,30 @@ const settings = mountSettings({ api });
 wireLogout($('settings-session'), { user, session, confirm: dialogs.confirm });
 
 /* ── Vistas: la barra lateral abre una cada vez ─────────────────── */
-const nav = { chat: $('nav-chat'), lab: $('nav-lab'), admin: $('nav-admin'), links: $('nav-links') };
-const views = { chat: $('view-chat'), lab: $('view-lab'), admin: $('view-admin'), links: $('view-links'), users: $('view-users') };
+const nav = { chat: $('nav-chat'), lab: $('nav-lab'), links: $('nav-links') };
+const views = { chat: $('view-chat'), lab: $('view-lab'), links: $('view-links'), users: $('view-users') };
 const perms = createPermsWatch({
   api,
   onUpdate: (access, { quiet, changed }) => {
     const show = baseNav(user, access);
-    for (const k of ['lab', 'admin', 'links']) { nav[k].hidden = !show[k]; if (!show[k] && !views[k].hidden) showView('chat'); }
+    for (const k of ['lab', 'links']) { nav[k].hidden = !show[k]; if (!show[k] && !views[k].hidden) showView('chat'); }
+    settings.showTab('administracion', show.admin);
     // la vista abierta depende de esos permisos (añadir enlaces, catálogo
     // completo del Laboratorio…): se repinta si han cambiado
     if (!quiet || changed) {
       if (!views.links.hidden) links.refresh();
       if (quiet && !views.lab.hidden) lab.refresh({ background: true });
-      if (quiet && !views.admin.hidden) projectsView.refresh();
     }
   },
-  onLost: () => { // sin base (o bridge caído) no hay vista que abrir: fuera los tres iconos
-    for (const k of ['lab', 'admin', 'links']) nav[k].hidden = true;
-    if (!views.lab.hidden || !views.admin.hidden || !views.links.hidden) showView('chat');
+  onLost: () => { // sin base (o bridge caído) no hay vista que abrir: fuera lo que depende de ella
+    for (const k of ['lab', 'links']) nav[k].hidden = true;
+    settings.showTab('administracion', false);
+    if (!views.lab.hidden || !views.links.hidden) showView('chat');
   },
 });
 const lab = mountLabView({ api, dialogs, perms: perms.perms, onSkills: palette.setSkills });
 const links = mountLinksView({ api, dialogs, perms: perms.perms });
-const projectsView = mountProjectsView(views.admin, { api, dialogs, toast });
+mountProjectsPanel({ api, dialogs, toast, settings });
 // Gestión del equipo (users/): la otra cara de Equipo soporte (se entra por su
 // icono); «Métricas equipo» vuelve a sus métricas si también tiene esa vista.
 const usersView = canView(user, 'people')
@@ -135,7 +136,7 @@ const PANELS = [
   { name: 'metrics', mount: (el) => mountMetricsView(el, { api: createMetricsApi(api), toast }) },
 ].map((p) => ({ ...p, nav: $(`nav-${p.name}`), view: $(`view-${p.name}`) }));
 
-const onShow = { lab: () => lab.refresh(), admin: () => projectsView.show(), links: () => links.refresh(), users: () => usersView.refresh(), chat: () => { chat.refitActive(); chat.focusActive(); } };
+const onShow = { lab: () => lab.refresh(), links: () => links.refresh(), users: () => usersView.refresh(), chat: () => { chat.refitActive(); chat.focusActive(); } };
 const showView = (name) => {
   for (const [k, v] of Object.entries(views)) v.hidden = name !== k;
   for (const [k, n] of Object.entries(nav)) n.classList.toggle('active', name === k);

@@ -30,7 +30,7 @@ API y su vista:
 | `metrics/` | Métricas: reglas (`rules.js`) y cálculo por pestaña en módulos puros; el HTML de cada pestaña en `metrics/tabs/` |
 | `work/` | Equipo soporte: una vista sobre el dominio de Métricas |
 | `users/` | Personas y roles |
-| `knowledge/`, `projects/` | Conocimiento asignado y Administración de proyectos |
+| `knowledge/`, `projects/` | Conocimiento asignado y la pestaña Administración de Configuración |
 | `lab/`, `links/`, `skills/` | Laboratorio de skills, Enlaces rápidos y la paleta ⌘K |
 | `settings/`, `lock/`, `theme/` | Configuración, candado y temas |
 | `ui/` | Lo común: `api.js` (el único cliente HTTP), diálogos, toast, html, tiempo y el selector de persona (`picker.js`) |
@@ -49,7 +49,7 @@ las rutas de cada slice.
 | `auth/` | Sesiones (en memoria), inicio de sesión, contraseña y qué vista exige cada ruta |
 | `users/`, `knowledge/` | Personas y roles; conocimiento asignado y claves de poder de cada persona |
 | `base/` | Cliente de la base de conocimiento, permisos y el esquema SQL |
-| `projects/` | Administración: proyectos y sus entradas |
+| `projects/` | Administración: crear y eliminar proyectos |
 | `issues/`, `backlog/`, `metrics/` | Issues (cola por criterios `queue.js`, reglas `rules.js`, mesa, estadísticas), Backlog (la cola entera, asignar y las reglas de priorización, sobre el dominio de Issues) y Métricas (cada actualización pide a Snowflake, con `snowflake-sdk` y el SSO de cada persona, solo las incidencias de Remedy nuevas o cambiadas desde la última, y las suma a un repositorio SQLite local con `node:sqlite`, `incidencias.sqlite`, que no sale del equipo; de él salen los datos por columnas; el periodo se elige por fechas) |
 | `skills/`, `links/`, `uploads/` | Laboratorio y sincronización de skills, enlaces rápidos, adjuntos |
 | `config/`, `lock/` | Configuración personal (`~/.sia/config.json`: Jira, GitHub) y candado |
@@ -116,8 +116,8 @@ Lo decide **la base**, no la aplicación.
   dentro cada proyecto lleva su propio token (`server/projects/`).
 - La **clave de poder** de cada persona («SIA · email», en
   `platform.person_keys` y Vault) la crea, ajusta y quita el bridge según sus
-  vistas: Laboratorio (crear y editar skills), Administración (proyectos y
-  entradas) y Enlaces (editar enlaces). Quien tiene Administración usa la del
+  vistas: Laboratorio (crear y editar skills), Administración (proyectos) y
+  Enlaces (editar enlaces). Quien tiene Administración usa la del
   dueño (skills comunes incluidas). Nadie reparte claves a mano.
 - La clave **secret** del proyecto no entra en SIA: solo la tiene quien
   administra el proyecto en Supabase. Los scripts de mantenimiento

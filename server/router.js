@@ -60,7 +60,7 @@ export const createRouter = ({ ping, base, auth, lock, routes }) => {
       if (!kb && !DB_FREE.has(parts[1])) return json(res, 503, { error: NO_DB_MSG, noDb: true });
       const ctx = { db: kb ? base.clientFor(kb) : noDbClient, base: kb, perms: await base.permsFor(kb) };
       if (parts[1] === 'version') return routes.updates(req, res, ctx.db);
-      if (parts[1] === 'admin') return routes.projects(req, res, rest, url.searchParams, ctx);
+      if (parts[1] === 'admin') return routes.projects(req, res, rest, ctx);
       // los proyectos que ve la persona (el conocimiento con que abre un chat), siempre frescos
       if (parts[1] === 'access' && parts[2] === 'projects' && req.method === 'GET') return json(res, 200, await base.accessibleProjects(kb));
       if (parts[1] === 'links') return routes.links(req, res, rest, { ...ctx, projects: await base.accessibleProjects(kb) });

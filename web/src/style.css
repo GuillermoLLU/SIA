@@ -214,109 +214,6 @@ body { display: flex; flex-direction: column; }
 }
 .lab-textarea:focus { border-color: var(--accent); }
 
-/* ── Panel de administración (full-width tipo SaaS) ───────────── */
-/* .view.admin-view (especificidad 0,2,0) gana a .window (0,1,0) aunque .window
-   esté definido más abajo: fuerza fila (rail + main lado a lado). */
-.view.admin-view { flex-direction: row; height: 100%; align-items: stretch; }
-.tnum { font-variant-numeric: tabular-nums; }
-
-/* Barra lateral de Administración (proyectos) — a todo el alto */
-.admin-rail {
-  width: 270px; flex-shrink: 0; height: 100%;
-  display: flex; flex-direction: column;
-  border-right: 1px solid var(--border); background: var(--surface); padding: 16px 12px;
-}
-.admin-rail-head { font-size: 15px; font-weight: 650; color: var(--text); padding: 4px 8px 12px; }
-.admin-rail .admin-search {
-  height: 34px; padding: 0 11px; margin: 0 4px 14px;
-  border: 1px solid var(--border); border-radius: 0;
-  background: var(--bg); color: var(--text); font-size: 13px; outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-.admin-rail .admin-search::placeholder { color: var(--text-low); }
-.admin-rail .admin-search:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
-.admin-rail-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-low); font-weight: 600; padding: 0 8px 8px; }
-.admin-rail-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
-.admin-rail-list li {
-  display: flex; align-items: center; gap: 8px;
-  padding: 9px 10px; border-radius: 0; cursor: pointer;
-  font-size: 13.5px; color: var(--text); border: 0; background: transparent; width: 100%; text-align: left;
-  transition: background 0.13s ease, color 0.13s ease;
-}
-.admin-rail-list li:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
-.admin-rail-list li.active { background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--text); font-weight: 550; }
-.admin-rail-list li .rl-meta { margin-left: auto; font-size: 11.5px; color: var(--text-low); }
-.admin-rail-spacer { flex: 1; }
-/* Área principal */
-.admin-main { flex: 1; min-width: 0; overflow-y: auto; padding: 28px 36px 60px; }
-.admin-main-head { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
-.admin-main-head h1 { margin: 0; font-size: 24px; font-weight: 680; color: var(--text); }
-.admin-main-head .spacer { flex: 1; }
-.admin-main-head .lab-back { margin: 0 -6px 0 -8px; }
-.admin-main-sub { font-size: 13px; color: var(--text-low); margin-bottom: 24px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-
-.admin-primary {
-  height: 36px; padding: 0 16px; flex-shrink: 0;
-  border: 0; border-radius: 0; background: var(--accent); color: var(--bg);
-  font-size: 13px; font-weight: 600; cursor: pointer;
-  transition: opacity 0.15s ease, transform 0.08s ease;
-}
-.admin-primary:hover { opacity: 0.9; }
-.admin-primary:active { transform: scale(0.98); }
-.admin-ghost { height: 34px; padding: 0 14px; border: 1px solid var(--border); border-radius: 0; background: transparent; color: var(--text); font-size: 13px; cursor: pointer; transition: border-color 0.15s ease, background 0.15s ease; }
-.admin-ghost:hover { border-color: var(--accent); }
-.admin-ghost.danger { color: #f25f5c; }
-.admin-ghost.danger:hover { border-color: #f25f5c; background: color-mix(in srgb, #f25f5c 10%, transparent); }
-
-.admin-icon-btn {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 28px; height: 28px; border: 0; border-radius: 0;
-  background: transparent; color: var(--text-low); cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
-}
-.admin-icon-btn:hover { background: var(--border); color: var(--text); }
-
-/* Rejilla de tarjetas (proyectos / contextos) que LLENA el ancho */
-.admin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
-.admin-card {
-  position: relative;
-  border: 1px solid var(--border); border-radius: 0; background: var(--surface);
-  padding: 16px 18px; cursor: pointer; display: flex; flex-direction: column; gap: 10px; min-height: 120px;
-  transition: border-color 0.15s ease, transform 0.08s ease, background 0.15s ease;
-}
-.admin-card:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); background: color-mix(in srgb, var(--accent) 5%, var(--surface)); }
-.admin-card:active { transform: scale(0.99); }
-.admin-card .ac-title { font-size: 15px; font-weight: 600; color: var(--text); }
-.admin-card .ac-meta { font-size: 12px; color: var(--text-low); margin-top: auto; }
-.admin-card.new { align-items: center; justify-content: center; border-style: dashed; background: transparent; color: var(--text-low); font-size: 14px; gap: 8px; }
-.admin-card.new:hover { border-color: var(--accent); color: var(--accent); background: transparent; }
-.admin-card.new .plus { font-size: 24px; }
-/* acciones de la card al pasar el ratón (papelera) */
-.admin-card .ac-actions { position: absolute; top: 6px; right: 6px; display: flex; gap: 2px; opacity: 0; transition: opacity .12s ease; }
-.admin-card:hover .ac-actions, .admin-card:focus-within .ac-actions { opacity: 1; }
-
-/* bloques en la vista de proyecto */
-.admin-block { margin-top: 30px; }
-.admin-block h3 { margin: 0 0 12px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-low); font-weight: 600; }
-
-/* entradas del RAG dentro de un proyecto */
-.entry-list { display: flex; flex-direction: column; gap: 8px; }
-.entry-item {
-  border: 1px solid var(--border); border-radius: 0; background: var(--surface);
-  transition: border-color 0.15s ease;
-}
-.entry-item:hover { border-color: color-mix(in srgb, var(--text-low) 40%, var(--border)); }
-.entry-item:hover .entry-del { opacity: 1; }
-.entry-head { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; cursor: pointer; }
-.entry-text { flex: 1; min-width: 0; font-size: 13px; color: var(--text); line-height: 1.5; }
-.entry-text.clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.entry-num { font-size: 11px; color: var(--text-low); font-family: ui-monospace, monospace; flex-shrink: 0; padding-top: 2px; }
-.entry-del { opacity: 0; flex-shrink: 0; }
-.entry-empty { font-size: 13px; color: var(--text-low); padding: 8px 2px; }
-
-.admin-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; height: 60%; color: var(--text-low); }
-.admin-empty .big { font-size: 15px; }
-
 /* ── Modales (configuración, diálogos) ─────────────────────── */
 .modal-overlay {
   position: fixed; inset: 0; z-index: 40;
@@ -390,6 +287,8 @@ body { display: flex; flex-direction: column; }
 .token-list li .tok { flex: 1; font-family: ui-monospace, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .token-list li .rm { border: 0; background: transparent; color: var(--text-low); cursor: pointer; font-size: 15px; }
 .token-list li .rm:hover { color: #f25f5c; }
+.project-name { flex: 1; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-count { flex: none; color: var(--text-low); font-variant-numeric: tabular-nums; }
 .token-empty { font-size: 12px; color: var(--text-low); margin-top: 10px; }
 /* Filas seleccionables (claves de GitHub): la marcada es la que se usa. */
 .token-list li.active { border-color: var(--accent); }
