@@ -26,7 +26,8 @@
 //           tA/tI/tPc/tPv/tPo minutos en cola, en curso y pendiente del centro, de un tercero u otros
 //           nb devoluciones a la cola · np pendientes · rz resolución repetida (4 veces o más; 0 si no)
 //           the/tes/tcr/tsr THesc, Tesc, Tcr y Tesc-r con sus tickets Jira (escalation.js; minutos, -1 no hay,
-//           the -2 ticket previo); fl lleva además la marca de mal escalada
+//           the -2 ticket previo); fl lleva además las marcas de mal escalada, cerrada con el Jira abierto y
+//           cerrada en Remedy antes que su Jira
 import { readIssue, minutesSince, FLAG } from './remedy.js';
 import { loginsOf, companyOf } from './companies.js';
 import { THEME_NAMES, problemKey } from './themes.js';
@@ -34,7 +35,7 @@ import { PENDING, OPEN_STATES } from './states.js';
 import { escalationOf } from './escalation.js';
 
 export const GROUP = 'AYS SOPORTE';
-export const FORMAT = 5;
+export const FORMAT = 6;
 
 export const REQUIRED = ['INCIDENTNUMBER', 'ASSIGNEDGROUP', 'ASSIGNEE', 'SUMMARY', 'PRIORITY', 'STATUS', 'STATUSREASON', 'SERVICETYPE', 'TAGS',
   'REPORTEDDATE', 'LASTRESOLUTIONDATE', 'LASTMODIFIEDDATE', 'RESOLUTION', 'VENDORTICKETNUMBER', 'PRODUCTCATEGORIZATIONTIER1',
@@ -114,7 +115,7 @@ export const createDataset = ({ start }) => {
       const ts = ks.map((k) => tickets.get(k)).filter((t) => t?.found).map((t) => ({ created: at(t.created), resolved: at(t.resolved), status: t.status }));
       const e = escalationOf({ reported: cols.rep[n], resolved: cols.res[n], open, escalated: !!(cols.fl[n] & FLAG.THIRD_PARTY) }, ts, snapshot);
       out.the.push(e.thesc); out.tes.push(e.tesc); out.tcr.push(e.tcr); out.tsr.push(e.tescr);
-      if (e.bad) cols.fl[n] |= FLAG.BAD_ESCALATION;
+      cols.fl[n] |= (e.bad ? FLAG.BAD_ESCALATION : 0) | (e.jiraOpen ? FLAG.JIRA_OPEN : 0) | (e.early ? FLAG.CLOSED_BEFORE_JIRA : 0);
     });
     return out;
   };

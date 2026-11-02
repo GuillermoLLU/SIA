@@ -15,8 +15,9 @@ export const FLAG = {
   SISU: 1, PRIO: 2, PETREQ: 4, AUTO_NOTICE: 8, REPROCESS: 16, IA_SOLVED: 32, IA_FAIL_TAG: 64, DB2_LOCK: 128,
   MAJOR: 256, REOPENED: 512, CALL: 1024, IA: 2048, HITL_OK: 4096, IA_FAIL: 8192, RECURRENCE: 16384, NO_RESOLUTION: 32768,
   // Métricas del servicio (#58): nota [ANALISIS_IA], [DIAGNOSTICO_IA] o [ANTECEDENTES_IA]; escalada (#48: estuvo en
-  // Pendiente con motivo Third Party Vendor Action Reqd); mal escalada (escalada y cerrada sin Jira de solución final: jira.js)
-  IA_NOTE: 65536, THIRD_PARTY: 131072, BAD_ESCALATION: 262144,
+  // Pendiente con motivo Third Party Vendor Action Reqd); y, de las escaladas cerradas (escalation.js), mal escalada
+  // (sin ningún Jira suyo que no esté Discarded), cerrada con el Jira abierto y cerrada en Remedy antes que su Jira
+  IA_NOTE: 65536, THIRD_PARTY: 131072, BAD_ESCALATION: 262144, JIRA_OPEN: 524288, CLOSED_BEFORE_JIRA: 1048576,
 };
 
 const STAMP = /^(\d{4})-(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d)/;

@@ -48,6 +48,7 @@ export const createThemeController = ({ toggleEl, pickerEl, onTerm, pushToBridge
     currentId = t.id;
     localStorage.setItem(`sia-theme-${modeOf(t)}`, t.id);
     paintVars(root, t.ui);
+    root.dataset.mode = modeOf(t);   // claro u oscuro, para lo que no sale de las variables (los colores de las gráficas)
     onTerm(t.term); // el tema solo cambia colores; la fuente es siempre la misma
     localStorage.setItem(THEME_KEY, t.id);
     localStorage.setItem(UI_KEY, JSON.stringify(t.ui));

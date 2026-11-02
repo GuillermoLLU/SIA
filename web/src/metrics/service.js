@@ -10,7 +10,7 @@
 //   Resueltas entrantes      las que entraron en el periodo y se resolvieron dentro de él (TC-07 de la #58).
 //   Uso de la IA             de las resueltas, las que tienen una nota [ANALISIS_IA], [DIAGNOSTICO_IA] o [ANTECEDENTES_IA].
 //   THesc, Tesc, Tesc-r      con los tickets Jira (server/metrics/escalation.js); Tesc-r, de las que siguen abiertas.
-const REOPENED = 512, IA_NOTE = 65536, THIRD_PARTY = 131072, BAD_ESCALATION = 262144;
+const REOPENED = 512, IA_NOTE = 65536, THIRD_PARTY = 131072, BAD_ESCALATION = 262144, JIRA_OPEN = 524288, CLOSED_BEFORE_JIRA = 1048576;
 const PREVIOUS = -2;   // THesc de un ticket previo a la apertura: no cuenta en la media
 const DAY = 1440;
 
@@ -80,10 +80,39 @@ export const createService = (m) => {
     return { done, re, share: done ? re / done : null };
   };
 
+  // En qué se va el tiempo de las resueltas, por separado las escaladas y las que no (#48), en medias que se apilan:
+  //   escaladas      THesc (hasta escalar), Tesc (escalada en Jira) y Tcr (de la solución en Jira al cierre en Remedy);
+  //                  solo las que tienen los tres. Las demás, en out, por qué no: ligadas a un ticket previo, mal
+  //                  escaladas, cerradas con el Jira abierto, cerradas en Remedy antes que su Jira o sin datos de Jira.
+  //   sin escalar    en cola (Asignada, y lo de antes del primer cambio de estado), en curso (Tan), esperando al centro
+  //                  (Tpc) y otras esperas; suman su TTR. Sin Tesc: no se escalaron.
+  const phases = (list) => {
+    const esc = [0, 0, 0], plain = [0, 0, 0, 0], out = { previous: 0, bad: 0, jiraOpen: 0, early: 0, none: 0 };
+    let nEsc = 0, nPlain = 0;
+    for (const i of list) {
+      if (C.res[i] < 0 || OPEN[i]) continue;
+      if (C.fl[i] & THIRD_PARTY) {
+        const v = [C.the?.[i] ?? -1, C.tes?.[i] ?? -1, C.tcr?.[i] ?? -1];
+        if (v.some((x) => x < 0)) {
+          out[v[0] === PREVIOUS ? 'previous' : C.fl[i] & BAD_ESCALATION ? 'bad' : C.fl[i] & JIRA_OPEN ? 'jiraOpen' : C.fl[i] & CLOSED_BEFORE_JIRA ? 'early' : 'none']++;
+          continue;
+        }
+        v.forEach((x, k) => { esc[k] += x; });
+        nEsc++;
+      } else {
+        const ttrI = Math.max(C.res[i] - C.rep[i], 0), wait = C.tPv[i] + C.tPo[i];
+        const queue = Math.max(ttrI - C.tI[i] - C.tPc[i] - wait, C.tA[i]);
+        [queue, C.tI[i], C.tPc[i], wait].forEach((x, k) => { plain[k] += x; });
+        nPlain++;
+      }
+    }
+    return { esc: { n: nEsc, out, seg: esc.map((x) => mean(x, nEsc)) }, plain: { n: nPlain, seg: plain.map((x) => mean(x, nPlain)) } };
+  };
+
   // Las cifras de un lado en su periodo [d0, d1).
   const stats = (list, [, d1]) => {
     const byP = (k) => list.filter((i) => prios(k).includes(C.pr[i]));
-    let resolvedIn = 0, done = 0, ia = 0, esc = 0, bad = 0;
+    let resolvedIn = 0, done = 0, ia = 0, esc = 0, bad = 0, jiraOpen = 0, early = 0;
     const t = { the: [0, 0], tes: [0, 0], tsr: [0, 0], previous: 0 };
     const add = (k, v) => { if (v >= 0) { t[k][0] += v; t[k][1]++; } };
     for (const i of list) {
@@ -91,6 +120,8 @@ export const createService = (m) => {
       if (C.res[i] >= 0) { done++; if (C.fl[i] & IA_NOTE) ia++; }
       if (C.fl[i] & THIRD_PARTY) esc++;
       if (C.fl[i] & BAD_ESCALATION) bad++;
+      if (C.fl[i] & JIRA_OPEN) jiraOpen++;
+      if (C.fl[i] & CLOSED_BEFORE_JIRA) early++;
       const the = C.the?.[i] ?? -1;
       if (the === PREVIOUS) t.previous++; else add('the', the);
       add('tes', C.tes?.[i] ?? -1);
@@ -102,7 +133,8 @@ export const createService = (m) => {
       resolution: { all: resolution(list, RESOLUTION_ALL), ...Object.fromEntries(RESOLUTION.map(([k, max]) => [k, resolution(byP(k), max)])) },
       reopen: { all: reopen(list), ...Object.fromEntries(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map((k) => [k, reopen(byP(k))])) },
       ia: { done, ia, share: done ? ia / done : null },
-      esc: { n: esc, bad, previous: t.previous, thesc: mean(...t.the), nThesc: t.the[1], tesc: mean(...t.tes), nTesc: t.tes[1], tescr: mean(...t.tsr), nTescr: t.tsr[1] },
+      phases: phases(list),
+      esc: { n: esc, bad, jiraOpen, early, previous: t.previous, thesc: mean(...t.the), nThesc: t.the[1], tesc: mean(...t.tes), nTesc: t.tes[1], tescr: mean(...t.tsr), nTescr: t.tsr[1] },
     };
   };
 
@@ -128,5 +160,5 @@ export const createService = (m) => {
     return { periods: P, stats: { us: stats(L.us, P.us), prev: stats(L.prev, P.prev), ts: stats(L.ts, P.ts) }, months: months(L), days: (P.us[1] - P.us[0]) / DAY };
   };
 
-  return { compute, periods, lists, stats, yearBack, ttr };
+  return { compute, periods, lists, stats, phases, yearBack, ttr };
 };
