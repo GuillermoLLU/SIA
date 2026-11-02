@@ -634,7 +634,7 @@ body { display: flex; flex-direction: column; }
 
 /* ── Terminal stack (one pane per session) ─────────────────── */
 /* overscroll-behavior: al llegar al final del historial, el gesto no se
-   propaga a la página (rebote en el móvil) */
+   propaga a la página */
 .term-stack { flex: 1; min-height: 0; position: relative; overscroll-behavior: contain; }
 .term-pane {
   position: absolute; inset: 0;
@@ -699,7 +699,6 @@ body { display: flex; flex-direction: column; }
 .ai-ask textarea:focus::placeholder { opacity: 0.6; }
 .ai-ask textarea:disabled { opacity: 0.5; }
 .ai-hero-err { margin: 0; font-size: 12.5px; line-height: 1.5; color: #f25f5c; text-align: center; }
-body.phone .ai-hero-hi { font-size: 26px; }
 
 /* El arranque (app/intro.js), por fases: mientras `booting`, la barra lateral
    espera fuera de pantalla y el campo no se ve; con `asking` aparece el campo;
@@ -720,7 +719,6 @@ body.ready .ai-ask { transition: opacity 0.6s ease; } /* si la barra se adelanta
 
 /* ── Aviso de actualización (banner superior) ── */
 
-/* ── Pantalla de bloqueo del móvil (emparejamiento por PIN) ── */
 
 /* ── Bloqueo de pantalla del escritorio ── */
 /* La app de debajo no solo queda tapada: se oculta, para que ni un tema con
@@ -763,11 +761,6 @@ body.locked .app { visibility: hidden; }
 .lock-pin .cell.filled::after { content: ""; width: 11px; height: 11px; border-radius: 50%; background: var(--text); animation: lock-dot 0.12s ease; }
 .lock-pin.ok .cell { border-color: #40c463; }
 .lock-pin.ok .cell.filled::after { background: #40c463; }
-/* seis casillas (emparejar) tienen que caber en un teléfono */
-.lock-pin.long { gap: 8px; }
-.lock-pin.long .cell { width: 42px; height: 52px; }
-/* emparejar: qué PIN se pide y, si falla, por qué */
-.lock-caption { max-width: 300px; margin: 6px 0 8px; font-size: 14px; line-height: 1.5; color: var(--text-low); }
 .lock-msg { min-height: 18px; margin-top: 16px; font-size: 12.5px; color: #f25f5c; }
 @keyframes lock-dot { from { transform: scale(0.3); } to { transform: scale(1); } }
 .lock-pin.bad { animation: lock-shake 0.36s ease; }
@@ -775,31 +768,6 @@ body.locked .app { visibility: hidden; }
 @keyframes lock-shake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-9px); } 40% { transform: translateX(8px); } 60% { transform: translateX(-6px); } 80% { transform: translateX(4px); } }
 /* durante el freno por intentos: solo los segundos que faltan */
 .lock-wait { min-height: 18px; margin-top: 16px; font-size: 13px; color: var(--text-low); font-variant-numeric: tabular-nums; }
-/* Móvil: el PIN se marca en un teclado numérico propio, no en el del sistema
-   (que al abrirse empuja la pantalla). Mismo trazo que las casillas. Todo se
-   mide contra el alto de la pantalla para que logo, casillas y teclado quepan
-   sin scroll también en un teléfono bajo. */
-.lock-pin.touch input { pointer-events: none; }
-.lock-keys {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
-  width: min(264px, 100%); margin-top: 6px;
-  transition: opacity 0.15s ease;
-}
-.lock-keys.off { opacity: 0.45; pointer-events: none; }
-.lock-keys button {
-  height: min(56px, 8.2vh); height: min(56px, 8.2dvh);
-  display: grid; place-items: center; padding: 0;
-  border: 1px solid var(--border); border-radius: 0; background: var(--surface);
-  color: var(--text); font: 500 22px/1 var(--font-ui); font-variant-numeric: tabular-nums;
-  touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; outline: none;
-  transition: background 0.1s ease, border-color 0.1s ease;
-}
-.lock-keys button.pressed { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--surface)); }
-.lock-keys button.del { border-color: transparent; background: transparent; color: var(--text-low); }
-.lock-keys button.del.pressed { color: var(--text); background: color-mix(in srgb, var(--accent) 10%, transparent); }
-.lock-keys button svg { width: 26px; height: 26px; }
-body.phone .lock-logo { width: min(200px, 24vh); height: min(200px, 24vh); width: min(200px, 24dvh); height: min(200px, 24dvh); }
-body.phone .lock-msg, body.phone .lock-wait { margin-top: 10px; }
 /* un diálogo genérico centrado en vertical (por defecto cuelga de arriba) */
 .modal-overlay.centered { align-items: center; padding-top: 0; }
 /* nota bajo los campos de un diálogo (p. ej. dónde se cambia el PIN) */
@@ -811,85 +779,7 @@ body.phone .lock-msg, body.phone .lock-wait { margin-top: 10px; }
    después en el DOM: sin un plano propio quedaba pintado por debajo y las dos
    opciones eran inalcanzables. */
 
-/* ── Caja del QR en ajustes (acceso móvil) ── */
 
-/* ── Modo teléfono (acceso desde el móvil): solo pestañas + terminal ── */
-.skills-fab { display: none; }
-.attach-fab { display: none; }
-.lock-fab { display: none; }
-/* La app ocupa EXACTAMENTE el viewport visible y la página no se desplaza
-   nunca: lo único que hace scroll es la terminal. --vv-h la fija main.js desde
-   visualViewport: iOS no encoge el layout al abrir el teclado (solo cambia lo
-   visible y Safari desplaza la página para enseñar el foco), así que sin esto
-   las últimas filas —donde está el prompt— quedaban debajo del teclado.
-   Los env() respetan notch y barra de gestos en la PWA a pantalla completa. */
-html.phone { height: 100%; overflow: hidden; overscroll-behavior: none; }
-body.phone {
-  position: fixed; inset: 0; width: 100%;
-  height: var(--vv-h, 100dvh);
-  overflow: hidden; overscroll-behavior: none;
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
-}
-body.phone .sidebar { display: none; }              /* fuera la barra izquierda (nav + ajustes) */
-body.phone #skills-btn { display: none; }            /* el botón de skills se sustituye por el de la barra */
-body.phone .chat-bar-btn .kbd { display: none; }     /* el atajo ⌘K no aplica en táctil */
-body.phone .term-pane { padding: 6px 8px; }          /* cada columna cuenta en una pantalla estrecha */
-/* Scroll NATIVO en el móvil: el viewport de xterm (un elemento con scroll de
-   verdad, que en escritorio queda debajo de la pantalla y solo aporta la
-   barra) pasa a estar ENCIMA y transparente. Así el dedo mueve un scroll del
-   sistema, con inercia, y xterm se limita a pintar las filas que tocan
-   (main.js le impide reajustar el scrollTop mientras dura el gesto, que es
-   lo que corta la inercia en iOS). El !important gana al color de fondo que
-   xterm pone en línea. Los toques llegan igual a xterm (burbujean).
-   z-index 3 y no 1: el renderizador WebGL añade sobre el texto una capa propia
-   (canvas.xterm-link-layer, z-index 2) que, con el viewport por debajo, se
-   quedaba con el dedo: el scroll solo respondía en la franja libre del borde
-   derecho (~20 px). */
-body.phone .xterm .xterm-viewport {
-  z-index: 3; background: transparent !important;
-  touch-action: pan-y; -webkit-overflow-scrolling: touch;
-}
-body.phone .xterm .xterm-viewport::-webkit-scrollbar { display: none; }
-/* Barra del chat: objetivos táctiles más generosos */
-body.phone .chat-bar { height: 48px; }
-body.phone .chat-bar-btn { height: 36px; }
-/* Skills y adjuntar viven en la barra del chat (phone-view.js los mueve ahí):
-   como botones flotantes tapaban la esquina donde va la entrada del chat */
-body.phone .skills-fab, body.phone .attach-fab, body.phone .lock-fab {
-  display: flex; align-items: center; justify-content: center;
-  width: 40px; height: 36px; flex-shrink: 0;
-  border: 1px solid var(--border); border-radius: 0;
-  background: transparent; color: var(--text-low); font-size: 18px; cursor: pointer;
-}
-body.phone .skills-fab { color: var(--accent); border-color: var(--accent); }
-/* En el móvil no hay panel de adjuntos ni su contador en la barra: el panel se
-   come media pantalla y la imagen ya queda en el chat (su ruta entra en el prompt). */
-body.phone #assets-btn, body.phone #assets-panel { display: none !important; }
-/* Adjuntar en el móvil: dos opciones que suben desde abajo (cámara o galería).
-   Va dentro del body, que mide lo visible (--vv-h), así no queda bajo el teclado. */
-.attach-sheet {
-  position: absolute; inset: 0; z-index: 900;
-  display: flex; align-items: flex-end;
-  background: color-mix(in srgb, #000 45%, transparent);
-  animation: lock-in 0.15s ease;
-}
-.attach-sheet[hidden] { display: none; }
-.attach-sheet-panel {
-  width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
-  padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
-  background: var(--bg); border-top: 1px solid var(--border);
-  animation: sheet-up 0.18s ease;
-}
-@keyframes sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
-.attach-opt {
-  display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 22px 8px;
-  border: 1px solid var(--border); border-radius: 0; background: var(--surface); color: var(--text);
-  font: 600 12.5px/1 var(--font-ui); letter-spacing: 0.08em; text-transform: uppercase;
-  touch-action: manipulation; -webkit-tap-highlight-color: transparent;
-}
-.attach-opt svg { width: 30px; height: 30px; }
-.attach-opt:active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
-body.phone .skills-fab:active, body.phone .attach-fab:active, body.phone .lock-fab:active { background: var(--border); }
 
 /* ── Enlaces rápidos ─────────────────────────────────────────────── */
 #view-links { padding: 26px 30px; overflow-y: auto; }
@@ -1005,94 +895,7 @@ body.phone .skills-fab:active, body.phone .attach-fab:active, body.phone .lock-f
 .modal-foot { display: flex; align-items: center; gap: 8px; padding: 14px 24px; border-top: 1px solid var(--border); }
 .modal-foot-spacer { flex: 1; }
 
-/* en el móvil la vista reducida no lleva panel de enlaces */
-body.phone #nav-links, body.phone #view-links { display: none; }
 
-/* ── Pestaña Móvil: una vista que cambia de estado, siempre centrada ── */
-.settings-pane[data-pane="movil"]:not([hidden]) { display: flex; }
-.mob { flex: 1; min-height: 440px; display: flex; align-items: center; justify-content: center; }
-.mob-view { display: flex; flex-direction: column; align-items: center; gap: 18px; text-align: center; animation: mob-in 0.18s ease; }
-.mob-view[hidden] { display: none; }
-@keyframes mob-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-/* placa del icono: mismo lenguaje que el resto (cuadrada, acento, halo suave) */
-.mob-badge {
-  width: 78px; height: 78px; display: grid; place-items: center; margin-bottom: 4px;
-  color: var(--accent);
-  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
-  box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 6%, transparent);
-}
-.mob-badge svg { width: 34px; height: 34px; display: block; }
-.mob-badge.ok { color: #40c463; border-color: color-mix(in srgb, #40c463 55%, var(--border)); background: color-mix(in srgb, #40c463 10%, var(--surface)); box-shadow: 0 0 0 8px color-mix(in srgb, #40c463 6%, transparent); }
-.mob-badge.bad { color: #f25f5c; border-color: color-mix(in srgb, #f25f5c 55%, var(--border)); background: color-mix(in srgb, #f25f5c 9%, var(--surface)); box-shadow: 0 0 0 8px color-mix(in srgb, #f25f5c 5%, transparent); }
-.mob-title { font-size: 17px; font-weight: 650; color: var(--text); }
-.mob-note { max-width: 440px; font-size: 12.5px; line-height: 1.5; color: var(--text-low); font-variant-numeric: tabular-nums; }
-.mob-note:empty { display: none; }
-/* botones de la pestaña: en mayúsculas y con aire */
-.mob-btn { padding: 11px 28px; font-size: 12.5px; font-weight: 650; text-transform: uppercase; letter-spacing: 0.1em; }
-.mob-btn.danger { border-color: color-mix(in srgb, #f25f5c 40%, var(--border)); }
-.mob-actions { display: flex; gap: 10px; }
-.mob-link {
-  border: 0; background: transparent; padding: 6px 10px; cursor: pointer;
-  font: 600 11.5px var(--font-ui); text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-low);
-}
-.mob-link:hover { color: var(--text); }
-.mob-link.danger:hover { color: #f25f5c; }
-.mob-link:disabled { opacity: 0.5; cursor: default; }
-/* dispositivos conectados */
-.mob-devices { list-style: none; margin: 0; padding: 0; width: min(460px, 100%); text-align: left; border: 1px solid var(--border); background: var(--bg); }
-.mob-devices[hidden] { display: none; }
-.mob-devices li { display: flex; align-items: center; gap: 12px; padding: 10px 8px 10px 14px; }
-.mob-devices li + li { border-top: 1px solid var(--border); }
-.mob-devices .d-ico { flex: none; color: var(--text-low); line-height: 0; }
-.mob-devices .d-ico.on { color: #40c463; }
-.mob-devices .d-ico svg { width: 20px; height: 20px; }
-.mob-devices .d-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.mob-devices .d-name { font-size: 13px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mob-devices .d-sub { font-size: 11.5px; color: var(--text-low); }
-/* elegir modo: dos tarjetas */
-.mob-cards { display: flex; gap: 16px; }
-.mob-card {
-  width: 260px; min-height: 176px; padding: 30px 22px 24px;
-  /* arriba, no centrado: así los iconos y los títulos de las dos tarjetas
-     quedan a la misma altura aunque una descripción ocupe una línea más */
-  display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 11px;
-  border: 1px solid var(--border); background: var(--surface); color: var(--text);
-  font-family: var(--font-ui); cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
-}
-.mob-card:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
-.mob-card:active { transform: scale(0.985); }
-.mob-card svg { width: 30px; height: 30px; color: var(--accent); }
-.mob-card strong { font-size: 13px; font-weight: 650; text-transform: uppercase; letter-spacing: 0.1em; }
-.mob-card span { font-size: 12.5px; line-height: 1.5; color: var(--text-low); }
-/* QR y PIN de emparejamiento */
-.mob-qr { padding: 12px; background: #fff; line-height: 0; box-shadow: 0 18px 50px rgba(0, 0, 0, 0.3); }
-.mob-qr canvas { display: block; }
-.mob-pin { display: flex; gap: 8px; }
-.mob-pin span {
-  width: 40px; height: 48px; display: grid; place-items: center;
-  font: 650 21px ui-monospace, "SF Mono", Menlo, monospace; color: var(--text);
-  border: 1px solid var(--border); background: var(--surface);
-}
-/* abriendo el túnel: aro giratorio y los pasos */
-.mob-spinner {
-  width: 56px; height: 56px; margin-bottom: 4px; border-radius: 50%;
-  border: 2px solid color-mix(in srgb, var(--accent) 20%, transparent); border-top-color: var(--accent);
-  animation: spin 0.9s linear infinite;
-}
-.mob-steps { list-style: none; margin: 0; padding: 0; display: flex; align-items: center; gap: 12px; }
-.mob-steps li {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-low); opacity: 0.55;
-}
-.mob-steps li::before { content: ""; width: 8px; height: 8px; border: 1px solid var(--text-low); }
-.mob-steps li + li { padding-left: 12px; border-left: 1px solid var(--border); }
-.mob-steps li.active { opacity: 1; color: var(--text); }
-.mob-steps li.active::before { background: var(--accent); border-color: var(--accent); animation: mob-pulse 1s ease-in-out infinite; }
-.mob-steps li.done { opacity: 0.9; }
-.mob-steps li.done::before { background: #40c463; border-color: #40c463; }
-@keyframes mob-pulse { 50% { opacity: 0.35; } }
 
 /* interruptor de la app (tema, vistas…) */
 .sw { flex: none; position: relative; width: 30px; height: 16px; padding: 0; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); cursor: pointer; transition: background .12s ease, border-color .12s ease; }

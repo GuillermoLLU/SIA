@@ -2,14 +2,14 @@
 // el CLI elegido, y las sesiones sobreviven a las conexiones (sessions.js).
 // Todo lo demás llega inyectado: pty, los CLIs (launchers/), el workspace,
 // el entorno personal, las issues (para el chat de una issue), el acceso a
-// la base, el acceso remoto y el candado.
+// la base y el candado.
 //   deps: pty, launchers, workspace, env() → entorno de los chats,
 //         issues.find(id), accessibleProjects(base), currentBase(), skillsOf(base),
-//         skillSync, remote, lock, theme() → el tema del escritorio, isLoopback(req)
+//         skillSync, lock
 import { CLOSE, MAX_ASSETS, appendBuffer, sessionList, pickMode, pickProjects, isIssueId, assetFrom, firstPrompt } from './sessions.js';
 import { issueContext } from '../issues/context.js';
 
-export const createTerminalBridge = ({ pty, launchers, workspace, env, issues, accessibleProjects, currentBase, skillsOf, skillSync, remote, lock, theme, isLoopback }) => {
+export const createTerminalBridge = ({ pty, launchers, workspace, env, issues, accessibleProjects, currentBase, skillsOf, skillSync, lock }) => {
   const sessions = new Map(); // id → { id, term, buffer, meta, assets, ws }
   const servers = [];         // los WebSocketServer que entran por aquí
   let seq = 0;
@@ -52,19 +52,10 @@ export const createTerminalBridge = ({ pty, launchers, workspace, env, issues, a
   };
 
   const handleConnection = (ws, req) => {
-    // ── Cortafuegos: un socket remoto exige llave de sesión válida ──
-    if (!isLoopback(req)) {
-      const t = new URL(req.url, 'http://localhost').searchParams.get('t');
-      const s = remote.session(t);
-      if (!s) return closeQuietly(ws, CLOSE.UNAUTHORIZED, 'no autorizado');
-      if (s.locked) return closeQuietly(ws, CLOSE.LOCKED, 'bloqueado');
-      ws._siaLan = true;   // marcado para poder revocarlo al apagar el acceso
-      ws._siaToken = t;    // y para tirar sus sockets al echar el candado
-      remote.touch(t);
-    } else if (lock.locked()) {
-      // pantalla bloqueada: nada de sockets NUEVOS desde esta máquina (una ventana
-      // recargada no puede engancharse a los chats hasta dar la clave); los que ya
-      // estaban abiertos siguen, que es lo que mantiene los chats a la vista
+    // pantalla bloqueada: nada de sockets NUEVOS (una ventana recargada no puede
+    // engancharse a los chats hasta dar la clave); los que ya estaban abiertos
+    // siguen, que es lo que mantiene los chats a la vista
+    if (lock.locked()) {
       return closeQuietly(ws, CLOSE.LOCKED, 'bloqueado');
     }
     let sess = null; // la sesión enganchada a ESTE socket
@@ -106,7 +97,6 @@ export const createTerminalBridge = ({ pty, launchers, workspace, env, issues, a
     ws.on('message', (raw) => {
       let msg;
       try { msg = JSON.parse(raw.toString()); } catch { return; }
-      if (ws._siaToken) remote.touch(ws._siaToken); // actividad real del móvil: pospone el candado por inactividad
       if (msg.type === 'start') start(msg);
       else if (msg.type === 'attach') {
         const s = sessions.get(msg.sessionId);
@@ -117,7 +107,7 @@ export const createTerminalBridge = ({ pty, launchers, workspace, env, issues, a
       else if (msg.type === 'resize' && sess && msg.cols > 0 && msg.rows > 0) { try { sess.term.resize(msg.cols, msg.rows); } catch { /* cambio de tamaño a destiempo */ } }
       else if (msg.type === 'asset' && sess) {
         const asset = assetFrom(msg.asset);
-        if (asset && sess.assets.length < MAX_ASSETS) { sess.assets.push(asset); broadcastSessions(); } // p. ej. una foto subida desde el móvil
+        if (asset && sess.assets.length < MAX_ASSETS) { sess.assets.push(asset); broadcastSessions(); }
       } else if (msg.type === 'kill') {
         // con sessionId se puede matar un chat aunque lo tenga otro dispositivo
         // («Cerrar chat» sobre una sesión pasiva); sin él, el enganchado a este socket
@@ -135,8 +125,6 @@ export const createTerminalBridge = ({ pty, launchers, workspace, env, issues, a
 
   return {
     handleConnection,
-    broadcastTheme: () => broadcast({ type: 'theme', theme: theme() }),
-    clients,
     // un WebSocketServer más por el que entran clientes
     attach(server) { servers.push(server); server.on('connection', handleConnection); },
   };

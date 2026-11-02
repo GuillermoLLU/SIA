@@ -1,6 +1,6 @@
 // Aplicar un tema: las variables CSS de la interfaz, el tema de las
 // terminales y una copia en localStorage con la que las pantallas de arranque
-// (candado, inicio de sesión, emparejar) salen ya con sus colores, antes de
+// (candado, inicio de sesión) salen ya con sus colores, antes de
 // que exista la app.
 import { themeById, toggledTheme, modeOf } from './themes.js';
 import { renderThemePicker } from './theme-picker.js';
@@ -24,20 +24,9 @@ export const paintCachedTheme = () => {
   } catch { /* sin copia: colores por defecto */ }
 };
 
-// Móvil: el tema es el del ordenador. El bridge lo da en el ping (id + colores);
-// se guarda como si fuera el elegido aquí y se pinta ya, para que también las
-// pantallas de emparejar y de bloqueo salgan con él.
-export const adoptTheme = (theme) => {
-  if (!theme?.id || !theme.ui) return;
-  localStorage.setItem(THEME_KEY, theme.id);
-  localStorage.setItem(UI_KEY, JSON.stringify(theme.ui));
-  paintCachedTheme();
-};
-
 // El tema en marcha: aplicarlo, el selector (⚙️ → Apariencia) y el interruptor
-// claro/oscuro. onTerm(term) recibe el tema de las terminales; pushToBridge(t)
-// se lo deja al bridge para los móviles emparejados.
-export const createThemeController = ({ toggleEl, pickerEl, onTerm, pushToBridge }) => {
+// claro/oscuro. onTerm(term) recibe el tema de las terminales.
+export const createThemeController = ({ toggleEl, pickerEl, onTerm }) => {
   const root = document.documentElement;
   let currentId = themeById(localStorage.getItem(THEME_KEY)).id;
   const picker = renderThemePicker(pickerEl, { onPick: (id) => apply(id) });
@@ -51,7 +40,6 @@ export const createThemeController = ({ toggleEl, pickerEl, onTerm, pushToBridge
     onTerm(t.term); // el tema solo cambia colores; la fuente es siempre la misma
     localStorage.setItem(THEME_KEY, t.id);
     localStorage.setItem(UI_KEY, JSON.stringify(t.ui));
-    pushToBridge(t);
     toggleEl.querySelector('.sw').setAttribute('aria-checked', String(!!t.dark));
     picker.mark(t.id);
   };

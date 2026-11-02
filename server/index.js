@@ -18,12 +18,12 @@ import http from 'node:http';
 import tls from 'node:tls';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { json, readBody, sendFile } from './shared/http.js';
+import { isLoopback, json, readBody, sendFile } from './shared/http.js';
 import { choosePair } from './shared/ports.js';
 import { trustSystemCerts } from './shared/certs.js';
 import { createRouter } from './router.js';
 import { createConfigStore } from './config/store.js';
-import { cleanTheme, userEnv, cleanEnv, cleanSnowflake } from './config/config.js';
+import { userEnv, cleanEnv, cleanSnowflake } from './config/config.js';
 import { configRoutes } from './config/routes.js';
 import { createLock } from './lock/service.js';
 import { lockRoutes } from './lock/routes.js';
@@ -60,10 +60,6 @@ import { createMetricsStore } from './metrics/store.js';
 import { createRepository } from './metrics/repository.js';
 import { metricsRoutes } from './metrics/routes.js';
 import { createSnowflake } from './metrics/snowflake.js';
-import { createTunnel } from './remote/tunnel.js';
-import { createRemote } from './remote/service.js';
-import { lanRoutes } from './remote/routes.js';
-import { isLoopback } from './remote/remote.js';
 import { createTerminalBridge } from './terminal/bridge.js';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url))); // sia/
@@ -94,10 +90,6 @@ export const startBridge = async ({ env = process.env } = {}) => {
   const config = createConfigStore(path.join(home, '.sia', 'config.json'));
   const lock = createLock({ config });
 
-  // El tema se elige en el ordenador y un móvil emparejado es otro navegador:
-  // el bridge se lo da en el ping (también antes de emparejar) y por el socket
-  // cuando cambia.
-  let theme = cleanTheme(config.read().theme);
 
   // La base de la instancia (quién entra, con qué vistas y qué conocimiento ve)
   const platform = createPlatformClient({ ...(loadPlatformConfig(ROOT, env) || { url: '', key: '' }), fetch });
@@ -146,15 +138,13 @@ export const startBridge = async ({ env = process.env } = {}) => {
   const issuesSource = createIssuesSource(workspace.issuesDir); // la foto, una sola para Issues y Backlog
   const issues = createIssuesService({ source: issuesSource, platform, drafts });
   const backlog = createBacklogService({ source: issuesSource, platform });
-  const tunnel = createTunnel({ binDir: workspace.binDir, apiPort: ports.api, resolve: launchers.resolve, fetch: undiciFetch, insecureFetch: supaFetch, isWin });
-  const remote = createRemote({ lock, tunnel, apiPort: ports.api, wsClients: () => bridge.clients(), idleMs: Number(env.SIA_LOCK_IDLE_MS) || undefined });
   const bridge = createTerminalBridge({
-    pty, launchers, workspace, remote, lock, isLoopback, skillSync, issues, skillsOf,
+    pty, launchers, workspace, lock, skillSync, issues, skillsOf,
     // SHELL_SESSIONS_DISABLE quita el aviso «Restored session…» de macOS. cleanEnv
     // poda el entorno heredado y userEnv pone encima las credenciales personales,
     // leídas frescas en cada sesión: ese orden importa.
     env: () => ({ ...cleanEnv({ ...env, SHELL_SESSIONS_DISABLE: '1' }), ...userEnv(config.read()) }),
-    accessibleProjects: base.accessibleProjects, currentBase: base.current, theme: () => theme,
+    accessibleProjects: base.accessibleProjects, currentBase: base.current,
   });
 
   const http_ = { json, readBody };
@@ -166,7 +156,7 @@ export const startBridge = async ({ env = process.env } = {}) => {
   const routes = {
     auth: authRoutes(auth, { ...http_, onSession: loadAssigned, onLogout: clearAssigned, platform }),
     lock: lockRoutes(lock, http_),
-    config: configRoutes(config, { ...http_, version, onTheme: (t) => { if (JSON.stringify(t) !== JSON.stringify(theme)) { theme = t; bridge.broadcastTheme(); } } }),
+    config: configRoutes(config, { ...http_, version }),
     users: usersRoutes(users, { ...http_, syncKeys, assignKnowledge: (jwt, userId, ids) => knowledge.setProjects(jwt, userId, ids), refreshProfile: (token) => auth.refreshProfile(token) }),
     knowledge: knowledgeRoutes(knowledge, { ...http_, syncKeys, onChange: () => loadAssigned() }),
     issues: issuesRoutes(issues, http_),
@@ -177,52 +167,31 @@ export const startBridge = async ({ env = process.env } = {}) => {
       fs,
       log: console.log,
     }), { json, readBody }),
-    lan: lanRoutes(remote, lock, http_),
     projects: projectsRoutes(createProjects({ newId: randomUUID, fetchAll }), { ...http_, onProjectRemoved: () => skillSync.sync(assigned) }),
     skills: skillsRoutes({ ...http_, sync: skillSync, drafts: createDrafts(workspace.draftsDir), workspace }),
     links: linksRoutes(http_),
     uploads: uploadsRoutes(workspace.uploadsDir, { ...http_, sendFile }),
     updates: updatesRoutes(version, { json }),
   };
-  // el ping: hay un SIA, sus puertos y el tema; a una sesión del móvil bloqueada
-  // no se le dan los puertos (primero la clave). dev: corre con node, no en la
-  // app; pin: si hay PIN de bloqueo, para que el candado del móvil sepa si
-  // puede bloquear ya o tiene que pedir antes que se elija uno
-  const ping = (s) => (s?.locked ? { sia: true, locked: true, mode: s.mode, theme }
-    : { sia: true, version, dev: !process.versions.electron, ws: ports.ws, api: ports.api, theme, ...(s ? { mode: s.mode, pin: lock.hasPin() } : {}) });
+  // el ping: hay un SIA y sus puertos. dev: corre con node, no en la app
+  const ping = () => ({ sia: true, version, dev: !process.versions.electron, ws: ports.ws, api: ports.api });
 
-  const apiServer = http.createServer(createRouter({ webDist: path.join(ROOT, 'web', 'dist'), ping, base, auth, lock, remote, routes }));
+  // Solo escucha en esta máquina: la web llega por file:// (app) o por Vite (dev).
+  const HOST = '127.0.0.1';
+  const apiServer = http.createServer(createRouter({ ping, base, auth, lock, routes }));
   // puerto ocupado por otro SIA: no es fatal, la UI hablará con el que ya escucha
   const inUse = (port) => (err) => { if (err.code === 'EADDRINUSE') console.warn(`[sia] puerto ${port} en uso — usando la instancia existente`); else throw err; };
   apiServer.on('error', inUse(ports.api));
-  apiServer.listen(ports.api, () => console.log(`[sia] lab API en http://localhost:${ports.api}`));
+  apiServer.listen(ports.api, HOST, () => console.log(`[sia] lab API en http://localhost:${ports.api}`));
   await applyBase(); // sin sesión aún: sin base (llega al iniciar sesión)
 
-  // Dos puertas al MISMO bridge: el puerto dedicado (escritorio, dev) y /ws en
-  // el servidor HTTP. La segunda existe por el túnel: por Cloudflare solo sale
-  // un hostname por el 443, así que la web, la API y el WebSocket del móvil
-  // viajan por el mismo origen (el móvil en la LAN también la usa). Un socket
-  // desde esta máquina exige sesión iniciada (?a=<token>), comprobada al
-  // aceptar la conexión; el del móvil va con su llave (terminal/bridge.js).
-  const wsSessionOk = async (req) => !isLoopback(req) || !!(await auth.context(new URL(req.url, 'http://localhost').searchParams.get('a')).catch(() => null));
-  const wss = new WebSocketServer({ port: ports.ws, verifyClient: (info, cb) => { wsSessionOk(info.req).then((ok) => cb(ok, 401, 'Inicia sesión.')); } });
+  // El socket de los chats: solo desde esta máquina y con sesión iniciada
+  // (?a=<token>), comprobada al aceptar la conexión.
+  const wsSessionOk = async (req) => isLoopback(req) && !!(await auth.context(new URL(req.url, 'http://localhost').searchParams.get('a')).catch(() => null));
+  const wss = new WebSocketServer({ host: HOST, port: ports.ws, verifyClient: (info, cb) => { wsSessionOk(info.req).then((ok) => cb(ok, 401, 'Inicia sesión.')); } });
   wss.on('error', inUse(ports.ws));
-  const wssPath = new WebSocketServer({ noServer: true });
-  apiServer.on('upgrade', (req, socket, head) => {
-    if (new URL(req.url, 'http://localhost').pathname !== '/ws') return socket.destroy();
-    wsSessionOk(req).then((ok) => {
-      if (!ok) return socket.end('HTTP/1.1 401 Unauthorized\r\n\r\n');
-      wssPath.handleUpgrade(req, socket, head, (ws) => wssPath.emit('connection', ws, req));
-    });
-  });
   bridge.attach(wss);
-  bridge.attach(wssPath);
-  console.log(`[sia] terminal bridge listening on ws://localhost:${ports.ws} (y /ws en la API)`);
-
-  setInterval(() => remote.lockIdle(), 15_000).unref();
-  // que no quede un túnel huérfano apuntando a este equipo al salir
-  process.on('exit', () => tunnel.kill());
-  for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { tunnel.kill(); process.exit(sig === 'SIGINT' ? 130 : 143); });
+  console.log(`[sia] terminal bridge listening on ws://localhost:${ports.ws}`);
   return ports;
 };
 

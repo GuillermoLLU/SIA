@@ -6,20 +6,14 @@
 // PIN, sin textos ni pistas. Si acierta se va; si falla, las casillas se
 // sacuden y se vacían. La promesa se resuelve al desbloquear; llamarla dos
 // veces da la misma.
-//
-// remote: la puerta bloquea la sesión de un MÓVIL emparejado (red local o
-// túnel público): mismo PIN, pero se comprueba contra /lan/unlock con su llave
-// de sesión y, al acertar, se recarga la página, que es como el móvil recupera
-// sus chats (al bloquear, el bridge le cierra los sockets).
 import { pinPad } from './pin-pad.js';
 import { LOCK_PIN_LEN, unlockOutcome } from './pin.js';
 
-// api: el cliente del bridge · logoHtml: la S · isRemote(): si esto es un móvil
-// emparejado · onRevoked(): el bridge ha cerrado la sesión del móvil
-export const createLockGate = ({ api, logoHtml, isRemote, onRevoked }) => {
+// api: el cliente del bridge · logoHtml: la S
+export const createLockGate = ({ api, logoHtml }) => {
   let pending = null;
 
-  const open = ({ remote = false, len = LOCK_PIN_LEN } = {}) => {
+  const open = ({ len = LOCK_PIN_LEN } = {}) => {
     if (pending) return pending;
     pending = new Promise((resolve) => {
       const appEl = document.querySelector('.app');
@@ -56,15 +50,13 @@ export const createLockGate = ({ api, logoHtml, isRemote, onRevoked }) => {
         clearInterval(waitTimer); tick(); waitTimer = setInterval(tick, 1000);
       };
       const tryPin = async (pin) => {
-        try { await api(remote ? '/lan/unlock' : '/lock/off', { method: 'POST', body: { key: pin } }); return { ok: true }; }
+        try { await api('/lock/off', { method: 'POST', body: { key: pin } }); return { ok: true }; }
         catch (e) { return { ok: false, status: e.status, data: e.data }; }
       };
       const pad = pinPad(len, async (pin) => {
-        const out = unlockOutcome(await tryPin(pin), remote);
-        if (out.do === 'revoked') return onRevoked();
+        const out = unlockOutcome(await tryPin(pin));
         if (out.do === 'ok') { // acierto: las casillas en verde un instante y la puerta se va
           pad.ok();
-          if (remote) { setTimeout(() => location.reload(), 320); return; }
           setTimeout(() => el.classList.add('leaving'), 220);
           setTimeout(leave, 440);
           return;
@@ -74,25 +66,18 @@ export const createLockGate = ({ api, logoHtml, isRemote, onRevoked }) => {
       });
       pad.el.id = 'lock-pin'; pad.key.id = 'lock-key';
       el.querySelector('[data-slot="pad"]').replaceWith(pad.el);
-      if (pad.keys) wait.after(pad.keys);
 
       // Ninguna tecla sale de la puerta: las de fuera se cortan antes de llegar a
       // nada (captura en window) y las de dentro no suben a los atajos globales.
       const trap = (e) => { if (!el.contains(e.target)) { e.stopImmediatePropagation(); e.preventDefault(); pad.focus(); } };
       window.addEventListener('keydown', trap, true);
       el.addEventListener('keydown', (e) => e.stopPropagation());
-      // el foco, siempre en el PIN. Si el toque cae en el propio campo (cubre las
-      // casillas) se deja al navegador: en el móvil es lo que abre el teclado.
+      // el foco, siempre en el PIN
       el.addEventListener('mousedown', (e) => { if (e.target !== pad.key) { e.preventDefault(); pad.focus(); } });
       pad.focus();
     });
     return pending;
   };
 
-  // La puerta cuando el bridge dice «bloqueado» (423 en la API, cierre 4423 en
-  // un socket). Es siempre la misma, con el mismo PIN: en el escritorio
-  // desbloquea la pantalla; en un móvil emparejado, su sesión.
-  const fromBridge = () => open({ remote: isRemote() });
-
-  return { open, fromBridge };
+  return { open };
 };

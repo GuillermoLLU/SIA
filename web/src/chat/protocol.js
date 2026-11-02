@@ -17,13 +17,10 @@ export const msg = {
 
 export const parse = (raw) => { try { return JSON.parse(raw); } catch { return null; } };
 
-// Cierres con significado: 4423 el bridge echó el candado; 4403 el ordenador
-// cerró este dispositivo (solo cuenta en un móvil emparejado); 4409 otro
-// dispositivo tomó los chats (handoff). Cualquier otro cierre NO significa que
+// Cierres con significado: 4423 el bridge echó el candado; 4409 otra ventana tomó los chats (handoff). Cualquier otro cierre NO significa que
 // el chat haya muerto —el PTY vive en el bridge—: suspender el Mac, bloquear
 // la pantalla o perder la red tumban el socket mientras el proceso sigue vivo.
-export const closeReason = (code, { remote = false } = {}) =>
-  (code === 4423 ? 'locked' : code === 4403 && remote ? 'revoked' : code === 4409 ? 'handoff' : 'lost');
+export const closeReason = (code) => (code === 4423 ? 'locked' : code === 4409 ? 'handoff' : 'lost');
 
 // Mandar por un socket solo si está abierto.
 export const sendOn = (ws, m) => { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(m)); };

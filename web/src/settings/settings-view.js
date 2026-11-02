@@ -1,5 +1,5 @@
 // Configuración (el modal): sus pestañas, la versión y las credenciales
-// (Jira, GitHub y el usuario de Snowflake de las Métricas). Las demás secciones (Móvil, Apariencia, Bloqueo) se
+// (Jira, GitHub y el usuario de Snowflake de las Métricas). Las demás secciones (Apariencia, Bloqueo) se
 // cuelgan de onOpen/onClose para releer su estado cuando se abre o se cierra.
 import { esc } from '../ui/html.js';
 import { setStatus } from '../ui/dom.js';
@@ -97,6 +97,5 @@ export const mountSettings = ({ api }) => {
   return {
     onOpen: (fn) => opens.push(fn),
     onClose: (fn) => closes.push(fn),
-    hideTab: (pane) => { document.querySelector(`#settings-tabs [data-pane="${pane}"]`).hidden = true; },
   };
 };

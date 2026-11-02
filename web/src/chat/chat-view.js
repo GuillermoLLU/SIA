@@ -11,17 +11,15 @@ import { chatPlan } from './start.js';
 import { heroHtml } from './hero.js';
 import { msg, parse, closeReason, sendOn, isOpen } from './protocol.js';
 import { chatSessions, chromeVisible, nextActive, toAsset, reconcile } from './sessions.js';
-import { makeTerminal, useWebgl, enableTouchScroll, wireCopyPaste } from './terminal.js';
+import { makeTerminal, wireCopyPaste } from './terminal.js';
 import { createAssets } from './assets.js';
 
 // api/apiBase: el bridge · wsUrl(): el socket · theme(): el tema actual ·
-// phone/mac: dónde corre · me: el nombre de quien entra (saluda la portada) ·
-// remote(): si es un móvil emparejado · gate(): la puerta del candado ·
-// onRevoked(): el ordenador cerró este móvil · onTheme(id): el ordenador
-// cambió de tema (lo sigue el móvil) · onSkills(list): las skills de la
+// mac: dónde corre · me: el nombre de quien entra (saluda la portada) ·
+// gate(): la puerta del candado · onSkills(list): las skills de la
 // paleta, cuando el bridge las manda · onFirstScreen('hero' | 'chat'): qué se
 // pinta primero al cargar (la portada o un chat vivo), para el arranque
-export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac, me = null, remote, gate, onRevoked, onTheme, onSkills, onFirstScreen = () => {} }) => {
+export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, mac, me = null, gate, onSkills, onFirstScreen = () => {} }) => {
   const viewEl = document.getElementById('view-chat');
   const stackEl = document.getElementById('term-stack');
   const barEl = document.getElementById('chat-bar');
@@ -58,7 +56,7 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
     if (s?.launched) requestAnimationFrame(() => { refit(s); if (!typingElsewhere()) s.term.focus(); });
   };
 
-  const assets = createAssets({ api, apiBase, dialogs, phone, active, onLayout: refitActive });
+  const assets = createAssets({ api, apiBase, dialogs, active, onLayout: refitActive });
 
   /* La portada del chat (hero.js): un saludo y el campo de la pregunta. Al
      enviar, la terminal arranca con esa pregunta como primer mensaje. Los
@@ -86,7 +84,7 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
       if (plan.error) { s.start.innerHTML = heroHtml({ me, error: plan.error }); return; }
       launchSession(s, plan, prompt);
     });
-    if (!phone && !typingElsewhere()) field.focus();
+    if (!typingElsewhere()) field.focus();
   };
 
   /* Montar la terminal de una sesión (común a lanzar nueva y re-enganchar). */
@@ -96,7 +94,6 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
     s.termHost.hidden = false;
     ({ term: s.term, fit: s.fit } = makeTerminal(theme().term));
     s.term.open(s.termHost);
-    if (phone) { useWebgl(s.term); enableTouchScroll(s.termHost, s.term); }
     if (!mac) wireCopyPaste(s.term, () => assets.pasteFromClipboard(s));
     s.term.onData((data) => sendOn(s.ws, msg.input(data)));
     updateChrome();
@@ -218,9 +215,8 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
     ws.onclose = (e) => {
       if (s.ws !== ws) return; // socket ya sustituido por un re-enganche: no pisarlo
       if (!bootstrapped) onFirstScreen('chat'); // sin saludo del bridge no hay portada que esperar: que se vea la app
-      const why = closeReason(e.code, { remote: remote() });
+      const why = closeReason(e.code);
       if (why === 'locked') { gate(); return; }
-      if (why === 'revoked') { onRevoked(); return; }
       if (why === 'handoff') { setPassive(s); return; }
       if (!sessions.has(s.id) || !s.launched) return; // sesión ya cerrada aquí
       s.ws = null;
@@ -330,7 +326,7 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
       const s = sessions.get(a.id);
       if (a.do === 'remove') { removeSession(s.id); continue; }
       if (a.do === 'dead') { s.linkLost = false; s.dead = true; continue; }
-      // adjuntos subidos desde otro dispositivo (una foto desde el móvil): salen
+      // adjuntos subidos desde otra ventana: salen
       // aquí al momento, en el clip de la barra y en el panel
       if (a.assets?.length) {
         s.assets.push(...a.assets.map((x) => toAsset(x, apiBase)));
@@ -359,14 +355,10 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, phone, mac,
       // también con él es lo que recupera los chats al reconectar (tras dormir el
       // Mac nadie más emite un broadcast, así que sin esto nada se cura).
       if (m.type === 'sessions' || m.type === 'launchers') reconcileSessions(m.sessions || []);
-      // el ordenador cambió de tema: el móvil lo sigue al momento
-      if (m.type === 'theme' && remote() && m.theme?.id) onTheme(m.theme.id);
     };
     controlWS.onclose = (e) => {
       if (e.target !== controlWS) return; // socket ya sustituido: no duplicar
-      const why = closeReason(e.code, { remote: remote() });
-      if (why === 'locked') { gate(); return; } // candado: nada de reintentar
-      if (why === 'revoked') { onRevoked(); return; }
+      if (closeReason(e.code) === 'locked') { gate(); return; } // candado: nada de reintentar
       setTimeout(connectControl, 3000);
     };
   };

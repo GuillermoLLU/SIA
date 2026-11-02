@@ -43,3 +43,11 @@ export const sendFile = (res, ext, content) => {
   res.writeHead(200, { 'Content-Type': mimeOf(ext) });
   res.end(content);
 };
+
+// De esta máquina de verdad. Lo que llega con cabeceras de proxy no lo es, aunque
+// el proxy corra aquí: sin este matiz, cualquiera que pase por él sería local.
+export const isLoopback = (req) => {
+  if (req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for']) return false;
+  const a = req.socket?.remoteAddress || '';
+  return a === '127.0.0.1' || a === '::1' || a === '::ffff:127.0.0.1';
+};

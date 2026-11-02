@@ -6,9 +6,8 @@
 // Los permisos pueden cambiar sin que este SIA se entere: en Personas le
 // cambian a alguien sus vistas (y con ellas su clave de poder). Se vuelven a
 // comprobar al recuperar el foco la ventana y cada dos minutos, para que un
-// icono nuevo aparezca —o uno retirado desaparezca— sin reiniciar la app. En
-// el móvil no aplica (no hay barra lateral) y con la pantalla bloqueada
-// tampoco (el bridge no responde).
+// icono nuevo aparezca —o uno retirado desaparezca— sin reiniciar la app. Con
+// la pantalla bloqueada no (el bridge no responde).
 
 const RECHECK_MS = 2 * 60_000;
 
@@ -35,7 +34,7 @@ export const createPermsWatch = ({ api, onUpdate, onLost }) => {
     }
   };
   const recheck = () => {
-    if (document.body.classList.contains('phone') || document.body.classList.contains('locked')) return;
+    if (document.body.classList.contains('locked')) return;
     if (Date.now() - checkedAt < 10_000) return; // foco y visibilidad suelen llegar juntos
     checkedAt = Date.now();
     refresh({ quiet: true });

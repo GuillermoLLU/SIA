@@ -4,8 +4,8 @@ import { viewsOf, canView, baseNav, panelNav, teamView } from './nav.js';
 
 const u = (views) => ({ views });
 
-test('sin sesión (móvil emparejado) solo los Enlaces', () => {
-  assert.deepEqual(viewsOf(null), ['links']);
+test('las vistas de la persona; sin ninguna, nada', () => {
+  assert.deepEqual(viewsOf(null), []);
   assert.equal(canView(null, 'lab'), false);
   assert.equal(canView(u(['lab']), 'lab'), true);
   assert.equal(canView({}, 'lab'), false);

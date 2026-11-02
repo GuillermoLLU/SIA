@@ -1,10 +1,9 @@
 // La barra lateral, sus reglas (sin DOM): qué icono ve cada persona. Las
 // vistas las decide la instancia (platform.users.views; el Chat, siempre);
 // Laboratorio, Administración y Enlaces exigen además que la base las abra con
-// la clave de poder de quien ha iniciado sesión (perms). El móvil emparejado,
-// sin sesión, solo ve los Enlaces.
+// la clave de poder de quien ha iniciado sesión (perms).
 
-export const viewsOf = (user) => (user ? user.views || [] : ['links']);
+export const viewsOf = (user) => (user?.views || []);
 export const canView = (user, view) => viewsOf(user).includes(view);
 
 // Los iconos que dependen de la base: perms = { lab, admin, links, owner… } |

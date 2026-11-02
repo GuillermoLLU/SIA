@@ -1,8 +1,6 @@
-// Pie de Configuración: quién ha iniciado sesión y «Cerrar sesión». Sin
-// usuario (móvil emparejado, que entra por su emparejamiento) no se enseña.
+// Pie de Configuración: quién ha iniciado sesión y «Cerrar sesión».
 
 export const wireLogout = (box, { user, session, confirm }) => {
-  if (!user) { box.hidden = true; return; }
   box.hidden = false;
   const who = box.querySelector('#session-who');
   who.textContent = 'Sesión de ';

@@ -32,7 +32,7 @@ API y su vista:
 | `users/` | Personas y roles |
 | `knowledge/`, `projects/` | Conocimiento asignado y Administración de proyectos |
 | `lab/`, `links/`, `skills/` | Laboratorio de skills, Enlaces rápidos y la paleta ⌘K |
-| `settings/`, `lock/`, `mobile/`, `theme/` | Configuración, candado, acceso desde el móvil y temas |
+| `settings/`, `lock/`, `theme/` | Configuración, candado y temas |
 | `ui/` | Lo común: `api.js` (el único cliente HTTP), diálogos, toast, html, tiempo y el selector de persona (`picker.js`) |
 
 ### `server/` — el bridge local
@@ -52,9 +52,8 @@ las rutas de cada slice.
 | `projects/` | Administración: proyectos y sus entradas |
 | `issues/`, `backlog/`, `metrics/` | Issues (cola por criterios `queue.js`, reglas `rules.js`, mesa, estadísticas), Backlog (la cola entera, asignar y las reglas de priorización, sobre el dominio de Issues) y Métricas (cada actualización pide a Snowflake, con `snowflake-sdk` y el SSO de cada persona, solo las incidencias de Remedy nuevas o cambiadas desde la última, y las suma a un repositorio SQLite local con `node:sqlite`, `incidencias.sqlite`, que no sale del equipo; de él salen los datos por columnas; el periodo se elige por fechas) |
 | `skills/`, `links/`, `uploads/` | Laboratorio y sincronización de skills, enlaces rápidos, adjuntos |
-| `config/`, `lock/` | Configuración personal (`~/.sia/config.json`: tema, Jira, GitHub) y candado |
+| `config/`, `lock/` | Configuración personal (`~/.sia/config.json`: Jira, GitHub) y candado |
 | `launchers/`, `workspace/` | Los CLIs (Claude, Copilot, Codex), sus argumentos y su MCP por sesión; los directorios de modo y skills por base |
-| `remote/` | Acceso desde el móvil: emparejar por QR + PIN, candado, túnel de Cloudflare |
 | `terminal/` | Las sesiones de chat y el protocolo WebSocket |
 | `updates/`, `shared/` | `/api/version`; lo común (HTTP, CSV, ids, puertos, cabeceras, permisos, el troceo de entradas de Remedy) |
 
@@ -66,8 +65,8 @@ Cosas que conviene saber:
 - Los puertos se eligen solos (pares 57413/57414 → 58527/58528 →
   59641/59642; `SIA_PORT` fuerza uno). Si en un par ya hay un SIA de la misma
   versión, se adopta.
-- Acceso desde el móvil por QR + PIN, en red local o en público (quick tunnel
-  de Cloudflare con URL temporal y candado por inactividad).
+- El bridge solo escucha en esta máquina (`127.0.0.1`) y rechaza lo que llega
+  con cabeceras de proxy. No sirve la web: llega por `file://` o por Vite.
 - Variable de entorno solo para desarrollo: `SIA_WORKSPACE`.
 
 ### `mcp/` — el servidor MCP `knowledge`

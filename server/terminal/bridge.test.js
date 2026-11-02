@@ -23,7 +23,7 @@ const fakeWs = (url = '/', remote = '127.0.0.1') => {
   return ws;
 };
 
-const setup = ({ locked = false, remoteSession = null } = {}) => {
+const setup = ({ locked = false } = {}) => {
   const pty = fakePty();
   const cleaned = [];
   const bridge = createTerminalBridge({
@@ -36,10 +36,7 @@ const setup = ({ locked = false, remoteSession = null } = {}) => {
     currentBase: () => ({ id: 'p-1', name: 'Base' }),
     skillsOf: () => [],
     skillSync: { maybe() {} },
-    remote: { session: () => remoteSession, touch() {} },
     lock: { locked: () => locked },
-    theme: () => ({ id: 'light' }),
-    isLoopback: (req) => req.socket.remoteAddress === '127.0.0.1',
   });
   const server = new EventEmitter(); server.clients = new Set();
   bridge.attach(server);
@@ -126,7 +123,7 @@ test('el chat de una issue: uno por issue, con su contexto como primer mensaje; 
   x.done();
 });
 
-test('CLI no instalado: error; candado y remoto sin llave: se cierra el socket', async () => {
+test('CLI no instalado: error; con el candado echado se cierra el socket', async () => {
   const x = setup();
   const ws = x.connect(fakeWs());
   ws.say({ type: 'start', launcher: 'codex' });
@@ -135,13 +132,5 @@ test('CLI no instalado: error; candado y remoto sin llave: se cierra el socket',
   x.done();
   const y = setup({ locked: true });
   assert.deepEqual(y.connect(fakeWs()).closed, [4423, 'bloqueado']);
-  assert.deepEqual(y.connect(fakeWs('/ws?t=x', '10.0.0.5')).closed, [4403, 'no autorizado']);
   y.done();
-  const z = setup({ remoteSession: { locked: false } });
-  const r = z.connect(fakeWs('/ws?t=ok', '10.0.0.5'));
-  assert.equal(r.closed, null);
-  assert.equal(r._siaToken, 'ok');
-  z.bridge.broadcastTheme();
-  assert.deepEqual(r.sent.at(-1), { type: 'theme', theme: { id: 'light' } });
-  z.done();
 });
