@@ -5,6 +5,7 @@
 // su propio icono para no robarle ese gesto. Las reglas, en links.js.
 import { esc, svg } from '../ui/html.js';
 import { emptyState } from '../ui/dom.js';
+import { pickerHtml, pickClick } from '../ui/picker.js';
 import { projectName, linkFilters, miniMarkdown, linkPayload, shrinkTo, dataUriKb } from './links.js';
 
 const LINKS_ICON = svg('<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>', { width: 1.5, size: 38 });
@@ -112,8 +113,8 @@ export const mountLinksView = ({ api, dialogs, perms }) => {
     editing = l;
     image = l?.image || null;
     $('link-edit-title').textContent = l ? 'Editar enlace' : 'Nuevo enlace';
-    fProject.innerHTML = projects.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
-    fProject.value = String(l?.project_id ?? (filter ?? projects[0]?.id ?? ''));
+    fProject.innerHTML = pickerHtml({ id: 'link-f-project-btn', name: 'project', placeholder: 'Elige el conocimiento', value: String(l?.project_id ?? (filter ?? projects[0]?.id ?? '')),
+      groups: [{ options: projects.map((p) => ({ value: String(p.id), label: p.name })) }] });
     fTitle.value = l?.title || '';
     fUrl.value = l?.url || '';
     fNotes.value = l?.notes || '';
@@ -167,10 +168,10 @@ export const mountLinksView = ({ api, dialogs, perms }) => {
   });
   $('link-edit-close').addEventListener('click', closeEditor);
   $('link-f-cancel').addEventListener('click', closeEditor);
-  editModal.addEventListener('click', (e) => { if (e.target === editModal) closeEditor(); });
+  editModal.addEventListener('click', (e) => { if (!pickClick(editModal, e.target) && e.target === editModal) closeEditor(); });
 
   $('link-f-save').addEventListener('click', async () => {
-    const payload = linkPayload({ project: fProject.value, title: fTitle.value, url: fUrl.value, image, notes: fNotes.value });
+    const payload = linkPayload({ project: fProject.querySelector('[name="project"]').value, title: fTitle.value, url: fUrl.value, image, notes: fNotes.value });
     try {
       if (editing) await api(`/links/${encodeURIComponent(editing.id)}`, { method: 'PUT', body: payload });
       else await api('/links', { method: 'POST', body: payload });

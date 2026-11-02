@@ -40,8 +40,7 @@
 .iss-take { height: 44px; padding: 0 26px; font: inherit; font-size: 15px; font-weight: 650; color: var(--surface); background: var(--accent); border: 0; cursor: pointer; }
 .iss-take:hover:not(:disabled) { filter: brightness(1.08); }
 .iss-take:disabled { opacity: .5; cursor: default; }
-.iss-rule { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-low); }
-.iss-rule select { height: 32px; padding: 0 8px; font: inherit; font-size: 13px; color: var(--text); background: var(--bg); border: 1px solid var(--border); }
+.iss-rule { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-low); --pick-h: 32px; }
 .iss-queue { margin-left: auto; font-size: 12px; color: var(--text-low); }
 .iss-big { display: flex; align-items: baseline; gap: 10px; }
 .iss-big b { font-size: 40px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }

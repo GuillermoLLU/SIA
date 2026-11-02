@@ -4,6 +4,7 @@
 // Las reglas, en lab.js.
 import { esc, svg } from '../ui/html.js';
 import { emptyState } from '../ui/dom.js';
+import { pickerHtml, pickClick } from '../ui/picker.js';
 import { SKILL_TEMPLATE, cleanSkillId, groupName, scopeOptions, isReadOnly, scopeLabel, cleanPath, filesList } from './lab.js';
 
 const SKILLS_ICON = svg('<path d="M10 2v6.5L4.8 17a3 3 0 0 0 2.6 4.5h9.2a3 3 0 0 0 2.6-4.5L14 8.5V2"/><path d="M8.5 2h7"/><path d="M7 15h10"/>', { width: 1.5, size: 38 });
@@ -20,6 +21,8 @@ export const mountLabView = ({ api, dialogs, perms, onSkills }) => {
   const fileTabs = $('lab-file-tabs'), textarea = $('lab-textarea'), scopeSel = $('lab-scope');
   let cur = null;   // la skill abierta en el editor: { id, files: Map(path → content), active, dirty, isDraft, scope, readOnly }
   let groups = [];  // proyectos para la visibilidad: [{ token, name }]
+
+  work.addEventListener('click', (e) => pickClick(work, e.target));
 
   const setState = (text, dirty = false) => { state.textContent = text; state.className = `lab-state ${dirty ? 'dirty' : ''}`; };
   const status = (text) => { statusEl.textContent = text; };
@@ -120,24 +123,17 @@ export const mountLabView = ({ api, dialogs, perms, onSkills }) => {
     }
   });
 
-  const fillScope = (scope) => {
+  const fillScope = (scope, readOnly) => {
     const { options, value } = scopeOptions(groups, scope, !!perms()?.owner);
-    scopeSel.innerHTML = '';
-    for (const o of options) {
-      const el = document.createElement('option');
-      el.value = o.value; el.textContent = o.label; el.disabled = !!o.disabled;
-      scopeSel.appendChild(el);
-    }
-    scopeSel.value = value;
+    scopeSel.innerHTML = pickerHtml({ id: 'lab-scope-btn', name: 'scope', value, inline: true, disabled: readOnly, groups: [{ options }] });
   };
 
   const openFiles = (id, files, { isDraft, scope = null }) => {
     cur = { id, files: new Map(files.map((f) => [f.path, f.content])), active: 'SKILL.md', dirty: false, isDraft, scope };
     if (!cur.files.has('SKILL.md')) cur.active = files[0]?.path;
     skillId.textContent = id;
-    fillScope(scope);
     cur.readOnly = isReadOnly({ isDraft, scope, isOwner: !!perms()?.owner });
-    scopeSel.disabled = cur.readOnly;
+    fillScope(scope, cur.readOnly);
     publishBtn.disabled = cur.readOnly;
     deleteBtn.disabled = cur.readOnly;
     textarea.readOnly = cur.readOnly;
@@ -245,7 +241,7 @@ export const mountLabView = ({ api, dialogs, perms, onSkills }) => {
 
   publishBtn.addEventListener('click', async () => {
     if (!cur || cur.readOnly) return;
-    const scope = scopeSel.value || null;
+    const scope = scopeSel.querySelector('[name="scope"]').value || null;
     const files = curFiles();
     const resume = files.map((f) => ` • ${f.path} (${f.content.length} chars)`).join('\n');
     const visib = scope ? `proyecto «${groupName(groups, scope)}»` : 'COMÚN (todo el equipo)';

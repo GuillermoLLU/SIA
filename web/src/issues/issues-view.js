@@ -8,7 +8,7 @@ import { esc } from '../ui/html.js';
 import { LISTS, snapshotInfo, age, weekBars } from './format.js';
 import { sev, origin, item } from './parts.js';
 import { onEscape } from '../ui/dialog.js';
-import { pickClick, openPicker, closePickers } from '../ui/picker.js';
+import { pickerHtml, pickClick, openPicker, closePickers } from '../ui/picker.js';
 import { workScreen, trailHtml, trailTab, releaseDialogHtml, sendsNote, noteEditorHtml } from './work-screen.js';
 import { ACTIONS, actionForm, readAction, isComplete } from './actions.js';
 import { resolveForm, resolveReview, resumeStep, stepMissing, STEPS, MAX_FILE, fileBox, localShort } from './resolve-form.js';
@@ -63,7 +63,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
             </div>` : '<p class="iss-empty">No queda ninguna sin coger.</p>'}
           <div class="iss-go">
             <button class="iss-take" data-take ${next ? '' : 'disabled'}>Coger la siguiente</button>
-            <label class="iss-rule">Regla <select data-rule>${data.rules.map((r) => `<option value="${esc(r.id)}"${r.id === rule ? ' selected' : ''}>${esc(r.label)}</option>`).join('')}</select></label>
+            <div class="iss-rule"><span>Regla</span>${pickerHtml({ id: 'iss-rule', name: 'rule', value: data.rules.some((r) => r.id === rule) ? rule : data.rules[0]?.id, inline: true, groups: [{ options: data.rules.map((r) => ({ value: r.id, label: r.label })) }] })}</div>
             <span class="iss-queue">${data.free} sin coger en la cola</span>
           </div>
         </section>
@@ -130,7 +130,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   };
   root.addEventListener('click', async (e) => {
     const t = e.target;
-    if (pickClick(root, t, (pick) => syncSubmit(pick.closest('[data-act-form]')))) return;
+    if (pickClick(root, t)) return;
     // con el diálogo de elegir fichero abierto no se repinta la mesa: el
     // cambio llegaría a un input que ya no está en la página
     if (t.matches('[data-csv]')) { picking = true; return; }
@@ -334,6 +334,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   // Resolver (por pasos) y Escalar (no bloquea) llevan su propia validación: aquí, los demás.
   const syncSubmit = (form) => { if (['resolve', 'escalate'].includes(form.dataset.actForm)) return; form.querySelector('[type=submit]').disabled = !isComplete(form.dataset.actForm, Object.fromEntries(new FormData(form))); };
   root.addEventListener('input', (e) => {
+    if (e.target.name === 'rule') { rule = e.target.value; return; }
     const form = e.target.closest('[data-act-form]');
     if (form) return syncSubmit(form);
     const nf = e.target.closest('[data-note-form]');
@@ -477,7 +478,6 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     if (e.target.matches('[data-file]') && e.target.files[0]) return setFile(e.target.closest('form'), e.target.files[0]);
     const form = e.target.closest('[data-act-form]');
     if (form) return syncSubmit(form);
-    if (e.target.matches('[data-rule]')) rule = e.target.value;
     if (e.target.matches('[data-csv]')) { picking = false; upload(e.target.files[0]); }
   });
   const picked = () => { picking = false; };
@@ -485,7 +485,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
 
   // Refresco: solo con la mesa a la vista (no mientras se trabaja una issue).
   const refresher = setInterval(() => {
-    if (!onDesk || picking || root.hidden || document.visibilityState !== 'visible') return;
+    if (!onDesk || picking || openPicker(root) || root.hidden || document.visibilityState !== 'visible') return;
     const y = root.scrollTop;
     api.desk().then((d) => { data = d; now = new Date(); if (onDesk) { renderDesk(); root.scrollTop = y; } }).catch(() => {});
   }, REFRESH_MS);

@@ -16,7 +16,7 @@ import { sev, origin } from '../issues/parts.js';
 import { EMPTY_FILTER, SEVERITIES, filterIssues, toggle, tileCounts, isFiltering } from './filter.js';
 import { openRulesModal } from './rules-modal.js';
 import { sidePanel } from './side-panel.js';
-import { pickClick } from '../ui/picker.js';
+import { pickerHtml, pickClick } from '../ui/picker.js';
 
 const PLURAL = { CRITICAL: 'Críticas', HIGH: 'Altas', MEDIUM: 'Medias', LOW: 'Bajas' };
 
@@ -60,7 +60,7 @@ export const mountBacklogView = (root, { api, dialogs, toast }) => {
         <button class="bl-btn" data-reload${loading ? ' disabled' : ''}>${loading ? 'Actualizando…' : 'Actualizar backlog'}</button>
         <span class="iss-snap${snap.stale ? ' stale' : ''}">${snap.text}</span>
         ${filtering ? `<p class="bl-shown"><b>${shown.length}</b> de ${c.total} · <button class="bl-clear" data-key="all">Ver todas</button></p>` : ''}
-        <label class="bl-order">Orden <select data-rule>${data.rules.map((r) => `<option value="${esc(r.id)}"${r.id === data.rule ? ' selected' : ''}>${esc(r.label)}</option>`).join('')}</select></label>
+        <div class="bl-order"><span>Orden</span>${pickerHtml({ id: 'bl-rule', name: 'rule', value: data.rule, inline: true, groups: [{ options: data.rules.map((r) => ({ value: r.id, label: r.label })) }] })}</div>
         <label class="bl-search"><input type="search" data-q placeholder="Buscar una issue, un centro o un texto" value="${esc(filter.q)}" aria-label="Buscar en el backlog"></label>
         <button class="bl-btn" data-rules>Reglas de priorización</button>
       </div>
@@ -87,8 +87,8 @@ export const mountBacklogView = (root, { api, dialogs, toast }) => {
     q.focus();
     q.setSelectionRange(pos, pos);
   });
-  root.addEventListener('change', (e) => {
-    if (!e.target.matches('[data-rule]')) return;
+  root.addEventListener('input', (e) => {
+    if (e.target.name !== 'rule') return;
     rule = e.target.value;
     load().catch((err) => toast?.(`No se pudo ordenar el backlog: ${err.message}`));
   });
