@@ -6,6 +6,7 @@ import { num, dec, pct, dur, nice } from '../format.js';
 import { MIN_ISSUES, BETTER_MIN, clearlyWorse } from '../rules.js';
 import { personVsTeam, expectedSla } from '../peers.js';
 import { startBlocks, slaStats as slaStatsOf, slaPair as slaPairOf, commonModules } from '../sla.js';
+import { phasesOf, phasesChart, PHASES_NOTE } from '../phases.js';
 import { WORSE_NOTE, MONTH_NOTE, opt, P1, optDur } from './common.js';
 
 const QUALITY_COLS = [
@@ -61,6 +62,13 @@ export const slaTab = (t) => {
     ['Fuera de SLA', [['Issues', (s) => s.slaKo, num, null, 'Empezadas tarde y abiertas que siguen sin empezar pasado el plazo.'], ['Media hasta En curso', (s) => s.ip, dur, 'low', 'Media de la apertura al primer paso a En curso.']]],
   ];
   const slaStats = slaStatsOf(m);
+  // En qué se va el tiempo (phases.js), de lo que se mira: una fila por lado (comparando con personas, una empresa es
+  // todo su equipo, como en el resto de la pestaña)
+  const phases = phasesOf(m);
+  const timesCard = (A) => {
+    const rows = CMP() ? bySide(A).slice(0, 2).map((l, k) => ({ who: name(k), p: phases(l) })) : [{ who: name(m.CO()[0]), p: phases(A) }];
+    return card('En qué se va el tiempo', phasesChart(rows, { jiraAt: m.data.meta.jira?.at }), { span: 's12', sub: PHASES_NOTE });
+  };
   // mes a mes: filas por mes de apertura, con las columnas que se le pasen ([grupo, defs] como en qualityPivot)
   const monthPivot = (A, groups, st = stats) => {
     const defs = groups.flatMap(([, d]) => d), firsts = new Set(groups.map(([, d]) => d[0])), tot = st(A);
@@ -75,9 +83,10 @@ export const slaTab = (t) => {
     const s = stats(A);
     return grid(ask('sla'), note,
       kpis(kpi('Dentro del SLA', slaPct(s), 'todas las prioridades'), kpi('Fuera de SLA', num(s.slaKo), 'empezadas tarde o sin empezar pasado el plazo'),
-        kpi('Media hasta En curso', s.ip == null ? '—' : `${dec(s.ip / 1440)} días`, 'de la apertura al primer paso'), kpi('Reabiertas', s.n ? P1(s.reop) : '—', 'volvieron de Resuelta a abierta'),
+        kpi('Media hasta En curso', dur(s.ip), 'de la apertura al primer paso'), kpi('Reabiertas', s.n ? P1(s.reop) : '—', 'volvieron de Resuelta a abierta'),
         kpi('Devueltas a cola', s.n ? P1(s.bounce) : '—', 'de En curso a Asignada'), kpi('Cerradas sin En curso', s.noIpDone == null ? '—' : P1(s.noIpDone), 'de las cerradas'),
         kpi('Escaladas sin Pendiente', s.escNoPend == null ? '—' : P1(s.escNoPend), 'de las cerradas escaladas'), kpi('Sin texto de resolución', s.done ? P1(s.noRes) : '—', 'de las cerradas')),
+      section('¿En qué se va el tiempo?'), timesCard(A),
       section('¿Empezamos a tiempo?'),
       card('Cuándo pasan a En curso', startTable(m.rows('ini')), { span: 's12', sub: 'Por prioridad: el SLA de inicio y cómo se reparte (cada fila suma el 100 %) lo que tarda en pasar a En curso; en verde, los tramos dentro del plazo de esa prioridad. Clic en una celda para filtrar.' }),
       card('Mes a mes', monthPivot(A, SLA_COLS, slaStats), { span: 's12', sub: `${MONTH_NOTE} ${WORSE_NOTE} Clic en un mes para filtrar.` }),
@@ -131,7 +140,7 @@ export const slaTab = (t) => {
         fig('Cerradas sin En curso', (s) => s.noIpDone, (v) => pct(v), 'low', 'De las cerradas, las que nunca pasaron por En curso.'),
         fig('Escaladas sin Pendiente', (s) => s.escNoPend, (v) => pct(v), 'low', 'De las cerradas con ticket de tercero, las que nunca pasaron a Pendiente.')]
       : [fig('Dentro del SLA', (s) => s.sla, (v) => pct(v), 'high', 'Todas las prioridades.'), fig('Dentro del SLA · Alta', (s) => s.byP[PRIOS[1]], (v) => pct(v), 'high', slaLabel(PRIOS[1])), sameWork(A),
-        fig('Hasta En curso, en días', (s) => (s.ip == null ? null : s.ip / 1440), dec, 'low', 'Media de la apertura al primer paso a En curso.'),
+        fig('Hasta En curso', (s) => s.ip, dur, 'low', 'Media de la apertura al primer paso a En curso.'),
         fig('Reabiertas', (s) => (s.n ? s.reop : null), (v) => pct(v), 'low', 'Volvieron de Resuelta a abierta.'),
         fig('Devueltas a cola', (s) => (s.n ? s.bounce : null), (v) => pct(v), 'low', 'Pasaron de En curso a Asignada.'),
         fig('Cerradas sin En curso', (s) => s.noIpDone, (v) => pct(v), 'low', 'De las cerradas, las que nunca pasaron por En curso.'),
@@ -139,6 +148,7 @@ export const slaTab = (t) => {
     const common = () => commonModules(m, A, T, BETTER_MIN).map((x) => [m.DIMS.mo.label(x.k), (i) => C.mo[i] === x.k, `mo:${x.k}`]);
     return grid(ask('sla'),
       kpis(...kp.filter(Boolean)),
+      section('¿En qué se va el tiempo?'), timesCard(A),
       section('¿Empezamos a tiempo?'),
       card('Cuándo pasan a En curso', startTable(m.rows('ini')), { span: 's12', sub: `Por prioridad, una fila por cada uno: el SLA de inicio y cómo se reparte (cada fila suma el 100 %) lo que tarda en pasar a En curso; en verde, los tramos dentro del plazo. ${greenNote}${perNote}${pp ? ' Cuenta a la persona responsable actual de la issue.' : ''} Clic en una celda para filtrar.` }),
       card('Mes a mes', pairTable('Mes de apertura', [PAIR_VOL, ...PAIR_SLA, ...(pp ? qualityDefs(false).filter((d) => ['Cerradas sin En curso', 'Escaladas sin Pendiente'].includes(d[0])) : [])], pairRows(A, months, 'Total'), BY_N),

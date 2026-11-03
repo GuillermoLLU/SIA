@@ -10,7 +10,8 @@
 // Las dos últimas se rehacen con cada alta o cambio y sirven para consultar por fecha
 // (cambios de estado, actividad…) sin volver a leer los textos largos.
 //   jira_tickets     los tickets Jira de las issues (jira.js): creación, resolución y estado, en hora de Madrid;
-//                    found 0, una clave que Jira no conoce (no se vuelve a pedir); fetched, cuándo se pidió
+//                    moves, cuántas veces pasó de un equipo a otro (NULL: se pidió sin historial); found 0, una
+//                    clave que Jira no conoce (no se vuelve a pedir); fetched, cuándo se pidió
 import path from 'node:path';
 import { decide, auditEvents, worklogEntries } from './incidents.js';
 
@@ -24,7 +25,7 @@ const SCHEMA = `
   CREATE INDEX IF NOT EXISTS audit_field_at ON audit_events (field, at);
   CREATE TABLE IF NOT EXISTS worklog_entries (incident TEXT NOT NULL, seq INTEGER NOT NULL, at TEXT, who TEXT, text TEXT, PRIMARY KEY (incident, seq));
   CREATE INDEX IF NOT EXISTS worklog_at ON worklog_entries (at);
-  CREATE TABLE IF NOT EXISTS jira_tickets (key TEXT PRIMARY KEY, created TEXT, resolved TEXT, status TEXT, found INTEGER NOT NULL, fetched TEXT);
+  CREATE TABLE IF NOT EXISTS jira_tickets (key TEXT PRIMARY KEY, created TEXT, resolved TEXT, status TEXT, found INTEGER NOT NULL, fetched TEXT, moves INTEGER);
   PRAGMA user_version = 1;`;
 
 // Las columnas que se consultan por rango o por grupo llevan índice.
@@ -39,6 +40,8 @@ export const createRepository = ({ DatabaseSync, file, fs, now = () => new Date(
   // incidencias en 9,8 s frente a 14–18 s). Deja junto al fichero sus -wal y -shm mientras está abierto.
   db.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA cache_size = -65536;');
   db.exec(SCHEMA);
+  // una base de antes de contar los cambios de equipo: la columna, vacía (esos tickets se vuelven a pedir si hace falta)
+  if (!db.prepare('PRAGMA table_info(jira_tickets)').all().some((c) => c.name === 'moves')) db.exec('ALTER TABLE jira_tickets ADD COLUMN moves INTEGER');
 
   const columns = () => db.prepare('PRAGMA table_info(incidents)').all().map((c) => c.name);
 
@@ -129,11 +132,11 @@ export const createRepository = ({ DatabaseSync, file, fs, now = () => new Date(
   // Lo que se ha traído de Jira (found) y las claves que no conoce (missing), en una transacción.
   const saveJira = ({ found, missing }) => {
     const stamp = now().toISOString();
-    const put = db.prepare('INSERT OR REPLACE INTO jira_tickets (key, created, resolved, status, found, fetched) VALUES (?, ?, ?, ?, ?, ?)');
+    const put = db.prepare('INSERT OR REPLACE INTO jira_tickets (key, created, resolved, status, found, fetched, moves) VALUES (?, ?, ?, ?, ?, ?, ?)');
     db.exec('BEGIN');
     try {
-      for (const t of found) put.run(t.key, t.created, t.resolved, t.status, 1, stamp);
-      for (const k of missing) put.run(k, '', '', '', 0, stamp);
+      for (const t of found) put.run(t.key, t.created, t.resolved, t.status, 1, stamp, t.moves ?? null);
+      for (const k of missing) put.run(k, '', '', '', 0, stamp, null);
       db.exec('COMMIT');
     } catch (e) {
       db.exec('ROLLBACK');

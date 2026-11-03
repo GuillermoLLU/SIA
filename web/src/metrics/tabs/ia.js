@@ -185,7 +185,7 @@ export const iaTab = (t) => {
       fig('Revisadas OK', (s) => s.okShare, P, 'high', 'De las de IA, con revisión humana OK y sin fallo.', (s) => s.ia),
       fig('Con fallo', (s) => s.failShare, P, 'low', 'De las de IA, con alguna marca de fallo o de revisión no OK.', (s) => s.ia),
       fig('Sin revisar', (s) => s.unrevShare, P, null, 'De las de IA, sin revisión ni fallo.', (s) => s.ia),
-      pp ? fig('Media con IA, en días', (s) => (s.avg == null ? null : s.avg / 1440), dec, 'low', 'De las resueltas con IA, de la apertura a la resolución.', (s) => s.r.resolved) : '',
+      pp ? fig('Media con IA', (s) => s.avg, dur, 'low', 'De las resueltas con IA, de la apertura a la resolución.', (s) => s.r.resolved) : '',
       co ? fig('Personas que la usan', users, P, 'high', 'De las personas con issues en el periodo, las que tienen alguna con IA.', (s) => s.people) : '',
       co ? kpiCo('Módulos donde se usa', mods.map((v) => ({ n: 1, v })), (x) => num(x.v), { val: (x) => x.v, note: 'Módulos con alguna issue con IA.' }) : ''];
     return grid(ask('ia'),

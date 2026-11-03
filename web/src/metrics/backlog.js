@@ -1,6 +1,6 @@
 // Lo pendiente (sin DOM): en qué situación está, qué conviene vigilar, lo que no tiene a nadie y, comparando,
 // cómo está lo de cada lado. m: el modelo (model.js).
-import { SITUATIONS } from './model.js';
+import { SITUATIONS, REOPENED, MISROUTED } from './model.js';
 import { OLD_DAYS, DAY, isLate } from './rules.js';
 
 // Su situación (model.js, SITUATIONS): en curso, en Asignada sin tocar o devuelta, o en espera (Pendiente) de un
@@ -17,6 +17,14 @@ export const ages = (m) => [0, 1, 2, 3, 4].map((k) => ({ label: m.DIMS.age.label
 export const isOld = (m) => (i) => m.SNAP - m.C.rep[i] > OLD_DAYS * DAY;
 export const late = (m) => (i) => isLate(m.OPEN[i], m.C.ip[i], m.SLA[m.C.pr[i]], m.SNAP - m.C.rep[i]);
 export const escalated = (m) => (i) => m.C.vt[i] > 0;
+// volvieron de Resuelta a abierta; un clic filtra por esa marca de calidad (model.js, DIMS.q: 0, Reabierta)
+export const reopened = (m) => (i) => (m.C.fl[i] & REOPENED) !== 0;
+export const REOPEN_FILTER = 'q:0';
+export const REOPEN_TIP = 'Volvieron de Resuelta a abierta: la resolución no le sirvió al centro.';
+// algún Jira suyo se descartó o pasó de un equipo a otro (model.js, DIMS.mx)
+export const misrouted = (m) => (i) => (m.C.fl[i] & MISROUTED) !== 0;
+export const MISROUTED_FILTER = 'mx:1';
+export const MISROUTED_TIP = 'Algún Jira suyo se descartó o pasó de un equipo a otro (de proyecto o de equipo asignado): se escaló a quien no era.';
 const cards = (m) => (i) => m.DIMS.tj.get(i);
 export const isPrio = (m) => (i) => cards(m)(i).includes(2);
 // lo que no tiene a nadie: abierto, de las tarjetas del equipo (SGA, SISU o PRIO) y del periodo, con los filtros
@@ -29,12 +37,14 @@ export const watchList = (m) => [
   ['Fuera de plazo', late(m), 'Nunca han pasado a En curso y ya superan el plazo de su prioridad.', 'sl:4'],
   [`Con más de ${OLD_DAYS} días`, isOld(m), `Llevan más de ${OLD_DAYS} días abiertas: si sube, el backlog envejece.`, OLD_FILTER],
   ['Escaladas', escalated(m), 'Con ticket de tercero, estén en el estado que estén (por eso no coincide con «espera tercero»: algunas ya se están trabajando o han vuelto a la cola).', 'es:1'],
+  ['Mal escaladas', misrouted(m), MISROUTED_TIP, MISROUTED_FILTER],
+  ['Reabiertas', reopened(m), REOPEN_TIP, REOPEN_FILTER],
   ['Críticas', (i) => m.C.pr[i] === m.CRIT, 'De prioridad crítica.', `pr:${m.CRIT}`],
   ['PRIO', isPrio(m), 'Priorizadas por negocio.', 'tj:2'],
 ];
 
-// la antigüedad media de unas issues, en días (null sin ninguna)
-const meanAge = (m, l) => (l.length ? l.reduce((a, i) => a + m.SNAP - m.C.rep[i], 0) / l.length / DAY : null);
+// la antigüedad media de unas issues, en minutos (null sin ninguna)
+const meanAge = (m, l) => (l.length ? l.reduce((a, i) => a + m.SNAP - m.C.rep[i], 0) / l.length : null);
 // el lado con menos (el que va mejor), o -1 si se ven iguales (al redondear con `same`) o falta uno
 const lower = (a, b, same) => (a == null || b == null || same(a) === same(b) ? -1 : a < b ? 0 : 1);
 
@@ -44,7 +54,7 @@ const lower = (a, b, same) => (a == null || b == null || same(a) === same(b) ? -
 export const pendingCells = (m, T, H, pp, r) => {
   const v = [0, 1].map((k) => { const l = r.test ? T[k].filter(r.test) : T[k]; return { c: l.length / H[k], sh: T[k].length ? l.length / T[k].length : null, age: meanAge(m, l) }; });
   const main = r.better ? (pp ? lower(v[0].c, v[1].c, (x) => Math.round(x * 10)) : lower(v[0].sh, v[1].sh, (x) => Math.round(x * 100))) : -1;
-  const old = r.better || !r.test ? lower(v[0].age, v[1].age, (x) => Math.round(x * 10)) : -1;
+  const old = r.better || !r.test ? lower(v[0].age, v[1].age, (x) => Math.round(x / 60)) : -1;   // iguales si lo son en horas
   return { v, main, old };
 };
 

@@ -26,8 +26,8 @@
 //           tA/tI/tPc/tPv/tPo minutos en cola, en curso y pendiente del centro, de un tercero u otros
 //           nb devoluciones a la cola · np pendientes · rz resolución repetida (4 veces o más; 0 si no)
 //           the/tes/tcr/tsr THesc, Tesc, Tcr y Tesc-r con sus tickets Jira (escalation.js; minutos, -1 no hay,
-//           the -2 ticket previo); fl lleva además las marcas de mal escalada, cerrada con el Jira abierto y
-//           cerrada en Remedy antes que su Jira
+//           the -2 ticket previo); fl lleva además las marcas de sin Jira válido, cerrada con el Jira abierto,
+//           cerrada en Remedy antes que su Jira y mal escalada (algún Jira suyo descartado o que pasó de un equipo a otro)
 import { readIssue, minutesSince, FLAG } from './remedy.js';
 import { loginsOf, companyOf } from './companies.js';
 import { THEME_NAMES, problemKey } from './themes.js';
@@ -35,7 +35,7 @@ import { PENDING, OPEN_STATES } from './states.js';
 import { escalationOf } from './escalation.js';
 
 export const GROUP = 'AYS SOPORTE';
-export const FORMAT = 6;
+export const FORMAT = 7;
 
 export const REQUIRED = ['INCIDENTNUMBER', 'ASSIGNEDGROUP', 'ASSIGNEE', 'SUMMARY', 'PRIORITY', 'STATUS', 'STATUSREASON', 'SERVICETYPE', 'TAGS',
   'REPORTEDDATE', 'LASTRESOLUTIONDATE', 'LASTMODIFIEDDATE', 'RESOLUTION', 'VENDORTICKETNUMBER', 'PRODUCTCATEGORIZATIONTIER1',
@@ -73,7 +73,7 @@ export const createDataset = ({ start }) => {
   const cols = Object.fromEntries(COLS.map((c) => [c, []]));
   const resolutions = [], resolutionCount = new Map(), resolvers = new Map();
   const spellings = [];   // por problema: cuántas veces se escribe de cada forma
-  const jira = [], keys = new Set();   // las claves Jira de cada issue (las cuentas de escalado se hacen en build)
+  const jira = [], keys = new Set(), openKeys = new Set();   // las claves Jira de cada issue y las de las abiertas (las cuentas de escalado se hacen en build)
   let total = 0, snapshot = 0, first = Infinity, last = -1;
 
   const add = (r) => {
@@ -103,19 +103,21 @@ export const createDataset = ({ start }) => {
       nb: i.bounces, np: i.pendings, th: i.themes, su: own(i.title), de,
     };
     for (const c of COLS) cols[c].push(row[c]);
-    jira.push({ keys: i.jira, open: OPEN_STATES.includes(i.status) });
-    for (const k of i.jira) keys.add(k);
+    const open = OPEN_STATES.includes(i.status);
+    jira.push({ keys: i.jira, open });
+    for (const k of i.jira) { keys.add(k); if (open) openKeys.add(k); }
   };
 
-  // Los tiempos de escalado de cada issue con sus tickets (Map clave → { created, resolved, status, found }, en hora
-  // de Madrid como Remedy); «ahora», la foto. Una clave sin ticket guardado no cuenta.
+  // Los tiempos de escalado de cada issue con sus tickets (Map clave → { created, resolved, status, found, moves }, en
+  // hora de Madrid como Remedy); «ahora», la foto. Una clave sin ticket guardado no cuenta.
   const escalations = (tickets) => {
     const at = (s) => minutesSince(base, s), out = { the: [], tes: [], tcr: [], tsr: [] };
     jira.forEach(({ keys: ks, open }, n) => {
-      const ts = ks.map((k) => tickets.get(k)).filter((t) => t?.found).map((t) => ({ created: at(t.created), resolved: at(t.resolved), status: t.status }));
+      const ts = ks.map((k) => tickets.get(k)).filter((t) => t?.found).map((t) => ({ created: at(t.created), resolved: at(t.resolved), status: t.status, moves: t.moves ?? 0 }));
       const e = escalationOf({ reported: cols.rep[n], resolved: cols.res[n], open, escalated: !!(cols.fl[n] & FLAG.THIRD_PARTY) }, ts, snapshot);
       out.the.push(e.thesc); out.tes.push(e.tesc); out.tcr.push(e.tcr); out.tsr.push(e.tescr);
-      cols.fl[n] |= (e.bad ? FLAG.BAD_ESCALATION : 0) | (e.jiraOpen ? FLAG.JIRA_OPEN : 0) | (e.early ? FLAG.CLOSED_BEFORE_JIRA : 0);
+      cols.fl[n] |= (e.bad ? FLAG.BAD_ESCALATION : 0) | (e.jiraOpen ? FLAG.JIRA_OPEN : 0) | (e.early ? FLAG.CLOSED_BEFORE_JIRA : 0)
+        | (e.misrouted ? FLAG.MISROUTED : 0);
     });
     return out;
   };
@@ -140,6 +142,6 @@ export const createDataset = ({ start }) => {
     };
   };
 
-  // Las claves Jira de todas las issues, sin repetir (para pedirlas a Jira antes de build).
-  return { add, build, jiraKeys: () => [...keys] };
+  // Las claves Jira de todas las issues, sin repetir, y las de las abiertas (para pedirlas a Jira antes de build).
+  return { add, build, jiraKeys: () => [...keys], openJiraKeys: () => [...openKeys] };
 };

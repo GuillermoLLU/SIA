@@ -98,10 +98,10 @@ export const createCharts = (m, ui) => {
     // con o.extra: nce, en cuántos centros pasa; same, de las resueltas, la parte cerrada con el texto más usado
     nce: ['Centros', null, (s) => s.nce, 'En cuántos centros distintos ha pasado. En uno, es algo local; en muchos, del sistema.'],
     // Resolución: lo resuelto, cuánto tarda y en qué se le va el tiempo (de media por resuelta: model.js, stats rt)
-    d7: ['1 a 7 días', null, (s) => (s.resolved ? s.d7 : null), 'De las resueltas, las que tardaron de 1 a 7 días.'],
-    d15: ['7 a 15 días', 'low', (s) => (s.resolved ? s.d15 : null), 'De las resueltas, las que tardaron de 7 a 15 días.'],
+    d7: ['24 a 168 h', null, (s) => (s.resolved ? s.d7 : null), 'De las resueltas, las que tardaron de 24 a 168 h.'],
+    d15: ['168 a 360 h', 'low', (s) => (s.resolved ? s.d15 : null), 'De las resueltas, las que tardaron de 168 a 360 h.'],
     mx: ['Máximo', null, (s) => (s.resolved ? s.mx : null), 'Lo que tardó la resuelta más lenta.'],
-    w7: ['> 7 días', 'low', (s) => (s.resolved ? s.w7 : null), 'De las resueltas, las que tardaron más de 7 días.'],
+    w7: ['> 168 h', 'low', (s) => (s.resolved ? s.w7 : null), 'De las resueltas, las que tardaron más de 168 h.'],
     tq: ['En cola', 'low', (s) => (s.resolved ? s.rt[0] / s.resolved : null), 'Tiempo medio en Asignada.'],
     tc: ['Espera cliente', null, (s) => (s.resolved ? s.rt[2] / s.resolved : null), 'Tiempo medio en Pendiente del centro o del cliente.'],
     tv: ['Espera tercero', null, (s) => (s.resolved ? s.rt[3] / s.resolved : null), 'Tiempo medio en Pendiente de un tercero.'],

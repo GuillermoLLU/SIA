@@ -12,15 +12,18 @@
 //   Tesc-r resolución del Jira de solución final → ahora; solo las que siguen abiertas en Remedy.
 // Jira de solución final: el último resuelto de sus tickets que no está Discarded (ni cancelado). Tesc, Tcr y Tesc-r
 // son solo de las escaladas (Pendiente con motivo Third Party Vendor Action Reqd: remedy.js, THIRD_PARTY). De las
-// escaladas ya cerradas sin solución final: mal escalada (bad) si no tiene ningún ticket suyo que no esté Discarded,
-// y cerrada con el Jira abierto (jiraOpen) si lo tiene pero sin resolver; con ticket previo, ninguna de las dos.
+// escaladas ya cerradas sin solución final: sin Jira válido (bad; la «mal escalada» de la #48) si no tiene ningún
+// ticket suyo que no esté Discarded, y cerrada con el Jira abierto (jiraOpen) si lo tiene pero sin resolver; con ticket
+// previo, ninguna de las dos.
+// Mal escalada (misrouted), esté como esté la issue: alguno de sus tickets se descartó (Discarded o cancelado) o pasó
+// de un equipo a otro en Jira (ticket.moves, jira.js; sin su historial, 0).
 import { toCode } from './text.js';
 
 export const PREVIOUS = -2;
 // Los que no son la solución: descartados y, aunque la #48 solo dice Discarded, también los cancelados (en Jira hay
 // 87 «Cancelado» con fecha de resolución que, si no, contarían como la solución final).
 const DISCARDED = new Set(['DISCARDED', 'DESCARTADO', 'DESCARTADA', 'CANCELADO', 'CANCELADA', 'CANCELLED', 'CANCELED']);
-const NONE = { thesc: -1, tesc: -1, tcr: -1, tescr: -1, bad: false, jiraOpen: false, early: false };
+const NONE = { thesc: -1, tesc: -1, tcr: -1, tescr: -1, bad: false, jiraOpen: false, early: false, misrouted: false };
 
 // i: { reported, resolved, open, escalated } de la issue; now: el minuto de la foto.
 export const escalationOf = (i, tickets, now) => {
@@ -28,9 +31,10 @@ export const escalationOf = (i, tickets, now) => {
   const closed = !i.open && i.resolved >= 0, end = closed ? i.resolved : now;
   const mine = known.filter((t) => t.created >= i.reported && t.created <= end);
   const previous = known.some((t) => t.created < i.reported);
-  const out = { ...NONE, thesc: mine.length ? Math.min(...mine.map((t) => t.created)) - i.reported : previous ? PREVIOUS : -1 };
-  if (!i.escalated) return out;
   const valid = mine.filter((t) => !DISCARDED.has(toCode(t.status)));
+  const out = { ...NONE, thesc: mine.length ? Math.min(...mine.map((t) => t.created)) - i.reported : previous ? PREVIOUS : -1,
+    misrouted: valid.length < mine.length || mine.some((t) => t.moves > 0) };
+  if (!i.escalated) return out;
   if (!valid.length) return { ...out, bad: !i.open && !previous };
   const final = valid.filter((t) => t.resolved >= 0).sort((a, b) => b.resolved - a.resolved)[0];
   if (!final) return { ...out, jiraOpen: !i.open };

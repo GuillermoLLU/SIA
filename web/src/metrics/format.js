@@ -7,13 +7,13 @@ const nf1 = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 1, minimumFr
 export const num = (n) => nf.format(Math.round(n));
 export const dec = (x) => nf1.format(x);
 export const pct = (x, digits = 0) => `${digits ? nf1.format(x * 100) : Math.round(x * 100)} %`;
-// minutos → «45 min», «21 h», «1 día 19 h» o «3 días»: horas enteras hasta el día y, desde ahí, días y horas
+// Todos los tiempos de las Métricas, en horas. Minutos → sin decimales desde 10 h («80 h»), con uno como mucho hasta
+// ahí («9,6 h», «2 h») y con dos por debajo de una hora, para que los plazos de 15 y 45 min salgan exactos («0,25 h»).
+const HOURS = [0, 1, 2].map((d) => new Intl.NumberFormat('es-ES', { maximumFractionDigits: d }));
 export const dur = (m) => {
   if (m == null) return '—';
-  if (m < 60) return `${Math.round(m)} min`;
-  const h = Math.round(m / 60), d = Math.floor(h / 24), r = h % 24;
-  if (!d) return `${h} h`;
-  return `${d} ${d === 1 ? 'día' : 'días'}${r ? ` ${r} h` : ''}`;
+  const h = m / 60;
+  return `${HOURS[h >= 10 ? 0 : h >= 1 ? 1 : 2].format(h)} h`;
 };
 
 export const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];

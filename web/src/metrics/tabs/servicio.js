@@ -3,14 +3,10 @@
 // No usa los lados de la comparación de arriba: con sus botones, se compara con el mismo periodo del año anterior y con
 // T-Systems (de partida, solo nuestras cifras). Los filtros y el periodo de arriba sí cuentan.
 import { esc } from '../../ui/html.js';
-import { num, pct, nice, dmy } from '../format.js';
+import { num, pct, dur, nice, dmy } from '../format.js';
 import { createService, SIDES, ACTION_TARGET, RESOLUTION, RESOLUTION_ALL, REOPEN_MAX, AUDIT } from '../service.js';
 
 const PRIOS = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
-// Todos los tiempos de la pestaña, en horas: sin decimales desde 10 h («80 h»), con uno como mucho hasta ahí («9,6 h»,
-// «2 h») y con dos por debajo de una hora, para que los plazos de 15 y 45 min salgan exactos («0,25 h»).
-const HOURS = [0, 1, 2].map((d) => new Intl.NumberFormat('es-ES', { maximumFractionDigits: d }));
-export const hours = (min) => { const h = min / 60; return `${HOURS[h >= 10 ? 0 : h >= 1 ? 1 : 2].format(h)} h`; };
 const DAY = 1440;
 
 export const servicioTab = (t) => {
@@ -31,45 +27,11 @@ export const servicioTab = (t) => {
   const groups = (on, n, first) => [[first[0], first[1]], ...on.map((s) => [sideName(s), n])];
   const range = ([a, b]) => `${dmy(m.BASE + a * 6e4)} – ${dmy(m.BASE + (b - DAY) * 6e4)}`;
 
-  // En qué se va el tiempo (service.js, phases): una barra para las escaladas y otra para las que no, cada una con sus
-  // tramos apilados (de media por resuelta, en el orden en que pasan), y una fila por lado. Las dos, en la misma escala.
-  // Sin escalar no hay Tesc: no tienen tramo de escalado. Cada tramo, de un color (metrics.css, mt-svc-pe y mt-svc-pp).
-  const PHASES = [
-    ['esc', 'Escaladas', 'pe', [['Hasta escalar (THesc)', 'De la apertura al primer Jira creado después.'],
-      ['Escalada en Jira (Tesc)', 'Del Jira más antiguo, también los Discarded, a la resolución del Jira de solución final.'],
-      ['Cierre en Remedy (Tcr)', 'De la resolución del Jira de solución final a la resolución en Remedy.']]],
-    ['plain', 'Sin escalar', 'pp', [['En cola', 'En Asignada, y lo de antes del primer cambio de estado.'], ['En curso (Tan)', 'En In Progress.'],
-      ['Esperando al centro (Tpc)', 'En Pendiente esperando al centro o al cliente.'], ['Otras esperas', 'En Pendiente por otro motivo.']]],
-  ];
-  // por qué una escalada resuelta no entra en su barra (service.js, phases: out)
-  const OUT = [['previous', 'ligadas a un ticket previo'], ['bad', 'mal escaladas'], ['jiraOpen', 'cerradas con el Jira abierto'],
-    ['early', 'cerradas en Remedy antes que su Jira'], ['none', 'sin datos de Jira']];
-  const timesCard = (S, on) => {
-    const total = (p) => (p.n ? p.seg.reduce((a, b) => a + b, 0) : null);
-    const max = Math.max(1, ...PHASES.flatMap(([k]) => on.map((s) => total(S[s].phases[k]) || 0)));
-    const blocks = PHASES.map(([k, title, cls, segs]) => {
-      const rows = on.map((s) => {
-        const p = S[s].phases[k], t = total(p), who = sideName(s);
-        const left = k === 'esc' ? OUT.filter(([r]) => p.out[r]).map(([r, l]) => `${num(p.out[r])} ${l}`) : [];
-        const count = k === 'esc' ? `${num(p.n)} escaladas resueltas${left.length ? `\nFuera: ${left.join(', ')}` : ''}` : `${num(p.n)} resueltas`;
-        const empty = k === 'esc' && !m.data.meta.jira?.at ? 'aún no se ha traído nada de Jira: pulsa «Actualizar y generar informe»'
-          : left.length ? 'sin escaladas con sus tres tiempos de Jira' : 'sin datos';
-        const bar = t == null ? `<em>${empty}</em>`
-          : `<span class="mt-svc-stack" style="--mt-at:${(t / max).toFixed(4)}">${p.seg.map((v, j) => `<i class="mt-svc-${cls}${j}" style="flex-grow:${v.toFixed(1)}" data-tip="${esc(`${title} · ${who}\n${segs[j][0]}: ${hours(v)} (${pct(v / t)})\n${count}`)}">${v / max >= 0.08 ? hours(v) : ''}</i>`).join('')}</span><b>${hours(t)}</b>`;
-        return `<div class="mt-svc-row" data-tip="${esc(`${title} · ${who}\nEn total, ${t == null ? 'sin datos' : hours(t)} de media · ${count}`)}"><span class="mt-svc-who">${esc(who)}</span><span class="mt-svc-track">${bar}</span></div>`;
-      }).join('');
-      const legend = `<div class="mt-legend">${segs.map(([l, tip], j) => `<span data-tip="${esc(tip)}"><i class="mt-svc-${cls}${j}"></i>${l}</span>`).join('')}</div>`;
-      return `<div class="mt-svc-time"><p class="mt-svc-th"><b>${title}</b></p>${legend}${rows}</div>`;
-    }).join('');
-    return card('En qué se va el tiempo', `<div class="mt-svc-times">${blocks}</div>`,
-      { span: 's12', sub: 'De media por resuelta, cada tramo en el orden en que pasa; la barra entera es su tiempo de resolución medio. Escalada: estuvo en Pendiente con motivo Third Party Vendor Action Reqd; solo cuentan las que tienen sus tres tiempos de Jira, con los tickets creados entre su apertura y su cierre (las notas citan también tickets de otras incidencias). Las dos barras, en la misma escala. Pasa el ratón por un tramo para ver su detalle.' });
-  };
-
   // Tiempo de acción: de cada prioridad, la parte que pasa a En curso dentro de su plazo (cumple con más del 90 %).
   const actionCard = (S, on) => {
-    const cells = (k) => `<td class="mt-num">${k === 'all' ? 'Según prioridad' : hours(m.SLA[m.DI.prio.indexOf(k)])}</td>${on.map((s) => {
+    const cells = (k) => `<td class="mt-num">${k === 'all' ? 'Según prioridad' : dur(m.SLA[m.DI.prio.indexOf(k)])}</td>${on.map((s) => {
       const a = S[s].action[k];
-      return goal(a.share, a.share > ACTION_TARGET, (v) => pct(v, 1), `${num(a.ok)} dentro y ${num(a.ko)} fuera del plazo`) + plain(a.avg, hours);
+      return goal(a.share, a.share > ACTION_TARGET, (v) => pct(v, 1), `${num(a.ok)} dentro y ${num(a.ko)} fuera del plazo`) + plain(a.avg, dur);
     }).join('')}`;
     const body = [...PRIOS, 'all'].filter((k) => k === 'all' || on.some((s) => S[s].action[k].n)).map((k) => row(k, cells(k))).join('');
     return card('Tiempo de acción (Tatt)', table('Prioridad', [['Plazo', 'Tiempo de acción de la oferta.'], ...on.flatMap(() => [['Dentro del plazo', `Cumple con más del ${pct(ACTION_TARGET)}: de la apertura al primer paso a En curso.`], ['Media', 'Media de la apertura al primer paso a En curso.']])],
@@ -79,9 +41,9 @@ export const servicioTab = (t) => {
 
   // Tiempo de resolución medio (MTTR): la media frente al objetivo de cada prioridad y qué parte queda dentro.
   const resolutionCard = (S, on) => {
-    const cells = (k, max) => `<td class="mt-num">&lt; ${hours(max)}</td>${on.map((s) => {
+    const cells = (k, max) => `<td class="mt-num">&lt; ${dur(max)}</td>${on.map((s) => {
       const r = S[s].resolution[k];
-      return goal(r.mttr, r.mttr < max, hours, `${num(r.n)} issues`) + plain(r.under, (v) => pct(v, 1));
+      return goal(r.mttr, r.mttr < max, dur, `${num(r.n)} issues`) + plain(r.under, (v) => pct(v, 1));
     }).join('')}`;
     const body = [...RESOLUTION.map(([k, max]) => row(k, cells(k, max))), row('all', cells('all', RESOLUTION_ALL))].join('');
     return card('Tiempo de resolución medio (MTTR)', table('Prioridad', [['Objetivo', 'Tiempo de resolución medio de la oferta.'], ...on.flatMap(() => [['MTTR', 'TTR de las resueltas más lo que llevan las abiertas, entre todas.'], ['Dentro del objetivo', 'Las issues que tardan (o llevan) menos que el objetivo.']])],
@@ -115,11 +77,12 @@ export const servicioTab = (t) => {
   // Escalados (con los tickets Jira) y uso de la IA: sin SLA, la cifra de cada lado.
   const escalationCard = (S, on, jira) => {
     const rows = [
-      ['THesc', 'De la apertura al primer Jira creado después; los tickets previos a la apertura no cuentan.', (s) => s.esc.thesc, hours, (s) => `${num(s.esc.nThesc)} issues · ${num(s.esc.previous)} con ticket previo`],
-      ['Tesc', 'Del Jira más antiguo (también los Discarded) a la resolución del Jira de solución final; solo escaladas.', (s) => s.esc.tesc, hours, (s) => `${num(s.esc.nTesc)} escaladas`],
-      ['Tesc-r', 'De la resolución del Jira de solución final a ahora: escaladas que siguen abiertas en Remedy con su Jira ya resuelto.', (s) => s.esc.tescr, hours, (s) => `${num(s.esc.nTescr)} abiertas`],
+      ['THesc', 'De la apertura al primer Jira creado después; los tickets previos a la apertura no cuentan.', (s) => s.esc.thesc, dur, (s) => `${num(s.esc.nThesc)} issues · ${num(s.esc.previous)} con ticket previo`],
+      ['Tesc', 'Del Jira más antiguo (también los Discarded) a la resolución del Jira de solución final; solo escaladas.', (s) => s.esc.tesc, dur, (s) => `${num(s.esc.nTesc)} escaladas`],
+      ['Tesc-r', 'De la resolución del Jira de solución final a ahora: escaladas que siguen abiertas en Remedy con su Jira ya resuelto.', (s) => s.esc.tescr, dur, (s) => `${num(s.esc.nTescr)} abiertas`],
       ['Escaladas', 'Estuvieron en Pendiente con motivo Third Party Vendor Action Reqd.', (s) => s.esc.n, num],
-      ['Mal escaladas', 'Escaladas y cerradas sin ningún Jira suyo (creado entre su apertura y su cierre) que no esté Discarded o cancelado.', (s) => s.esc.bad, num],
+      ['Sin Jira válido', 'Escaladas y cerradas sin ningún Jira suyo (creado entre su apertura y su cierre) que no esté Discarded o cancelado (la «mal escalada» de la #48).', (s) => s.esc.bad, num],
+      ['Mal escaladas', 'Algún Jira suyo se descartó o pasó de un equipo a otro (de proyecto o de equipo asignado). El paso de equipo solo se sabe de los tickets de las abiertas.', (s) => s.esc.misrouted, num],
       ['Cerradas con el Jira abierto', 'Escaladas cerradas en Remedy con su Jira aún sin resolver.', (s) => s.esc.jiraOpen, num],
       ['Cerradas antes que su Jira', 'Escaladas que se cerraron en Remedy antes de que se resolviera su Jira de solución final: sin Tcr.', (s) => s.esc.early, num],
       ['Uso de la IA', 'De las resueltas, las que tienen una nota [ANALISIS_IA], [DIAGNOSTICO_IA] o [ANTECEDENTES_IA].', (s) => s.ia.share, (v) => pct(v, 1), (s) => `${num(s.ia.ia)} de ${num(s.ia.done)} resueltas`],
@@ -146,10 +109,9 @@ export const servicioTab = (t) => {
     return grid(ask('servicio'), toggles, notes,
       kpis(kpi('Entrantes', num(us.n), 'abiertas en el periodo'), kpi('Resueltas entrantes', num(us.resolvedIn), us.inShare == null ? '' : `${pct(us.inShare)} de las entrantes`),
         kpi('Tiempo de acción', us.action.all.share == null ? '—' : pct(us.action.all.share, 1), `dentro del plazo · objetivo > ${pct(ACTION_TARGET)}`, us.action.all.share == null ? '' : us.action.all.share > ACTION_TARGET ? 'mt-svc-ok' : 'mt-svc-ko'),
-        kpi('MTTR', all.mttr == null ? '—' : hours(all.mttr), `todas · objetivo < ${hours(RESOLUTION_ALL)}`, all.mttr == null ? '' : all.mttr < RESOLUTION_ALL ? 'mt-svc-ok' : 'mt-svc-ko'),
+        kpi('MTTR', all.mttr == null ? '—' : dur(all.mttr), `todas · objetivo < ${dur(RESOLUTION_ALL)}`, all.mttr == null ? '' : all.mttr < RESOLUTION_ALL ? 'mt-svc-ok' : 'mt-svc-ko'),
         kpi('Reapertura', us.reopen.all.share == null ? '—' : pct(us.reopen.all.share, 1), `de las cerradas · objetivo ≤ ${pct(REOPEN_MAX)}`, us.reopen.all.share == null ? '' : us.reopen.all.share <= REOPEN_MAX ? 'mt-svc-ok' : 'mt-svc-ko'),
         kpi('Uso de la IA', us.ia.share == null ? '—' : pct(us.ia.share, 1), 'de las resueltas, con nota _IA')),
-      section('¿Cuánto tardamos?'), timesCard(S, on),
       section('¿Cumplimos los SLA?'), actionCard(S, on), resolutionCard(S, on), qualityCard(S, on),
       section('¿Cómo evoluciona?'), evolutionCard(V, on),
       section('¿Y lo escalado?'), escalationCard(S, on, jira));

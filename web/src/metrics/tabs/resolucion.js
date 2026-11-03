@@ -14,10 +14,10 @@ import { WORSE_NOTE, MONTH_NOTE, opt, optDur, avgOf } from './common.js';
 const STATES = [['En cola', 'En Asignada: sin coger o de vuelta a la cola. Incluye lo que espera a otros sin pasar a Pendiente.'], ['En curso', 'En En curso.'],
   ['Espera cliente', 'En Pendiente del centro o del cliente.'], ['Espera tercero', 'En Pendiente de un tercero.'], ['Otro motivo', 'En Pendiente por otro motivo o sin motivo.']];
 // Cuánto tardan: lo resuelto sin escalar, escalado y todo, cada fila repartida entre los tramos de tiempo (suma el
-// 100 %), con más color cuanto mayor su parte. Los tramos, en tres bloques (menos de 24 h, de 1 a 7 días y más de 7),
+// 100 %), con más color cuanto mayor su parte. Los tramos, en tres bloques (menos de 24 h, de 24 a 168 h y más de 168 h),
 // cada uno con su total. Clic en una celda filtra ese tramo (y si está escalada o no). Comparando, una fila por lado
-// y, en verde, quien resuelve más en menos de 24 h y menos en más de 7 días (en los totales de esos bloques).
-const TTR_GROUPS = [['Menos de 24 h', [0, 1, 2, 3], 'high'], ['De 1 a 7 días', [4, 5], null], ['Más de 7 días', [6, 7], 'low']];
+// y, en verde, quien resuelve más en menos de 24 h y menos en más de 168 h (en los totales de esos bloques).
+const TTR_GROUPS = [['Menos de 24 h', [0, 1, 2, 3], 'high'], ['De 24 a 168 h', [4, 5], null], ['Más de 168 h', [6, 7], 'low']];
 // Mes a mes (por mes de apertura): lo resuelto de lo recibido ese mes y cuánto tardó, todo, sin escalar y escalado.
 // En ocre, lo que va claramente peor que el total (rules.js, con al menos MIN_ISSUES resueltas).
 // Cada dato: [nombre, parte (a todo, n sin escalar, e escalado), valor, formato, mejor, nota].
@@ -26,12 +26,12 @@ const RES_MONTH = [
     ['% escaladas', 'a', (s) => s.escShare, (v) => pct(v), null, 'De las resueltas, las que tienen ticket de tercero.']]],
   ['Media de resolución', [['Todas', 'a', (s) => s.avg, dur, 'low', 'De la apertura a la resolución.'], ['Sin escalar', 'n', (s) => s.avg, dur, 'low', ''], ['Escaladas', 'e', (s) => s.avg, dur, 'low', '']]],
   ['Resueltas en < 24 h', [['Sin escalar', 'n', (s) => s.d1, (v) => pct(v), 'high', ''], ['Escaladas', 'e', (s) => s.d1, (v) => pct(v), 'high', '']]],
-  ['Más de 7 días', [['Sin escalar', 'n', (s) => s.w7, (v) => pct(v), 'low', ''], ['Escaladas', 'e', (s) => s.w7, (v) => pct(v), 'low', '']]],
+  ['Más de 168 h', [['Sin escalar', 'n', (s) => s.w7, (v) => pct(v), 'low', ''], ['Escaladas', 'e', (s) => s.w7, (v) => pct(v), 'low', '']]],
 ];
 // la diferencia entre dos tiempos, con signo
 const durDiff = (a, b) => (a == null || b == null ? '—' : `${a >= b ? '+' : '−'}${dur(Math.abs(a - b))}`);
-// las medias de las fichas, en días con un decimal: «+1 día 6 h» no cabe en una ficha estrecha
-const inDays = (v) => (v == null ? null : v / 1440), days1 = (s) => (s.v == null ? '—' : dec(s.v));
+// las medias de las fichas, en horas como todos los tiempos
+const durOf = (s) => dur(s.v);
 const RES_VOL = ['Resueltas', (s) => s.vol, (v, s) => (s.H > 1 ? dec(v) : num(v)), null, ''];
 const RES_PAIR = [
   ['Media', (s) => (s.resolved ? s.avg : null), dur, 'low', 'De la apertura a la resolución.'],
@@ -145,8 +145,8 @@ export const resolucionTab = (t) => {
     if (restL.length) rows.push({ label: `Resto (${all - 15})`, x: split(restL), cls: 'mt-mut' });
     rows.push({ label: 'Todas las resueltas', x: resPair(T), cls: 'mt-tot' });
     return pairTable('Módulo', [RES_VOL, ...RES_PAIR,
-      ['1 a 7 días', (s) => (s.resolved ? s.d7 : null), (v) => pct(v), null, 'De las resueltas, las que tardaron de 1 a 7 días.'],
-      ['7 a 15 días', (s) => (s.resolved ? s.d15 : null), (v) => pct(v), 'low', 'De las resueltas, las que tardaron de 7 a 15 días.'],
+      ['24 a 168 h', (s) => (s.resolved ? s.d7 : null), (v) => pct(v), null, 'De las resueltas, las que tardaron de 24 a 168 h.'],
+      ['168 a 360 h', (s) => (s.resolved ? s.d15 : null), (v) => pct(v), 'low', 'De las resueltas, las que tardaron de 168 a 360 h.'],
       ['Escaladas', (s) => (s.resolved ? s.vend : null), (v) => pct(v), null, 'De las resueltas, las que tienen ticket de tercero.']], rows);
   };
   const resMonthlyCmp = (A) => {
@@ -154,7 +154,7 @@ export const resolucionTab = (t) => {
     const rows = monthRows().map(([label, x, f]) => ({ label, x: resPair(T.map((l) => l.filter(x))), cls: `mt-clk ${selRow(f) ? 'mt-sel' : ''}`, attrs: `data-f="${f}"` }));
     rows.push({ label: 'Total', x: resPair(T), cls: 'mt-tot' });
     return pairTable('Mes de apertura', [RES_VOL, ...RES_PAIR,
-      ['Más de 7 días', (s) => (s.resolved ? s.w7 : null), (v) => pct(v), 'low', 'De las resueltas, las que tardaron más de 7 días.'],
+      ['Más de 168 h', (s) => (s.resolved ? s.w7 : null), (v) => pct(v), 'low', 'De las resueltas, las que tardaron más de 168 h.'],
       ['Escaladas', (s) => (s.resolved ? s.vend : null), (v) => pct(v), null, 'De las resueltas, las que tienen ticket de tercero.']], rows);
   };
   // La media de una persona frente a lo que tardaría su equipo con sus mismos módulos: la media del equipo en cada
@@ -164,10 +164,10 @@ export const resolucionTab = (t) => {
     if (!pt) return null;
     const { p, t: tm } = pt, { own, expected, n } = expectedAvg(m, bySide(A.filter(solved)), pt);
     const out = [];
-    out[p] = { n: n[0], v: inDays(own) }; out[tm] = { n: n[1], v: inDays(expected) };
+    out[p] = { n: n[0], v: own }; out[tm] = { n: n[1], v: expected };
     const names = [];
     names[p] = name(p); names[tm] = `${COMPANIES[S.sides[tm].company]}, en sus módulos`;
-    return kpiCo('Media frente a sus módulos, en días', out, days1, { val: (s) => s.v, better: 'low', names,
+    return kpiCo('Media frente a sus módulos', out, durOf, { val: (s) => s.v, better: 'low', names,
       note: `Lo que tardaría ${COMPANIES[S.sides[tm].company]} con los mismos módulos que ${name(p)}: la media del equipo en cada módulo, con el peso que ese módulo tiene en lo suyo.` });
   };
   const resolutionCmp = (A) => {
@@ -178,15 +178,15 @@ export const resolucionTab = (t) => {
     const P = (s) => opt(pct)(s.v), names = teamNames();
     return grid(ask('resolucion'),
       kpis(kpiCo(`Resueltas${each}`, volume(R), team ? (s) => dec(s.v) : (s) => num(s.v), { val: (s) => s.v, note: `de lo recibido en el periodo${team ? headsNote() : ''}`, names }),
-        kpiCo('Media de resolución, en días', part((s) => inDays(s.avg)), days1, { val: (s) => s.v, better: 'low', note: 'De la apertura a la resolución.' }),
+        kpiCo('Media de resolución', part((s) => s.avg), durOf, { val: (s) => s.v, better: 'low', note: 'De la apertura a la resolución.' }),
         sameModules(A) || '',
         kpiCo('En < 24 h', part((s) => s.d1), P, { val: (s) => s.v, better: 'high', note: 'De las resueltas.' }),
-        kpiCo('De 1 a 7 días', part((s) => s.d7), P, { val: (s) => s.v, note: 'De las resueltas.' }),
-        kpiCo('De 7 a 15 días', part((s) => s.d15), P, { val: (s) => s.v, better: 'low', note: 'De las resueltas.' }),
+        kpiCo('De 24 a 168 h', part((s) => s.d7), P, { val: (s) => s.v, note: 'De las resueltas.' }),
+        kpiCo('De 168 a 360 h', part((s) => s.d15), P, { val: (s) => s.v, better: 'low', note: 'De las resueltas.' }),
         kpiCo('Escaladas', esc1, P, { val: (s) => s.v, note: 'De las resueltas, con ticket de tercero.' }),
         kpiCo('Esperando a terceros', wait, P, { val: (s) => s.v, note: 'Del tiempo de vida de lo resuelto, en Pendiente de un tercero.' })),
       section('¿Cuánto tardamos?'),
-      card('Cuánto tardan', ttrTable(m.rows('tb')), { span: 's12', sub: 'Lo resuelto de cada uno, sin escalar, escalado y todo, repartido según lo que tardó (cada fila suma el 100 %). En verde, quien resuelve más en menos de 24 h y menos en más de 7 días. Clic en una celda para filtrar.' }),
+      card('Cuánto tardan', ttrTable(m.rows('tb')), { span: 's12', sub: 'Lo resuelto de cada uno, sin escalar, escalado y todo, repartido según lo que tardó (cada fila suma el 100 %). En verde, quien resuelve más en menos de 24 h y menos en más de 168 h. Clic en una celda para filtrar.' }),
       card('Mes a mes', resMonthlyCmp(A), { span: 's12', sub: `${MONTH_NOTE} En verde, quien va mejor (con al menos ${BETTER_MIN} resueltas cada uno).${m.perHead() && S.sides.some((x) => !x.people) ? ' Las resueltas de la empresa, la media por persona de su equipo.' : ''} Clic en un mes para filtrar.` }),
       section('¿Qué módulos tardan más?'),
       card('Módulo a módulo', resModulesCmp(A), { span: 's12', sub: `Los 15 módulos con más resueltas de ${esc(name(S.sides[0].people || !S.sides[1].people ? 0 : 1))}; cada uno, frente al otro en el mismo módulo. En verde, quien va mejor (con al menos ${BETTER_MIN} resueltas cada uno). Clic en un módulo para filtrar.` }));
@@ -195,8 +195,8 @@ export const resolucionTab = (t) => {
     const s = stats(A), R = A.filter(solved), rtTot = s.rt.reduce((a, b) => a + b, 0) || 1, on = s.resolved > 0;
     return grid(ask('resolucion'), note,
       kpis(kpi('Resueltas', num(s.resolved), `de ${num(s.n)} recibidas`), kpi('Media de resolución', avgOf(s), 'de la apertura a la resolución'),
-        kpi('En < 24 h', on ? pct(s.d1) : '—', 'de las resueltas'), kpi('De 1 a 7 días', on ? pct(s.d7) : '—', 'de las resueltas'),
-        kpi('De 7 a 15 días', on ? pct(s.d15) : '—', 'de las resueltas'), kpi('La que más tardó', on ? `${dec(s.mx / 1440)} días` : '—', 'la resuelta más lenta'), kpi('Escaladas', on ? pct(R.filter(escd).length / R.length) : '—', 'de las resueltas, con ticket de tercero'),
+        kpi('En < 24 h', on ? pct(s.d1) : '—', 'de las resueltas'), kpi('De 24 a 168 h', on ? pct(s.d7) : '—', 'de las resueltas'),
+        kpi('De 168 a 360 h', on ? pct(s.d15) : '—', 'de las resueltas'), kpi('La que más tardó', on ? dur(s.mx) : '—', 'la resuelta más lenta'), kpi('Escaladas', on ? pct(R.filter(escd).length / R.length) : '—', 'de las resueltas, con ticket de tercero'),
         kpi('Esperando a terceros', on ? pct(s.rt[3] / rtTot) : '—', 'del tiempo de vida de lo resuelto')),
       section('¿Cuánto tardamos?'),
       card('Cuánto tardan', ttrTable(m.rows('tb')), { span: 's12', sub: 'Lo resuelto sin escalar, escalado y todo, repartido según lo que tardó (cada fila suma el 100 %); cada bloque, con su total. Clic en una celda para filtrar.' }),

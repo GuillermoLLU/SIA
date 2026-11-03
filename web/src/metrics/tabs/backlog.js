@@ -1,16 +1,17 @@
 // Backlog: lo pendiente (backlog.js), su situación, los tramos de antigüedad y lo que conviene vigilar.
 // De un solo lado, el panel y las tablas de detalle; comparando, cómo está lo pendiente de cada uno.
 import { esc } from '../../ui/html.js';
-import { num, dec, pct } from '../format.js';
+import { num, dec, pct, dur } from '../format.js';
 import { OLD_DAYS } from '../rules.js';
-import { situations, ages, OLD_FILTER, orphansIn as orphansOf, watchList, pendingCells, backlogFigures } from '../backlog.js';
+import { situations, ages, OLD_FILTER, orphansIn as orphansOf, watchList, pendingCells, backlogFigures, reopened, REOPEN_FILTER, REOPEN_TIP,
+  misrouted, MISROUTED_FILTER, MISROUTED_TIP } from '../backlog.js';
 import { blocksOf } from '../pieces.js';
 
 export const backlogTab = (t) => {
   const { m, ch, grid, ask, heads, prioRows, asRows, late, old, escd, cardsOf, CARD_ROWS, days, topRows, volume, teamNames, headsNote, sideTable, mixCmp } = t;
   const { C, S, CRIT, OPEN, SIDE, CMP, CO, stats, bySide } = m;
   const { card, kpis, kpiCo, matrix } = ch;
-  const SITUATION = situations(m), AGES = ages(m), orphansIn = () => orphansOf(m);
+  const SITUATION = situations(m), AGES = ages(m), orphansIn = () => orphansOf(m), reop = reopened(m), misr = misrouted(m);
   // Lo pendiente, de un vistazo y en orden: el total; en qué punto está (en curso, sin tocar, devuelta y en espera de
   // un tercero, del cliente u otro motivo, que suman el total), en una barra; lo que conviene vigilar dentro
   // (se solapa: no se suma) y, aparte, lo de nuestras tarjetas que no tiene a nadie (no está en el total).
@@ -47,10 +48,10 @@ export const backlogTab = (t) => {
       const { v, main, old } = pendingCells(m, T, H, pp, r);
       const ok = (on) => (on ? 'mt-better' : '');
       return [0, 1].map((k) => `<td class="mt-num ${k ? 'mt-msep' : 'mt-gsep'} ${ok(pp && main === k)}">${H[k] > 1 ? dec(v[k].c) : num(v[k].c)}</td>
-        <td class="mt-num mt-mix-p ${ok(!pp && main === k)}">${v[k].sh == null ? '—' : pct(v[k].sh)}</td><td class="mt-num ${ok(old === k)}">${v[k].age == null ? '—' : dec(v[k].age)}</td>`).join('');
+        <td class="mt-num mt-mix-p ${ok(!pp && main === k)}">${v[k].sh == null ? '—' : pct(v[k].sh)}</td><td class="mt-num ${ok(old === k)}">${dur(v[k].age)}</td>`).join('');
     };
     const rowAttrs = (r) => (r.f ? `data-f${r.f.includes('|') ? '2' : ''}="${r.f}" ${r.tip ? `data-tip="${esc(r.tip)}"` : ''}` : '');
-    return sideTable({ cls: 'mt-pend2', cols: '<th class="mt-num">Issues</th><th class="mt-num">%</th><th class="mt-num" data-tip="Lo que llevan abiertas, de media, en días.">Antigüedad (días)</th>',
+    return sideTable({ cls: 'mt-pend2', cols: '<th class="mt-num">Issues</th><th class="mt-num">%</th><th class="mt-num" data-tip="Lo que llevan abiertas, de media.">Antigüedad</th>',
       blocks: blocksOf(rowsDef), cells, lead: { label: 'Pendientes', cells: cells({}) }, leadAtEnd: true, rowAttrs });
   };
   // Backlog, comparando: las cifras de arriba, cómo está lo pendiente de cada uno y qué tiene pendiente. Sin lo que no
@@ -70,13 +71,15 @@ export const backlogTab = (t) => {
       { label: 'Fuera de plazo', test: late, f: 'sl:4', better: 'low', tip: 'Nunca han pasado a En curso y ya superan el plazo de su prioridad.' },
       { label: `Con más de ${OLD_DAYS} días`, test: old, f: OLD_FILTER, better: 'low', tip: `Llevan más de ${OLD_DAYS} días abiertas.` },
       { label: 'Escaladas', test: escd, f: 'es:1', tip: 'Con ticket de tercero, estén en el estado que estén.' },
+      { label: 'Mal escaladas', test: misr, f: MISROUTED_FILTER, better: 'low', tip: MISROUTED_TIP },
+      { label: 'Reabiertas', test: reop, f: REOPEN_FILTER, better: 'low', tip: REOPEN_TIP },
       { label: 'Críticas', test: (i) => C.pr[i] === CRIT, f: `pr:${CRIT}` },
     ];
     const mixRows = [{ head: 'Prioridad' }, ...asRows(prioRows()), { head: 'Módulo' }, ...topRows('mo', op, 8)];
     return grid(ask('backlog'),
       kpis(kpiCo(`Pendientes${each}`, volume(P), pp ? (s) => dec(s.v) : (s) => num(s.v), { val: (s) => s.v, note: `sin resolver, de lo recibido en el periodo${headsNote()}`, names }),
         kpiCo('Días de entrada acumulados', stock, (s) => dec(s.v), { val: (s) => s.v, better: 'low', note: 'Las pendientes entre lo que entra al día: cuántos días de trabajo tiene acumulados cada uno. Así se compara quien recibe mucho con quien recibe poco.' }),
-        kpiCo('Antigüedad media, en días', age, (s) => dec(s.v), { val: (s) => s.v, better: 'low', note: 'Lo que llevan abiertas las pendientes, de media.' }),
+        kpiCo('Antigüedad media', age, (s) => dur(s.v), { val: (s) => s.v, better: 'low', note: 'Lo que llevan abiertas las pendientes, de media.' }),
         partFig('Sin tocar', sit(1), 'low', 'En Asignada y sin ningún movimiento desde que se abrieron'),
         partFig('Fuera de plazo', late, 'low', 'Nunca han pasado a En curso y ya superan el plazo de su prioridad'),
         partFig(`Con más de ${OLD_DAYS} días`, old, 'low', `Llevan más de ${OLD_DAYS} días abiertas`),
@@ -99,6 +102,8 @@ export const backlogTab = (t) => {
       { head: 'A vigilar', note: 'Dentro de las pendientes.' },
       { label: 'Fuera de plazo', tip: 'Sin iniciar: nunca han pasado a En curso y ya superan su SLA.', test: (i) => inA(i) && late(i), f: 'sl:4' },
       { label: 'Escaladas', tip: 'Con ticket de tercero.', test: (i) => inA(i) && escd(i), f: 'es:1' },
+      { label: 'Mal escaladas', tip: MISROUTED_TIP, test: (i) => inA(i) && misr(i), f: MISROUTED_FILTER },
+      { label: 'Reabiertas', tip: REOPEN_TIP, test: (i) => inA(i) && reop(i), f: REOPEN_FILTER },
       { label: 'PRIO', test: (i) => inA(i) && cardsOf(i).includes(2), f: 'tj:2' },
       { label: 'Críticas', test: (i) => inA(i) && C.pr[i] === CRIT, f: `pr:${CRIT}` },
       ...(orphans.length ? [{ head: 'Aparte', note: 'SGA, SISU o PRIO sin nadie asignado.' }, { label: 'Sin responsable', test: (i) => !C.as[i] }] : []),

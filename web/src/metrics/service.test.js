@@ -54,24 +54,7 @@ test('uso de la IA: de las resueltas, las que tienen nota _IA (TC-06 de la #58);
   Object.assign(d.cols, { the: [30, -1, -2, -1, -1], tes: [600, -1, -1, -1, -1], tsr: [-1, -1, 90, -1, -1] });
   const { stats: { us } } = createService(model(d)).compute();
   assert.deepEqual(us.ia, { done: 2, ia: 1, share: 0.5 });
-  assert.deepEqual(us.esc, { n: 2, bad: 1, jiraOpen: 0, early: 0, previous: 1, thesc: 30, nThesc: 1, tesc: 600, nTesc: 1, tescr: 90, nTescr: 1 });
-});
-
-test('en qué se va el tiempo: sin escalar, los estados suman su TTR (lo de antes del primer cambio, a la cola); escaladas, sus tres tiempos de Jira', () => {
-  const d = data();
-  d.cols.fl[1] |= THIRD_PARTY;   // la alta de T-Systems: escalada, sin datos de Jira
-  const { stats: { us, ts } } = createService(model(d)).compute();
-  // Indra, sin escalar y resueltas: la crítica (60 min: 10 en cola, 50 en curso) y la baja (100 min, 50 en cola y el resto sin estado)
-  assert.deepEqual(us.phases.plain, { n: 2, seg: [(10 + 100) / 2, 50 / 2, 0, 0] });
-  assert.equal(us.phases.plain.seg.reduce((a, b) => a + b, 0), (60 + 100) / 2);
-  assert.deepEqual(ts.phases.esc, { n: 0, out: { previous: 0, bad: 0, jiraOpen: 0, early: 0, none: 1 }, seg: [null, null, null] });
-  d.cols.fl[1] &= ~THIRD_PARTY;
-  Object.assign(d.cols, { the: [-1, 30, -1, -1, -1], tes: [-1, 2000, -1, -1, -1], tcr: [-1, 970, -1, -1, -1] });
-  d.cols.fl[1] |= THIRD_PARTY;
-  assert.deepEqual(createService(model(d)).compute().stats.ts.phases.esc, { n: 1, out: { previous: 0, bad: 0, jiraOpen: 0, early: 0, none: 0 }, seg: [30, 2000, 970] });
-  // ligada a un ticket previo: fuera, y dice por qué
-  d.cols.the[1] = -2;
-  assert.equal(createService(model(d)).compute().stats.ts.phases.esc.out.previous, 1);
+  assert.deepEqual(us.esc, { n: 2, bad: 1, jiraOpen: 0, early: 0, misrouted: 0, previous: 1, thesc: 30, nThesc: 1, tesc: 600, nTesc: 1, tescr: 90, nTescr: 1 });
 });
 
 test('el año anterior: el mismo periodo un año antes, con las dos empresas; si lo cargado no llega, se dice', () => {

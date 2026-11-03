@@ -1,6 +1,6 @@
 // Foto de hoy: lo abierto ahora mismo, en listas para actuar (today.js). Cada lista, con su enlace a Remedy.
 import { esc } from '../../ui/html.js';
-import { num, nice, title, dateOf } from '../format.js';
+import { num, nice, title, dateOf, dur } from '../format.js';
 import { CARDS } from '../model.js';
 import { IDLE_DAYS, RECENT_CRIT_DAYS } from '../rules.js';
 import { todayLists } from '../today.js';
@@ -15,7 +15,7 @@ export const hoyTab = (t) => {
 
   return () => {
     const { op, lm, idle, waits, late, prio, stale, people, one, crit: crit3, prioList, lateList: lateL, vendor, client, staleList: stale3, orphan, all, cols: PCOLS, who, tot } = todayLists(m);
-    const T = bySide(op), now = m.SNAP, days = (min) => Math.floor(min / 1440);
+    const T = bySide(op), now = m.SNAP;
     const count = (test) => T.map((l) => ({ n: l.length || 1, v: l.filter(test).length }));
     // una lista de issues: cada fila con su enlace a Remedy
     const list = (id, rowsIn, o = {}) => {
@@ -25,7 +25,7 @@ export const hoyTab = (t) => {
         <td class="mt-subj" data-tip="${esc(C.su[i])}">${esc(C.su[i])}</td><td>${nice(DI.prio[C.pr[i]])}</td><td>${cardsOf(i).filter((k) => k < 3).map((k) => CARDS[k]).join(' · ')}</td>
         <td>${nice(DI.status[C.st[i]])}${C.rs[i] ? ` · <span class="mt-mut">${esc(title(DI.reason[C.rs[i]]))}</span>` : ''}</td>
         ${one ? '' : `<td><span class="mt-pill mt-p${SIDE[i]}">${esc(m.DIMS.as.label(C.as[i]))}</span></td>`}
-        <td class="mt-num">${days(now - C.rep[i])} d</td>${lm ? `<td class="mt-num">${days(idle(i))} d</td>` : ''}<td>${C.vk[i] ? esc(DI.vkey[C.vk[i]]) : C.vt[i] ? esc(m.DIMS.vt.label(C.vt[i])) : ''}</td></tr>`).join('');
+        <td class="mt-num">${dur(now - C.rep[i])}</td>${lm ? `<td class="mt-num">${dur(idle(i))}</td>` : ''}<td>${C.vk[i] ? esc(DI.vkey[C.vk[i]]) : C.vt[i] ? esc(m.DIMS.vt.label(C.vt[i])) : ''}</td></tr>`).join('');
       return rowsIn.length ? `<div class="mt-tablewrap ${all ? 'mt-scroll' : ''}"><table class="mt-list"><thead><tr>${head.map((h) => `<th>${h}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>${more(id, rowsIn.length, top)}` : '<p class="mt-mut mt-small">Ninguna.</p>';
     };
     // quién tiene qué: lo abierto de cada persona

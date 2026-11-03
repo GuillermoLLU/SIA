@@ -36,12 +36,14 @@ export const createMetricsStore = (dir, { repo, source, jira = null, now = () =>
     return { at: repo.jiraFetched(), tickets, message };
   };
   // Pide a Jira las claves que no se tienen y las que seguían sin resolver; las que Jira no conoce no se vuelven a pedir.
-  const syncJira = async (keys) => {
+  // Las de las issues abiertas (open), con su historial (si ha pasado de un equipo a otro: las mal escaladas del
+  // Backlog), y también las ya resueltas de las que aún no se sabe. Al resto no se le pide: pesa mucho.
+  const syncJira = async (keys, open) => {
     const saved = repo.jiraTickets();
-    const ask = keys.filter((k) => { const t = saved.get(k); return !t || (t.found && !t.resolved); });
+    const ask = keys.filter((k) => { const t = saved.get(k); return !t || (t.found && !t.resolved) || (t.found && t.moves == null && open.has(k)); });
     progress = { phase: 'jira', done: 0, total: ask.length };
     try {
-      if (ask.length) repo.saveJira(await jira.tickets(ask, { onBatch: (n) => { progress.done = n; } }));
+      if (ask.length) repo.saveJira(await jira.tickets(ask, { history: new Set(ask.filter((k) => open.has(k))), onBatch: (n) => { progress.done = n; } }));
       return jiraMeta();
     } catch (e) {
       return jiraMeta(e.message);
@@ -57,7 +59,7 @@ export const createMetricsStore = (dir, { repo, source, jira = null, now = () =>
       if (progress) progress.done++;
       if (++n % BATCH === 0) await pause();
     }
-    const meta = refresh && jira ? await syncJira(dataset.jiraKeys()) : jiraMeta();
+    const meta = refresh && jira ? await syncJira(dataset.jiraKeys(), new Set(dataset.openJiraKeys())) : jiraMeta();
     return dataset.build({ file: name, generated: now().toISOString(), tickets: repo.jiraTickets(), jira: meta });
   };
 

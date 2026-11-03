@@ -107,16 +107,18 @@ test('cada actualización apunta en el registro cuánto tardó cada fase', async
   clean(dir);
 });
 
-// Jira falso: devuelve los tickets que tiene de las claves que se le piden y apunta qué se le pidió.
+// Jira falso: devuelve los tickets que tiene de las claves que se le piden (con historial, sin cambios de equipo: moves
+// 0; sin él, null) y apunta qué se le pidió.
 const fakeJira = (known, error) => {
   const asked = [];
   return {
     asked,
-    tickets: async (keys, { onBatch }) => {
+    tickets: async (keys, { onBatch, history }) => {
       asked.push(keys);
+      asked.history = [...(asked.history || []), [...history].sort()];
       if (error) throw error;
       onBatch(keys.length);
-      return { found: keys.filter((k) => known[k]).map((k) => ({ key: k, ...known[k] })), missing: keys.filter((k) => !known[k]) };
+      return { found: keys.filter((k) => known[k]).map((k) => ({ key: k, moves: history.has(k) ? 0 : null, ...known[k] })), missing: keys.filter((k) => !known[k]) };
     },
   };
 };
@@ -204,5 +206,17 @@ test('dos actualizaciones a la vez: la segunda, 409', async () => {
   await assert.rejects(store.update(), (e) => e.status === 409);
   release();
   await first;
+  clean(dir);
+});
+
+test('Jira: de las issues abiertas se pide el historial (cambios de equipo), también de los tickets ya resueltos que no lo tenían', async () => {
+  const dir = tmp();
+  const jira = fakeJira({ 'SGA-1': { created: '2026-02-01 11:00:00', resolved: '2026-02-02 11:00:00', status: 'Closed' }, 'SGA-2': { created: '2026-02-01 12:00:00', resolved: '', status: 'Open' } });
+  const repo = createRepository({ DatabaseSync, file: path.join(dir, 'incidencias.sqlite'), fs, now });
+  repos.push(repo);
+  repo.saveJira({ found: [{ key: 'SGA-1', created: '2026-02-01 11:00:00', resolved: '2026-02-02 11:00:00', status: 'Closed', moves: null }], missing: ['FINISHED-1'] });
+  await createMetricsStore(dir, { repo, source: fakeSource([ESCALATED]), jira, now }).update();
+  // la issue está abierta: SGA-1 (resuelto pero sin historial) y SGA-2 (nuevo), con historial; FINISHED-1, no existe
+  assert.deepEqual([jira.asked[0].sort(), jira.asked.history[0]], [['SGA-1', 'SGA-2'], ['SGA-1', 'SGA-2']]);
   clean(dir);
 });
