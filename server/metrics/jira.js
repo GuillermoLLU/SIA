@@ -7,7 +7,10 @@
 
 export const BATCH = 100;
 const ALONE = 8;
-const FIELDS = 'created,resolutiondate,status';
+// el equipo asignado del ticket («Equipo Asignado»): ITSMECOM es un proyecto con muchos equipos, y a quién se escala
+// es el equipo (dataset.js)
+export const TEAM = 'customfield_18260';
+const FIELDS = `created,resolutiondate,status,${TEAM}`;
 
 // Cuántas veces pasó un ticket de un equipo a otro, según su historial: un cambio de proyecto (se mueve y cambia de
 // clave) o de su campo de equipo («Equipo Asignado», «Equipos Logística»…) de uno a otro; que se le ponga equipo por
@@ -51,7 +54,7 @@ export const createJira = ({ config, fetch = globalThis.fetch }) => {
   };
   // moves: con historial, cuántas veces pasó de un equipo a otro; sin él, null (no se sabe)
   const ticketOf = (key, fields = {}, changelog = null) => ({ key, created: madrid(fields.created), resolved: madrid(fields.resolutiondate),
-    status: fields.status?.name || '', moves: changelog ? movesOf(changelog) : null });
+    status: fields.status?.name || '', team: fields[TEAM]?.displayName || fields[TEAM]?.name || '', moves: changelog ? movesOf(changelog) : null });
   const expand = (history) => (history ? '&expand=changelog' : '');
 
   // Un lote de claves → sus tickets. validateQuery=warn: una clave que no existe (o un proyecto que no es de Jira,

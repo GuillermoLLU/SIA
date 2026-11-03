@@ -3,7 +3,6 @@
 export const DAY = 1440;
 export const OLD_DAYS = 15;          // una pendiente con más de estos días envejece el backlog
 export const IDLE_DAYS = 5;          // sin ningún cambio en estos días: parada
-export const RECENT_CRIT_DAYS = 3;   // las críticas «de los últimos días» de la Foto de hoy
 export const MIN_ISSUES = 30;        // con menos issues, una cifra dice poco: no se marca peor ni ordena
 export const BETTER_MIN = 10;        // comparando dos lados: con menos, no se marca quién va mejor
 export const OWNERS_SHARE = 0.8;     // «quién lleva cada módulo»: las personas que suman esta parte

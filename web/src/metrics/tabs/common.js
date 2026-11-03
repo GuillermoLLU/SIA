@@ -13,11 +13,11 @@ import { late as lateOf, isOld, escalated as escalatedOf } from '../backlog.js';
 import { blockHead, blocksOf } from '../pieces.js';
 import { perHead as perHeadOf, solved as solvedOf } from '../resolution.js';
 
-export const TABS = [['resumen', 'Resumen'], ['hoy', 'Foto de hoy'], ['entrada', 'Entrada'], ['backlog', 'Backlog'], ['modulos', 'Módulos y focos'],
+export const TABS = [['resumen', 'Resumen'], ['historico', 'Histórico'], ['entrada', 'Entrada'], ['backlog', 'Backlog'], ['modulos', 'Módulos y focos'],
   ['resolucion', 'Resolución y escalados'], ['sla', 'SLA y calidad'], ['ia', 'IA'], ['turnos', 'Turnos'], ['servicio', 'Servicio y SLA']];
 export const QUESTIONS = {
-  resumen: ['¿Cómo vamos?', 'Cada bloque responde a una pregunta con sus cifras clave; el detalle, en su pestaña.'],
-  hoy: ['¿Qué hay que mover hoy?', 'Lo abierto a fecha de la última carga, se abriera cuando se abriera (no depende del periodo), en listas para actuar: lo urgente, lo que espera y lo que está parado.'],
+  resumen: ['¿Cómo vamos?', 'Cómo está el backlog ahora: en qué estado, desde cuándo, y de qué. Lo recibido en el periodo y cómo ha ido el backlog día a día, en el Histórico.'],
+  historico: ['¿Cómo ha ido en el periodo?', 'Lo recibido en las fechas elegidas: cada bloque responde a una pregunta con sus cifras clave (el detalle, en su pestaña), y cómo ha ido el backlog día a día.'],
   entrada: ['¿Qué nos entra?', 'Cuánto entra, cuánto se cierra y de qué tipo, mes a mes. Cada tabla lleva su total y los totales cuadran con las cifras de arriba.'],
   backlog: ['¿Qué tenemos pendiente?', 'Lo recibido en el periodo que sigue sin resolver: en qué punto está, desde cuándo y qué conviene vigilar.'],
   modulos: ['¿De dónde viene?', 'Los módulos, centros y problemas que concentran el trabajo, y lo que se repite.'],

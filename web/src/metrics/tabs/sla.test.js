@@ -10,24 +10,11 @@ const render = (sides) => {
   const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
   return tabs.render('sla', m.rows());
 };
-const times = (html) => html.slice(html.indexOf('¿En qué se va el tiempo?'), html.indexOf('¿Empezamos a tiempo?'));
 
-test('SLA y calidad: en qué se va el tiempo, lo primero tras las cifras de arriba (sin comparar y comparando)', () => {
+test('SLA y calidad: tras las cifras de arriba, ¿Empezamos a tiempo? (en qué se va el tiempo está en Resolución y escalados)', () => {
   for (const sides of [[{ company: 0 }, null], [{ company: 0 }, { company: 1 }]]) {
-    const html = render(sides), at = html.indexOf('¿En qué se va el tiempo?');
-    assert.ok(at > html.indexOf('mt-kpis') && at < html.indexOf('¿Empezamos a tiempo?'));
+    const html = render(sides);
+    assert.ok(html.indexOf('¿Empezamos a tiempo?') > html.indexOf('mt-kpis'));
+    assert.doesNotMatch(html, /En qué se va el tiempo|mt-svc-time/);
   }
-});
-
-test('SLA y calidad: en qué se va el tiempo, con las dos barras y una fila por barra para lo que se mira', () => {
-  const html = times(render([{ company: 0 }, null]));
-  assert.equal((html.match(/class="mt-svc-time"/g) || []).length, 2);
-  assert.deepEqual([...html.matchAll(/<span class="mt-svc-who">([^<]*)<\/span>/g)].map((x) => x[1]), ['Indra', 'Indra']);
-  // Indra, sin escalar: la crítica (60 min) y la baja (100 min) resueltas
-  assert.match(html, /<b>1,3 h<\/b>/);
-});
-
-test('SLA y calidad, comparando: una fila por cada lado de arriba', () => {
-  const html = times(render([{ company: 0 }, { company: 1 }]));
-  assert.deepEqual([...html.matchAll(/<span class="mt-svc-who">([^<]*)<\/span>/g)].map((x) => x[1]), ['Indra', 'T-Systems', 'Indra', 'T-Systems']);
 });

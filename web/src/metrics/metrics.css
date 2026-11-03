@@ -560,3 +560,89 @@
 .mt-svc-stack i.mt-svc-pp2 { color: #0b0b0b; } .mt-svc-stack i.mt-svc-pp3 { color: var(--text); }
 .mt-svc-track b { font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--text); }
 .mt-svc-track em { font-size: 12px; font-style: normal; color: var(--mt-low); }
+/* Resumen, ¿Qué tenemos?: lo pendiente en una corona (charts.js, donut), con los colores de cada situación en la barra
+   de la pestaña Backlog (.mt-sit*); cada parte lleva su cifra al lado */
+.mt-view { --mt-dn-asig: color-mix(in srgb, #c98a2b 78%, var(--text)); --mt-dn-prov: color-mix(in srgb, var(--mt-c0) 55%, var(--mt-card));
+  --mt-dn-cli: color-mix(in srgb, var(--mt-c0) 32%, var(--mt-card)); --mt-dn-curso: var(--mt-c0); --mt-dn-otro: var(--mt-c2); }
+.mt-dn { display: flex; align-items: center; gap: 18px; }
+.mt-dn.mt-dn-cmp { flex-direction: column; align-items: stretch; gap: 10px; }
+.mt-dn-rings { display: flex; justify-content: center; gap: 18px; }
+.mt-dn-fig { margin: 0; text-align: center; }
+.mt-dn-fig figcaption { margin-bottom: 4px; overflow: hidden; font-size: 12px; color: var(--mt-low); text-overflow: ellipsis; white-space: nowrap; }
+.mt-donut { display: block; flex: none; margin: 0 auto; }
+.mt-donut circle { fill: none; stroke-width: 14; }
+.mt-donut .mt-dn-track { stroke: var(--mt-track); }
+.mt-donut .mt-dn-asig { stroke: var(--mt-dn-asig); } .mt-donut .mt-dn-prov { stroke: var(--mt-dn-prov); } .mt-donut .mt-dn-cli { stroke: var(--mt-dn-cli); }
+.mt-donut .mt-dn-curso { stroke: var(--mt-dn-curso); } .mt-donut .mt-dn-otro { stroke: var(--mt-dn-otro); }
+.mt-donut circle[data-tip]:hover { stroke-width: 17; }
+.mt-dn-n { font-size: 22px; font-weight: 680; font-variant-numeric: tabular-nums; fill: var(--text); }
+.mt-dn-l { font-size: 10.5px; fill: var(--mt-low); }
+.mt-dn-legend { flex: 1; min-width: 0; border-collapse: collapse; font-size: 13px; }
+.mt-dn-legend th { padding: 5px 8px 5px 0; overflow: hidden; font-weight: 400; text-align: left; text-overflow: ellipsis; white-space: nowrap; color: var(--mt-low); }
+.mt-dn-legend td { padding: 5px 0 5px 10px; white-space: nowrap; }
+.mt-dn-legend td b { font-size: 15px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.mt-dn-legend td small { margin-left: 6px; font-size: 12px; color: var(--mt-low); }
+.mt-dn-legend tr + tr { border-top: 1px solid var(--border); }
+.mt-dn-legend tr.mt-clk { cursor: pointer; } .mt-dn-legend tr.mt-clk:hover th { color: var(--text); }
+.mt-dn-legend tr.mt-dn-sum th { padding-left: 18px; font-weight: 600; color: var(--text); }
+.mt-dn-sw { display: inline-block; width: 10px; height: 10px; margin-right: 8px; vertical-align: -1px; border-radius: 2px; }
+i.mt-dn-asig { background: var(--mt-dn-asig); } i.mt-dn-prov { background: var(--mt-dn-prov); } i.mt-dn-cli { background: var(--mt-dn-cli); }
+i.mt-dn-curso { background: var(--mt-dn-curso); } i.mt-dn-otro { background: var(--mt-dn-otro); }
+.mt-dn-legend tr.mt-dn-head th { padding-bottom: 3px; font-size: 12px; font-weight: 600; text-align: right; }
+/* Resumen, ¿Cómo está el backlog ahora?: cada reparto, de un solo lado, en filas con su cifra, su parte de lo
+   pendiente y una barra con esa parte (en el color del lado); en la evolución, la franja de cada día para su nota */
+.mt-blist { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+.mt-blist th { width: 42%; padding: 5px 8px 5px 0; overflow: hidden; font-weight: 400; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+.mt-blist td { padding: 5px 0 5px 8px; white-space: nowrap; }
+.mt-blist td.mt-num:first-of-type { width: 14%; font-weight: 600; font-variant-numeric: tabular-nums; }
+.mt-blist td.mt-num.mt-mut { width: 12%; }
+.mt-blist-bar i { display: block; height: 10px; min-width: 2px; border-radius: 0 3px 3px 0; }
+.mt-blist tr + tr { border-top: 1px solid var(--border); }
+.mt-blist tr.mt-clk { cursor: pointer; } .mt-blist tr.mt-clk:hover { background: var(--mt-soft); }
+.mt-blist tr.mt-sel { background: var(--mt-sel); }
+.mt-svg .mt-hit { fill: transparent; }
+.mt-svg .mt-hit:hover { fill: color-mix(in srgb, var(--text) 6%, transparent); }
+.mt-kpi.mt-clk { cursor: pointer; } .mt-kpi.mt-clk:hover { border-color: var(--mt-line); background: var(--mt-soft); }
+/* en las tablas de dos lados, un nombre largo (un centro) se corta con «…»: entero, al pasar el ratón */
+.mt-view table.mt-mix2 th.mt-r { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Resumen: la baldosa cuadrada de la antigüedad media del backlog ahora (dos columnas) */
+.mt-s2 { grid-column: span 2; }
+@media (max-width: 1100px) { .mt-s2 { grid-column: span 6; } }
+.mt-tile { display: flex; flex-direction: column; min-width: 0; aspect-ratio: 1 / 1; padding: 14px 16px; }
+.mt-tile h3 { margin: 0; cursor: default; }
+.mt-tile-figs { display: flex; flex: 1; flex-direction: column; justify-content: center; gap: 10px; }
+.mt-tile-v b { display: block; font-size: 26px; font-weight: 650; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.mt-tile-v span { font-size: 12.5px; color: var(--mt-low); }
+/* Resumen: el selector de SISU o SGA, arriba del todo (pone o quita ese filtro) */
+.mt-seg { grid-column: span 12; justify-self: start; display: inline-flex; border: 1px solid var(--mt-line); background: var(--surface); }
+.mt-seg-b { padding: 6px 16px; font: inherit; font-size: 13px; font-weight: 600; color: var(--mt-low); background: none; border: 0; cursor: pointer; }
+.mt-seg-b + .mt-seg-b { border-left: 1px solid var(--mt-line); }
+.mt-seg-b:hover { color: var(--text); background: var(--mt-soft); }
+.mt-seg-b.mt-on { color: var(--text); background: var(--mt-sel); }
+/* Resumen, evolución del backlog en barras apiladas por prioridad (es un orden: un solo tono, de la crítica, la más
+   marcada y abajo, a la baja), del azul de la paleta de referencia (en claro, ninguno más claro que el paso 250; en
+   oscuro, al revés y ninguno más oscuro que el 600); sin prioridad, en gris. Entre tramos, 1 px del fondo a cada lado.
+   La tendencia, en tinta neutra discontinua */
+.mt-view { --mt-pq0: #0d366b; --mt-pq1: #256abf; --mt-pq2: #5598e7; --mt-pq3: #86b6ef; --mt-pq4: var(--mt-c2); }
+:root[data-mode="dark"] .mt-view { --mt-pq0: #cde2fb; --mt-pq1: #86b6ef; --mt-pq2: #3987e5; --mt-pq3: #184f95; }
+.mt-svg rect.mt-pq0, .mt-svg rect.mt-pq1, .mt-svg rect.mt-pq2, .mt-svg rect.mt-pq3, .mt-svg rect.mt-pq4 { stroke: var(--mt-card); stroke-width: 1; }
+.mt-pq0 { fill: var(--mt-pq0); } .mt-pq1 { fill: var(--mt-pq1); } .mt-pq2 { fill: var(--mt-pq2); } .mt-pq3 { fill: var(--mt-pq3); } .mt-pq4 { fill: var(--mt-pq4); }
+i.mt-pq0 { background: var(--mt-pq0); } i.mt-pq1 { background: var(--mt-pq1); } i.mt-pq2 { background: var(--mt-pq2); } i.mt-pq3 { background: var(--mt-pq3); } i.mt-pq4 { background: var(--mt-pq4); }
+.mt-trend { stroke: color-mix(in srgb, var(--text) 70%, transparent); stroke-width: 2; stroke-dasharray: 7 5; }
+.mt-legend i.mt-trend-key { width: 18px; height: 0; vertical-align: middle; border-top: 2px dashed color-mix(in srgb, var(--text) 70%, transparent); }
+/* Resumen, entrantes frente a atendidas: las barras con los colores de la corona (entrantes, el de Asignada; las
+   pendientes, los suyos) y las resueltas, en el del lado; el selector de la tarjeta, pequeño */
+.mt-svg rect.mt-dn-asig { fill: var(--mt-dn-asig); } .mt-svg rect.mt-dn-prov { fill: var(--mt-dn-prov); } .mt-svg rect.mt-dn-cli { fill: var(--mt-dn-cli); }
+.mt-svg rect.mt-fl-res { fill: var(--mt-c0); } i.mt-fl-res { background: var(--mt-c0); }
+.mt-seg.mt-seg-sm { margin-bottom: 10px; } .mt-seg-sm .mt-seg-b { padding: 4px 12px; font-size: 12.5px; }
+/* lo atendido del backlog, encima de lo atendido de las entrantes: en violeta (de la paleta de referencia), distinto de
+   los azules de la pila y del ocre de las entrantes; validado frente al tono que tiene debajo, con fondo claro y oscuro */
+.mt-view { --mt-fl-bkl: #6250d6; } :root[data-mode="dark"] .mt-view { --mt-fl-bkl: #9085e9; }
+.mt-svg rect.mt-fl-bkl { fill: var(--mt-fl-bkl); } i.mt-fl-bkl { background: var(--mt-fl-bkl); }
+/* Resumen, entrantes frente a atendidas: cada serie de lo atendido, en la leyenda, se enciende y se apaga con un clic */
+.mt-fl-tg { display: inline-flex; align-items: center; padding: 1px 6px; margin: -1px -6px; font: inherit; color: inherit; background: none; border: 1px solid transparent; cursor: pointer; }
+.mt-fl-tg:hover { border-color: var(--mt-line); background: var(--mt-soft); }
+.mt-fl-tg.mt-off { opacity: .45; text-decoration: line-through; }
+.mt-fl-tg.mt-off i { background: transparent !important; outline: 1.5px solid var(--mt-line); outline-offset: -1.5px; }
+/* Resumen, la sábana de incidencias: la cuenta y el botón de exportar, encima de la tabla */
+.mt-sheet-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; font-size: 13px; }

@@ -30,15 +30,16 @@ test('madrid: la hora de Jira, en hora de Madrid y sin zona, como las de Remedy'
 
 test('tickets: por lotes, con el token, y las claves que Jira no conoce como no encontradas', async () => {
   const keys = Array.from({ length: BATCH + 1 }, (_, n) => `SGA-${n + 1}`);
-  const fetch = fakeFetch({ 'SGA-1': { created: '2026-02-03T10:00:00.000+0100', resolutiondate: null, status: { name: 'Open' } } });
+  const fetch = fakeFetch({ 'SGA-1': { created: '2026-02-03T10:00:00.000+0100', resolutiondate: null, status: { name: 'Open' }, customfield_18260: { name: 'jsdsoportecourier', displayName: 'N2 Courier Support' } } });
   const seen = [];
   const { found, missing } = await createJira({ config: CONFIG, fetch }).tickets(keys, { onBatch: (n) => seen.push(n) });
   assert.equal(fetch.urls.length, 2 + BATCH, 'dos lotes y, una a una, las que no salieron');
   assert.ok(fetch.urls[0].url.startsWith('https://jira.example.com/jira/rest/api/2/search?jql='));
   assert.ok(fetch.urls[0].url.includes('validateQuery=warn'));
+  assert.ok(fetch.urls[0].url.includes('fields=created,resolutiondate,status,customfield_18260'), 'con su equipo asignado');
   assert.equal(fetch.urls[0].auth, 'Bearer tok');
   assert.deepEqual(seen, [BATCH, BATCH + 1]);
-  assert.deepEqual(found, [{ key: 'SGA-1', created: '2026-02-03 10:00:00', resolved: '', status: 'Open', moves: null }]);
+  assert.deepEqual(found, [{ key: 'SGA-1', created: '2026-02-03 10:00:00', resolved: '', status: 'Open', team: 'N2 Courier Support', moves: null }]);
   assert.equal(missing.length, BATCH);
 });
 

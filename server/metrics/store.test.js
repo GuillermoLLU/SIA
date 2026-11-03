@@ -138,6 +138,8 @@ test('Jira: pide las claves de las issues y calcula los tiempos de escalado; la 
   // abierta el 1/2 a las 10:00: el primer Jira, a la hora; la solución final (SGA-1), al día siguiente; sigue abierta
   // en Remedy hasta la foto (el último cambio, el 3/2 a las 10:00)
   assert.deepEqual([cols.the[0], cols.tes[0], cols.tcr[0], cols.tsr[0]], [60, 1440, -1, 23 * 60]);
+  // su THesc por estados: sin cambios de estado antes del Jira, todo en cola
+  assert.deepEqual([cols.hQ[0], cols.hI[0], cols.hPc[0], cols.hPo[0]], [60, 0, 0, 0]);
   await store.update();
   assert.deepEqual(jira.asked[1], ['SGA-2'], 'FINISHED-1 no existe y SGA-1 ya está resuelto');
   clean(dir);
@@ -218,5 +220,37 @@ test('Jira: de las issues abiertas se pide el historial (cambios de equipo), tam
   await createMetricsStore(dir, { repo, source: fakeSource([ESCALATED]), jira, now }).update();
   // la issue está abierta: SGA-1 (resuelto pero sin historial) y SGA-2 (nuevo), con historial; FINISHED-1, no existe
   assert.deepEqual([jira.asked[0].sort(), jira.asked.history[0]], [['SGA-1', 'SGA-2'], ['SGA-1', 'SGA-2']]);
+  clean(dir);
+});
+
+test('Jira: de ITSMECOM (muchos equipos), a quién se escala es su equipo; los traídos antes de guardarlo se vuelven a pedir', async () => {
+  const dir = tmp();
+  const ticket = { created: '2026-02-01 11:00:00', resolved: '2026-02-02 11:00:00', status: 'Closed' };
+  const jira = fakeJira({ 'ITSMECOM-1': { ...ticket, team: 'N2 Courier Support' } });
+  const repo = createRepository({ DatabaseSync, file: path.join(dir, 'incidencias.sqlite'), fs, now });
+  repos.push(repo);
+  // ya traído, con su historial (moves 0) pero sin equipo
+  repo.saveJira({ found: [{ key: 'ITSMECOM-1', ...ticket, moves: 0 }], missing: [] });
+  const issue = row({ ...ISSUE, STATUS: 'ASSIGNED', VENDORTICKETNUMBER: 'ITS: ITSMECOM-1', AUDIT_DETAIL: ESCALATED.AUDIT_DETAIL, LASTMODIFIEDDATE: '2026-02-03 10:00:00.000' });
+  const store = createMetricsStore(dir, { repo, source: fakeSource([issue]), jira, now });
+  await store.update();
+  assert.deepEqual(jira.asked[0], ['ITSMECOM-1']);
+  assert.equal(repo.jiraTickets().get('ITSMECOM-1').team, 'N2 Courier Support');
+  const { cols, dict } = await store.load();
+  // «ITS:» no es a quién se escala: es un Jira de ITSMECOM, de su equipo
+  assert.equal(dict.vtype[cols.vt[0]], 'JIRA');
+  assert.equal(dict.vproj[cols.vp[0]], 'ITSMECOM · N2 Courier Support');
+  clean(dir);
+});
+
+test('Jira: pedido otra vez sin historial, se queda lo que ya se sabía de sus cambios de equipo y de su equipo', () => {
+  const dir = tmp();
+  const repo = createRepository({ DatabaseSync, file: path.join(dir, 'incidencias.sqlite'), fs, now });
+  repos.push(repo);
+  const ticket = { key: 'SGA-1', created: '2026-02-01 11:00:00', resolved: '', status: 'Open' };
+  repo.saveJira({ found: [{ ...ticket, moves: 2, team: 'N2 Imagen' }], missing: [] });
+  repo.saveJira({ found: [{ ...ticket, resolved: '2026-02-02 11:00:00', status: 'Closed', moves: null }], missing: [] });
+  const t = repo.jiraTickets().get('SGA-1');
+  assert.deepEqual([t.resolved, t.status, t.moves, t.team], ['2026-02-02 11:00:00', 'Closed', 2, 'N2 Imagen']);
   clean(dir);
 });

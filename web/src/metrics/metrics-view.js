@@ -19,6 +19,7 @@ import { mountPeriodPanel } from './period-panel.js';
 import { attachTip } from './tip.js';
 import { PHASES, progressOf, progressHtml } from './progress.js';
 import { COLORS, defaultColors, freeColor, dayOf, coverage, freeCompany, withoutSide, togglePerson, filterKey } from './view.js';
+import { sheetOf, sheetCsv, sheetFile } from './sheet.js';
 
 const SEARCH_MS = 250;
 const LOAD = 'Actualizar y generar informe';
@@ -213,9 +214,23 @@ export const mountMetricsView = (root, { api, toast }) => {
     }
   };
 
+  // La sábana del Resumen, a CSV: lo que se ve ahora (filtros y lados), entero, descargado como fichero (sheet.js).
+  const exportSheet = () => {
+    const list = sheetOf(m);
+    if (!list.length) return;
+    const url = URL.createObjectURL(new Blob([sheetCsv(m, list)], { type: 'text/csv;charset=utf-8' }));
+    const a = Object.assign(document.createElement('a'), { href: url, download: sheetFile(m) });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast?.(`Exportadas ${num(list.length)} incidencias a ${sheetFile(m)}.`);
+  };
+
   root.addEventListener('click', (e) => {
     if (e.target.closest('[data-update]')) return update();
     if (!m || e.target.closest('a')) return;
+    if (e.target.closest('[data-export]')) return exportSheet();
     const { S } = m;
     // desplegables: abrir y cerrar, elegir; un clic fuera los cierra
     if (e.target.closest('[data-calendar]')) return togglePop('calendar');
@@ -250,11 +265,15 @@ export const mountMetricsView = (root, { api, toast }) => {
       if (searching) $('[data-q]').focus();
       return;
     }
-    const t = e.target.closest('[data-tab],[data-go],[data-rm],[data-exp],[data-sort],[data-svc],[data-f2],[data-f]');
+    const t = e.target.closest('[data-tab],[data-go],[data-rm],[data-exp],[data-sort],[data-svc],[data-evo],[data-flk],[data-only],[data-f2],[data-f]');
     if (!t) return;
     const d = t.dataset;
     if (d.tab || d.go) { tab = d.tab || d.go; root.scrollTop = 0; }
     else if (d.svc) ui.svc[d.svc] = !ui.svc[d.svc];   // Servicio y SLA: comparar con el año anterior o con T-Systems
+    else if (d.evo) ui.evo = d.evo;   // Resumen: la evolución del backlog o entrantes frente a atendidas
+    else if (d.flk) { ui.flowOff = { ...ui.flowOff, [d.flk]: !ui.flowOff?.[d.flk] }; }   // y en estas, encender o apagar una serie
+    // un selector: solo ese valor de la dimensión («dim:clave») o, sin clave («dim:»), todos (sin filtro)
+    else if (d.only != null) { const [dim, k] = d.only.split(':'); if (k === '') delete S.f[dim]; else S.f[dim] = new Set([Number(k)]); }
     else if (d.rm) { const [dim, k] = filterKey(d.rm); S.f[dim].delete(k); }
     else if (d.exp) ui.exp[d.exp] = !ui.exp[d.exp];
     else if (d.sort) { const [id, c] = d.sort.split(':'), cur = ui.sort[id]; ui.sort[id] = [c, cur && cur[0] === c ? -cur[1] : -1]; }

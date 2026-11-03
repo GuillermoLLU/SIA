@@ -20,22 +20,28 @@
 //           id número · rep/res abierta y resuelta · lm último cambio (minutos desde el 1 de enero de start; -1 no hay)
 //           st estado · rs motivo · pr prioridad · sv tipo de servicio · as responsable
 //           ce centro · op operación · mo módulo · k3 tipología · sc ámbito · fl marcas (remedy.js FLAG)
-//           vt/vp/vk ticket de tercero: tipo, proyecto Jira y clave · th temas · su título
+//           vt/vp/vk ticket de tercero: tipo, proyecto Jira (de ITSMECOM, con su equipo asignado en Jira) y clave · vn su texto tal cual (VENDORTICKETNUMBER) · th temas · su título
 //           de problema (themes.js): las formas de escribir lo mismo, juntas; dict.problem, la más escrita
 //           fr primera actuación · ip primer paso a En curso (minutos desde la apertura; -1 no hay)
 //           tA/tI/tPc/tPv/tPo minutos en cola, en curso y pendiente del centro, de un tercero u otros
 //           nb devoluciones a la cola · np pendientes · rz resolución repetida (4 veces o más; 0 si no)
+//           eR/eV/eC los días (desde el 1 de enero de start) en que pasó a Resuelta, a Pendiente de proveedor y a
+//           Pendiente de cliente, una vez por día (lo atendido cada día: remedy.js, statusHistory events)
 //           the/tes/tcr/tsr THesc, Tesc, Tcr y Tesc-r con sus tickets Jira (escalation.js; minutos, -1 no hay,
 //           the -2 ticket previo); fl lleva además las marcas de sin Jira válido, cerrada con el Jira abierto,
 //           cerrada en Remedy antes que su Jira y mal escalada (algún Jira suyo descartado o que pasó de un equipo a otro)
-import { readIssue, minutesSince, FLAG } from './remedy.js';
+//           hQ/hI/hPc/hPo el THesc de las escaladas repartido por estados (en cola, en curso, esperando al centro y
+//           otras esperas, también de un tercero; minutos, -1 no hay): lo de antes del primer Jira, que suma su THesc
+import { readIssue, minutesSince, timeUntil, FLAG } from './remedy.js';
 import { loginsOf, companyOf } from './companies.js';
 import { THEME_NAMES, problemKey } from './themes.js';
 import { PENDING, OPEN_STATES } from './states.js';
 import { escalationOf } from './escalation.js';
 
 export const GROUP = 'AYS SOPORTE';
-export const FORMAT = 7;
+export const FORMAT = 11;
+// el proyecto Jira con muchos equipos: a quién se escala, su equipo (vp: «ITSMECOM · N2 Courier Support»)
+export const TEAM_PROJECT = 'ITSMECOM';
 
 export const REQUIRED = ['INCIDENTNUMBER', 'ASSIGNEDGROUP', 'ASSIGNEE', 'SUMMARY', 'PRIORITY', 'STATUS', 'STATUSREASON', 'SERVICETYPE', 'TAGS',
   'REPORTEDDATE', 'LASTRESOLUTIONDATE', 'LASTMODIFIEDDATE', 'RESOLUTION', 'VENDORTICKETNUMBER', 'PRODUCTCATEGORIZATIONTIER1',
@@ -63,17 +69,19 @@ const dictionary = () => {
   return { id, values };
 };
 
-const COLS = ['id', 'rep', 'res', 'lm', 'st', 'rs', 'pr', 'sv', 'as', 'ce', 'op', 'mo', 'k3', 'sc', 'fl', 'vt', 'vp', 'vk',
-  'fr', 'ip', 'tA', 'tI', 'tPc', 'tPv', 'tPo', 'nb', 'np', 'th', 'su', 'de'];
+const COLS = ['id', 'rep', 'res', 'lm', 'st', 'rs', 'pr', 'sv', 'as', 'ce', 'op', 'mo', 'k3', 'sc', 'fl', 'vt', 'vp', 'vk', 'vn',
+  'fr', 'ip', 'tA', 'tI', 'tPc', 'tPv', 'tPo', 'nb', 'np', 'th', 'su', 'de', 'eR', 'eV', 'eC'];
+// los días (desde el 1 de enero de start) de cada evento de una issue, sin repetir: una vez por issue, tipo y día
+const daysOf = (mins) => [...new Set(mins.filter((t) => t >= 0).map((t) => Math.floor(t / 1440)))];
 
 // start: el año de la primera issue del grupo.
 export const createDataset = ({ start }) => {
   const base = Date.UTC(start, 0, 1);
-  const D = Object.fromEntries(['status', 'reason', 'prio', 'svc', 'person', 'centre', 'op', 'module', 'cat', 'vtype', 'vproj', 'vkey', 'resol', 'problem'].map((k) => [k, dictionary()]));
+  const D = Object.fromEntries(['status', 'reason', 'prio', 'svc', 'person', 'centre', 'op', 'module', 'cat', 'vtype', 'vproj', 'vkey', 'vtext', 'resol', 'problem'].map((k) => [k, dictionary()]));
   const cols = Object.fromEntries(COLS.map((c) => [c, []]));
   const resolutions = [], resolutionCount = new Map(), resolvers = new Map();
   const spellings = [];   // por problema: cuántas veces se escribe de cada forma
-  const jira = [], keys = new Set(), openKeys = new Set();   // las claves Jira de cada issue y las de las abiertas (las cuentas de escalado se hacen en build)
+  const jira = [], keys = new Set(), openKeys = new Set(), spans = [];   // las claves Jira de cada issue y las de las abiertas (las cuentas de escalado se hacen en build)
   let total = 0, snapshot = 0, first = Infinity, last = -1;
 
   const add = (r) => {
@@ -98,24 +106,35 @@ export const createDataset = ({ start }) => {
     const row = {
       id: i.id, rep: i.reported, res: i.resolved, lm: i.modified, st: D.status.id(i.status), rs: D.reason.id(i.reason), pr: D.prio.id(i.priority),
       sv: D.svc.id(i.service), as: D.person.id(i.assignee), ce: D.centre.id(i.centre), op: D.op.id(i.operation), mo: D.module.id(i.module),
-      k3: D.cat.id(i.category), sc: i.scope, fl: i.flags, vt: D.vtype.id(i.vendor.type), vp: D.vproj.id(i.vendor.project), vk: D.vkey.id(i.vendor.key),
+      k3: D.cat.id(i.category), sc: i.scope, fl: i.flags, vt: D.vtype.id(i.vendor.type), vp: D.vproj.id(i.vendor.project), vk: D.vkey.id(i.vendor.key), vn: D.vtext.id(i.vendorText),
       fr: i.first, ip: i.start, tA: i.time.queue, tI: i.time.work, tPc: i.time.client, tPv: i.time.vendor, tPo: i.time.other,
       nb: i.bounces, np: i.pendings, th: i.themes, su: own(i.title), de,
+      eR: daysOf(i.events.resolved), eV: daysOf(i.events.vendor), eC: daysOf(i.events.client),
     };
     for (const c of COLS) cols[c].push(row[c]);
     const open = OPEN_STATES.includes(i.status);
     jira.push({ keys: i.jira, open });
+    spans.push(i.flags & FLAG.THIRD_PARTY ? i.spans : null);   // solo de las escaladas: para partir su THesc
     for (const k of i.jira) { keys.add(k); if (open) openKeys.add(k); }
   };
 
   // Los tiempos de escalado de cada issue con sus tickets (Map clave → { created, resolved, status, found, moves }, en
   // hora de Madrid como Remedy); «ahora», la foto. Una clave sin ticket guardado no cuenta.
   const escalations = (tickets) => {
-    const at = (s) => minutesSince(base, s), out = { the: [], tes: [], tcr: [], tsr: [] };
+    const at = (s) => minutesSince(base, s), out = { the: [], tes: [], tcr: [], tsr: [], hQ: [], hI: [], hPc: [], hPo: [] };
     jira.forEach(({ keys: ks, open }, n) => {
       const ts = ks.map((k) => tickets.get(k)).filter((t) => t?.found).map((t) => ({ created: at(t.created), resolved: at(t.resolved), status: t.status, moves: t.moves ?? 0 }));
       const e = escalationOf({ reported: cols.rep[n], resolved: cols.res[n], open, escalated: !!(cols.fl[n] & FLAG.THIRD_PARTY) }, ts, snapshot);
       out.the.push(e.thesc); out.tes.push(e.tesc); out.tcr.push(e.tcr); out.tsr.push(e.tescr);
+      // su THesc, por estados: lo de cada uno hasta el primer Jira; la cola, lo que queda (lo de antes del primer cambio,
+      // también), como en lo que no se escala (web phases.js)
+      const h = e.thesc >= 0 && spans[n] ? timeUntil(spans[n], cols.rep[n], cols.rep[n] + e.thesc) : null;
+      const wait = h ? h.vendor + h.other : -1;
+      out.hI.push(h ? h.work : -1); out.hPc.push(h ? h.client : -1); out.hPo.push(wait);
+      out.hQ.push(h ? Math.max(e.thesc - h.work - h.client - wait, h.queue) : -1);
+      // ITSMECOM tiene muchos equipos: el proyecto, con el equipo asignado de su ticket
+      const team = D.vproj.values[cols.vp[n]] === TEAM_PROJECT ? tickets.get(D.vkey.values[cols.vk[n]])?.team : '';
+      if (team) cols.vp[n] = D.vproj.id(`${TEAM_PROJECT} · ${team}`);
       cols.fl[n] |= (e.bad ? FLAG.BAD_ESCALATION : 0) | (e.jiraOpen ? FLAG.JIRA_OPEN : 0) | (e.early ? FLAG.CLOSED_BEFORE_JIRA : 0)
         | (e.misrouted ? FLAG.MISROUTED : 0);
     });

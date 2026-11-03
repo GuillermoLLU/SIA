@@ -257,5 +257,21 @@ export const createCharts = (m, ui) => {
       return `<div class="mt-split"><span class="mt-split-l">${r.k != null && CMP() ? `<i class="mt-sw mt-c${r.k}"></i>` : ''}${esc(r.label)}</span><span class="mt-hbar mt-split-b">${t ? r.v.map((v, j) => `<i class="mt-part${j}" style="width:${v / t * 100}%" data-tip="${esc(`${r.label}${r.k != null && CMP() ? ` · ${name(r.k)}` : ''}\n${names[j]}: ${num(v)} (${pct(v / t)})`)}">${v / t >= 0.08 ? pct(v / t) : ''}</i>`).join('') : ''}</span><span class="mt-split-n">${num(t)}</span></div>`;
     }).join('');
 
-  return { card, legend, kpi, kpis, kpiCo, diff, more, lines, heat, matrix, scorecard, day, split };
+  // Corona circular: partes de un todo (parts: [{ label, v, cls, f?, tip? }], en el orden en que se leen, desde arriba y
+  // en el sentido del reloj), con el total en el centro (center: [cifra, texto]). Entre tramos, 2 px del fondo; cada
+  // tramo, con su nota al pasar el ratón y, con f, clic para filtrar (con «|», por varias claves). Sin nada, un anillo vacío.
+  const donut = (parts, center, size = 116) => {
+    const total = parts.reduce((a, p) => a + p.v, 0), on = parts.filter((p) => p.v > 0), GAP = on.length > 1 ? 0.8 : 0;
+    let at = 0;
+    const arcs = on.map((p) => {
+      const len = (p.v / total) * 100, arc = `<circle class="mt-dn-${p.cls}${p.f ? ' mt-clk' : ''}" cx="60" cy="60" r="46" pathLength="100" stroke-dasharray="${Math.max(len - GAP, 0.01).toFixed(2)} ${(100 - len + GAP).toFixed(2)}" stroke-dashoffset="${(-at).toFixed(2)}" ${p.f ? `data-f${p.f.includes('|') ? '2' : ''}="${p.f}"` : ''} data-tip="${esc(`${p.label}: ${num(p.v)} (${pct(p.v / total, 1)})${p.tip ? `\n${p.tip}` : ''}`)}"/>`;
+      at += len;
+      return arc;
+    }).join('');
+    return `<svg class="mt-donut" viewBox="0 0 120 120" width="${size}" height="${size}" role="img" aria-label="${esc(`${center[1]}: ${center[0]}. ${parts.map((p) => `${p.label}: ${num(p.v)}`).join(', ')}`)}">
+      <circle class="mt-dn-track" cx="60" cy="60" r="46"/><g transform="rotate(-90 60 60)">${total ? arcs : ''}</g>
+      <text x="60" y="58" text-anchor="middle" class="mt-dn-n">${center[0]}</text><text x="60" y="74" text-anchor="middle" class="mt-dn-l">${esc(center[1])}</text></svg>`;
+  };
+
+  return { card, legend, kpi, kpis, kpiCo, diff, more, lines, heat, matrix, scorecard, day, split, donut };
 };

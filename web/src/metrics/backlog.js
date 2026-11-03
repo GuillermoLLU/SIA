@@ -29,8 +29,6 @@ const cards = (m) => (i) => m.DIMS.tj.get(i);
 export const isPrio = (m) => (i) => cards(m)(i).includes(2);
 // lo que no tiene a nadie: abierto, de las tarjetas del equipo (SGA, SISU o PRIO) y del periodo, con los filtros
 export const orphansIn = (m) => m.today(true).filter((i) => m.OPEN[i] && !m.C.as[i] && m.inPeriod(i) && cards(m)(i).some((k) => k < 3));
-// lo mismo, de cualquier mes (la foto de hoy)
-export const orphansToday = (m) => m.today(true).filter((i) => m.OPEN[i] && !m.C.as[i] && cards(m)(i).some((k) => k < 3));
 
 // Lo que conviene vigilar dentro de lo pendiente (se solapa: no se suma): [nombre, prueba, nota, filtro].
 export const watchList = (m) => [
@@ -44,7 +42,58 @@ export const watchList = (m) => [
 ];
 
 // la antigüedad media de unas issues, en minutos (null sin ninguna)
-const meanAge = (m, l) => (l.length ? l.reduce((a, i) => a + m.SNAP - m.C.rep[i], 0) / l.length : null);
+export const meanAge = (m, l) => (l.length ? l.reduce((a, i) => a + m.SNAP - m.C.rep[i], 0) / l.length : null);
+
+
+// El backlog al acabar cada uno de los n días desde d0 (minutos desde BASE): cuántas de `list` estaban abiertas. Una
+// issue está abierta desde su apertura hasta que se resuelve; una cancelada sin resolver, hasta su último cambio; una
+// abierta aún, hasta hoy. Se cuenta de una pasada, sumando donde entra y restando donde sale.
+export const backlogByDay = (m, list, d0, n) => {
+  const { C, OPEN } = m, diff = new Int32Array(n + 1), at = (t) => Math.min(Math.max(Math.floor((t - d0) / DAY), 0), n);
+  for (const i of list) {
+    const end = C.res[i] >= 0 ? C.res[i] : OPEN[i] ? Infinity : C.lm[i] >= 0 ? C.lm[i] : C.rep[i];
+    const a = at(C.rep[i]), b = end === Infinity ? n : at(end);
+    if (a < b) { diff[a]++; diff[b]--; }
+  }
+  const out = new Array(n);
+  for (let j = 0, run = 0; j < n; j++) out[j] = (run += diff[j]);
+  return out;
+};
+
+// Entrantes frente a atendidas, cada uno de los n días desde d0 (minutos desde BASE): cuántas de `list` se abrieron
+// ese día (inc) y, de esas, cuántas se atendieron el mismo día en que entraron: pasaron a Resuelta (res), a Pendiente
+// de proveedor (ven) o a Pendiente de cliente (cli), por los días que guarda el bridge (dataset.js: eR, eV, eC; sin
+// ellos, a cero). Cada una cuenta una vez, en lo más avanzado que le pasó ese día (resuelta, luego proveedor, luego
+// cliente): lo atendido nunca pasa de lo que entró. Y, aparte, lo atendido del backlog (bkl): las que entraron antes y
+// ese día pasaron a Resuelta, a Pendiente de proveedor o a Pendiente de cliente (solo los tipos de `kinds`: lo que se
+// mira), una vez por issue y día.
+export const flowByDay = (m, list, d0, n, kinds = ['res', 'ven', 'cli']) => {
+  const { C } = m, day0 = Math.floor(d0 / DAY), zero = () => new Array(n).fill(0);
+  const out = { inc: zero(), res: zero(), ven: zero(), cli: zero(), bkl: zero() };
+  for (const i of list) {
+    const d = Math.floor(C.rep[i] / DAY), j = d - day0, R = C.eR?.[i] || [], V = C.eV?.[i] || [], K = C.eC?.[i] || [];
+    const acted = [...(kinds.includes('res') ? R : []), ...(kinds.includes('ven') ? V : []), ...(kinds.includes('cli') ? K : [])];
+    for (const e of new Set(acted)) { const je = e - day0; if (e > d && je >= 0 && je < n) out.bkl[je]++; }
+    if (j < 0 || j >= n) continue;
+    out.inc[j]++;
+    if (R.includes(d)) out.res[j]++;
+    else if (V.includes(d)) out.ven[j]++;
+    else if (K.includes(d)) out.cli[j]++;
+  }
+  return out;
+};
+
+// La línea de tendencia de una serie (mínimos cuadrados): valor en el primer punto (a) y cuánto sube o baja por punto
+// (b). Con menos de dos puntos, plana.
+export const trendOf = (v) => {
+  const n = v.length;
+  if (n < 2) return { a: v[0] ?? 0, b: 0 };
+  const mx = (n - 1) / 2, my = v.reduce((s, y) => s + y, 0) / n;
+  let sxy = 0, sxx = 0;
+  v.forEach((y, x) => { sxy += (x - mx) * (y - my); sxx += (x - mx) ** 2; });
+  const b = sxy / sxx;
+  return { a: my - b * mx, b };
+};
 // el lado con menos (el que va mejor), o -1 si se ven iguales (al redondear con `same`) o falta uno
 const lower = (a, b, same) => (a == null || b == null || same(a) === same(b) ? -1 : a < b ? 0 : 1);
 

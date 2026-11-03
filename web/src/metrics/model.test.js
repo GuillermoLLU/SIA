@@ -229,7 +229,8 @@ test('Resolución no compara empresas; con personas, módulo a módulo y la medi
   assert.match(h, /Módulo a módulo/);
   assert.match(h, /Media frente a sus módulos/);
   assert.match(h, /Indra, en sus módulos/);
-  assert.doesNotMatch(h, /Un mismo ticket|En qué se va el tiempo|no compara/);
+  assert.doesNotMatch(h, /Un mismo ticket|no compara/);
+  assert.match(h, /<h3>En qué se va el tiempo<\/h3>/);
   m.S.sides = [{ people: new Set([2]) }, { people: new Set([1]) }]; m.refilter();   // dos personas: sin la referencia del equipo
   h = tabs.render('resolucion', m.rows());
   assert.match(h, /Módulo a módulo/);

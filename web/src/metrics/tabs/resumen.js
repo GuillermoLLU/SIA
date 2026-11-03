@@ -1,73 +1,109 @@
-// Resumen: un bloque por pregunta, con sus cifras clave y el paso a su pestaña. Cada cifra es la de lo que
-// se mira y, al comparar, al lado, la diferencia con el otro lado.
+// Resumen: cómo está el backlog ahora (a fecha de la última carga, se abriera cuando se abriera), con el selector de
+// SISU o SGA arriba del todo. Lo recibido en el periodo, por preguntas, está en el Histórico (historico.js).
 import { esc } from '../../ui/html.js';
-import { num, dec, pct, dur } from '../format.js';
-import { slaText } from '../model.js';
-import { IA_MARKS } from '../ia.js';
-import { SHIFTS } from '../shifts.js';
-import { closedInPeriod as closedIn, monthVsPrev as monthVsPrevOf } from '../flow.js';
-import { TABS, QUESTIONS, MONTH_NOTE, DAY_NOTE, opt } from './common.js';
+import { num, pct, dur } from '../format.js';
+import { ages, meanAge } from '../backlog.js';
+import { blocksOf } from '../pieces.js';
+import { whoHas } from '../today.js';
+import { SHEET_COLS, sheetOf, remedyUrl } from '../sheet.js';
 
 export const resumenTab = (t) => {
-  const { m, ch, shareOf, grid, ask, slaPct, days } = t;
-  const { C, STYPE, CMP, CO, stats, group, bySide } = m;
-  const { card, legend, diff, lines } = ch;
-  const fig = (label, ST, fmt, val, better, tip) => {
-    const a = ST[CO()[0]];
-    return `<div class="mt-fig" ${tip ? `data-tip="${esc(tip)}"` : ''}><span>${esc(label)}</span><b>${a.n ? fmt(a) : '—'}</b>${CMP() ? diff(ST[0], ST[1], fmt, val, better) : ''}</div>`;
-  };
-  // tabs: su pestaña o varias (un botón a cada una); title: la pregunta, si no es la de la primera
-  const answer = (tabs, figs, title) => {
-    const list = [].concat(tabs);
-    return `<section class="mt-card mt-ans"><header><h3>${title || QUESTIONS[list[0]][0]}</h3><span class="mt-gos">${list.map((x) => `<button class="mt-go" data-go="${x}">${TABS.find(([k]) => k === x)[1]} →</button>`).join('')}</span></header><div class="mt-figs">${figs.join('')}</div></section>`;
+  const { m, ch, ui, grid, ask, name, section, selRow, asRows, prioRows, topRows, mixCmp } = t;
+  const { C, OPEN, DIMS, CMP, CO, isSel, bySide } = m;
+  const { card, legend, kpis, kpiCo } = ch;
+  // El backlog ahora, en una corona (lo primero del Resumen): lo abierto (en el centro), repartido por su estado, con
+  // las situaciones de la pestaña Backlog (model.js, SITUATIONS): Asignada (sin tocar o devuelta a la cola), Pendiente
+  // (proveedor), Pendiente (cliente) y En curso; lo que espera por otro motivo, solo si lo hay. Suman lo abierto.
+  // Comparando, una corona por lado y, debajo, las cifras de cada uno. P: lo abierto de cada lado (bySide).
+  const PARTS = [
+    ['asig', 'Asignada', [1, 2], 'En Asignada: sin tocar o devueltas a la cola.'],
+    ['prov', 'Pendiente (proveedor)', [3], 'En Pendiente por una acción de un tercero (desarrollo, proveedor…).'],
+    ['cli', 'Pendiente (cliente)', [4], 'En Pendiente por una acción o respuesta del centro o del cliente.'],
+    ['curso', 'En curso', [0], 'Alguien está trabajando en ellas.'],
+    ['otro', 'Pendiente (otro motivo)', [5], 'En Pendiente con otro motivo o sin motivo informado.'],
+  ].map(([cls, label, sits, tip]) => ({ cls, label, sits, tip, f: sits.map((k) => `sit:${k}`).join('|') }));
+  const haveNow = (P) => {
+    const ks = CO(), one = ks.length === 1, share = (v, k) => (P[k].length ? pct(v / P[k].length) : '—');
+    const count = P.map((l) => PARTS.map((p) => l.filter((i) => p.sits.includes(DIMS.sit.get(i))).length));
+    const shown = PARTS.filter((p, j) => p.cls !== 'otro' || ks.some((k) => count[k][j]));
+    const at = (p, k) => count[k][PARTS.indexOf(p)];
+    const rings = ks.map((k) => `<figure class="mt-dn-fig">${one ? '' : `<figcaption>${esc(name(k))}</figcaption>`}${ch.donut(shown.map((p) => ({ ...p, v: at(p, k) })), [num(P[k].length), 'pendientes'], one ? 116 : 96)}</figure>`).join('');
+    const head = one ? '' : `<tr class="mt-dn-head"><th></th>${ks.map((k) => `<th class="mt-num">${esc(name(k))}</th>`).join('')}</tr>`;
+    const row = (p) => `<tr class="mt-clk" data-f${p.f.includes('|') ? '2' : ''}="${p.f}" data-tip="${esc(p.tip)}"><th><i class="mt-dn-sw mt-dn-${p.cls}"></i>${p.label}</th>${ks.map((k) => `<td class="mt-num"><b>${num(at(p, k))}</b><small>${share(at(p, k), k)}</small></td>`).join('')}</tr>`;
+    const sum = `<tr class="mt-dn-sum" data-tip="Lo abierto ahora, se abriera cuando se abriera."><th>Pendientes</th>${ks.map((k) => `<td class="mt-num"><b>${num(P[k].length)}</b><small>ahora</small></td>`).join('')}</tr>`;
+    return `<div class="mt-dn ${one ? '' : 'mt-dn-cmp'}"><div class="mt-dn-rings">${rings}</div><table class="mt-dn-legend">${head}${shown.map(row).join('')}${sum}</table></div>`;
   };
 
-  return (A) => {
-    const T = bySide(A), ST = T.map(stats), d = days() || 1, sv = (v) => (s) => s[v];
-    const top = (dim, n) => group(dim, T[CO()[0]]).filter((x) => x.k).slice(0, n);
-    const mods = top('mo', 3), ce = top('ce', 1);
-    const inSet = (dim, ks) => (i) => ks.includes(C[dim][i]);
-    const ia = shareOf(T, (i) => C.fl[i] & IA_MARKS), iaDone = ST.map((s) => ({ n: s.n, v: s.resolved ? s.ia / s.resolved : null }));
-    const count = (b) => T.map((l) => ({ n: l.length, v: l.filter((i) => C.fl[i] & b).length }));
-    const sharePct = (s) => opt(pct)(s.v);
-    // último mes completo del periodo frente al anterior (las del mes anterior pueden quedar fuera del periodo)
-    const vsPrev = monthVsPrevOf(m), closed = closedIn(m);
-    return grid(ask('resumen'),
-      `<div class="mt-answers">${[
-        answer(['entrada', 'backlog'], [
-          fig('Recibidas', ST, (s) => num(s.n), sv('n')),
-          fig('Entran al día', ST.map((s) => ({ n: s.n, v: s.n / d })), (s) => dec(s.v), sv('v'), null, 'Recibidas entre los días naturales del periodo.'),
-          fig('Cerramos al día', closed.map((l, k) => ({ n: l.length + ST[k].n, v: l.length / d })), (s) => dec(s.v), sv('v'), 'high', 'Todo lo cerrado en el periodo, entre sus días naturales.'),
-          ...(vsPrev ? [fig(`${m.monthName(vsPrev[0])} frente a ${m.monthName(vsPrev[0] - 1)}`, vsPrev[1], (s) => opt((v) => `${v > 0 ? '+' : ''}${pct(v)}`)(s.v), sv('v'), null, 'Variación de las recibidas en el último mes completo del periodo respecto al anterior.')] : []),
-          fig('Pendientes', ST, (s) => num(s.open), sv('open'), 'low', 'Lo recibido en el periodo que sigue sin resolver.'),
-          fig('Fuera de plazo', ST, (s) => num(s.waitKo), sv('waitKo'), 'low', 'Pendientes que nunca han pasado a En curso y ya superan el plazo de su prioridad.')], '¿Qué tenemos?'),
-        answer('modulos', [
-          ...mods.map((x) => fig(m.DIMS.mo.label(x.k), shareOf(T, (i) => C.mo[i] === x.k), sharePct, sv('v'), null, 'Su parte de lo recibido.')),
-          ...(mods.length > 1 ? [fig(`Los ${mods.length} primeros módulos`, shareOf(T, inSet('mo', mods.map((x) => x.k))), sharePct, sv('v'))] : []),
-          ...ce.map((x) => fig(`Centro con más: ${m.DIMS.ce.label(x.k)}`, shareOf(T, (i) => C.ce[i] === x.k), sharePct, sv('v')))]),
-        answer('resolucion', [
-          fig('Media de resolución', ST, (s) => dur(s.avg), sv('avg'), 'low'),
-          fig('Resueltas en menos de 24 h', ST, (s) => pct(s.d1), sv('d1'), 'high'),
-          fig('El 90 %, en menos de', ST, (s) => dur(s.p90), sv('p90'), 'low'),
-          fig('Escaladas a terceros', ST, (s) => pct(s.vend), sv('vend'), null, 'Con ticket de tercero (desarrollo, proveedor…).')]),
-        answer('sla', [
-          fig('Empezadas dentro del SLA', ST, slaPct, sv('sla'), 'high', `Pasan a En curso dentro del plazo de su prioridad: ${slaText()}.`),
-          fig('Primera actuación, de media', ST, (s) => dur(s.fr), sv('fr'), 'low'),
-          fig('Reabiertas', ST, (s) => pct(s.reop, 1), sv('reop'), 'low'),
-          fig('Cerradas sin explicar la solución', ST, (s) => pct(s.noRes, 1), sv('noRes'), 'low')]),
-        answer('ia', [
-          fig('Con alguna marca de IA', ia, (s) => pct(s.v, 1), sv('v'), 'high'),
-          fig('De las resueltas, con IA', iaDone, (s) => opt((v) => pct(v, 1))(s.v), sv('v'), 'high'),
-          fig('Revisión humana OK', count(4096), (s) => num(s.v), sv('v')),
-          fig('IA fallida o revisión no OK', count(8192 | 64), (s) => num(s.v), sv('v'))]),
-        answer('turnos', [
-          ...SHIFTS.map((sn, k) => fig(`Entran de ${sn.toLowerCase()}`, shareOf(T, (i) => STYPE[i] % 3 === k), sharePct, sv('v'))),
-          fig('En fin de semana', shareOf(T, (i) => STYPE[i] >= 3), sharePct, sv('v')),
-          fig('Empezadas en el turno en que entran', ST, (s) => opt(pct)(s.inShift), sv('inShift'), 'high')]),
-      ].join('')}</div>`,
-      card(m.daily() ? 'Evolución día a día' : 'Evolución mes a mes', `${CMP() ? legend() : ''}<div class="mt-trio">
-        <div><p class="mt-small"><b>Issues recibidas</b></p>${lines(A, (s) => s.n, num, { height: 170 })}</div>
-        <div><p class="mt-small"><b>Empezadas dentro del SLA</b></p>${lines(A, (s) => s.sla, (v) => pct(v), { height: 170 })}</div>
-        <div><p class="mt-small"><b>Media de resolución</b></p>${lines(A, (s) => s.avg, dur, { height: 170 })}</div></div>`, { span: 's12', sub: m.daily() ? DAY_NOTE : `${MONTH_NOTE} Un mes con menos de 10 issues no se pinta.` }));
+  // --- El backlog ahora: lo abierto a fecha de la última carga, se abriera cuando se abriera (no
+  // depende del periodo; sí de los filtros y de lo que se mira arriba). Sus cifras y cómo se reparte (cómo ha ido día
+  // a día, en el Histórico: evolucion.js).
+  const nowRows = (op) => [
+    { head: 'Antigüedad', note: 'Desde que se abrió.' }, ...ages(m),
+    { head: 'Prioridad' }, ...asRows(prioRows()),
+    { head: 'Centro', note: 'Los 8 con más.' }, ...topRows('ce', op, 8),
+    { head: 'Módulo', note: 'Los 8 con más.' }, ...topRows('mo', op, 8),
+  ];
+  const fAttr = (f) => (f ? `data-f${f.includes('|') ? '2' : ''}="${f}"` : '');
+  // un bloque de filas, de un solo lado: cuántas, qué parte de lo pendiente y una barra con esa parte
+  const barList = (rows, op) => `<table class="mt-blist">${rows.map((r) => ({ ...r, n: op.filter(r.test).length })).filter((r) => r.n).map((r) => {
+    const sh = op.length ? r.n / op.length : 0;
+    return `<tr class="${r.f ? 'mt-clk' : ''} ${selRow(r.f) ? 'mt-sel' : ''}" ${fAttr(r.f)} ${r.tip ? `data-tip="${esc(r.tip)}"` : ''}><th>${esc(r.label)}</th>
+      <td class="mt-num">${num(r.n)}</td><td class="mt-num mt-mut">${pct(sh)}</td><td class="mt-blist-bar"><i class="mt-c${CO()[0]}" style="width:${(sh * 100).toFixed(1)}%"></i></td></tr>`;
+  }).join('')}</table>`;
+
+  // Arriba del todo, SISU o SGA (por el módulo: model.js, DIMS.ss): un selector que pone o quita ese filtro, así que
+  // vale para todas las pestañas y sale con los demás filtros, donde también se quita
+  const systemPicker = () => {
+    const on = m.S.f.ss?.size === 1 ? [...m.S.f.ss][0] : null;
+    const opt1 = (label, k) => `<button class="mt-seg-b ${on === k ? 'mt-on' : ''}" data-only="ss:${k ?? ''}" aria-pressed="${on === k}">${label}</button>`;
+    return `<div class="mt-seg" role="group" aria-label="SISU o SGA">${opt1('Todo', null)}${[0, 1].map((k) => opt1(DIMS.ss.label(k), k)).join('')}</div>`;
   };
+
+  // Quién tiene qué: lo abierto ahora de cada persona, con su total (today.js). Clic en una persona: todo, solo de ella.
+  const whoCard = () => {
+    const { op, cols: PCOLS, who, tot } = whoHas(m);
+    return `<div class="mt-tablewrap"><table><thead><tr><th>Persona</th>${PCOLS.map(([l]) => `<th class="mt-num">${l}</th>`).join('')}</tr></thead><tbody>${who.map((r) => `<tr class="mt-clk ${isSel('as', r.k) ? 'mt-sel' : ''}" data-f="as:${r.k}"><td>${CMP() ? `<i class="mt-sw mt-c${m.SIDE[op.find((i) => C.as[i] === r.k)]}"></i>` : ''}${esc(m.DIMS.as.label(r.k))}</td>${r.v.map((v) => `<td class="mt-num">${v || ''}</td>`).join('')}</tr>`).join('')}
+      <tr class="mt-grp"><td>Total</td>${tot.map((v) => `<td class="mt-num">${num(v)}</td>`).join('')}</tr></tbody></table></div>`;
+  };
+
+  // La sábana: lo abierto ahora, con los filtros y los lados de arriba, una fila por incidencia (sheet.js); las 50
+  // primeras y «Ver todas»; el botón la exporta entera a CSV (metrics-view.js, data-export).
+  const SHEET_TOP = 50;
+  const sheetCard = () => {
+    const list = sheetOf(m), shown = ui.exp['res-sheet'] ? list : list.slice(0, SHEET_TOP);
+    const cellOf = ([label, f], i) => {
+      const v = f(m, i);
+      if (label === 'Incidencia') return `<td><a href="${remedyUrl(C.id[i])}" target="_blank" rel="noopener">${esc(v)}</a></td>`;
+      if (label === 'Título') return `<td class="mt-subj" data-tip="${esc(v)}">${esc(v)}</td>`;
+      return `<td${label === 'Antigüedad' ? ' class="mt-num"' : ''}>${esc(v)}</td>`;
+    };
+    const table = list.length ? `<div class="mt-tablewrap ${ui.exp['res-sheet'] ? 'mt-scroll' : ''}"><table class="mt-list"><thead><tr>${SHEET_COLS.map(([l]) => `<th${l === 'Antigüedad' ? ' class="mt-num"' : ''}>${l}</th>`).join('')}</tr></thead>
+      <tbody>${shown.map((i) => `<tr>${SHEET_COLS.map((c) => cellOf(c, i)).join('')}</tr>`).join('')}</tbody></table></div>${ch.more('res-sheet', list.length, SHEET_TOP)}`
+      : '<p class="mt-mut mt-small">Nada abierto con estos filtros.</p>';
+    const tools = `<div class="mt-sheet-bar"><span class="mt-mut">${num(list.length)} incidencias</span><button class="mt-btn" data-export ${list.length ? '' : 'disabled'}>Exportar a CSV</button></div>`;
+    return card('Sábana de incidencias', tools + table, { span: 's12', sub: 'Lo abierto ahora, con los filtros y los lados de arriba, de la más antigua a la más reciente. Exportar a CSV las descarga todas, con su enlace a Remedy, para abrirlas en Excel.' });
+  };
+
+  const backlogNow = () => {
+    const all = bySide(m.today()), op = m.today().filter((i) => OPEN[i]), P = all.map((l) => l.filter((i) => OPEN[i])), cos = CO(), cmp = CMP();
+    const S0 = P[cos[0]];
+    // la antigüedad media (el total ya está en la corona): sin comparar, en una baldosa cuadrada (dos columnas de la
+    // rejilla); comparando, con la diferencia
+    const ageTile = () => `<section class="mt-card mt-s2 mt-tile"><h3>Antigüedad media</h3><div class="mt-tile-figs"><div class="mt-tile-v"><b>${dur(meanAge(m, S0))}</b><span>lo que llevan abiertas, de media</span></div></div></section>`;
+    const blocks = blocksOf(nowRows(op));
+    // lo primero, la corona (en qué estado está); sin comparar, en su fila la baldosa y la prioridad, y debajo los demás
+    // repartos; comparando, la corona sola en su fila, la antigüedad con la diferencia y una tabla de dos lados
+    const ring = card('En qué estado está', haveNow(P), { span: cmp ? 's12' : 's4', sub: 'Lo abierto, por su estado. Clic en uno para filtrar.' });
+    const blockCard = (b, span) => card(b.head, barList(b.rows, S0), { span, sub: b.note || '' });
+    const byHead = (h) => blocks.find((b) => b.head === h);
+    const top = cmp
+      ? [ring, kpis(kpiCo('Antigüedad media', [0, 1].map((k) => ({ n: P[k].length, v: meanAge(m, P[k]) })), (s) => dur(s.v), { val: (s) => s.v, better: 'low', note: 'Lo que llevan abiertas, de media.' })),
+        card('Cómo se reparte', mixCmp(nowRows(op), op, 'Pendientes'), { span: 's12', sub: 'De cada uno, cuántas y qué parte de lo suyo. Clic en una fila para filtrar.' })]
+      : [ring, ageTile(), blockCard(byHead('Prioridad'), 's6'), ...['Antigüedad', 'Centro', 'Módulo'].map((h) => blockCard(byHead(h), 's4'))];
+    return [section('¿Cómo está el backlog ahora?', 'lo abierto a fecha de la última carga, se abriera cuando se abriera.'), ...top,
+      card('Quién tiene qué', whoCard(), { span: 's12', sub: 'Lo abierto ahora de cada persona. Clic en una persona para ver todas las métricas solo de ella.' }),
+      sheetCard()];
+  };
+
+  return () => grid(systemPicker(), ask('resumen'), ...backlogNow());
 };

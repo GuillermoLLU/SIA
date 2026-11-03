@@ -8,7 +8,7 @@
 // el informe sale igual con lo que ya había y meta.jira dice por qué.
 import fs from 'node:fs';
 import path from 'node:path';
-import { createDataset, checkColumns, FORMAT, GROUP } from './dataset.js';
+import { createDataset, checkColumns, FORMAT, GROUP, TEAM_PROJECT } from './dataset.js';
 import { rangeOf, buildQuery } from './query.js';
 
 const SOURCE = 'Snowflake';
@@ -37,10 +37,11 @@ export const createMetricsStore = (dir, { repo, source, jira = null, now = () =>
   };
   // Pide a Jira las claves que no se tienen y las que seguían sin resolver; las que Jira no conoce no se vuelven a pedir.
   // Las de las issues abiertas (open), con su historial (si ha pasado de un equipo a otro: las mal escaladas del
-  // Backlog), y también las ya resueltas de las que aún no se sabe. Al resto no se le pide: pesa mucho.
+  // Backlog), y también las ya resueltas de las que aún no se sabe. Al resto no se le pide: pesa mucho. Y las de ITSMECOM
+  // traídas antes de guardar su equipo (team NULL): a quién se escala es su equipo (dataset.js).
   const syncJira = async (keys, open) => {
     const saved = repo.jiraTickets();
-    const ask = keys.filter((k) => { const t = saved.get(k); return !t || (t.found && !t.resolved) || (t.found && t.moves == null && open.has(k)); });
+    const ask = keys.filter((k) => { const t = saved.get(k); return !t || (t.found && !t.resolved) || (t.found && t.moves == null && open.has(k)) || (t.found && t.team == null && k.startsWith(TEAM_PROJECT)); });
     progress = { phase: 'jira', done: 0, total: ask.length };
     try {
       if (ask.length) repo.saveJira(await jira.tickets(ask, { history: new Set(ask.filter((k) => open.has(k))), onBatch: (n) => { progress.done = n; } }));

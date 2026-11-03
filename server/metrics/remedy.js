@@ -53,11 +53,15 @@ export const operationOf = (tier2) => {
 
 // Ticket de tercero (campo «Vendor Ticket Number»): prefijo escrito delante
 // («TEC: …») y la primera clave Jira que aparezca (SGAEWMSAP-7037).
-const VENDOR_TYPES = new Set(['TEC', 'ITD', 'ITS', 'OPE', 'DFT', 'IOP', 'MAE', 'TGW', 'KNAPP', 'JIRA', 'SGE', 'MI']);
+// «ITD:» e «ITS:» no dicen a quién se escala: son una marca para filtrar en otros informes; se quitan y cuenta lo que
+// va detrás («ITD: SGASORAP-2504», un Jira; «ITD: MAE: …», MAE).
+const VENDOR_TYPES = new Set(['TEC', 'OPE', 'DFT', 'IOP', 'MAE', 'TGW', 'KNAPP', 'JIRA', 'SGE', 'MI']);
 const VPREFIX = /^\s*([A-Za-z]{2,6})\s*:/;
+const IGNORED_PREFIX = /^\s*(?:ITD|ITS)\s*:\s*/i;
 const JIRA = /\b([A-Z][A-Z0-9]{2,12})-(\d{1,7})\b/;
 export const vendorOf = (text) => {
-  const v = (text || '').trim();
+  let v = (text || '').trim();
+  while (IGNORED_PREFIX.test(v)) v = v.replace(IGNORED_PREFIX, '');
   const prefix = VPREFIX.exec(v), jira = JIRA.exec(v);
   let type = prefix ? prefix[1].toUpperCase() : jira ? 'JIRA' : v ? 'OTRO' : '';
   if (type && !VENDOR_TYPES.has(type)) type = 'OTRO';
@@ -77,11 +81,13 @@ export const jiraKeys = (vendor, worklog) => {
 // Recorrido del historial de estados (los estados y motivos, con sus códigos: states.js): tiempo en cada estado,
 // primera actuación (primer cambio de estado real), primer paso a En curso (SLA de inicio), devoluciones a la
 // cola, pendientes, reapertura, si se escaló a un tercero (#48: Pendiente con motivo Third Party Vendor Action Reqd en
-// algún momento, también si el motivo cambia sin cambiar el estado) y quién resuelve.
+// algún momento, también si el motivo cambia sin cambiar el estado) y quién resuelve. Y cuándo se actuó sobre ella
+// (events, en minutos, para lo atendido cada día: actividad de la #48): cada paso a Resuelta, a Pendiente con motivo
+// Third Party Vendor Action Reqd (proveedor) y a Pendiente con motivo Client Action Required (cliente).
 const [ASSIGNED, IN_PROGRESS, PENDING_ST] = OPEN_STATES, RESOLVED = DONE_STATES[0];
-const THIRD_PARTY = PENDING.vendor[0];
+const THIRD_PARTY = PENDING.vendor[0], CLIENT_ACTION = PENDING.client[0];
 export const statusHistory = (audit, { reported, modified, openNow, at }) => {
-  const changes = [], reasonAt = new Map();
+  const changes = [], reasonAt = new Map(), events = { resolved: [], vendor: [], client: [] };
   let thirdParty = false;
   for (const e of entries(audit)) {
     const arrow = e.text.indexOf(' → ');
@@ -90,17 +96,23 @@ export const statusHistory = (audit, { reported, modified, openNow, at }) => {
     else if (e.text.startsWith('Status_Reason: ')) {
       const r = toCode(e.text.slice(arrow + 3));
       if (r) reasonAt.set(e.at, r);
-      if (r === THIRD_PARTY) thirdParty = true;
+      if (r === THIRD_PARTY) { thirdParty = true; events.vendor.push(at(e.at)); }
+      if (r === CLIENT_ACTION) events.client.push(at(e.at));
     }
   }
   changes.sort((x, y) => (x.at < y.at ? -1 : x.at > y.at ? 1 : 0));
+  for (const c of changes) if (c.to === RESOLVED && c.from !== RESOLVED) events.resolved.push(at(c.at));
   const time = { queue: 0, work: 0, client: 0, vendor: 0, other: 0 };
-  const out = { first: -1, start: -1, bounces: 0, pendings: 0, reopened: false, thirdParty, resolvedBy: [] };
+  // spans: cada tramo en un estado, [desde, hasta, tipo de time] (en minutos), para partir el tiempo en un momento
+  // dado (timeUntil: lo de antes de escalar)
+  const spans = [];
+  const out = { first: -1, start: -1, bounces: 0, pendings: 0, reopened: false, thirdParty, resolvedBy: [], events, spans };
   let cur = null, since = reported, pending = 'other';
   const spend = (minutes) => {
-    if (cur === ASSIGNED) time.queue += minutes;
-    else if (cur === IN_PROGRESS) time.work += minutes;
-    else if (cur === PENDING_ST) time[pending] += minutes;
+    const kind = cur === ASSIGNED ? 'queue' : cur === IN_PROGRESS ? 'work' : cur === PENDING_ST ? pending : null;
+    if (!kind) return;
+    time[kind] += minutes;
+    if (minutes > 0) spans.push([since, since + minutes, kind]);
   };
   for (const c of changes) {
     const t = at(c.at);
@@ -121,6 +133,14 @@ export const statusHistory = (audit, { reported, modified, openNow, at }) => {
   }
   if (openNow && OPEN_STATES.includes(cur)) spend(Math.max(modified - since, 0)); // hasta el último movimiento conocido
   return { ...out, time };
+};
+
+// El tiempo de cada estado entre from y to (los tramos de statusHistory, spans), en minutos: { queue, work, client,
+// vendor, other }. Lo que no cae en ningún tramo (antes del primer cambio de estado) no está: es de la cola.
+export const timeUntil = (spans, from, to) => {
+  const out = { queue: 0, work: 0, client: 0, vendor: 0, other: 0 };
+  for (const [a, b, kind] of spans) { const v = Math.min(b, to) - Math.max(a, from); if (v > 0) out[kind] += v; }
+  return out;
 };
 
 // Notas de trabajo: marcas entre corchetes al principio ([MAJOR INCIDENT],
@@ -171,10 +191,10 @@ export const readIssue = (r, base) => {
     category: key(r.CATEGORIZATIONTIER3),
     scope: scopeOf(r.SUMMARY, r.SERVICETYPE, tags),
     flags,
-    vendor: vendorOf(r.VENDORTICKETNUMBER),
+    vendor: vendorOf(r.VENDORTICKETNUMBER), vendorText: r.VENDORTICKETNUMBER.trim(),
     jira: jiraKeys(r.VENDORTICKETNUMBER, r.WORKLOG_DETAIL),
     first: h.first, start: h.start, time: h.time, bounces: h.bounces, pendings: h.pendings,
-    resolvedBy: h.resolvedBy,
+    resolvedBy: h.resolvedBy, events: h.events, spans: h.spans,
     ...readTitle(r.SUMMARY),   // problem y themes
     // texto de resolución sin números, para ver cuáles se repiten
     resolution: [...norm(r.RESOLUTION).replace(/\d+/g, '#')].slice(0, 90).join(''),

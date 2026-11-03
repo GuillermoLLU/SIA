@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createModel } from './model.js';
 import { data } from './fixture.js';
-import { situations, late, isOld, orphansIn, watchList, pendingCells, backlogFigures } from './backlog.js';
+import { situations, late, isOld, orphansIn, watchList, pendingCells, backlogFigures, backlogByDay, trendOf, flowByDay } from './backlog.js';
 
 const model = (d = data(), sides) => { const m = createModel(d); if (sides) m.S.sides = sides; m.refilter(); return m; };
 
@@ -50,4 +50,54 @@ test('comparando: las celdas de una fila de lo pendiente y las cifras de arriba'
   assert.deepEqual(part(late(m)), [{ n: 1, v: 1 }, { n: 0, v: null }]);
   assert.deepEqual(age.map((x) => x.n), [1, 0]);
   assert.deepEqual(stock, [{ n: 3, v: 1 / (3 / 10) }, { n: 1, v: 0 }]);   // días de entrada acumulados
+});
+
+test('el backlog al acabar cada día: abierta desde que entra hasta que se resuelve; cancelada sin resolver, hasta su último cambio', () => {
+  const d = data();
+  // la 1 (crítica) entra el día 0 y se resuelve el 1; la 3 (media) sigue abierta desde el 69; la 4 (baja) entra el 3 y se resuelve el 3
+  Object.assign(d.cols, { rep: [100, 2000, 99800, 3 * 1440 + 10, 6000], res: [1440 + 5, 5000, -1, 3 * 1440 + 20, 6001] });
+  const m = model(d), all = [0, 2, 3];
+  assert.deepEqual(backlogByDay(m, all, 0, 4), [1, 0, 0, 0]);   // la 4 entra y sale el mismo día: no queda al acabarlo
+  assert.deepEqual(backlogByDay(m, all, 68 * 1440, 2), [0, 1]);  // la 3, desde su día
+  d.cols.st[0] = 1; d.cols.res[0] = -1; d.cols.lm = [2 * 1440 + 1, -1, -1, -1, -1];   // la 1, cancelada (cerrada sin resolver) el día 2
+  assert.deepEqual(backlogByDay(model(d), [0], 0, 4), [1, 1, 0, 0]);
+});
+
+
+test('SISU o SGA por el módulo: los de la lista del equipo son SISU; el resto, SGA', () => {
+  const m = model();
+  // EWMS (1) es de SGA; PACKING (2), de SISU
+  assert.deepEqual([0, 1].map((i) => m.DIMS.ss.label(m.DIMS.ss.get(i))), ['SGA', 'SISU']);
+});
+
+test('la línea de tendencia: mínimos cuadrados, el valor en el primer punto y cuánto cambia por punto', () => {
+  assert.deepEqual(trendOf([10, 8, 6, 4]), { a: 10, b: -2 });
+  const { a, b } = trendOf([5, 7, 5, 7]);
+  assert.ok(Math.abs(a - 5.4) < 1e-9 && Math.abs(b - 0.4) < 1e-9);   // media 6 en x = 1,5: 6 − 0,4 × 1,5
+  assert.deepEqual(trendOf([3]), { a: 3, b: 0 });
+  assert.deepEqual(trendOf([]), { a: 0, b: 0 });
+});
+
+test('entrantes frente a atendidas, por día: lo que entra y, de eso, lo atendido el mismo día (resuelta, a proveedor, a cliente)', () => {
+  const d = data();
+  Object.assign(d.cols, { eV: [[], [1], [], [], []], eC: [[], [2], [], [], []] });   // la 2 pasa a proveedor el día 1 y a cliente el 2
+  const m = model(d);
+  // entran: la 1 el día 0, la 2 el 1, la 4 el 3 y la 5 el 4; la 1, la 4 y la 5 se resuelven el día que entran; la 2, no
+  // (el 3), pero pasa a proveedor el día que entra (el 1); que luego pase a cliente (el 2) no cuenta: no es su día
+  assert.deepEqual(flowByDay(m, [0, 1, 3, 4], 0, 5), { inc: [1, 1, 0, 1, 1], res: [1, 0, 0, 1, 1], ven: [0, 1, 0, 0, 0], cli: [0, 0, 0, 0, 0], bkl: [0, 0, 1, 1, 0] });
+  // del backlog: la 2, que entró el 1, pasa a cliente el 2 y se resuelve el 3 (los demás eventos son del día en que entraron)
+  // fuera de los días que se piden, no cuenta
+  assert.deepEqual(flowByDay(m, [0, 1], 2 * 1440, 2), { inc: [0, 0], res: [0, 0], ven: [0, 0], cli: [0, 0], bkl: [1, 1] });
+  // resuelta y a proveedor el mismo día: una vez, como resuelta; lo atendido nunca pasa de lo que entra
+  d.cols.eV[0] = [0]; d.cols.eC[0] = [0];
+  assert.deepEqual(flowByDay(model(d), [0], 0, 1), { inc: [1], res: [1], ven: [0], cli: [0], bkl: [0] });
+});
+
+test('lo atendido del backlog, solo de los tipos que se miran', () => {
+  const d = data();
+  Object.assign(d.cols, { eV: [[], [1], [], [], []], eC: [[], [2], [], [], []] });   // la 2 (entra el 1): cliente el 2, resuelta el 3
+  const m = model(d);
+  assert.deepEqual(flowByDay(m, [1], 0, 5, ['res']).bkl, [0, 0, 0, 1, 0]);
+  assert.deepEqual(flowByDay(m, [1], 0, 5, ['cli']).bkl, [0, 0, 1, 0, 0]);
+  assert.deepEqual(flowByDay(m, [1], 0, 5, []).bkl, [0, 0, 0, 0, 0]);
 });

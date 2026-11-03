@@ -10,7 +10,8 @@
 // Las dos últimas se rehacen con cada alta o cambio y sirven para consultar por fecha
 // (cambios de estado, actividad…) sin volver a leer los textos largos.
 //   jira_tickets     los tickets Jira de las issues (jira.js): creación, resolución y estado, en hora de Madrid;
-//                    moves, cuántas veces pasó de un equipo a otro (NULL: se pidió sin historial); found 0, una
+//                    moves, cuántas veces pasó de un equipo a otro (NULL: se pidió sin historial); team, su equipo
+//                    asignado (NULL: se trajo antes de guardarlo); found 0, una
 //                    clave que Jira no conoce (no se vuelve a pedir); fetched, cuándo se pidió
 import path from 'node:path';
 import { decide, auditEvents, worklogEntries } from './incidents.js';
@@ -41,7 +42,9 @@ export const createRepository = ({ DatabaseSync, file, fs, now = () => new Date(
   db.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA cache_size = -65536;');
   db.exec(SCHEMA);
   // una base de antes de contar los cambios de equipo: la columna, vacía (esos tickets se vuelven a pedir si hace falta)
-  if (!db.prepare('PRAGMA table_info(jira_tickets)').all().some((c) => c.name === 'moves')) db.exec('ALTER TABLE jira_tickets ADD COLUMN moves INTEGER');
+  const jiraCols = db.prepare('PRAGMA table_info(jira_tickets)').all().map((c) => c.name);
+  if (!jiraCols.includes('moves')) db.exec('ALTER TABLE jira_tickets ADD COLUMN moves INTEGER');
+  if (!jiraCols.includes('team')) db.exec('ALTER TABLE jira_tickets ADD COLUMN team TEXT');
 
   const columns = () => db.prepare('PRAGMA table_info(incidents)').all().map((c) => c.name);
 
@@ -132,10 +135,13 @@ export const createRepository = ({ DatabaseSync, file, fs, now = () => new Date(
   // Lo que se ha traído de Jira (found) y las claves que no conoce (missing), en una transacción.
   const saveJira = ({ found, missing }) => {
     const stamp = now().toISOString();
-    const put = db.prepare('INSERT OR REPLACE INTO jira_tickets (key, created, resolved, status, found, fetched, moves) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    // pedido sin historial (moves NULL), se queda el que ya se sabía
+    const put = db.prepare(`INSERT INTO jira_tickets (key, created, resolved, status, found, fetched, moves, team) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (key) DO UPDATE SET created = excluded.created, resolved = excluded.resolved, status = excluded.status, found = excluded.found,
+      fetched = excluded.fetched, moves = COALESCE(excluded.moves, jira_tickets.moves), team = COALESCE(excluded.team, jira_tickets.team)`);
     db.exec('BEGIN');
     try {
-      for (const t of found) put.run(t.key, t.created, t.resolved, t.status, 1, stamp, t.moves ?? null);
+      for (const t of found) put.run(t.key, t.created, t.resolved, t.status, 1, stamp, t.moves ?? null, t.team ?? null);
       for (const k of missing) put.run(k, '', '', '', 0, stamp, null);
       db.exec('COMMIT');
     } catch (e) {
