@@ -1,6 +1,7 @@
 # dependencias y builds
 node_modules
 dist-app/
+build/installer-config.nsh
 web/dist/
 
 # contenido generado/sincronizado en runtime (Supa es la fuente de verdad)

@@ -64,6 +64,8 @@ test('un fallo al conectar o a mitad de la consulta: su explicación, y la conex
 test('explain: cada error en lo que se puede hacer', () => {
   assert.match(explain({ code: '000606' }).message, /warehouse/);
   assert.match(explain({ code: 'ENOTFOUND', message: 'getaddrinfo' }).message, /VPN/);
-  assert.match(explain({ message: 'self-signed certificate in certificate chain' }).message, /VPN/);
+  assert.match(explain({ code: 'ENOTFOUND', message: 'getaddrinfo' }).message, /red de Inditex/);
+  assert.match(explain({ message: 'self-signed certificate in certificate chain' }, 'https://guia.example').message, /certificados del cliente.*https:\/\/guia\.example.*reinicia/);
+  assert.match(explain({ message: 'self-signed certificate in certificate chain' }).message, /soporte/);
   assert.equal(explain({ code: '1', message: 'otro' }).message, 'Snowflake: otro');
 });

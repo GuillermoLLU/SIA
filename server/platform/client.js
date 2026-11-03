@@ -5,9 +5,12 @@
 //
 // Los errores salen como PlatformError(status, message) con el texto ya
 // listo para enseñar.
+import { isCertError } from '../shared/certs.js';
 
+// `code` y `help` (opcionales) llegan a la web tal cual: con code 'certs' la
+// puerta de inicio de sesión explica qué falta y enlaza a la guía del cliente.
 export class PlatformError extends Error {
-  constructor(status, message) { super(message); this.status = status; }
+  constructor(status, message, { code, help } = {}) { super(message); this.status = status; this.code = code; this.help = help; }
 }
 
 const AUTH_MESSAGES = {
@@ -23,7 +26,7 @@ const AUTH_MESSAGES = {
 // PostgREST manda 42501 (sin permiso) como 401/403: aquí siempre 403.
 const statusOf = (r, data) => (data?.code === '42501' ? 403 : r.status >= 500 ? 502 : r.status);
 
-export const createPlatformClient = ({ url, key, fetch }) => {
+export const createPlatformClient = ({ url, key, fetch, certsHelpUrl = '' }) => {
   const request = async (path, { method = 'GET', body, jwt } = {}) => {
     if (!url || !key) throw new PlatformError(503, 'Falta configurar la base de la instancia (sia-instance.json).');
     let r;
@@ -34,10 +37,11 @@ export const createPlatformClient = ({ url, key, fetch }) => {
         ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
       });
     } catch (e) {
-      const tls = /certificate|CERT_|SELF_SIGNED/i.test(String(e.cause?.code || e.cause?.message || e.message));
-      throw new PlatformError(503, tls
-        ? 'No se pudo verificar el certificado de la base de la instancia (¿proxy corporativo? Añade su certificado con NODE_EXTRA_CA_CERTS).'
-        : 'Sin conexión con la base de la instancia.');
+      if (!isCertError(e)) throw new PlatformError(503, 'Sin conexión con la base de la instancia.');
+      throw new PlatformError(503, 'No se puede verificar la conexión segura: faltan los certificados del cliente en este equipo.', {
+        code: 'certs',
+        help: { url: certsHelpUrl, detail: { code: String(e.cause?.code || e.code || ''), host: new URL(url).host } },
+      });
     }
     const text = await r.text();
     let data = null;
@@ -51,6 +55,7 @@ export const createPlatformClient = ({ url, key, fetch }) => {
   const tokens = (d) => ({ accessToken: d.access_token, refreshToken: d.refresh_token, expiresAt: Date.now() + d.expires_in * 1000 });
 
   return {
+    health: () => request('/auth/v1/health'),   // ¿se llega a la base? (Reintentar en la puerta)
     signIn: async (email, password) => tokens(await request('/auth/v1/token?grant_type=password', { method: 'POST', body: { email, password } })),
     refresh: async (refreshToken) => tokens(await request('/auth/v1/token?grant_type=refresh_token', { method: 'POST', body: { refresh_token: refreshToken } })),
     signOut: (jwt) => request('/auth/v1/logout?scope=local', { method: 'POST', jwt }),

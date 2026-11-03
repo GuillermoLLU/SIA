@@ -44,5 +44,17 @@ test('errores: mensajes en castellano, 42501 como 403 y sin red como 503', async
   const offline = createPlatformClient({ url: URL, key: KEY, fetch: async () => { throw new TypeError('fetch failed'); } });
   await assert.rejects(offline.rpc('j', 'x'), { status: 503 });
   const tls = createPlatformClient({ url: URL, key: KEY, fetch: async () => { throw Object.assign(new TypeError('fetch failed'), { cause: { code: 'SELF_SIGNED_CERT_IN_CHAIN' } }); } });
-  await assert.rejects(tls.rpc('j', 'x'), (e) => e.status === 503 && /certificado/.test(e.message));
+  await assert.rejects(tls.rpc('j', 'x'), (e) => e.status === 503 && /certificados del cliente/.test(e.message) && e.code === 'certs');
+});
+
+test('sin certificados del cliente: code certs, la guía y el detalle para soporte', async () => {
+  const fetch = async () => { throw Object.assign(new TypeError('fetch failed'), { cause: { code: 'SELF_SIGNED_CERT_IN_CHAIN' } }); };
+  const c = createPlatformClient({ url: URL, key: KEY, fetch, certsHelpUrl: 'https://guia.example/certs' });
+  await assert.rejects(c.signIn('a', 'b'), (e) => {
+    assert.deepEqual(e.help, { url: 'https://guia.example/certs', detail: { code: 'SELF_SIGNED_CERT_IN_CHAIN', host: 'abcdefghijklmnopqrst.supabase.co' } });
+    return true;
+  });
+  const { calls, fetch: ok } = fakeFetch(200, { status: 'ok' });
+  await createPlatformClient({ url: URL, key: KEY, fetch: ok }).health();
+  assert.equal(calls[0].url, `${URL}/auth/v1/health`);
 });

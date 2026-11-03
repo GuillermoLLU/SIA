@@ -32,12 +32,27 @@ del equipo**, trabaja las **issues** del servicio desde su mesa y sigue las
 La VPN firma la conexión con la base de la instancia con un certificado
 corporativo. El bridge confía también en los certificados del sistema (Windows o
 macOS) al arrancar, así que `node dev.mjs` y la app instalada funcionan igual
-dentro y fuera de la VPN. Requiere Node 22.19 o superior, y el certificado
-corporativo importado en el sistema.
+dentro y fuera de la VPN. Requiere Node 22.19 o superior.
 
-Si aun así aparece `No se pudo verificar el certificado de la base de la
-instancia` (un Node más antiguo), arranca con `npm run dev:vpn`, que es
-`node dev.mjs` con `NODE_USE_SYSTEM_CA=1`.
+SIA no trae ni gestiona esos certificados: cada persona los instala con la guía
+oficial del cliente. Se configuran en `sia-instance.json`, en `certificates`:
+`helpUrl` es la guía y `required` los nombres (CN) que deben estar en el
+sistema. `vpn.probeHost` es un nombre interno del cliente que solo resuelve a
+una dirección privada dentro de su red. SIA comprueba las dos cosas en dos
+sitios:
+
+- en el instalador de Windows, en la página «Comprobaciones previas», los
+  certificados (se puede seguir sin ellos, con confirmación);
+- en la app, al pulsar la S: si falta algo, en lugar del formulario sale un
+  aviso corto (la guía y el porqué en la ⓘ) con «Reintentar», que vuelve a
+  comprobar de verdad, relee los certificados del sistema y deja pasar al
+  formulario sin reiniciar SIA.
+
+En desarrollo, el aviso trae «Modo Dev» (arriba a la derecha): pasa al
+formulario aunque falte algo, para seguir trabajando. Para probar el aviso:
+`SIA_SIN_CERTS=1` (como un equipo sin los certificados) o `SIA_SIN_VPN=1`
+(como uno fuera de la red del cliente), o los dos a la vez. Con un Node anterior a 22.19, arranca
+con `npm run dev:vpn`, que es `node dev.mjs` con `NODE_USE_SYSTEM_CA=1`.
 
 Métricas trae las incidencias de Remedy de Snowflake: pon tu usuario en
 Configuración → Credenciales → Snowflake. La primera vez se abre el navegador

@@ -13,19 +13,23 @@ export const ACCOUNT = 'INDITEX-INDITEX';
 
 const fail = (message, status = 503) => Object.assign(new Error(message), { status });
 
-// Los errores de Snowflake, en lo que la persona puede hacer.
-export const explain = (e) => {
+// Los errores de Snowflake, en lo que la persona puede hacer. helpUrl: la guía
+// oficial del cliente para instalar sus certificados (sia-instance.json).
+export const explain = (e, helpUrl = '') => {
   const code = String(e?.code ?? '');
   if (code === '390202') return fail('Snowflake ha rechazado esta versión del conector: actualiza SIA.');
   if (code === '002003') return fail('Tu rol de Snowflake no puede leer las tablas de Remedy (SGA.SIGLO): revisa el rol en Configuración → Snowflake.');
   if (code === '000606') return fail('Snowflake no tiene warehouse para la consulta: revisa el warehouse en Configuración → Snowflake.');
-  if (code === '401001' || /ENOTFOUND|ECONNREFUSED|ETIMEDOUT|CERT|certificate/i.test(`${code} ${e?.message}`)) {
-    return fail('No se llega a Snowflake: comprueba la VPN y que SIA arranca con los certificados del sistema (npm run dev:vpn).');
+  if (/CERT|certificate/i.test(`${code} ${e?.message}`)) {
+    return fail(`No se puede verificar la conexión con Snowflake: faltan los certificados del cliente en este equipo. ${helpUrl ? `Instálalos con su guía (${helpUrl})` : 'Pide la guía de certificados a soporte'} y reinicia SIA.`);
+  }
+  if (code === '401001' || /ENOTFOUND|ECONNREFUSED|ETIMEDOUT/i.test(`${code} ${e?.message}`)) {
+    return fail('No se llega a Snowflake: solo es accesible desde la red de Inditex. Conecta la VPN y vuelve a intentarlo.');
   }
   return fail(`Snowflake: ${e?.message || 'error desconocido'}`);
 };
 
-export const createSnowflake = ({ loadSdk, config }) => {
+export const createSnowflake = ({ loadSdk, config, certsHelpUrl = '' }) => {
   const run = (conn, sqlText) => new Promise((ok, ko) => conn.execute({ sqlText, complete: (e) => (e ? ko(e) : ok()) }));
 
   // Las filas de la consulta, una a una y como texto, con '' donde no hay valor:
@@ -50,7 +54,7 @@ export const createSnowflake = ({ loadSdk, config }) => {
         yield row;
       }
     } catch (e) {
-      throw e.status ? e : explain(e);
+      throw e.status ? e : explain(e, certsHelpUrl);
     } finally {
       await new Promise((ok) => conn.destroy(() => ok()));
     }

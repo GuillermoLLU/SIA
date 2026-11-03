@@ -4,12 +4,28 @@
 // esto, el inicio de sesión falla con SELF_SIGNED_CERT_IN_CHAIN, también en la app
 // instalada (que no arranca con NODE_USE_SYSTEM_CA). Fuera de la VPN no cambia nada.
 // tls: el módulo node:tls (se inyecta). Devuelve si se aplicó (hace falta Node 22.19+).
-export const trustSystemCerts = (tls) => {
+// system: los del sistema ya leídos (readSystemCerts, al reintentar); si no, los de este proceso.
+export const trustSystemCerts = (tls, system) => {
   if (typeof tls.setDefaultCACertificates !== 'function') return false;
   try {
-    tls.setDefaultCACertificates([...new Set([...tls.getCACertificates('default'), ...tls.getCACertificates('system')])]);
+    tls.setDefaultCACertificates([...new Set([...tls.getCACertificates('default'), ...(system || tls.getCACertificates('system'))])]);
     return true;
   } catch {
     return false;   // sin acceso al almacén del sistema: se sigue con los de Node
   }
 };
+
+// Node lee el almacén del sistema una sola vez por proceso: para ver los que se
+// acaban de instalar sin reiniciar SIA, los lee un proceso nuevo (el mismo Node o,
+// en la app, Electron como Node). execFile: el de node:child_process (se inyecta).
+// → los PEM del sistema; rechaza si no se pueden leer.
+export const readSystemCerts = (execFile, execPath) => new Promise((resolve, reject) => {
+  const script = "process.stdout.write(JSON.stringify(require('node:tls').getCACertificates('system')))";
+  execFile(execPath, ['-e', script], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, maxBuffer: 64 << 20, timeout: 15000, windowsHide: true }, (e, out) => {
+    if (e) return reject(e);
+    try { resolve(JSON.parse(out)); } catch (err) { reject(err); }
+  });
+});
+
+// ¿Es un fallo de verificación del certificado (proxy de la empresa sin su CA)?
+export const isCertError = (e) => /certificate|CERT_|SELF_SIGNED/i.test(String(e?.cause?.code || e?.cause?.message || e?.code || e?.message || ''));

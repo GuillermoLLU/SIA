@@ -14,7 +14,7 @@
     "app": "electron .",
     "build:web": "cd web && npm run build",
     "dist": "npm run build:web && electron-builder --mac",
-    "dist:win": "npm run build:web && electron-builder --win"
+    "dist:win": "npm run build:web && node scripts/installer-config.mjs && electron-builder --win"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
@@ -81,6 +81,12 @@
         }
       ],
       "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "include": "build/installer.nsh"
     }
   }
 }

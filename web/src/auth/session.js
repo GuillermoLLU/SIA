@@ -14,7 +14,11 @@ export const createAuthSession = (apiBase, { fetch = globalThis.fetch, local = g
   const headers = () => ({ 'X-SIA-Auth': token() });
   const api = createApi(apiBase, headers, { fetch });
   // un fallo del bridge (sin red) sube; uno con respuesta, su texto o el de serie
-  const failure = (e, fallback) => { if (!e.status) throw e; return { error: e.data?.error || fallback }; };
+  // (con code 'certs' y help si faltan los certificados del cliente: la puerta lo explica)
+  const failure = (e, fallback) => {
+    if (!e.status) throw e;
+    return { error: e.data?.error || fallback, ...(e.data?.code ? { code: e.data.code, help: e.data.help } : {}) };
+  };
 
   return {
     // Cabecera con la sesión, para las llamadas que la exigen (p. ej. /api/users).
@@ -40,6 +44,12 @@ export const createAuthSession = (apiBase, { fetch = globalThis.fetch, local = g
         local.setItem(EMAIL_KEY, data.user.email);
         return { user: data.user };
       } catch (e) { return failure(e, 'No se pudo iniciar sesión.'); }
+    },
+
+    // ¿Llega ya el bridge a la base? (Reintentar tras un error de certificados) → { ok } | { error, code?, help? }
+    async check() {
+      try { await api('/auth/check', { method: 'POST', timeoutMs: 10000 }); return { ok: true }; }
+      catch (e) { return failure(e, 'Sigue sin haber conexión con la base de la instancia.'); }
     },
 
     // Cambiar la propia contraseña (obligatorio si la puso un admin). → { ok } | { error }

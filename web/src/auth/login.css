@@ -19,7 +19,7 @@
   opacity: 0; transform: translateY(16px);
   transition: opacity 0.35s ease 0.12s, transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) 0.12s;
 }
-.login-stage.open .login-card { opacity: 1; transform: none; }
+.login-stage.open .login-card:not(.login-warn) { opacity: 1; transform: none; }
 
 .login-input { height: 40px; font-size: 14px; background: var(--surface); }
 .login-go { width: 100%; height: 40px; font-size: 14px; }
@@ -38,3 +38,32 @@
 .login-password { width: min(320px, 100%); opacity: 1; transform: none; }
 .login-password .lock-logo { width: 96px; height: 96px; margin-bottom: 10px; }
 .login-hint { margin: 0; font-size: 12px; color: var(--text-low); text-align: center; }
+
+/* Falta algo en el equipo (certificados del cliente, VPN): el aviso ocupa el
+   sitio del formulario, en la misma columna y con el mismo botón. */
+.login-stage.warn .login-open { opacity: 0; transform: scale(0.7); pointer-events: none; }
+.login-stage.warn .login-warn { opacity: 1; transform: none; }
+.login-warn { gap: 0; }
+.login-warn.bad { animation: lock-shake 0.36s ease; }
+.login-warn p { margin: 0; }
+.login-warn-title { display: inline-flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 12px !important; font-size: 16px; font-weight: 600; color: var(--text); }
+.login-warn-title::before { content: "⚠"; color: #e8a33d; }
+.login-warn-line { max-width: 280px; margin-bottom: 26px !important; font-size: 13.5px; line-height: 1.6; color: var(--text-low); }
+.login-warn-line a { color: var(--accent); text-decoration: none; }
+.login-warn-line a:hover { text-decoration: underline; }
+.login-warn .lock-msg { margin-top: 12px; }
+/* ⓘ: el porqué, al pasar el ratón o con el teclado */
+.login-tip { position: relative; display: inline-flex; color: var(--text-low); cursor: help; outline: none; }
+.login-tip:hover, .login-tip:focus-visible { color: var(--accent); }
+.login-tip [role="tooltip"] { position: absolute; top: calc(100% + 8px); left: 50%; z-index: 2; width: 280px; padding: 10px 12px; font-size: 12.5px; font-weight: 400; line-height: 1.45; text-align: left; color: var(--text); background: var(--surface); border: 1px solid var(--border); box-shadow: 0 8px 24px rgba(0, 0, 0, .18); transform: translateX(-50%); visibility: hidden; opacity: 0; transition: opacity .12s; }
+.login-tip:hover [role="tooltip"], .login-tip:focus-within [role="tooltip"] { visibility: visible; opacity: 1; }
+/* «Modo Dev» (solo en desarrollo): debajo de «Reintentar», con su ayuda */
+.login-dev-tip { margin-top: 18px; cursor: default; }
+.login-dev-tip [role="tooltip"] { top: calc(100% + 8px); }
+.login-dev { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); border: 1px solid var(--accent); cursor: pointer; transition: background 0.15s ease; }
+.login-dev::before { content: "</>"; font-family: var(--font-mono, monospace); font-size: 11.5px; }
+.login-dev:hover, .login-dev:focus-visible { background: color-mix(in srgb, var(--accent) 24%, transparent); outline: none; }
+/* la S mientras comprueba el equipo */
+.login-stage.checking .login-open .lock-logo { animation: login-pulse 0.9s ease-in-out infinite; }
+@keyframes login-pulse { 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) { .login-stage.checking .login-open .lock-logo { animation: none; opacity: 0.6; } }
