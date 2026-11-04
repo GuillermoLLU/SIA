@@ -215,6 +215,10 @@ export const resolucionTab = (t) => {
       card('', scorecard('mo', [['Volumen', ['n']], ['Cuánto tarda', ['avg', 'd1', 'd7', 'd15', 'mx']], ['En qué se va', ['tq', 'tc', 'tv']], ['Escalado', ['vend']]],
         { id: 'rs-mo', rows: m.rows('mo').filter(solved), skip: noK, refLabel: 'Todos los módulos', title: 'Módulos', n: ['Resueltas', 'Issues resueltas y su parte del total.'] }), { span: 's12' }),
       section('¿Qué escalamos y a quién?'),
+      // los proyectos Jira a los que se escala (de ITSMECOM, por su equipo asignado), como los módulos: lo escalado y resuelto
+      card('', scorecard('vp', [['Volumen', ['n']], ['Cuánto tarda', ['avg', 'd1', 'd7', 'd15', 'mx']], ['En qué se va', ['tq', 'tc', 'tv']]],
+        { id: 'rs-vp', rows: m.rows('vp').filter((i) => solved(i) && escd(i)), skip: noK, refLabel: 'Todo lo escalado a Jira', title: 'Proyectos Jira', n: ['Resueltas', 'Escaladas resueltas y su parte del total escalado a Jira.'] }),
+        { span: 's12', sub: 'Lo escalado y resuelto, por el proyecto Jira de su ticket de tercero; ITSMECOM, por su equipo asignado en Jira. Clic en un proyecto para filtrar.' }),
       card('Unas veces se escala y otras no', mixedEsc(), { span: 's12', sub: `Problemas con al menos ${MIXED_ESC.min} resueltas que se escalan entre el ${pct(MIXED_ESC.from)} y el ${pct(MIXED_ESC.to)} de las veces, agrupados por su módulo principal: lo que tardan sin escalar y escalados. Clic en uno para filtrar.` }),
       card('Un mismo ticket, muchas incidencias', ticketTable(A), { span: 's12', sub: `Tickets de tercero con ${TICKET_MIN} o más incidencias ligadas: arriba, los que aún tienen alguna abierta. Clic en uno para filtrar.` }));
   };

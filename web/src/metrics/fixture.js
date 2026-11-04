@@ -22,6 +22,7 @@ export const data = () => ({
     the: [-1, -1, -1, -1, -1], tes: [-1, -1, -1, -1, -1], tcr: [-1, -1, -1, -1, -1], tsr: [-1, -1, -1, -1, -1],
     hQ: [-1, -1, -1, -1, -1], hI: [-1, -1, -1, -1, -1], hPc: [-1, -1, -1, -1, -1], hPo: [-1, -1, -1, -1, -1],   // el THesc por estados
     eR: [[0], [3], [], [3], [4]], eV: [[], [], [], [], []], eC: [[], [], [], [], []],   // días en que se resolvieron
+    sR: [[], [], [], [], []], sV: [[], [], [], [], []], sC: [[], [], [], [], []],   // turnos en que se atendieron
     su: ['100001 High ECOM ZARA C1 EWMS - Etiqueta mal', 'Otro título', 'Abierta', '100002 Low ALGO', 'Sin responsable'],
   },
 });

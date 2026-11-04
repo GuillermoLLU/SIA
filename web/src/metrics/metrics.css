@@ -646,3 +646,5 @@ i.mt-pq0 { background: var(--mt-pq0); } i.mt-pq1 { background: var(--mt-pq1); } 
 .mt-fl-tg.mt-off i { background: transparent !important; outline: 1.5px solid var(--mt-line); outline-offset: -1.5px; }
 /* Resumen, la sábana de incidencias: la cuenta y el botón de exportar, encima de la tabla */
 .mt-sheet-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; font-size: 13px; }
+/* Turnos: el selector de turnos, con sus horas */
+.mt-seg-b small { opacity: .7; font-size: .85em; margin-left: 3px; }

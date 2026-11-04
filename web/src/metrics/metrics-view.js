@@ -265,13 +265,20 @@ export const mountMetricsView = (root, { api, toast }) => {
       if (searching) $('[data-q]').focus();
       return;
     }
-    const t = e.target.closest('[data-tab],[data-go],[data-rm],[data-exp],[data-sort],[data-svc],[data-evo],[data-flk],[data-only],[data-f2],[data-f]');
+    const t = e.target.closest('[data-tab],[data-go],[data-rm],[data-exp],[data-sort],[data-svc],[data-evo],[data-flk],[data-shk],[data-only],[data-f2],[data-f]');
     if (!t) return;
     const d = t.dataset;
     if (d.tab || d.go) { tab = d.tab || d.go; root.scrollTop = 0; }
     else if (d.svc) ui.svc[d.svc] = !ui.svc[d.svc];   // Servicio y SLA: comparar con el año anterior o con T-Systems
     else if (d.evo) ui.evo = d.evo;   // Resumen: la evolución del backlog o entrantes frente a atendidas
     else if (d.flk) { ui.flowOff = { ...ui.flowOff, [d.flk]: !ui.flowOff?.[d.flk] }; }   // y en estas, encender o apagar una serie
+    // Turnos: clic, solo ese turno; con Ctrl (o Cmd), sumarlo o quitarlo (sin quedarse sin ninguno)
+    else if (d.shk != null) {
+      const k = Number(d.shk), cur = ui.shifts || [0, 1, 2];
+      if (!(e.ctrlKey || e.metaKey)) ui.shifts = [k];
+      else if (!cur.includes(k)) ui.shifts = [...cur, k].sort();
+      else if (cur.length > 1) ui.shifts = cur.filter((x) => x !== k);
+    }
     // un selector: solo ese valor de la dimensión («dim:clave») o, sin clave («dim:»), todos (sin filtro)
     else if (d.only != null) { const [dim, k] = d.only.split(':'); if (k === '') delete S.f[dim]; else S.f[dim] = new Set([Number(k)]); }
     else if (d.rm) { const [dim, k] = filterKey(d.rm); S.f[dim].delete(k); }

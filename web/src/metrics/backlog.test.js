@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createModel } from './model.js';
 import { data } from './fixture.js';
-import { situations, late, isOld, orphansIn, watchList, pendingCells, backlogFigures, backlogByDay, trendOf, flowByDay } from './backlog.js';
+import { situations, late, isOld, orphansIn, watchList, pendingCells, backlogFigures, backlogByDay, trendOf, flowByDay, flowByShift } from './backlog.js';
 
 const model = (d = data(), sides) => { const m = createModel(d); if (sides) m.S.sides = sides; m.refilter(); return m; };
 
@@ -100,4 +100,24 @@ test('lo atendido del backlog, solo de los tipos que se miran', () => {
   assert.deepEqual(flowByDay(m, [1], 0, 5, ['res']).bkl, [0, 0, 0, 1, 0]);
   assert.deepEqual(flowByDay(m, [1], 0, 5, ['cli']).bkl, [0, 0, 1, 0, 0]);
   assert.deepEqual(flowByDay(m, [1], 0, 5, []).bkl, [0, 0, 0, 0, 0]);
+});
+
+test('por turno: lo que entra en cada turno y, de eso, lo atendido en el mismo turno; la noche, del día en que empieza', () => {
+  const d = data();
+  // abiertas: la 0 a las 16:40 del día 0 (tarde), la 1 a las 9:20 del 1 y la 3 a las 11:20 del 3 (mañana), la 4 a las
+  // 4:00 del 4 (la noche que empieza el día 3 a las 23:00)
+  d.cols.sR[3] = [9];    // resuelta en su turno (el 9: la mañana del día 3)
+  d.cols.sV[1] = [3];    // a proveedor en su turno
+  d.cols.sR[4] = [12];   // resuelta, pero en el turno siguiente
+  const m = model(d), L = [0, 1, 3, 4];
+  assert.deepEqual(flowByShift(m, L, 0, 5, [0]), { inc: [0, 1, 0, 1, 0], res: [0, 0, 0, 1, 0], ven: [0, 1, 0, 0, 0], cli: [0, 0, 0, 0, 0], bkl: [0, 0, 0, 0, 0] });
+  assert.deepEqual(flowByShift(m, L, 0, 5, [1]).inc, [1, 0, 0, 0, 0]);
+  assert.deepEqual(flowByShift(m, L, 0, 5, [2]), { inc: [0, 0, 0, 1, 0], res: [0, 0, 0, 0, 0], ven: [0, 0, 0, 0, 0], cli: [0, 0, 0, 0, 0], bkl: [0, 0, 0, 0, 0] });
+});
+
+test('por turno, varios juntos: se suman', () => {
+  const d = data();
+  d.cols.sR[3] = [9];
+  const f = flowByShift(model(d), [0, 1, 3, 4], 0, 5, [0, 2]);
+  assert.deepEqual([f.inc, f.res], [[0, 1, 0, 2, 0], [0, 0, 0, 1, 0]]);
 });

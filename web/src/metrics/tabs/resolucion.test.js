@@ -34,3 +34,16 @@ test('Resolución y escalados, comparando una persona con su equipo: una fila po
   assert.equal((html.match(/<span class="mt-svc-who">/g) || []).length, 4);
   assert.match(html, /<span class="mt-svc-who">Indra<\/span>/);
 });
+
+test('¿Qué escalamos y a quién?: una tabla de los proyectos Jira de lo escalado y resuelto, como la de los módulos', () => {
+  const d = data();
+  d.cols.fl[0] |= 131072;   // la crítica de Indra (resuelta, TEC: SGA-1), escalada
+  const m = createModel(d); m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const ui = { exp: {}, sort: {} }, html = createTabs(m, createCharts(m, ui), ui).render('resolucion', m.rows());
+  const at = html.indexOf('¿Qué escalamos y a quién?'), card = html.slice(html.indexOf('<table class="mt-sc">', at), html.indexOf('</table>', at));
+  assert.ok(at > html.indexOf('¿Qué módulos tardan más?'));
+  assert.match(card, /<th rowspan="2" class="mt-sc-title">Proyectos Jira<\/th>/);
+  assert.match(card, /data-f="vp:1"><th class="mt-r" title="SGA">SGA<\/th>/);
+  assert.match(card, /Todo lo escalado a Jira/);
+  assert.doesNotMatch(card, /\(sin clave Jira\)/);
+});

@@ -3,7 +3,8 @@
 // Histórico. t: lo común de las pestañas (common.js).
 import { esc } from '../../ui/html.js';
 import { num, dec, pct, nice } from '../format.js';
-import { backlogByDay, trendOf, flowByDay } from '../backlog.js';
+import { backlogByDay, trendOf, flowByDay, flowByShift } from '../backlog.js';
+import { SHIFTS, SHIFT_HOURS } from '../shifts.js';
 import { lineScale, dayTicks } from '../plot.js';
 import { DAY } from '../rules.js';
 
@@ -66,16 +67,22 @@ export const evolutionOf = (t) => {
     const on = !ui.flowOff?.[k];
     return `<button class="mt-fl-tg ${on ? '' : 'mt-off'}" data-flk="${k}" aria-pressed="${on}" data-tip="${esc(`${tip}${tip ? '\n' : ''}Clic para ${on ? 'quitarlo' : 'verlo'}.`)}"><i class="mt-dn-sw ${cls}"></i>${label}</button>`;
   };
-  const flowChart = (list, total) => {
+  // kinds: unos tipos de turno (0–2, shifts.js), juntos: lo que entró en esos turnos y lo atendido en el mismo turno
+  // en que entró (backlog.js, flowByShift), sin lo del backlog
+  const flowChart = (list, total, kinds = null) => {
+    const kind = kinds;
     // lo del backlog, solo de los tipos encendidos; la nota del día, con todos
-    const [d0, n] = days0(), raw = flowByDay(m, list, d0, n), sum = (a) => a.reduce((s, v) => s + v, 0);
-    const picked = flowByDay(m, list, d0, n, FLOW.map(([k]) => k).filter((k) => !ui.flowOff?.[k])).bkl;
+    const [d0, n] = days0(), sum = (a) => a.reduce((s, v) => s + v, 0);
+    const raw = kind == null ? flowByDay(m, list, d0, n) : flowByShift(m, list, d0, n, kinds);
+    const picked = kind == null ? flowByDay(m, list, d0, n, FLOW.map(([k]) => k).filter((k) => !ui.flowOff?.[k])).bkl : raw.bkl;
+    const when = kind == null ? 'el día que entraron' : 'en el turno en que entraron';
+    const head = (i) => `${m.dayName(d0 + i * DAY)}${kind == null ? '' : `, ${shiftsName(kinds)}`}`;
     const shown = (k) => (ui.flowOff?.[k] ? raw[k].map(() => 0) : raw[k]);
     const fl = { ...raw, res: shown('res'), ven: shown('ven'), cli: shown('cli') };
     const done = fl.inc.map((_, i) => FLOW.reduce((s, [k]) => s + fl[k][i], 0)), bkl = total && !ui.flowOff?.bkl ? picked : raw.bkl.map(() => 0);
     const all = (i) => FLOW.reduce((s, [k]) => s + raw[k][i], 0);
-    const f = dayFrame(n, Math.max(...fl.inc, ...done.map((v, i) => v + bkl[i])), (i) => `${m.dayName(d0 + i * DAY)}\nEntraron: ${num(raw.inc[i])}`
-      + `\nAtendidas de las que entraron ese día: ${num(all(i))} (${FLOW.map(([k, l]) => `${num(raw[k][i])} ${l.toLowerCase()}`).join(', ')})`
+    const f = dayFrame(n, Math.max(...fl.inc, ...done.map((v, i) => v + bkl[i])), (i) => `${head(i)}\nEntraron: ${num(raw.inc[i])}`
+      + `\nAtendidas ${kind == null ? 'de las que entraron ese día' : 'en su turno'}: ${num(all(i))} (${FLOW.map(([k, l]) => `${num(raw[k][i])} ${l.toLowerCase()}`).join(', ')})`
       + (total ? `\nAtendidas del backlog: ${num(raw.bkl[i])}\nEn total: ${num(all(i) + raw.bkl[i])}` : ''));
     const bw = Math.max(1, f.slot * 0.36 - 1);
     const bars = Array.from({ length: n }, (_, i) => f.stack(f.xc(i) - bw - 1, bw, [{ cls: 'mt-dn-asig', v: fl.inc[i] }])
@@ -83,7 +90,7 @@ export const evolutionOf = (t) => {
     const some = [...FLOW.map(([k]) => k), ...(total ? ['bkl'] : [])].some((k) => ui.flowOff?.[k]);
     const legend = `<div class="mt-legend"><span><i class="mt-dn-sw mt-dn-asig"></i>Entrantes</span>${FLOW.map(([k, l, cls]) => flowKey(k, l, cls)).join('')}
       ${total ? flowKey('bkl', 'Atendidas del backlog', 'mt-fl-bkl', 'Las que entraron antes y ese día se resolvieron o pasaron a Pendiente de proveedor o de cliente (una vez por incidencia y día).') : ''}
-      <span class="mt-mut">En el periodo${some ? ', con lo marcado' : ''}: ${num(sum(fl.inc))} entrantes · ${num(sum(done))} atendidas el día que entraron (${sum(fl.inc) ? pct(sum(done) / sum(fl.inc)) : '—'})${total ? ` · ${num(sum(bkl))} del backlog` : ''}</span></div>`;
+      <span class="mt-mut">En el periodo${some ? ', con lo marcado' : ''}: ${num(sum(fl.inc))} entrantes · ${num(sum(done))} atendidas ${when} (${sum(fl.inc) ? pct(sum(done) / sum(fl.inc)) : '—'})${total ? ` · ${num(sum(bkl))} del backlog` : ''}</span></div>`;
     return `${legend}${f.svg(bars)}`;
   };
   // Comparando, una línea por lado (apilar los dos lados no se leería).
@@ -122,8 +129,22 @@ export const evolutionOf = (t) => {
   };
 
   // con todo lo de ahora (se abriera cuando se abriera: lo abierto antes del periodo también cuenta en su backlog), por lado
-  return () => {
+  const render = () => {
     const loaded = m.S.d0 - m.MIN_D < 30 * DAY ? ` Lo cargado empieza el ${m.dayName(m.MIN_D)}: lo abierto antes no está y los primeros días salen por debajo.` : '';
     return evolutionCard(bySide(m.today()), CMP(), loaded);
   };
+
+  // Turnos: entrantes frente a atendidas en el mismo turno, de los turnos elegidos (ui.shifts: mañana, tarde y noche;
+  // de partida, los tres, juntos), de lo que pasa los filtros (A) en el primer lado que se mira. Clic en un turno: solo
+  // ese; con Ctrl (o Cmd), se suma o se quita.
+  const shiftsName = (ks) => (ks.length === 3 ? 'todos los turnos' : `turno${ks.length > 1 ? 's' : ''} de ${ks.map((k) => `${SHIFTS[k].toLowerCase()} (${SHIFT_HOURS[k]})`).join(' y ')}`);
+  const byShift = (A) => {
+    const list = bySide(A)[CO()[0]], on = [0, 1, 2].filter((k) => !ui.shifts || ui.shifts.includes(k));
+    const pick = `<div class="mt-seg mt-seg-sm" role="group" aria-label="Turnos">${SHIFTS.map((s, k) => `<button class="mt-seg-b ${on.includes(k) ? 'mt-on' : ''}" data-shk="${k}" aria-pressed="${on.includes(k)}" data-tip="${esc(`${SHIFT_HOURS[k]}
+Clic: solo este turno. Ctrl+clic: sumarlo o quitarlo.`)}">${s} <small>${SHIFT_HOURS[k]}</small></button>`).join('')}</div>`;
+    // sin los turnos de lo atendido (un bridge de antes que los guardara), lo dice: si no, saldría a cero
+    const old = !m.C.sR ? '<p class="mt-note">Faltan los turnos de lo atendido: reinicia SIA para que el bridge los calcule.</p>' : '';
+    return card('Entrantes frente a atendidas en su turno', pick + old + flowChart(list, false, on), { span: 's12', sub: `Cada día, de ${shiftsName(on)}: lo que entró y, al lado, cuánto de eso se atendió en el mismo turno en que entró (pasó a Resuelta, a Pendiente de proveedor o a Pendiente de cliente; cada incidencia, una vez, en lo más avanzado). La noche cuenta en el día en que empieza (la del lunes, de 23 a 7, es del lunes). Clic en un turno para verlo solo; Ctrl+clic para sumarlo o quitarlo. Pasa el ratón por un día para ver sus cifras.` });
+  };
+  return Object.assign(render, { byShift });
 };

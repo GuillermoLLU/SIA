@@ -5,11 +5,13 @@ import { SHIFTS, SHIFT_HOURS, DAYS, MIN_ACTIONS } from '../shifts.js';
 import { shade, HOT } from '../rules.js';
 import { perShiftType, byHour, carryRows as carryRowsOf, clockMatrix } from '../turns.js';
 import { opt } from './common.js';
+import { evolutionOf } from './evolucion.js';
 
 export const turnosTab = (t) => {
   const { m, ch, name, grid, ask, noK, slaPct, resAt, startAt, shareOf, cell, table, slices } = t;
   const { C, S, PRIOS, DOW, STYPE, CMP, CO, stats, bySide } = m;
   const { card, kpis, kpiCo, heat, day, split } = ch;
+  const evolution = evolutionOf(t);
 
   // Mapa de calor día de la semana × hora de un instante de cada issue (la apertura, la resolución…).
   const clockHeat = (list, at, clickable) => {
@@ -55,6 +57,7 @@ export const turnosTab = (t) => {
         kpiCo('Entran en fin de semana', shareOf(T, (i) => STYPE[i] >= 3), (s) => pct(s.v), { val: (s) => s.v }),
         kpiCo('Empezadas en su turno', ST, (s) => opt(pct)(s.inShift), { val: (s) => s.inShift, better: 'high', note: 'en el turno en que entran' }),
         kpiCo('Resueltas en su turno', ST, (s) => opt(pct)(s.resInShift), { val: (s) => s.resInShift, better: 'high', note: 'en el turno en que entran' })),
+      evolution.byShift(A),
       card('Turno a turno', table('Turno', TCOLS.map((d) => [d[0], d[4]]), rowsHtml), { span: 's12', sub: 'Por el turno en que entra cada issue; el trabajo (resueltas, personas, acciones), por el turno en que se hace. Clic en una fila para filtrar. Pasa el ratón por una cabecera para ver cómo se calcula.' }),
       card('El día en 24 horas', curves, { span: 's12', sub: 'Issues que entran, que se empiezan (pasan a En curso) y que se resuelven en cada hora, en todo el periodo. Si la línea de las que entran va por encima, en esas horas se acumula trabajo.' }),
       card('¿Qué se queda para el turno siguiente?', split(['En su turno', 'En el siguiente', 'Más tarde', 'Sin pasar por En curso'], carryRows), { span: 's12', sub: 'De lo que entra en cada turno, cuándo se empieza. «Sin pasar por En curso»: abiertas sin empezar o cerradas sin ese paso.' }),
