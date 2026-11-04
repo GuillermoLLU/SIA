@@ -5,6 +5,7 @@
 // Solo DOM; la sesión la lleva session.js.
 import './login.css';
 import { esc } from '../ui/html.js';
+import { pressStartedIn } from '../ui/dom.js';
 
 const markup = (logoHtml, lastEmail) => `<div class="login-stage">
 <button class="login-open" type="button" aria-label="Iniciar sesión">${logoHtml}</button>
@@ -78,8 +79,9 @@ const loginGate = (session, logoHtml) => new Promise((resolve) => {
     opener.focus({ preventScroll: true });
   };
   opener.addEventListener('click', () => setOpen(true));
+  const pressedInForm = pressStartedIn(el, (t) => form.contains(t));
   el.addEventListener('click', (e) => {
-    if (stage.classList.contains('open') && !form.contains(e.target) && !opener.contains(e.target)) setOpen(false);
+    if (!pressedInForm() && stage.classList.contains('open') && !form.contains(e.target) && !opener.contains(e.target)) setOpen(false);
   });
   opener.focus();
 });

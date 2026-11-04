@@ -16,6 +16,7 @@ import { mountPeriodPanel } from '../metrics/period-panel.js';
 import { attachTip } from '../metrics/tip.js';
 import { coverage } from '../metrics/view.js';
 import { teamPanel } from './team.js';
+import { pressStartedIn } from '../ui/dom.js';
 
 const CALENDAR_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>';
 
@@ -47,11 +48,12 @@ export const mountWorkView = (root, { api, openPerson, onManage }) => {
   };
 
 
+  const pressedInPop = pressStartedIn(root, (t) => !!t.closest('.mt-pop'));
   root.addEventListener('click', (e) => {
     if (e.target.closest('[data-manage]')) return onManage();
     if (!m) return;
     if (e.target.closest('[data-calendar]')) { calendar = !calendar; if (calendar) panel.open(); return render(); }
-    if (calendar && !e.target.closest('.mt-pop')) { calendar = false; render(); }
+    if (calendar && !pressedInPop() && !e.target.closest('.mt-pop')) { calendar = false; render(); }
     const chart = e.target.closest('[data-chart]');
     if (chart) {
       const id = chart.dataset.chart;

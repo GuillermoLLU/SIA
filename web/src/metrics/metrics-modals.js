@@ -29,7 +29,8 @@ export const mountMetricsModals = ({ api, toast, onUpload, onFirstLoad, onClear 
     document.body.append(back);
     const off = onEscape(() => close());
     const close = () => { off(); back.remove(); };
-    back.addEventListener('click', (e) => { if (e.target === back || e.target.closest('[data-close]')) close(); });
+    back.addEventListener('mousedown', (e) => { if (e.target === back) close(); });
+    back.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) close(); });
     // si algo falla al montarla, no se deja una ventana vacía abierta
     try { setup(back, close); } catch (e) { close(); throw e; }
     back.querySelector('.mt-modal').focus?.();

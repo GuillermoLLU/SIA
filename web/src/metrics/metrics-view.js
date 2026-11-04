@@ -21,6 +21,7 @@ import { PHASES, CSV_PHASES, CLEAR_PHASES } from './progress.js';
 import { mountMetricsModals } from './metrics-modals.js';
 import { progressCover } from './progress-cover.js';
 import { COLORS, defaultColors, freeColor, dayOf, coverage, freeCompany, withoutSide, togglePerson, filterKey } from './view.js';
+import { pressStartedIn } from '../ui/dom.js';
 
 const SEARCH_MS = 250;
 const LOAD = 'Actualizar y generar informe';
@@ -251,6 +252,7 @@ export const mountMetricsView = (root, { api, toast }) => {
     }
   };
 
+  const pressedInPop = pressStartedIn(root, (t) => !!t.closest('.mt-pop'));
   root.addEventListener('click', (e) => {
     // con datos, actualizar; sin datos, la primera carga con el periodo que se elige
     if (e.target.closest('[data-update]')) return m ? update() : modals.firstLoad();
@@ -291,7 +293,7 @@ export const mountMetricsView = (root, { api, toast }) => {
       S.sides[k] = togglePerson(S.sides, k, p);
       return render();
     }
-    if (open && !e.target.closest('.mt-pop')) { closePops(); renderPeriod(); renderSides(); }
+    if (open && !pressedInPop() && !e.target.closest('.mt-pop')) { closePops(); renderPeriod(); renderSides(); }
     if (e.target.closest('[data-search]')) {
       searching = !searching || !!S.q;
       $('[data-q]').hidden = !searching;
