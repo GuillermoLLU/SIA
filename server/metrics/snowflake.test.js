@@ -51,6 +51,13 @@ test('sin usuario configurado: 400 y no se carga el conector', async () => {
   assert.equal(loaded, false);
 });
 
+test('fuera de la VPN: lo dice antes, sin cargar el conector ni abrir el navegador', async () => {
+  let loaded = false;
+  const sf = createSnowflake({ loadSdk: async () => { loaded = true; }, config: () => CONFIG, onVpn: async () => false });
+  await assert.rejects(collect(sf.rows('SELECT 1', [])), (e) => e.status === 503 && e.message === explain({ code: 'ENOTFOUND' }).message);
+  assert.equal(loaded, false);
+});
+
 test('un fallo al conectar o a mitad de la consulta: su explicación, y la conexión se cierra', async () => {
   const policy = Object.assign(new Error('Authentication attempt rejected'), { code: '390202' });
   const a = fakeSdk({ connectError: policy });

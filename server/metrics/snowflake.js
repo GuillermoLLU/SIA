@@ -9,12 +9,15 @@
 // config: () => { user, role, warehouse } (config/config.js: cleanSnowflake).
 // refreshCerts: relee los certificados del sistema (el mismo que «Reintentar» del
 // login), para que la siguiente actualización valga sin reiniciar SIA.
+// onVpn: () => si está en la VPN del cliente (shared/vpn.js). Fuera, Snowflake no
+// responde: no se carga el conector ni se abre el navegador, se dice antes.
 import { SESSION } from './query.js';
 import { isCertError } from '../shared/certs.js';
 
 const ACCOUNT = 'INDITEX-INDITEX';
 
 const fail = (message, status = 503) => Object.assign(new Error(message), { status });
+const NO_VPN = 'Sin conexión a la VPN del cliente: Snowflake solo responde dentro de su red. Conéctate a la VPN y vuelve a actualizar.';
 
 // Los errores de Snowflake, en lo que la persona puede hacer. helpUrl: la guía
 // oficial del cliente (sia-instance.json); no va en el texto, que sale en un aviso
@@ -28,7 +31,7 @@ export const explain = (e, helpUrl = '') => {
     return fail(`Faltan los certificados del cliente en este equipo: ${helpUrl ? 'instálalos con la guía de certificados (la del aviso de inicio de sesión)' : 'pide a soporte la guía de certificados, instálalos'} y vuelve a actualizar. No hace falta reiniciar SIA.`);
   }
   if (code === '401001' || /ENOTFOUND|ECONNREFUSED|ETIMEDOUT/i.test(`${code} ${e?.message}`)) {
-    return fail('Sin conexión a la VPN del cliente: Snowflake solo responde dentro de su red. Conéctate a la VPN y vuelve a actualizar.');
+    return fail(NO_VPN);
   }
   return fail(`Snowflake: ${e?.message || 'error desconocido'}`);
 };
@@ -41,7 +44,7 @@ export const connectorError = (e) => {
   return fail(`No se pudo cargar el conector de Snowflake: ${e?.message || 'error desconocido'}`);
 };
 
-export const createSnowflake = ({ loadSdk, config, certsHelpUrl = '', refreshCerts = async () => {} }) => {
+export const createSnowflake = ({ loadSdk, config, certsHelpUrl = '', refreshCerts = async () => {}, onVpn = async () => true }) => {
   const run = (conn, sqlText) => new Promise((ok, ko) => conn.execute({ sqlText, complete: (e) => (e ? ko(e) : ok()) }));
 
   // Las filas de la consulta, una a una y como texto, con '' donde no hay valor:
@@ -50,6 +53,7 @@ export const createSnowflake = ({ loadSdk, config, certsHelpUrl = '', refreshCer
   async function* rows(sql, binds, { onConnect = () => {}, onTotal = () => {} } = {}) {
     const { user, role, warehouse } = config();
     if (!user) throw fail('Configura tu usuario de Snowflake en Configuración → Snowflake.', 400);
+    if (!(await onVpn())) throw fail(NO_VPN);
     let sdk;
     try {
       sdk = await loadSdk();

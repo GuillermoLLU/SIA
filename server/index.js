@@ -187,7 +187,8 @@ export const startBridge = async ({ env = process.env } = {}) => {
     backlog: backlogRoutes(backlog, http_),
     metrics: metricsRoutes(createMetricsStore(workspace.metricsDir, {
       repo: createRepository({ DatabaseSync, file: path.join(workspace.metricsDir, 'incidencias.sqlite'), fs }),
-      source: createSnowflake({ loadSdk, config: () => cleanSnowflake(config.read().snowflake), certsHelpUrl: certsCfg.helpUrl, refreshCerts }),
+      source: createSnowflake({ loadSdk, config: () => cleanSnowflake(config.read().snowflake), certsHelpUrl: certsCfg.helpUrl, refreshCerts,
+        onVpn: async () => !vpnCfg.probeHost || onVpn(lookup, vpnCfg.probeHost) }),
       fs,
       log: console.log,
     }), { json, readBody }),
