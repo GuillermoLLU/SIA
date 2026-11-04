@@ -125,13 +125,15 @@
 /* pantalla de trabajo: cabecera con acciones; a la izquierda, pestañas
    (análisis, detalle, relacionadas) y a la derecha el chat, a la misma altura */
 /* El título, centrado en la caja: las dos columnas de los lados miden lo mismo mientras el título quepa */
+/* La pantalla de una issue llena la ventana: entre las cajas y al pie, el mismo margen */
+.iss-work-page { height: 100%; padding-top: 16px; padding-bottom: 16px; gap: 16px; }
 .iss-work-h { display: grid; grid-template-columns: minmax(max-content, 1fr) minmax(0, auto) minmax(max-content, 1fr); align-items: center; gap: 12px 16px; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); }
 .iss-work-h h2 { min-width: 0; margin: 0; font-size: 18px; font-weight: 650; line-height: 1.3; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .iss-work-h > .lab-btn { justify-self: start; }
 .iss-work-h .iss-actions { justify-self: end; }
 @media (max-width: 800px) { .iss-work-h { grid-template-columns: minmax(0, 1fr); } .iss-work-h .iss-actions { justify-self: start; } }
 .iss-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.iss-work { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(360px, 1fr); gap: 20px; height: calc(100vh - 150px); min-height: 480px; }
+.iss-work { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(360px, 1fr); grid-template-rows: minmax(0, 1fr); gap: 16px; flex: 1; min-height: 480px; }
 .iss-work-main { gap: 0; padding: 0; min-height: 0; }
 .iss-wtabs { display: flex; gap: 24px; padding: 0 22px; border-bottom: 1px solid var(--border); }
 .iss-wtabs button { display: inline-flex; gap: 8px; align-items: baseline; padding: 14px 0 12px; margin-bottom: -1px; font: inherit; font-size: 13px; color: var(--text-low); background: none; border: 0; border-bottom: 2px solid transparent; cursor: pointer; }
@@ -194,7 +196,7 @@
 .iss-send { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; flex: none; color: var(--surface); background: var(--accent); border: 0; cursor: pointer; }
 .iss-send:disabled { opacity: .45; cursor: default; }
 .iss-send:not(:disabled):hover { filter: brightness(1.08); }
-.iss-side { display: flex; flex-direction: column; gap: 20px; min-height: 0; }
+.iss-side { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
 .iss-keys { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; padding: 14px; }
 .iss-keys > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 8px 10px; background: color-mix(in srgb, var(--bg) 60%, var(--surface)); }
 .iss-keys span { font-size: 11px; color: var(--text-low); }
@@ -376,7 +378,7 @@ body.nav-first .iss-enter * { animation-play-state: paused; }
 @keyframes iss-show { from { opacity: 0; } }
 body.top-nav .iss-top { display: none; }
 body.top-nav .iss-page { padding-top: calc(var(--topbar-h) + 24px); padding-bottom: 24px; } /* la barra de arriba y su aire */
-body.top-nav .iss-work { height: calc(100vh - 214px); }
+body.top-nav .iss-work-page { padding-top: calc(var(--topbar-h) + 16px); padding-bottom: 16px; }
 
 @media (prefers-reduced-motion: reduce) { .iss-enter *, .iss-enter *::before, .iss-opening * { animation: none !important; } }
 
@@ -394,7 +396,8 @@ body.top-nav .iss-work { height: calc(100vh - 214px); }
   .iss-cols { flex: none; }
   .iss-col .iss-items { overflow-y: visible; }
   .iss-weeks { height: 320px; flex: none; }
-  .iss-work { height: auto; }
+  .iss-work-page { height: auto; }
+  .iss-work { flex: none; grid-template-rows: none; }
   .iss-work-main { max-height: 70vh; }
   .iss-chat { flex: none; height: 420px; }
 }
