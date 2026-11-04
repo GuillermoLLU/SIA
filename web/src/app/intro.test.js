@@ -1,11 +1,23 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { revealPlan, HERO_STEPS, wantsSidebar, hurry, startIntro, EDGE_PX } from './intro.js';
+import { revealPlan, revealDesk, HERO_STEPS, wantsSidebar, hurry, startIntro, EDGE_PX } from './intro.js';
 
 test('con la portada: el campo y luego la barra; con un chat vivo, la barra al momento', () => {
   assert.deepEqual(revealPlan('hero'), HERO_STEPS);
   assert.deepEqual(HERO_STEPS.map(([, c]) => c), ['asking', 'ready']);
   assert.deepEqual(revealPlan('chat'), [[0, 'ready']]);
+});
+
+test('la mesa: la barra entra ya y retiene la cascada; aunque el ratón la adelantara, retiene igual', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  for (const start of [['booting'], ['asking', 'ready']]) {
+    const classes = new Set(start);
+    const body = { classList: { contains: (c) => classes.has(c), add: (...cs) => cs.forEach((c) => classes.add(c)), remove: (c) => classes.delete(c) } };
+    revealDesk(body);
+    assert.deepEqual([...classes].sort(), ['asking', 'nav-first', 'ready']);
+    t.mock.timers.runAll();
+    assert.deepEqual([...classes].sort(), ['asking', 'ready']);
+  }
 });
 
 test('el ratón en la zona de la barra la adelanta', () => {

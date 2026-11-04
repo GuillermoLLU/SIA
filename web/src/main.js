@@ -7,9 +7,11 @@ import { createApi } from './ui/api.js';
 import { createDialogs } from './ui/dialog.js';
 import { createToast } from './ui/dom.js';
 import { bridgeFromQuery, discoverBridge } from './app/discover.js';
-import { canView, baseNav, panelNav, teamView } from './app/nav.js';
+import { canView, baseNav, panelNav, teamView, firstView, usesTopbar, crossesTo } from './app/nav.js';
+import { crossfade } from './app/crossfade.js';
+import { mountTopbar } from './app/topbar.js';
 import { createPermsWatch } from './app/perms.js';
-import { startIntro, reveal } from './app/intro.js';
+import { startIntro, reveal, revealDesk } from './app/intro.js';
 import { createAuthSession } from './auth/session.js';
 import { ensureLogin } from './auth/login-view.js';
 import { wireLogout } from './auth/logout-button.js';
@@ -83,7 +85,8 @@ chat = mountChatView({
   api, apiBase, wsUrl, dialogs, theme: theme.current, me: user.name,
   mac: /Mac/i.test(navigator.platform || navigator.userAgent || ''),
   gate: gate.open, onSkills: (list) => palette.setSkills(list),
-  onFirstScreen: reveal,
+  // la portada solo marca el arranque si es lo primero que se ve
+  onFirstScreen: (first) => { if (firstView(user) === 'chat') reveal(first); },
 });
 palette = mountPalette({ chat });
 
@@ -135,22 +138,30 @@ const PANELS = [
   { name: 'metrics', mount: (el) => mountMetricsView(el, { api: createMetricsApi(api), toast }) },
 ].map((p) => ({ ...p, nav: $(`nav-${p.name}`), view: $(`view-${p.name}`) }));
 
+let topbar = null;
 const onShow = { lab: () => lab.refresh(), users: () => usersView.refresh(), chat: () => { chat.refitActive(); chat.focusActive(); } };
 const showView = (name) => {
   for (const [k, v] of Object.entries(views)) v.hidden = name !== k;
   for (const [k, n] of Object.entries(nav)) n.classList.toggle('active', name === k);
   // Las métricas y la gestión del equipo son las dos caras del equipo: un solo icono en la barra
   for (const p of PANELS) { p.view.hidden = name !== p.name; p.nav.classList.toggle('active', name === p.name || (p.name === 'work' && name === 'users')); }
+  topbar?.show(name);
   onShow[name]?.();
   return PANELS.find((p) => p.name === name)?.ui?.show?.(); // lo que tarda en pintarse, si es un panel
 };
-for (const [k, n] of Object.entries(nav)) n.addEventListener('click', () => showView(k));
+const go = (name) => (crossesTo(name) ? crossfade(() => showView(name)) : showView(name));
+for (const [k, n] of Object.entries(nav)) n.addEventListener('click', () => go(k));
 for (const p of PANELS) {
   p.nav.innerHTML = VIEWS.find((v) => v.id === p.name).icon;
   p.nav.hidden = !panelNav(user, p.name);
-  p.nav.addEventListener('click', () => showView(p.name === 'work' ? teamView(user) : p.name));
+  p.nav.addEventListener('click', () => go(p.name === 'work' ? teamView(user) : p.name));
   p.ui = p.mount(p.view);
 }
+if (usesTopbar(user)) topbar = mountTopbar(document.querySelector('.app'), { name: user.name, chat: nav.chat, desk: $('nav-issues'), settings: $('settings-btn'), lock: $('lock-btn') });
+// Se abre en la mesa de trabajo: primero la barra y después la mesa (app/intro.js).
+const opening = firstView(user);
+if (opening !== 'chat') revealDesk();
+showView(opening);
 perms.refresh();
 
 /* ── Candado ───────────────────────────────────────────────────── */
