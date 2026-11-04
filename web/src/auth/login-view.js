@@ -7,7 +7,8 @@
 import './login.css';
 import { esc } from '../ui/html.js';
 
-// En desarrollo, el aviso trae «Modo Dev»: pasar al formulario aunque falte algo.
+// En desarrollo, con el aviso aparece «Modo Dev» en la esquina: pasar al
+// formulario aunque falte algo, sin tocar la vista que ve el usuario final.
 const DEV = Boolean(import.meta.env?.DEV);
 
 const INFO = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>';
@@ -25,7 +26,8 @@ const markup = (logoHtml, lastEmail) => `<div class="login-stage">
   <div class="lock-msg" role="alert"></div>
 </form>
 <div class="lock-card login-card login-warn" role="alert" inert></div>
-</div>`;
+</div>
+${DEV ? `<span class="login-tip login-dev-tip" inert><button type="button" class="login-dev">Modo Dev</button><span role="tooltip">${DEV_TIP}</span></span>` : ''}`;
 
 // Lo que falta, en dos líneas; el porqué, en la ayuda (ⓘ).
 // r: { code: 'certs' | 'vpn' | 'certs-vpn' | …, error, help: { url } }
@@ -51,7 +53,6 @@ const warnMarkup = (r) => {
   return `<p class="login-warn-title">${title}${tip ? ` <span class="login-tip" tabindex="0" aria-label="Más información">${INFO}<span role="tooltip">${tip}</span></span>` : ''}</p>
   ${line ? `<p class="login-warn-line">${line}</p>` : ''}
   <button type="button" class="lab-btn primary login-go login-retry">Reintentar</button>
-  ${DEV ? `<span class="login-tip login-dev-tip"><button type="button" class="login-dev">Modo Dev</button><span role="tooltip">${DEV_TIP}</span></span>` : ''}
   <div class="lock-msg"></div>`;
 };
 
@@ -73,6 +74,7 @@ const loginGate = (session, logoHtml) => new Promise((resolve) => {
   const remember = form.querySelector('.login-remember .sw');
   const go = form.querySelector('.login-go');
   const msg = form.querySelector('.lock-msg');
+  const dev = el.querySelector('.login-dev-tip');
   let devMode = false; // «Modo Dev»: ya no se comprueba el equipo
   const shake = (box) => { box.classList.remove('bad'); void box.offsetWidth; box.classList.add('bad'); };
   const fail = (text) => { msg.textContent = text; shake(form); };
@@ -93,6 +95,7 @@ const loginGate = (session, logoHtml) => new Promise((resolve) => {
     opener.inert = state !== 'closed';
     form.inert = state !== 'form';
     warn.inert = state !== 'warn';
+    if (dev) { dev.classList.toggle('shown', state === 'warn' || devMode); dev.inert = state !== 'warn'; }
     if (state === 'form') return (email.value ? password : email).focus({ preventScroll: true });
     password.value = ''; msg.textContent = '';
     if (state === 'closed') opener.focus({ preventScroll: true });
@@ -130,7 +133,6 @@ const loginGate = (session, logoHtml) => new Promise((resolve) => {
     remember.setAttribute('aria-checked', String(remember.getAttribute('aria-checked') !== 'true'));
   });
   warn.addEventListener('click', async (e) => {
-    if (e.target.closest('.login-dev')) { devMode = true; return show('form'); }
     const retry = e.target.closest('.login-retry');
     if (!retry) return;
     retry.disabled = true; retry.textContent = 'Comprobando…';
@@ -143,6 +145,12 @@ const loginGate = (session, logoHtml) => new Promise((resolve) => {
     try { await check(); } finally { stage.classList.remove('checking'); }
   });
   el.addEventListener('click', (e) => {
+    if (e.target.closest('.login-dev')) {
+      devMode = true;
+      dev.classList.add('on');
+      dev.querySelector('.login-dev').textContent = 'Modo Dev activo';
+      return show('form');
+    }
     const open = stage.classList.contains('open') || stage.classList.contains('warn');
     if (open && !form.contains(e.target) && !warn.contains(e.target) && !opener.contains(e.target)) show('closed');
   });

@@ -48,10 +48,10 @@ sitios:
   comprobar de verdad, relee los certificados del sistema y deja pasar al
   formulario sin reiniciar SIA.
 
-En desarrollo, el aviso trae «Modo Dev» (debajo de «Reintentar»): pasa al
-formulario aunque falte algo, para seguir trabajando; en la app instalada no
-existe. Para ver el aviso, desconecta la VPN o quita los certificados del
-sistema.
+En desarrollo, con el aviso aparece «Modo Dev» en la esquina superior
+derecha: pasa al formulario aunque falte algo, para seguir trabajando, y se
+queda como «Modo Dev activo»; en la app instalada no existe. Para ver el
+aviso, desconecta la VPN o quita los certificados del sistema.
 
 Métricas trae las incidencias de Remedy de Snowflake: pon tu usuario en
 Configuración → Credenciales → Snowflake. La primera vez se abre el navegador
