@@ -63,6 +63,27 @@ test('pendientes: lo del equipo cuenta aunque no caiga en SGA ni SISU, como en l
   assert.match(h, /Asignadas al equipo<\/span><b>1</);
 });
 
+test('por turno: RPT, EPPT y PCPT (con sus e y b) y %IQA, por persona y del equipo', () => {
+  const d = data();
+  d.cols.sR = d.cols.rep.map((r, i) => (i < MIN ? [Math.floor((r + 60 - 420) / 480)] : []));   // ANA resuelve en su turno
+  d.cols.sV = d.cols.rep.map(() => []); d.cols.sC = d.cols.rep.map(() => []);
+  const m = createModel(d), ui = { exp: {}, sort: {}, charts: new Set() };
+  m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const h = teamPanel(m, createCharts(m, ui), ui);
+  const heads = [...h.matchAll(/data-sort="team:[^"]+"[^>]*>([^<]+)</g)].map((x) => x[1].replace(/ [↓↑]$/, ''));
+  for (const c of ['RPT', 'RPTe', 'RPTb', 'EPPT', 'EPPTe', 'EPPTb', 'PCPT', 'PCPTe', 'PCPTb', '%IQA']) assert.ok(heads.includes(c), c);
+  assert.doesNotMatch(h, /undefined|NaN|reinicia SIA/);
+  const cells = (name) => [...rowOf(h, name).matchAll(/<td class="mt-num">([^<]*)</g)].map((x) => x[1]);
+  const at = (c) => heads.indexOf(c);
+  const ana = cells('ANA');   // sus 10 entran y se resuelven en el turno 1 (minutos 1000 a 1069): 10 por turno, todas entrantes
+  assert.deepEqual([ana[at('RPT')], ana[at('RPTe')], ana[at('RPTb')], ana[at('EPPT')]], ['10,0', '10,0', '0,0', '0,0']);
+  assert.equal(ana[at('%IQA')], '—');   // sin la nota del agente de calidad
+});
+
+test('por turno: sin los turnos del bridge, lo dice', () => {
+  assert.match(render([{ company: 0 }, null]), /Faltan los turnos de lo resuelto[^<]*reinicia SIA/);
+});
+
 test('al ordenar por una media o un %, quien tiene menos de MIN issues va al final', () => {
   const d = data(); d.company[3] = 0;   // LUIS, en el equipo, con 1 issue
   const m = createModel(d), ui = { exp: {}, sort: { team: ['avg', 1] } };

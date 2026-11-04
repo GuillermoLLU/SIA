@@ -10,6 +10,7 @@ import { esc } from '../ui/html.js';
 import { SCOPE, slaText } from '../metrics/model.js';
 import { num, dec, pct, dur } from '../metrics/format.js';
 import { monthTicks } from '../metrics/plot.js';
+import { shiftCounts, perTurn, teamPerTurn } from './per-shift.js';
 
 const MIN = 10;
 
@@ -29,8 +30,21 @@ const COLS = {
   reop: ['Reabiertas', (s) => pct(s.reop, 1), (s) => s.reop, 'low', '% de issues que se reabrieron después de resolverse.'],
   bounce: ['Devueltas', (s) => pct(s.bounce, 1), (s) => s.bounce, 'low', '% de issues que se devolvieron a la cola (pasaron de En curso a Asignada).'],
   noRes: ['Sin explicar', (s) => pct(s.noRes, 1), (s) => s.noRes, 'low', '% de las cerradas sin un texto que explique la solución.'],
+  ...shiftCols(),
+  iqa: ['%IQA', () => '—', () => null, 'high', 'De las auditadas, el % con calidad 3 o 4 (sobre 4: la nota mínima de técnica, proceso y comunicación). Pendiente: la nota del agente de calidad (tarea #55) aún no llega a SIA.'],
   ia: ['Con IA', (s) => (s.resolved ? pct(s.ia / s.resolved, 1) : '—'), (s) => (s.resolved ? s.ia / s.resolved : null), null, 'De las que ha resuelto, el % en el que intervino la IA (marcas en TAGS o en las notas).'],
 };
+
+// Por turno trabajado (per-shift.js): resueltas, escaladas a proveedor y pendientes de cliente, en total y partidas en
+// entrantes (entraron en ese mismo turno) y backlog (entraron antes)
+function shiftCols() {
+  const what = { r: ['RPT', 'Resueltas'], v: ['EPPT', 'Escaladas a proveedor'], c: ['PCPT', 'Pasadas a pendiente de cliente'] };
+  const part = { '': '', e: ' de entrantes: las que entraron en ese mismo turno', b: ' de backlog: las que entraron en un turno anterior' };
+  const NOTE = ' Un turno trabajado es uno con algún paso suyo (empezar, resolver, escalar o pasar a pendiente de cliente); cuenta lo que pasa en los turnos del periodo, se abriera la issue cuando se abriera, y se atribuye al responsable actual. En la fila del equipo, la media por persona y turno.';
+  return Object.fromEntries(Object.entries(what).flatMap(([k, [code, label]]) => Object.entries(part).map(([x, txt]) => [`${k}${x}`,
+    [`${code}${x}`, (s) => (s.shift?.[`${k}${x}`] == null ? '—' : dec(s.shift[`${k}${x}`])), (s) => s.shift?.[`${k}${x}`] ?? null, k === 'r' ? 'high' : null,
+      `${label} por turno trabajado${txt}.${NOTE}`]])));
+}
 
 const icon = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const CHART_ICON = icon('<path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/>');
@@ -48,7 +62,7 @@ export const teamPanel = (m, ch, ui) => {
   const PRIO = { CRITICAL: 'Críticas', HIGH: 'Altas', MEDIUM: 'Medias', LOW: 'Bajas' };
   const cols = { ...COLS };
   for (const p of m.PRIOS) cols[`p${p}`] = [PRIO[m.DI.prio[p]], (s) => num(s.prio[p]), (s) => s.prio[p], null, `Issues de prioridad ${m.slaLabel(p)}.`];
-  const order = ['n', 'open', ...m.PRIOS.map((p) => `p${p}`), 'sla', 'day', 'avg', 'd1', 'reop', 'bounce', 'noRes', 'ia'];
+  const order = ['n', 'open', ...m.PRIOS.map((p) => `p${p}`), 'sla', 'day', 'avg', 'd1', 'reop', 'bounce', 'noRes', 'r', 're', 'rb', 'v', 've', 'vb', 'c', 'ce', 'cb', 'iqa', 'ia'];
 
   // Pendientes: todo lo que el equipo tiene sin resolver (caiga o no en sus búsquedas de Remedy) y lo
   // que espera en sus búsquedas (SGA y SISU) sin asignar o asignado a otros; de las issues abiertas en el periodo.
@@ -136,10 +150,12 @@ export const teamPanel = (m, ch, ui) => {
   ], '', [iaShare, (v) => pct(v, 1)]);
 
   // persona a persona
-  const people = m.group('as', A, true).filter((x) => x.k).map((x) => ({ ...m.stats(x.rows), k: x.k }));
+  // por turno: lo que pasa en los turnos del periodo, de las issues abiertas en cualquier mes (per-shift.js)
+  const counts = shiftCounts(m, m.today(), [S.d0, S.d1]);
+  const people = m.group('as', A, true).filter((x) => x.k).map((x) => ({ ...m.stats(x.rows), k: x.k, shift: counts && perTurn(counts.get(x.k)) }));
   // resueltas al día, en la fila del equipo: la media de su gente (lo que resuelve el equipo entero en un día va arriba)
   const v = people.filter((p) => p.n >= MIN && p.perDay != null).map((p) => p.perDay);
-  ST[k0] = { ...ST[k0], perDay: v.length ? v.reduce((a, b) => a + b, 0) / v.length : null };
+  ST[k0] = { ...ST[k0], perDay: v.length ? v.reduce((a, b) => a + b, 0) / v.length : null, shift: counts && teamPerTurn(counts) };
   const [sortCol, dir] = ui.sort.team || ['n', -1];
   // al ordenar por un % o una media, quien tiene pocas issues va al final: su cifra dice poco
   const key = (r) => cols[sortCol][2](r) ?? -Infinity, rated = !!cols[sortCol][3], few = (r) => (rated && r.n < MIN ? 1 : 0);
@@ -154,7 +170,7 @@ export const teamPanel = (m, ch, ui) => {
   return `<div class="wk-panel">
     <div class="wk-blocks">${volume}${backlog}${sla}${times}${quality}${ia}</div>
     <div class="mt-grid">
-    ${card('El equipo, persona a persona', table, { span: 's12' })}
+    ${card('El equipo, persona a persona', table, { span: 's12', sub: counts ? '' : 'Faltan los turnos de lo resuelto, escalado y pendiente de cliente (RPT, EPPT, PCPT): reinicia SIA para que el bridge los calcule.' })}
     </div>
   </div>`;
 };
