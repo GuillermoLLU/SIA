@@ -1,14 +1,27 @@
 /* Los colores del tema los pone el JS (web/src/theme/themes.js). Estos de
-   :root son solo los del primer pintado, antes de que corra: los de SIA Claro. */
+   :root son solo los del primer pintado, antes de que corra: los del tema claro. */
 :root {
-  --bg: #f5f6f8;
+  --bg: #f7f7f7;
   --surface: #ffffff;
-  --border: #e1e4e8;
-  --text: #1f2328;
-  --text-low: #656d76;
-  --accent: #2563eb;
-  --scrollbar: #d0d5db;
-  --font-ui: -apple-system, "SF Pro Text", system-ui, sans-serif;
+  --border: #e3e3e3;
+  --text: #000000;
+  --text-low: #757575;
+  --accent: #000000;
+  --scrollbar: #b3b3b3;
+  --focus: #0170e9;
+  --danger: #c93b3a;
+  --warning: #b65321;
+  --success: #178329;
+  --series2: #1b5ea7;
+  /* Medidas que comparten varias reglas */
+  --topbar-h: 64px;
+  --links-w: 260px;
+  --settings-w: min(1200px, calc(100vw - 48px));
+  /* Sewing IOP DS: Helvetica Now Text y, si no se puede cargar, las Helvetica del sistema */
+  --font-ui: "Helvetica Now Text SW10", "Helvetica Neue", Helvetica, Arial, "Noto Sans", sans-serif;
+  --font-mono: NotoSansMono, ui-monospace, "SF Mono", Menlo, monospace;
+  --shadow-float: 0 0 10px rgba(0, 0, 0, .05);
+  --motion-state: .2s linear;
 }
 
 * { box-sizing: border-box; }
@@ -30,6 +43,8 @@ html, body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-ui);
+  font-size: 14px; line-height: 22px; /* body-m */
+  font-variant-numeric: tabular-nums lining-nums;
 }
 body { display: flex; flex-direction: column; }
 
@@ -145,7 +160,7 @@ body { display: flex; flex-direction: column; }
   flex: 1; font-size: 12px; color: var(--text-low); line-height: 1.45;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
-.lab-card-meta { font-size: 11px; color: var(--text-low); font-family: ui-monospace, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lab-card-meta { font-size: 11px; color: var(--text-low); font-family: var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lab-card.new {
   height: 156px;
   align-items: center; justify-content: center;
@@ -195,7 +210,7 @@ body { display: flex; flex-direction: column; }
   padding: 4px 10px; border-radius: 0;
   border: 1px solid transparent;
   font-size: 12px; color: var(--text-low);
-  background: transparent; cursor: pointer; font-family: ui-monospace, monospace;
+  background: transparent; cursor: pointer; font-family: var(--font-mono);
 }
 .lab-file-tab:hover { color: var(--text); }
 .lab-file-tab.active {
@@ -284,7 +299,7 @@ body { display: flex; flex-direction: column; }
   padding: 7px 10px; border: 1px solid var(--border); border-radius: 0;
   font-size: 12px; color: var(--text);
 }
-.token-list li .tok { flex: 1; font-family: ui-monospace, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.token-list li .tok { flex: 1; font-family: var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .token-list li .rm { border: 0; background: transparent; color: var(--text-low); cursor: pointer; font-size: 15px; }
 .token-list li .rm:hover { color: #f25f5c; }
 .project-name { flex: 1; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -362,7 +377,7 @@ body { display: flex; flex-direction: column; }
 .settings-session { margin-right: auto; display: flex; align-items: center; gap: 12px; font-size: 12.5px; color: var(--text-low); }
 .settings-session #session-who b { color: var(--text); font-weight: 600; }
 .settings-session .lab-btn { height: 28px; padding: 0 12px; font-size: 12.5px; }
-.settings-version { font-size: 11px; color: var(--text-low); font-family: ui-monospace, monospace; }
+.settings-version { font-size: 11px; color: var(--text-low); font-family: var(--font-mono); }
 
 /* ── Skills command palette ────────────────────────────────── */
 .palette-overlay {
@@ -516,7 +531,7 @@ body { display: flex; flex-direction: column; }
   padding: 3px 10px;
   border: 1px solid var(--border); border-radius: 0;
   font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
-  color: var(--text-low); font-family: ui-monospace, monospace;
+  color: var(--text-low); font-family: var(--font-mono);
 }
 .asset-file:hover .ext { color: var(--accent); border-color: var(--accent); }
 .asset-meta {
@@ -767,7 +782,7 @@ body.locked .app { visibility: hidden; }
 .link-notes-body ul { margin: 0 0 10px; padding-left: 20px; }
 .link-notes-body li { margin: 3px 0; }
 .link-notes-body code {
-  font-family: var(--font-mono, monospace); font-size: 12px;
+  font-family: var(--font-mono); font-size: 12px;
   padding: 1px 5px; border-radius: 0; background: var(--bg); border: 1px solid var(--border);
 }
 
@@ -779,7 +794,7 @@ body.locked .app { visibility: hidden; }
   border: 1px solid var(--border); background: var(--bg); color: var(--text);
   font-size: 13px; font-family: var(--font-ui);
 }
-.link-form textarea { font-family: var(--font-mono, monospace); font-size: 12.5px; line-height: 1.55; resize: vertical; }
+.link-form textarea { font-family: var(--font-mono); font-size: 12.5px; line-height: 1.55; resize: vertical; }
 .link-form input:focus, .link-form textarea:focus { outline: none; border-color: var(--accent); }
 .link-hint { font-size: 11px; opacity: 0.7; font-weight: 400; }
 .link-image-row { display: flex; align-items: center; gap: 10px; }
@@ -809,18 +824,6 @@ body.locked .app { visibility: hidden; }
 .dlg-lead { margin: 0 0 12px; font-size: 13px; color: var(--text-low); line-height: 1.5; }
 .dlg-lead strong { color: var(--text); }
 
-/* ⚙️ → Apariencia: una tarjeta por tema con la app en miniatura */
-.theme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
-.theme-card { display: flex; flex-direction: column; gap: 8px; padding: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: 12.5px var(--font-ui); text-align: left; cursor: pointer; transition: border-color .12s; }
-.theme-card:hover { border-color: var(--text-low); }
-.theme-card[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
-.theme-card[aria-pressed="true"] .tc-name::after { content: ' ✓'; color: var(--accent); }
-.tp { display: flex; gap: 6px; height: 70px; padding: 6px; border: 1px solid; }
-.tp-side { width: 18%; border: 1px solid; }
-.tp-card { flex: 1; display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid; }
-.tp-line { height: 5px; width: 80%; border-radius: 3px; opacity: .85; }
-.tp-line.short { width: 50%; opacity: .6; }
-.tp-btn { margin-top: auto; width: 34%; height: 10px; border-radius: 2px; }
 
 /* ── El selector propio (ui/picker.js): un botón con lo elegido y la lista debajo ── */
 .pick { position: relative; }
@@ -829,9 +832,9 @@ body.locked .app { visibility: hidden; }
 .pick-btn:disabled { color: var(--text-low); cursor: default; }
 .pick-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pick-ph { color: var(--text-low); }
-.pick-list { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 2; max-height: 220px; margin: 0; padding: 4px 0; overflow-y: auto; list-style: none; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0, 0, 0, .18); }
+.pick-list { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 2; max-height: 220px; margin: 0; padding: 4px 0; overflow-y: auto; list-style: none; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-float); }
 .pick-list li { padding: 8px 12px; font-size: 13px; color: var(--text); cursor: pointer; }
-.pick-list li:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.pick-list li:hover { background: var(--bg); }
 .pick-list li[aria-selected="true"] { font-weight: 600; color: var(--accent); }
 .pick-list li[aria-disabled="true"], .pick-list li[aria-disabled="true"]:hover { color: var(--text-low); cursor: default; background: none; }
 /* en una barra: del ancho de lo elegido, y la lista del de sus opciones */

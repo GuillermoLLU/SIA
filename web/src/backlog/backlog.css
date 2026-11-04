@@ -87,7 +87,7 @@
 .bl-chip { display: flex; align-items: center; gap: 10px; padding: 8px 12px; font-size: 13px; background: var(--bg); border: 1px solid var(--border); user-select: none; }
 .bl-chip.act { cursor: grab; }
 .bl-chip.act:hover { border-color: color-mix(in srgb, var(--text) 35%, var(--border)); }
-.bl-chip.act:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.bl-chip.act:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 .bl-chip.dragging { opacity: .35; }
 .bl-drop-line { position: relative; height: 0; margin: -3px 0; border-top: 2px solid var(--accent); list-style: none; }
 .bl-drop-line::before { content: ''; position: absolute; left: -5px; top: -5px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
