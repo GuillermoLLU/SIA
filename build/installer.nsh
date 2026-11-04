@@ -1,8 +1,9 @@
 ﻿; Asistente de instalación de SIA: páginas propias (electron-builder las
 ; incluye con nsis.include). De momento, una: «Comprobaciones previas», justo
 ; después de la bienvenida. Comprueba que los certificados del cliente están
-; instalados en Windows y, si no, lleva a su guía oficial. Se puede seguir sin
-; ellos (con confirmación): la app volverá a dar la guía al iniciar sesión.
+; instalados en Windows y, si no, lleva a su guía oficial: sin ellos no se puede
+; seguir (no se podría iniciar sesión). Si no se pueden comprobar, se avisa y se
+; deja seguir con confirmación: la app volverá a comprobarlo al iniciar sesión.
 ; La guía y la lista salen de sia-instance.json (scripts/installer-config.mjs).
 
 !include "${BUILD_RESOURCES_DIR}\installer-config.nsh"
@@ -19,6 +20,7 @@ Var SiaHelp
 Var SiaGuide
 Var SiaRetry
 Var SiaFont
+Var SiaPage
 
 !macro customWelcomePage
   !insertmacro MUI_PAGE_WELCOME
@@ -82,31 +84,60 @@ Function SiaCheckCerts
   done:
 FunctionEnd
 
-; Todo bien: solo el check. Falta algo (o no se sabe): el aviso y, debajo, el
-; porqué, la guía y «Volver a comprobar».
+; Repinta la página ya, con su fondo: la comprobación bloquea la ventana unos
+; segundos y, sin esto, se ve a medio pintar o con el texto anterior debajo.
+Function SiaPaint
+  System::Call "user32::RedrawWindow(p $SiaPage, p 0, p 0, i 0x185)"
+FunctionEnd
+
+; Siguiente: solo si no faltan (sin ellos no se podría iniciar sesión).
+Function SiaNext
+  Pop $1
+  GetDlgItem $0 $HWNDPARENT 1
+  EnableWindow $0 $1
+FunctionEnd
+
+; Todo bien: solo el check. Falta algo (o no se sabe): el aviso, qué hacer, la
+; guía y «Volver a comprobar». Mientras comprueba, lo dice y no deja pulsar nada.
 Function SiaRefresh
+  ${NSD_SetText} $SiaStatus "Comprobando los certificados del cliente…"
+  SetCtlColors $SiaStatus 5F6368 transparent
+  ShowWindow $SiaHelp ${SW_HIDE}
+  ShowWindow $SiaGuide ${SW_HIDE}
+  ShowWindow $SiaRetry ${SW_HIDE}
+  Push 0
+  Call SiaNext
+  Call SiaPaint
   Call SiaCheckCerts
   ${If} $SiaState == "ok"
     ${NSD_SetText} $SiaStatus "✔  Certificados del cliente instalados."
     SetCtlColors $SiaStatus 1E8E3E transparent
-    ShowWindow $SiaHelp ${SW_HIDE}
-    ShowWindow $SiaGuide ${SW_HIDE}
-    ShowWindow $SiaRetry ${SW_HIDE}
+    Push 1
   ${Else}
     ${If} $SiaState == "missing"
       ${NSD_SetText} $SiaStatus "⚠  Faltan certificados del cliente: $SiaMissing."
+      Push 0
     ${Else}
       ${NSD_SetText} $SiaStatus "⚠  No se han podido comprobar los certificados del cliente."
+      Push 1
     ${EndIf}
     SetCtlColors $SiaStatus B26A00 transparent
     ShowWindow $SiaHelp ${SW_SHOW}
     ShowWindow $SiaGuide ${SW_SHOW}
     ShowWindow $SiaRetry ${SW_SHOW}
   ${EndIf}
+  Call SiaNext
+  Call SiaPaint
 FunctionEnd
 
 Function SiaRecheck
   Pop $0
+  Call SiaRefresh
+FunctionEnd
+
+; La primera comprobación, con la página ya pintada.
+Function SiaFirstCheck
+  ${NSD_KillTimer} SiaFirstCheck
   Call SiaRefresh
 FunctionEnd
 
@@ -119,39 +150,42 @@ Function SiaChecksShow
   ; sin nada que comprobar, la página no aparece
   StrCmp "${SIA_CERTS_REQUIRED}" "" 0 +2
     Abort
-  !insertmacro MUI_HEADER_TEXT "Comprobaciones previas" "SIA revisa que este equipo está preparado antes de instalar."
+  !insertmacro MUI_HEADER_TEXT "Comprobaciones previas" ""
   nsDialogs::Create 1018
-  Pop $0
-  ${NSD_CreateLabel} 0 4u 100% 14u ""
+  Pop $SiaPage
+  ${NSD_CreateLabel} 10u 8u 280u 14u ""
   Pop $SiaStatus
   CreateFont $SiaFont "$(^Font)" 10 700
   SendMessage $SiaStatus ${WM_SETFONT} $SiaFont 0
   ${If} "${SIA_CERTS_URL}" != ""
-    ${NSD_CreateLabel} 0 26u 100% 30u "La red del cliente verifica las conexiones con sus propios certificados y este equipo aún no los tiene. Instálalos con la guía y pulsa «Volver a comprobar»."
+    ${NSD_CreateLabel} 10u 28u 280u 12u "Instálalos con la guía y pulsa «Volver a comprobar»."
     Pop $SiaHelp
-    ${NSD_CreateLink} 0 60u 100% 12u "Abrir la guía de certificados"
+    ${NSD_CreateButton} 10u 48u 110u 16u "Abrir la guía  ↗"
     Pop $SiaGuide
     ${NSD_OnClick} $SiaGuide SiaOpenGuide
   ${Else}
-    ${NSD_CreateLabel} 0 26u 100% 30u "La red del cliente verifica las conexiones con sus propios certificados y este equipo aún no los tiene. Pide a soporte la guía, instálalos y pulsa «Volver a comprobar»."
+    ${NSD_CreateLabel} 10u 28u 280u 12u "Pide a soporte la guía, instálalos y pulsa «Volver a comprobar»."
     Pop $SiaHelp
-    ${NSD_CreateLabel} 0 60u 0 0 ""
+    ${NSD_CreateLabel} 10u 48u 0 0 ""
     Pop $SiaGuide
   ${EndIf}
-  ${NSD_CreateButton} 0 80u 100u 15u "Volver a comprobar"
+  ${NSD_CreateButton} 126u 48u 110u 16u "Volver a comprobar"
   Pop $SiaRetry
   ${NSD_OnClick} $SiaRetry SiaRecheck
-  Call SiaRefresh
+  ShowWindow $SiaHelp ${SW_HIDE}
+  ShowWindow $SiaGuide ${SW_HIDE}
+  ShowWindow $SiaRetry ${SW_HIDE}
+  ${NSD_CreateTimer} SiaFirstCheck 50
   nsDialogs::Show
 FunctionEnd
 
-; Siguiente con el aviso: se advierte y, si se acepta, la instalación sigue.
+; Siguiente: sin los certificados no se sigue; si no se han podido comprobar, se
+; avisa y se sigue si se acepta.
 Function SiaChecksLeave
   ${If} $SiaState == "missing"
-    MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "Faltan certificados del cliente: $SiaMissing.$\r$\n$\r$\nLa red del cliente verifica las conexiones con sus propios certificados y este equipo aún no los tiene. SIA se instalará igualmente, pero con la VPN no podrás iniciar sesión hasta instalarlos.$\r$\n$\r$\nPulsa Aceptar para continuar con la instalación." IDOK +2
     Abort
   ${ElseIf} $SiaState == "unknown"
-    MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "No se han podido comprobar los certificados del cliente.$\r$\n$\r$\nLa red del cliente verifica las conexiones con sus propios certificados. Si este equipo aún no los tiene, SIA se instalará igualmente, pero con la VPN no podrás iniciar sesión hasta instalarlos.$\r$\n$\r$\nPulsa Aceptar para continuar con la instalación." IDOK +2
+    MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "No se han podido comprobar los certificados del cliente.$\r$\n$\r$\nSi faltan, con la VPN no podrás iniciar sesión hasta instalarlos." IDOK +2
     Abort
   ${EndIf}
 FunctionEnd

@@ -42,9 +42,10 @@ una dirección privada dentro de su red. SIA comprueba las dos cosas en dos
 sitios:
 
 - en el instalador de Windows, en la página «Comprobaciones previas», los
-  certificados (se puede seguir sin ellos, con confirmación);
+  certificados: sin ellos no deja seguir (si no se pueden comprobar, avisa y
+  deja seguir con confirmación);
 - en la app, al pulsar la S: si falta algo, en lugar del formulario sale un
-  aviso corto (la guía y el porqué en la ⓘ) con «Reintentar», que vuelve a
+  aviso corto (qué falta y la guía) con «Reintentar», que vuelve a
   comprobar de verdad, relee los certificados del sistema y deja pasar al
   formulario sin reiniciar SIA.
 
