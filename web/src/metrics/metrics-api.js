@@ -3,6 +3,8 @@
 
 export const createMetricsApi = (api) => ({
   load: async () => (await api('/metrics')).data,
+  // ¿se puede actualizar desde Snowflake? Si falta la VPN, lanza con data.code (ui/net-warning.js)
+  ready: () => api('/metrics/ready'),
   // range: { from, to } solo con la base vacía (la primera carga de ese periodo); sin él, la actualización de siempre
   update: (range) => api('/metrics/update', { method: 'POST', ...(range ? { body: range } : {}) }),
   // borra todo lo guardado en este ordenador (Snowflake no se toca) → { cleared }

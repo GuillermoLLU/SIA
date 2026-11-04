@@ -6,9 +6,10 @@
 // Los errores salen como PlatformError(status, message) con el texto ya
 // listo para enseñar.
 import { isCertError } from '../shared/certs.js';
+import { clientNetworkError } from '../shared/client-network.js';
 
-// `code` y `help` (opcionales) llegan a la web tal cual: con code 'certs', 'vpn' o
-// 'certs-vpn' la puerta de inicio de sesión explica qué falta y enlaza a la guía.
+// `code` y `help` (opcionales) llegan a la web tal cual. Lo que falta para la red
+// del cliente (certificados, VPN) sale con shared/client-network.js.
 export class PlatformError extends Error {
   constructor(status, message, { code, help } = {}) { super(message); this.status = status; this.code = code; this.help = help; }
 }
@@ -38,7 +39,7 @@ export const createPlatformClient = ({ url, key, fetch, certsHelpUrl = '' }) => 
       });
     } catch (e) {
       if (!isCertError(e)) throw new PlatformError(503, 'Sin conexión con la base de la instancia.');
-      throw new PlatformError(503, 'No se puede verificar la conexión segura: faltan los certificados del cliente en este equipo.', { code: 'certs', help: { url: certsHelpUrl } });
+      throw clientNetworkError('certs', 'No se puede verificar la conexión segura: faltan los certificados del cliente en este equipo.', certsHelpUrl);
     }
     const text = await r.text();
     let data = null;

@@ -20,6 +20,8 @@ import { attachTip } from './tip.js';
 import { PHASES, CSV_PHASES, CLEAR_PHASES } from './progress.js';
 import { mountMetricsModals } from './metrics-modals.js';
 import { progressCover } from './progress-cover.js';
+import { isNetWarning } from '../ui/net-warning.js';
+import { netWarningHtml, shake } from '../ui/net-warning-view.js';
 import { COLORS, defaultColors, freeColor, dayOf, coverage, freeCompany, withoutSide, togglePerson, filterKey } from './view.js';
 
 const SEARCH_MS = 250;
@@ -214,11 +216,50 @@ export const mountMetricsView = (root, { api, toast }) => {
     }
   };
 
+  // Falta algo para la red del cliente (la VPN, los certificados): en el sitio del avance, el mismo aviso que en el
+  // inicio de sesión (ui/net-warning-view.js). «Reintentar» vuelve a probar (retry); un clic fuera de él lo cierra.
+  // Si ya está a la vista y sigue faltando, se sacude.
+  const netWarn = (r, retry) => {
+    let box = $('.mt-net');
+    const again = Boolean(box);
+    if (!box) {
+      box = document.createElement('div');
+      box.className = 'mt-loading mt-net';
+      box.innerHTML = '<div class="mt-load-card net-warn" role="alert"></div>';
+      root.append(box);
+    }
+    const card = box.firstElementChild;
+    card.innerHTML = netWarningHtml(r);
+    box.onclick = (e) => {
+      const b = e.target.closest('[data-net-retry]');
+      if (b) { b.disabled = true; b.textContent = 'Comprobando…'; return retry(); }
+      if (!card.contains(e.target)) closeNet();
+    };
+    root.classList.add('mt-updating');
+    $('.mt-page').inert = true;
+    if (again) shake(card);
+    card.querySelector('[data-net-retry]').focus({ preventScroll: true });
+  };
+  const closeNet = () => {
+    $('.mt-net')?.remove();
+    root.classList.remove('mt-updating');
+    $('.mt-page').inert = false;
+  };
+
   // La primera vez puede abrirse el navegador para entrar en Snowflake con la cuenta de Inditex.
   // range: { from, to } con la base vacía (la primera carga del periodo elegido); sin él, la actualización de siempre.
+  // Antes de nada, ¿se puede? (api.ready): fuera de la VPN, el aviso, sin enseñar un avance que no va a llegar.
   const update = async (range) => {
     if (loading) return;
     loading = true;
+    const blocked = await api.ready().then(() => null, (e) => e);
+    if (blocked) {
+      loading = false;
+      if (isNetWarning(blocked.data?.code)) return netWarn(blocked.data, () => update(range));
+      closeNet();
+      return toast?.(blocked.message);
+    }
+    closeNet();
     if (m) $('.mt-load').outerHTML = loadButton(); else renderEmpty();
     const c = progressCover(Date.now(), PHASES, () => api.cancel());
     root.scrollTop = 0;
@@ -244,10 +285,11 @@ export const mountMetricsView = (root, { api, toast }) => {
       loading = false;
       c.el.remove();
       if (m) { $('.mt-page').inert = false; $('.mt-load').outerHTML = loadButton(); } else renderEmpty();
-      toast?.(e.message);
+      if (isNetWarning(e.data?.code)) netWarn(e.data, () => update(range));   // p. ej. sin los certificados del cliente
+      else toast?.(e.message);
     } finally {
       stop();
-      root.classList.remove('mt-updating');
+      if (!$('.mt-net')) root.classList.remove('mt-updating');
     }
   };
 

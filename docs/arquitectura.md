@@ -33,7 +33,7 @@ API y su vista:
 | `knowledge/`, `projects/` | Conocimiento asignado y Administración de proyectos |
 | `lab/`, `links/`, `skills/` | Laboratorio de skills, Enlaces rápidos y la paleta ⌘K |
 | `settings/`, `lock/`, `mobile/`, `theme/` | Configuración, candado, acceso desde el móvil y temas |
-| `ui/` | Lo común: `api.js` (el único cliente HTTP), diálogos, toast, html, tiempo y el selector de persona (`picker.js`) |
+| `ui/` | Lo común: `api.js` (el único cliente HTTP), diálogos, toast, html, tiempo, el selector de persona (`picker.js`) y el aviso de lo que falta para la red del cliente (`net-warning.js`, `net-warning-view.js`: certificados y VPN; lo usan el inicio de sesión y Métricas) |
 
 ### `server/` — el bridge local
 
@@ -56,7 +56,7 @@ las rutas de cada slice.
 | `launchers/`, `workspace/` | Los CLIs (Claude, Copilot, Codex), sus argumentos y su MCP por sesión; los directorios de modo y skills por base |
 | `remote/` | Acceso desde el móvil: emparejar por QR + PIN, candado, túnel de Cloudflare |
 | `terminal/` | Las sesiones de chat y el protocolo WebSocket |
-| `updates/`, `shared/` | `/api/version`; lo común (HTTP, CSV, ids, puertos, cabeceras, permisos, el troceo de entradas de Remedy, los certificados del sistema y la VPN del cliente) |
+| `updates/`, `shared/` | `/api/version`; lo común (HTTP, CSV, ids, puertos, cabeceras, permisos, el troceo de entradas de Remedy, los certificados del sistema, la VPN del cliente y el error de lo que falta para su red, `client-network.js`) |
 
 Cosas que conviene saber:
 

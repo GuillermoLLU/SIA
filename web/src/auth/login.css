@@ -39,28 +39,15 @@
 .login-password .lock-logo { width: 96px; height: 96px; margin-bottom: 10px; }
 .login-hint { margin: 0; font-size: 12px; color: var(--text-low); text-align: center; }
 
-/* Falta algo en el equipo (certificados del cliente, VPN): el aviso ocupa el
-   sitio del formulario, en la misma columna y con el mismo botón. */
+/* Falta algo en el equipo (certificados del cliente, VPN): el aviso de toda SIA
+   (ui/net-warning.css) ocupa el sitio del formulario, en la misma columna. */
 .login-stage.warn .login-open { opacity: 0; transform: scale(0.7); pointer-events: none; }
 .login-stage.warn .login-warn { opacity: 1; transform: none; }
-.login-warn { gap: 0; }
-.login-warn.bad { animation: lock-shake 0.36s ease; }
-.login-warn-title { display: inline-flex; align-items: center; justify-content: center; gap: 8px; margin: 0 0 12px; font-size: 16px; font-weight: 600; color: var(--text); }
-.login-warn-title::before { content: "⚠"; color: #e8a33d; }
-.login-warn-line { max-width: 280px; margin: 0 0 26px; font-size: 13.5px; line-height: 1.6; color: var(--text-low); }
-.login-warn-line a { color: var(--accent); text-decoration: none; }
-.login-warn-line a:hover { text-decoration: underline; }
-.login-warn .lock-msg { margin-top: 12px; }
-/* ⓘ: el porqué, al pasar el ratón o con el teclado */
-.login-tip { position: relative; display: inline-flex; color: var(--text-low); cursor: help; outline: none; }
-.login-tip:hover, .login-tip:focus-visible { color: var(--accent); }
-.login-tip [role="tooltip"] { position: absolute; top: calc(100% + 8px); left: 50%; z-index: 2; width: 280px; padding: 10px 12px; font-size: 12.5px; font-weight: 400; line-height: 1.45; text-align: left; color: var(--text); background: var(--surface); border: 1px solid var(--border); box-shadow: 0 8px 24px rgba(0, 0, 0, .18); transform: translateX(-50%); visibility: hidden; opacity: 0; transition: opacity .12s; }
-.login-tip:hover [role="tooltip"], .login-tip:focus-within [role="tooltip"] { visibility: visible; opacity: 1; }
 /* «Modo Dev» (solo en desarrollo): en la esquina, fuera de la vista del usuario
    final; aparece con el aviso y, una vez activo, se queda como indicador */
-.login-dev-tip { position: fixed; top: 20px; right: 20px; cursor: default; visibility: hidden; opacity: 0; transition: opacity 0.2s ease, visibility 0.2s; }
-.login-dev-tip.shown { visibility: visible; opacity: 1; }
-.login-dev-tip [role="tooltip"] { left: auto; right: 0; transform: none; }
+.info-tip.login-dev-tip { position: fixed; top: 20px; right: 20px; cursor: default; visibility: hidden; opacity: 0; transition: opacity 0.2s ease, visibility 0.2s; }
+.info-tip.login-dev-tip.shown { visibility: visible; opacity: 1; }
+.info-tip.login-dev-tip [role="tooltip"] { left: auto; right: 0; transform: none; }
 .login-dev { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 16px; font: inherit; font-size: 13.5px; font-weight: 600; color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--surface)); border: 1px dashed color-mix(in srgb, var(--accent) 60%, transparent); box-shadow: 0 2px 8px rgba(0, 0, 0, .08); cursor: pointer; transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease; }
 .login-dev::before { content: "</>"; font-family: var(--font-mono, monospace); font-size: 12.5px; }
 .login-dev:hover, .login-dev:focus-visible { background: color-mix(in srgb, var(--accent) 14%, var(--surface)); border: 1px solid var(--accent); outline: none; }

@@ -10,14 +10,16 @@
 // refreshCerts: relee los certificados del sistema (el mismo que «Reintentar» del
 // login), para que la siguiente actualización valga sin reiniciar SIA.
 // onVpn: () => si está en la VPN del cliente (shared/vpn.js). Fuera, Snowflake no
-// responde: no se carga el conector ni se abre el navegador, se dice antes.
+// responde: ready() lo dice antes de nada, sin cargar el conector ni abrir el navegador.
+// Lo que falta para la red del cliente sale con shared/client-network.js (la web lo explica).
 import { SESSION } from './query.js';
 import { isCertError } from '../shared/certs.js';
+import { clientNetworkError } from '../shared/client-network.js';
 
 const ACCOUNT = 'INDITEX-INDITEX';
 
 const fail = (message, status = 503) => Object.assign(new Error(message), { status });
-const NO_VPN = 'Sin conexión a la VPN del cliente: Snowflake solo responde dentro de su red. Conéctate a la VPN y vuelve a actualizar.';
+const noVpn = () => clientNetworkError('vpn', 'Sin conexión a la VPN del cliente: Snowflake solo responde dentro de su red. Conéctate a la VPN y vuelve a actualizar.');
 
 // Los errores de Snowflake, en lo que la persona puede hacer. helpUrl: la guía
 // oficial del cliente (sia-instance.json); no va en el texto, que sale en un aviso
@@ -28,10 +30,10 @@ export const explain = (e, helpUrl = '') => {
   if (code === '002003') return fail('Tu rol de Snowflake no puede leer las tablas de Remedy (SGA.SIGLO): revisa el rol en Configuración → Snowflake.');
   if (code === '000606') return fail('Snowflake no tiene warehouse para la consulta: revisa el warehouse en Configuración → Snowflake.');
   if (isCertError(e)) {
-    return fail(`Faltan los certificados del cliente en este equipo: ${helpUrl ? 'instálalos con la guía de certificados (la del aviso de inicio de sesión)' : 'pide a soporte la guía de certificados, instálalos'} y vuelve a actualizar. No hace falta reiniciar SIA.`);
+    return clientNetworkError('certs', `Faltan los certificados del cliente en este equipo: ${helpUrl ? 'instálalos con la guía de certificados (la del aviso de inicio de sesión)' : 'pide a soporte la guía de certificados, instálalos'} y vuelve a actualizar. No hace falta reiniciar SIA.`, helpUrl);
   }
   if (code === '401001' || /ENOTFOUND|ECONNREFUSED|ETIMEDOUT/i.test(`${code} ${e?.message}`)) {
-    return fail(NO_VPN);
+    return noVpn();
   }
   return fail(`Snowflake: ${e?.message || 'error desconocido'}`);
 };
@@ -45,6 +47,8 @@ export const connectorError = (e) => {
 };
 
 export const createSnowflake = ({ loadSdk, config, certsHelpUrl = '', refreshCerts = async () => {}, onVpn = async () => true }) => {
+  // ¿Se puede intentar? Fuera de la VPN, no: se dice antes de tocar nada.
+  const ready = async () => { if (!(await onVpn())) throw noVpn(); };
   const run = (conn, sqlText) => new Promise((ok, ko) => conn.execute({ sqlText, complete: (e) => (e ? ko(e) : ok()) }));
 
   // Las filas de la consulta, una a una y como texto, con '' donde no hay valor:
@@ -53,7 +57,7 @@ export const createSnowflake = ({ loadSdk, config, certsHelpUrl = '', refreshCer
   async function* rows(sql, binds, { onConnect = () => {}, onTotal = () => {} } = {}) {
     const { user, role, warehouse } = config();
     if (!user) throw fail('Configura tu usuario de Snowflake en Configuración → Snowflake.', 400);
-    if (!(await onVpn())) throw fail(NO_VPN);
+    await ready();
     let sdk;
     try {
       sdk = await loadSdk();
@@ -82,5 +86,5 @@ export const createSnowflake = ({ loadSdk, config, certsHelpUrl = '', refreshCer
     }
   }
 
-  return { rows };
+  return { ready, rows };
 };

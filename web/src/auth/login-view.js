@@ -6,13 +6,11 @@
 // Solo DOM; la sesión la lleva session.js.
 import './login.css';
 import { esc } from '../ui/html.js';
-import { warning } from './warning.js';
+import { netWarningHtml, shake } from '../ui/net-warning-view.js';
 
 // En desarrollo, con el aviso aparece «Modo Dev» en la esquina: pasar al
 // formulario aunque falte algo, sin tocar la vista que ve el usuario final.
 const DEV = Boolean(import.meta.env?.DEV);
-
-const INFO = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>';
 
 const markup = (logoHtml, lastEmail) => `<div class="login-stage">
 <button class="login-open" type="button" aria-label="Iniciar sesión">${logoHtml}</button>
@@ -26,23 +24,11 @@ const markup = (logoHtml, lastEmail) => `<div class="login-stage">
   </div>
   <div class="lock-msg" role="alert"></div>
 </form>
-<div class="lock-card login-card login-warn" role="alert" inert></div>
+<div class="lock-card login-card login-warn net-warn" role="alert" inert></div>
 </div>
-${DEV ? `<span class="login-tip login-dev-tip" inert><button type="button" class="login-dev">Modo Dev</button><span role="tooltip">${DEV_TIP}</span></span>` : ''}`;
+${DEV ? `<span class="info-tip login-dev-tip" inert><button type="button" class="login-dev">Modo Dev</button><span role="tooltip">${DEV_TIP}</span></span>` : ''}`;
 
 const DEV_TIP = 'Solo en desarrollo: pasa al inicio de sesión y al resto de SIA aunque falte esto, para seguir trabajando. Lo que dependa de la red del cliente no responderá.';
-
-// El aviso de lo que falta (warning.js), con el enlace a la guía. r: la respuesta de session.check().
-const warnMarkup = (r) => {
-  const url = r.help?.url || '';
-  const { title, line, tips } = warning(r, Boolean(url));
-  const guide = `la <a href="${esc(url)}" target="_blank" rel="noopener" title="${esc(url)}">guía de certificados ↗</a>`;
-  const tip = tips.map(esc).join('<br><br>');
-  return `<p class="login-warn-title">${esc(title)}${tip ? ` <span class="login-tip" tabindex="0" aria-label="Más información">${INFO}<span role="tooltip">${tip}</span></span>` : ''}</p>
-  ${line ? `<p class="login-warn-line">${esc(line).replace('{guía}', guide)}</p>` : ''}
-  <button type="button" class="lab-btn primary login-go login-retry">Reintentar</button>
-  <div class="lock-msg"></div>`;
-};
 
 // Tapa la app hasta que el usuario entra. → promesa con el usuario.
 const loginGate = (session, logoHtml) => new Promise((resolve) => {
@@ -64,7 +50,6 @@ const loginGate = (session, logoHtml) => new Promise((resolve) => {
   const msg = form.querySelector('.lock-msg');
   const dev = el.querySelector('.login-dev-tip');
   let devMode = false; // «Modo Dev»: ya no se comprueba el equipo
-  const shake = (box) => { box.classList.remove('bad'); void box.offsetWidth; box.classList.add('bad'); };
   const fail = (text) => { msg.textContent = text; shake(form); };
   const leave = (user) => {
     el.classList.add('leaving');
@@ -90,10 +75,10 @@ const loginGate = (session, logoHtml) => new Promise((resolve) => {
   };
   const showWarn = (r) => {
     const again = stage.classList.contains('warn');
-    warn.innerHTML = warnMarkup(r);
+    warn.innerHTML = netWarningHtml(r);   // el aviso de toda SIA (ui/net-warning-view.js)
     show('warn');
     if (again) shake(warn); // «Reintentar» y sigue faltando
-    warn.querySelector('.login-retry').focus({ preventScroll: true });
+    warn.querySelector('[data-net-retry]').focus({ preventScroll: true });
   };
   // ¿Está el equipo listo? Sí: el formulario. No: el aviso.
   const check = async () => {
@@ -121,7 +106,7 @@ const loginGate = (session, logoHtml) => new Promise((resolve) => {
     remember.setAttribute('aria-checked', String(remember.getAttribute('aria-checked') !== 'true'));
   });
   warn.addEventListener('click', async (e) => {
-    const retry = e.target.closest('.login-retry');
+    const retry = e.target.closest('[data-net-retry]');
     if (!retry) return;
     retry.disabled = true; retry.textContent = 'Comprobando…';
     await check();

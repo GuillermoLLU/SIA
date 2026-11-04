@@ -4,8 +4,8 @@
 // certificados, los relee del sistema (refreshCerts, sin reiniciar SIA) y vuelve
 // a probar; con el equipo listo no se relee nada. Si hay VPN configurada, la red.
 // Se miran las dos, así el aviso dice todo lo que falta a la vez.
-// Si algo falta → PlatformError 503 con code 'certs', 'vpn' o 'certs-vpn' y su ayuda.
-import { PlatformError } from '../platform/client.js';
+// Si algo falta → el error de shared/client-network.js: code 'certs', 'vpn' o 'certs-vpn' y su ayuda.
+import { clientNetworkError } from '../shared/client-network.js';
 
 export const createPreflight = ({ platform, refreshCerts, onVpn, vpnHost = '' }) => {
   // null si se llega a la base; el error si faltan los certificados; otro fallo, tal cual
@@ -20,8 +20,8 @@ export const createPreflight = ({ platform, refreshCerts, onVpn, vpnHost = '' })
     let certs = await certsProblem();
     if (certs) { await refreshCerts(); certs = await certsProblem(); } // quizá los acaba de instalar
     const vpn = !vpnHost || await onVpn(vpnHost);
-    if (certs && !vpn) throw new PlatformError(503, 'Faltan los certificados y la VPN del cliente.', { code: 'certs-vpn', help: certs.help });
+    if (certs && !vpn) throw clientNetworkError('certs-vpn', 'Faltan los certificados y la VPN del cliente.', certs.help?.url);
     if (certs) throw certs;
-    if (!vpn) throw new PlatformError(503, 'No estás conectado a la VPN del cliente.', { code: 'vpn' });
+    if (!vpn) throw clientNetworkError('vpn', 'No estás conectado a la VPN del cliente.');
   };
 };
