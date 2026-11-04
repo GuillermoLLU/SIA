@@ -49,7 +49,7 @@ test('check: ok si el equipo está listo; si no, 503 con code y la guía', async
   const s = setup();
   s.platform.health = async () => ({});
   assert.deepEqual((await s.call('POST', 'check')).body, { ok: true });
-  const help = { url: 'https://guia.example', detail: { code: 'SELF_SIGNED_CERT_IN_CHAIN', host: 'x' } };
+  const help = { url: 'https://guia.example' };
   s.platform.health = async () => { throw Object.assign(new Error('Faltan.'), { status: 503, code: 'certs', help }); };
   const r = await s.call('POST', 'check');
   assert.equal(r.status, 503);

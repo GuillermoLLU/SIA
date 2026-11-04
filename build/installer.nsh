@@ -4,7 +4,6 @@
 ; instalados en Windows y, si no, lleva a su guía oficial. Se puede seguir sin
 ; ellos (con confirmación): la app volverá a dar la guía al iniciar sesión.
 ; La guía y la lista salen de sia-instance.json (scripts/installer-config.mjs).
-; Más comprobaciones (Node, CLIs, VPN…) irán en esta misma página.
 
 !include "${BUILD_RESOURCES_DIR}\installer-config.nsh"
 

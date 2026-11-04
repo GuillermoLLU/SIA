@@ -7,8 +7,8 @@
 // listo para enseñar.
 import { isCertError } from '../shared/certs.js';
 
-// `code` y `help` (opcionales) llegan a la web tal cual: con code 'certs' la
-// puerta de inicio de sesión explica qué falta y enlaza a la guía del cliente.
+// `code` y `help` (opcionales) llegan a la web tal cual: con code 'certs', 'vpn' o
+// 'certs-vpn' la puerta de inicio de sesión explica qué falta y enlaza a la guía.
 export class PlatformError extends Error {
   constructor(status, message, { code, help } = {}) { super(message); this.status = status; this.code = code; this.help = help; }
 }
@@ -38,10 +38,7 @@ export const createPlatformClient = ({ url, key, fetch, certsHelpUrl = '' }) => 
       });
     } catch (e) {
       if (!isCertError(e)) throw new PlatformError(503, 'Sin conexión con la base de la instancia.');
-      throw new PlatformError(503, 'No se puede verificar la conexión segura: faltan los certificados del cliente en este equipo.', {
-        code: 'certs',
-        help: { url: certsHelpUrl, detail: { code: String(e.cause?.code || e.code || ''), host: new URL(url).host } },
-      });
+      throw new PlatformError(503, 'No se puede verificar la conexión segura: faltan los certificados del cliente en este equipo.', { code: 'certs', help: { url: certsHelpUrl } });
     }
     const text = await r.text();
     let data = null;
@@ -55,7 +52,7 @@ export const createPlatformClient = ({ url, key, fetch, certsHelpUrl = '' }) => 
   const tokens = (d) => ({ accessToken: d.access_token, refreshToken: d.refresh_token, expiresAt: Date.now() + d.expires_in * 1000 });
 
   return {
-    health: () => request('/auth/v1/health'),   // ¿se llega a la base? (Reintentar en la puerta)
+    health: () => request('/auth/v1/health'),   // ¿se llega a la base? (auth/preflight.js)
     signIn: async (email, password) => tokens(await request('/auth/v1/token?grant_type=password', { method: 'POST', body: { email, password } })),
     refresh: async (refreshToken) => tokens(await request('/auth/v1/token?grant_type=refresh_token', { method: 'POST', body: { refresh_token: refreshToken } })),
     signOut: (jwt) => request('/auth/v1/logout?scope=local', { method: 'POST', jwt }),

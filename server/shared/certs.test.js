@@ -40,5 +40,7 @@ test('readSystemCerts: los lee un proceso nuevo, como Node', async () => {
 test('isCertError', () => {
   assert.equal(isCertError({ cause: { code: 'SELF_SIGNED_CERT_IN_CHAIN' } }), true);
   assert.equal(isCertError({ message: 'unable to verify the first certificate' }), true);
+  assert.equal(isCertError({ code: '401001', message: 'self-signed certificate in certificate chain' }), true);   // Snowflake
+  assert.equal(isCertError({ code: 'ENOTFOUND', message: 'getaddrinfo' }), false);
   assert.equal(isCertError(new TypeError('fetch failed')), false);
 });

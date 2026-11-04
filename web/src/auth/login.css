@@ -45,10 +45,9 @@
 .login-stage.warn .login-warn { opacity: 1; transform: none; }
 .login-warn { gap: 0; }
 .login-warn.bad { animation: lock-shake 0.36s ease; }
-.login-warn p { margin: 0; }
-.login-warn-title { display: inline-flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 12px !important; font-size: 16px; font-weight: 600; color: var(--text); }
+.login-warn-title { display: inline-flex; align-items: center; justify-content: center; gap: 8px; margin: 0 0 12px; font-size: 16px; font-weight: 600; color: var(--text); }
 .login-warn-title::before { content: "⚠"; color: #e8a33d; }
-.login-warn-line { max-width: 280px; margin-bottom: 26px !important; font-size: 13.5px; line-height: 1.6; color: var(--text-low); }
+.login-warn-line { max-width: 280px; margin: 0 0 26px; font-size: 13.5px; line-height: 1.6; color: var(--text-low); }
 .login-warn-line a { color: var(--accent); text-decoration: none; }
 .login-warn-line a:hover { text-decoration: underline; }
 .login-warn .lock-msg { margin-top: 12px; }
@@ -64,8 +63,8 @@
 .login-dev-tip [role="tooltip"] { left: auto; right: 0; transform: none; }
 .login-dev { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 16px; font: inherit; font-size: 13.5px; font-weight: 600; color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--surface)); border: 1px dashed color-mix(in srgb, var(--accent) 60%, transparent); box-shadow: 0 2px 8px rgba(0, 0, 0, .08); cursor: pointer; transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease; }
 .login-dev::before { content: "</>"; font-family: var(--font-mono, monospace); font-size: 12.5px; }
-.login-dev:hover, .login-dev:focus-visible { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--surface)); border: 1px solid var(--accent); outline: none; }
-.login-dev-tip.on .login-dev { color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent); cursor: default; }
+.login-dev:hover, .login-dev:focus-visible { background: color-mix(in srgb, var(--accent) 14%, var(--surface)); border: 1px solid var(--accent); outline: none; }
+.login-dev-tip.on .login-dev { background: color-mix(in srgb, var(--accent) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent); cursor: default; }
 /* la S mientras comprueba el equipo */
 .login-stage.checking .login-open .lock-logo { animation: login-pulse 0.9s ease-in-out infinite; }
 @keyframes login-pulse { 50% { opacity: 0.45; } }

@@ -6,6 +6,7 @@
 // Solo DOM; la sesión la lleva session.js.
 import './login.css';
 import { esc } from '../ui/html.js';
+import { warning } from './warning.js';
 
 // En desarrollo, con el aviso aparece «Modo Dev» en la esquina: pasar al
 // formulario aunque falte algo, sin tocar la vista que ve el usuario final.
@@ -29,29 +30,16 @@ const markup = (logoHtml, lastEmail) => `<div class="login-stage">
 </div>
 ${DEV ? `<span class="login-tip login-dev-tip" inert><button type="button" class="login-dev">Modo Dev</button><span role="tooltip">${DEV_TIP}</span></span>` : ''}`;
 
-// Lo que falta, en dos líneas; el porqué, en la ayuda (ⓘ).
-// r: { code: 'certs' | 'vpn' | 'certs-vpn' | …, error, help: { url } }
-const CERTS_TIP = 'La red del cliente verifica las conexiones con sus propios certificados y este equipo aún no los tiene. Instálalos y pulsa «Reintentar»: no hace falta reiniciar SIA.';
 const DEV_TIP = 'Solo en desarrollo: pasa al inicio de sesión y al resto de SIA aunque falte esto, para seguir trabajando. Lo que dependa de la red del cliente no responderá.';
-const VPN_TIP = 'SIA trabaja dentro de la red del cliente: sin la VPN, algunas funciones no responderán.';
+
+// El aviso de lo que falta (warning.js), con el enlace a la guía. r: la respuesta de session.check().
 const warnMarkup = (r) => {
   const url = r.help?.url || '';
-  const guide = url ? `la <a href="${esc(url)}" target="_blank" rel="noopener" title="${esc(url)}">guía de certificados ↗</a>` : '';
-  const [title, line, tip] = r.code === 'certs' ? [
-    'Faltan los certificados del cliente',
-    guide ? `Instálalos con ${guide}` : 'Pide a soporte la guía de certificados.',
-    CERTS_TIP,
-  ] : r.code === 'vpn' ? [
-    'Sin conexión a la VPN del cliente',
-    'Conéctate a la VPN y pulsa «Reintentar».',
-    VPN_TIP,
-  ] : r.code === 'certs-vpn' ? [
-    'Faltan los certificados y la VPN',
-    guide ? `Instala los certificados con ${guide} y conéctate a la VPN.` : 'Pide a soporte la guía de certificados y conéctate a la VPN.',
-    `${CERTS_TIP}<br><br>${VPN_TIP}`,
-  ] : [esc(r.error || 'Sin conexión con SIA.'), '', ''];
-  return `<p class="login-warn-title">${title}${tip ? ` <span class="login-tip" tabindex="0" aria-label="Más información">${INFO}<span role="tooltip">${tip}</span></span>` : ''}</p>
-  ${line ? `<p class="login-warn-line">${line}</p>` : ''}
+  const { title, line, tips } = warning(r, Boolean(url));
+  const guide = `la <a href="${esc(url)}" target="_blank" rel="noopener" title="${esc(url)}">guía de certificados ↗</a>`;
+  const tip = tips.map(esc).join('<br><br>');
+  return `<p class="login-warn-title">${esc(title)}${tip ? ` <span class="login-tip" tabindex="0" aria-label="Más información">${INFO}<span role="tooltip">${tip}</span></span>` : ''}</p>
+  ${line ? `<p class="login-warn-line">${esc(line).replace('{guía}', guide)}</p>` : ''}
   <button type="button" class="lab-btn primary login-go login-retry">Reintentar</button>
   <div class="lock-msg"></div>`;
 };

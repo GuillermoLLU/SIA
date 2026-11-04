@@ -47,11 +47,11 @@ test('errores: mensajes en castellano, 42501 como 403 y sin red como 503', async
   await assert.rejects(tls.rpc('j', 'x'), (e) => e.status === 503 && /certificados del cliente/.test(e.message) && e.code === 'certs');
 });
 
-test('sin certificados del cliente: code certs, la guía y el detalle para soporte', async () => {
+test('sin certificados del cliente: code certs y la guía', async () => {
   const fetch = async () => { throw Object.assign(new TypeError('fetch failed'), { cause: { code: 'SELF_SIGNED_CERT_IN_CHAIN' } }); };
   const c = createPlatformClient({ url: URL, key: KEY, fetch, certsHelpUrl: 'https://guia.example/certs' });
   await assert.rejects(c.signIn('a', 'b'), (e) => {
-    assert.deepEqual(e.help, { url: 'https://guia.example/certs', detail: { code: 'SELF_SIGNED_CERT_IN_CHAIN', host: 'abcdefghijklmnopqrst.supabase.co' } });
+    assert.deepEqual(e.help, { url: 'https://guia.example/certs' });
     return true;
   });
   const { calls, fetch: ok } = fakeFetch(200, { status: 'ok' });

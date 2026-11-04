@@ -14,7 +14,7 @@ export const createAuthSession = (apiBase, { fetch = globalThis.fetch, local = g
   const headers = () => ({ 'X-SIA-Auth': token() });
   const api = createApi(apiBase, headers, { fetch });
   // un fallo del bridge (sin red) sube; uno con respuesta, su texto o el de serie
-  // (con code 'certs' y help si faltan los certificados del cliente: la puerta lo explica)
+  // (con code 'certs', 'vpn' o 'certs-vpn' y help si falta algo en el equipo: la puerta lo explica)
   const failure = (e, fallback) => {
     if (!e.status) throw e;
     return { error: e.data?.error || fallback, ...(e.data?.code ? { code: e.data.code, help: e.data.help } : {}) };
@@ -46,7 +46,7 @@ export const createAuthSession = (apiBase, { fetch = globalThis.fetch, local = g
       } catch (e) { return failure(e, 'No se pudo iniciar sesión.'); }
     },
 
-    // ¿Llega ya el bridge a la base? (Reintentar tras un error de certificados) → { ok } | { error, code?, help? }
+    // ¿Está listo el equipo? Certificados del cliente y VPN (la S y «Reintentar») → { ok } | { error, code?, help? }
     async check() {
       try { await api('/auth/check', { method: 'POST', timeoutMs: 10000 }); return { ok: true }; }
       catch (e) { return failure(e, 'Sigue sin haber conexión con la base de la instancia.'); }

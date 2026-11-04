@@ -10,11 +10,11 @@
 // refreshCerts: relee los certificados del sistema (el mismo que «Reintentar» del
 // login), para que la siguiente actualización valga sin reiniciar SIA.
 import { SESSION } from './query.js';
+import { isCertError } from '../shared/certs.js';
 
 export const ACCOUNT = 'INDITEX-INDITEX';
 
 const fail = (message, status = 503) => Object.assign(new Error(message), { status });
-const isCertError = (e) => /CERT|certificate/i.test(`${e?.code ?? ''} ${e?.message}`);
 
 // Los errores de Snowflake, en lo que la persona puede hacer. helpUrl: la guía
 // oficial del cliente para instalar sus certificados (sia-instance.json).

@@ -28,4 +28,5 @@ export const readSystemCerts = (execFile, execPath) => new Promise((resolve, rej
 });
 
 // ¿Es un fallo de verificación del certificado (proxy de la empresa sin su CA)?
-export const isCertError = (e) => /certificate|CERT_|SELF_SIGNED/i.test(String(e?.cause?.code || e?.cause?.message || e?.code || e?.message || ''));
+// Se mira todo: fetch lo trae en cause y Snowflake, en el mensaje junto a su código.
+export const isCertError = (e) => /certificate|CERT_|SELF_SIGNED/i.test([e?.cause?.code, e?.cause?.message, e?.code, e?.message].join(' '));
