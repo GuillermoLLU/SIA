@@ -108,10 +108,11 @@ export const startBridge = async ({ env = process.env } = {}) => {
   // La base de la instancia (quién entra, con qué vistas y qué conocimiento ve)
   const platform = createPlatformClient({ ...(loadPlatformConfig(ROOT, env) || { url: '', key: '' }), fetch, certsHelpUrl: certsCfg.helpUrl });
   const auth = createAuth({ platform, readConfig: config.read, writeConfig: config.write });
-  // la S y «Reintentar»: los certificados recién instalados valen sin reiniciar SIA
+  // la S, «Reintentar» y Snowflake: los certificados recién instalados valen sin reiniciar SIA
+  const refreshCerts = async () => trustSystemCerts(tls, await readSystemCerts(execFile, process.execPath).catch(() => undefined));
   const preflight = createPreflight({
     platform,
-    refreshCerts: async () => trustSystemCerts(tls, await readSystemCerts(execFile, process.execPath).catch(() => undefined)),
+    refreshCerts,
     onVpn: (host) => onVpn(lookup, host),
     vpnHost: vpnCfg.probeHost,
   });
@@ -181,7 +182,7 @@ export const startBridge = async ({ env = process.env } = {}) => {
     backlog: backlogRoutes(backlog, http_),
     metrics: metricsRoutes(createMetricsStore(workspace.metricsDir, {
       repo: createRepository({ DatabaseSync, file: path.join(workspace.metricsDir, 'incidencias.sqlite'), fs }),
-      source: createSnowflake({ loadSdk: async () => (await import('snowflake-sdk')).default, config: () => cleanSnowflake(config.read().snowflake), certsHelpUrl: certsCfg.helpUrl }),
+      source: createSnowflake({ loadSdk: async () => (await import('snowflake-sdk')).default, config: () => cleanSnowflake(config.read().snowflake), certsHelpUrl: certsCfg.helpUrl, refreshCerts }),
       log: console.log,
     }), { json }),
     lan: lanRoutes(remote, lock, http_),

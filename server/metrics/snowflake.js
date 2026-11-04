@@ -7,11 +7,14 @@
 // loadSdk: () => el módulo snowflake-sdk (se carga al usarse: pesa y solo lo
 // necesita Métricas). Desde la 3.4 (la 2.x la rechaza la política de Inditex).
 // config: () => { user, role, warehouse } (config/config.js: cleanSnowflake).
+// refreshCerts: relee los certificados del sistema (el mismo que «Reintentar» del
+// login), para que la siguiente actualización valga sin reiniciar SIA.
 import { SESSION } from './query.js';
 
 export const ACCOUNT = 'INDITEX-INDITEX';
 
 const fail = (message, status = 503) => Object.assign(new Error(message), { status });
+const isCertError = (e) => /CERT|certificate/i.test(`${e?.code ?? ''} ${e?.message}`);
 
 // Los errores de Snowflake, en lo que la persona puede hacer. helpUrl: la guía
 // oficial del cliente para instalar sus certificados (sia-instance.json).
@@ -20,16 +23,16 @@ export const explain = (e, helpUrl = '') => {
   if (code === '390202') return fail('Snowflake ha rechazado esta versión del conector: actualiza SIA.');
   if (code === '002003') return fail('Tu rol de Snowflake no puede leer las tablas de Remedy (SGA.SIGLO): revisa el rol en Configuración → Snowflake.');
   if (code === '000606') return fail('Snowflake no tiene warehouse para la consulta: revisa el warehouse en Configuración → Snowflake.');
-  if (/CERT|certificate/i.test(`${code} ${e?.message}`)) {
-    return fail(`No se puede verificar la conexión con Snowflake: faltan los certificados del cliente en este equipo. ${helpUrl ? `Instálalos con su guía (${helpUrl})` : 'Pide la guía de certificados a soporte'} y reinicia SIA.`);
+  if (isCertError(e)) {
+    return fail(`Faltan los certificados del cliente en este equipo: ${helpUrl ? `instálalos con la guía de certificados (${helpUrl})` : 'pide a soporte la guía de certificados, instálalos'} y vuelve a actualizar. No hace falta reiniciar SIA.`);
   }
   if (code === '401001' || /ENOTFOUND|ECONNREFUSED|ETIMEDOUT/i.test(`${code} ${e?.message}`)) {
-    return fail('No se llega a Snowflake: solo es accesible desde la red de Inditex. Conecta la VPN y vuelve a intentarlo.');
+    return fail('Sin conexión a la VPN del cliente: Snowflake solo responde dentro de su red. Conéctate a la VPN y vuelve a actualizar.');
   }
   return fail(`Snowflake: ${e?.message || 'error desconocido'}`);
 };
 
-export const createSnowflake = ({ loadSdk, config, certsHelpUrl = '' }) => {
+export const createSnowflake = ({ loadSdk, config, certsHelpUrl = '', refreshCerts = async () => {} }) => {
   const run = (conn, sqlText) => new Promise((ok, ko) => conn.execute({ sqlText, complete: (e) => (e ? ko(e) : ok()) }));
 
   // Las filas de la consulta, una a una y como texto, con '' donde no hay valor:
@@ -54,6 +57,7 @@ export const createSnowflake = ({ loadSdk, config, certsHelpUrl = '' }) => {
         yield row;
       }
     } catch (e) {
+      if (!e.status && isCertError(e)) await refreshCerts().catch(() => {});   // los que instale ya valdrán al volver a actualizar
       throw e.status ? e : explain(e, certsHelpUrl);
     } finally {
       await new Promise((ok) => conn.destroy(() => ok()));

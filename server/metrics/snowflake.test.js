@@ -61,11 +61,22 @@ test('un fallo al conectar o a mitad de la consulta: su explicación, y la conex
   assert.equal(b.log.destroyed, 1);
 });
 
+test('sin los certificados del cliente: relee los del sistema para que la siguiente actualización valga sin reiniciar', async () => {
+  let refreshed = 0;
+  const refreshCerts = async () => { refreshed++; };
+  const a = fakeSdk({ connectError: new Error('self-signed certificate in certificate chain') });
+  await assert.rejects(collect(createSnowflake({ loadSdk: async () => a.sdk, config: () => CONFIG, refreshCerts }).rows('SELECT 1', [])), /vuelve a actualizar/);
+  assert.equal(refreshed, 1);
+  const b = fakeSdk({ connectError: Object.assign(new Error('getaddrinfo'), { code: 'ENOTFOUND' }) });
+  await assert.rejects(collect(createSnowflake({ loadSdk: async () => b.sdk, config: () => CONFIG, refreshCerts }).rows('SELECT 1', [])), /VPN/);
+  assert.equal(refreshed, 1);   // otro fallo: no relee nada
+});
+
 test('explain: cada error en lo que se puede hacer', () => {
   assert.match(explain({ code: '000606' }).message, /warehouse/);
   assert.match(explain({ code: 'ENOTFOUND', message: 'getaddrinfo' }).message, /VPN/);
-  assert.match(explain({ code: 'ENOTFOUND', message: 'getaddrinfo' }).message, /red de Inditex/);
-  assert.match(explain({ message: 'self-signed certificate in certificate chain' }, 'https://guia.example').message, /certificados del cliente.*https:\/\/guia\.example.*reinicia/);
+  assert.match(explain({ code: 'ENOTFOUND', message: 'getaddrinfo' }).message, /red/);
+  assert.match(explain({ message: 'self-signed certificate in certificate chain' }, 'https://guia.example').message, /certificados del cliente.*https:\/\/guia\.example.*vuelve a actualizar\. No hace falta reiniciar SIA/);
   assert.match(explain({ message: 'self-signed certificate in certificate chain' }).message, /soporte/);
   assert.equal(explain({ code: '1', message: 'otro' }).message, 'Snowflake: otro');
 });
