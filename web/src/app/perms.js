@@ -1,7 +1,7 @@
 // Lo que abre en la base de conocimiento la clave de poder de quien ha
 // iniciado sesión: access = { perms: { name, owner, lab, admin, links } | null }
-// o null sin base. Decide los iconos de Laboratorio y Enlaces y la pestaña
-// Administración de Configuración (además de las vistas de la persona).
+// o null sin base. Decide el icono del Laboratorio y, en Configuración, la caja
+// Administración y la columna de enlaces (además de las vistas de la persona).
 //
 // Los permisos pueden cambiar sin que este SIA se entere: en Personas le
 // cambian a alguien sus vistas (y con ellas su clave de poder). Se vuelven a

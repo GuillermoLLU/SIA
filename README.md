@@ -40,7 +40,7 @@ instancia` (un Node más antiguo), arranca con `npm run dev:vpn`, que es
 `node dev.mjs` con `NODE_USE_SYSTEM_CA=1`.
 
 Métricas trae las incidencias de Remedy de Snowflake: pon tu usuario en
-Configuración → Credenciales → Snowflake. La primera vez se abre el navegador
+Configuración → Conexiones → Snowflake. La primera vez se abre el navegador
 para entrar con la cuenta de Inditex (SSO); necesita la VPN.
 
 Cada persona ve las vistas que le dé su rol: el Chat siempre y, además,

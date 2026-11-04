@@ -20,7 +20,7 @@ import { mountChatView } from './chat/chat-view.js';
 import { mountPalette } from './skills/palette-view.js';
 import { mountSettings } from './settings/settings-view.js';
 import { mountLabView } from './lab/lab-view.js';
-import { mountLinksView } from './links/links-view.js';
+import { mountLinksDirectory } from './links/links-directory.js';
 import { mountProjectsPanel } from './projects/projects-panel.js';
 import { VIEWS } from './users/views.js';
 import { createUsersApi } from './users/users-api.js';
@@ -76,7 +76,7 @@ const toast = createToast($('toast'));
 let chat = null;
 let palette = null;
 const theme = createThemeController({
-  toggleEl: $('theme-toggle'), pickerEl: $('theme-picker'),
+  toggleEl: $('theme-toggle'),
   onTerm: (term) => chat?.setTermTheme(term),
 });
 chat = mountChatView({
@@ -90,31 +90,30 @@ palette = mountPalette({ chat });
 /* ── Configuración ─────────────────────────────────────────────── */
 const settings = mountSettings({ api });
 wireLogout($('settings-session'), { user, session, confirm: dialogs.confirm });
+const linksDirectory = mountLinksDirectory({ api, dialogs, settings });
 
 /* ── Vistas: la barra lateral abre una cada vez ─────────────────── */
-const nav = { chat: $('nav-chat'), lab: $('nav-lab'), links: $('nav-links') };
-const views = { chat: $('view-chat'), lab: $('view-lab'), links: $('view-links'), users: $('view-users') };
+const nav = { chat: $('nav-chat'), lab: $('nav-lab') };
+const views = { chat: $('view-chat'), lab: $('view-lab'), users: $('view-users') };
 const perms = createPermsWatch({
   api,
   onUpdate: (access, { quiet, changed }) => {
     const show = baseNav(user, access);
-    for (const k of ['lab', 'links']) { nav[k].hidden = !show[k]; if (!show[k] && !views[k].hidden) showView('chat'); }
-    settings.showTab('administracion', show.admin);
-    // la vista abierta depende de esos permisos (añadir enlaces, catálogo
-    // completo del Laboratorio…): se repinta si han cambiado
-    if (!quiet || changed) {
-      if (!views.links.hidden) links.refresh();
-      if (quiet && !views.lab.hidden) lab.refresh({ background: true });
-    }
+    nav.lab.hidden = !show.lab;
+    if (!show.lab && !views.lab.hidden) showView('chat');
+    settings.showBox('administracion', show.admin);
+    linksDirectory.show(show.links, show.linksEdit);
+    // el catálogo del Laboratorio depende de esos permisos: se repinta si han cambiado
+    if (quiet && changed && !views.lab.hidden) lab.refresh({ background: true });
   },
   onLost: () => { // sin base (o bridge caído) no hay vista que abrir: fuera lo que depende de ella
-    for (const k of ['lab', 'links']) nav[k].hidden = true;
-    settings.showTab('administracion', false);
-    if (!views.lab.hidden || !views.links.hidden) showView('chat');
+    nav.lab.hidden = true;
+    settings.showBox('administracion', false);
+    linksDirectory.show(false);
+    if (!views.lab.hidden) showView('chat');
   },
 });
 const lab = mountLabView({ api, dialogs, perms: perms.perms, onSkills: palette.setSkills });
-const links = mountLinksView({ api, dialogs, perms: perms.perms });
 mountProjectsPanel({ api, dialogs, toast, settings });
 // Gestión del equipo (users/): la otra cara de Equipo soporte (se entra por su
 // icono); «Métricas equipo» vuelve a sus métricas si también tiene esa vista.
@@ -136,14 +135,14 @@ const PANELS = [
   { name: 'metrics', mount: (el) => mountMetricsView(el, { api: createMetricsApi(api), toast }) },
 ].map((p) => ({ ...p, nav: $(`nav-${p.name}`), view: $(`view-${p.name}`) }));
 
-const onShow = { lab: () => lab.refresh(), links: () => links.refresh(), users: () => usersView.refresh(), chat: () => { chat.refitActive(); chat.focusActive(); } };
+const onShow = { lab: () => lab.refresh(), users: () => usersView.refresh(), chat: () => { chat.refitActive(); chat.focusActive(); } };
 const showView = (name) => {
   for (const [k, v] of Object.entries(views)) v.hidden = name !== k;
   for (const [k, n] of Object.entries(nav)) n.classList.toggle('active', name === k);
   // Las métricas y la gestión del equipo son las dos caras del equipo: un solo icono en la barra
   for (const p of PANELS) { p.view.hidden = name !== p.name; p.nav.classList.toggle('active', name === p.name || (p.name === 'work' && name === 'users')); }
-  PANELS.find((p) => p.name === name)?.ui?.show?.();
   onShow[name]?.();
+  return PANELS.find((p) => p.name === name)?.ui?.show?.(); // lo que tarda en pintarse, si es un panel
 };
 for (const [k, n] of Object.entries(nav)) n.addEventListener('click', () => showView(k));
 for (const p of PANELS) {
@@ -156,8 +155,7 @@ perms.refresh();
 
 /* ── Candado ───────────────────────────────────────────────────── */
 mountLockControls({ api, dialogs, toast, gate, settings, onUnlocked: () => {
-  // de vuelta: permisos y vista al día, y el foco al chat activo
+  // de vuelta: permisos al día y el foco al chat activo
   perms.refresh();
-  if (!views.links.hidden) links.refresh();
   chat.focusActive();
 } });

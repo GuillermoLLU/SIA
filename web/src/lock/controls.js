@@ -1,7 +1,7 @@
-// Bloqueo de pantalla del escritorio: el candado de la barra lateral tapa la
-// ventana hasta dar el PIN; la primera vez, antes de bloquear, pide elegirlo.
-// El PIN se cambia en Configuración → Credenciales. Lo guarda y lo comprueba
-// el bridge.
+// Bloqueo de pantalla del escritorio: el candado de la barra lateral, o arrastrar la
+// inicial en la de arriba, tapa la ventana hasta dar el PIN; la primera vez, antes de
+// bloquear, pide elegirlo. El PIN se cambia en Configuración → Seguridad. Lo guarda y
+// lo comprueba el bridge.
 import { esc } from '../ui/html.js';
 import { setStatus } from '../ui/dom.js';
 import { digitsOnly } from './pin-pad.js';
@@ -18,7 +18,7 @@ const askNewLockPin = async (dialogs, len) => {
       bodyHTML: `<p>Aún no tienes PIN. Es el que pedirá SIA para volver a mostrar la pantalla.</p>
         <input class="settings-input" id="lock-dlg-1" type="password" inputmode="numeric" maxlength="${len}" placeholder="PIN (${len} dígitos)" autocomplete="new-password" />
         <input class="settings-input" id="lock-dlg-2" type="password" inputmode="numeric" maxlength="${len}" placeholder="repite el PIN" autocomplete="new-password" />
-        <p class="dialog-note">Podrás cambiarlo en Configuración → Credenciales → Bloqueo de pantalla.</p>
+        <p class="dialog-note">Podrás cambiarlo en Configuración → Seguridad.</p>
         ${error ? `<div class="link-form-err">${esc(error)}</div>` : ''}`,
     });
     const a = document.getElementById('lock-dlg-1'), b = document.getElementById('lock-dlg-2');
@@ -30,8 +30,8 @@ const askNewLockPin = async (dialogs, len) => {
   }
 };
 
-// El candado de la barra y la sección de Configuración → Credenciales →
-// Bloqueo de pantalla (poner o cambiar el PIN). settings.onOpen: para releer
+// El candado de la barra y la sección de Configuración → Seguridad (poner o
+// cambiar el PIN). settings.onOpen: para releer
 // el estado al abrir Configuración · onUnlocked(): qué hacer al volver.
 export const mountLockControls = ({ api, dialogs, toast, gate, settings, onUnlocked }) => {
   const $ = (id) => document.getElementById(id);

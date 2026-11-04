@@ -1,5 +1,5 @@
-// Configuración (el modal): sus pestañas, la versión y las credenciales
-// (Jira, GitHub y el usuario de Snowflake de las Métricas). Las demás secciones (Apariencia, Bloqueo) se
+// Configuración (el modal): sus secciones, la versión y las conexiones
+// (Jira, GitHub y el usuario de Snowflake de las Métricas). Lo demás (el PIN, los enlaces) se
 // cuelgan de onOpen/onClose para releer su estado cuando se abre o se cierra.
 import { esc } from '../ui/html.js';
 import { setStatus } from '../ui/dom.js';
@@ -10,15 +10,36 @@ export const mountSettings = ({ api }) => {
   const modal = $('settings-modal'), btn = $('settings-btn'), closeBtn = $('settings-close'), version = $('settings-version');
   const opens = [], closes = [];
 
-  /* pestañas internas: un panel visible a la vez; la elegida se recuerda
-     mientras dure la página */
-  const tabs = [...document.querySelectorAll('#settings-tabs .settings-tab')];
-  const panes = [...document.querySelectorAll('#settings-modal .settings-pane')];
-  const showPane = (name) => {
-    for (const t of tabs) t.classList.toggle('active', t.dataset.pane === name);
-    for (const p of panes) p.hidden = p.dataset.pane !== name;
+  /* Al abrir, una caja por sección; pulsar una enseña solo esa, con la flecha para volver */
+  const home = $('settings-home'), title = $('settings-title'), back = $('settings-back');
+  const boxes = [...home.querySelectorAll('.settings-box')];
+  const panes = [...modal.querySelectorAll('.settings-pane')];
+  const boxOf = (name) => boxes.find((b) => b.dataset.pane === name);
+  const layout = modal.querySelector('.settings-layout');
+  let current = null; // la sección abierta
+  let side = null;    // el título de la columna de la derecha cuando ocupa todo el ancho
+  const paintHead = () => {
+    back.hidden = !current && !side;
+    const text = side || (current ? boxOf(current).textContent : 'Configuración');
+    if (title.textContent === text) return;
+    title.textContent = text;
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      title.animate([{ opacity: 0, filter: 'blur(6px)' }, { opacity: 1, filter: 'blur(0)' }], { duration: 400, easing: 'ease' });
+    }
   };
-  for (const t of tabs) t.addEventListener('click', () => showPane(t.dataset.pane));
+  const showPane = (name) => {
+    current = name;
+    home.hidden = !!name;
+    for (const p of panes) p.hidden = p.dataset.pane !== name;
+    paintHead();
+  };
+  const showSide = (text) => {
+    side = text;
+    layout.classList.toggle('side-open', !!text);
+    paintHead();
+  };
+  for (const b of boxes) b.addEventListener('click', () => showPane(b.dataset.pane));
+  back.addEventListener('click', () => (side ? showSide(null) : showPane(null)));
 
   // Jira
   const jiraUrl = $('jira-url-input'), jiraToken = $('jira-token-input'), jiraStatus = $('jira-status');
@@ -51,7 +72,7 @@ export const mountSettings = ({ api }) => {
   };
   const renderGh = () => {
     ghList.innerHTML = '';
-    if (!gh.keys.length) { ghList.innerHTML = '<li class="token-empty">Sin claves — los chats nuevos no llevarán token de GitHub.</li>'; return; }
+    if (!gh.keys.length) { ghList.innerHTML = '<li class="token-empty">Sin claves guardadas.</li>'; return; }
     for (const k of gh.keys) {
       const active = k.id === gh.activeId;
       const li = document.createElement('li');
@@ -76,6 +97,8 @@ export const mountSettings = ({ api }) => {
     setStatus(jiraStatus, '');
     setStatus(sfStatus, '');
     setStatus(ghStatus, '');
+    showSide(null);
+    showPane(null);
     modal.hidden = false;
     for (const fn of opens) fn();
     try {
@@ -97,11 +120,11 @@ export const mountSettings = ({ api }) => {
   return {
     onOpen: (fn) => opens.push(fn),
     onClose: (fn) => closes.push(fn),
-    // enseñar o quitar una pestaña; si se quita estando en ella, a la primera
-    showTab: (pane, on) => {
-      const tab = tabs.find((t) => t.dataset.pane === pane);
-      tab.hidden = !on;
-      if (!on && tab.classList.contains('active')) showPane(tabs[0].dataset.pane);
+    showSide,
+    // enseñar o quitar una caja; si se quita estando en su sección, se vuelve a las cajas
+    showBox: (pane, on) => {
+      boxOf(pane).hidden = !on;
+      if (!on && panes.find((p) => p.dataset.pane === pane).hidden === false) showPane(null);
     },
   };
 };

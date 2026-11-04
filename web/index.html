@@ -7,7 +7,7 @@
     <!-- Nada se ve hasta que main.js ha cargado los estilos (si no, un instante
          de botones sin estilo al recargar); main.js marca <html class="styled">.
          Mientras tanto, el fondo del último tema (la copia que guarda theme/apply.js) -->
-    <style>html { background: #f5f6f8; } html:not(.styled) body { visibility: hidden; }</style>
+    <style>html { background: #f7f7f7; } html:not(.styled) body { visibility: hidden; }</style>
     <script>try { var ui = JSON.parse(localStorage.getItem('sia-theme-ui')); if (ui && ui.bg) document.documentElement.style.background = ui.bg; } catch (e) { /* sin copia: el fondo claro */ }</script>
   </head>
   <body>
@@ -25,10 +25,6 @@
         <!-- Laboratorio (con la vista y el permiso lab de la base) -->
         <button class="nav-btn" id="nav-lab" title="Laboratorio de skills" aria-label="Laboratorio" hidden>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v6.5L4.8 17a3 3 0 0 0 2.6 4.5h9.2a3 3 0 0 0 2.6-4.5L14 8.5V2"/><path d="M8.5 2h7"/><path d="M7 15h10"/></svg>
-        </button>
-        <!-- Enlaces rápidos (con la vista; editar exige el permiso links) -->
-        <button class="nav-btn" id="nav-links" title="Enlaces rápidos" aria-label="Enlaces rápidos" hidden>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
         </button>
 
         <span class="nav-spacer"></span>
@@ -111,21 +107,6 @@
         </div>
       </div>
 
-      <!-- ── Vista ENLACES RÁPIDOS ── -->
-      <div class="window view" id="view-links" hidden>
-        <header class="links-head">
-          <div class="links-title">
-            <h2>Enlaces rápidos</h2>
-          </div>
-          <button class="lab-btn lab-refresh" id="links-refresh" title="Volver a cargar los enlaces">
-            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36L21 8"/><path d="M21 3v5h-5"/></svg>
-            <span>Actualizar</span>
-          </button>
-        </header>
-        <div class="links-filters" id="links-filters"></div>
-        <div class="links-grid" id="links-grid"></div>
-      </div>
-
       <!-- Notas de un enlace -->
       <div class="modal-overlay" id="link-notes-modal" hidden>
         <div class="modal link-modal">
@@ -134,48 +115,6 @@
             <button class="modal-close" id="link-notes-close" aria-label="Cerrar">×</button>
           </header>
           <div class="link-notes-body" id="link-notes-body"></div>
-        </div>
-      </div>
-
-      <!-- Alta / edición de un enlace -->
-      <div class="modal-overlay" id="link-edit-modal" hidden>
-        <div class="modal link-modal">
-          <header class="modal-head">
-            <span class="modal-title" id="link-edit-title">Nuevo enlace</span>
-            <button class="modal-close" id="link-edit-close" aria-label="Cerrar">×</button>
-          </header>
-          <div class="link-form">
-            <div class="link-field"><span class="link-field-cap">Conocimiento</span><div id="link-f-project"></div></div>
-            <label>Título
-              <input id="link-f-title" type="text" maxlength="120" placeholder="Jira del proyecto" />
-            </label>
-            <label>URL
-              <input id="link-f-url" type="text" placeholder="https://…" />
-            </label>
-            <!-- ojo: este campo es un div a propósito. Si fuera una etiqueta de
-                 formulario, pulsar cualquier punto de la fila abriría el selector
-                 de ficheros; solo debe abrirlo el botón. -->
-            <div class="link-field">
-              <span class="link-field-cap">Imagen <span class="link-hint">opcional — cualquier tamaño, se ajusta sola</span></span>
-              <div class="link-image-row">
-                <div class="link-image-prev" id="link-f-image-prev"></div>
-                <input id="link-f-image" type="file" accept="image/*" hidden />
-                <button class="lab-btn" id="link-f-image-pick">Elegir imagen…</button>
-                <button class="lab-btn" id="link-f-image-clear" hidden>Quitar</button>
-                <span class="link-image-info" id="link-f-image-info"></span>
-              </div>
-            </div>
-            <label>Notas <span class="link-hint">opcional — Markdown, para dejar la forma de trabajar</span>
-              <textarea id="link-f-notes" rows="7" spellcheck="false" placeholder="Cómo se usa esto, pasos, avisos…"></textarea>
-            </label>
-            <div class="link-form-err" id="link-f-err" hidden></div>
-          </div>
-          <footer class="modal-foot">
-            <button class="lab-btn danger" id="link-f-delete" hidden>Eliminar</button>
-            <span class="modal-foot-spacer"></span>
-            <button class="lab-btn" id="link-f-cancel">Cancelar</button>
-            <button class="lab-btn primary" id="link-f-save">Guardar</button>
-          </footer>
         </div>
       </div>
 
@@ -190,26 +129,23 @@
       <div class="modal-overlay" id="settings-modal" hidden>
         <div class="modal settings-modal">
           <header class="modal-head">
-            <span class="modal-title">Configuración</span>
+            <button type="button" class="modal-close settings-back" id="settings-back" title="Volver" aria-label="Volver" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+            <span class="modal-title" id="settings-title">Configuración</span>
+            <!-- Claro / Oscuro: enseña el modo al que se pasa -->
+            <button type="button" class="modal-close theme-toggle" id="theme-toggle">
+              <svg class="theme-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+              <svg class="theme-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            </button>
             <button class="modal-close" id="settings-close" aria-label="Cerrar">×</button>
           </header>
-          <nav class="settings-tabs" id="settings-tabs" role="tablist">
-            <button class="settings-tab active" data-pane="credenciales" role="tab">Credenciales</button>
-            <!-- Todos los temas, claros y oscuros -->
-            <button class="settings-tab" data-pane="apariencia" role="tab">Apariencia</button>
-            <!-- solo con la Administración abierta (main.js) -->
-            <button class="settings-tab" data-pane="administracion" role="tab" hidden>Administración</button>
-            <!-- Claro / Oscuro: el interruptor de la app; los iconos también lo cambian -->
-            <div class="theme-toggle" id="theme-toggle" title="Claro / Oscuro">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
-              <button type="button" class="sw" role="switch" aria-checked="false" aria-label="Modo oscuro"><span class="knob"></span></button>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-            </div>
-          </nav>
           <div class="settings-layout">
             <div class="settings-main">
-              <div class="settings-pane" data-pane="apariencia" hidden>
-                <div id="theme-picker"></div>
+              <!-- Lo primero que se ve: una caja por sección -->
+              <div class="settings-boxes" id="settings-home">
+                <button type="button" class="settings-box" data-pane="conexiones"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22v-5M9 8V2M15 8V2M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/></svg><span>Conexiones</span></button>
+                <button type="button" class="settings-box" data-pane="seguridad"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg><span>Seguridad</span></button>
+                <!-- solo con la Administración abierta (main.js) -->
+                <button type="button" class="settings-box" data-pane="administracion" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg><span>Administración</span></button>
               </div>
               <div class="settings-pane" data-pane="administracion" hidden>
                 <section class="settings-section">
@@ -226,68 +162,94 @@
                   <ul class="token-list" id="project-list"></ul>
                 </section>
               </div>
-              <div class="settings-pane" data-pane="credenciales">
-              <section class="settings-section">
-                <h3>Jira</h3>
-                <p class="settings-hint">
-                  Tu acceso personal a Jira. Se guarda solo en esta máquina y se
-                  inyecta a los chats nuevos para que la skill de Jira lo use.
-                </p>
-                <input class="settings-input" id="jira-url-input" type="text" placeholder="URL base (p. ej. https://jira.miempresa.com/jira)" autocomplete="off" spellcheck="false" />
-                <div class="settings-row" style="margin-top: 8px;">
-                  <input class="settings-input" id="jira-token-input" type="password" placeholder="API token personal…" autocomplete="off" />
-                  <button class="lab-btn primary" id="jira-save">Guardar</button>
-                </div>
-                <div class="settings-status" id="jira-status"></div>
-              </section>
-              <section class="settings-section">
-                <h3>Snowflake</h3>
-                <p class="settings-hint">
-                  Tu usuario de Snowflake para traer las incidencias de Remedy a
-                  Métricas. Se entra con la cuenta de Inditex en el navegador (SSO):
-                  no hace falta contraseña. Necesita la VPN.
-                </p>
-                <input class="settings-input" id="sf-user-input" type="text" placeholder="Usuario (p. ej. NOMBRE@EXT.INDITEX.COM)" autocomplete="off" spellcheck="false" />
-                <div class="settings-row" style="margin-top: 8px;">
-                  <button class="lab-btn primary" id="sf-save">Guardar</button>
-                </div>
-                <div class="settings-status" id="sf-status"></div>
-              </section>
-              <section class="settings-section">
-                <h3>GitHub</h3>
-                <p class="settings-hint">
-                  Tokens personales para que la skill de GitHub opere en tu nombre
-                  (push, PRs…). Guarda los que uses (trabajo, personal…) y marca
-                  cuál está activo: es el que llevan los chats que abras a partir
-                  de ese momento. Se guardan solo en esta máquina.
-                </p>
-                <ul class="token-list" id="gh-list"></ul>
-                <div class="settings-row" style="margin-top: 10px;">
-                  <input class="settings-input narrow" id="gh-name-input" type="text" maxlength="24" placeholder="nombre (Trabajo…)" autocomplete="off" />
-                  <input class="settings-input" id="gh-token-input" type="password" placeholder="ghp_… token personal" autocomplete="off" />
-                  <button class="lab-btn primary" id="gh-save">Añadir</button>
-                </div>
-                <div class="settings-status" id="gh-status"></div>
-              </section>
-              <section class="settings-section">
-                <h3>Bloqueo de pantalla</h3>
-                <p class="settings-hint">
-                  El PIN de 4 dígitos del candado de la barra lateral. Se guarda solo en esta máquina.
-                </p>
-                <div class="settings-row">
-                  <input class="settings-input" id="lock-current" type="password" inputmode="numeric" maxlength="4" placeholder="PIN actual" autocomplete="off" hidden />
-                  <input class="settings-input" id="lock-new" type="password" inputmode="numeric" maxlength="4" placeholder="PIN (4 dígitos)" autocomplete="new-password" />
-                  <input class="settings-input" id="lock-new2" type="password" inputmode="numeric" maxlength="4" placeholder="repite el PIN" autocomplete="new-password" />
-                  <button class="lab-btn primary" id="lock-save">Guardar</button>
-                </div>
-                <div class="settings-status" id="lock-status"></div>
-              </section>
+              <div class="settings-pane conn-pane" data-pane="conexiones" hidden>
+                <section class="conn-card">
+                  <header class="conn-head"><span class="conn-icon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11.571 11.513H0a5.218 5.218 0 0 0 5.232 5.215h2.13v2.057A5.215 5.215 0 0 0 12.575 24V12.518a1.005 1.005 0 0 0-1.005-1.005zm5.723-5.756H5.736a5.215 5.215 0 0 0 5.215 5.214h2.129v2.058a5.218 5.218 0 0 0 5.215 5.214V6.758a1.001 1.001 0 0 0-1.001-1.001zM23.013 0H11.455a5.215 5.215 0 0 0 5.215 5.215h2.129v2.057A5.215 5.215 0 0 0 24 12.483V1.005A1.001 1.001 0 0 0 23.013 0Z"/></svg></span><div><h3>Jira</h3><p>Para la skill de Jira. Se guarda solo en esta máquina.</p></div></header>
+                  <label class="conn-field"><span>URL base</span><input class="settings-input" id="jira-url-input" type="text" placeholder="https://jira.miempresa.com/jira" autocomplete="off" spellcheck="false" /></label>
+                  <div class="conn-row">
+                    <label class="conn-field"><span>API token personal</span><input class="settings-input" id="jira-token-input" type="password" placeholder="Tu token de Jira…" autocomplete="off" /></label>
+                    <button class="lab-btn primary" id="jira-save">Guardar</button>
+                  </div>
+                  <div class="settings-status" id="jira-status"></div>
+                </section>
+                <section class="conn-card">
+                  <header class="conn-head"><span class="conn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12h20M12 2v20m8-6-4-4 4-4M4 8l4 4-4 4M16 4l-4 4-4-4M8 20l4-4 4 4"/></svg></span><div><h3>Snowflake</h3><p>Para traer las incidencias de Remedy a Métricas. Necesita la VPN.</p></div></header>
+                  <div class="conn-row">
+                    <label class="conn-field"><span>Usuario</span><input class="settings-input" id="sf-user-input" type="text" placeholder="NOMBRE@EXT.INDITEX.COM" autocomplete="off" spellcheck="false" /></label>
+                    <button class="lab-btn primary" id="sf-save">Guardar</button>
+                  </div>
+                  <div class="settings-status" id="sf-status"></div>
+                </section>
+                <section class="conn-card">
+                  <header class="conn-head"><span class="conn-icon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg></span><div><h3>GitHub</h3><p>Tokens para la skill de GitHub. El activo es el que usan los chats nuevos.</p></div></header>
+                  <ul class="token-list" id="gh-list"></ul>
+                  <div class="conn-row">
+                    <label class="conn-field conn-narrow"><span>Nombre</span><input class="settings-input" id="gh-name-input" type="text" maxlength="24" placeholder="Trabajo…" autocomplete="off" /></label>
+                    <label class="conn-field"><span>Añadir un token</span><input class="settings-input" id="gh-token-input" type="password" placeholder="ghp_… token personal" autocomplete="off" /></label>
+                    <button class="lab-btn primary" id="gh-save">Añadir</button>
+                  </div>
+                  <div class="settings-status" id="gh-status"></div>
+                </section>
+              </div>
+              <div class="settings-pane conn-pane" data-pane="seguridad" hidden>
+                <section class="conn-card">
+                  <header class="conn-head"><span class="conn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg></span><div><h3>Bloqueo de pantalla</h3><p>El PIN de 4 dígitos con el que se bloquea. Se guarda solo en esta máquina.</p></div></header>
+                  <div class="conn-row">
+                    <input class="settings-input" id="lock-current" type="password" inputmode="numeric" maxlength="4" placeholder="PIN actual" autocomplete="off" hidden />
+                    <input class="settings-input" id="lock-new" type="password" inputmode="numeric" maxlength="4" placeholder="PIN (4 dígitos)" autocomplete="new-password" />
+                    <input class="settings-input" id="lock-new2" type="password" inputmode="numeric" maxlength="4" placeholder="repite el PIN" autocomplete="new-password" />
+                    <button class="lab-btn primary" id="lock-save">Guardar</button>
+                  </div>
+                  <div class="settings-status" id="lock-status"></div>
+                </section>
               </div>
             </div>
+            <!-- Los enlaces, para quien tenga su vista (links/links-directory.js) -->
+            <aside class="settings-links" id="settings-links" hidden>
+              <header class="dir-head"><h3>Enlaces</h3><button type="button" class="modal-close dir-refresh" title="Actualizar" aria-label="Actualizar enlaces"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36L21 8"/><path d="M21 3v5h-5"/></svg></button></header>
+              <ul class="dir-list"></ul>
+              <!-- Con el lápiz o «Añadir enlace», la columna ocupa todo el ancho y enseña solo esto -->
+              <div class="dir-body">
+                <div class="link-edit" id="link-edit">
+                  <div class="link-form">
+                    <div class="link-field"><span class="link-field-cap">Conocimiento</span><div id="link-f-project"></div></div>
+                    <label>Título
+                      <input id="link-f-title" type="text" maxlength="120" placeholder="Jira del proyecto" />
+                    </label>
+                    <label>URL
+                      <input id="link-f-url" type="text" placeholder="https://…" />
+                    </label>
+                    <!-- ojo: este campo es un div a propósito. Si fuera una etiqueta de
+                         formulario, pulsar cualquier punto de la fila abriría el selector
+                         de ficheros; solo debe abrirlo el botón. -->
+                    <div class="link-field">
+                      <span class="link-field-cap">Imagen <span class="link-hint">opcional — cualquier tamaño, se ajusta sola</span></span>
+                      <div class="link-image-row">
+                        <div class="link-image-prev" id="link-f-image-prev"></div>
+                        <input id="link-f-image" type="file" accept="image/*" hidden />
+                        <button class="lab-btn" id="link-f-image-pick">Elegir imagen…</button>
+                        <button class="lab-btn" id="link-f-image-clear" hidden>Quitar</button>
+                        <span class="link-image-info" id="link-f-image-info"></span>
+                      </div>
+                    </div>
+                    <label>Notas <span class="link-hint">opcional — Markdown, para dejar la forma de trabajar</span>
+                      <textarea id="link-f-notes" rows="7" spellcheck="false" placeholder="Cómo se usa esto, pasos, avisos…"></textarea>
+                    </label>
+                    <div class="link-form-err" id="link-f-err" hidden></div>
+                  </div>
+                  <footer class="modal-foot">
+                    <button class="lab-btn danger" id="link-f-delete" hidden>Eliminar</button>
+                    <span class="modal-foot-spacer"></span>
+                    <button class="lab-btn" id="link-f-cancel">Cancelar</button>
+                    <button class="lab-btn primary" id="link-f-save">Guardar</button>
+                  </footer>
+                </div>
+              </div>
+            </aside>
           </div>
           <footer class="settings-foot">
-            <!-- quién ha iniciado sesión y salir -->
-            <span class="settings-session" id="settings-session" hidden><span id="session-who"></span><button class="lab-btn" id="logout-btn">Cerrar sesión</button></span>
+            <!-- salir -->
+            <span class="settings-session" id="settings-session" hidden><button class="lab-btn" id="logout-btn">Cerrar sesión</button></span>
             <span class="settings-version" id="settings-version">SIA</span>
           </footer>
         </div>

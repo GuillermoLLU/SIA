@@ -35,7 +35,7 @@ export const linkPayload = ({ project, title, url, image, notes }) => ({
 });
 
 // La imagen viaja dentro del listado, así que se encoge antes de guardarla
-// (la card la pinta a 38 px): el lado mayor a LINK_IMAGE_SIDE, nunca más grande.
+// (la columna la pinta a 36 px): el lado mayor a LINK_IMAGE_SIDE, nunca más grande.
 const LINK_IMAGE_SIDE = 256;
 export const shrinkTo = (w, h, side = LINK_IMAGE_SIDE) => {
   const scale = Math.min(1, side / Math.max(w, h));

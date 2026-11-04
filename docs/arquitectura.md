@@ -22,7 +22,7 @@ API y su vista:
 
 | Carpeta | Qué es |
 |---|---|
-| `app/` | Descubrir el bridge, la barra lateral (qué icono ve cada persona) y la relectura de permisos |
+| `app/` | Descubrir el bridge, la navegación (qué icono ve cada persona, la barra lateral o la de arriba, y la vista con la que se abre) y la relectura de permisos |
 | `auth/` | Inicio de sesión y la sesión en el navegador |
 | `chat/` | El chat: su arranque (`start.js`: Claude, conocimiento autónomo y todo lo accesible), protocolo con el bridge, reconciliación entre dispositivos, terminal y adjuntos |
 | `issues/` | La mesa de issues de cada persona y la pantalla de trabajo de una issue (con su chat) |
@@ -30,8 +30,8 @@ API y su vista:
 | `metrics/` | Métricas: reglas (`rules.js`) y cálculo por pestaña en módulos puros; el HTML de cada pestaña en `metrics/tabs/` |
 | `work/` | Equipo soporte: una vista sobre el dominio de Métricas |
 | `users/` | Personas y roles |
-| `knowledge/`, `projects/` | Conocimiento asignado y la pestaña Administración de Configuración |
-| `lab/`, `links/`, `skills/` | Laboratorio de skills, Enlaces rápidos y la paleta ⌘K |
+| `knowledge/`, `projects/` | Conocimiento asignado y la sección Administración de Configuración |
+| `lab/`, `links/`, `skills/` | Laboratorio de skills, Enlaces (la columna de Configuración y su formulario) y la paleta ⌘K |
 | `settings/`, `lock/`, `theme/` | Configuración, candado y temas |
 | `ui/` | Lo común: `api.js` (el único cliente HTTP), diálogos, toast, html, tiempo y el selector de persona (`picker.js`) |
 

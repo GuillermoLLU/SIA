@@ -116,7 +116,7 @@ body { display: flex; flex-direction: column; }
 }
 .empty-state svg { color: var(--text-low); opacity: 0.75; }
 .empty-state p { margin: 0 0 10px; max-width: 420px; font-size: 15px; color: var(--text-low); line-height: 1.5; }
-.empty-state .lab-card.new, .empty-state .link-card.new { width: 240px; height: 156px; }
+.empty-state .lab-card.new { width: 240px; height: 156px; }
 .lab-cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -244,11 +244,23 @@ body { display: flex; flex-direction: column; }
   border-radius: 0; box-shadow: 0 28px 80px rgba(0, 0, 0, 0.5);
   overflow: hidden;
 }
-/* alto fijo, el de la pestaña más alta (Credenciales), para que no cambie de
-   tamaño al pasar de una a otra; si la ventana no da, el panel hace scroll */
-.settings-modal { width: min(1240px, calc(100vw - 48px)); height: min(720px, calc(100vh - 80px)); }
+/* tamaño fijo, el de la sección más alta (Conexiones), para que no cambie al pasar de una a otra;
+   si la ventana o el contenido no dan, el panel hace scroll */
+.settings-modal { width: min(1000px, calc(100vw - 48px)); height: min(750px, calc(100vh - 40px)); }
+/* con la columna de enlaces, más ancho: lo demás conserva su sitio */
+.settings-modal:has(.settings-links:not([hidden])) { width: var(--settings-w); }
 /* Configuración va centrada en vertical (el resto de modales cuelgan arriba) */
 #settings-modal { align-items: center; padding-top: 0; }
+/* Abierta desde la inicial de la barra de arriba: se enfoca en el centro de la pantalla mientras aparece */
+body.top-nav #settings-modal { transition: opacity .35s ease, display .35s allow-discrete; }
+body.top-nav #settings-modal[hidden] { opacity: 0; }
+body.top-nav .settings-modal { transition: transform .35s ease, opacity .35s ease, filter .35s ease; }
+body.top-nav #settings-modal[hidden] .settings-modal { transform: scale(.98); opacity: 0; filter: blur(8px); }
+@starting-style {
+  body.top-nav #settings-modal:not([hidden]) { opacity: 0; }
+  body.top-nav #settings-modal:not([hidden]) .settings-modal { transform: scale(.98); opacity: 0; filter: blur(8px); }
+}
+@media (prefers-reduced-motion: reduce) { body.top-nav #settings-modal, body.top-nav .settings-modal { transition: none; } }
 .dialog { width: min(460px, calc(100vw - 48px)); }
 .modal-head {
   display: flex; align-items: center; gap: 10px;
@@ -316,7 +328,6 @@ body { display: flex; flex-direction: column; }
 .token-list li.active .pick .dot { border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--accent); }
 .token-list li .pick .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .token-list li .gh-tok { flex: none; color: var(--text-low); }
-.settings-input.narrow { flex: 0 0 132px; }
 
 .settings-status { font-size: 12px; color: var(--text-low); margin-top: 10px; min-height: 14px; }
 
@@ -343,31 +354,98 @@ body { display: flex; flex-direction: column; }
 .settings-status.ok { color: #40c463; }
 .settings-status.bad { color: #f25f5c; }
 
-/* ── Configuración: pestañas internas ──────────────────────── */
-.settings-tabs {
-  flex-shrink: 0; display: flex; gap: 2px;
-  padding: 0 20px; border-bottom: 1px solid var(--border);
+/* ── Configuración: una caja por servicio, una debajo de otra ── */
+.conn-pane { display: flex; flex-direction: column; gap: 16px; }
+.conn-card { display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid var(--border); background: var(--bg); }
+.conn-head { display: flex; align-items: center; gap: 12px; }
+.conn-icon { flex: none; width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+.conn-icon svg { width: 18px; height: 18px; }
+.conn-head h3 { margin: 0; font-size: 14px; font-weight: 600; color: var(--text); }
+.conn-head p { margin: 2px 0 0; font-size: 12.5px; color: var(--text-low); }
+.conn-row { display: flex; align-items: flex-end; gap: 8px; }
+.conn-row > :not(.lab-btn):not(.conn-narrow) { flex: 1; min-width: 0; }
+.conn-narrow { flex: 0 0 150px; }
+.conn-field { display: flex; flex-direction: column; gap: 6px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-low); }
+.conn-card .settings-input { background: var(--surface); text-transform: none; letter-spacing: 0; font-weight: 400; }
+.conn-card .lab-btn { flex: none; height: 34px; }
+.conn-card .settings-status { min-height: 0; margin: 0; }
+.conn-card .settings-status:empty { display: none; }
+.conn-card .token-list { margin: 0; }
+.conn-card .token-list li { background: var(--surface); }
+.conn-card .token-list .token-empty { padding: 0; border: 0; margin: 0; background: transparent; color: var(--text-low); }
+
+/* ── Configuración: la columna de enlaces, a modo de guía telefónica ── */
+/* Va sobre lo demás, pegada a la derecha: al crecer, lo de debajo se difumina sin moverse */
+.settings-links {
+  position: absolute; top: 0; right: 0; bottom: 0; z-index: 1; width: var(--links-w); overflow: hidden;
+  display: flex; flex-direction: column; border-left: 1px solid var(--border); background: var(--bg);
+  transition: width .45s cubic-bezier(.22, 1, .36, 1), background .45s ease;
 }
-.settings-tab {
-  padding: 11px 14px 10px; border: 0; border-bottom: 2px solid transparent;
-  margin-bottom: -1px; border-radius: 0;
-  background: transparent; color: var(--text-low);
-  font-size: 13px; font-weight: 600; cursor: pointer;
+.settings-layout:has(.settings-links:not([hidden])) .settings-main { margin-right: var(--links-w); }
+.settings-main, .dir-head, .dir-list, .dir-body { transition: opacity .3s ease, filter .3s ease, visibility .3s; }
+.side-open .settings-links { width: 100%; background: var(--surface); }
+.side-open .settings-main, .side-open .dir-head, .side-open .dir-list { opacity: 0; filter: blur(6px); visibility: hidden; }
+/* El formulario de un enlace, en el centro */
+.link-edit { width: min(640px, 100%); margin: 0 auto; }
+.link-edit .link-form { padding: 0; overflow: visible; }
+.link-edit .modal-foot { padding: 16px 0 0; border-top: 0; }
+/* Ya tiene su ancho final, para que no se recoloque mientras la columna crece */
+.dir-body {
+  position: absolute; top: 0; right: 0; bottom: 0; width: var(--settings-w); padding: 24px 20px; overflow-y: auto;
+  opacity: 0; filter: blur(6px); visibility: hidden;
 }
-.settings-tab:hover { color: var(--text); }
-.settings-tab.active { color: var(--text); border-bottom-color: var(--accent); }
-.settings-tab[hidden] { display: none; }
-/* Claro / Oscuro, al final de la fila de pestañas: sol, interruptor (.sw) y luna */
-.theme-toggle { margin-left: auto; display: flex; align-items: center; gap: 8px; color: var(--text-low); cursor: pointer; }
-.theme-toggle:hover { color: var(--text); }
-.theme-toggle svg { width: 15px; height: 15px; }
+.side-open .dir-body { opacity: 1; filter: none; visibility: visible; transition-delay: .15s; }
+@media (prefers-reduced-motion: reduce) { .settings-links, .settings-main, .dir-head, .dir-list, .dir-body { transition: none; } }
+.settings-links[hidden] { display: none; }
+.dir-head { flex: none; display: flex; align-items: center; justify-content: space-between; min-height: 28px; padding: 16px 12px 8px 16px; }
+.dir-refresh { display: flex; align-items: center; justify-content: center; padding: 0; }
+.dir-refresh svg { width: 15px; height: 15px; }
+.dir-refresh.loading svg { animation: spin .8s linear infinite; }
+.settings-links h3 { margin: 0; font-size: 13px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--text); }
+.dir-list { flex: 1; min-height: 0; overflow-y: auto; list-style: none; margin: 0; padding: 0 8px 8px; }
+.dir-item { display: flex; align-items: center; }
+.dir-act { flex: none; display: grid; place-items: center; padding: 0; }
+.dir-add { width: 100%; margin-bottom: 8px; padding: 14px 8px; border: 1px dashed var(--border); border-radius: 0; background: transparent; color: var(--text-low); font-size: 13px; cursor: pointer; }
+.dir-add span { font-size: 16px; line-height: 1; }
+.dir-add:hover { border-color: var(--accent); color: var(--text); }
+.dir-row { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 8px; border: 0; border-radius: 0; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.dir-row:hover { background: var(--border); }
+.dir-img { flex: none; width: 36px; height: 36px; display: grid; place-items: center; object-fit: cover; border: 1px solid var(--border); background: var(--surface); font-size: 14px; font-weight: 600; color: var(--text); }
+.dir-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.dir-title, .dir-project { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dir-title { font-size: 13px; font-weight: 600; }
+.dir-project { font-size: 11.5px; color: var(--text-low); }
+.dir-empty { padding: 8px; font-size: 12.5px; color: var(--text-low); }
+
+/* ── Configuración: una caja por sección, en el centro ─────── */
+.settings-boxes { flex: 1; display: flex; flex-wrap: wrap; align-items: center; align-content: center; justify-content: center; gap: 24px; }
+.settings-boxes[hidden] { display: none; }
+.settings-box {
+  width: 200px; height: 160px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+  border: 1px solid var(--border); border-radius: 0; background: transparent; color: var(--text);
+  font-size: 13px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; cursor: pointer;
+  transition: border-color .15s ease;
+}
+.settings-box:hover { border-color: var(--accent); }
+.settings-box[hidden] { display: none; }
+.settings-box svg { width: 32px; height: 32px; }
+.settings-boxes, .settings-pane { animation: settings-in .25s ease; }
+@keyframes settings-in { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .settings-boxes, .settings-pane { animation: none; } }
+.settings-back { display: flex; align-items: center; justify-content: center; padding: 0; }
+.settings-back[hidden] { display: none; }
+.settings-back svg { width: 16px; height: 16px; }
+/* Claro / Oscuro, junto a la X: sol o luna */
+.theme-toggle { display: flex; align-items: center; justify-content: center; padding: 0; }
+.theme-toggle svg { width: 16px; height: 16px; }
+.theme-toggle[data-dark="true"] .theme-moon, .theme-toggle:not([data-dark="true"]) .theme-sun { display: none; }
 .settings-pane[hidden] { display: none; }
-/* cada pestaña de Configuración llena el alto del modal */
+/* cada sección de Configuración llena el alto del modal */
 .settings-pane { flex: 1; }
 
 
-/* ── Configuración: el cuerpo, con scroll, bajo las pestañas ─────── */
-.settings-layout { flex: 1; display: flex; min-height: 0; }
+/* ── Configuración: el cuerpo, con scroll ─────── */
+.settings-layout { position: relative; flex: 1; display: flex; min-height: 0; }
 .settings-main { flex: 1; min-width: 0; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; }
 .settings-foot {
   flex-shrink: 0; padding: 9px 20px;
@@ -375,7 +453,6 @@ body { display: flex; flex-direction: column; }
   display: flex; align-items: center; justify-content: flex-end; gap: 12px;
 }
 .settings-session { margin-right: auto; display: flex; align-items: center; gap: 12px; font-size: 12.5px; color: var(--text-low); }
-.settings-session #session-who b { color: var(--text); font-weight: 600; }
 .settings-session .lab-btn { height: 28px; padding: 0 12px; font-size: 12.5px; }
 .settings-version { font-size: 11px; color: var(--text-low); font-family: var(--font-mono); }
 
@@ -688,89 +765,11 @@ body.locked .app { visibility: hidden; }
 .dialog .modal-body .dialog-note { margin: 12px 0 0; font-size: 12px; color: var(--text-low); }
 .dialog .modal-body .link-form-err { margin-top: 12px; }
 
-/* Modal de elección de modo de acceso (red local / público). Se abre DESDE el
-   modal de configuración, que también es un .modal-overlay (z-index 40) y va
-   después en el DOM: sin un plano propio quedaba pintado por debajo y las dos
-   opciones eran inalcanzables. */
-
-
-
-/* ── Enlaces rápidos ─────────────────────────────────────────────── */
-#view-links { padding: 26px 30px; overflow-y: auto; }
-.links-head { display: flex; align-items: center; gap: 16px; }
-.links-title { flex: 1; }
-.links-head h2 { margin: 0; font-size: 19px; font-weight: 650; color: var(--text); }
-
-.links-filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0 18px; }
-.links-chip {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 5px 12px; border-radius: 0;
-  border: 1px solid var(--border); background: transparent;
-  color: var(--text-low); font-size: 12.5px; font-family: var(--font-ui);
-  cursor: pointer; transition: border-color 0.15s ease, color 0.15s ease;
-}
-.links-chip:hover { border-color: var(--accent); color: var(--text); }
-.links-chip.active { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
-.links-chip-n { font-size: 10.5px; opacity: 0.7; }
-
-.links-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
-.links-empty { grid-column: 1 / -1; margin: 30px 0; font-size: 13px; color: var(--text-low); text-align: center; }
-
-/* Card vertical: el título manda, la imagen es la protagonista. */
-.link-card {
-  position: relative; display: flex; flex-direction: column; gap: 10px;
-  padding: 14px; text-align: left;
-  border: 1px solid var(--border); border-radius: 0;
-  background: var(--surface); cursor: pointer; font-family: var(--font-ui);
-  transition: border-color 0.15s ease, transform 0.1s ease, background 0.15s ease;
-}
-.link-card:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
-.link-card:active { transform: scale(0.99); }
-/* card de crear: la misma «+» punteada que en las skills */
-.link-card.new {
-  min-height: 156px;
-  align-items: center; justify-content: center;
-  border-style: dashed; background: transparent;
-  color: var(--text-low); font-size: 14px; gap: 8px;
-}
-.link-card.new:hover { color: var(--accent); border-color: var(--accent); background: transparent; }
-.link-card.new .plus { font-size: 26px; line-height: 1; }
-
-.link-card-title {
-  font-size: 14px; font-weight: 600; color: var(--text);
-  padding-right: 52px; /* hueco para los iconos de acción */
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.link-card-img {
-  display: block; width: 100%; height: 132px;
-  object-fit: cover; background: var(--bg); border-radius: 0;
-}
-.link-card-img.placeholder {
-  display: flex; align-items: center; justify-content: center;
-  font-size: 40px; font-weight: 650; color: var(--accent);
-  border: 1px solid var(--border);
-}
-.link-card-tag {
-  font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.05em;
-  color: var(--text-low); opacity: 0.65;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.link-card-actions {
-  position: absolute; top: 10px; right: 10px;
-  display: flex; gap: 2px; opacity: 0; transition: opacity 0.15s ease;
-}
-.link-card:hover .link-card-actions { opacity: 1; }
-.link-card-act {
-  display: flex; align-items: center; justify-content: center;
-  width: 24px; height: 24px; border-radius: 0;
-  background: var(--surface);
-  color: var(--text-low); transition: background 0.15s ease, color 0.15s ease;
-}
-.link-card-act:hover { background: var(--border); color: var(--text); }
-
-/* Modales: mismo patrón que el resto de la app (.modal-overlay > .modal). */
+/* ── Enlaces: las notas y el formulario ── */
+/* Las notas salen sobre Configuración, desde donde se abren, y los diálogos sobre cualquiera */
+#link-notes-modal { z-index: 45; }
 .link-modal { width: min(720px, calc(100vw - 48px)); max-height: calc(100vh - 120px); }
-/* las notas son de lectura: se centran en la pantalla en vez de colgar de arriba */
+#dialog-overlay { z-index: 50; }
 #link-notes-modal { align-items: center; padding-top: 0; }
 .link-notes-body {
   padding: 20px 24px 26px; overflow-y: auto;
@@ -811,7 +810,7 @@ body.locked .app { visibility: hidden; }
 
 
 
-/* interruptor de la app (tema, vistas…) */
+/* interruptor (Mantener la sesión, al entrar) */
 .sw { flex: none; position: relative; width: 30px; height: 16px; padding: 0; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); cursor: pointer; transition: background .12s ease, border-color .12s ease; }
 .sw .knob { position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%; background: var(--text-low); transition: left .12s ease, background .12s ease; }
 .sw[aria-checked="true"] { background: var(--accent); border-color: var(--accent); }
