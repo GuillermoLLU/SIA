@@ -43,11 +43,15 @@
    (ui/net-warning.css) ocupa el sitio del formulario, en la misma columna. */
 .login-stage.warn .login-open { opacity: 0; transform: scale(0.7); pointer-events: none; }
 .login-stage.warn .login-warn { opacity: 1; transform: none; }
+/* La ayuda de «Modo Dev», al pasar el ratón o con el teclado */
+.login-tip { position: relative; display: inline-flex; color: var(--text-low); cursor: help; outline: none; }
+.login-tip [role="tooltip"] { position: absolute; top: calc(100% + 8px); left: 50%; z-index: 2; width: 280px; padding: 10px 12px; font-size: 12.5px; font-weight: 400; line-height: 1.45; text-align: left; color: var(--text); background: var(--surface); border: 1px solid var(--border); box-shadow: 0 8px 24px rgba(0, 0, 0, .18); transform: translateX(-50%); visibility: hidden; opacity: 0; transition: opacity .12s; }
+.login-tip:hover [role="tooltip"], .login-tip:focus-within [role="tooltip"] { visibility: visible; opacity: 1; }
 /* «Modo Dev» (solo en desarrollo): en la esquina, fuera de la vista del usuario
    final; aparece con el aviso y, una vez activo, se queda como indicador */
-.info-tip.login-dev-tip { position: fixed; top: 20px; right: 20px; cursor: default; visibility: hidden; opacity: 0; transition: opacity 0.2s ease, visibility 0.2s; }
-.info-tip.login-dev-tip.shown { visibility: visible; opacity: 1; }
-.info-tip.login-dev-tip [role="tooltip"] { left: auto; right: 0; transform: none; }
+.login-dev-tip { position: fixed; top: 20px; right: 20px; cursor: default; visibility: hidden; opacity: 0; transition: opacity 0.2s ease, visibility 0.2s; }
+.login-dev-tip.shown { visibility: visible; opacity: 1; }
+.login-dev-tip [role="tooltip"] { left: auto; right: 0; transform: none; }
 .login-dev { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 16px; font: inherit; font-size: 13.5px; font-weight: 600; color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--surface)); border: 1px dashed color-mix(in srgb, var(--accent) 60%, transparent); box-shadow: 0 2px 8px rgba(0, 0, 0, .08); cursor: pointer; transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease; }
 .login-dev::before { content: "</>"; font-family: var(--font-mono, monospace); font-size: 12.5px; }
 .login-dev:hover, .login-dev:focus-visible { background: color-mix(in srgb, var(--accent) 14%, var(--surface)); border: 1px solid var(--accent); outline: none; }

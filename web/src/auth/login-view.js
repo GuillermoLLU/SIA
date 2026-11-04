@@ -26,7 +26,7 @@ const markup = (logoHtml, lastEmail) => `<div class="login-stage">
 </form>
 <div class="lock-card login-card login-warn net-warn" role="alert" inert></div>
 </div>
-${DEV ? `<span class="info-tip login-dev-tip" inert><button type="button" class="login-dev">Modo Dev</button><span role="tooltip">${DEV_TIP}</span></span>` : ''}`;
+${DEV ? `<span class="login-tip login-dev-tip" inert><button type="button" class="login-dev">Modo Dev</button><span role="tooltip">${DEV_TIP}</span></span>` : ''}`;
 
 const DEV_TIP = 'Solo en desarrollo: pasa al inicio de sesión y al resto de SIA aunque falte esto, para seguir trabajando. Lo que dependa de la red del cliente no responderá.';
 
