@@ -124,14 +124,14 @@
 
 /* pantalla de trabajo: cabecera con acciones; a la izquierda, pestañas
    (análisis, detalle, relacionadas) y a la derecha el chat, a la misma altura */
-.iss-back { align-self: flex-start; padding: 0; font: inherit; font-size: 13px; color: var(--accent); background: none; border: 0; cursor: pointer; }
-.iss-work-h { display: flex; flex-direction: column; gap: 10px; }
-.iss-title-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 24px; }
-.iss-title-row > div:first-child { flex: 1; min-width: 280px; }
-.iss-title-row h2 { margin: 0 0 6px; font-size: 22px; font-weight: 650; line-height: 1.3; overflow-wrap: anywhere; }
-.iss-state { margin: 0; font-size: 13px; color: var(--text-low); }
+/* El título, centrado en la caja: las dos columnas de los lados miden lo mismo mientras el título quepa */
+.iss-work-h { display: grid; grid-template-columns: minmax(max-content, 1fr) minmax(0, auto) minmax(max-content, 1fr); align-items: center; gap: 12px 16px; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); }
+.iss-work-h h2 { min-width: 0; margin: 0; font-size: 18px; font-weight: 650; line-height: 1.3; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.iss-work-h > .lab-btn { justify-self: start; }
+.iss-work-h .iss-actions { justify-self: end; }
+@media (max-width: 800px) { .iss-work-h { grid-template-columns: minmax(0, 1fr); } .iss-work-h .iss-actions { justify-self: start; } }
 .iss-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.iss-work { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(360px, 1fr); gap: 20px; height: calc(100vh - 185px); min-height: 480px; }
+.iss-work { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(360px, 1fr); gap: 20px; height: calc(100vh - 150px); min-height: 480px; }
 .iss-work-main { gap: 0; padding: 0; min-height: 0; }
 .iss-wtabs { display: flex; gap: 24px; padding: 0 22px; border-bottom: 1px solid var(--border); }
 .iss-wtabs button { display: inline-flex; gap: 8px; align-items: baseline; padding: 14px 0 12px; margin-bottom: -1px; font: inherit; font-size: 13px; color: var(--text-low); background: none; border: 0; border-bottom: 2px solid transparent; cursor: pointer; }
@@ -334,7 +334,7 @@
 .iss-esc-check li.todo > span { color: var(--text-low); }
 .iss-esc-check i { font-style: normal; color: var(--text-low); }
 @media (max-width: 560px) { .iss-esc-mode { grid-template-columns: 1fr; } }
-.iss-take:focus-visible, .iss-item:focus-visible, .iss-back:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.iss-take:focus-visible, .iss-item:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 /* la issue en el diálogo de confirmación (devolver a la cola) */
 .iss-dlg-issue { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; background: color-mix(in srgb, var(--bg) 60%, var(--surface)); border: 1px solid var(--border); }
 .iss-dlg-code { font-family: var(--font-mono); font-size: 11.5px; color: var(--text-low); letter-spacing: .02em; }
@@ -357,11 +357,28 @@ body.nav-first .iss-enter * { animation-play-state: paused; }
 .iss-enter .iss-progress i { transform-origin: left; animation: iss-fill 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) 300ms both; }
 @keyframes iss-rise { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
 @keyframes iss-fill { from { transform: scaleX(0); } to { transform: none; } }
+/* Una issue al abrirla: sus cajas, de arriba abajo; dentro de cada una, su contenido
+   asoma justo después (los botones de la cabecera, de izquierda a derecha). */
+.iss-opening :where(.iss-work-h, .iss-work-main, .iss-keys, .iss-chat) { animation: ai-in 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.iss-opening :where(.iss-work-h > .lab-btn, .iss-work-h h2, .iss-actions > *, .iss-wtabs, .iss-wpanel, .iss-keys > *) { animation: iss-show 0.4s ease both; }
+.iss-opening .iss-work-h > :is(.lab-btn, h2) { animation-delay: 60ms; }
+.iss-opening .iss-actions > :nth-child(1) { animation-delay: 60ms; }
+.iss-opening .iss-actions > :nth-child(2) { animation-delay: 120ms; }
+.iss-opening .iss-actions > :nth-child(3) { animation-delay: 160ms; }
+.iss-opening .iss-actions > :nth-child(4) { animation-delay: 200ms; }
+.iss-opening .iss-work-main { animation-delay: 160ms; }
+.iss-opening .iss-wtabs { animation-delay: 260ms; }
+.iss-opening .iss-wpanel { animation-delay: 320ms; }
+.iss-opening .iss-keys { animation-delay: 240ms; }
+.iss-opening .iss-keys > * { animation-delay: 340ms; }
+.iss-opening .iss-keys > :nth-child(n+5) { animation-delay: 400ms; }
+.iss-opening .iss-chat { animation-delay: 320ms; }
+@keyframes iss-show { from { opacity: 0; } }
 body.top-nav .iss-top { display: none; }
 body.top-nav .iss-page { padding-top: calc(var(--topbar-h) + 24px); padding-bottom: 24px; } /* la barra de arriba y su aire */
-body.top-nav .iss-work { height: calc(100vh - 248px); }
+body.top-nav .iss-work { height: calc(100vh - 214px); }
 
-@media (prefers-reduced-motion: reduce) { .iss-enter *, .iss-enter *::before { animation: none !important; } }
+@media (prefers-reduced-motion: reduce) { .iss-enter *, .iss-enter *::before, .iss-opening * { animation: none !important; } }
 
 .iss-dlg-text { font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
 .iss-dlg-p { margin: 12px 0 0; color: var(--text-low); }

@@ -5,7 +5,7 @@
 // asistida por IA (issue-chat.js), que vive mientras la issue esté abierta.
 // Las parecidas, por conectar: solo su hueco.
 import { esc } from '../ui/html.js';
-import { STATUS_ES, REASON_ES, SEVERITY_ES, when, whenIso, whenLabel, newestFirst, age } from './format.js';
+import { STATUS_ES, SEVERITY_ES, when, whenIso, whenLabel, newestFirst, age } from './format.js';
 import { item } from './parts.js';
 
 const WORK_TABS = [
@@ -91,18 +91,13 @@ export const releaseDialogHtml = (id, text) => `<div class="iss-dlg-issue"><span
 
 export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, meId = null, tab = 'detail' }) => `<div class="iss-page iss-work-page">
   <header class="iss-work-h">
-    <button class="iss-back" data-back>← Mi mesa</button>
-    <div class="iss-title-row">
-      <div>
-        <h2>${esc(i.text)}</h2>
-        <p class="iss-state">${esc(STATUS_ES[i.status] || i.status)}${i.reason ? ` · ${esc(REASON_ES[i.reason] || i.reason)}` : ''}</p>
-      </div>
-      <div class="iss-actions">
-        <button class="lab-btn primary" data-act="resolve">Resolver</button>
-        <button class="lab-btn" data-act="escalate">Escalar</button>
-        <button class="lab-btn" data-act="transfer">Traspasar</button>
-        ${mine ? '<button class="lab-btn" data-release>Devolver a la cola</button>' : ''}
-      </div>
+    <button class="lab-btn primary" data-back>Volver al panel</button>
+    <h2 title="${esc(i.text)}">${esc(i.text)}</h2>
+    <div class="iss-actions">
+      <button class="lab-btn primary" data-act="resolve">Resolver</button>
+      <button class="lab-btn" data-act="escalate">Escalar</button>
+      <button class="lab-btn" data-act="transfer">Traspasar</button>
+      ${mine ? '<button class="lab-btn" data-release>Devolver a la cola</button>' : ''}
     </div>
   </header>
 

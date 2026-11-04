@@ -19,6 +19,7 @@ const GOAL = { min: 15, max: 20 }; // resueltas por turno, lo que dice el equipo
 const REFRESH_MS = 15000;
 
 const DESK_ENTER_MS = 1800; // lo que dura la cascada de entrada, con la espera a la barra (issues.css, app/intro.js)
+const ISSUE_ENTER_MS = 1000; // lo que dura la entrada de una issue (issues.css)
 
 // openChat(host, issue) → { dispose }: el chat de la issue (lo pone main.js).
 // dialogs: los diálogos de la app (ui/dialog.js), para confirmar antes de devolver.
@@ -110,6 +111,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     closeAction();
     now = new Date(); // el histórico y las edades, a la hora de abrirla
     root.innerHTML = workScreen({ issue: i, sameCenter, timeline, now, mine, meId: me?.id, tab: workTab });
+    animateEnter(root.querySelector('.iss-work-page'), 'iss-opening', ISSUE_ENTER_MS);
     if (workTab === 'trail') scrollTrailToStart();
     chat = openChat?.(root.querySelector('.iss-chat-body'), i) || null;
     root.scrollTop = 0;
