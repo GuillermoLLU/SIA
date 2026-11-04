@@ -16,8 +16,6 @@ const { helpUrl, required } = parseCertsConfig(file);
 // Cadena NSIS: $ y " se escapan; el | separa nombres, así que no puede ir dentro de uno.
 const nsis = (s) => s.replace(/\$/g, '$$$$').replace(/"/g, '$\\"');
 const names = required.filter((n) => !n.includes('|') && !n.includes("'"));
-// SIA_SIN_CERTS=1 (pruebas): pide además uno que no existe, para ver el aviso en un equipo que sí los tiene.
-if (process.env.SIA_SIN_CERTS === '1') names.push('SIA prueba (no existe)');
 
 const out = [
   '; Generado por scripts/installer-config.mjs desde sia-instance.json: no editar.',

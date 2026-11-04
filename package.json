@@ -2,12 +2,12 @@
   "name": "sia",
   "productName": "SIA",
   "version": "1.1.0",
-  "description": "SIA: sistema de uso de IA para equipos — terminal de IA + conocimiento + skills",
+  "description": "Sistema de IA para equipos: terminal, conocimiento y skills",
+  "author": "SIA",
   "type": "module",
   "main": "electron/main.js",
   "scripts": {
     "dev": "node dev.mjs",
-    "dev:vpn": "cross-env NODE_USE_SYSTEM_CA=1 node dev.mjs",
     "test": "node --test 'server/**/*.test.js' 'web/src/**/*.test.js'",
     "test:rls": "scripts/rls-tests/run.sh",
     "test:platform": "scripts/platform-tests/run.sh",
@@ -27,13 +27,15 @@
     "zod": "^3.23.0"
   },
   "devDependencies": {
-    "cross-env": "^10.1.0",
     "electron": "^37.10.3",
     "electron-builder": "^25.0.0"
   },
   "build": {
     "appId": "com.itx.sia",
     "productName": "SIA",
+    "extraMetadata": {
+      "description": "SIA"
+    },
     "asar": false,
     "publish": null,
     "npmRebuild": false,

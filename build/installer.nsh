@@ -15,6 +15,7 @@
 
 Var SiaStatus
 Var SiaMissing
+Var SiaState
 Var SiaHelp
 Var SiaGuide
 Var SiaRetry
@@ -25,45 +26,79 @@ Var SiaFont
   Page custom SiaChecksShow SiaChecksLeave
 !macroend
 
-; $SiaMissing ← los que faltan o han caducado ("" si están todos). Si PowerShell
-; falla no se sabe: se deja vacío y no se bloquea a nadie.
+; $SiaState ← ok | missing | unknown, y $SiaMissing ← los que faltan o han caducado.
+; Lee los almacenes de Windows con .NET (sin la unidad Cert:, que no existe si el
+; instalador se abre desde PowerShell 7) y busca la respuesta SIA-… en toda la
+; salida, que puede traer avisos delante. Si no hay respuesta, no se sabe: unknown,
+; y la página avisa en lugar de dar el check.
 Function SiaCheckCerts
   StrCpy $SiaMissing ""
+  StrCpy $SiaState "ok"
   StrCmp "${SIA_CERTS_REQUIRED}" "" done
-  nsExec::ExecToStack `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$$ProgressPreference='SilentlyContinue'; $$m=@(); foreach($$n in '${SIA_CERTS_REQUIRED}'.Split('|')){ $$c = Get-ChildItem Cert:\CurrentUser\Root,Cert:\LocalMachine\Root,Cert:\CurrentUser\CA,Cert:\LocalMachine\CA | Where-Object { $$_.Subject -match ('(^|, )CN=' + [regex]::Escape($$n) + '(,|$$)') -and $$_.NotAfter -gt (Get-Date) }; if(-not $$c){ $$m += $$n } }; if($$m.Count){ 'FALTAN:' + ($$m -join ', ') } else { 'OK' }"`
+  StrCpy $SiaState "unknown"
+  nsExec::ExecToStack `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "try { $$all=@(); foreach($$l in 'CurrentUser','LocalMachine'){ foreach($$n in 'Root','CertificateAuthority'){ $$st=New-Object System.Security.Cryptography.X509Certificates.X509Store($$n,$$l); $$st.Open('ReadOnly'); $$all+=$$st.Certificates; $$st.Close() } }; $$now=[DateTime]::Now; $$m=@(); foreach($$n in '${SIA_CERTS_REQUIRED}'.Split('|')){ $$ok=$$false; foreach($$c in $$all){ if($$c.NotAfter -gt $$now -and $$c.Subject -match ('(^|, )CN=' + [regex]::Escape($$n) + '(,|$$)')){ $$ok=$$true } }; if(-not $$ok){ $$m+=$$n } }; if($$m.Count){ 'SIA-FALTAN:' + ($$m -join ', ') } else { 'SIA-OK' } } catch { 'SIA-ERROR' }"`
   Pop $0
   Pop $1
-  ${If} $0 != 0
+  ${If} $0 == "error"
+  ${OrIf} $0 == "timeout"
     Goto done
   ${EndIf}
-  StrCpy $2 $1 7
-  ${If} $2 == "FALTAN:"
-    StrCpy $SiaMissing $1 "" 7
-    ; sin el salto de línea final
-    ${Do}
-      StrCpy $3 $SiaMissing 1 -1
-      ${If} $3 != "$\n"
-      ${AndIf} $3 != "$\r"
-        ${ExitDo}
-      ${EndIf}
-      StrCpy $SiaMissing $SiaMissing -1
-    ${Loop}
+  ; la respuesta: desde «SIA-» hasta el final de su línea
+  StrLen $4 $1
+  StrCpy $3 0
+  ${Do}
+    ${If} $3 >= $4
+      Goto done
+    ${EndIf}
+    StrCpy $2 $1 4 $3
+    ${If} $2 == "SIA-"
+      ${ExitDo}
+    ${EndIf}
+    IntOp $3 $3 + 1
+  ${Loop}
+  StrCpy $1 $1 "" $3
+  StrLen $4 $1
+  StrCpy $3 0
+  ${Do}
+    ${If} $3 >= $4
+      ${ExitDo}
+    ${EndIf}
+    StrCpy $2 $1 1 $3
+    ${If} $2 == "$\r"
+    ${OrIf} $2 == "$\n"
+      ${ExitDo}
+    ${EndIf}
+    IntOp $3 $3 + 1
+  ${Loop}
+  StrCpy $1 $1 $3
+  ${If} $1 == "SIA-OK"
+    StrCpy $SiaState "ok"
+  ${Else}
+    StrCpy $2 $1 11
+    ${If} $2 == "SIA-FALTAN:"
+      StrCpy $SiaMissing $1 "" 11
+      StrCpy $SiaState "missing"
+    ${EndIf}
   ${EndIf}
   done:
 FunctionEnd
 
-; Todo bien: solo el check. Falta algo: el aviso y, debajo, el porqué, la guía
-; y «Volver a comprobar».
+; Todo bien: solo el check. Falta algo (o no se sabe): el aviso y, debajo, el
+; porqué, la guía y «Volver a comprobar».
 Function SiaRefresh
   Call SiaCheckCerts
-  ${If} $SiaMissing == ""
+  ${If} $SiaState == "ok"
     ${NSD_SetText} $SiaStatus "✔  Certificados del cliente instalados."
     SetCtlColors $SiaStatus 1E8E3E transparent
     ShowWindow $SiaHelp ${SW_HIDE}
     ShowWindow $SiaGuide ${SW_HIDE}
     ShowWindow $SiaRetry ${SW_HIDE}
   ${Else}
-    ${NSD_SetText} $SiaStatus "⚠  Faltan certificados del cliente: $SiaMissing."
+    ${If} $SiaState == "missing"
+      ${NSD_SetText} $SiaStatus "⚠  Faltan certificados del cliente: $SiaMissing."
+    ${Else}
+      ${NSD_SetText} $SiaStatus "⚠  No se han podido comprobar los certificados del cliente."
+    ${EndIf}
     SetCtlColors $SiaStatus B26A00 transparent
     ShowWindow $SiaHelp ${SW_SHOW}
     ShowWindow $SiaGuide ${SW_SHOW}
@@ -113,8 +148,11 @@ FunctionEnd
 
 ; Siguiente con el aviso: se advierte y, si se acepta, la instalación sigue.
 Function SiaChecksLeave
-  ${If} $SiaMissing != ""
+  ${If} $SiaState == "missing"
     MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "Faltan certificados del cliente: $SiaMissing.$\r$\n$\r$\nLa red del cliente verifica las conexiones con sus propios certificados y este equipo aún no los tiene. SIA se instalará igualmente, pero con la VPN no podrás iniciar sesión hasta instalarlos.$\r$\n$\r$\nPulsa Aceptar para continuar con la instalación." IDOK +2
+    Abort
+  ${ElseIf} $SiaState == "unknown"
+    MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "No se han podido comprobar los certificados del cliente.$\r$\n$\r$\nLa red del cliente verifica las conexiones con sus propios certificados. Si este equipo aún no los tiene, SIA se instalará igualmente, pero con la VPN no podrás iniciar sesión hasta instalarlos.$\r$\n$\r$\nPulsa Aceptar para continuar con la instalación." IDOK +2
     Abort
   ${EndIf}
 FunctionEnd

@@ -48,11 +48,10 @@ sitios:
   comprobar de verdad, relee los certificados del sistema y deja pasar al
   formulario sin reiniciar SIA.
 
-En desarrollo, el aviso trae «Modo Dev» (arriba a la derecha): pasa al
-formulario aunque falte algo, para seguir trabajando. Para probar el aviso:
-`SIA_SIN_CERTS=1` (como un equipo sin los certificados) o `SIA_SIN_VPN=1`
-(como uno fuera de la red del cliente), o los dos a la vez. Con un Node anterior a 22.19, arranca
-con `npm run dev:vpn`, que es `node dev.mjs` con `NODE_USE_SYSTEM_CA=1`.
+En desarrollo, el aviso trae «Modo Dev» (debajo de «Reintentar»): pasa al
+formulario aunque falte algo, para seguir trabajando; en la app instalada no
+existe. Para ver el aviso, desconecta la VPN o quita los certificados del
+sistema.
 
 Métricas trae las incidencias de Remedy de Snowflake: pon tu usuario en
 Configuración → Credenciales → Snowflake. La primera vez se abre el navegador
@@ -116,7 +115,6 @@ Todo esto, carpeta a carpeta y con cómo se comunican, en
 | Comando | Qué hace |
 |---|---|
 | `node dev.mjs` | Arranca bridge y web en desarrollo |
-| `npm run dev:vpn` | Lo mismo con los certificados del sistema (detrás de la VPN) |
 | `npm test` | Las pruebas de dominio (segundos) |
 | `cd web && npx vite build` | Compila la web |
 | `npm run test:platform` / `test:rls` | Pruebas de la base en Docker (cuando se toca SQL) |

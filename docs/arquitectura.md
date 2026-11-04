@@ -46,7 +46,7 @@ las rutas de cada slice.
 | Carpeta | Qué es |
 |---|---|
 | `platform/` | Cliente de la base de la instancia y `sia-instance.json` |
-| `auth/` | Sesiones (en memoria), inicio de sesión, contraseña y qué vista exige cada ruta |
+| `auth/` | Sesiones (en memoria), inicio de sesión, contraseña y qué vista exige cada ruta; la comprobación al pulsar la S (`preflight.js`: certificados del cliente y VPN) |
 | `users/`, `knowledge/` | Personas y roles; conocimiento asignado y claves de poder de cada persona |
 | `base/` | Cliente de la base de conocimiento, permisos y el esquema SQL |
 | `projects/` | Administración: proyectos y sus entradas |
@@ -56,7 +56,7 @@ las rutas de cada slice.
 | `launchers/`, `workspace/` | Los CLIs (Claude, Copilot, Codex), sus argumentos y su MCP por sesión; los directorios de modo y skills por base |
 | `remote/` | Acceso desde el móvil: emparejar por QR + PIN, candado, túnel de Cloudflare |
 | `terminal/` | Las sesiones de chat y el protocolo WebSocket |
-| `updates/`, `shared/` | `/api/version`; lo común (HTTP, CSV, ids, puertos, cabeceras, permisos, el troceo de entradas de Remedy) |
+| `updates/`, `shared/` | `/api/version`; lo común (HTTP, CSV, ids, puertos, cabeceras, permisos, el troceo de entradas de Remedy, los certificados del sistema y la VPN del cliente) |
 
 Cosas que conviene saber:
 

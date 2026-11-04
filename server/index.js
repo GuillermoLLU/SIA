@@ -75,10 +75,7 @@ const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url))); // sia/
 // → { ws, api }: los puertos elegidos, para que la app se los pase a la UI.
 export const startBridge = async ({ env = process.env } = {}) => {
   // antes de cualquier conexión: detrás de la VPN, la base de la instancia solo se verifica con los del sistema
-  // SIA_SIN_CERTS=1 / SIA_SIN_VPN=1 (pruebas): como un equipo sin los certificados del cliente o fuera de su red
-  const noCerts = env.SIA_SIN_CERTS === '1';
-  const noVpn = env.SIA_SIN_VPN === '1';
-  if (!noCerts && !trustSystemCerts(tls)) console.log('[sia] sin los certificados del sistema: detrás de un proxy corporativo, arranca con NODE_USE_SYSTEM_CA=1');
+  if (!trustSystemCerts(tls)) console.log('[sia] sin los certificados del sistema: detrás de la VPN hace falta Node 22.19 o superior');
   const certsCfg = loadCertsConfig(ROOT);
   const vpnCfg = loadVpnConfig(ROOT);
   const version = (() => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version; } catch { return '0.0.0'; } })();
@@ -114,8 +111,8 @@ export const startBridge = async ({ env = process.env } = {}) => {
   // la S y «Reintentar»: los certificados recién instalados valen sin reiniciar SIA
   const preflight = createPreflight({
     platform,
-    refreshCerts: async () => { if (!noCerts) trustSystemCerts(tls, await readSystemCerts(execFile, process.execPath).catch(() => undefined)); },
-    onVpn: async (host) => !noVpn && onVpn(lookup, host),
+    refreshCerts: async () => trustSystemCerts(tls, await readSystemCerts(execFile, process.execPath).catch(() => undefined)),
+    onVpn: (host) => onVpn(lookup, host),
     vpnHost: vpnCfg.probeHost,
   });
   const users = createUserAdmin({ platform });

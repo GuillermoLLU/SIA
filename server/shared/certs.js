@@ -2,7 +2,7 @@
 // que trae Node. Detrás de la VPN de Inditex el proxy firma la conexión con la base
 // de la instancia con un certificado corporativo que solo conoce el sistema: sin
 // esto, el inicio de sesión falla con SELF_SIGNED_CERT_IN_CHAIN, también en la app
-// instalada (que no arranca con NODE_USE_SYSTEM_CA). Fuera de la VPN no cambia nada.
+// instalada. Fuera de la VPN no cambia nada.
 // tls: el módulo node:tls (se inyecta). Devuelve si se aplicó (hace falta Node 22.19+).
 // system: los del sistema ya leídos (readSystemCerts, al reintentar); si no, los de este proceso.
 export const trustSystemCerts = (tls, system) => {
