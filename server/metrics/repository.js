@@ -54,7 +54,7 @@ export const createRepository = ({ DatabaseSync, file, fs, now = () => new Date(
   const begin = () => {
     db.exec('BEGIN');
     const counts = { inserted: 0, updated: 0, unchanged: 0, kept: 0 };
-    let ready = null;
+    let ready = null, removed = 0;
 
     const setup = (row) => {
       const names = Object.keys(row).filter((c) => c !== UPDATED);
@@ -90,6 +90,14 @@ export const createRepository = ({ DatabaseSync, file, fs, now = () => new Date(
 
     return {
       add,
+      // Una incidencia que ya no es del grupo (o nunca lo fue): se quita con sus cambios y notas; el informe no las usa.
+      remove: (id) => {
+        if (!id) return;
+        db.prepare('DELETE FROM audit_events WHERE incident = ?').run(id);
+        db.prepare('DELETE FROM worklog_entries WHERE incident = ?').run(id);
+        if (db.prepare(`DELETE FROM incidents WHERE ${ID} = ?`).run(id).changes) removed++;
+      },
+      get removed() { return removed; },
       commit: () => { db.exec('COMMIT'); return counts; },
       rollback: () => db.exec('ROLLBACK'),
     };
@@ -104,6 +112,13 @@ export const createRepository = ({ DatabaseSync, file, fs, now = () => new Date(
     }
   }
   const count = () => db.prepare('SELECT COUNT(*) AS n FROM incidents').get().n;
+
+  // Las que entran en el informe (dataset.js, add): del grupo y sin avisos automáticos (la etiqueta AUTOTEC).
+  // Aún sin esas columnas (nada cargado), 0.
+  const reportCount = (group) => {
+    if (!['ASSIGNEDGROUP', 'TAGS'].every((c) => columns().includes(c))) return 0;
+    return db.prepare(`SELECT COUNT(*) AS n FROM incidents WHERE TRIM(ASSIGNEDGROUP) = ? AND (TAGS IS NULL OR TAGS NOT LIKE '%AUTOTEC%')`).get(group).n;
+  };
 
   // El año de la primera incidencia abierta del grupo (null: no hay ninguna).
   const firstYear = (group) => {
@@ -121,5 +136,33 @@ export const createRepository = ({ DatabaseSync, file, fs, now = () => new Date(
     return { first: r.first ?? null, last: r.last ?? null };
   };
 
-  return { begin, incidents, count, firstYear, extremes, close: () => db.close() };
+  // Borra todas las incidencias con sus cambios y notas, y luego el WAL, para que el fichero no conserve lo borrado.
+  // Por lotes (cada uno, una transacción) para poder enseñar el avance: onBatch(borradas, total). Entre lotes cede el
+  // turno, para que siga atendiendo las consultas de avance.
+  const clearAll = async (onBatch = () => {}, batch = 2000) => {
+    const total = count();
+    const next = db.prepare(`SELECT ${ID} AS id FROM incidents ORDER BY ${ID} LIMIT ?`);
+    let done = 0;
+    for (;;) {
+      const ids = next.all(batch).map((r) => r.id);
+      if (!ids.length) break;
+      const marks = ids.map(() => '?').join(', ');
+      db.exec('BEGIN');
+      try {
+        db.prepare(`DELETE FROM audit_events WHERE incident IN (${marks})`).run(...ids);
+        db.prepare(`DELETE FROM worklog_entries WHERE incident IN (${marks})`).run(...ids);
+        db.prepare(`DELETE FROM incidents WHERE ${ID} IN (${marks})`).run(...ids);
+        db.exec('COMMIT');
+      } catch (e) {
+        db.exec('ROLLBACK');
+        throw e;
+      }
+      done += ids.length;
+      onBatch(done, total);
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+  };
+
+  return { begin, incidents, count, reportCount, firstYear, extremes, clearAll, close: () => db.close() };
 };

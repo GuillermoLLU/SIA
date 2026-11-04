@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Readable } from 'node:stream';
-import { createSnowflake, explain, ACCOUNT } from './snowflake.js';
+import { createSnowflake, explain } from './snowflake.js';
 import { SESSION } from './query.js';
 
 // Un snowflake-sdk falso: apunta lo que se le pide y devuelve las filas dadas.
@@ -32,12 +32,12 @@ const collect = async (it) => { const out = []; for await (const r of it) out.pu
 test('conecta por SSO con el usuario de la persona, fija el formato de fechas y trae las filas como texto', async () => {
   const { sdk, log } = fakeSdk({ rows: [{ INCIDENTNUMBER: 'INC1', NOTES: null }, { INCIDENTNUMBER: 'INC2', NOTES: 'x' }] });
   const sf = createSnowflake({ loadSdk: async () => sdk, config: () => CONFIG });
-  // sin valor, '' como en el CSV (si no, decide vería un cambio en cada vuelta)
+  // sin valor, '' (si no, decide vería un cambio en cada vuelta)
   let total = null, connected = 0;
   assert.deepEqual(await collect(sf.rows('SELECT 1', ['2026-01-01 00:00:00.000'], { onConnect: () => connected++, onTotal: (n) => { total = n; } })), [{ INCIDENTNUMBER: 'INC1', NOTES: '' }, { INCIDENTNUMBER: 'INC2', NOTES: 'x' }]);
   assert.equal(total, 2, 'avisa de cuántas filas van a llegar');
   assert.equal(connected, 1, 'y de cuándo, cargado el conector, empieza a conectar');
-  assert.deepEqual(log.opts, { account: ACCOUNT, username: CONFIG.user, role: CONFIG.role, warehouse: CONFIG.warehouse,
+  assert.deepEqual(log.opts, { account: 'INDITEX-INDITEX', username: CONFIG.user, role: CONFIG.role, warehouse: CONFIG.warehouse,
     authenticator: 'EXTERNALBROWSER', clientStoreTemporaryCredential: true, representNullAsStringNull: false });
   assert.deepEqual(log.sql, [...SESSION, 'SELECT 1']);
   assert.deepEqual([log.binds, log.fetchAsString], [['2026-01-01 00:00:00.000'], ['Date', 'Number']]);
@@ -80,4 +80,10 @@ test('explain: cada error en lo que se puede hacer', () => {
   assert.doesNotMatch(explain({ message: 'self-signed certificate in certificate chain' }, 'https://guia.example').message, /https:/);
   assert.match(explain({ message: 'self-signed certificate in certificate chain' }).message, /soporte/);
   assert.equal(explain({ code: '1', message: 'otro' }).message, 'Snowflake: otro');
+});
+
+test('si el conector no carga (falta el paquete en esta copia), 503 con lo que hay que hacer, no un error genérico', async () => {
+  const missing = Object.assign(new Error("Cannot find package 'snowflake-sdk'"), { code: 'ERR_MODULE_NOT_FOUND' });
+  const sf = createSnowflake({ loadSdk: async () => { throw missing; }, config: () => CONFIG });
+  await assert.rejects(collect(sf.rows('SELECT 1', [])), (e) => e.status === 503 && /npm install/.test(e.message));
 });

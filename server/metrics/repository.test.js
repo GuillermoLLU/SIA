@@ -134,3 +134,34 @@ test('firstYear: el año de la primera apertura del grupo', () => {
   assert.equal(repo.firstYear('AYS SOPORTE'), 2025);
   s.done();
 });
+
+test('reportCount: del grupo y sin avisos automáticos; 0 si aún no hay nada cargado', () => {
+  const s = scratch(), repo = s.open();
+  assert.equal(repo.reportCount('AYS SOPORTE'), 0);
+  run(repo, inc({ TAGS: '' }), inc({ INCIDENTNUMBER: 'INC2', TAGS: 'SISUINC' }), inc({ INCIDENTNUMBER: 'INC3', TAGS: 'AUTOTEC' }),
+    inc({ INCIDENTNUMBER: 'INC4', ASSIGNEDGROUP: 'OTRO GRUPO', TAGS: '' }));
+  assert.equal(repo.reportCount('AYS SOPORTE'), 2);
+  s.done();
+});
+
+test('remove: quita una incidencia dentro de una transacción, y cuenta lo quitado', () => {
+  const s = scratch(), repo = s.open();
+  run(repo, inc());
+  const tx = repo.begin();
+  tx.remove('INC1');
+  tx.remove('INC9');
+  assert.equal(tx.removed, 1, 'solo cuenta las que existían');
+  tx.commit();
+  assert.equal(repo.count(), 0);
+  s.done();
+});
+
+test('clearAll: lo borra por lotes, con el avance, y deja la base vacía', async () => {
+  const s = scratch(), repo = s.open();
+  run(repo, inc(), inc({ INCIDENTNUMBER: 'INC2' }), inc({ INCIDENTNUMBER: 'INC3' }));
+  const seen = [];
+  await repo.clearAll((done, total) => seen.push([done, total]), 2);
+  assert.deepEqual(seen, [[2, 3], [3, 3]]);
+  assert.equal(repo.count(), 0);
+  s.done();
+});

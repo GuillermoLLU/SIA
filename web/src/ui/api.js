@@ -4,12 +4,13 @@
 // los segundos de espera de un 429). onReply(status, data) ve cada respuesta
 // antes: es donde la app reacciona a una sesión caducada o al candado.
 export const createApi = (apiBase, headers, { onReply = () => {}, fetch = globalThis.fetch } = {}) =>
-  async (path, { method = 'GET', body, type = 'application/json', timeoutMs } = {}) => {
+  async (path, { method = 'GET', body, type = 'application/json', timeoutMs, signal } = {}) => {
     const r = await fetch(`${apiBase}${path}`, {
       method,
       headers: { ...(body === undefined ? {} : { 'Content-Type': type }), ...headers() },
       ...(body === undefined ? {} : { body: type === 'application/json' ? JSON.stringify(body) : body }),
       ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
+      ...(signal ? { signal } : {}),   // cancelar la petición en el navegador (p. ej. una subida de CSV)
     });
     const data = await r.json().catch(() => ({}));
     onReply(r.status, data);

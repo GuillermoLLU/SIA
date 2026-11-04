@@ -4,15 +4,15 @@
 // no se abre; SIA no guarda ninguna contraseña. Se conecta en cada
 // actualización y se cierra al acabar.
 //
-// loadSdk: () => el módulo snowflake-sdk (se carga al usarse: pesa y solo lo
-// necesita Métricas). Desde la 3.4 (la 2.x la rechaza la política de Inditex).
+// loadSdk: () => el módulo snowflake-sdk (SIA lo carga al arrancar, en segundo plano:
+// pesa y solo lo necesita Métricas). Desde la 3.4 (la 2.x la rechaza la política de Inditex).
 // config: () => { user, role, warehouse } (config/config.js: cleanSnowflake).
 // refreshCerts: relee los certificados del sistema (el mismo que «Reintentar» del
 // login), para que la siguiente actualización valga sin reiniciar SIA.
 import { SESSION } from './query.js';
 import { isCertError } from '../shared/certs.js';
 
-export const ACCOUNT = 'INDITEX-INDITEX';
+const ACCOUNT = 'INDITEX-INDITEX';
 
 const fail = (message, status = 503) => Object.assign(new Error(message), { status });
 
@@ -33,16 +33,29 @@ export const explain = (e, helpUrl = '') => {
   return fail(`Snowflake: ${e?.message || 'error desconocido'}`);
 };
 
+// Si el conector no carga (falta el paquete en esta copia de SIA), un mensaje que dice qué hacer, no un error genérico.
+export const connectorError = (e) => {
+  if (e?.code === 'ERR_MODULE_NOT_FOUND' || /snowflake-sdk/.test(e?.message ?? '')) {
+    return fail('Falta el conector de Snowflake en esta copia de SIA: en server/ ejecuta npm install y vuelve a arrancar SIA.');
+  }
+  return fail(`No se pudo cargar el conector de Snowflake: ${e?.message || 'error desconocido'}`);
+};
+
 export const createSnowflake = ({ loadSdk, config, certsHelpUrl = '', refreshCerts = async () => {} }) => {
   const run = (conn, sqlText) => new Promise((ok, ko) => conn.execute({ sqlText, complete: (e) => (e ? ko(e) : ok()) }));
 
   // Las filas de la consulta, una a una y como texto, con '' donde no hay valor:
-  // igual que las del CSV, para que decide (incidents.js) no vea cambios que no hay. onConnect(): el conector ya
+  // para que decide (incidents.js) no vea cambios que no hay. onConnect(): el conector ya
   // está cargado y empieza la conexión; onTotal(n): cuántas van a llegar, en cuanto Snowflake acaba la consulta.
   async function* rows(sql, binds, { onConnect = () => {}, onTotal = () => {} } = {}) {
     const { user, role, warehouse } = config();
     if (!user) throw fail('Configura tu usuario de Snowflake en Configuración → Snowflake.', 400);
-    const sdk = await loadSdk();
+    let sdk;
+    try {
+      sdk = await loadSdk();
+    } catch (e) {
+      throw connectorError(e);
+    }
     onConnect();
     sdk.configure({ logLevel: 'ERROR' });
     const conn = sdk.createConnection({ account: ACCOUNT, username: user, role, warehouse,
