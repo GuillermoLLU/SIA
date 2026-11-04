@@ -17,14 +17,15 @@ export const ACCOUNT = 'INDITEX-INDITEX';
 const fail = (message, status = 503) => Object.assign(new Error(message), { status });
 
 // Los errores de Snowflake, en lo que la persona puede hacer. helpUrl: la guía
-// oficial del cliente para instalar sus certificados (sia-instance.json).
+// oficial del cliente (sia-instance.json); no va en el texto, que sale en un aviso
+// breve: se remite a la del inicio de sesión, que la enlaza.
 export const explain = (e, helpUrl = '') => {
   const code = String(e?.code ?? '');
   if (code === '390202') return fail('Snowflake ha rechazado esta versión del conector: actualiza SIA.');
   if (code === '002003') return fail('Tu rol de Snowflake no puede leer las tablas de Remedy (SGA.SIGLO): revisa el rol en Configuración → Snowflake.');
   if (code === '000606') return fail('Snowflake no tiene warehouse para la consulta: revisa el warehouse en Configuración → Snowflake.');
   if (isCertError(e)) {
-    return fail(`Faltan los certificados del cliente en este equipo: ${helpUrl ? `instálalos con la guía de certificados (${helpUrl})` : 'pide a soporte la guía de certificados, instálalos'} y vuelve a actualizar. No hace falta reiniciar SIA.`);
+    return fail(`Faltan los certificados del cliente en este equipo: ${helpUrl ? 'instálalos con la guía de certificados (la del aviso de inicio de sesión)' : 'pide a soporte la guía de certificados, instálalos'} y vuelve a actualizar. No hace falta reiniciar SIA.`);
   }
   if (code === '401001' || /ENOTFOUND|ECONNREFUSED|ETIMEDOUT/i.test(`${code} ${e?.message}`)) {
     return fail('Sin conexión a la VPN del cliente: Snowflake solo responde dentro de su red. Conéctate a la VPN y vuelve a actualizar.');

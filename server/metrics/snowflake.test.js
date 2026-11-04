@@ -76,7 +76,8 @@ test('explain: cada error en lo que se puede hacer', () => {
   assert.match(explain({ code: '000606' }).message, /warehouse/);
   assert.match(explain({ code: 'ENOTFOUND', message: 'getaddrinfo' }).message, /VPN/);
   assert.match(explain({ code: 'ENOTFOUND', message: 'getaddrinfo' }).message, /red/);
-  assert.match(explain({ message: 'self-signed certificate in certificate chain' }, 'https://guia.example').message, /certificados del cliente.*https:\/\/guia\.example.*vuelve a actualizar\. No hace falta reiniciar SIA/);
+  assert.match(explain({ message: 'self-signed certificate in certificate chain' }, 'https://guia.example').message, /certificados del cliente.*inicio de sesión.*vuelve a actualizar\. No hace falta reiniciar SIA/);
+  assert.doesNotMatch(explain({ message: 'self-signed certificate in certificate chain' }, 'https://guia.example').message, /https:/);
   assert.match(explain({ message: 'self-signed certificate in certificate chain' }).message, /soporte/);
   assert.equal(explain({ code: '1', message: 'otro' }).message, 'Snowflake: otro');
 });
