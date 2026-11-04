@@ -6,7 +6,7 @@ export const createIssuesApi = (api) => {
   const id = (x) => encodeURIComponent(x);
   return {
     desk: () => api('/issues'),
-    next: (rule) => api('/issues/next', { method: 'POST', body: { rule } }),
+    next: () => api('/issues/next', { method: 'POST', body: {} }),
     teammates: async () => (await api('/issues/teammates')).teammates,
     get: (issueId) => api(`/issues/${id(issueId)}`),
     release: (issueId) => api(`/issues/${id(issueId)}/release`, { method: 'POST', body: {} }),

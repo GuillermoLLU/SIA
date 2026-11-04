@@ -49,7 +49,8 @@ test('una fecha ISO de la base sale en hora local con el formato de la mesa', ()
 
 test('la foto de Remedy: al día si es de hoy; si no, avisa', () => {
   const now = new Date('2026-10-29T12:00:00');
-  assert.deepEqual(snapshotInfo('2026-10-29T09:30:00', now), { text: `Datos de Remedy del ${when(stamp(new Date('2026-10-29T09:30:00')))}`, stale: false });
+  const date = when(stamp(new Date('2026-10-29T09:30:00')));
+  assert.deepEqual(snapshotInfo('2026-10-29T09:30:00', now), { date, text: `Datos de Remedy del ${date}`, stale: false });
   assert.equal(snapshotInfo('2026-10-21T10:09:00', now).stale, true);
   assert.equal(snapshotInfo('2026-10-28T23:59:00', now).stale, true);
 });

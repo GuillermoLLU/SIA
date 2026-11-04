@@ -1,14 +1,13 @@
-// Vista «Issues»: la mesa de cada persona. Arriba, lo inmediato: la
-// siguiente que le toca (la elige la regla; la cola de la base evita que dos
-// cojan la misma) y su día. En medio, su histórico medido en SIA (se llena
-// con el uso). Abajo, el seguimiento de lo suyo. Al abrir una, la pantalla de
-// trabajo (work-screen.js). La mesa se refresca sola.
+// Vista «Issues»: la mesa de cada persona. Arriba, cómo trabaja en general y la cola; debajo, el
+// seguimiento de lo suyo en tres columnas. A la derecha, su día, con el botón de asignar la
+// siguiente (la cola de la base evita que dos cojan la misma), y su histórico medido en SIA (se
+// llena con el uso). Al abrir una, la pantalla de trabajo (work-screen.js). La mesa se refresca sola.
 import './issues.css';
 import { esc } from '../ui/html.js';
-import { LISTS, snapshotInfo, age, weekBars } from './format.js';
+import { LISTS, snapshotInfo, age, duration, weekBars } from './format.js';
 import { sev, origin, item } from './parts.js';
 import { onEscape } from '../ui/dialog.js';
-import { pickerHtml, pickClick, openPicker, closePickers } from '../ui/picker.js';
+import { pickClick, openPicker, closePickers } from '../ui/picker.js';
 import { workScreen, trailHtml, trailTab, releaseDialogHtml, sendsNote, noteEditorHtml } from './work-screen.js';
 import { ACTIONS, actionForm, readAction, isComplete } from './actions.js';
 import { resolveForm, resolveReview, resumeStep, stepMissing, STEPS, MAX_FILE, fileBox, localShort } from './resolve-form.js';
@@ -19,24 +18,31 @@ import { DESTINATIONS, OPEN_TICKETS } from './escalate-mock.js';
 const GOAL = { min: 15, max: 20 }; // resueltas por turno, lo que dice el equipo
 const REFRESH_MS = 15000;
 
+const DESK_ENTER_MS = 1800; // lo que dura la cascada de entrada, con la espera a la barra (issues.css, app/intro.js)
+
 // openChat(host, issue) → { dispose }: el chat de la issue (lo pone main.js).
 // dialogs: los diálogos de la app (ui/dialog.js), para confirmar antes de devolver.
+
 export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => {
   const failed = (text) => (toast?.error || toast)?.(text);   // lo que falla, en rojo
-  let data = null, rule = 'basic', now = new Date(), opened = null, onDesk = false, workTab = 'detail', chat = null, loading = false, picking = false;
+  let data = null, now = new Date(), opened = null, onDesk = false, workTab = 'detail', chat = null, loading = false, picking = false;
   let attached = null; // Resolver: el adjunto guardado en el borrador abierto ({ name, type, size })
   let issue = null; // la issue abierta: Escalar mira su criticidad, su estado y su ticket
   const closeChat = () => { chat?.dispose(); chat = null; };
 
   // Cargar la foto (el CSV de la consulta de Remedy, hasta leer de Remedy).
-  const loadButton = (label) => `<label class="iss-load ${loading ? 'iss-busy' : ''}">${loading ? 'Cargando…' : label}<input type="file" accept=".csv,text/csv" data-csv hidden ${loading ? 'disabled' : ''}></label>`;
+  const fileLabel = (cls, label, title = '') => `<label class="${cls} ${loading ? 'iss-busy' : ''}" title="${title}">${loading ? 'Cargando…' : label}<input type="file" accept=".csv,text/csv" data-csv hidden ${loading ? 'disabled' : ''}></label>`;
+  const loadButton = (label) => fileLabel('iss-load', label);
+  // La fecha de los datos es también el botón de cargar otra foto.
+  const REFRESH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36L21 8"/><path d="M21 3v5h-5"/></svg>';
+  const snapButton = ({ date, stale }) => fileLabel(`iss-date${stale ? ' stale' : ''}`, `${date}${stale ? REFRESH_ICON : ''}`, stale ? 'Datos de Remedy sin actualizar: pulsa para cargar un CSV nuevo. Lo medido en SIA sí es de hoy.' : 'Datos de Remedy: pulsa para cargar otro CSV');
 
-  const kpi = (label, value, hint) => `<div class="iss-kpi"><span>${label}</span><b>${value}</b><small>${hint}</small></div>`;
+  const kpi = (label, value, hint) => `<div class="iss-kpi" title="${hint}"><span>${label}</span><b>${value}</b><small>${hint}</small></div>`;
 
-  // Cogidas por semana (SGA / SISU), lo medido en SIA.
-  const weeksChart = (weeks) => `<div class="iss-bars" role="img" aria-label="Issues cogidas por semana, últimas ${weeks.length} semanas">
-      ${weekBars(weeks).map(({ week, sga, sisu, total, sgaPct, sisuPct }) => `<div class="iss-bar" title="Semana del ${week.slice(8)}/${week.slice(5, 7)}: ${total} (SGA ${sga}, SISU ${sisu})">
-          <small>${total || ''}</small><i class="sisu" style="height:${sisuPct}%"></i><i style="height:${sgaPct}%"></i><span>${+week.slice(8)}/${+week.slice(5, 7)}</span></div>`).join('')}
+  // Cogidas por semana (SGA / SISU), lo medido en SIA: una fila por semana, la última arriba.
+  const weeksChart = (weeks) => `<div class="iss-weeks" role="img" aria-label="Issues cogidas por semana, últimas ${weeks.length} semanas">
+      ${weekBars(weeks).map(({ week, sga, sisu, total, sgaPct, sisuPct }) => `<div class="iss-week" title="Semana del ${week.slice(8)}/${week.slice(5, 7)}: ${total} (SGA ${sga}, SISU ${sisu})">
+          <span>${+week.slice(8)}/${+week.slice(5, 7)}</span><div class="iss-week-bar"><i style="width:${sgaPct}%"></i><i class="sisu" style="width:${sisuPct}%"></i></div><small>${total || ''}</small></div>`).join('')}
     </div>`;
 
   const renderDesk = () => {
@@ -51,50 +57,47 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     const lists = LISTS.map((l) => ({ ...l, items: data.desk.filter(l.test).sort(l.sort) }));
     const count = (key) => lists.find((l) => l.key === key).items.length;
     const used = history.weeks.some((w) => w.sga + w.sisu);
-    root.innerHTML = `<div class="iss-page">
-      <header class="iss-top"><h2 class="iss-title">Hola, ${esc((me?.name || '').split(' ')[0] || 'equipo')}</h2>${(({ text, stale }) => `<span class="iss-snap${stale ? ' stale' : ''}" ${stale ? 'title="La foto de Remedy no es de hoy: carga un CSV nuevo para ponerla al día. Lo medido en SIA sí es de hoy."' : ''}>${text}${stale ? ' · sin actualizar' : ''}</span>`)(snapshotInfo(data.taken, now))}${loadButton('Cargar otro CSV')}</header>
+    root.innerHTML = `<div class="iss-page iss-desk-page">
+      <header class="iss-top"><h2 class="iss-title">Hola, ${esc((me?.name || '').split(' ')[0] || 'equipo')}</h2></header>
 
-      <div class="iss-row1">
-        <section class="iss-card iss-next">
-          <h3>La siguiente que te toca</h3>
-          ${next ? `<div class="iss-preview">
-              <span class="iss-line">${sev(next.priority)}<span class="iss-code">${esc(next.center || '—')}</span>${origin(next)}${next.prio ? '<span class="iss-prio">Priorizada por negocio</span>' : ''}<span class="iss-when">hace ${age(next.reported, now)}</span></span>
-              <p>${esc(next.text)}</p>
-            </div>` : '<p class="iss-empty">No queda ninguna sin coger.</p>'}
-          <div class="iss-go">
-            <button class="iss-take" data-take ${next ? '' : 'disabled'}>Coger la siguiente</button>
-            <div class="iss-rule"><span>Regla</span>${pickerHtml({ id: 'iss-rule', name: 'rule', value: data.rules.some((r) => r.id === rule) ? rule : data.rules[0]?.id, inline: true, groups: [{ options: data.rules.map((r) => ({ value: r.id, label: r.label })) }] })}</div>
-            <span class="iss-queue">${data.free} sin coger en la cola</span>
+      <div class="iss-desk">
+        <div class="iss-main">
+          <div class="iss-kpis">
+            ${kpi('Cogidas por semana', history.perWeek, `media de las últimas ${history.weeks.length} semanas`)}
+            ${kpi('Cogidas a tiempo', history.onTimePct == null ? '—' : `${history.onTimePct} %`, 'críticas en 15 min, altas en 2 h')}
+            ${kpi('Tiempo medio en coger', history.avgPickMin == null ? '—' : duration(history.avgPickMin), 'desde que entra la issue')}
+            ${kpi('Tiempo típico de resolución', '—', 'cuando se resuelva desde SIA')}
+            ${kpi('Cola general', data.free, 'sin coger, de todo el equipo')}
           </div>
-        </section>
+        <div class="iss-cols">
+          ${lists.map((l) => `<section class="iss-card iss-col">
+            <div class="iss-card-h"><h3>${l.label}</h3><span>${l.items.length}</span></div>
+            <div class="iss-items">${l.items.slice(0, 12).map((i) => item(i, l.key, now)).join('') || `<p class="iss-empty">${l.empty}</p>`}</div>
+          </section>`).join('')}
+        </div>
+        </div>
+        <aside class="iss-rail">
         <section class="iss-card iss-today">
-          <h3>Hoy</h3>
+          <div class="iss-card-h"><h3>Hoy</h3>${snapButton(snapshotInfo(data.taken, now))}</div>
           <div class="iss-big"><b>${today.resolved}</b><span>resueltas · objetivo ${GOAL.min}–${GOAL.max}<br>${today.sga} de SGA · ${today.sisu} de SISU</span></div>
           <div class="iss-progress" role="img" aria-label="${today.resolved} de ${GOAL.max}"><i style="width:${Math.min(100, today.resolved / GOAL.max * 100)}%"></i><em style="left:${GOAL.min / GOAL.max * 100}%"></em></div>
           <dl><dt>Cogidas en SIA</dt><dd>${history.claimedToday}</dd><dt>En curso</dt><dd>${count('doing')}</dd><dt>Pendientes de terceros</dt><dd>${count('waiting')}</dd></dl>
+          <button class="iss-take" data-take ${next ? '' : 'disabled'}>Asignar siguiente issue</button>
         </section>
-      </div>
-
-      <div class="iss-row2">
-        <section class="iss-card">
-          <div class="iss-card-h"><h3>Mi histórico en SIA · cogidas por semana</h3><span class="iss-legend"><i></i>SGA <i class="sisu"></i>SISU</span></div>
+        <section class="iss-card iss-hist">
+          <div class="iss-card-h"><h3>Histórico semanal</h3><span class="iss-legend"><i></i>SGA <i class="sisu"></i>SISU</span></div>
           ${weeksChart(history.weeks)}
           <p class="iss-foot">${used ? 'Medido con el uso de SIA.' : 'Se irá llenando con el uso de SIA: cada issue que cojas cuenta.'} Las resueltas se sumarán cuando se resuelva desde SIA.</p>
         </section>
-        <div class="iss-kpis">
-          ${kpi('Cogidas por semana', history.perWeek, `media de las últimas ${history.weeks.length} semanas`)}
-          ${kpi('Cogidas a tiempo', history.onTimePct == null ? '—' : `${history.onTimePct} %`, 'críticas en 15 min, altas en 2 h')}
-          ${kpi('Tiempo típico de resolución', '—', 'cuando se resuelva desde SIA')}
-        </div>
-      </div>
-
-      <div class="iss-cols">
-        ${lists.map((l) => `<section class="iss-card iss-col">
-          <div class="iss-card-h"><h3>${l.label}</h3><span>${l.items.length}</span></div>
-          <div class="iss-items">${l.items.slice(0, 12).map((i) => item(i, l.key, now)).join('') || `<p class="iss-empty">${l.empty}</p>`}</div>
-        </section>`).join('')}
+        </aside>
       </div>
     </div>`;
+  };
+
+  // La cascada de entrada, solo mientras dura: una animación activa encerraría los desplegables.
+  const animateEnter = (el, cls, ms) => {
+    el.classList.add(cls);
+    setTimeout(() => el.classList.remove(cls), ms);
   };
 
   const renderIssue = ({ issue: i, sameCenter, timeline }) => {
@@ -117,6 +120,34 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     now = new Date();
     renderDesk();
   };
+  // La mesa al día sin que se note: solo si se está viendo y sin un selector abierto.
+  const refreshQuietly = () => {
+    if (!onDesk || picking || openPicker(root)) return;
+    api.desk().then((d) => {
+      if (!onDesk || picking || openPicker(root)) return;
+      const before = now;
+      const changed = JSON.stringify(d) !== JSON.stringify(data); // igual y en el mismo minuto, no se toca: nada que parpadee
+      data = d; now = new Date();
+      if (!changed && now.getMinutes() === before.getMinutes()) return; // el minuto: las edades («hace 5 min»)
+      const scrolled = () => [root, ...root.querySelectorAll('.iss-items')]; // repintar no mueve lo que se estaba leyendo
+      const tops = scrolled().map((el) => el.scrollTop);
+      renderDesk();
+      scrolled().forEach((el, i) => { el.scrollTop = tops[i] ?? 0; });
+    }).catch(() => {});
+  };
+  // La primera vez, la mesa entra en cascada cuando llegan los datos. Al volver a
+  // la vista sale al momento con lo que ya había (el cruce con la vista anterior
+  // lo hace main.js) y se pone al día por detrás.
+  const showDesk = async () => {
+    if (!data) {
+      await loadDesk();
+      animateEnter(root, 'iss-enter', DESK_ENTER_MS);
+      return;
+    }
+    now = new Date();
+    renderDesk();
+    refreshQuietly();
+  };
   const openIssue = async (id) => renderIssue(await api.get(id));
 
   // El histórico va con lo más reciente arriba: al enseñarlo, arriba del todo.
@@ -138,11 +169,9 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       const take = t.closest('[data-take]');
       if (take) {
         take.disabled = true;
-        const seen = data.next?.id;
-        const { id } = await api.next(rule);
+        const { id } = await api.next();
         await loadDesk();
         if (!id) return toast?.('No queda ninguna sin coger.');
-        if (seen && id !== seen) toast?.('La que veías ya la había cogido otra persona: te toca la siguiente.');
         return openIssue(id);
       }
       const wt = t.closest('[data-wtab]');
@@ -334,7 +363,6 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   // Resolver (por pasos) y Escalar (no bloquea) llevan su propia validación: aquí, los demás.
   const syncSubmit = (form) => { if (['resolve', 'escalate'].includes(form.dataset.actForm)) return; form.querySelector('[type=submit]').disabled = !isComplete(form.dataset.actForm, Object.fromEntries(new FormData(form))); };
   root.addEventListener('input', (e) => {
-    if (e.target.name === 'rule') { rule = e.target.value; return; }
     const form = e.target.closest('[data-act-form]');
     if (form) return syncSubmit(form);
     const nf = e.target.closest('[data-note-form]');
@@ -485,13 +513,12 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
 
   // Refresco: solo con la mesa a la vista (no mientras se trabaja una issue).
   const refresher = setInterval(() => {
-    if (!onDesk || picking || openPicker(root) || root.hidden || document.visibilityState !== 'visible') return;
-    const y = root.scrollTop;
-    api.desk().then((d) => { data = d; now = new Date(); if (onDesk) { renderDesk(); root.scrollTop = y; } }).catch(() => {});
+    if (root.hidden || document.visibilityState !== 'visible') return;
+    refreshQuietly();
   }, REFRESH_MS);
 
   return {
-    show: () => loadDesk().catch((err) => { root.innerHTML = `<div class="iss-page"><p class="iss-empty">No se pudieron cargar las issues: ${esc(err.message)}</p></div>`; }),
+    show: () => showDesk().catch((err) => { root.innerHTML = `<div class="iss-page"><p class="iss-empty">No se pudieron cargar las issues: ${esc(err.message)}</p></div>`; }),
     dispose: () => { clearInterval(refresher); window.removeEventListener('focus', picked); document.removeEventListener('dragover', ignoreDrop); document.removeEventListener('drop', ignoreDrop); closeChat(); },
   };
 };

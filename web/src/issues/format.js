@@ -50,7 +50,8 @@ export const whenLabel = (s, now) => {
 export const snapshotInfo = (taken, now) => {
   const t = new Date(taken);
   const stale = t.toDateString() !== now.toDateString();
-  return { text: `Datos de Remedy del ${when(stamp(t))}`, stale };
+  const date = when(stamp(t));
+  return { date, text: `Datos de Remedy del ${date}`, stale };
 };
 
 // Minutos legibles: «30 min», «3 h», «3 d».
