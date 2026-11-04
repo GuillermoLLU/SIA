@@ -153,23 +153,27 @@ Function SiaChecksShow
   !insertmacro MUI_HEADER_TEXT "Comprobaciones previas" ""
   nsDialogs::Create 1018
   Pop $SiaPage
-  ${NSD_CreateLabel} 10u 8u 280u 14u ""
+  ; todo centrado: el aviso, qué hacer y los dos botones juntos debajo
+  ${NSD_CreateLabel} 0 10u 100% 22u ""   ; dos líneas, por si faltan varios
   Pop $SiaStatus
+  ${NSD_AddStyle} $SiaStatus ${SS_CENTER}
   CreateFont $SiaFont "$(^Font)" 10 700
   SendMessage $SiaStatus ${WM_SETFONT} $SiaFont 0
   ${If} "${SIA_CERTS_URL}" != ""
-    ${NSD_CreateLabel} 10u 28u 280u 12u "Instálalos con la guía y pulsa «Volver a comprobar»."
+    ${NSD_CreateLabel} 0 36u 100% 12u "Instálalos con la guía y pulsa «Volver a comprobar»."
     Pop $SiaHelp
-    ${NSD_CreateButton} 10u 48u 110u 16u "Abrir la guía  ↗"
+    ${NSD_AddStyle} $SiaHelp ${SS_CENTER}
+    ${NSD_CreateButton} 37u 56u 110u 16u "Abrir la guía  ↗"
     Pop $SiaGuide
     ${NSD_OnClick} $SiaGuide SiaOpenGuide
   ${Else}
-    ${NSD_CreateLabel} 10u 28u 280u 12u "Pide a soporte la guía, instálalos y pulsa «Volver a comprobar»."
+    ${NSD_CreateLabel} 0 36u 100% 12u "Pide a soporte la guía, instálalos y pulsa «Volver a comprobar»."
     Pop $SiaHelp
-    ${NSD_CreateLabel} 10u 48u 0 0 ""
+    ${NSD_AddStyle} $SiaHelp ${SS_CENTER}
+    ${NSD_CreateLabel} 37u 56u 0 0 ""
     Pop $SiaGuide
   ${EndIf}
-  ${NSD_CreateButton} 126u 48u 110u 16u "Volver a comprobar"
+  ${NSD_CreateButton} 153u 56u 110u 16u "Volver a comprobar"
   Pop $SiaRetry
   ${NSD_OnClick} $SiaRetry SiaRecheck
   ShowWindow $SiaHelp ${SW_HIDE}
