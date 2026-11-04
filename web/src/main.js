@@ -92,7 +92,7 @@ palette = mountPalette({ chat });
 
 /* ── Configuración ─────────────────────────────────────────────── */
 const settings = mountSettings({ api });
-wireLogout($('settings-session'), { user, session, confirm: dialogs.confirm });
+wireLogout($('settings-session'), { session });
 const linksDirectory = mountLinksDirectory({ api, dialogs, settings });
 
 /* ── Vistas: la barra lateral abre una cada vez ─────────────────── */
