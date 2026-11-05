@@ -6,8 +6,8 @@ const setup = ({ login = async () => ({ token: 't1', user: { id: 'u' } }), conte
   const log = [];
   const auth = { login, context, logout: async (t) => log.push(['logout', t]), refreshProfile: (t) => log.push(['refreshProfile', t]) };
   const platform = { updateOwnPassword: async (jwt, p) => log.push(['updateOwnPassword', jwt, p]), rpc: async (jwt, fn) => log.push(['rpc', fn]) };
-  const route = authRoutes(auth, { json: (res, status, body) => Object.assign(res, { status, body }), readBody: async (req) => req.body || {}, onSession: async (t) => log.push(['onSession', t]), onLogout: async () => log.push(['onLogout']), platform });
-  return { log, call: async (method, action, { token, body } = {}) => { const res = {}; await route({ method, headers: { 'x-sia-auth': token }, body }, res, action); return res; } };
+  const route = authRoutes(auth, { json: (res, status, body) => Object.assign(res, { status, body }), readBody: async (req) => req.body || {}, onSession: async (t) => log.push(['onSession', t]), onLogout: async () => log.push(['onLogout']), platform, preflight: async () => platform.health() });
+  return { log, platform, call: async (method, action, { token, body } = {}) => { const res = {}; await route({ method, headers: { 'x-sia-auth': token }, body }, res, action); return res; } };
 };
 
 test('me: con sesión, el perfil al día y lo asignado cargado; sin ella, 401', async () => {
@@ -43,4 +43,15 @@ test('logout y la base caída', async () => {
   assert.deepEqual(s.log, [['logout', 't1'], ['onLogout']]);
   const down = setup({ context: async () => { throw Object.assign(new Error('Sin conexión con la base de la instancia.'), { status: 503 }); } });
   assert.equal((await down.call('GET', 'me', { token: 't1' })).status, 503);
+});
+
+test('check: ok si el equipo está listo; si no, 503 con code y la guía', async () => {
+  const s = setup();
+  s.platform.health = async () => ({});
+  assert.deepEqual((await s.call('POST', 'check')).body, { ok: true });
+  const help = { url: 'https://guia.example' };
+  s.platform.health = async () => { throw Object.assign(new Error('Faltan.'), { status: 503, code: 'certs', help }); };
+  const r = await s.call('POST', 'check');
+  assert.equal(r.status, 503);
+  assert.deepEqual(r.body, { error: 'Faltan.', code: 'certs', help });
 });

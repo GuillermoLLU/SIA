@@ -17,11 +17,16 @@ import { createTabs, TABS } from './tabs.js';
 import { periodLabel } from './period.js';
 import { mountPeriodPanel } from './period-panel.js';
 import { attachTip } from './tip.js';
-import { PHASES, progressOf, progressHtml } from './progress.js';
+import { PHASES, CSV_PHASES, CLEAR_PHASES } from './progress.js';
+import { mountMetricsModals } from './metrics-modals.js';
+import { progressCover } from './progress-cover.js';
+import { isNetWarning } from '../ui/net-warning.js';
+import { netWarningHtml, shake } from '../ui/net-warning-view.js';
 import { COLORS, defaultColors, freeColor, dayOf, coverage, freeCompany, withoutSide, togglePerson, filterKey } from './view.js';
 
 const SEARCH_MS = 250;
 const LOAD = 'Actualizar y generar informe';
+const FIRST_LOAD = 'Cargar datos';   // la primera vez, con la base local vacía
 const POLL_MS = 400;     // cada cuánto se pregunta al bridge por el avance de la actualización
 const TICK_MS = 200;     // y cada cuánto se repinta (el porcentaje es de tiempo: se mueve aunque no haya cifras nuevas)
 const FINISH_MS = 450;   // el 100 % a la vista un momento antes de abrir las métricas nuevas
@@ -38,14 +43,31 @@ export const mountMetricsView = (root, { api, toast }) => {
   let colors = defaultColors();   // el color de cada lado
   const ui = { exp: {}, sort: {} };
   const $ = (s) => root.querySelector(s);
+  // Las ventanas de «Cargar CSV» y «Construir SQL»: al cargar, se vuelven a leer los datos y se abren como siempre.
+  const modals = mountMetricsModals({
+    api, toast,
+    onUpload: (file) => uploadCsv(file).catch((e) => toast?.(e.name === 'AbortError' ? 'Cancelado: no ha entrado nada nuevo.' : e.message)),
+    onFirstLoad: (range) => update(range),
+    onClear: () => clearHistory(),
+  });
 
-  const loadButton = () => `<button class="mt-load ${loading ? 'mt-busy' : ''}" data-update ${loading ? 'disabled' : ''}>${loading ? 'Actualizando…' : LOAD}</button>`;
+  const loadButton = () => `<button class="mt-load ${loading ? 'mt-busy' : ''}" data-update ${loading ? 'disabled' : ''}>${loading ? 'Actualizando…' : m ? LOAD : FIRST_LOAD}</button>`;
+  // Los tres puntos: lo que se hace pocas veces (cargar un CSV, construir la consulta). Sin nada encima de la vista.
+  // Sin datos (withClear: false), no hay histórico que borrar.
+  const moreMenu = (withClear = true) => `<div class="mt-menu"><button class="mt-btn mt-icon-btn mt-more" data-more aria-haspopup="menu" aria-expanded="false" aria-label="Más opciones" title="Más opciones"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
+    <div class="mt-pop mt-menu-pop" data-more-pop role="menu" hidden><button role="menuitem" data-open-csv>Cargar CSV…</button><button role="menuitem" data-open-sql>Construir SQL…</button>${withClear ? '<button role="menuitem" class="mt-danger-item" data-clear>Eliminar histórico…</button>' : ''}</div></div>`;
+  const setMenu = (on) => {
+    const pop = $('[data-more-pop]');
+    if (!pop) return;
+    pop.hidden = !on;
+    $('[data-more]').setAttribute('aria-expanded', String(on));
+  };
 
   const renderEmpty = () => {
-    root.innerHTML = `<div class="mt-page"><header class="mt-top"><h2 class="mt-title">Métricas</h2></header>
+    root.innerHTML = `<div class="mt-page mt-empty-page"><header class="mt-top"><h2 class="mt-title">Métricas</h2></header>
       <div class="mt-empty"><b>Aún no hay datos</b>
-        <span>Trae de Snowflake las incidencias de Remedy (con notas e historial) desde 2026. Se guardan en el repositorio local de este ordenador y de él salen las métricas; cada vez que actualices, solo llega lo nuevo y lo cambiado.</span>
-        ${loadButton()}</div></div>`;
+        <span>Trae de Snowflake las incidencias de Remedy (con notas e historial) desde 2026, o carga un CSV de esa misma consulta. Se guardan en el repositorio local de este ordenador y de él salen las métricas; cada vez que actualices, solo llega lo nuevo y lo cambiado.</span>
+        <div class="mt-empty-actions">${loadButton()}${moreMenu(false)}</div></div></div>`;
   };
 
   const sideSlot = (k) => `<div class="mt-period mt-slot" data-slot="${k}"><button class="mt-btn mt-icon-btn mt-side" data-side="${k}" aria-haspopup="true"><i class="mt-c${k}"></i><span data-side-name="${k}"></span>${CHEVRON}</button><button class="mt-btn mt-x" data-side-remove="${k}" title="Quitar de la comparación">×</button>
@@ -57,7 +79,7 @@ export const mountMetricsView = (root, { api, toast }) => {
     root.innerHTML = `<div class="mt-page">
       <header class="mt-top"><h2 class="mt-title">Métricas</h2>
         <span class="mt-date" data-coverage title="${esc(`${meta.file}, actualizado el ${dayOf(meta.generated)}`)}"></span>
-        ${loadButton()}</header>
+        ${loadButton()}${moreMenu()}</header>
       <div class="mt-fbar">
         ${sideSlot(0)}<span class="mt-vs" data-vs>frente a</span>${sideSlot(1)}<button class="mt-btn mt-add" data-side-add>+ Comparar</button>
         <div class="mt-period"><button class="mt-btn mt-icon-btn" data-calendar aria-haspopup="true">${CALENDAR_ICON}<span data-period></span></button><div class="mt-pop mt-cal" data-cal hidden></div></div>
@@ -144,44 +166,102 @@ export const mountMetricsView = (root, { api, toast }) => {
     render();
   };
 
-  // Mientras se actualiza, una capa encima con el avance (progress.js): lo de debajo se queda viejo, así que no se
-  // puede tocar (inert). La capa se pinta una vez y luego solo cambian sus cifras, para que la barra avance suave.
-  const cover = (t0) => {
-    const el = document.createElement('div');
-    el.className = 'mt-loading';
-    const paint = (view) => {
-      if (!el.firstElementChild) { el.innerHTML = progressHtml(view); return; }
-      el.querySelector('[role=progressbar]').setAttribute('aria-valuenow', view.percent);
-      el.querySelector('.mt-load-figure b').textContent = view.percent;
-      el.querySelector('.mt-load-bar i').style.width = `${view.percent}%`;
-      el.querySelector('.mt-load-now b').textContent = PHASES[view.phase].label;
-      el.querySelector('.mt-load-now span').textContent = view.left;
-      el.querySelector('.mt-load-detail').textContent = view.detail;
-      el.querySelectorAll('.mt-load-steps li').forEach((li, i) => { li.className = i < view.phase ? 'mt-done' : i === view.phase ? 'mt-now' : ''; });
+  // Mientras el servidor trabaja en algo largo (cargar un CSV), la misma capa con su avance que la actualización,
+  // con las fases de esa tarea. Si falla, se quita y la vista sigue como estaba.
+  const track = async (phases, task, onAbort = () => {}, doneText) => {
+    const c = progressCover(Date.now(), phases, () => { onAbort(); api.cancel(); });
+    const stop = () => { clearInterval(poll); clearInterval(ticker); };
+    let poll = null, ticker = null;
+    try {
+      root.scrollTop = 0;
+      root.classList.add('mt-updating');
+      $('.mt-page').inert = true;
+      root.append(c.el);
+      c.tick();
+      poll = setInterval(async () => { try { c.set(await api.progress()); } catch { /* sigue con lo último */ } }, POLL_MS);
+      ticker = setInterval(c.tick, TICK_MS);
+      const out = await task();
+      stop();
+      c.finish(doneText);
+      return out;
+    } catch (e) {
+      stop();
+      c.el.remove();
+      $('.mt-page').inert = false;
+      throw e;
+    } finally {
+      root.classList.remove('mt-updating');
+    }
+  };
+
+  // Un CSV de Remedy: se sube con su avance (leer y guardar, recalcular) y, al acabar, se abren los datos nuevos.
+  const uploadCsv = async (file) => {
+    const ctl = new AbortController();   // Cancelar corta la subida también en el navegador
+    const { counts } = await track(CSV_PHASES, () => api.uploadCsv(file, ctl.signal), () => ctl.abort());
+    await new Promise((r) => setTimeout(r, FINISH_MS));
+    start(await api.load());
+    toast?.(counts.inserted || counts.updated
+      ? `CSV cargado: ${num(counts.inserted)} nuevas y ${num(counts.updated)} actualizadas.`
+      : 'CSV cargado: nada nuevo respecto a lo guardado.');
+  };
+
+  // Borra lo guardado en este ordenador y vuelve a la pantalla de base vacía (Snowflake no se toca).
+  const clearHistory = async () => {
+    try {
+      await track(CLEAR_PHASES, () => api.clear(), () => {}, 'Histórico eliminado.');
+      start(null);
+      toast?.('Histórico eliminado: la próxima carga empieza de cero.');
+    } catch (e) {
+      toast?.(e.message);
+    }
+  };
+
+  // Falta algo para la red del cliente (la VPN, los certificados): en el sitio del avance, el mismo aviso que en el
+  // inicio de sesión (ui/net-warning-view.js). «Reintentar» vuelve a probar (retry); un clic fuera de él lo cierra.
+  // Si ya está a la vista y sigue faltando, se sacude.
+  const netWarn = (r, retry) => {
+    let box = $('.mt-net');
+    const again = Boolean(box);
+    if (!box) {
+      box = document.createElement('div');
+      box.className = 'mt-loading mt-net';
+      box.innerHTML = '<div class="mt-load-card net-warn" role="alert"></div>';
+      root.append(box);
+    }
+    const card = box.firstElementChild;
+    card.innerHTML = netWarningHtml(r);
+    box.onclick = (e) => {
+      const b = e.target.closest('[data-net-retry]');
+      if (b) { b.disabled = true; b.textContent = 'Comprobando…'; return retry(); }
+      if (!card.contains(e.target)) closeNet();
     };
-    // el último avance del bridge, cuándo empezó su fase (para su ritmo) y lo más alto que ha llegado la barra (nunca retrocede)
-    let last = null, phaseT0 = t0, top = 0;
-    return {
-      el,
-      set: (p) => {
-        if ((p?.phase ?? null) !== (last?.phase ?? null)) phaseT0 = Date.now();
-        last = p ?? last;
-      },
-      tick: () => {
-        const now = Date.now(), view = progressOf(last, { elapsed: now - t0, phaseMs: now - phaseT0 });
-        top = Math.max(top, view.percent);
-        paint({ ...view, percent: top });
-      },
-      finish: () => paint({ phase: PHASES.length - 1, percent: 100, detail: 'Abriendo las métricas con los datos nuevos…', left: 'Hecho' }),
-    };
+    root.classList.add('mt-updating');
+    $('.mt-page').inert = true;
+    if (again) shake(card);
+    card.querySelector('[data-net-retry]').focus({ preventScroll: true });
+  };
+  const closeNet = () => {
+    $('.mt-net')?.remove();
+    root.classList.remove('mt-updating');
+    $('.mt-page').inert = false;
   };
 
   // La primera vez puede abrirse el navegador para entrar en Snowflake con la cuenta de Inditex.
-  const update = async () => {
+  // range: { from, to } con la base vacía (la primera carga del periodo elegido); sin él, la actualización de siempre.
+  // Antes de nada, ¿se puede? (api.ready): fuera de la VPN, el aviso, sin enseñar un avance que no va a llegar.
+  const update = async (range) => {
     if (loading) return;
     loading = true;
+    const blocked = await api.ready().then(() => null, (e) => e);
+    if (blocked) {
+      loading = false;
+      if (isNetWarning(blocked.data?.code)) return netWarn(blocked.data, () => update(range));
+      closeNet();
+      return toast?.(blocked.message);
+    }
+    closeNet();
     if (m) $('.mt-load').outerHTML = loadButton(); else renderEmpty();
-    const c = cover(Date.now());
+    const c = progressCover(Date.now(), PHASES, () => api.cancel());
     root.scrollTop = 0;
     root.classList.add('mt-updating');
     $('.mt-page').inert = true;
@@ -191,7 +271,7 @@ export const mountMetricsView = (root, { api, toast }) => {
     const ticker = setInterval(c.tick, TICK_MS);
     const stop = () => { clearInterval(poll); clearInterval(ticker); };
     try {
-      const { counts } = await api.update();
+      const { counts } = await api.update(range);
       stop();
       c.finish();
       const data = await api.load();
@@ -205,15 +285,26 @@ export const mountMetricsView = (root, { api, toast }) => {
       loading = false;
       c.el.remove();
       if (m) { $('.mt-page').inert = false; $('.mt-load').outerHTML = loadButton(); } else renderEmpty();
-      toast?.(e.message);
+      if (isNetWarning(e.data?.code)) netWarn(e.data, () => update(range));   // p. ej. sin los certificados del cliente
+      else toast?.(e.message);
     } finally {
       stop();
-      root.classList.remove('mt-updating');
+      if (!$('.mt-net')) root.classList.remove('mt-updating');
     }
   };
 
   root.addEventListener('click', (e) => {
-    if (e.target.closest('[data-update]')) return update();
+    // con datos, actualizar; sin datos, la primera carga con el periodo que se elige
+    if (e.target.closest('[data-update]')) return m ? update() : modals.firstLoad();
+    if (e.target.closest('[data-more]')) return setMenu($('[data-more-pop]')?.hidden === true);
+    const item = e.target.closest('[data-open-csv],[data-open-sql],[data-clear]');
+    if (item) {
+      setMenu(false);
+      if (item.hasAttribute('data-open-csv')) return modals.csv();
+      if (item.hasAttribute('data-clear')) return modals.clear();
+      return modals.sql();
+    }
+    if (!e.target.closest('.mt-menu')) setMenu(false);
     if (!m || e.target.closest('a')) return;
     const { S } = m;
     // desplegables: abrir y cerrar, elegir; un clic fuera los cierra
@@ -273,6 +364,7 @@ export const mountMetricsView = (root, { api, toast }) => {
   // Escape: cierra el desplegable abierto; en la búsqueda, la borra y la cierra. Se escucha en todo
   // el documento: al elegir un color el desplegable se repinta y el foco sale de la vista.
   document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && $('[data-more-pop]') && !$('[data-more-pop]').hidden) return setMenu(false);
     if (!m || root.hidden || e.key !== 'Escape') return;
     if (open) { closePops(); renderPeriod(); renderSides(); return; }
     if (e.target.matches('[data-q]')) { e.target.value = ''; searching = false; m.S.q = ''; render(); }

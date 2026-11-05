@@ -47,8 +47,8 @@ export const checkColumns = (row) => {
   if (missing.length) throw new DataError(`La consulta de issues no trae ${missing.join(', ')}.`);
 };
 
-// Copia propia de un texto que se guarda. Los trozos de un campo del CSV
-// pueden ser vistas del trozo leído (64 KB): guardar la vista retendría el
+// Copia propia de un texto que se guarda. Los trozos de un campo pueden ser
+// vistas del trozo recibido (64 KB): guardar la vista retendría el
 // trozo entero en memoria por cada issue.
 const own = (s) => Buffer.from(s, 'utf8').toString('utf8');
 
@@ -70,13 +70,14 @@ export const createDataset = ({ start }) => {
   const spellings = [];   // por problema: cuántas veces se escribe de cada forma
   let total = 0, snapshot = 0, first = Infinity, last = -1;
 
+  // Devuelve true si la incidencia entra en el informe (del grupo y sin avisos automáticos).
   const add = (r) => {
     total++;
-    if (r.ASSIGNEDGROUP.trim() !== GROUP) return;
+    if (r.ASSIGNEDGROUP.trim() !== GROUP) return false;
     const i = readIssue(r, base);
-    if (i.reported < 0) return;
+    if (i.reported < 0) return false;
     snapshot = Math.max(snapshot, i.reported, i.modified);
-    if (i.flags & FLAG.AUTO_NOTICE) return;
+    if (i.flags & FLAG.AUTO_NOTICE) return false;
     first = Math.min(first, i.reported);
     last = Math.max(last, i.reported);
     if (i.resolvedBy.length) {
@@ -97,6 +98,7 @@ export const createDataset = ({ start }) => {
       nb: i.bounces, np: i.pendings, th: i.themes, su: own(i.title), de,
     };
     for (const c of COLS) cols[c].push(row[c]);
+    return true;
   };
 
   const build = ({ file, generated }) => {

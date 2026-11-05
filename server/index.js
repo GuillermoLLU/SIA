@@ -16,11 +16,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
 import tls from 'node:tls';
+import { lookup } from 'node:dns/promises';
+import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { json, readBody, sendFile } from './shared/http.js';
 import { choosePair } from './shared/ports.js';
-import { trustSystemCerts } from './shared/certs.js';
+import { trustSystemCerts, readSystemCerts } from './shared/certs.js';
+import { onVpn } from './shared/vpn.js';
 import { createRouter } from './router.js';
 import { createConfigStore } from './config/store.js';
 import { cleanTheme, userEnv, cleanEnv, cleanSnowflake } from './config/config.js';
@@ -29,10 +32,11 @@ import { createLock } from './lock/service.js';
 import { lockRoutes } from './lock/routes.js';
 import { createWorkspace } from './workspace/workspace.js';
 import { createLaunchers } from './launchers/service.js';
-import { loadPlatformConfig } from './platform/config.js';
+import { loadPlatformConfig, loadCertsConfig, loadVpnConfig } from './platform/config.js';
 import { createPlatformClient } from './platform/client.js';
 import { createAuth } from './auth/service.js';
 import { authRoutes } from './auth/routes.js';
+import { createPreflight } from './auth/preflight.js';
 import { can } from './auth/views.js';
 import { createUserAdmin } from './users/service.js';
 import { usersRoutes } from './users/routes.js';
@@ -71,7 +75,9 @@ const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url))); // sia/
 // → { ws, api }: los puertos elegidos, para que la app se los pase a la UI.
 export const startBridge = async ({ env = process.env } = {}) => {
   // antes de cualquier conexión: detrás de la VPN, la base de la instancia solo se verifica con los del sistema
-  if (!trustSystemCerts(tls)) console.log('[sia] sin los certificados del sistema: detrás de un proxy corporativo, arranca con NODE_USE_SYSTEM_CA=1');
+  if (!trustSystemCerts(tls)) console.log('[sia] sin los certificados del sistema: detrás de la VPN hace falta Node 22.19 o superior');
+  const certsCfg = loadCertsConfig(ROOT);
+  const vpnCfg = loadVpnConfig(ROOT);
   const version = (() => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version; } catch { return '0.0.0'; } })();
   const ports = await choosePair(version, { forced: env.SIA_PORT });
   const isWin = os.platform() === 'win32';
@@ -100,8 +106,16 @@ export const startBridge = async ({ env = process.env } = {}) => {
   let theme = cleanTheme(config.read().theme);
 
   // La base de la instancia (quién entra, con qué vistas y qué conocimiento ve)
-  const platform = createPlatformClient({ ...(loadPlatformConfig(ROOT, env) || { url: '', key: '' }), fetch });
+  const platform = createPlatformClient({ ...(loadPlatformConfig(ROOT, env) || { url: '', key: '' }), fetch, certsHelpUrl: certsCfg.helpUrl });
   const auth = createAuth({ platform, readConfig: config.read, writeConfig: config.write });
+  // la S, «Reintentar» y Snowflake: los certificados recién instalados valen sin reiniciar SIA
+  const refreshCerts = async () => trustSystemCerts(tls, await readSystemCerts(execFile, process.execPath).catch(() => undefined));
+  const preflight = createPreflight({
+    platform,
+    refreshCerts,
+    onVpn: (host) => onVpn(lookup, host),
+    vpnHost: vpnCfg.probeHost,
+  });
   const users = createUserAdmin({ platform });
   const knowledge = createKnowledge({ platform, ...createKnowledgeBaseAccess({ createClient, fetch, newId: randomUUID }) });
 
@@ -158,8 +172,13 @@ export const startBridge = async ({ env = process.env } = {}) => {
   });
 
   const http_ = { json, readBody };
+  // El conector de Snowflake pesa: se carga al arrancar, en segundo plano, para que el primer clic en Métricas
+  // no espere. Si falla, se reintenta al actualizar.
+  let snowflakeSdk = null;
+  const loadSdk = async () => (snowflakeSdk ??= (await import('snowflake-sdk')).default);
+  loadSdk().catch((e) => console.error(`[sia] conector de Snowflake sin cargar (se reintenta al actualizar): ${e.message}`));
   const routes = {
-    auth: authRoutes(auth, { ...http_, onSession: loadAssigned, onLogout: clearAssigned, platform }),
+    auth: authRoutes(auth, { ...http_, onSession: loadAssigned, onLogout: clearAssigned, platform, preflight }),
     lock: lockRoutes(lock, http_),
     config: configRoutes(config, { ...http_, version, onTheme: (t) => { if (JSON.stringify(t) !== JSON.stringify(theme)) { theme = t; bridge.broadcastTheme(); } } }),
     users: usersRoutes(users, { ...http_, syncKeys, assignKnowledge: (jwt, userId, ids) => knowledge.setProjects(jwt, userId, ids), refreshProfile: (token) => auth.refreshProfile(token) }),
@@ -168,9 +187,11 @@ export const startBridge = async ({ env = process.env } = {}) => {
     backlog: backlogRoutes(backlog, http_),
     metrics: metricsRoutes(createMetricsStore(workspace.metricsDir, {
       repo: createRepository({ DatabaseSync, file: path.join(workspace.metricsDir, 'incidencias.sqlite'), fs }),
-      source: createSnowflake({ loadSdk: async () => (await import('snowflake-sdk')).default, config: () => cleanSnowflake(config.read().snowflake) }),
+      source: createSnowflake({ loadSdk, config: () => cleanSnowflake(config.read().snowflake), certsHelpUrl: certsCfg.helpUrl, refreshCerts,
+        onVpn: async () => !vpnCfg.probeHost || onVpn(lookup, vpnCfg.probeHost) }),
+      fs,
       log: console.log,
-    }), { json }),
+    }), { json, readBody }),
     lan: lanRoutes(remote, lock, http_),
     projects: projectsRoutes(createProjects({ newId: randomUUID, fetchAll }), { ...http_, onProjectRemoved: () => skillSync.sync(assigned) }),
     skills: skillsRoutes({ ...http_, sync: skillSync, drafts: createDrafts(workspace.draftsDir), workspace }),

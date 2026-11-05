@@ -31,7 +31,7 @@ const repos = [];   // se cierran al acabar cada prueba: Windows no borra un fic
 const open = (dir, source = fakeSource(), log) => {
   const repo = createRepository({ DatabaseSync, file: path.join(dir, 'incidencias.sqlite'), fs, now });
   repos.push(repo);
-  return { store: createMetricsStore(dir, { repo, source, now, log }), repo };
+  return { store: createMetricsStore(dir, { repo, source, fs, now, log }), repo };
 };
 const clean = (dir) => { repos.splice(0).forEach((r) => r.close()); fs.rmSync(dir, { recursive: true }); };
 
@@ -72,7 +72,7 @@ test('las siguientes piden solo lo cambiado y aplican los criterios de siempre: 
   await store.update();
   const { meta, counts } = await store.update();
   // el suelo, la apertura más antigua guardada; desde, la última modificación menos 2 días
-  assert.deepEqual(source.asked[1], ['2025-11-20 08:00:00.000', '2026-02-27 09:00:00.000']);
+  assert.deepEqual(source.asked[1], ['2025-11-20 08:00:00.000', '2026-03-01 03:00:00.000']);   // la última modificación menos 6 horas
   assert.deepEqual(counts, { inserted: 1, updated: 2, unchanged: 1, kept: 1 });
   assert.equal(meta.start, 2025);
   const data = await store.load();
@@ -103,7 +103,7 @@ test('cada actualización apunta en el registro cuánto tardó cada fase', async
   const dir = tmp(), lines = [];
   await open(dir, fakeSource([ISSUE]), (l) => lines.push(l)).store.update();
   assert.equal(lines.length, 1);
-  assert.match(lines[0], /^\[sia\] métricas actualizadas en \d+,\d s: conector \d+,\d s · conexión y consulta \d+,\d s · 1 incidencias de Snowflake \(1 nuevas, 0 actualizadas\) en \d+,\d s · informe de 1 incidencias en \d+,\d s$/);
+  assert.match(lines[0], /^\[sia\] métricas actualizadas en \d+,\d s: conector \d+,\d s · conexión y consulta \d+,\d s · 1 incidencias de Snowflake \(1 nuevas, 0 actualizadas, 0 quitadas por salir del grupo\) en \d+,\d s · informe de 1 incidencias en \d+,\d s$/);
   clean(dir);
 });
 
@@ -160,5 +160,76 @@ test('dos actualizaciones a la vez: la segunda, 409', async () => {
   await assert.rejects(store.update(), (e) => e.status === 409);
   release();
   await first;
+  clean(dir);
+});
+
+// Un CSV de la consulta de Remedy (cabecera y filas) y su lectura en trozos, como llega del bridge.
+const csvOf = (...rows) => [REQUIRED.join(','), ...rows.map((r) => REQUIRED.map((c) => `"${String(r[c] ?? '').replaceAll('"', '""')}"`).join(','))].join('\n') + '\n';
+const chunksOf = (text) => (async function* () { yield text; })();
+
+test('importCsv: una foto a mano pasa por las reglas de siempre; lo más reciente guardado no se pisa', async () => {
+  const dir = tmp(), { store, repo } = open(dir);
+  const first = await store.importCsv(chunksOf(csvOf(ISSUE)), 'issues.csv');
+  assert.deepEqual(first.counts, { inserted: 1, updated: 0, unchanged: 0, kept: 0 });
+  assert.equal(first.meta.file, 'issues.csv');
+  const older = { ...ISSUE, STATUS: 'ASSIGNED', LASTMODIFIEDDATE: '2026-02-01 11:00:00.000' };
+  assert.deepEqual((await store.importCsv(chunksOf(csvOf(older)), 'antiguo.csv')).counts, { inserted: 0, updated: 0, unchanged: 0, kept: 1 });
+  assert.equal(repo.count(), 1);
+  clean(dir);
+});
+
+test('importCsv: rechaza lo que no es la consulta o no tiene filas, y no deja nada a medias', async () => {
+  const dir = tmp(), { store, repo } = open(dir);
+  await assert.rejects(store.importCsv(chunksOf('a,b\n1,2\n'), 'x.csv'), (e) => e.status === 400);
+  await assert.rejects(store.importCsv(chunksOf(`${REQUIRED.join(',')}\n`), 'x.csv'), (e) => e.status === 400 && /no tiene filas/.test(e.message));
+  assert.equal(repo.count(), 0);
+  clean(dir);
+});
+
+test('solo se guarda el grupo: lo que sale del grupo se quita de lo guardado', async () => {
+  const dir = tmp(), logs = [];
+  const other = row({ INCIDENTNUMBER: 'INC000000000009', ASSIGNEDGROUP: 'OTRO GRUPO', REPORTEDDATE: '2026-02-02 10:00:00.000' });
+  const moved = { ...ISSUE, ASSIGNEDGROUP: 'OTRO GRUPO', LASTMODIFIEDDATE: '2026-02-03 09:00:00.000' };
+  const stays = { ...ISSUE, INCIDENTNUMBER: 'INC000000000010' };   // del grupo, y se queda en él
+  const { store, repo } = open(dir, fakeSource([ISSUE, other, stays], [moved]), (l) => logs.push(l));
+  await store.update();
+  assert.equal(repo.count(), 2, 'la de otro grupo no entra');
+  await store.update();
+  assert.equal(repo.count(), 1, 'la que ha salido del grupo se quita');
+  assert.match(logs[1], /1 quitadas por salir del grupo/);
+  clean(dir);
+});
+
+test('cancelar una actualización a mitad de la descarga: no entra nada; ya guardada, no se cancela', async () => {
+  const dir = tmp();
+  const stalled = { asked: [], rows: async function* () { yield ISSUE; await new Promise(() => {}); } };
+  const { store, repo } = open(dir, stalled);
+  const running = store.update();
+  await new Promise((r) => setTimeout(r, 20));
+  assert.deepEqual(store.cancel(), { cancelled: true });
+  await assert.rejects(running, (e) => e.cancelled === true);
+  assert.equal(repo.count(), 0, 'lo que llegó antes de cancelar se deshace');
+  assert.deepEqual(store.cancel(), { cancelled: false }, 'sin nada en marcha, no hace nada');
+  clean(dir);
+});
+
+test('la primera carga con un periodo pide ese periodo; luego, lo cambiado de siempre', async () => {
+  const dir = tmp(), source = fakeSource([ISSUE], []);
+  const { store } = open(dir, source);
+  await store.update({ from: '2026-03-01', to: '2026-03-31' });
+  assert.deepEqual(source.asked[0], ['2026-03-01 00:00:00.000', '2026-04-01 00:00:00.000'], 'desde el primer día, hasta el último incluido');
+  await store.update({ from: '2020-01-01', to: '2020-01-02' });   // con datos, el periodo se ignora
+  assert.deepEqual(source.asked[1], ['2026-02-01 10:00:00.000', '2026-02-01 06:00:00.000'], 'sigue con lo cambiado de siempre: desde la apertura más antigua; lo modificado desde la última menos 6 horas');
+  clean(dir);
+});
+
+test('borrar el histórico: la base y su copia quedan vacías; Snowflake no se toca', async () => {
+  const dir = tmp(), { store, repo } = open(dir, fakeSource([ISSUE]));
+  await store.update();
+  assert.equal(repo.count(), 1);
+  assert.deepEqual(await store.clear(), { cleared: true });
+  assert.equal(repo.count(), 0);
+  assert.equal(await store.load(), null);
+  assert.equal(fs.existsSync(path.join(dir, 'datos.json')), false);
   clean(dir);
 });
