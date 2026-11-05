@@ -14,7 +14,6 @@ const START = 7 * 60, LEN = 8 * 60, DAY = 1440;
 export const MIN_ACTIONS = 3;
 
 export const slotOf = (min) => Math.floor((min - START) / LEN);
-export const slotStart = (slot) => START + slot * LEN;
 const kindOf = (slot) => ((slot % 3) + 3) % 3;
 const startOf = (slot) => START + slot * LEN;
 

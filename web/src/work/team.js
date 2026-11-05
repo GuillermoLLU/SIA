@@ -44,8 +44,8 @@ const COLS = {
 // entrantes (entraron en ese mismo turno) y backlog (entraron antes)
 function shiftCols() {
   const what = { r: ['RPT', 'Resueltas'], v: ['EPPT', 'Escaladas a proveedor'], c: ['PCPT', 'Pasadas a pendiente de cliente'] };
-  const part = { '': '', e: ' de entrantes: las que entraron en ese mismo turno', b: ' de backlog: las que entraron en un turno anterior' };
-  const NOTE = ' Un turno trabajado es uno con algún paso suyo (empezar, resolver, escalar o pasar a pendiente de cliente); cuenta lo que pasa en los turnos del periodo, se abriera la issue cuando se abriera, y se atribuye al responsable actual. En la fila del equipo, la media por persona y turno.';
+  const part = { '': '', e: ' de entrantes: las que se abrieron en el turno en que actuó', b: ' de backlog: las que se abrieron antes' };
+  const NOTE = ' Cada paso es de quien lo hizo. Los turnos se deducen de su actividad (cambios y notas): las acciones a menos de 6 h forman una sesión; desde 3 h o 30 acciones vale 1 turno (más de 12 h, horas / 8 redondeado) y, más corta, su parte de 8 h. En la fila del equipo, el total del equipo entre sus turnos.';
   return Object.fromEntries(Object.entries(what).flatMap(([k, [code, label]]) => Object.entries(part).map(([x, txt]) => [`${k}${x}`,
     [`${code}${x}`, (s) => (s.shift?.[`${k}${x}`] == null ? '—' : dec(s.shift[`${k}${x}`])), (s) => s.shift?.[`${k}${x}`] ?? null, k === 'r' ? 'high' : null,
       `${label} por turno trabajado${txt}.${NOTE}`]])));
@@ -60,44 +60,49 @@ const CHART_ONLY = new Set(['volume', 'ia']);
 // La pestaña «Conclusiones de calidad», a la que se llega desde el bloque Calidad: de momento, sin contenido.
 export const conclusionsPanel = () => `<div class="wk-panel">
     <div class="wk-page-h"><button class="wk-switch-view" data-page="team">← Equipo soporte</button><h3>Conclusiones de calidad</h3></div>
-    <div class="mt-empty"><b>Planned for the future</b></div>
+    <div class="mt-empty"><b>En construcción</b></div>
   </div>`;
 
 // Lo que filtra el panel: la persona (ui.person) y los días elegidos en la actividad (ui.range), que pueden ir sueltos
-// dentro del periodo que abarcan. Con días elegidos, el panel cuenta lo hecho en ellos, como las barras de la actividad:
-// las issues con algún paso esos días (worked), se crearan cuando se crearan, y las resueltas esos días (solved).
+// dentro del periodo que abarcan. Sin días, cuenta las issues creadas en el periodo, de su responsable (assigned). Con días,
+// lo hecho en ellos, de quien lo hizo: las issues con algún paso suyo esos días (worked) y las que resolvió (solved), en
+// doers por persona y en done, las de lo que se mira. doing: si un paso es de lo que se mira.
 const scope = (m, ui) => {
-  const who = ui.person ?? null, chosen = ui.range && new Set(ui.range.days);
-  const stepIn = (i, cols) => cols.some((col) => (m.C[col]?.[i] || []).some((day) => chosen.has(day * DAY)));
-  return {
-    who, chosen, shown: (i) => who == null || m.C.as[i] === who,
-    inDays: (min) => !chosen || chosen.has(Math.floor(min / DAY) * DAY),
-    worked: (i) => stepIn(i, ['eR', 'eV', 'eC']), solved: (i) => stepIn(i, ['eR']),
-  };
+  const { C, data } = m, who = ui.person ?? null, own = m.S.sides[0].company;
+  const chosen = ui.range && new Set(ui.range.days), inDays = (min) => !chosen || chosen.has(Math.floor(min / DAY) * DAY);
+  const doing = (p) => (who == null ? data.company[p] === own : p === who);
+  const sc = { who, chosen, inDays, doing, assigned: (i) => who == null || C.as[i] === who };
+  if (!chosen) return sc;
+  const blank = () => ({ worked: new Set(), solved: new Set() }), doers = new Map(), all = blank();
+  for (const i of m.today()) {
+    for (const [kind, t, p] of C.sp?.[i] || []) {
+      if (data.company[p] !== own || !inDays(t)) continue;
+      if (!doers.has(p)) doers.set(p, blank());
+      for (const o of [doers.get(p), all]) { o.worked.add(i); if (kind === 0) o.solved.add(i); }
+    }
+  }
+  return { ...sc, doers, done: who == null ? all : doers.get(who) || blank() };
 };
 
-// Las issues del panel, sin filtrar por persona.
-const teamRowsOf = (m, { chosen, worked }) => (chosen ? m.today().filter(worked) : m.rows());
+// Las issues del panel, con sus filtros.
+const panelRows = (m, sc) => (sc.chosen ? [...sc.done.worked] : m.rows().filter(sc.assigned));
 
-// Las incidencias de la sábana: las del panel, con sus filtros, de la más antigua a la más reciente.
-export const teamIssues = (m, ui) => {
-  const sc = scope(m, ui);
-  return teamRowsOf(m, sc).filter(sc.shown).sort((a, b) => m.C.rep[a] - m.C.rep[b]);
-};
+// Las incidencias de la sábana: las del panel, de la más antigua a la más reciente.
+export const teamIssues = (m, ui) => panelRows(m, scope(m, ui)).sort((a, b) => m.C.rep[a] - m.C.rep[b]);
 
 // m: el modelo de las Métricas; ch: sus piezas (charts.js); ui.sort.team: [columna, ±1];
 // ui.charts: los bloques que se ven como gráfica; ui.person: la persona a la que se filtra (sin ella, todo el equipo);
 // ui.range: los días elegidos en la actividad; ui.actSeries: la serie que se compara con la media del equipo.
 export const teamPanel = (m, ch, ui) => {
   const { card, lines } = ch;
-  const sc = scope(m, ui), { who, shown, inDays, chosen, worked, solved } = sc;
+  const sc = scope(m, ui), { who, assigned, doing, inDays, chosen, done, doers } = sc;
   // con días elegidos: cuántas y su cola, de lo trabajado; los tiempos y la calidad, de lo resuelto esos días
-  const statsOf = (rows) => {
+  const statsOf = (rows, solved = done?.solved) => {
     if (!chosen) return m.stats(rows);
     const { n, open, t, prio, ip } = m.stats(rows);
-    return { ...m.stats(rows.filter(solved)), n, open, t, prio, ip };
+    return { ...m.stats(rows.filter((i) => solved.has(i))), n, open, t, prio, ip };
   };
-  const teamRows = teamRowsOf(m, sc), A = teamRows.filter(shown), name = m.NAMES()[0], ST = m.bySide(A).map(statsOf);
+  const A = panelRows(m, sc), name = m.NAMES()[0], ST = m.bySide(A).map((rows) => statsOf(rows));
   const mineLabel = who == null ? 'Asignadas al equipo' : 'Asignadas a esta persona';
 
   // las prioridades, una columna cada una (cuántas de cada)
@@ -111,7 +116,7 @@ export const teamPanel = (m, ch, ui) => {
   const { C, OPEN, MONTH, S, N, TEAM } = m, own = m.S.sides[0].company;
   const queue = { all: 0, mine: 0, orphan: 0, months: Array.from({ length: m.LASTM + 1 }, () => [0, 0, 0]) };   // por mes: equipo, sin asignar, otros
   for (let i = 0; i < N; i++) {
-    if (!OPEN[i] || !(chosen ? worked(i) : m.inPeriod(i)) || !shown(i)) continue;
+    if (!OPEN[i] || !(chosen ? done.worked.has(i) : m.inPeriod(i) && assigned(i))) continue;
     const mine = C.as[i] && TEAM[i] === own;
     if (!mine && C.sc[i] !== SCOPE.SGA && C.sc[i] !== SCOPE.SISU) continue;
     const who = mine ? 0 : !C.as[i] ? 1 : 2;
@@ -142,15 +147,17 @@ export const teamPanel = (m, ch, ui) => {
     return `<section class="wk-block wk-as-chart">${head}<div class="wk-key"><b>${hero}</b><span>${label}</span></div>
       <div class="wk-chart">${typeof chart === 'function' ? chart() : lines(chosen ? A.filter(m.inPeriod) : A, ...chart, { height: 150, left: 78 })}</div>${note ? `<p class="wk-note">${note}</p>` : ''}</section>`;
   };
-  // nuevas y resueltas de cada mes: las creadas ese mes y las resueltas ese mes (por su fecha de resolución,
-  // aunque se crearan antes), del equipo; dos columnas por mes
+  // nuevas y resueltas de cada mes: las creadas ese mes y los pasos a Resuelta de ese mes, de quien los hizo, aunque se
+  // crearan antes; dos columnas por mes
   const flow = Array.from({ length: m.LASTM + 1 }, () => [0, 0]);
   let resolvedIn = 0;   // la media al día de resueltas cuenta lo mismo que su barra, también lo creado antes del periodo
   const newDays = new Set(), resolvedDays = new Set(), flowAt = { in: [], out: [] };
   for (let i = 0; i < N; i++) {
-    if (TEAM[i] !== own || !C.as[i] || !shown(i)) continue;
-    if (m.inPeriod(i) && inDays(C.rep[i])) { flow[MONTH[i]][0]++; newDays.add(Math.floor(C.rep[i] / DAY)); flowAt.in.push(C.rep[i]); }
-    if (C.res[i] >= S.d0 && C.res[i] < S.d1 && inDays(C.res[i])) { flow[m.monthAt(C.res[i])][1]++; resolvedIn++; resolvedDays.add(Math.floor(C.res[i] / DAY)); flowAt.out.push(C.res[i]); }
+    if (TEAM[i] === own && C.as[i] && assigned(i) && m.inPeriod(i) && inDays(C.rep[i])) { flow[MONTH[i]][0]++; newDays.add(Math.floor(C.rep[i] / DAY)); flowAt.in.push(C.rep[i]); }
+    for (const [kind, t, p] of C.sp?.[i] || []) {
+      if (kind !== 0 || !doing(p) || t < S.d0 || t >= S.d1 || !inDays(t)) continue;
+      flow[m.monthAt(t)][1]++; resolvedIn++; resolvedDays.add(Math.floor(t / DAY)); flowAt.out.push(t);
+    }
   }
   // bajo cada columna, su mes (uno de cada tantos si son muchos) y el año bajo el primero de cada año (monthTicks)
   const ticks = new Map(monthTicks(S.from, Math.min(S.to, m.LASTM), m.data.meta.start).map((t) => [t.k, t]));
@@ -183,7 +190,7 @@ export const teamPanel = (m, ch, ui) => {
   const bar = (share, cls = `mt-c${k0}`) => `<span class="wk-bar"><i class="${cls}" style="width:${Math.min(100, share * 100).toFixed(1)}%"></i></span>`;
   const perDay = (v) => (v == null ? '—' : dec(v));
   const iaShare = (s) => (s.resolved ? s.ia / s.resolved : null);
-  const doneRows = chosen ? A.filter(solved) : A;   // el SLA de inicio es de lo resuelto
+  const doneRows = chosen ? [...done.solved] : A;   // el SLA de inicio es de lo resuelto
   const byPrio = m.PRIOS.map((p) => [p, m.bySide(doneRows.filter((i) => C.pr[i] === p)).map(m.stats)]);
 
   // la media al día, en la línea del título; sus colores son también la leyenda de las barras
@@ -209,8 +216,10 @@ export const teamPanel = (m, ch, ui) => {
 
   // persona a persona
   // por turno: lo que pasa en los turnos del periodo, de las issues abiertas en cualquier mes (per-shift.js)
-  const counts = shiftCounts(m, m.today(), [S.d0, S.d1], inDays);
-  const people = m.group('as', teamRows, true).filter((x) => x.k).map((x) => ({ ...statsOf(x.rows), k: x.k, shift: counts && perTurn(counts.get(x.k)) }));
+  const counts = shiftCounts(m, [S.d0, S.d1], inDays);
+  // sin días elegidos, cada técnico con las issues de las que es responsable; con ellos, con las que trabajó esos días
+  const groups = chosen ? [...doers].map(([k, o]) => ({ k, rows: [...o.worked], solved: o.solved })) : m.group('as', m.rows(), true).filter((x) => x.k);
+  const people = groups.map((x) => ({ ...statsOf(x.rows, x.solved), k: x.k, shift: counts && perTurn(counts.get(x.k)) }));
   ST[k0] = { ...ST[k0], shift: counts && teamPerTurn(counts) };
   const [sortCol, dir] = ui.sort.team || ['n', -1];
   // al ordenar por un % o una media, quien tiene pocas issues va al final: su cifra dice poco
@@ -226,10 +235,10 @@ export const teamPanel = (m, ch, ui) => {
   // la actividad se pinta sobre el periodo de partida, aunque haya días elegidos (activity.js)
   const activityRange = ui.range?.base || [S.d0, S.d1], picked = ui.actSeries ?? null;
   // comparar: todo el equipo, por día; una persona, por turno, frente a la media por persona y turno del equipo
-  const activityDays = dailyActivity(C, m.today().filter(shown), activityRange);
-  const teamCounts = picked && who != null && shiftCounts(m, m.today(), activityRange);
+  const activityDays = dailyActivity(C, m.today(true), activityRange, doing);
+  const teamCounts = picked && who != null && shiftCounts(m, activityRange);
   const compare = !picked ? null : who == null ? comparePerDay(activityDays, picked)
-    : teamCounts ? { per: 'turno', days: turnsByDay(C, m.today().filter(shown), activityRange, picked), avg: teamPerTurn(teamCounts)[picked] } : null;
+    : teamCounts ? { per: 'turno', days: turnsByDay(C, m.data.sessions, activityRange, picked, who), avg: teamPerTurn(teamCounts)[picked] } : null;
   const activity = activityPanel(activityDays, {
     title: who == null ? 'Actividad del equipo' : `Actividad de ${m.DIMS.as.label(who)}`, dayName: m.dayName, axis: axisDay(m.BASE), sel: ui.range?.days, picked,
     compare,

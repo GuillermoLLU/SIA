@@ -5,14 +5,15 @@ import { dailyActivity, turnsByDay, comparePerDay, pickDays, activityPanel, axis
 const DAY = 1440;
 const dayName = (min) => `d${min / DAY}`;
 
-test('cuenta cada paso en su día, solo los del periodo, se abriera la issue cuando se abriera', () => {
-  const C = { eR: [[2, 9], [3]], eV: [[2], []], eC: [[], [4]] };
+test('cuenta cada paso en su día, solo los del periodo, una vez por issue y día, y solo de quien se mira', () => {
+  const C = { sp: [[[0, 2 * DAY, 1], [1, 2 * DAY + 5, 1], [0, 2 * DAY + 9, 1], [0, 9 * DAY, 1]], [[0, 3 * DAY, 2], [2, 4 * DAY, 2]]] };
   const days = dailyActivity(C, [0, 1], [2 * DAY, 5 * DAY]);
   assert.deepEqual(days, [
     { day: 2 * DAY, r: 1, v: 1, c: 0 },
     { day: 3 * DAY, r: 1, v: 0, c: 0 },
     { day: 4 * DAY, r: 0, v: 0, c: 1 },
   ]);
+  assert.deepEqual(dailyActivity(C, [0, 1], [2 * DAY, 3 * DAY], (p) => p === 2)[0], { day: 2 * DAY, r: 0, v: 0, c: 0 });
   assert.deepEqual(dailyActivity({}, [0], [0, DAY])[0], { day: 0, r: 0, v: 0, c: 0 });   // sin las columnas, sin nada
 });
 
@@ -60,22 +61,21 @@ test('con días elegidos: lo demás se atenúa, la leyenda suma solo lo elegido 
   assert.match(h, /data-range-clear/);
 });
 
-test('una serie por turno: los pasos de cada día entre sus turnos trabajados, de cada persona y con cualquier paso suyo', () => {
-  // turnos de 8 h desde las 7:00: el 0, 1 y 2 empiezan el día 0; el 3, el día 1
-  const C = { as: [1, 2, 0], rep: [0, 0, 0], ip: [-1, -1, -1], sR: [[0, 1], [0], [0]], sV: [[3], [], []], sC: [[], [], []] };
-  const [d0, d1] = turnsByDay(C, [0, 1, 2], [0, 2 * DAY], 'r');   // la tercera, sin responsable, no cuenta
-  assert.deepEqual(d0, { day: 0, count: 3, turns: 3, value: 1 });
-  assert.deepEqual(d1, { day: DAY, count: 0, turns: 1, value: 0 });   // solo escaló: trabajó, sin resolver
-  const [v0, v1] = turnsByDay(C, [0, 1], [0, 2 * DAY], 'v');
-  assert.equal(v0.count, 0);
-  assert.deepEqual(v1, { day: DAY, count: 1, turns: 1, value: 1 });
+test('una serie por turno: los pasos de una persona entre los turnos de sus sesiones que terminan ese día', () => {
+  const C = { sp: [[[0, 100, 1], [0, 200, 1], [1, DAY + 100, 1]], [[0, 100, 2]]] };
+  const sessions = [[], [[0, 300, 0.5], [DAY + 50, DAY + 150, 0.25]], [[0, 300, 1]]];
+  const [d0, d1, d2] = turnsByDay(C, sessions, [0, 3 * DAY], 'r', 1);
+  assert.deepEqual(d0, { day: 0, count: 2, turns: 0.5, value: 4 });
+  assert.deepEqual(d1, { day: DAY, count: 0, turns: 0.25, value: 0 });   // solo escaló: trabajó, sin resolver
+  assert.deepEqual(d2, { day: 2 * DAY, count: 0, turns: 0, value: null });
+  assert.equal(turnsByDay(C, sessions, [0, 3 * DAY], 'v', 1)[1].value, 4);
 });
 
-test('un turno en el que solo empezó una issue también cuenta, y un día sin turnos no tiene valor', () => {
-  const C = { as: [1], rep: [420], ip: [10], sR: [[]], sV: [[]], sC: [[]] };
-  const [d0, d1] = turnsByDay(C, [0], [0, 2 * DAY], 'r');
-  assert.deepEqual(d0, { day: 0, count: 0, turns: 1, value: 0 });
-  assert.deepEqual(d1, { day: DAY, count: 0, turns: 0, value: null });
+test('una sesión que cruza la medianoche cuenta, con sus pasos, en el día en que termina', () => {
+  const C = { sp: [[[0, DAY - 10, 1]]] };
+  const [d0, d1] = turnsByDay(C, [[], [[DAY - 60, DAY + 60, 0.25]]], [0, 2 * DAY], 'r', 1);
+  assert.equal(d0.value, null);
+  assert.deepEqual(d1, { day: DAY, count: 1, turns: 0.25, value: 4 });
 });
 
 const compare = { per: 'turno', avg: 2, days: [{ day: 0, count: 6, turns: 2, value: 3 }, { day: DAY, count: 1, turns: 1, value: 1 }, { day: 2 * DAY, count: 0, turns: 0, value: null }] };
@@ -108,6 +108,12 @@ test('todo el equipo: lo de cada día frente a la media al día, contando tambi�
   assert.match(h, /Resueltas: 1\s+Media del equipo: 2,3\s+por debajo de la media/);
   assert.match(h, /wk-act-n">6</);
   assert.doesNotMatch(h, /por turno|turnos/);
+});
+
+test('los turnos del detalle, con dos decimales: una fracción cuadra con los pasos por turno', () => {
+  const h = activityPanel([{ day: 0, r: 1, v: 0, c: 0 }], { title: 'A', dayName, picked: 'r', compare: { per: 'turno', avg: 2, days: [{ day: 0, count: 1, turns: 0.25, value: 4 }] } });
+  assert.ok(h.includes('Resueltas: 1 en 0,25 turnos'));
+  assert.ok(h.includes('Por turno: 4,0'));
 });
 
 test('sin los turnos del bridge no se puede comparar: sigue la actividad y lo dice', () => {

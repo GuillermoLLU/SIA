@@ -21,7 +21,7 @@ const data = () => ({
   cols: { id: col((_, i) => i + 1), rep: col((x) => x.rep), res: col((x) => x.res), st: col(() => 1), rs: zeros(), pr: col(() => 1), sv: zeros(),
     as: col((x) => x.as), ce: zeros(), op: zeros(), mo: zeros(), k3: zeros(), sc: zeros(), fl: zeros(), vt: zeros(), vp: zeros(), vk: zeros(),
     fr: col((x) => x.fr), ip: col((x) => x.ip), tA: zeros(), tI: zeros(), tPc: zeros(), tPv: zeros(), tPo: zeros(), nb: zeros(), np: zeros(), th: zeros(), rz: zeros(), de: zeros(),
-    su: col(() => 'título') },
+    su: col(() => 'título'), sp: col((x) => [[0, x.res, x.as]]) },   // cada una, resuelta por su responsable
 });
 
 const render = (sides, charts = new Set()) => {
@@ -66,8 +66,7 @@ test('pendientes: lo del equipo cuenta aunque no caiga en SGA ni SISU, como en l
 
 test('por turno: RPT, EPPT y PCPT (con sus e y b) y %IQA, por persona y del equipo', () => {
   const d = data();
-  d.cols.sR = d.cols.rep.map((r, i) => (i < MIN ? [Math.floor((r + 60 - 420) / 480)] : []));   // ANA resuelve en su turno
-  d.cols.sV = d.cols.rep.map(() => []); d.cols.sC = d.cols.rep.map(() => []);
+  d.sessions = [[], [[1000, 1130, 1]], [], []];   // la sesión de ANA, de un turno: sus 10 se abren y se resuelven en ella
   const m = createModel(d), ui = { exp: {}, sort: {}, charts: new Set() };
   m.S.sides = [{ company: 0 }, null]; m.refilter();
   const h = teamPanel(m, createCharts(m, ui), ui);
@@ -104,7 +103,7 @@ test('Conclusiones de calidad: se llega desde el bloque Calidad, con cifras o co
   const h = conclusionsPanel();
   assert.match(h, /data-page="team"/);
   assert.match(h, /<h3>Conclusiones de calidad<\/h3>/);
-  assert.match(h, /Planned for the future/);
+  assert.match(h, /En construcción/);
 });
 
 test('Volumen: la media de resueltas cuenta lo mismo que su barra, también lo creado antes del periodo', () => {
@@ -171,8 +170,7 @@ test('Calidad: en grande el %IQA y, en pequeño, las reaperturas y las devueltas
 
 test('Actividad: arriba del todo, del equipo o de la persona filtrada; con días elegidos, sigue enseñando el periodo de partida', () => {
   const d = data();
-  d.cols.eR = d.cols.as.map((a) => (a === 1 ? [0] : a === 2 ? [1] : []));   // ANA resuelve el día 0, PEPE el 1 y LUIS, de otra empresa, nada
-  d.cols.eV = d.cols.as.map(() => []); d.cols.eC = d.cols.as.map(() => []);
+  d.cols.sp = d.cols.as.map((a) => (a === 1 ? [[0, 10, 1]] : a === 2 ? [[0, 1450, 2]] : [[0, 10, 3]]));   // ANA resuelve el día 0, PEPE el 1 y LUIS es de otra empresa
   const m = createModel(d), ui = { exp: {}, sort: {}, charts: new Set() };
   m.S.sides = [{ company: 0 }, null];
   m.setPeriod(0, 3 * 1440); m.refilter();
@@ -196,7 +194,7 @@ test('Actividad: arriba del todo, del equipo o de la persona filtrada; con días
 
 test('Días sueltos: los bloques y la tabla, solo lo de esos días, no lo que queda entre ellos', () => {
   const d = data();
-  d.cols.eR = d.cols.as.map((a) => (a === 1 ? [0] : a === 2 ? [1] : [])); d.cols.eV = d.cols.as.map(() => []); d.cols.eC = d.cols.as.map(() => []);
+  d.cols.sp = d.cols.as.map((a) => (a === 1 ? [[0, 10, 1]] : a === 2 ? [[0, 1450, 2]] : []));
   const m = createModel(d), ui = { exp: {}, sort: {}, charts: new Set(), range: { base: [0, 3 * 1440], days: [0, 2 * 1440] } };
   m.S.sides = [{ company: 0 }, null]; m.setPeriod(0, 3 * 1440); m.refilter();   // ANA resuelve el día 0 y PEPE, el 1, que queda fuera
   const h = teamPanel(m, createCharts(m, ui), ui);
@@ -230,7 +228,7 @@ test('Días elegidos: lo hecho en ellos, aunque la issue se creara antes; tiempo
   const d = data();
   // creadas el día 0: ANA resuelve sus 10 el día 5; PEPE solo escala sus 10 el día 5 y las resuelve después
   d.cols.rep = d.cols.rep.map(() => 100); d.cols.res = d.cols.as.map((a) => (a === 1 ? 5 * 1440 + 100 : a === 2 ? 9 * 1440 + 100 : 3100));
-  d.cols.eR = d.cols.as.map((a) => (a === 1 ? [5] : a === 2 ? [9] : [])); d.cols.eV = d.cols.as.map((a) => (a === 2 ? [5] : [])); d.cols.eC = d.cols.as.map(() => []);
+  d.cols.sp = d.cols.as.map((a) => (a === 1 ? [[0, 5 * 1440 + 100, 1]] : a === 2 ? [[1, 5 * 1440 + 100, 2], [0, 9 * 1440 + 100, 2]] : []));
   const m = createModel(d), ui = { exp: {}, sort: {}, charts: new Set(), range: { base: [0, 10 * 1440], days: [5 * 1440] } };
   m.S.sides = [{ company: 0 }, null]; m.setPeriod(5 * 1440, 6 * 1440); m.refilter();
   assert.equal(m.rows().length, 0);   // ninguna creada ese día
@@ -248,10 +246,8 @@ test('Días elegidos: lo hecho en ellos, aunque la issue se creara antes; tiempo
 
 test('Actividad frente a la media: todo el equipo, por día; una persona, por turno, frente a la fila del equipo', () => {
   const d = data();
-  d.cols.sR = d.cols.rep.map((r, i) => (i < MIN ? [0] : i < 2 * MIN ? [1] : []));   // ANA resuelve 10 en el turno 0 y PEPE 10 en el 1: 10 por turno
-  d.cols.sV = d.cols.rep.map(() => []); d.cols.sC = d.cols.rep.map(() => []);
-  d.cols.ip = d.cols.rep.map(() => -1);
-  d.cols.eR = d.cols.rep.map((r, i) => (i < 2 * MIN ? [0] : []));   // las 20 del equipo, el primero de los 3 días
+  d.cols.sp = d.cols.as.map((a) => (a === 3 ? [] : [[0, 50, a]]));   // las 20 del equipo, el primero de los 3 días: 10 de ANA y 10 de PEPE
+  d.sessions = [[], [[0, 100, 1]], [[0, 100, 1]], []];                // un turno cada uno: 10 por turno
   const m = createModel(d), ui = { exp: {}, sort: {}, charts: new Set(), actSeries: 'r' };
   m.S.sides = [{ company: 0 }, null]; m.setPeriod(0, 3 * 1440); m.refilter();
   const team = teamPanel(m, createCharts(m, ui), ui);
@@ -263,7 +259,22 @@ test('Actividad frente a la media: todo el equipo, por día; una persona, por tu
   ui.person = 1;
   const ana = teamPanel(m, createCharts(m, ui), ui);
   assert.match(ana, /Media del equipo: 10,0 por turno/);
-  assert.match(ana, /Resueltas: 10 en 1 turno\s+Por turno: 10,0/);
+  assert.match(ana, /Resueltas: 10 en 1,00 turno\s+Por turno: 10,0/);
+});
+
+test('los pasos son de quien los hizo: un técnico ve lo que resolvió él, aunque hoy la issue la lleve otro', () => {
+  const d = data();
+  d.cols.sp = d.cols.as.map((a) => (a === 1 ? [[0, 1100, 2]] : []));   // las 10 de ANA las resolvió PEPE
+  const m = createModel(d), ui = { exp: {}, sort: {}, charts: new Set(), person: 2 };
+  m.S.sides = [{ company: 0 }, null]; m.setPeriod(0, 3 * 1440); m.refilter();
+  const pepe = teamPanel(m, createCharts(m, ui), ui);
+  assert.ok(pepe.includes('Resueltas <b>10<'));
+  ui.person = 1;
+  assert.ok(teamPanel(m, createCharts(m, ui), ui).includes('Resueltas <b>0<'));
+  ui.person = 2; ui.range = { base: [0, 3 * 1440], days: [0] };
+  assert.equal(teamIssues(m, ui).length, 10);
+  assert.ok(teamIssues(m, ui).every((i) => m.C.as[i] === 1));
+  assert.ok(rowOf(teamPanel(m, createCharts(m, ui), ui), 'PEPE'));
 });
 
 test('por turno: sin los turnos del bridge, lo dice', () => {

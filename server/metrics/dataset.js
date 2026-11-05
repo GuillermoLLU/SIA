@@ -16,6 +16,7 @@
 //   themes  nombres de los temas (bit i de `th`).
 //   reasons los motivos de Pendiente que son esperar al cliente o a un tercero (states.js), para la situación.
 //   company empresa de cada persona de dict.person (companies.js).
+//   sessions por persona de dict.person, sus sesiones de actividad: [desde, hasta, turnos] (sessions.js).
 //   cols    una lista por columna, una posición por issue:
 //           id número · rep/res abierta y resuelta · lm último cambio (minutos desde el 1 de enero de start; -1 no hay)
 //           st estado · rs motivo · pr prioridad · sv tipo de servicio · as responsable
@@ -27,6 +28,7 @@
 //           nb devoluciones a la cola · np pendientes · rz resolución repetida (4 veces o más; 0 si no)
 //           eR/eV/eC los días (desde el 1 de enero de start) en que pasó a Resuelta, a Pendiente de proveedor y a
 //           Pendiente de cliente, una vez por día (lo atendido cada día: remedy.js, statusHistory events)
+//           sp los pasos con quien los hizo: [0 resuelta, 1 a proveedor o 2 a cliente, instante, persona de dict.person]
 //           sR/sV/sC lo mismo, por turno: el número de cada turno de 8 h desde las 7:00 del 1 de enero de start (web
 //           shifts.js, slotOf), una vez por turno (lo atendido en el turno en que entró)
 //           the/tes/tcr/tsr THesc, Tesc, Tcr y Tesc-r con sus tickets Jira (escalation.js; minutos, -1 no hay,
@@ -36,12 +38,13 @@
 //           otras esperas, también de un tercero; minutos, -1 no hay): lo de antes del primer Jira, que suma su THesc
 import { readIssue, minutesSince, timeUntil, FLAG } from './remedy.js';
 import { loginsOf, companyOf } from './companies.js';
+import { sessionsOf } from './sessions.js';
 import { THEME_NAMES, problemKey } from './themes.js';
 import { PENDING, OPEN_STATES } from './states.js';
 import { escalationOf } from './escalation.js';
 
 export const GROUP = 'AYS SOPORTE';
-export const FORMAT = 12;
+export const FORMAT = 13;
 // el proyecto Jira con muchos equipos: a quién se escala, su equipo (vp: «ITSMECOM · N2 Courier Support»)
 export const TEAM_PROJECT = 'ITSMECOM';
 
@@ -84,6 +87,7 @@ export const createDataset = ({ start }) => {
   const D = Object.fromEntries(['status', 'reason', 'prio', 'svc', 'person', 'centre', 'op', 'module', 'cat', 'vtype', 'vproj', 'vkey', 'vtext', 'resol', 'problem'].map((k) => [k, dictionary()]));
   const cols = Object.fromEntries(COLS.map((c) => [c, []]));
   const resolutions = [], resolutionCount = new Map(), resolvers = new Map();
+  const stepsByRow = [], actionsBy = new Map();   // los pasos y las acciones, con el autor tal cual: la persona se sabe en build
   const spellings = [];   // por problema: cuántas veces se escribe de cada forma
   const jira = [], keys = new Set(), openKeys = new Set(), spans = [];   // las claves Jira de cada issue y las de las abiertas (las cuentas de escalado se hacen en build)
   let total = 0, snapshot = 0, first = Infinity, last = -1;
@@ -117,6 +121,8 @@ export const createDataset = ({ start }) => {
       sR: slotsOf(i.events.resolved), sV: slotsOf(i.events.vendor), sC: slotsOf(i.events.client),
     };
     for (const c of COLS) cols[c].push(row[c]);
+    stepsByRow.push(i.steps);
+    for (const [t, who] of i.actions) { const l = actionsBy.get(who); if (l) l.push(t); else actionsBy.set(who, [t]); }
     const open = OPEN_STATES.includes(i.status);
     jira.push({ keys: i.jira, open });
     spans.push(i.flags & FLAG.THIRD_PARTY ? i.spans : null);   // solo de las escaladas: para partir su THesc
@@ -151,9 +157,14 @@ export const createDataset = ({ start }) => {
     if (!cols.id.length) throw new DataError(`No hay issues del grupo ${GROUP} en los datos cargados.`);
     Object.assign(cols, escalations(tickets));
     cols.rz = resolutions.map((z) => (z && resolutionCount.get(z) >= 4 ? D.resol.id(z) : 0));
-    const logins = new Map();
-    for (const [login, name] of loginsOf(resolvers)) logins.set(name, [...(logins.get(name) || []), login]);
-    const people = D.person.values;
+    const logins = new Map(), byLogin = loginsOf(resolvers);
+    for (const [login, name] of byLogin) logins.set(name, [...(logins.get(name) || []), login]);
+    const people = D.person.values, ids = new Map(people.map((name, n) => [name, n]));
+    // el autor viene por usuario o por nombre; las cuentas de sistema y quien no es de la lista, de nadie (0)
+    const personOf = (who) => ids.get(byLogin.get(who) ?? who) || 0;
+    cols.sp = stepsByRow.map((steps) => steps.filter(([, t]) => t >= 0).map(([kind, t, who]) => [kind, t, personOf(who)]).filter(([, , p]) => p));
+    const actionsOf = people.map(() => []);
+    for (const [who, times] of actionsBy) { const p = personOf(who); if (p) actionsOf[p].push(...times); }
     const dict = Object.fromEntries(Object.entries(D).map(([k, d]) => [k, d.values]));
     dict.problem = dict.problem.map((k, n) => (n ? [...spellings[n]].reduce((a, b) => (b[1] > a[1] ? b : a))[0] : ''));
     return {
@@ -162,6 +173,7 @@ export const createDataset = ({ start }) => {
       themes: THEME_NAMES,
       reasons: PENDING,
       company: people.map((name) => companyOf(name, logins.get(name) || [])),
+      sessions: actionsOf.map(sessionsOf),
       cols,
     };
   };

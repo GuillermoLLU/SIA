@@ -13,6 +13,16 @@ test('minutos desde el 1 de enero; -1 si no hay fecha', () => {
 
 const audit = (...e) => e.map(([t, who, text]) => `2026-01-01 ${t}:00.000 - ${who} - ${text}`).join(' | ');
 
+test('historial: cada paso con quien lo hizo', () => {
+  const h = statusHistory(audit(
+    ['10:00', 'robot', 'Status: New → Assigned'],
+    ['10:10', 'ana', 'Status_Reason:  → Third Party Vendor Action Reqd'],
+    ['10:20', 'luis', 'Status_Reason: Third Party Vendor Action Reqd → Client Action Required'],
+    ['10:30', 'pepe', 'Status: Assigned → Resolved'],
+  ), { reported: 0, modified: 0, openNow: false, at: (s) => Number(s.slice(11, 13)) * 60 + Number(s.slice(14, 16)) });
+  assert.deepEqual(h.steps, [[1, 610, 'ana'], [2, 620, 'luis'], [0, 630, 'pepe']]);
+});
+
 test('historial: tiempos por estado, primera actuación, paso a En curso, devoluciones y reapertura', () => {
   const h = statusHistory(audit(
     ['10:00', 'robot', 'Status: New → Assigned'],

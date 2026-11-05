@@ -26,6 +26,20 @@ test('solo el grupo, de cualquier año y sin avisos automáticos; textos en dicc
   assert.deepEqual(out.themes, THEME_NAMES);
 });
 
+test('los pasos y las sesiones, por técnico: por usuario o por nombre; las cuentas de sistema no son de nadie', () => {
+  const ds = createDataset({ start: 2026 });
+  const when = (h) => `2026-03-01 ${h}:00.000`;
+  ds.add(row({
+    AUDIT_DETAIL: [`${when('10:00')} - robot.siglo - Status: New → Assigned`, `${when('11:00')} - ANAL - Status: Assigned → Resolved`].join(' | '),
+    WORKLOG_DETAIL: `${when('12:00')} - ANA LOPEZ - una nota`,
+  }));
+  const out = ds.build({ file: 'x', generated: 'g' });
+  const start = Date.UTC(2026, 2, 1, 11, 0) - Date.UTC(2026, 0, 1);
+  assert.deepEqual(out.cols.sp, [[[0, start / 6e4, 1]]]);
+  assert.deepEqual(out.sessions[1], [[start / 6e4, start / 6e4 + 60, 1 / 8]]);   // 1 h y 2 acciones: su parte de 8 h
+  assert.deepEqual(out.sessions[0], []);
+});
+
 test('la primera y la última apertura, sin contar los avisos automáticos', () => {
   const ds = createDataset({ start: 2024 });
   ds.add(row({ REPORTEDDATE: '2025-06-01 00:00:00' }));

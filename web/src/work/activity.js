@@ -6,18 +6,18 @@
 //
 // Pinchar una serie la compara con la media del equipo, las dos con la misma vara. Todo el equipo: lo de cada día frente a
 // la media al día del periodo de partida (comparePerDay). Una persona: lo suyo de cada día por turno trabajado frente a la media
-// por persona y turno de todo el equipo (turnsByDay; per-shift.js, la fila del equipo de la tabla).
+// por persona y turno de todo el equipo (turnsByDay; per-shift.js, la fila del equipo de la tabla). Cada paso es de quien lo hizo.
 import { esc } from '../ui/html.js';
 import { num, dec, MONTHS } from '../metrics/format.js';
-import { slotOf, slotStart } from '../metrics/shifts.js';
+import { KINDS, sessionAt } from './per-shift.js';
 
 const DAY = 1440;
 const LABELLED = 31;   // hasta estos días, cada barra lleva su total y su día; con más no caben
 const ONE_LINE = 16;   // hasta estos días, el día de cada barra cabe en una línea; con más, en tres
 const TICKS = 12;
 const HEADROOM = 1.15;   // sitio sobre la barra más alta para su cifra
-// [clave, columna por día, columna por turno, nombre, color]
-const SERIES = [['r', 'eR', 'sR', 'Resueltas', 'wk-act-r'], ['v', 'eV', 'sV', 'Escaladas a proveedor', 'wk-act-v'], ['c', 'eC', 'sC', 'Pendientes de cliente', 'wk-act-c']];
+// [clave (per-shift.js), nombre, color]
+const SERIES = [['r', 'Resueltas', 'wk-act-r'], ['v', 'Escaladas a proveedor', 'wk-act-v'], ['c', 'Pendientes de cliente', 'wk-act-c']];
 
 // El nombre de un día bajo su barra, «L 23 oct 2026». base: el instante del minuto 0 del modelo (model.js, BASE).
 export const axisDay = (base) => (min) => {
@@ -30,35 +30,36 @@ const dayGrid = ([d0, d1], make) => {
   return { day0, n, days: Array.from({ length: n }, (_, k) => make((day0 + k) * DAY)) };
 };
 
-// C: las columnas del modelo; list: las issues que se miran; [d0, d1): el periodo, en minutos.
-export const dailyActivity = (C, list, range) => {
+// C: las columnas del modelo; list: las issues que se miran; [d0, d1): el periodo, en minutos; allowed: de qué personas.
+// Una vez por issue, tipo de paso y día.
+export const dailyActivity = (C, list, range, allowed = () => true) => {
   const { day0, n, days } = dayGrid(range, (day) => ({ day, r: 0, v: 0, c: 0 }));
   for (const i of list) {
-    for (const [k, col] of SERIES) {
-      for (const e of C[col]?.[i] || []) { const j = e - day0; if (j >= 0 && j < n) days[j][k]++; }
+    const seen = new Set();
+    for (const [kind, t, p] of C.sp?.[i] || []) {
+      const j = Math.floor(t / DAY) - day0, once = `${kind}:${j}`;
+      if (!allowed(p) || j < 0 || j >= n || seen.has(once)) continue;
+      seen.add(once);
+      days[j][KINDS[kind]]++;
     }
   }
   return days;
 };
 
-// Una serie (k) por turno trabajado, cada día del periodo: los pasos y los turnos que empiezan ese día. Un turno trabajado
-// es, como en per-shift.js, una persona en un turno con algún paso suyo. value: pasos por turno; sin turnos, null.
-export const turnsByDay = (C, list, range, k) => {
-  const { day0, days } = dayGrid(range, (day) => ({ day, count: 0, turns: new Set() }));
-  const at = (s) => days[Math.floor(slotStart(s) / DAY) - day0];
-  for (const i of list) {
-    const p = C.as[i];
-    if (!p) continue;
-    const work = (s) => at(s)?.turns.add(`${p}:${s}`);
-    if (C.ip[i] >= 0) work(slotOf(C.rep[i] + C.ip[i]));
-    for (const [key, , col] of SERIES) {
-      for (const s of C[col]?.[i] || []) {
-        work(s);
-        if (key === k && at(s)) at(s).count++;
-      }
+// Una serie (k) de una persona (who) por turno, cada día del periodo: los pasos de sus sesiones que terminan ese día, entre
+// los turnos de esas sesiones (per-shift.js). sessions: las de todos (data.sessions). value: pasos por turno; sin turnos, null.
+export const turnsByDay = (C, sessions, range, k, who) => {
+  const { day0, days } = dayGrid(range, (day) => ({ day, count: 0, turns: 0 }));
+  const dayOf = ([, to]) => days[Math.floor(to / DAY) - day0];
+  for (const s of sessions[who] || []) { const d = dayOf(s); if (d) d.turns += s[2]; }
+  for (const steps of C.sp || []) {
+    for (const [kind, t, p] of steps) {
+      if (p !== who || KINDS[kind] !== k) continue;
+      const s = sessionAt(sessions[who], t), d = s && dayOf(s);
+      if (d) d.count++;
     }
   }
-  return days.map((d) => ({ day: d.day, count: d.count, turns: d.turns.size, value: d.turns.size ? d.count / d.turns.size : null }));
+  return days.map((d) => ({ ...d, value: d.turns ? d.count / d.turns : null }));
 };
 
 // Una serie (k) de la actividad (dailyActivity) para comparar por día: la media, entre todos los días, también los que
@@ -81,6 +82,8 @@ export const pickDays = (range, current, a, b, multi = false) => {
   return days.length ? { period: [days[0], days[days.length - 1] + DAY], range: { base, days } } : { period: base, range: null };
 };
 
+// los turnos pueden ser una fracción (0,25): con dos decimales, para que cuadren con los pasos por turno
+const turnsText = new Intl.NumberFormat('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const avgText = (v) => (v == null ? '—' : dec(v));
 const versus = (v, avg) => (v === avg ? 'en la media' : v > avg ? 'por encima de la media' : 'por debajo de la media');
 
@@ -96,12 +99,12 @@ export const activityPanel = (days, { title, dayName, axis = dayName, sel = null
     return stacked ? [words.slice(0, 2).join(' '), ...words.slice(2)].join('<br>') : words.join(' ');
   };
   const max = compare ? Math.max(compare.avg || 0, ...compare.days.map((d) => d.value || 0)) || 1 : Math.max(1, ...days.map(total));
-  const legend = SERIES.map(([k, , , name, cls]) => {
+  const legend = SERIES.map(([k, name, cls]) => {
     const count = days.filter(inSel).reduce((sum, d) => sum + d[k], 0), on = k === picked;
     return `<button class="wk-act-key${on ? ' wk-act-on' : picked ? ' wk-act-dim' : ''}" data-act-series="${k}" aria-pressed="${on}" title="${on ? 'Volver a la actividad' : 'Comparar con la media del equipo'}"><i class="${cls}"></i>${name} <b>${num(count)}</b></button>`;
   }).join('');
   const what = !series ? 'Pincha un día para verlo y otra vez para quitarlo; Ctrl + clic para elegir varios'
-    : compare ? `${series[3]} ${compare.per === 'día' ? 'por día' : 'por turno trabajado'}, frente a la media del equipo` : 'Faltan los turnos para comparar: reinicia SIA';
+    : compare ? `${series[1]} ${compare.per === 'día' ? 'por día' : 'por turno trabajado'}, frente a la media del equipo` : 'Faltan los turnos para comparar: reinicia SIA';
   const hint = sel
     ? `<span class="wk-act-hint">${sel.length <= 3 ? sel.map((d) => esc(dayName(d))).join(', ') : `${num(sel.length)} días, de ${esc(dayName(sel[0]))} a ${esc(dayName(sel[sel.length - 1]))}`}</span><button class="wk-block-link wk-act-clear" data-range-clear>Quitar selección</button>`
     : `<span class="wk-act-hint">${what}</span>`;
@@ -112,11 +115,11 @@ export const activityPanel = (days, { title, dayName, axis = dayName, sel = null
   const byTurn = compare?.per === 'turno';
   const bars = compare
     ? compare.days.map((d, k) => column(d, k,
-      [dayName(d.day), ...(byTurn ? [`${series[3]}: ${num(d.count)} en ${num(d.turns)} ${d.turns === 1 ? 'turno' : 'turnos'}`, ...(d.value == null ? [] : [`Por turno: ${dec(d.value)}`])] : [`${series[3]}: ${num(d.count)}`]), `Media del equipo: ${avgText(compare.avg)}`, ...(d.value == null || compare.avg == null ? [] : [versus(d.value, compare.avg)])].join('\n'),
-      d.value ? `<i class="${series[4]}" style="height:${height(d.value)}%"></i>` : '', d.value == null ? '' : byTurn ? dec(d.value) : num(d.value))).join('')
+      [dayName(d.day), ...(byTurn ? [`${series[1]}: ${num(d.count)} en ${turnsText.format(d.turns)} ${d.turns === 1 ? 'turno' : 'turnos'}`, ...(d.value == null ? [] : [`Por turno: ${dec(d.value)}`])] : [`${series[1]}: ${num(d.count)}`]), `Media del equipo: ${avgText(compare.avg)}`, ...(d.value == null || compare.avg == null ? [] : [versus(d.value, compare.avg)])].join('\n'),
+      d.value ? `<i class="${series[2]}" style="height:${height(d.value)}%"></i>` : '', d.value == null ? '' : byTurn ? dec(d.value) : num(d.value))).join('')
     : days.map((d, k) => column(d, k,
-      [dayName(d.day), ...SERIES.map(([s, , , name]) => `${name}: ${num(d[s])}`), `Total: ${num(total(d))}`].join('\n'),
-      SERIES.filter(([s]) => d[s]).map(([s, , , , cls]) => `<i class="${cls}" style="height:${height(d[s])}%"></i>`).join(''), total(d) ? num(total(d)) : '')).join('');
+      [dayName(d.day), ...SERIES.map(([s, name]) => `${name}: ${num(d[s])}`), `Total: ${num(total(d))}`].join('\n'),
+      SERIES.filter(([s]) => d[s]).map(([s, , cls]) => `<i class="${cls}" style="height:${height(d[s])}%"></i>`).join(''), total(d) ? num(total(d)) : '')).join('');
   // la línea, a la misma escala que las barras (su alto no cuenta los días de abajo: --wk-act-x)
   const line = compare?.avg == null ? '' : `<span class="wk-act-avg" style="--at:${height(compare.avg)}"><span>Media del equipo: ${dec(compare.avg)} por ${compare.per}</span></span>`;
   return `<section class="wk-block wk-activity"><div class="wk-block-h"><h3>${esc(title)}</h3>${hint}<span class="wk-act-keys">${legend}</span></div>
