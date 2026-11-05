@@ -540,12 +540,12 @@
 .mt-view td.mt-svc-ko, .mt-view .mt-kpi.mt-svc-ko .mt-kpi-v { font-weight: 650; color: color-mix(in srgb, #c98a2b 70%, var(--text)); }
 .mt-view td.mt-svc-ko { background: color-mix(in srgb, #c98a2b 16%, var(--mt-card)); }
 .mt-view .mt-card .mt-tablewrap + .mt-tablewrap { margin-top: 14px; }
-/* En qué se va el tiempo: las escaladas (pe0–2) y las que no (pp0–3), cada tramo de un color. Validados para
+/* En qué se va el tiempo: las escaladas (pe1–2) y las que no (pp0–3), cada tramo de un color. Validados para
    daltonismo los que se tocan en cada barra, con fondo claro y oscuro; ninguno es el verde ni el ocre de cumple y no
    cumple; «otras esperas», en gris neutro. Entre tramos, 2 px del fondo; la cifra, en la tinta del texto */
-.mt-view { --mt-svc-pe0: #eb6834; --mt-svc-pe1: #6250d6; --mt-svc-pe2: #e87ba4; --mt-svc-pp0: #2a78d6; --mt-svc-pp1: #1baf7a; --mt-svc-pp2: #eda100; --mt-svc-pp3: var(--mt-c2); }
-:root[data-mode="dark"] .mt-view { --mt-svc-pe0: #d95926; --mt-svc-pe1: #9085e9; --mt-svc-pe2: #d55181; --mt-svc-pp0: #3987e5; --mt-svc-pp1: #199e70; --mt-svc-pp2: #c98500; }
-.mt-svc-pe0 { background: var(--mt-svc-pe0); } .mt-svc-pe1 { background: var(--mt-svc-pe1); } .mt-svc-pe2 { background: var(--mt-svc-pe2); }
+.mt-view { --mt-svc-pe1: #6250d6; --mt-svc-pe2: #e87ba4; --mt-svc-pp0: #2a78d6; --mt-svc-pp1: #1baf7a; --mt-svc-pp2: #eda100; --mt-svc-pp3: var(--mt-c2); }
+:root[data-mode="dark"] .mt-view { --mt-svc-pe1: #9085e9; --mt-svc-pe2: #d55181; --mt-svc-pp0: #3987e5; --mt-svc-pp1: #199e70; --mt-svc-pp2: #c98500; }
+.mt-svc-pe1 { background: var(--mt-svc-pe1); } .mt-svc-pe2 { background: var(--mt-svc-pe2); }
 .mt-svc-pp0 { background: var(--mt-svc-pp0); } .mt-svc-pp1 { background: var(--mt-svc-pp1); } .mt-svc-pp2 { background: var(--mt-svc-pp2); } .mt-svc-pp3 { background: var(--mt-svc-pp3); }
 .mt-svc-times { display: grid; gap: 22px; }
 .mt-svc-th { margin: 0 0 4px; font-size: 13px; }

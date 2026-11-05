@@ -10,9 +10,11 @@
 //   Resueltas entrantes      las que entraron en el periodo y se resolvieron dentro de él (TC-07 de la #58).
 //   Uso de la IA             de las resueltas, las que tienen una nota [ANALISIS_IA], [DIAGNOSTICO_IA] o [ANTECEDENTES_IA].
 //   THesc, Tesc, Tesc-r      con los tickets Jira (server/metrics/escalation.js); Tesc-r, de las que siguen abiertas.
-const REOPENED = 512, IA_NOTE = 65536, THIRD_PARTY = 131072, BAD_ESCALATION = 262144, JIRA_OPEN = 524288, CLOSED_BEFORE_JIRA = 1048576, MISROUTED = 2097152;
+import { REOPENED, MISROUTED } from './model.js';
+import { DAY } from './rules.js';
+
+const IA_NOTE = 65536, THIRD_PARTY = 131072, BAD_ESCALATION = 262144, JIRA_OPEN = 524288, CLOSED_BEFORE_JIRA = 1048576;
 const PREVIOUS = -2;   // THesc de un ticket previo a la apertura: no cuenta en la media
-const DAY = 1440;
 
 // Los SLA de la oferta. Durante la estabilización son SLO sin penalización; al acabar se fijan los definitivos.
 export const ACTION_TARGET = 0.9;   // Indra los acepta con un cumplimiento mayor al 90 %

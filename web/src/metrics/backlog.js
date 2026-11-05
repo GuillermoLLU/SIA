@@ -2,7 +2,7 @@
 // cómo está lo de cada lado. m: el modelo (model.js).
 import { SITUATIONS, REOPENED, MISROUTED } from './model.js';
 import { OLD_DAYS, DAY, isLate } from './rules.js';
-import { slotOf } from './shifts.js';
+import { slotOf, kindOf, startOf } from './shifts.js';
 
 // Su situación (model.js, SITUATIONS): en curso, en Asignada sin tocar o devuelta, o en espera (Pendiente) de un
 // tercero, del cliente o por otro motivo; las seis suman todo lo abierto.
@@ -88,15 +88,14 @@ export const flowByDay = (m, list, d0, n, kinds = ['res', 'ven', 'cli']) => {
 // de `list` entraron en ese turno (inc) y, de esas, cuántas se atendieron en el mismo turno en que entraron (res, ven,
 // cli: por los turnos que guarda el bridge, dataset.js sR/sV/sC; cada una, una vez, en lo más avanzado). Cada turno
 // cuenta en el día en que empieza (la noche del lunes, de 23 a 7, es del lunes). Sin lo del backlog (bkl, a cero).
-const SLOT0 = 7 * 60, SLOT_LEN = 8 * 60;
 export const flowByShift = (m, list, d0, n, kinds) => {
   const want = new Set(kinds);
   const { C } = m, day0 = Math.floor(d0 / DAY), zero = () => new Array(n).fill(0);
   const out = { inc: zero(), res: zero(), ven: zero(), cli: zero(), bkl: zero() };
   for (const i of list) {
     const s = slotOf(C.rep[i]);
-    if (!want.has(((s % 3) + 3) % 3)) continue;
-    const j = Math.floor((SLOT0 + s * SLOT_LEN) / DAY) - day0;
+    if (!want.has(kindOf(s))) continue;
+    const j = Math.floor(startOf(s) / DAY) - day0;
     if (j < 0 || j >= n) continue;
     out.inc[j]++;
     if (C.sR?.[i]?.includes(s)) out.res[j]++;
