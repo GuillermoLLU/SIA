@@ -1,27 +1,24 @@
 // La consulta de las Métricas en Snowflake (dominio puro): las issues de Remedy
-// con sus notas, sus hijas y su historial, una fila por incidencia y con las
-// mismas columnas que el CSV de antes. Solo trae las nuevas o cambiadas desde
+// con sus notas, sus hijas y su historial, una fila por incidencia. Solo trae las nuevas o cambiadas desde
 // la última actualización: Remedy toca LASTMODIFIEDDATE al crearlas y con cada
 // nota o cambio de auditoría (comprobado en 2026: nunca hay una nota ni un
 // cambio posterior a ella), así que basta con filtrar por esa fecha.
 import { GROUP } from './dataset.js';
 
-// La primera carga, con la base local vacía: desde aquí. Un año antes de que empezara el servicio, para comparar
-// cada periodo con el mismo del año anterior (Métricas del servicio, #14).
+// La primera carga, con la base vacía y sin periodo elegido: desde aquí. Un año antes de que empezara el servicio, para
+// comparar cada periodo con el mismo del año anterior (Métricas del servicio, #14).
 export const FIRST_LOAD = '2025-01-01 00:00:00.000';
-// Una base que empieza después (las primeras cargas eran desde 2026) trae una vez lo que le falta hasta FIRST_LOAD,
-// solo del grupo (es para comparar; las demás no se miden). Con menos de esto de diferencia, ya está completa.
-const BACKFILL_SLACK_DAYS = 7;
-// Margen hacia atrás sobre lo último guardado: Snowflake recibe Remedy con
-// retraso (una hora, más o menos) y pedir de más no cambia nada (decide: same).
-export const MARGIN_DAYS = 2;
+// Margen hacia atrás sobre lo último guardado: Snowflake carga Remedy cada hora en punto, y una modificación puede
+// tardar en llegar una carga entera más el retraso. Pedir de más no cambia nada (decide: same), así que va holgado.
+const MARGIN_HOURS = 6;
 
 const FMT = 'YYYY-MM-DD HH24:MI:SS.FF3';
-// Las fechas salen como en el CSV (las de dentro de LISTAGG también): las leen
+// Las fechas salen con milisegundos (las de dentro de LISTAGG también): las leen
 // minutesSince y entries (remedy.js) y decide (incidents.js).
 // Las notas y los cambios de un mismo segundo van en un orden fijo (WORKLOGID; campo y
 // valores): si no, Snowflake los da cada vez en uno y decide vería un cambio que no hay.
-export const SESSION = ['', '_NTZ', '_LTZ', '_TZ'].map((v) => `ALTER SESSION SET TIMESTAMP${v}_OUTPUT_FORMAT = '${FMT}'`);
+// Una sola sentencia (un viaje a Snowflake) que fija el formato de los cuatro tipos de fecha.
+export const SESSION = [`ALTER SESSION SET ${['', '_NTZ', '_LTZ', '_TZ'].map((v) => `TIMESTAMP${v}_OUTPUT_FORMAT = '${FMT}'`).join(', ')}`];
 
 const STAMP = /^(\d{4})-(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d)(?:\.(\d{3}))?/;
 const pad = (n, w = 2) => String(n).padStart(w, '0');
@@ -34,24 +31,24 @@ const parse = (s) => {
 
 // Qué pedir según lo guardado (repository.js: extremes): first, la apertura más
 // antigua; last, la última modificación. Sin nada guardado, la primera carga.
-// floor: no entran incidencias más antiguas que las que ya se tienen (las de
-// 2025 cargadas por CSV se siguen actualizando); since: lo cambiado desde ahí; back: [desde, hasta) lo que falta
-// hasta FIRST_LOAD (null: nada).
+// floor: no entran incidencias más antiguas que las que ya se tienen; since: lo cambiado desde ahí.
 export const rangeOf = ({ first, last }) => {
   const from = parse(first), to = parse(last);
-  if (!from || !to) return { floor: FIRST_LOAD, since: null, back: null };
-  const missing = from.getTime() - parse(FIRST_LOAD).getTime() > BACKFILL_SLACK_DAYS * 864e5;
-  return { floor: format(from), since: format(new Date(to.getTime() - MARGIN_DAYS * 864e5)), back: missing ? [FIRST_LOAD, format(from)] : null };
+  if (!from || !to) return { floor: FIRST_LOAD, since: null };
+  return { floor: format(from), since: format(new Date(to.getTime() - MARGIN_HOURS * 36e5)) };
 };
 
 // La SQL y sus binds (las fechas nunca van dentro del texto).
-export const buildQuery = ({ floor, since, back = null }) => {
-  const changed = since ? `\n      AND COALESCE(LASTMODIFIEDDATE, REPORTEDDATE) >= TO_TIMESTAMP_NTZ(?, '${FMT}')` : '';
-  const older = back ? `\n       OR (REPORTEDDATE >= TO_TIMESTAMP_NTZ(?, '${FMT}') AND REPORTEDDATE < TO_TIMESTAMP_NTZ(?, '${FMT}') AND TRIM(ASSIGNEDGROUP) = '${GROUP}')` : '';
-  const sql = `
+// La consulta: las incidencias que cumplen `where` y, por cada una, sus notas, hijas, historial y enlace. Una sola
+// plantilla para la actualización (con binds) y para el constructor de SQL (con las fechas escritas en el texto).
+const statement = (where) => `
 WITH incidents AS (
     SELECT * FROM SGA.SIGLO.REMEDY
-    WHERE (REPORTEDDATE >= TO_TIMESTAMP_NTZ(?, '${FMT}')${changed})${older}
+    WHERE ${where}
+),
+-- Solo las del grupo: de ellas se piden las notas, las hijas y el historial. Las demás llegan sin esos datos.
+group_incidents AS (
+    SELECT * FROM incidents WHERE TRIM(ASSIGNEDGROUP) = '${GROUP}'
 ),
 worklog_agg AS (
     SELECT w.INCIDENTNUMBER,
@@ -62,14 +59,14 @@ worklog_agg AS (
             ' | '
         ) WITHIN GROUP (ORDER BY w.WORKLOGSUBMITDATE, w.WORKLOGID) AS WORKLOG_DETAIL
     FROM SGA.SIGLO.REMEDY_WORKLOG w
-    WHERE w.INCIDENTNUMBER IN (SELECT INCIDENTNUMBER FROM incidents)
+    WHERE w.INCIDENTNUMBER IN (SELECT INCIDENTNUMBER FROM group_incidents)
     GROUP BY w.INCIDENTNUMBER
 ),
 association_agg AS (
     SELECT a.PARENTREQUEST,
         LISTAGG(a.CHILDREQUEST, ' | ') WITHIN GROUP (ORDER BY a.CHILDREQUEST) AS CHILDREQUEST
     FROM SGA.SIGLO.REMEDY_ASSOCIATION a
-    WHERE a.PARENTREQUEST IN (SELECT INCIDENTNUMBER FROM incidents)
+    WHERE a.PARENTREQUEST IN (SELECT INCIDENTNUMBER FROM group_incidents)
     GROUP BY a.PARENTREQUEST
 ),
 audit_agg AS (
@@ -83,7 +80,7 @@ audit_agg AS (
             ' | '
         ) WITHIN GROUP (ORDER BY f.CREATE_DATE_C, f.FIELD, f.FIELD_VALUE_ORIG, f.FIELD_VALUE, f.SUBMITTER_C) AS AUDIT_DETAIL
     FROM SGA.SIGLO.REMEDY_AUDIT_FIELD f
-    WHERE f.ORIGINAL_REQUEST_ID IN (SELECT INCIDENTNUMBER FROM incidents)
+    WHERE f.ORIGINAL_REQUEST_ID IN (SELECT INCIDENTNUMBER FROM group_incidents)
     GROUP BY f.ORIGINAL_REQUEST_ID
 )
 SELECT t1.*, t2.WORKLOG_DETAIL, t3.CHILDREQUEST, t4.AUDIT_DETAIL,
@@ -92,5 +89,36 @@ FROM incidents t1
 LEFT JOIN worklog_agg t2 ON t1.INCIDENTNUMBER = t2.INCIDENTNUMBER
 LEFT JOIN association_agg t3 ON t1.INCIDENTNUMBER = t3.PARENTREQUEST
 LEFT JOIN audit_agg t4 ON t1.INCIDENTNUMBER = t4.ORIGINAL_REQUEST_ID`;
-  return { sql, binds: [floor, ...(since ? [since] : []), ...(back || [])] };
+
+// until (solo la primera carga con un periodo elegido): hasta ese instante, sin incluirlo.
+export const buildQuery = ({ floor, since, until }) => {
+  const changed = since ? `\n      AND COALESCE(LASTMODIFIEDDATE, REPORTEDDATE) >= TO_TIMESTAMP_NTZ(?, '${FMT}')` : '';
+  const upto = until ? `\n      AND REPORTEDDATE < TO_TIMESTAMP_NTZ(?, '${FMT}')` : '';
+  return {
+    sql: statement(`REPORTEDDATE >= TO_TIMESTAMP_NTZ(?, '${FMT}')${changed}${upto}`),
+    binds: [floor, ...(since ? [since] : []), ...(until ? [until] : [])],
+  };
+};
+
+// Fecha AAAA-MM-DD real (no 2026-02-30).
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const validDay = (d) => DAY.test(d) && new Date(`${d}T00:00:00Z`).toISOString().slice(0, 10) === d;
+const nextDay = (d) => { const t = new Date(`${d}T00:00:00Z`); t.setUTCDate(t.getUTCDate() + 1); return t.toISOString().slice(0, 10); };
+
+// El SQL para copiar a Snowflake de un periodo: las incidencias abiertas entre `from` y `to` (los dos días incluidos).
+// Solo es texto: SIA no lo ejecuta. Las fechas van escritas en el texto, así que se validan antes.
+// Un periodo de días (desde y hasta incluidos) válido; si no, RangeError.
+const checkPeriod = (from, to) => {
+  if (!validDay(from) || !validDay(to) || from > to) throw new RangeError('Periodo no válido: desde y hasta, con fecha AAAA-MM-DD, y desde no posterior a hasta.');
+};
+
+// La primera carga con un periodo elegido (solo con la base vacía): desde `from` y hasta `to`, incluidos.
+export const firstLoadRange = ({ from, to }) => {
+  checkPeriod(from, to);
+  return { floor: `${from} 00:00:00.000`, since: null, until: `${nextDay(to)} 00:00:00.000` };
+};
+
+export const periodSql = ({ from, to }) => {
+  checkPeriod(from, to);
+  return statement(`REPORTEDDATE >= TO_TIMESTAMP_NTZ('${from} 00:00:00.000', '${FMT}') AND REPORTEDDATE < TO_TIMESTAMP_NTZ('${nextDay(to)} 00:00:00.000', '${FMT}') AND TRIM(ASSIGNEDGROUP) = '${GROUP}'`);
 };

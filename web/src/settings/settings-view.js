@@ -29,11 +29,11 @@ export const mountSettings = ({ api }) => {
     } catch (err) { setStatus(jiraStatus, `no se pudo guardar: ${err.message}`, 'bad'); }
   });
 
-  // Snowflake: solo quién consulta (se entra por SSO); el bridge pone el rol y el warehouse de soporte si van vacíos
-  const sfUser = $('sf-user-input'), sfRole = $('sf-role-input'), sfWarehouse = $('sf-warehouse-input'), sfStatus = $('sf-status');
+  // Snowflake: solo quién consulta (se entra por SSO). El rol y el warehouse están fijados en la configuración: aquí no se tocan.
+  const sfUser = $('sf-user-input'), sfStatus = $('sf-status');
   $('sf-save').addEventListener('click', async () => {
     try {
-      await api('/config', { method: 'PUT', body: { snowflake: { user: sfUser.value, role: sfRole.value, warehouse: sfWarehouse.value } } });
+      await api('/config', { method: 'PUT', body: { snowflake: { user: sfUser.value } } });
       setStatus(sfStatus, 'guardado ✓ — se usa en la próxima actualización de Métricas', 'ok');
     } catch (err) { setStatus(sfStatus, `no se pudo guardar: ${err.message}`, 'bad'); }
   });
@@ -84,8 +84,6 @@ export const mountSettings = ({ api }) => {
       jiraUrl.value = cfg.jira?.baseUrl || '';
       jiraToken.value = cfg.jira?.token || '';
       sfUser.value = cfg.snowflake?.user || '';
-      sfRole.value = cfg.snowflake?.role || '';
-      sfWarehouse.value = cfg.snowflake?.warehouse || '';
       gh = { keys: Array.isArray(cfg.github?.keys) ? cfg.github.keys : [], activeId: cfg.github?.activeId || null };
       ghName.value = ''; ghToken.value = '';
       renderGh();

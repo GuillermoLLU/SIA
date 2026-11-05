@@ -102,7 +102,7 @@ export const servicioTab = (t) => {
     const V = svc.compute(), S = V.stats, us = S.us, jira = m.data.meta.jira;
     const toggles = `<div class="mt-svc-bar"><span>Comparar con</span>${[['prev', `Mismo periodo del año anterior (${range(V.periods.prev)})`], ['ts', 'T-Systems']].map(([k, l]) => `<button class="mt-btn ${ui.svc[k] ? 'mt-on' : ''}" data-svc="${k}" aria-pressed="${ui.svc[k]}">${esc(l)}</button>`).join('')}</div>`;
     const notes = [
-      ui.svc.prev && V.periods.prevCover !== 'full' ? `${V.periods.prevCover === 'none' ? 'No hay' : 'Faltan'} datos del año anterior para este periodo: se traen de Snowflake con la próxima actualización («Actualizar y generar informe»).` : '',
+      ui.svc.prev && V.periods.prevCover !== 'full' ? `${V.periods.prevCover === 'none' ? 'No hay' : 'Faltan'} datos del año anterior para este periodo: para compararlo, elimina el histórico y vuelve a cargar eligiendo un periodo que lo incluya.` : '',
       jira?.message ? `Jira: ${jira.message}` : '',
     ].filter(Boolean).map((n) => `<p class="mt-note">${esc(n)}</p>`).join('');
     const all = us.resolution.all;

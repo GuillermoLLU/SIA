@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { progressOf, estimate, leftLabel, progressHtml, PHASES } from './progress.js';
+import { progressOf, estimate, leftLabel, progressHtml, PHASES, CSV_PHASES, CLEAR_PHASES } from './progress.js';
 
 const prepare = { phase: 'prepare', done: 0, total: 0 };
 const connect = { phase: 'connect', done: 0, total: 0 };
@@ -50,7 +50,7 @@ test('Jira: sus cifras son tickets', () => {
 
 test('el porcentaje es de tiempo y nunca llega a 100 hasta acabar', () => {
   assert.equal(progressOf(compute(42500, 85000), { elapsed: 45000, phaseMs: 15000 }).percent, 64);   // 45 s hechos, 15 + 10 de Jira por delante
-  assert.equal(progressOf({ phase: 'jira', done: 999, total: 1000 }, { elapsed: 80000, phaseMs: 40000 }).percent, 99);
+  assert.equal(progressOf({ phase: 'jira', done: 999, total: 1000 }, { elapsed: 80000, phaseMs: 40000 }).percent, 98);   // de Jira quedan como poco 1,5 s (usual × 0,15)
 });
 
 test('lo que queda, en palabras', () => {
@@ -65,6 +65,26 @@ test('la tarjeta: el porcentaje, la barra, lo que queda y los pasos hechos, el d
   assert.match(html, /aria-valuenow="19"/);
   assert.match(html, /<b>19<\/b><span>%<\/span>/);
   assert.match(html, /width:19%/);
-  assert.match(html, /<b>Traer lo nuevo y lo cambiado<\/b><span>Quedan unos 40 s<\/span>/);
+  assert.match(html, /<b>Sincronizando nuevas y modificadas<\/b><span>Quedan unos 40 s<\/span>/);
   assert.deepEqual([...html.matchAll(/<li class="([^"]*)">/g)].map((x) => x[1]), ['mt-done', 'mt-done', 'mt-now', '', '']);
+});
+
+test('el CSV: el avance en MB leídos, con sus propias fases (leer y guardar, recalcular)', () => {
+  const MB = 1048576;
+  const v = progressOf({ phase: 'download', done: 50 * MB, total: 100 * MB, unit: 'bytes' }, { elapsed: 10000, phaseMs: 10000 }, CSV_PHASES);
+  assert.equal(v.phase, 0);
+  assert.equal(v.detail, '50 MB de 100 MB');
+  assert.match(progressHtml(v, CSV_PHASES), /Leer el CSV y guardar sus incidencias/);
+  assert.doesNotMatch(progressHtml(v, CSV_PHASES), /Conectar con Snowflake/);
+});
+
+test('sin avance aún (null), la primera pintura no falla, ni en el CSV (su primera fase es leer)', () => {
+  assert.doesNotThrow(() => progressOf(null, { elapsed: 0, phaseMs: 0 }, CSV_PHASES));
+  assert.equal(progressOf(null, { elapsed: 0, phaseMs: 0 }, CSV_PHASES).phase, 0);
+});
+
+test('sin cifras aún, el detalle dice que se prepara; nunca NaN', () => {
+  const v = progressOf(null, { elapsed: 0, phaseMs: 0 }, CLEAR_PHASES);
+  assert.equal(v.detail, '', 'al borrar no hay detalle');
+  assert.doesNotMatch(progressOf({ phase: 'clear', done: 10, total: 100 }, { elapsed: 5000, phaseMs: 5000 }, CLEAR_PHASES).detail, /NaN/);
 });

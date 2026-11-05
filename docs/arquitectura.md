@@ -33,7 +33,7 @@ API y su vista:
 | `knowledge/`, `projects/` | Conocimiento asignado y Administración de proyectos |
 | `lab/`, `links/`, `skills/` | Laboratorio de skills, Enlaces rápidos y la paleta ⌘K |
 | `settings/`, `lock/`, `mobile/`, `theme/` | Configuración, candado, acceso desde el móvil y temas |
-| `ui/` | Lo común: `api.js` (el único cliente HTTP), diálogos, toast, html, tiempo y el selector de persona (`picker.js`) |
+| `ui/` | Lo común: `api.js` (el único cliente HTTP), diálogos, toast, html, tiempo, el selector de persona (`picker.js`) y el aviso de lo que falta para la red del cliente (`net-warning.js`, `net-warning-view.js`: certificados y VPN; lo usan el inicio de sesión y Métricas) |
 
 ### `server/` — el bridge local
 
@@ -46,7 +46,7 @@ las rutas de cada slice.
 | Carpeta | Qué es |
 |---|---|
 | `platform/` | Cliente de la base de la instancia y `sia-instance.json` |
-| `auth/` | Sesiones (en memoria), inicio de sesión, contraseña y qué vista exige cada ruta |
+| `auth/` | Sesiones (en memoria), inicio de sesión, contraseña y qué vista exige cada ruta; la comprobación al pulsar la S (`preflight.js`: certificados del cliente y VPN) |
 | `users/`, `knowledge/` | Personas y roles; conocimiento asignado y claves de poder de cada persona |
 | `base/` | Cliente de la base de conocimiento, permisos y el esquema SQL |
 | `projects/` | Administración: proyectos y sus entradas |
@@ -56,7 +56,7 @@ las rutas de cada slice.
 | `launchers/`, `workspace/` | Los CLIs (Claude, Copilot, Codex), sus argumentos y su MCP por sesión; los directorios de modo y skills por base |
 | `remote/` | Acceso desde el móvil: emparejar por QR + PIN, candado, túnel de Cloudflare |
 | `terminal/` | Las sesiones de chat y el protocolo WebSocket |
-| `updates/`, `shared/` | `/api/version`; lo común (HTTP, CSV, ids, puertos, cabeceras, permisos, el troceo de entradas de Remedy) |
+| `updates/`, `shared/` | `/api/version`; lo común (HTTP, CSV, ids, puertos, cabeceras, permisos, el troceo de entradas de Remedy, los certificados del sistema, la VPN del cliente y el error de lo que falta para su red, `client-network.js`) |
 
 Cosas que conviene saber:
 

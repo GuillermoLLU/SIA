@@ -24,3 +24,9 @@ test('PUT: solo lo que viene, saneado; el tema avisa si vale', async () => {
   await s.call('PUT', { theme: { id: 'bad' } });
   assert.equal(s.themes.length, 1, 'un tema que no vale no se guarda ni se avisa');
 });
+
+test('PUT de Snowflake: cambia el usuario y deja el rol y el warehouse tal como están en la configuración', async () => {
+  const s = setup({ snowflake: { user: 'ana', role: 'R_OTRO', warehouse: 'WH_OTRO' } });
+  await s.call('PUT', { snowflake: { user: 'luis', role: 'R_NUEVO', warehouse: 'WH_NUEVO' } });
+  assert.deepEqual(s.cfg().snowflake, { user: 'luis', role: 'R_OTRO', warehouse: 'WH_OTRO' }, 'lo que llegue de rol y warehouse no cuenta');
+});

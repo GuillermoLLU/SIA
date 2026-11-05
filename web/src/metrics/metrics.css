@@ -6,7 +6,7 @@
    aclara en los temas oscuros y más se oscurece en los claros, así se lee
    bien en los dos. Algunos temas oscuros traen un gris secundario y unos
    bordes muy apagados: aquí se suben (--mt-low, --mt-line). */
-.mt-view {
+.mt-view, .mt-modal-back {
   /* el color de cada lado lo elige la persona (--mt-base0 y --mt-base1, los pone la vista) */
   --mt-base0: #2f6fb5;
   --mt-base1: #c98a3a;

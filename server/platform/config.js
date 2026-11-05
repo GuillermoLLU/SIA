@@ -12,8 +12,29 @@ export const parsePlatformConfig = (file, env = {}) => {
   return { url, key };
 };
 
-export const loadPlatformConfig = (root, env = process.env) => {
-  let file = null;
-  try { file = JSON.parse(fs.readFileSync(path.join(root, 'sia-instance.json'), 'utf8')); } catch { /* sin fichero: solo env */ }
-  return parsePlatformConfig(file, env);
+const readInstance = (root) => {
+  try { return JSON.parse(fs.readFileSync(path.join(root, 'sia-instance.json'), 'utf8')); } catch { return null; } // sin fichero: solo env
 };
+
+export const loadPlatformConfig = (root, env = process.env) => parsePlatformConfig(readInstance(root), env);
+
+// Los certificados del cliente (shared/certs.js): la guía oficial para
+// instalarlos (solo https) y los nombres (CN) que deben estar en el sistema.
+// Sin configurar: { helpUrl: '', required: [] }, y no se comprueba nada.
+export const parseCertsConfig = (file) => {
+  const c = file?.certificates || {};
+  const helpUrl = /^https:\/\/\S+$/.test(String(c.helpUrl || '').trim()) ? String(c.helpUrl).trim() : '';
+  const required = (Array.isArray(c.required) ? c.required : []).map((n) => String(n).trim()).filter(Boolean);
+  return { helpUrl, required };
+};
+
+export const loadCertsConfig = (root) => parseCertsConfig(readInstance(root));
+
+// La VPN del cliente (shared/vpn.js): un nombre interno que solo resuelve dentro
+// de su red. Sin configurar: { probeHost: '' }, y no se comprueba.
+export const parseVpnConfig = (file) => {
+  const host = String(file?.vpn?.probeHost || '').trim().toLowerCase();
+  return { probeHost: /^[a-z0-9.-]+$/.test(host) ? host : '' };
+};
+
+export const loadVpnConfig = (root) => parseVpnConfig(readInstance(root));

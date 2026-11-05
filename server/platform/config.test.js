@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { parsePlatformConfig, loadPlatformConfig } from './config.js';
+import { parsePlatformConfig, loadPlatformConfig, parseCertsConfig, parseVpnConfig } from './config.js';
 
 const URL = 'https://abcdefghijklmnopqrst.supabase.co';
 const KEY = 'sb_publishable_abc123';
@@ -24,4 +24,18 @@ test('loadPlatformConfig: sia-instance.json en la raíz, o solo el entorno', () 
   fs.writeFileSync(path.join(root, 'sia-instance.json'), JSON.stringify({ platform: { url: URL, publishableKey: KEY } }));
   assert.deepEqual(loadPlatformConfig(root, {}), { url: URL, key: KEY });
   fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('certificados: guía solo https y nombres limpios; sin configurar, nada que comprobar', () => {
+  assert.deepEqual(parseCertsConfig(null), { helpUrl: '', required: [] });
+  assert.deepEqual(parseCertsConfig({ certificates: { helpUrl: ' https://guia.example/certs ', required: [' ITX Root CA ', '', 3] } }),
+    { helpUrl: 'https://guia.example/certs', required: ['ITX Root CA', '3'] });
+  assert.equal(parseCertsConfig({ certificates: { helpUrl: 'http://inseguro' } }).helpUrl, '');
+  assert.equal(parseCertsConfig({ certificates: { helpUrl: 'javascript:alert(1)' } }).helpUrl, '');
+});
+
+test('VPN: un nombre de host limpio; sin configurar o raro, no se comprueba', () => {
+  assert.deepEqual(parseVpnConfig(null), { probeHost: '' });
+  assert.deepEqual(parseVpnConfig({ vpn: { probeHost: ' Jira.Inditex.com ' } }), { probeHost: 'jira.inditex.com' });
+  assert.deepEqual(parseVpnConfig({ vpn: { probeHost: 'https://x/y' } }), { probeHost: '' });
 });
