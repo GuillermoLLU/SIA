@@ -13,6 +13,10 @@
 .wk-block-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .wk-chart-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin: -6px 0; padding: 0; color: var(--mt-low); background: none; border: 1px solid transparent; cursor: pointer; }
 .wk-chart-btn svg { width: 16px; height: 16px; }
+.wk-block-link { margin-left: auto; padding: 0; font: inherit; font-size: 12px; color: var(--accent); background: none; border: 0; cursor: pointer; }
+.wk-block-link:hover { text-decoration: underline; }
+.wk-page-h { display: flex; align-items: center; gap: 14px; }
+.wk-page-h h3 { margin: 0; }
 .wk-chart-btn:hover { color: var(--accent); border-color: var(--mt-line); background: var(--mt-soft); }
 /* el bloque como gráfica: la cifra principal en pequeño, la gráfica y una nota */
 .wk-as-chart { gap: 6px; }

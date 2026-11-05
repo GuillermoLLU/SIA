@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createModel } from '../metrics/model.js';
 import { createCharts } from '../metrics/charts.js';
-import { teamPanel } from './team.js';
+import { dur } from '../metrics/format.js';
+import { teamPanel, conclusionsPanel } from './team.js';
 
 // 2 personas de Indra (ANA, rápida; PEPE, lenta) con MIN (10) issues cada una y 1 de T-Systems (LUIS, con 1 issue), que no sale.
 const MIN = 10;   // team.js: con menos issues, los % de una persona dicen poco
@@ -78,6 +79,32 @@ test('por turno: RPT, EPPT y PCPT (con sus e y b) y %IQA, por persona y del equi
   const ana = cells('ANA');   // sus 10 entran y se resuelven en el turno 1 (minutos 1000 a 1069): 10 por turno, todas entrantes
   assert.deepEqual([ana[at('RPT')], ana[at('RPTe')], ana[at('RPTb')], ana[at('EPPT')]], ['10,0', '10,0', '0,0', '0,0']);
   assert.equal(ana[at('%IQA')], '—');   // sin la nota del agente de calidad
+});
+
+test('Tatt, Tan y TTR medios, por persona y del equipo; el Tan, solo de las resueltas', () => {
+  const d = data();
+  d.cols.tI = d.cols.as.map((a) => (a === 1 ? 30 : 150));
+  d.cols.res[0] = -1; d.cols.tI[0] = 9999;   // una de ANA sin resolver: su tiempo En curso no cuenta en el Tan
+  const m = createModel(d), ui = { exp: {}, sort: {}, charts: new Set() };
+  m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const h = teamPanel(m, createCharts(m, ui), ui);
+  const heads = [...h.matchAll(/data-sort="team:[^"]+"[^>]*>([^<]+)</g)].map((x) => x[1].replace(/ [↓↑]$/, ''));
+  for (const c of ['Resolución media', 'Resueltas por día', 'En menos de 24 h', 'Devueltas', 'Sin explicar']) assert.ok(!heads.includes(c), c);
+  const times = (name) => { const c = [...rowOf(h, name).matchAll(/<td class="mt-num">([^<]*)</g)].map((x) => x[1]); return ['Tatt medio', 'Tan medio', 'TTR medio'].map((k) => c[heads.indexOf(k)]); };
+  assert.deepEqual(times('ANA'), [dur(5), dur(30), dur(60)]);
+  assert.deepEqual(times('PEPE'), [dur(300), dur(150), dur(7000)]);
+  assert.deepEqual(times('Equipo Indra'), [dur((5 + 300) / 2), dur((9 * 30 + 10 * 150) / 19), dur((9 * 60 + 10 * 7000) / 19)]);
+});
+
+test('Conclusiones de calidad: se llega desde el bloque Calidad, con cifras o como gráfica, y se vuelve al equipo', () => {
+  const link = /<h3>Calidad<\/h3><button class="wk-block-link" data-page="conclusions">Conclusiones de calidad</;
+  assert.match(render([{ company: 0 }, null]), link);
+  assert.match(render([{ company: 0 }, null], new Set(['quality'])), link);
+  assert.equal((render([{ company: 0 }, null]).match(/data-page="conclusions"/g) || []).length, 1);   // solo en Calidad
+  const h = conclusionsPanel();
+  assert.match(h, /data-page="team"/);
+  assert.match(h, /<h3>Conclusiones de calidad<\/h3>/);
+  assert.match(h, /Planned for the future/);
 });
 
 test('por turno: sin los turnos del bridge, lo dice', () => {

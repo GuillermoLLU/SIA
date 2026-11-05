@@ -15,6 +15,8 @@ import { shiftCounts, perTurn, teamPerTurn } from './per-shift.js';
 const MIN = 10;
 
 const donePct = (s) => (s.slaDone == null ? '—' : pct(s.slaDone));
+// Tan: lo que pasan En curso las resueltas (rt[1], stats de model.js)
+const tan = (s) => (s.resolved ? s.rt[1] / s.resolved : null);
 
 // Columnas de la tabla por persona: [cabecera, cómo se ve, valor, qué es mejor, qué mide]. Las de
 // prioridad se añaden con el modelo (sus índices dependen de los datos).
@@ -23,13 +25,10 @@ const COLS = {
   open: ['Pendientes', (s) => num(s.open), (s) => s.open, null, 'Las que tiene asignadas y siguen sin resolver.'],
   sla: ['SLA cumplido', donePct, (s) => s.slaDone, 'high',
     `De las que ha resuelto, el % que pasó a En curso dentro del plazo de su prioridad: ${slaText()}.`],
-  day: ['Resueltas por día', (s) => (s.perDay == null ? '—' : dec(s.perDay)), (s) => s.perDay, 'high',
-    'Media de issues que resuelve al día, contando solo los días en que resolvió alguna. En la fila del equipo, la media de sus personas.'],
-  avg: ['Resolución media', (s) => dur(s.avg), (s) => s.avg, 'low', 'Tiempo medio desde que se abre la issue hasta que se resuelve, en horas y días naturales.'],
-  d1: ['En menos de 24 h', (s) => pct(s.d1), (s) => s.d1, 'high', 'De las que ha resuelto, el % resuelto en menos de 24 horas.'],
+  tatt: ['Tatt medio', (s) => dur(s.ip), (s) => s.ip, 'low', 'Tiempo medio desde que se abre la issue hasta que pasa a En curso por primera vez, de las que han empezado (como en las Métricas del servicio).'],
+  tan: ['Tan medio', (s) => dur(tan(s)), tan, 'low', 'De las que ha resuelto, tiempo medio de análisis: la suma de los tramos En curso, sin las esperas en Pendiente.'],
+  avg: ['TTR medio', (s) => dur(s.avg), (s) => s.avg, 'low', 'Tiempo medio de resolución (TTR): desde que se abre la issue hasta que se resuelve, en horas y días naturales.'],
   reop: ['Reabiertas', (s) => pct(s.reop, 1), (s) => s.reop, 'low', '% de issues que se reabrieron después de resolverse.'],
-  bounce: ['Devueltas', (s) => pct(s.bounce, 1), (s) => s.bounce, 'low', '% de issues que se devolvieron a la cola (pasaron de En curso a Asignada).'],
-  noRes: ['Sin explicar', (s) => pct(s.noRes, 1), (s) => s.noRes, 'low', '% de las cerradas sin un texto que explique la solución.'],
   ...shiftCols(),
   iqa: ['%IQA', () => '—', () => null, 'high', 'De las auditadas, el % con calidad 3 o 4 (sobre 4: la nota mínima de técnica, proceso y comunicación). Pendiente: la nota del agente de calidad (tarea #55) aún no llega a SIA.'],
   ia: ['Con IA', (s) => (s.resolved ? pct(s.ia / s.resolved, 1) : '—'), (s) => (s.resolved ? s.ia / s.resolved : null), null, 'De las que ha resuelto, el % en el que intervino la IA (marcas en TAGS o en las notas).'],
@@ -52,6 +51,12 @@ const DATA_ICON = icon('<rect x="3" y="4" width="18" height="16" rx="2"/><path d
 // bloques que se leen mejor como gráfica: siempre así, sin icono para cambiar
 const CHART_ONLY = new Set(['volume', 'ia']);
 
+// La pestaña «Conclusiones de calidad», a la que se llega desde el bloque Calidad: de momento, sin contenido.
+export const conclusionsPanel = () => `<div class="wk-panel">
+    <div class="wk-page-h"><button class="wk-switch-view" data-page="team">← Equipo soporte</button><h3>Conclusiones de calidad</h3></div>
+    <div class="mt-empty"><b>Planned for the future</b></div>
+  </div>`;
+
 // m: el modelo de las Métricas; ch: sus piezas (charts.js); ui.sort.team: [columna, ±1];
 // ui.charts: los bloques que se ven como gráfica.
 export const teamPanel = (m, ch, ui) => {
@@ -62,7 +67,7 @@ export const teamPanel = (m, ch, ui) => {
   const PRIO = { CRITICAL: 'Críticas', HIGH: 'Altas', MEDIUM: 'Medias', LOW: 'Bajas' };
   const cols = { ...COLS };
   for (const p of m.PRIOS) cols[`p${p}`] = [PRIO[m.DI.prio[p]], (s) => num(s.prio[p]), (s) => s.prio[p], null, `Issues de prioridad ${m.slaLabel(p)}.`];
-  const order = ['n', 'open', ...m.PRIOS.map((p) => `p${p}`), 'sla', 'day', 'avg', 'd1', 'reop', 'bounce', 'noRes', 'r', 're', 'rb', 'v', 've', 'vb', 'c', 'ce', 'cb', 'iqa', 'ia'];
+  const order = ['n', 'open', ...m.PRIOS.map((p) => `p${p}`), 'sla', 'tatt', 'tan', 'avg', 'reop', 'r', 're', 'rb', 'v', 've', 'vb', 'c', 'ce', 'cb', 'iqa', 'ia'];
 
   // Pendientes: todo lo que el equipo tiene sin resolver (caiga o no en sus búsquedas de Remedy) y lo
   // que espera en sus búsquedas (SGA y SISU) sin asignar o asignado a otros; de las issues abiertas en el periodo.
@@ -89,7 +94,8 @@ export const teamPanel = (m, ch, ui) => {
   const block = (id, title, label, hero, items, extra, chart) => {
     const fixed = CHART_ONLY.has(id), asChart = fixed || charts.has(id);
     // en los bloques que son siempre gráfica, `extra` va en la línea del título, a la derecha
-    const head = `<div class="wk-block-h"><h3>${title}</h3>${fixed ? extra : `<button class="wk-chart-btn" data-chart="${id}" title="${asChart ? 'Ver los datos' : `Ver la evolución por ${m.daily() ? 'día' : 'mes'}`}">${asChart ? DATA_ICON : CHART_ICON}</button>`}</div>`;
+    const link = id === 'quality' ? '<button class="wk-block-link" data-page="conclusions">Conclusiones de calidad</button>' : '';
+    const head = `<div class="wk-block-h"><h3>${title}</h3>${link}${fixed ? extra : `<button class="wk-chart-btn" data-chart="${id}" title="${asChart ? 'Ver los datos' : `Ver la evolución por ${m.daily() ? 'día' : 'mes'}`}">${asChart ? DATA_ICON : CHART_ICON}</button>`}</div>`;
     if (!asChart) return `<section class="wk-block">${head}<div class="wk-hero"><b>${hero}</b><span>${label}</span></div>${extra}<div class="wk-items">${items.join('')}</div></section>`;
     const note = { queue: 'Lo que sigue sin resolver de cada mes, por mes de creación.', volume: '' }[id]
       ?? (m.daily() ? 'Por día de creación. * Día de la última carga: aún puede cambiar.' : 'Por mes de creación. * Mes en curso: aún puede cambiar.');
@@ -153,9 +159,7 @@ export const teamPanel = (m, ch, ui) => {
   // por turno: lo que pasa en los turnos del periodo, de las issues abiertas en cualquier mes (per-shift.js)
   const counts = shiftCounts(m, m.today(), [S.d0, S.d1]);
   const people = m.group('as', A, true).filter((x) => x.k).map((x) => ({ ...m.stats(x.rows), k: x.k, shift: counts && perTurn(counts.get(x.k)) }));
-  // resueltas al día, en la fila del equipo: la media de su gente (lo que resuelve el equipo entero en un día va arriba)
-  const v = people.filter((p) => p.n >= MIN && p.perDay != null).map((p) => p.perDay);
-  ST[k0] = { ...ST[k0], perDay: v.length ? v.reduce((a, b) => a + b, 0) / v.length : null, shift: counts && teamPerTurn(counts) };
+  ST[k0] = { ...ST[k0], shift: counts && teamPerTurn(counts) };
   const [sortCol, dir] = ui.sort.team || ['n', -1];
   // al ordenar por un % o una media, quien tiene pocas issues va al final: su cifra dice poco
   const key = (r) => cols[sortCol][2](r) ?? -Infinity, rated = !!cols[sortCol][3], few = (r) => (rated && r.n < MIN ? 1 : 0);
