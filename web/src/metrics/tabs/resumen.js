@@ -5,7 +5,7 @@ import { num, pct, dur } from '../format.js';
 import { ages, meanAge } from '../backlog.js';
 import { blocksOf } from '../pieces.js';
 import { whoHas } from '../today.js';
-import { SHEET_COLS, sheetOf, remedyUrl } from '../sheet.js';
+import { sheetOf, sheetBody } from '../sheet.js';
 
 export const resumenTab = (t) => {
   const { m, ch, ui, grid, ask, name, section, selRow, asRows, prioRows, topRows, mixCmp } = t;
@@ -66,22 +66,11 @@ export const resumenTab = (t) => {
       <tr class="mt-grp"><td>Total</td>${tot.map((v) => `<td class="mt-num">${num(v)}</td>`).join('')}</tr></tbody></table></div>`;
   };
 
-  // La sábana: lo abierto ahora, con los filtros y los lados de arriba, una fila por incidencia (sheet.js); las 50
-  // primeras y «Ver todas»; el botón la exporta entera a CSV (metrics-view.js, data-export).
-  const SHEET_TOP = 50;
+  // La sábana: lo abierto ahora, con los filtros y los lados de arriba (sheet.js); el botón la exporta entera a CSV
+  // (metrics-view.js, data-export).
   const sheetCard = () => {
-    const list = sheetOf(m), shown = ui.exp['res-sheet'] ? list : list.slice(0, SHEET_TOP);
-    const cellOf = ([label, f], i) => {
-      const v = f(m, i);
-      if (label === 'Incidencia') return `<td><a href="${remedyUrl(C.id[i])}" target="_blank" rel="noopener">${esc(v)}</a></td>`;
-      if (label === 'Título') return `<td class="mt-subj" data-tip="${esc(v)}">${esc(v)}</td>`;
-      return `<td${label === 'Antigüedad' ? ' class="mt-num"' : ''}>${esc(v)}</td>`;
-    };
-    const table = list.length ? `<div class="mt-tablewrap ${ui.exp['res-sheet'] ? 'mt-scroll' : ''}"><table class="mt-list"><thead><tr>${SHEET_COLS.map(([l]) => `<th${l === 'Antigüedad' ? ' class="mt-num"' : ''}>${l}</th>`).join('')}</tr></thead>
-      <tbody>${shown.map((i) => `<tr>${SHEET_COLS.map((c) => cellOf(c, i)).join('')}</tr>`).join('')}</tbody></table></div>${ch.more('res-sheet', list.length, SHEET_TOP)}`
-      : '<p class="mt-mut mt-small">Nada abierto con estos filtros.</p>';
-    const tools = `<div class="mt-sheet-bar"><span class="mt-mut">${num(list.length)} incidencias</span><button class="mt-btn" data-export ${list.length ? '' : 'disabled'}>Exportar a CSV</button></div>`;
-    return card('Sábana de incidencias', tools + table, { span: 's12', sub: 'Lo abierto ahora, con los filtros y los lados de arriba, de la más antigua a la más reciente. Exportar a CSV las descarga todas, con su enlace a Remedy, para abrirlas en Excel.' });
+    const body = sheetBody(m, sheetOf(m), { id: 'res-sheet', expanded: ui.exp['res-sheet'], more: ch.more, empty: 'Nada abierto con estos filtros.' });
+    return card('Sábana de incidencias', body, { span: 's12', sub: 'Lo abierto ahora, con los filtros y los lados de arriba, de la más antigua a la más reciente. Exportar a CSV las descarga todas, con su enlace a Remedy, para abrirlas en Excel.' });
   };
 
   const backlogNow = () => {

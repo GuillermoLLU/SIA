@@ -8,11 +8,17 @@
 // al ordenar por ellos, esas personas van al final.
 import { esc } from '../ui/html.js';
 import { SCOPE, slaText } from '../metrics/model.js';
-import { num, dec, pct, dur } from '../metrics/format.js';
+import { num, dec, pct, dur, DOWS } from '../metrics/format.js';
 import { monthTicks } from '../metrics/plot.js';
 import { shiftCounts, perTurn, teamPerTurn } from './per-shift.js';
+import { sheetBody } from '../metrics/sheet.js';
+import { TEAM_SHEET_COLS } from './team-sheet.js';
+import { weekdayAverages } from './weekdays.js';
+import { dailyActivity, turnsByDay, comparePerDay, activityPanel, axisDay } from './activity.js';
 
 const MIN = 10;
+const DAY = 1440;   // minutos
+const WEEKDAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábados', 'Domingos'];
 
 const donePct = (s) => (s.slaDone == null ? '—' : pct(s.slaDone));
 // Tan: lo que pasan En curso las resueltas (rt[1], stats de model.js)
@@ -57,11 +63,42 @@ export const conclusionsPanel = () => `<div class="wk-panel">
     <div class="mt-empty"><b>Planned for the future</b></div>
   </div>`;
 
+// Lo que filtra el panel: la persona (ui.person) y los días elegidos en la actividad (ui.range), que pueden ir sueltos
+// dentro del periodo que abarcan. Con días elegidos, el panel cuenta lo hecho en ellos, como las barras de la actividad:
+// las issues con algún paso esos días (worked), se crearan cuando se crearan, y las resueltas esos días (solved).
+const scope = (m, ui) => {
+  const who = ui.person ?? null, chosen = ui.range && new Set(ui.range.days);
+  const stepIn = (i, cols) => cols.some((col) => (m.C[col]?.[i] || []).some((day) => chosen.has(day * DAY)));
+  return {
+    who, chosen, shown: (i) => who == null || m.C.as[i] === who,
+    inDays: (min) => !chosen || chosen.has(Math.floor(min / DAY) * DAY),
+    worked: (i) => stepIn(i, ['eR', 'eV', 'eC']), solved: (i) => stepIn(i, ['eR']),
+  };
+};
+
+// Las issues del panel, sin filtrar por persona.
+const teamRowsOf = (m, { chosen, worked }) => (chosen ? m.today().filter(worked) : m.rows());
+
+// Las incidencias de la sábana: las del panel, con sus filtros, de la más antigua a la más reciente.
+export const teamIssues = (m, ui) => {
+  const sc = scope(m, ui);
+  return teamRowsOf(m, sc).filter(sc.shown).sort((a, b) => m.C.rep[a] - m.C.rep[b]);
+};
+
 // m: el modelo de las Métricas; ch: sus piezas (charts.js); ui.sort.team: [columna, ±1];
-// ui.charts: los bloques que se ven como gráfica.
+// ui.charts: los bloques que se ven como gráfica; ui.person: la persona a la que se filtra (sin ella, todo el equipo);
+// ui.range: los días elegidos en la actividad; ui.actSeries: la serie que se compara con la media del equipo.
 export const teamPanel = (m, ch, ui) => {
   const { card, lines } = ch;
-  const A = m.rows(), name = m.NAMES()[0], ST = m.bySide(A).map(m.stats);
+  const sc = scope(m, ui), { who, shown, inDays, chosen, worked, solved } = sc;
+  // con días elegidos: cuántas y su cola, de lo trabajado; los tiempos y la calidad, de lo resuelto esos días
+  const statsOf = (rows) => {
+    if (!chosen) return m.stats(rows);
+    const { n, open, t, prio, ip } = m.stats(rows);
+    return { ...m.stats(rows.filter(solved)), n, open, t, prio, ip };
+  };
+  const teamRows = teamRowsOf(m, sc), A = teamRows.filter(shown), name = m.NAMES()[0], ST = m.bySide(A).map(statsOf);
+  const mineLabel = who == null ? 'Asignadas al equipo' : 'Asignadas a esta persona';
 
   // las prioridades, una columna cada una (cuántas de cada)
   const PRIO = { CRITICAL: 'Críticas', HIGH: 'Altas', MEDIUM: 'Medias', LOW: 'Bajas' };
@@ -74,7 +111,7 @@ export const teamPanel = (m, ch, ui) => {
   const { C, OPEN, MONTH, S, N, TEAM } = m, own = m.S.sides[0].company;
   const queue = { all: 0, mine: 0, orphan: 0, months: Array.from({ length: m.LASTM + 1 }, () => [0, 0, 0]) };   // por mes: equipo, sin asignar, otros
   for (let i = 0; i < N; i++) {
-    if (!OPEN[i] || !m.inPeriod(i)) continue;
+    if (!OPEN[i] || !(chosen ? worked(i) : m.inPeriod(i)) || !shown(i)) continue;
     const mine = C.as[i] && TEAM[i] === own;
     if (!mine && C.sc[i] !== SCOPE.SGA && C.sc[i] !== SCOPE.SISU) continue;
     const who = mine ? 0 : !C.as[i] ? 1 : 2;
@@ -95,20 +132,25 @@ export const teamPanel = (m, ch, ui) => {
     const fixed = CHART_ONLY.has(id), asChart = fixed || charts.has(id);
     // en los bloques que son siempre gráfica, `extra` va en la línea del título, a la derecha
     const link = id === 'quality' ? '<button class="wk-block-link" data-page="conclusions">Conclusiones de calidad</button>' : '';
-    const head = `<div class="wk-block-h"><h3>${title}</h3>${link}${fixed ? extra : `<button class="wk-chart-btn" data-chart="${id}" title="${asChart ? 'Ver los datos' : `Ver la evolución por ${m.daily() ? 'día' : 'mes'}`}">${asChart ? DATA_ICON : CHART_ICON}</button>`}</div>`;
+    const months = charts.has('volumeMonths');   // Volumen: por día de la semana o, con su icono, por mes
+    const toggle = id === 'volume' ? `<button class="wk-chart-btn" data-chart="volumeMonths" title="${months ? 'Ver por día de la semana' : 'Ver por mes'}">${months ? DATA_ICON : CHART_ICON}</button>` : '';
+    const head = `<div class="wk-block-h"><h3>${title}</h3>${link}${fixed ? `${extra}${toggle}` : `<button class="wk-chart-btn" data-chart="${id}" title="${asChart ? 'Ver los datos' : `Ver la evolución por ${m.daily() ? 'día' : 'mes'}`}">${asChart ? DATA_ICON : CHART_ICON}</button>`}</div>`;
     if (!asChart) return `<section class="wk-block">${head}<div class="wk-hero"><b>${hero}</b><span>${label}</span></div>${extra}<div class="wk-items">${items.join('')}</div></section>`;
-    const note = { queue: 'Lo que sigue sin resolver de cada mes, por mes de creación.', volume: '' }[id]
+    // Calidad: la gráfica sigue las reaperturas hasta que llegue la nota del %IQA
+    const note = { queue: 'Lo que sigue sin resolver de cada mes, por mes de creación.', volume: '', quality: `Reaperturas, por ${m.daily() ? 'día' : 'mes'} de creación. El %IQA llegará con la nota del agente de calidad.` }[id]
       ?? (m.daily() ? 'Por día de creación. * Día de la última carga: aún puede cambiar.' : 'Por mes de creación. * Mes en curso: aún puede cambiar.');
     return `<section class="wk-block wk-as-chart">${head}<div class="wk-key"><b>${hero}</b><span>${label}</span></div>
-      <div class="wk-chart">${typeof chart === 'function' ? chart() : lines(A, ...chart, { height: 150, left: 78 })}</div>${note ? `<p class="wk-note">${note}</p>` : ''}</section>`;
+      <div class="wk-chart">${typeof chart === 'function' ? chart() : lines(chosen ? A.filter(m.inPeriod) : A, ...chart, { height: 150, left: 78 })}</div>${note ? `<p class="wk-note">${note}</p>` : ''}</section>`;
   };
   // nuevas y resueltas de cada mes: las creadas ese mes y las resueltas ese mes (por su fecha de resolución,
   // aunque se crearan antes), del equipo; dos columnas por mes
   const flow = Array.from({ length: m.LASTM + 1 }, () => [0, 0]);
+  let resolvedIn = 0;   // la media al día de resueltas cuenta lo mismo que su barra, también lo creado antes del periodo
+  const newDays = new Set(), resolvedDays = new Set(), flowAt = { in: [], out: [] };
   for (let i = 0; i < N; i++) {
-    if (TEAM[i] !== own || !C.as[i]) continue;
-    if (m.inPeriod(i)) flow[MONTH[i]][0]++;
-    if (C.res[i] >= S.d0 && C.res[i] < S.d1) flow[m.monthAt(C.res[i])][1]++;
+    if (TEAM[i] !== own || !C.as[i] || !shown(i)) continue;
+    if (m.inPeriod(i) && inDays(C.rep[i])) { flow[MONTH[i]][0]++; newDays.add(Math.floor(C.rep[i] / DAY)); flowAt.in.push(C.rep[i]); }
+    if (C.res[i] >= S.d0 && C.res[i] < S.d1 && inDays(C.res[i])) { flow[m.monthAt(C.res[i])][1]++; resolvedIn++; resolvedDays.add(Math.floor(C.res[i] / DAY)); flowAt.out.push(C.res[i]); }
   }
   // bajo cada columna, su mes (uno de cada tantos si son muchos) y el año bajo el primero de cada año (monthTicks)
   const ticks = new Map(monthTicks(S.from, Math.min(S.to, m.LASTM), m.data.meta.start).map((t) => [t.k, t]));
@@ -119,37 +161,47 @@ export const teamPanel = (m, ch, ui) => {
     return `<div class="wk-cols">${shown.map(([k, [inN, outN]]) => `<div class="wk-col" data-tip="${esc(`${m.monthName(k)}\nNuevas: ${num(inN)}\nResueltas: ${num(outN)}`)}">
         <span class="wk-pair"><i class="mt-c2" style="height:${(inN / max * 100).toFixed(1)}%"></i><i class="mt-c${k0}" style="height:${(outN / max * 100).toFixed(1)}%"></i></span>${colX(k)}</div>`).join('')}</div>`;
   };
+  // la media de cada día de la semana, con sus dos cifras bajo las columnas, en los colores de la leyenda del bloque
+  const weekdayBars = () => {
+    const week = weekdayAverages(flowAt, [S.d0, S.d1], (t) => m.clock(t)[0], inDays);
+    const max = Math.max(1, ...week.flatMap((w) => [w.in || 0, w.out || 0]));
+    const avg = (v) => (v == null ? '—' : dec(v));
+    return `<div class="wk-cols wk-days">${week.map((w, k) => `<div class="wk-col" data-tip="${esc(`${WEEKDAYS[k]} (${num(w.days)} en el periodo)\nNuevas: ${avg(w.in)} de media\nResueltas: ${avg(w.out)} de media`)}">
+        <span class="wk-pair"><i class="mt-c2" style="height:${((w.in || 0) / max * 100).toFixed(1)}%"></i><i class="mt-c${k0}" style="height:${((w.out || 0) / max * 100).toFixed(1)}%"></i></span>
+        <span class="wk-col-x">${DOWS[k]}</span><span class="wk-col-n">${avg(w.in)}</span><span class="wk-col-n"><b>${avg(w.out)}</b></span></div>`).join('')}</div>`;
+  };
   // pendientes por mes de creación: una columna por mes, con los mismos colores que la barra del bloque
   const queueBars = (months) => {
     const shown = months.map((v, k) => [k, v]).filter(([k]) => k >= S.from && k <= Math.min(S.to, m.LASTM));
     const max = Math.max(1, ...shown.map(([, v]) => v[0] + v[1] + v[2]));
     return `<div class="wk-cols">${shown.map(([k, v]) => {
       const n = v[0] + v[1] + v[2];
-      return `<div class="wk-col" data-tip="${esc(`${m.monthName(k)}: ${num(n)} sin resolver\nAsignadas al equipo: ${num(v[0])}\nSin asignar: ${num(v[1])}\nAsignadas a otros: ${num(v[2])}`)}">
+      return `<div class="wk-col" data-tip="${esc(`${m.monthName(k)}: ${num(n)} sin resolver\n${mineLabel}: ${num(v[0])}\nSin asignar: ${num(v[1])}\nAsignadas a otros: ${num(v[2])}`)}">
         <span class="wk-col-n">${n ? num(n) : ''}</span><span class="wk-col-bar" style="height:${(n / max * 100).toFixed(1)}%"><i class="mt-c2" style="flex:${v[2]}"></i><i class="wk-orphan" style="flex:${v[1]}"></i><i class="mt-c${k0}" style="flex:${v[0]}"></i></span>${colX(k)}</div>`;
     }).join('')}</div>`;
   };
   const bar = (share, cls = `mt-c${k0}`) => `<span class="wk-bar"><i class="${cls}" style="width:${Math.min(100, share * 100).toFixed(1)}%"></i></span>`;
   const perDay = (v) => (v == null ? '—' : dec(v));
   const iaShare = (s) => (s.resolved ? s.ia / s.resolved : null);
-  const byPrio = m.PRIOS.map((p) => [p, m.bySide(A.filter((i) => C.pr[i] === p)).map(m.stats)]);
+  const doneRows = chosen ? A.filter(solved) : A;   // el SLA de inicio es de lo resuelto
+  const byPrio = m.PRIOS.map((p) => [p, m.bySide(doneRows.filter((i) => C.pr[i] === p)).map(m.stats)]);
 
   // la media al día, en la línea del título; sus colores son también la leyenda de las barras
-  const volume = block('volume', 'Volumen', 'issues en el periodo', fig((s) => num(s.n)), [],
-    `<span class="wk-aside">Media al día <i class="mt-sw mt-c2"></i><b>${perDay(ST[k0].inPerDay)}</b> nuevas <i class="mt-sw mt-c${k0}"></i><b>${perDay(ST[k0].perDay)}</b> resueltas</span>`, flowBars);
+  const volume = block('volume', 'Volumen', chosen ? 'issues con actividad esos días' : 'issues en el periodo', fig((s) => num(s.n)), [],
+    `<span class="wk-aside">Media al día <i class="mt-sw mt-c2"></i><b>${perDay(newDays.size ? flowAt.in.length / newDays.size : null)}</b> nuevas <i class="mt-sw mt-c${k0}"></i><b>${perDay(resolvedDays.size ? resolvedIn / resolvedDays.size : null)}</b> resueltas</span>`, () => (charts.has('volumeMonths') ? flowBars() : weekdayBars()));
   const backlog = block('queue', 'Pendientes', 'sin resolver', num(queue.all), [
-    item('Asignadas al equipo', num(queue.mine), `mt-c${k0}`),
-    item('Sin asignar en SGA y SISU', num(queue.orphan), 'wk-orphan'),
-  ], queue.all ? `<span class="wk-split" data-tip="${esc(`Sin resolver: ${num(queue.all)}\nAsignadas al equipo: ${num(queue.mine)}\nSin asignar, en SGA y SISU: ${num(queue.orphan)}\nAsignadas a otros, en SGA y SISU: ${num(queue.all - queue.mine - queue.orphan)}`)}"><i class="mt-c${k0}" style="flex:${queue.mine}"></i><i class="wk-orphan" style="flex:${queue.orphan}"></i><i class="mt-c2" style="flex:${queue.all - queue.mine - queue.orphan}"></i></span>` : '', () => queueBars(queue.months));
+    item(mineLabel, num(queue.mine), `mt-c${k0}`),
+    ...(who == null ? [item('Sin asignar en SGA y SISU', num(queue.orphan), 'wk-orphan')] : []),
+  ], queue.all ? `<span class="wk-split" data-tip="${esc(`Sin resolver: ${num(queue.all)}\n${mineLabel}: ${num(queue.mine)}\nSin asignar, en SGA y SISU: ${num(queue.orphan)}\nAsignadas a otros, en SGA y SISU: ${num(queue.all - queue.mine - queue.orphan)}`)}"><i class="mt-c${k0}" style="flex:${queue.mine}"></i><i class="wk-orphan" style="flex:${queue.orphan}"></i><i class="mt-c2" style="flex:${queue.all - queue.mine - queue.orphan}"></i></span>` : '', () => queueBars(queue.months));
   const sla = block('sla', 'SLA de inicio', 'de las resueltas se iniciaron a tiempo', fig(donePct), [],
     `<div class="wk-prios">${byPrio.map(([p, st]) => `<div class="wk-prio"><span>${m.slaLabel(p)}</span>${bar(st[k0].slaDone || 0)}<b>${fig(donePct, st)}</b></div>`).join('')}</div>`, [(s) => s.slaDone, (v) => pct(v)]);
   const times = block('times', 'Tiempos', 'de media hasta resolverse', fig((s) => dur(s.avg)), [
     item('En menos de 24 h', fig((s) => pct(s.d1))),
     item('El 90 %, en menos de', fig((s) => dur(s.p90))),
   ], '', [(s) => s.avg, dur]);
-  const quality = block('quality', 'Calidad', 'se reabrieron tras resolverse', fig((s) => pct(s.reop, 1)), [
+  const quality = block('quality', 'Calidad', '%IQA · aún sin datos', fig(COLS.iqa[1]), [
+    item('Reaperturas', fig((s) => pct(s.reop, 1))),
     item('Devueltas a la cola', fig((s) => pct(s.bounce, 1))),
-    item('Cerradas sin explicar la solución', fig((s) => pct(s.noRes, 1))),
   ], '', [(s) => s.reop, (v) => pct(v, 1)]);
   const ia = block('ia', 'IA', 'de las resueltas tuvieron intervención de la IA', fig((s) => (iaShare(s) == null ? '—' : pct(iaShare(s), 1))), [
     item('Resueltas con ayuda de la IA', fig((s) => num(s.ia))),
@@ -157,8 +209,8 @@ export const teamPanel = (m, ch, ui) => {
 
   // persona a persona
   // por turno: lo que pasa en los turnos del periodo, de las issues abiertas en cualquier mes (per-shift.js)
-  const counts = shiftCounts(m, m.today(), [S.d0, S.d1]);
-  const people = m.group('as', A, true).filter((x) => x.k).map((x) => ({ ...m.stats(x.rows), k: x.k, shift: counts && perTurn(counts.get(x.k)) }));
+  const counts = shiftCounts(m, m.today(), [S.d0, S.d1], inDays);
+  const people = m.group('as', teamRows, true).filter((x) => x.k).map((x) => ({ ...statsOf(x.rows), k: x.k, shift: counts && perTurn(counts.get(x.k)) }));
   ST[k0] = { ...ST[k0], shift: counts && teamPerTurn(counts) };
   const [sortCol, dir] = ui.sort.team || ['n', -1];
   // al ordenar por un % o una media, quien tiene pocas issues va al final: su cifra dice poco
@@ -166,15 +218,28 @@ export const teamPanel = (m, ch, ui) => {
   people.sort((a, b) => few(a) - few(b) || (key(a) - key(b)) * dir || b.n - a.n);
   const cell = (s, c) => `<td class="mt-num">${cols[c][1](s)}</td>`;
   const th = (c) => `<th class="mt-num ${sortCol === c ? 'mt-srt' : ''}" data-sort="team:${c}" data-tip="${esc(cols[c][4])}">${cols[c][0]}${sortCol === c ? (dir < 0 ? ' ↓' : ' ↑') : ''}</th>`;
-  const row = (s) => `<tr class="mt-clk" data-person="${s.k}" title="Ver en Métricas"><td title="${esc(m.DIMS.as.label(s.k))}"><i class="mt-sw mt-c${k0}"></i>${esc(m.DIMS.as.label(s.k))}</td>${order.map((c) => cell(s, c)).join('')}</tr>`;
+  const row = (s) => `<tr class="mt-clk" data-person="${s.k}" title="${who == null ? 'Ver solo sus datos' : 'Quitar el filtro'}"><td title="${esc(m.DIMS.as.label(s.k))}"><i class="mt-sw mt-c${k0}"></i>${esc(m.DIMS.as.label(s.k))}</td>${order.map((c) => cell(s, c)).join('')}</tr>`;
   const teamRow = `<tr class="mt-grp"><td>Equipo ${esc(name)}</td>${order.map((c) => `<td class="mt-num">${cols[c][1](ST[k0])}</td>`).join('')}</tr>`;
   const table = `<div class="mt-tablewrap"><table class="wk-team"><thead><tr><th>Persona</th>${order.map(th).join('')}</tr></thead>
-    <tbody>${people.map(row).join('') || `<tr><td colspan="${order.length + 1}" class="mt-mut">Nadie con issues en este periodo.</td></tr>`}${teamRow}</tbody></table></div>`;
+    <tbody>${people.filter((p) => who == null || p.k === who).map(row).join('') || `<tr><td colspan="${order.length + 1}" class="mt-mut">Nadie con issues en este periodo.</td></tr>`}${who == null ? teamRow : ''}</tbody></table></div>`;
 
+  // la actividad se pinta sobre el periodo de partida, aunque haya días elegidos (activity.js)
+  const activityRange = ui.range?.base || [S.d0, S.d1], picked = ui.actSeries ?? null;
+  // comparar: todo el equipo, por día; una persona, por turno, frente a la media por persona y turno del equipo
+  const activityDays = dailyActivity(C, m.today().filter(shown), activityRange);
+  const teamCounts = picked && who != null && shiftCounts(m, m.today(), activityRange);
+  const compare = !picked ? null : who == null ? comparePerDay(activityDays, picked)
+    : teamCounts ? { per: 'turno', days: turnsByDay(C, m.today().filter(shown), activityRange, picked), avg: teamPerTurn(teamCounts)[picked] } : null;
+  const activity = activityPanel(activityDays, {
+    title: who == null ? 'Actividad del equipo' : `Actividad de ${m.DIMS.as.label(who)}`, dayName: m.dayName, axis: axisDay(m.BASE), sel: ui.range?.days, picked,
+    compare,
+  });
+  const filter = who == null ? '' : `<div class="wk-filter">Solo los datos de <b>${esc(m.DIMS.as.label(who))}</b><button class="wk-block-link" data-person-clear>Quitar filtro</button></div>`;
   return `<div class="wk-panel">
-    <div class="wk-blocks">${volume}${backlog}${sla}${times}${quality}${ia}</div>
+    ${filter}<div class="wk-blocks">${activity}${volume}${backlog}${sla}${times}${quality}${ia}</div>
     <div class="mt-grid">
     ${card('El equipo, persona a persona', table, { span: 's12', sub: counts ? '' : 'Faltan los turnos de lo resuelto, escalado y pendiente de cliente (RPT, EPPT, PCPT): reinicia SIA para que el bridge los calcule.' })}
     </div>
+    <div class="wk-sheet">${card('Sábana de incidencias', sheetBody(m, teamIssues(m, ui), { id: 'team-sheet', expanded: ui.exp['team-sheet'], more: ch.more, empty: 'Ninguna incidencia con estos filtros.', cols: TEAM_SHEET_COLS }), { span: 's12', sub: `Las incidencias del panel, abiertas o cerradas: ${chosen ? 'con algún paso en los días elegidos' : 'creadas en el periodo'}${who == null ? '' : ', del técnico elegido'}. Exportar a CSV las descarga todas, con su enlace a Remedy, para abrirlas en Excel.` })}</div>
   </div>`;
 };

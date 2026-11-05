@@ -14,11 +14,11 @@ export const KINDS = [['r', 'sR'], ['v', 'sV'], ['c', 'sC']];
 const empty = () => ({ turns: new Set(), r: [0, 0], v: [0, 0], c: [0, 0] });
 
 // list: las issues que se miran (las que pasan los filtros, abiertas en cualquier mes); [d0, d1): el periodo, en
-// minutos. Devuelve un Map persona → { turns (turnos trabajados), r, v, c: [entrantes, backlog] }, o null sin los turnos.
-export const shiftCounts = (m, list, [d0, d1]) => {
+// minutos; keep: si cuenta el turno que empieza en ese minuto (por días sueltos dentro del periodo). Devuelve un Map persona → { turns (turnos trabajados), r, v, c: [entrantes, backlog] }, o null sin los turnos.
+export const shiftCounts = (m, list, [d0, d1], keep = () => true) => {
   const { C } = m;
   if (!C.sR) return null;
-  const s0 = slotOf(d0 - 1) + 1, inside = (s) => s >= s0 && START + s * LEN < d1;
+  const s0 = slotOf(d0 - 1) + 1, inside = (s) => s >= s0 && START + s * LEN < d1 && keep(START + s * LEN);
   const out = new Map();
   const of = (p) => { let o = out.get(p); if (!o) out.set(p, o = empty()); return o; };
   for (const i of list) {

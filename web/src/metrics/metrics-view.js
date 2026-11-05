@@ -20,6 +20,7 @@ import { attachTip } from './tip.js';
 import { PHASES, progressOf, progressHtml } from './progress.js';
 import { COLORS, defaultColors, freeColor, dayOf, coverage, freeCompany, withoutSide, togglePerson, filterKey } from './view.js';
 import { sheetOf, sheetCsv, sheetFile } from './sheet.js';
+import { downloadText } from './download.js';
 
 const SEARCH_MS = 250;
 const LOAD = 'Actualizar y generar informe';
@@ -218,12 +219,7 @@ export const mountMetricsView = (root, { api, toast }) => {
   const exportSheet = () => {
     const list = sheetOf(m);
     if (!list.length) return;
-    const url = URL.createObjectURL(new Blob([sheetCsv(m, list)], { type: 'text/csv;charset=utf-8' }));
-    const a = Object.assign(document.createElement('a'), { href: url, download: sheetFile(m) });
-    document.body.append(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    downloadText(sheetFile(m), sheetCsv(m, list), 'text/csv;charset=utf-8');
     toast?.(`Exportadas ${num(list.length)} incidencias a ${sheetFile(m)}.`);
   };
 
@@ -309,7 +305,7 @@ export const mountMetricsView = (root, { api, toast }) => {
     if (m && e.target.matches('[data-q]') && !e.target.value && !e.relatedTarget?.closest('[data-search]')) { searching = false; e.target.hidden = true; }
   });
 
-  // Los datos guardados se leen una vez (aunque los pidan a la vez show y focus).
+  // Los datos guardados se leen una vez, aunque se pidan a la vez.
   let reading = null;
   const ready = () => (m ? Promise.resolve() : (reading ||= api.load().then(start).finally(() => { reading = null; })));
   const failed = (e) => { root.innerHTML = `<div class="mt-page"><p class="mt-empty">No se pudieron cargar las métricas: ${esc(e.message)}</p></div>`; };
@@ -317,13 +313,5 @@ export const mountMetricsView = (root, { api, toast }) => {
   return {
     // Al abrir la vista: siempre el Resumen.
     show: () => ready().then(() => { if (m && tab !== 'resumen') { tab = 'resumen'; render(); } }).catch(failed),
-    // Una persona frente al resto de su equipo (desde Equipo soporte).
-    focus: (person) => ready().then(() => {
-      if (!m) return;
-      m.S.sides = [{ people: new Set([person]) }, { company: m.data.company[person] }];
-      colors = defaultColors();
-      tab = 'resumen'; closePops();
-      render();
-    }).catch(failed),
   };
 };

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createModel } from '../metrics/model.js';
 import { createCharts } from '../metrics/charts.js';
 import { dur } from '../metrics/format.js';
-import { teamPanel, conclusionsPanel } from './team.js';
+import { teamPanel, conclusionsPanel, teamIssues } from './team.js';
 
 // 2 personas de Indra (ANA, rápida; PEPE, lenta) con MIN (10) issues cada una y 1 de T-Systems (LUIS, con 1 issue), que no sale.
 const MIN = 10;   // team.js: con menos issues, los % de una persona dicen poco
@@ -39,7 +39,7 @@ test('solo Indra: una fila por persona y la del equipo, con sus datos y sin colo
   assert.doesNotMatch(h.slice(h.indexOf('<table class="wk-team"')), /mt-num (good|bad)/);
   assert.match(rowOf(h, 'ANA'), />100 %</);   // SLA cumplido: solo el %
   assert.match(h, /<h3>Pendientes<\/h3>[\s\S]*?<div class="wk-hero"><b>0<\/b><span>sin resolver/);   // todas cerradas
-  assert.equal((h.match(/class="wk-block[ "]/g) || []).length, 6);   // seis bloques, en dos filas (con cifras o como gráfica)
+  assert.equal((h.match(/class="wk-block[ "]/g) || []).length, 7);   // la actividad y seis bloques, en dos filas (con cifras o como gráfica)
 });
 
 test('un bloque como gráfica: su evolución en lugar de las cifras, con la principal arriba', () => {
@@ -105,6 +105,165 @@ test('Conclusiones de calidad: se llega desde el bloque Calidad, con cifras o co
   assert.match(h, /data-page="team"/);
   assert.match(h, /<h3>Conclusiones de calidad<\/h3>/);
   assert.match(h, /Planned for the future/);
+});
+
+test('Volumen: la media de resueltas cuenta lo mismo que su barra, también lo creado antes del periodo', () => {
+  const m = createModel(data()), ui = { exp: {}, sort: {}, charts: new Set(['volumeMonths']) };
+  m.S.sides = [{ company: 0 }, null];
+  m.setPeriod(5 * 1440, 7 * 1440);   // las 10 de PEPE se crean antes (minuto 2000) y se resuelven el día 6 (minuto 9000)
+  m.refilter();
+  const h = teamPanel(m, createCharts(m, ui), ui);
+  assert.match(h, /<b>—<\/b> nuevas <i class="mt-sw mt-c0"><\/i><b>10,0<\/b> resueltas/);
+  assert.match(h, /Resueltas: 10/);
+});
+
+test('Volumen: la media por día de la semana, de todos los de ese tipo del periodo', () => {
+  const m = createModel(data()), ui = { exp: {}, sort: {}, charts: new Set() };
+  m.S.sides = [{ company: 0 }, null];
+  m.setPeriod(0, 14 * 1440);   // dos de cada; el minuto 0 es jueves: ANA crea y resuelve 10 el jueves y PEPE crea 10 el viernes y resuelve el miércoles
+  m.refilter();
+  const h = teamPanel(m, createCharts(m, ui), ui);
+  const tip = (day) => h.match(new RegExp(`data-tip="(${day} [^"]*)"`))[1];
+  assert.match(tip('Jueves'), /^Jueves \(2 en el periodo\)\s+Nuevas: 5,0 de media\s+Resueltas: 5,0 de media$/);
+  assert.match(tip('Viernes'), /Nuevas: 5,0 de media\s+Resueltas: 0,0 de media/);
+  assert.match(tip('Miércoles'), /Nuevas: 0,0 de media\s+Resueltas: 5,0 de media/);
+  assert.match(tip('Lunes'), /Nuevas: 0,0 de media\s+Resueltas: 0,0 de media/);
+  assert.equal((h.match(/class="wk-cols wk-days"/g) || []).length, 1);   // solo en Volumen
+  assert.match(h, /data-chart="volumeMonths" title="Ver por mes"/);
+  const months = render([{ company: 0 }, null], new Set(['volumeMonths']));
+  assert.doesNotMatch(months, /wk-days/);
+  assert.match(months, /data-chart="volumeMonths" title="Ver por día de la semana"/);
+});
+
+test('filtrar a una persona: los bloques y la tabla, solo sus datos; sin la fila del equipo', () => {
+  const d = data(); d.dict.status = ['', 'CLOSED', 'ASSIGNED']; d.cols.st[MIN] = 2;   // una de PEPE, abierta
+  const m = createModel(d), ui = { exp: {}, sort: {}, charts: new Set(), person: 1 };
+  m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const h = teamPanel(m, createCharts(m, ui), ui);
+  assert.ok(rowOf(h, 'ANA') && !rowOf(h, 'PEPE'));
+  assert.doesNotMatch(h, /Equipo Indra/);
+  assert.match(h, /Solo los datos de <b>ANA<\/b><button[^>]*data-person-clear/);
+  assert.match(h, /<div class="wk-key"><b>10<\/b><span>issues en el periodo/);
+  assert.match(h, /<h3>Pendientes<\/h3>[\s\S]*?<div class="wk-hero"><b>0<\/b>/);   // la abierta de PEPE no cuenta
+  ui.person = null;
+  const all = teamPanel(m, createCharts(m, ui), ui);
+  assert.ok(rowOf(all, 'ANA') && rowOf(all, 'PEPE'));
+  assert.match(all, /Equipo Indra/);
+  assert.doesNotMatch(all, /data-person-clear/);
+  assert.match(all, /<div class="wk-key"><b>20<\/b>/);
+  assert.match(all, /<h3>Pendientes<\/h3>[\s\S]*?<div class="wk-hero"><b>1<\/b>/);
+});
+
+test('Calidad: en grande el %IQA y, en pequeño, las reaperturas y las devueltas a la cola', () => {
+  const d = data(); d.cols.nb = d.cols.nb.map((_, i) => (i < 2 ? 1 : 0));   // ANA: 2 devueltas de las 20 del equipo
+  d.cols.fl[0] = 512;                                                       // y 1 reabierta
+  const m = createModel(d), ui = { exp: {}, sort: {}, charts: new Set() };
+  m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const h = teamPanel(m, createCharts(m, ui), ui);
+  const b = h.slice(h.indexOf('<h3>Calidad'), h.indexOf('</section>', h.indexOf('<h3>Calidad')));
+  assert.match(b, /<div class="wk-hero"><b>—<\/b><span>%IQA/);   // sin la nota del agente de calidad
+  assert.match(b, /Reaperturas<\/span><b>5,0 %</);
+  assert.match(b, /Devueltas a la cola<\/span><b>10,0 %</);
+  assert.doesNotMatch(b, /sin explicar/);
+  const chart = render([{ company: 0 }, null], new Set(['quality']));
+  assert.match(chart, /Reaperturas, por (día|mes) de creación/);
+});
+
+test('Actividad: arriba del todo, del equipo o de la persona filtrada; con días elegidos, sigue enseñando el periodo de partida', () => {
+  const d = data();
+  d.cols.eR = d.cols.as.map((a) => (a === 1 ? [0] : a === 2 ? [1] : []));   // ANA resuelve el día 0, PEPE el 1 y LUIS, de otra empresa, nada
+  d.cols.eV = d.cols.as.map(() => []); d.cols.eC = d.cols.as.map(() => []);
+  const m = createModel(d), ui = { exp: {}, sort: {}, charts: new Set() };
+  m.S.sides = [{ company: 0 }, null];
+  m.setPeriod(0, 3 * 1440); m.refilter();
+  const h = teamPanel(m, createCharts(m, ui), ui);
+  assert.ok(h.indexOf('wk-activity') < h.indexOf('<h3>Volumen'));
+  assert.match(h, /<h3>Actividad del equipo<\/h3>/);
+  assert.match(h, /Resueltas <b>20</);
+  ui.person = 1;
+  const ana = teamPanel(m, createCharts(m, ui), ui);
+  assert.match(ana, /<h3>Actividad de ANA<\/h3>/);
+  assert.match(ana, /Resueltas <b>10</);
+  ui.person = null;
+  ui.range = { base: [0, 3 * 1440], days: [1440] };
+  m.setPeriod(1440, 2 * 1440); m.refilter();
+  const sel = teamPanel(m, createCharts(m, ui), ui);
+  assert.equal((sel.match(/data-act-day=/g) || []).length, 3);
+  assert.match(sel, /wk-act-out" data-act-day="0"/);
+  assert.match(sel, /Resueltas <b>10</);   // la leyenda, solo lo elegido
+  assert.match(sel, /<div class="wk-key"><b>10<\/b><span>issues con actividad esos días/);   // lo hecho ese día: las 10 de PEPE
+});
+
+test('Días sueltos: los bloques y la tabla, solo lo de esos días, no lo que queda entre ellos', () => {
+  const d = data();
+  d.cols.eR = d.cols.as.map((a) => (a === 1 ? [0] : a === 2 ? [1] : [])); d.cols.eV = d.cols.as.map(() => []); d.cols.eC = d.cols.as.map(() => []);
+  const m = createModel(d), ui = { exp: {}, sort: {}, charts: new Set(), range: { base: [0, 3 * 1440], days: [0, 2 * 1440] } };
+  m.S.sides = [{ company: 0 }, null]; m.setPeriod(0, 3 * 1440); m.refilter();   // ANA resuelve el día 0 y PEPE, el 1, que queda fuera
+  const h = teamPanel(m, createCharts(m, ui), ui);
+  assert.match(h, /<div class="wk-key"><b>10<\/b><span>issues con actividad esos días/);
+  assert.ok(rowOf(h, 'ANA') && !rowOf(h, 'PEPE'));
+  assert.match(h, /wk-act-out" data-act-day="1440"/);
+  assert.doesNotMatch(h, /wk-act-out" data-act-day="0"/);
+});
+
+test('Sábana: abajo del todo, las incidencias del panel, abiertas o cerradas, con los filtros de técnico y días', () => {
+  const m = createModel(data()), ui = { exp: {}, sort: {}, charts: new Set() };
+  m.S.sides = [{ company: 0 }, null]; m.setPeriod(0, 3 * 1440); m.refilter();
+  const h = teamPanel(m, createCharts(m, ui), ui), sheet = h.slice(h.indexOf('Sábana de incidencias'));
+  assert.ok(h.indexOf('persona a persona') < h.indexOf('Sábana de incidencias'));
+  assert.match(sheet, /20 incidencias<\/span><button class="mt-btn" data-export >Exportar a CSV/);
+  assert.equal((sheet.match(/<td class="mt-subj"/g) || []).length, 20);
+  assert.match(sheet, /<th class="mt-num">Antigüedad o TTR<\/th><th class="mt-num">Nota final de la auditoría<\/th><th>IA<\/th>/);
+  assert.doesNotMatch(sheet, /Fecha apertura/);
+  assert.doesNotMatch(sheet, /<th>Responsable/);
+  assert.ok(sheet.includes(`<td class="mt-num">${dur(60)}</td><td class="mt-num">—</td><td>No</td>`));   // resuelta en 60 min: su TTR; sin nota
+  assert.doesNotMatch(sheet, /undefined|NaN/);
+  assert.deepEqual(teamIssues(m, ui).slice(0, 2), [0, 1]);   // de la más antigua a la más reciente
+  ui.person = 2;
+  assert.equal(teamIssues(m, ui).length, 10);
+  assert.ok(teamIssues(m, ui).every((i) => m.C.as[i] === 2));
+  ui.person = null; ui.range = { base: [0, 3 * 1440], days: [2 * 1440] };   // sin pasos esos días
+  assert.match(teamPanel(m, createCharts(m, ui), ui), /Ninguna incidencia con estos filtros/);
+});
+
+test('Días elegidos: lo hecho en ellos, aunque la issue se creara antes; tiempos y calidad, de lo resuelto esos días', () => {
+  const d = data();
+  // creadas el día 0: ANA resuelve sus 10 el día 5; PEPE solo escala sus 10 el día 5 y las resuelve después
+  d.cols.rep = d.cols.rep.map(() => 100); d.cols.res = d.cols.as.map((a) => (a === 1 ? 5 * 1440 + 100 : a === 2 ? 9 * 1440 + 100 : 3100));
+  d.cols.eR = d.cols.as.map((a) => (a === 1 ? [5] : a === 2 ? [9] : [])); d.cols.eV = d.cols.as.map((a) => (a === 2 ? [5] : [])); d.cols.eC = d.cols.as.map(() => []);
+  const m = createModel(d), ui = { exp: {}, sort: {}, charts: new Set(), range: { base: [0, 10 * 1440], days: [5 * 1440] } };
+  m.S.sides = [{ company: 0 }, null]; m.setPeriod(5 * 1440, 6 * 1440); m.refilter();
+  assert.equal(m.rows().length, 0);   // ninguna creada ese día
+  const h = teamPanel(m, createCharts(m, ui), ui);
+  assert.match(h, /<div class="wk-key"><b>20<\/b><span>issues con actividad esos días/);
+  assert.ok(rowOf(h, 'ANA') && rowOf(h, 'PEPE'));
+  assert.equal(teamIssues(m, ui).length, 20);
+  // el TTR del equipo: solo el de las 10 de ANA, resueltas ese día
+  assert.match(h, new RegExp(`<h3>Tiempos</h3>[\\s\\S]*?<div class="wk-hero"><b>${dur(5 * 1440)}</b>`));
+  ui.person = 2;
+  const pepe = teamPanel(m, createCharts(m, ui), ui);
+  assert.match(pepe, /<div class="wk-key"><b>10<\/b>/);
+  assert.match(pepe, /<h3>Tiempos<\/h3>[\s\S]*?<div class="wk-hero"><b>—<\/b>/);   // escaló, sin resolver ese día
+});
+
+test('Actividad frente a la media: todo el equipo, por día; una persona, por turno, frente a la fila del equipo', () => {
+  const d = data();
+  d.cols.sR = d.cols.rep.map((r, i) => (i < MIN ? [0] : i < 2 * MIN ? [1] : []));   // ANA resuelve 10 en el turno 0 y PEPE 10 en el 1: 10 por turno
+  d.cols.sV = d.cols.rep.map(() => []); d.cols.sC = d.cols.rep.map(() => []);
+  d.cols.ip = d.cols.rep.map(() => -1);
+  d.cols.eR = d.cols.rep.map((r, i) => (i < 2 * MIN ? [0] : []));   // las 20 del equipo, el primero de los 3 días
+  const m = createModel(d), ui = { exp: {}, sort: {}, charts: new Set(), actSeries: 'r' };
+  m.S.sides = [{ company: 0 }, null]; m.setPeriod(0, 3 * 1440); m.refilter();
+  const team = teamPanel(m, createCharts(m, ui), ui);
+  // eR, por día: sin técnico elegido se compara por día, sin depender de los turnos
+  const chart = team.slice(team.indexOf('wk-activity'), team.indexOf('</section>'));
+  assert.match(chart, /Media del equipo: 6,7 por día/);
+  assert.match(chart, /Resueltas: 20\s+Media del equipo: 6,7\s+por encima de la media/);
+  assert.doesNotMatch(chart, /turno/);
+  ui.person = 1;
+  const ana = teamPanel(m, createCharts(m, ui), ui);
+  assert.match(ana, /Media del equipo: 10,0 por turno/);
+  assert.match(ana, /Resueltas: 10 en 1 turno\s+Por turno: 10,0/);
 });
 
 test('por turno: sin los turnos del bridge, lo dice', () => {
