@@ -3,7 +3,7 @@
 // pone las de partida. Aquí, qué vista exige cada ruta de la API: la web
 // esconde lo que no toca y el bridge lo rechaza igual.
 
-export const VIEWS = ['issues', 'backlog', 'work', 'metrics', 'links', 'lab', 'admin', 'people'];
+export const VIEWS = ['issues', 'backlog', 'work', 'metrics', 'service', 'links', 'lab', 'admin', 'people'];
 
 export const can = (user, view) => Array.isArray(user?.views) && user.views.includes(view);
 
@@ -14,8 +14,8 @@ export const viewsForRoute = ([, area, sub], method) => {
   if (area === 'links') return ['links'];
   if (area === 'issues') return ['issues'];
   if (area === 'backlog') return ['backlog'];
-  // los datos de las Métricas los lee también el Panel de trabajo; cargarlos, solo desde Métricas
-  if (area === 'metrics') return method === 'GET' && !sub ? ['metrics', 'work'] : ['metrics'];
+  // los datos de las Métricas los leen también Equipo soporte y Métricas del servicio; cargarlos, solo desde Métricas
+  if (area === 'metrics') return method === 'GET' && !sub ? ['metrics', 'work', 'service'] : ['metrics'];
   if (['drafts', 'groups'].includes(area) || (area === 'skills' && (method === 'DELETE' || sub === 'publish'))) return ['lab'];
   if (area === 'users' || area === 'knowledge') return ['people'];
   return null;

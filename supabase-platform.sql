@@ -83,7 +83,7 @@ revoke all on schema platform from public, anon, authenticated;
 -- en web/src/users/views.js). Administrador las tiene siempre todas.
 create or replace function platform.known_views() returns text[]
 language sql immutable set search_path = '' as $$
-  select array['issues', 'backlog', 'work', 'metrics', 'links', 'lab', 'admin', 'people']
+  select array['issues', 'backlog', 'work', 'metrics', 'service', 'links', 'lab', 'admin', 'people']
 $$;
 
 -- Los criterios con que se ordena el backlog. Una regla de priorización es una

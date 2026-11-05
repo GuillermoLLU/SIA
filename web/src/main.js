@@ -38,6 +38,7 @@ import { mountBacklogView } from './backlog/backlog-view.js';
 import { createBacklogApi } from './backlog/backlog-api.js';
 import { mountWorkView } from './work/work-view.js';
 import { mountMetricsView } from './metrics/metrics-view.js';
+import { mountServiceView } from './service/service-view.js';
 import { createMetricsApi } from './metrics/metrics-api.js';
 
 const $ = (id) => document.getElementById(id);
@@ -148,7 +149,7 @@ const projectsView = mountProjectsView(views.admin, { api, dialogs, toast });
 const usersView = canView(user, 'people')
   ? mountPeopleView(views.users, { usersApi: createUsersApi(api), knowledgeApi: createKnowledgeApi(api), me: user, toast, onMetrics: canView(user, 'work') ? () => showView('work') : undefined })
   : null;
-// Paneles (Issues, Backlog, Equipo soporte, Métricas): una vista cada uno, sin base. Si
+// Paneles (Issues, Backlog, Equipo soporte, Métricas, Métricas del servicio): una vista cada uno, sin base. Si
 // el panel devuelve show(), se llama al abrirlo (Issues recarga su foto).
 const PANELS = [
   { name: 'issues', mount: (el) => user && mountIssuesView(el, {
@@ -161,6 +162,7 @@ const PANELS = [
     openPerson: (person) => { PANELS.find((p) => p.name === 'metrics').ui?.focus(person); showView('metrics'); },
     onManage: canView(user, 'people') ? () => showView('users') : undefined }) },
   { name: 'metrics', mount: (el) => user && mountMetricsView(el, { api: createMetricsApi(api), toast }) },
+  { name: 'service', mount: (el) => user && mountServiceView(el, { api: createMetricsApi(api) }) },
 ].map((p) => ({ ...p, nav: $(`nav-${p.name}`), view: $(`view-${p.name}`) }));
 
 const onShow = { lab: () => lab.refresh(), admin: () => projectsView.show(), links: () => links.refresh(), users: () => usersView.refresh(), chat: () => { chat.refitActive(); chat.focusActive(); } };

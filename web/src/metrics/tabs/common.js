@@ -14,7 +14,7 @@ import { blockHead, blocksOf } from '../pieces.js';
 import { perHead as perHeadOf, solved as solvedOf } from '../resolution.js';
 
 export const TABS = [['resumen', 'Resumen'], ['historico', 'Histórico'], ['entrada', 'Entrada'], ['backlog', 'Backlog'], ['modulos', 'Módulos y focos'],
-  ['resolucion', 'Resolución y escalados'], ['sla', 'SLA y calidad'], ['ia', 'IA'], ['turnos', 'Turnos'], ['servicio', 'Servicio y SLA']];
+  ['resolucion', 'Resolución y escalados'], ['sla', 'SLA y calidad'], ['ia', 'IA'], ['turnos', 'Turnos']];
 export const QUESTIONS = {
   resumen: ['¿Cómo vamos?', 'Cómo está el backlog ahora: en qué estado, desde cuándo, y de qué. Lo recibido en el periodo y cómo ha ido el backlog día a día, en el Histórico.'],
   historico: ['¿Cómo ha ido en el periodo?', 'Lo recibido en las fechas elegidas: cada bloque responde a una pregunta con sus cifras clave (el detalle, en su pestaña), y cómo ha ido el backlog día a día.'],
@@ -24,7 +24,6 @@ export const QUESTIONS = {
   resolucion: ['¿Cómo lo resolvemos?', 'Cuánto tardamos, en qué se va el tiempo, qué módulos tardan más y qué escalamos y a quién. Tiempos de lo resuelto, en tiempo natural.'],
   sla: ['¿Cómo de bien lo hacemos?', `Si empezamos a tiempo (SLA de inicio: de la apertura al primer paso a En curso, en tiempo natural; ${slaText()}), si el trabajo queda bien hecho y si queda bien registrado.`],
   ia: ['¿Cuánto usamos la IA y cómo sale?', 'Por las marcas de IA de Remedy: en TAGS (IA_SOLVED…, IA_FAIL) y en las notas ([ACT IA], [INFORME IA], notas del agente de IA, [HITL_REVIEW_OK], [HITL_REVIEW_NOT_OK], [IA_FAIL]…). Una issue con IA puede estar revisada OK, con fallo o sin revisar.'],
-  servicio: ['¿Cumplimos lo acordado con el cliente?', 'El servicio de Indra en su conjunto frente a los SLA de la oferta (2025_10_OT_INDITEX v5.1), con las issues abiertas en el periodo. En verde, lo que cumple; en ocre, lo que no. Durante la estabilización son objetivos sin penalización. No usa la comparación de arriba: compara con sus botones.'],
   turnos: ['¿Cuándo entra y cuándo lo trabajamos?', `Por turnos: ${SHIFTS.map((s, k) => `${s.toLowerCase()} de ${SHIFT_HOURS[k]}`).join(', ')}. El turno se cuenta por la hora en que empieza: la noche del domingo es de fin de semana.`],
 };
 

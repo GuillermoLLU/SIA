@@ -1,0 +1,13 @@
+/* Métricas del servicio: usa las piezas de las Métricas (metrics.css); aquí, lo suyo. */
+.sv-period { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 12px 0; font-size: 13px; }
+.sv-range { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.sv-range label { display: inline-flex; align-items: center; gap: 6px; color: var(--mt-low); }
+.sv-range input { padding: 5px 6px; font: inherit; color: var(--text); background: var(--mt-card); border: 1px solid var(--border); border-radius: 4px; }
+.sv-range-err { color: var(--mt-svc-ko, #a85a00); }
+.sv-now { margin-left: auto; font-weight: 600; }
+.sv-days { margin-top: 12px; }
+.sv-days summary { cursor: pointer; font-size: 12.5px; font-weight: 600; color: var(--mt-low); }
+/* un periodo largo no alarga la página: los días, en su propia caja */
+.sv-days-scroll { max-height: 320px; margin-top: 8px; overflow: auto; }
+.sv-days-scroll thead th { position: sticky; top: 0; background: var(--mt-card); }
+.sv-days-scroll thead tr.mt-cgrp + tr th { top: 26px; }

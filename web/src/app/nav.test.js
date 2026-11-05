@@ -23,6 +23,9 @@ test('panelNav y teamView: Equipo soporte con cualquiera de sus dos caras', () =
   assert.equal(panelNav(u(['people']), 'work'), true);
   assert.equal(panelNav(u(['issues']), 'work'), false);
   assert.equal(panelNav(u(['metrics']), 'metrics'), true);
+  // Métricas del servicio: solo con su vista, aunque se tenga Métricas (TC-12 de la #81)
+  assert.equal(panelNav(u(['service']), 'service'), true);
+  assert.equal(panelNav(u(['metrics', 'work']), 'service'), false);
   assert.equal(teamView(u(['work', 'people'])), 'work');
   assert.equal(teamView(u(['people'])), 'users');
 });
