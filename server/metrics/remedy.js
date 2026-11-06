@@ -88,6 +88,7 @@ const [ASSIGNED, IN_PROGRESS, PENDING_ST] = OPEN_STATES, RESOLVED = DONE_STATES[
 const THIRD_PARTY = PENDING.vendor[0], CLIENT_ACTION = PENDING.client[0];
 export const statusHistory = (audit, { reported, modified, openNow, at }) => {
   const changes = [], reasonAt = new Map(), events = { resolved: [], vendor: [], client: [] };
+  const steps = [];   // cada paso y quién lo hizo: [0 resuelta, 1 a proveedor o 2 a cliente, instante, quién]
   let thirdParty = false;
   for (const e of entries(audit)) {
     const arrow = e.text.indexOf(' → ');
@@ -96,17 +97,17 @@ export const statusHistory = (audit, { reported, modified, openNow, at }) => {
     else if (e.text.startsWith('Status_Reason: ')) {
       const r = toCode(e.text.slice(arrow + 3));
       if (r) reasonAt.set(e.at, r);
-      if (r === THIRD_PARTY) { thirdParty = true; events.vendor.push(at(e.at)); }
-      if (r === CLIENT_ACTION) events.client.push(at(e.at));
+      if (r === THIRD_PARTY) { thirdParty = true; events.vendor.push(at(e.at)); steps.push([1, at(e.at), e.who]); }
+      if (r === CLIENT_ACTION) { events.client.push(at(e.at)); steps.push([2, at(e.at), e.who]); }
     }
   }
   changes.sort((x, y) => (x.at < y.at ? -1 : x.at > y.at ? 1 : 0));
-  for (const c of changes) if (c.to === RESOLVED && c.from !== RESOLVED) events.resolved.push(at(c.at));
+  for (const c of changes) if (c.to === RESOLVED && c.from !== RESOLVED) { events.resolved.push(at(c.at)); steps.push([0, at(c.at), c.who]); }
   const time = { queue: 0, work: 0, client: 0, vendor: 0, other: 0 };
   // spans: cada tramo en un estado, [desde, hasta, tipo de time] (en minutos), para partir el tiempo en un momento
   // dado (timeUntil: lo de antes de escalar)
   const spans = [];
-  const out = { first: -1, start: -1, bounces: 0, pendings: 0, reopened: false, thirdParty, resolvedBy: [], events, spans };
+  const out = { first: -1, start: -1, bounces: 0, pendings: 0, reopened: false, thirdParty, resolvedBy: [], events, steps, spans };
   let cur = null, since = reported, pending = 'other';
   const spend = (minutes) => {
     const kind = cur === ASSIGNED ? 'queue' : cur === IN_PROGRESS ? 'work' : cur === PENDING_ST ? pending : null;
@@ -194,7 +195,9 @@ export const readIssue = (r, base) => {
     vendor: vendorOf(r.VENDORTICKETNUMBER), vendorText: r.VENDORTICKETNUMBER.trim(),
     jira: jiraKeys(r.VENDORTICKETNUMBER, r.WORKLOG_DETAIL),
     first: h.first, start: h.start, time: h.time, bounces: h.bounces, pendings: h.pendings,
-    resolvedBy: h.resolvedBy, events: h.events, spans: h.spans,
+    resolvedBy: h.resolvedBy, events: h.events, steps: h.steps, spans: h.spans,
+    // todo lo que hace cada uno en la issue, cambios y notas, para sus sesiones (sessions.js): [instante, quién]
+    actions: [...entries(r.AUDIT_DETAIL), ...entries(r.WORKLOG_DETAIL)].map((e) => [at(e.at), e.who]).filter(([t]) => t >= 0),
     ...readTitle(r.SUMMARY),   // problem y themes
     // texto de resolución sin números, para ver cuáles se repiten
     resolution: [...norm(r.RESOLUTION).replace(/\d+/g, '#')].slice(0, 90).join(''),

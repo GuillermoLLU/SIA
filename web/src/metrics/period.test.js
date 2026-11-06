@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { periodLabel, daysLabel, periodSummary, sideDay, pickMonth, wholeMonth, pickDay, shiftYear, sideHtml, periodPanel } from './period.js';
+import { periodLabel, daysLabel, periodSummary, sideDay, lastDays, pickMonth, wholeMonth, pickDay, shiftYear, sideHtml, periodPanel } from './period.js';
 import { createModel } from './model.js';
 import { data } from './fixture.js';
 
@@ -30,6 +30,15 @@ test('el periodo de partida: el mes en curso entero, del día 1 a la foto', () =
   const m = twoYears();
   m.resetPeriod();
   assert.equal(periodLabel(m), '01/03/2026 – 11/03/2026');
+});
+
+test('los últimos días: contando el de la foto; con menos cargados, desde el primero', () => {
+  const m = model();
+  m.setPeriod(...lastDays(m, 15));
+  assert.equal(periodLabel(m), '25/02/2026 – 11/03/2026');
+  assert.equal(daysLabel(m), '15 días');
+  m.setPeriod(...lastDays(m, 1000));
+  assert.equal(m.S.d0, m.MIN_D);
 });
 
 test('el rango se limita a lo cargado: ni antes del primer día con issues ni después de la foto', () => {

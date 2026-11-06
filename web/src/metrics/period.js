@@ -19,6 +19,8 @@ export const periodSummary = (m) => `${periodLabel(m)} · ${daysLabel(m)}`;
 
 // el fin de un mes, sin pasar de lo cargado (el mes en curso acaba el día de la foto)
 const monthEnd = (m, k) => Math.min(m.minuteOf(k + 1), m.END_D);
+// los últimos n días de lo cargado, con el de la foto (para m.setPeriod, que no pasa del primer día con issues)
+export const lastDays = (m, n) => [m.END_D - n * DAY, m.END_D];
 // el día (sus 00:00) de cada extremo del periodo
 export const sideDay = (m, side) => (side === 'from' ? m.S.d0 : m.S.d1 - DAY);
 
