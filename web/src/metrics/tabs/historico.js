@@ -62,7 +62,7 @@ export const historicoTab = (t) => {
           fig('Media de resolución', ST, (s) => dur(s.avg), sv('avg'), 'low'),
           fig('Resueltas en menos de 24 h', ST, (s) => pct(s.d1), sv('d1'), 'high'),
           fig('El 90 %, en menos de', ST, (s) => dur(s.p90), sv('p90'), 'low'),
-          fig('Escaladas a terceros', ST, (s) => pct(s.vend), sv('vend'), null, 'Con ticket de tercero (desarrollo, proveedor…).')]),
+          fig('Escaladas a terceros', ST, (s) => pct(s.vend), sv('vend'), null, 'Han estado en Pendiente de un tercero (desarrollo, proveedor…).')]),
         answer('sla', [
           fig('Empezadas dentro del SLA', ST, slaPct, sv('sla'), 'high', `Pasan a En curso dentro del plazo de su prioridad: ${slaText()}.`),
           fig('Primera actuación, de media', ST, (s) => dur(s.fr), sv('fr'), 'low'),

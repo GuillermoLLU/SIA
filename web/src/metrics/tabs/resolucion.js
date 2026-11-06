@@ -1,14 +1,14 @@
-// Resolución y escalados (resolution.js). Una pregunta por bloque: cuánto tardamos, en qué se va el tiempo,
-// qué módulos tardan más y qué escalamos y a quién. Los tiempos, de lo resuelto y en tiempo natural; el de
+// Resolución (resolution.js). Una pregunta por bloque: cuánto tardamos, en qué se va el tiempo y
+// qué módulos tardan más (qué escalamos y a quién, en tabs/escalados.js). Los tiempos, de lo resuelto y en tiempo natural; el de
 // cada estado, la media por resuelta (model.js, stats rt). Entre empresas no se compara (resolutionCmp es
 // para personas).
 import { esc } from '../../ui/html.js';
-import { num, dec, pct, dur, dateOf } from '../format.js';
+import { num, dec, pct, dur } from '../format.js';
 import { COMPANIES, CARDS } from '../model.js';
-import { BETTER_MIN, MIXED_ESC, TICKET_MIN } from '../rules.js';
+import { BETTER_MIN } from '../rules.js';
 import { blockHead } from '../pieces.js';
 import { personVsTeam, expectedAvg } from '../peers.js';
-import { ttrBlocks, bestOf, resolutionParts, partValue, partWorse, mixedEscalation, tickets, resolvedPair, modulesBySide } from '../resolution.js';
+import { ttrBlocks, bestOf, resolutionParts, partValue, partWorse, resolvedPair, modulesBySide } from '../resolution.js';
 import { WORSE_NOTE, MONTH_NOTE, opt, optDur, avgOf } from './common.js';
 import { phasesOf, phasesChart, PHASES_NOTE } from '../phases.js';
 
@@ -24,13 +24,11 @@ const TTR_GROUPS = [['Menos de 24 h', [0, 1, 2, 3], 'high'], ['De 24 a 168 h', [
 // Cada dato: [nombre, parte (a todo, n sin escalar, e escalado), valor, formato, mejor, nota].
 const RES_MONTH = [
   ['Volumen', [['Resueltas', 'a', (s) => s.resolved, num, null, 'De las recibidas ese mes, las ya resueltas.'],
-    ['% escaladas', 'a', (s) => s.escShare, (v) => pct(v), null, 'De las resueltas, las que tienen ticket de tercero.']]],
+    ['% escaladas', 'a', (s) => s.escShare, (v) => pct(v), null, 'De las resueltas, las que han estado en Pendiente de un tercero.']]],
   ['Media de resolución', [['Todas', 'a', (s) => s.avg, dur, 'low', 'De la apertura a la resolución.'], ['Sin escalar', 'n', (s) => s.avg, dur, 'low', ''], ['Escaladas', 'e', (s) => s.avg, dur, 'low', '']]],
   ['Resueltas en < 24 h', [['Sin escalar', 'n', (s) => s.d1, (v) => pct(v), 'high', ''], ['Escaladas', 'e', (s) => s.d1, (v) => pct(v), 'high', '']]],
   ['Más de 168 h', [['Sin escalar', 'n', (s) => s.w7, (v) => pct(v), 'low', ''], ['Escaladas', 'e', (s) => s.w7, (v) => pct(v), 'low', '']]],
 ];
-// la diferencia entre dos tiempos, con signo
-const durDiff = (a, b) => (a == null || b == null ? '—' : `${a >= b ? '+' : '−'}${dur(Math.abs(a - b))}`);
 // las medias de las fichas, en horas como todos los tiempos
 const durOf = (s) => dur(s.v);
 const RES_VOL = ['Resueltas', (s) => s.vol, (v, s) => (s.H > 1 ? dec(v) : num(v)), null, ''];
@@ -41,8 +39,8 @@ const RES_PAIR = [
 
 export const resolucionTab = (t) => {
   const { m, ch, ui, name, grid, ask, section, noK, selRow, monthRows, prioRows, monthBody, escd, solved, table, cardsOf, volume, teamNames, headsNote, pairTable, spreadHead, spreadRow, spreadWho, spreadCell } = t;
-  const { DI, S, BASE, CMP, isSel, stats, bySide } = m;
-  const { card, kpi, kpis, kpiCo, more, scorecard } = ch;
+  const { S, CMP, isSel, stats, bySide } = m;
+  const { card, kpi, kpis, kpiCo, scorecard } = ch;
   const ttrTable = (list) => {
     const R = list.filter(solved), cmp = CMP(), P = cmp ? bySide(R).slice(0, 2) : [R];
     const { blocks, max } = ttrBlocks(m, list, P);
@@ -90,48 +88,6 @@ export const resolucionTab = (t) => {
       <thead><tr><th colspan="2"></th><th class="mt-num">Resueltas</th><th class="mt-num" data-tip="De la apertura a la resolución.">Media</th>${STATES.map(([l, x]) => `<th class="mt-num" data-tip="${esc(`${x} Media por resuelta.`)}">${l}</th>`).join('')}<th>Reparto del tiempo</th></tr></thead>
       <tbody>${body}<tr class="mt-lead mt-lead-end"><th class="mt-r" colspan="2">Todas las resueltas</th>${cells(R)}</tr></tbody></table></div>`;
   };
-  // Unas veces se escala y otras no: problemas con al menos MIXED_ESC.min resueltas, escalados entre MIXED_ESC.from y
-  // MIXED_ESC.to de las veces, agrupados por su módulo principal (el módulo, de más a menos resueltas entre sus problemas). Por problema:
-  // cuántas, qué parte se escala y lo que tarda sin escalar y escalado.
-  const mixedEsc = () => {
-    const all = ui.exp['rs-mixed'], { all: total, shown, groups: mods } = mixedEscalation(m, all ? 0 : 12);
-    if (!total) return '<p class="mt-mut mt-small">Ninguno con estos filtros.</p>';
-    const cells = (rows, e) => {
-      const n = stats(rows.filter((i) => !escd(i))), s = stats(e), sh = e.length / (rows.length || 1);
-      return `<td class="mt-num mt-gsep">${num(rows.length)}</td>
-        <td class="mt-gsep"><div class="mt-sc-vol"><em>${pct(sh)}</em><span class="mt-bt"><i class="mt-time3" style="width:${(sh * 100).toFixed(1)}%"></i></span></div></td>
-        <td class="mt-num mt-gsep">${avgOf(n)}</td><td class="mt-num">${avgOf(s)}</td><td class="mt-num mt-mut">${durDiff(s.resolved ? s.avg : null, n.resolved ? n.avg : null)}</td>
-        <td class="mt-num mt-gsep">${n.resolved ? pct(n.d1) : '—'}</td><td class="mt-num">${s.resolved ? pct(s.d1) : '—'}</td>`;
-    };
-    const body = mods.map(([mo, xs]) => xs.map((x, j) => `<tr class="mt-clk ${j ? '' : 'mt-gfirst'} ${isSel('de', x.k) ? 'mt-sel' : ''}" data-f="de:${x.k}">
-      ${j ? '' : blockHead(mo ? m.DIMS.mo.label(mo) : 'Sin módulo', '', xs.length)}<th class="mt-r" data-tip="${esc(DI.problem[x.k])}">${esc(DI.problem[x.k])}</th>${cells(x.rows, x.e)}</tr>`).join('')).join('');
-    const allRows = shown.flatMap((x) => x.rows);
-    return `<div class="mt-tablewrap"><table class="mt-mx mt-mixesc"><colgroup><col style="width:13%"><col style="width:21%"><col style="width:8%"><col style="width:15%"><col style="width:10%"><col style="width:10%"><col style="width:9%"><col style="width:7%"><col style="width:7%"></colgroup><thead>
-      <tr class="mt-cgrp"><th colspan="2"></th><th colspan="2">Volumen</th><th colspan="3">Media de resolución</th><th colspan="2">En < 24 h</th></tr>
-      <tr><th>Módulo principal</th><th>Problema</th><th class="mt-num">Resueltas</th><th data-tip="De las resueltas, las que tienen ticket de tercero.">Escaladas</th><th class="mt-num">Sin escalar</th><th class="mt-num">Escaladas</th><th class="mt-num" data-tip="Lo que tardan de más (o de menos) las escaladas.">Diferencia</th><th class="mt-num">Sin escalar</th><th class="mt-num">Escaladas</th></tr></thead>
-      <tbody>${body}<tr class="mt-lead mt-lead-end"><th class="mt-r" colspan="2">${all || total <= 12 ? 'Todos estos problemas' : `Estos ${shown.length} problemas`}</th>${cells(allRows, allRows.filter(escd))}</tr></tbody></table></div>
-      ${more('rs-mixed', total, 12)}`;
-  };
-  // Un mismo ticket, muchas incidencias: tickets de tercero con TICKET_MIN o más incidencias ligadas, en dos bloques: con
-  // alguna abierta y ya cerrados (de más a menos incidencias). Cuándo: la primera y la última incidencia y los días
-  // entre una y otra (0: todas el mismo día).
-  const ticketTable = (A) => {
-    const known = tickets(m, A);
-    if (!known.length) return '<p class="mt-mut mt-small">Ninguno con estos filtros.</p>';
-    const all = ui.exp['rs-known'], shown = known.slice(0, all ? 200 : 15);
-    const row = (x, j, n, head) => `<tr class="mt-clk ${j ? '' : 'mt-gfirst'} ${isSel('vk', x.k) ? 'mt-sel' : ''}" data-f="vk:${x.k}">${j ? '' : blockHead(head, '', n)}<th class="mt-r"><b>${esc(DI.vkey[x.k])}</b></th>
-        <td class="mt-num mt-gsep">${num(x.n)}</td><td class="mt-num ${x.open ? 'mt-warnc' : ''}">${x.open || ''}</td><td class="mt-num">${num(x.centres)}</td>
-        <td class="mt-num mt-gsep">${dateOf(BASE, x.first).slice(0, 5)}</td><td class="mt-num">${dateOf(BASE, x.last).slice(0, 5)}</td><td class="mt-num">${x.span ? num(x.span) : 'el mismo'}</td>
-        <td class="mt-num mt-gsep">${avgOf(stats(x.rows))}</td><td class="mt-gsep mt-mut" data-tip="${x.problem ? esc(DI.problem[x.problem]) : ''}">${x.problem ? esc(DI.problem[x.problem]) : ''}</td></tr>`;
-    const parts = [['Con alguna abierta', shown.filter((x) => x.open)], ['Cerrados', shown.filter((x) => !x.open)]].filter(([, xs]) => xs.length);
-    const body = parts.map(([head, xs]) => xs.map((x, j) => row(x, j, xs.length, head)).join('')).join('');
-    const sum = (f) => shown.reduce((a, x) => a + f(x), 0);
-    return `<div class="mt-tablewrap ${all ? 'mt-scroll' : ''}"><table class="mt-mx mt-tickets"><colgroup><col style="width:11%"><col style="width:15%"><col style="width:8%"><col style="width:7%"><col style="width:7%"><col style="width:7%"><col style="width:7%"><col style="width:7%"><col style="width:9%"><col></colgroup><thead>
-      <tr class="mt-cgrp"><th colspan="2"></th><th colspan="3">Volumen</th><th colspan="3">Cuándo</th><th colspan="2">Resolución</th></tr>
-      <tr><th>Estado</th><th>Ticket</th><th class="mt-num">Incidencias</th><th class="mt-num">Abiertas</th><th class="mt-num" data-tip="Centros distintos con alguna de esas incidencias.">Centros</th><th class="mt-num">Primera</th><th class="mt-num">Última</th><th class="mt-num" data-tip="Días entre la primera y la última incidencia.">Días</th><th class="mt-num">Media resol.</th><th>Problema más habitual</th></tr></thead>
-      <tbody>${body}<tr class="mt-lead mt-lead-end"><th class="mt-r" colspan="2">${shown.length === known.length ? `Todos (${num(shown.length)} tickets)` : `Estos ${num(shown.length)} tickets`}</th><td class="mt-num mt-gsep">${num(sum((x) => x.n))}</td><td class="mt-num">${num(sum((x) => x.open)) || ''}</td><td colspan="6" class="mt-gsep"></td></tr></tbody></table></div>
-      ${more('rs-known', known.length, 15)}`;
-  };
   // --- Resolución, comparando personas: una persona frente a su equipo (ella incluida: model.js heads) o frente a
   // otra. Lo que tarda depende mucho del módulo, así que la tabla principal compara módulo a módulo y la media se pone
   // también frente a lo que tarda el equipo en esos mismos módulos. Sin lo que habla del tercero o del tipo de
@@ -148,7 +104,7 @@ export const resolucionTab = (t) => {
     return pairTable('Módulo', [RES_VOL, ...RES_PAIR,
       ['24 a 168 h', (s) => (s.resolved ? s.d7 : null), (v) => pct(v), null, 'De las resueltas, las que tardaron de 24 a 168 h.'],
       ['168 a 360 h', (s) => (s.resolved ? s.d15 : null), (v) => pct(v), 'low', 'De las resueltas, las que tardaron de 168 a 360 h.'],
-      ['Escaladas', (s) => (s.resolved ? s.vend : null), (v) => pct(v), null, 'De las resueltas, las que tienen ticket de tercero.']], rows);
+      ['Escaladas', (s) => (s.resolved ? s.vend : null), (v) => pct(v), null, 'De las resueltas, las que han estado en Pendiente de un tercero.']], rows);
   };
   const resMonthlyCmp = (A) => {
     const T = bySide(A.filter(solved));
@@ -156,7 +112,7 @@ export const resolucionTab = (t) => {
     rows.push({ label: 'Total', x: resPair(T), cls: 'mt-tot' });
     return pairTable('Mes de apertura', [RES_VOL, ...RES_PAIR,
       ['Más de 168 h', (s) => (s.resolved ? s.w7 : null), (v) => pct(v), 'low', 'De las resueltas, las que tardaron más de 168 h.'],
-      ['Escaladas', (s) => (s.resolved ? s.vend : null), (v) => pct(v), null, 'De las resueltas, las que tienen ticket de tercero.']], rows);
+      ['Escaladas', (s) => (s.resolved ? s.vend : null), (v) => pct(v), null, 'De las resueltas, las que han estado en Pendiente de un tercero.']], rows);
   };
   // La media de una persona frente a lo que tardaría su equipo con sus mismos módulos: la media del equipo en cada
   // módulo, con el peso que ese módulo tiene en lo suyo. Solo persona frente a empresa.
@@ -191,7 +147,7 @@ export const resolucionTab = (t) => {
         kpiCo('En < 24 h', part((s) => s.d1), P, { val: (s) => s.v, better: 'high', note: 'De las resueltas.' }),
         kpiCo('De 24 a 168 h', part((s) => s.d7), P, { val: (s) => s.v, note: 'De las resueltas.' }),
         kpiCo('De 168 a 360 h', part((s) => s.d15), P, { val: (s) => s.v, better: 'low', note: 'De las resueltas.' }),
-        kpiCo('Escaladas', esc1, P, { val: (s) => s.v, note: 'De las resueltas, con ticket de tercero.' }),
+        kpiCo('Escaladas', esc1, P, { val: (s) => s.v, note: 'De las resueltas, en Pendiente de un tercero en algún momento.' }),
         kpiCo('Esperando a terceros', wait, P, { val: (s) => s.v, note: 'Del tiempo de vida de lo resuelto, en Pendiente de un tercero.' })),
       section('¿Cuánto tardamos?'),
       card('Cuánto tardan', ttrTable(m.rows('tb')), { span: 's12', sub: 'Lo resuelto de cada uno, sin escalar, escalado y todo, repartido según lo que tardó (cada fila suma el 100 %). En verde, quien resuelve más en menos de 24 h y menos en más de 168 h. Clic en una celda para filtrar.' }),
@@ -204,7 +160,7 @@ export const resolucionTab = (t) => {
     return grid(ask('resolucion'), note, timesCard(A),
       kpis(kpi('Resueltas', num(s.resolved), `de ${num(s.n)} recibidas`), kpi('Media de resolución', avgOf(s), 'de la apertura a la resolución'),
         kpi('En < 24 h', on ? pct(s.d1) : '—', 'de las resueltas'), kpi('De 24 a 168 h', on ? pct(s.d7) : '—', 'de las resueltas'),
-        kpi('De 168 a 360 h', on ? pct(s.d15) : '—', 'de las resueltas'), kpi('La que más tardó', on ? dur(s.mx) : '—', 'la resuelta más lenta'), kpi('Escaladas', on ? pct(R.filter(escd).length / R.length) : '—', 'de las resueltas, con ticket de tercero'),
+        kpi('De 168 a 360 h', on ? pct(s.d15) : '—', 'de las resueltas'), kpi('La que más tardó', on ? dur(s.mx) : '—', 'la resuelta más lenta'), kpi('Escaladas', on ? pct(R.filter(escd).length / R.length) : '—', 'de las resueltas, en Pendiente de un tercero en algún momento'),
         kpi('Esperando a terceros', on ? pct(s.rt[3] / rtTot) : '—', 'del tiempo de vida de lo resuelto')),
       section('¿Cuánto tardamos?'),
       card('Cuánto tardan', ttrTable(m.rows('tb')), { span: 's12', sub: 'Lo resuelto sin escalar, escalado y todo, repartido según lo que tardó (cada fila suma el 100 %); cada bloque, con su total. Clic en una celda para filtrar.' }),
@@ -213,14 +169,7 @@ export const resolucionTab = (t) => {
       card('Por prioridad, escalado y tarjeta', timeTable(A), { span: 's12', sub: 'Lo que pasa de media cada resuelta en cada estado, según el historial de cambios. Clic en una fila para filtrar.' }),
       section('¿Qué módulos tardan más?'),
       card('', scorecard('mo', [['Volumen', ['n']], ['Cuánto tarda', ['avg', 'd1', 'd7', 'd15', 'mx']], ['En qué se va', ['tq', 'tc', 'tv']], ['Escalado', ['vend']]],
-        { id: 'rs-mo', rows: m.rows('mo').filter(solved), skip: noK, refLabel: 'Todos los módulos', title: 'Módulos', n: ['Resueltas', 'Issues resueltas y su parte del total.'] }), { span: 's12' }),
-      section('¿Qué escalamos y a quién?'),
-      // los proyectos Jira a los que se escala (de ITSMECOM, por su equipo asignado), como los módulos: lo escalado y resuelto
-      card('', scorecard('vp', [['Volumen', ['n']], ['Cuánto tarda', ['avg', 'd1', 'd7', 'd15', 'mx']], ['En qué se va', ['tq', 'tc', 'tv']]],
-        { id: 'rs-vp', rows: m.rows('vp').filter((i) => solved(i) && escd(i)), skip: noK, refLabel: 'Todo lo escalado a Jira', title: 'Proyectos Jira', n: ['Resueltas', 'Escaladas resueltas y su parte del total escalado a Jira.'] }),
-        { span: 's12', sub: 'Lo escalado y resuelto, por el proyecto Jira de su ticket de tercero; ITSMECOM, por su equipo asignado en Jira. Clic en un proyecto para filtrar.' }),
-      card('Unas veces se escala y otras no', mixedEsc(), { span: 's12', sub: `Problemas con al menos ${MIXED_ESC.min} resueltas que se escalan entre el ${pct(MIXED_ESC.from)} y el ${pct(MIXED_ESC.to)} de las veces, agrupados por su módulo principal: lo que tardan sin escalar y escalados. Clic en uno para filtrar.` }),
-      card('Un mismo ticket, muchas incidencias', ticketTable(A), { span: 's12', sub: `Tickets de tercero con ${TICKET_MIN} o más incidencias ligadas: arriba, los que aún tienen alguna abierta. Clic en uno para filtrar.` }));
+        { id: 'rs-mo', rows: m.rows('mo').filter(solved), skip: noK, refLabel: 'Todos los módulos', title: 'Módulos', n: ['Resueltas', 'Issues resueltas y su parte del total.'] }), { span: 's12' }));
   };
 
   return (A) => {

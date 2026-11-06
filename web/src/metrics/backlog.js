@@ -1,6 +1,6 @@
 // Lo pendiente (sin DOM): en qué situación está, qué conviene vigilar, lo que no tiene a nadie y, comparando,
 // cómo está lo de cada lado. m: el modelo (model.js).
-import { SITUATIONS, REOPENED, MISROUTED } from './model.js';
+import { SITUATIONS, REOPENED, MISROUTED, isEscalated } from './model.js';
 import { OLD_DAYS, DAY, isLate } from './rules.js';
 import { slotOf, kindOf, startOf } from './shifts.js';
 
@@ -17,7 +17,7 @@ export const ages = (m) => [0, 1, 2, 3, 4].map((k) => ({ label: m.DIMS.age.label
 
 export const isOld = (m) => (i) => m.SNAP - m.C.rep[i] > OLD_DAYS * DAY;
 export const late = (m) => (i) => isLate(m.OPEN[i], m.C.ip[i], m.SLA[m.C.pr[i]], m.SNAP - m.C.rep[i]);
-export const escalated = (m) => (i) => m.C.vt[i] > 0;
+export const escalated = (m) => (i) => isEscalated(m.C, i);
 // volvieron de Resuelta a abierta; un clic filtra por esa marca de calidad (model.js, DIMS.q: 0, Reabierta)
 export const reopened = (m) => (i) => (m.C.fl[i] & REOPENED) !== 0;
 export const REOPEN_FILTER = 'q:0';
@@ -35,7 +35,7 @@ export const orphansIn = (m) => m.today(true).filter((i) => m.OPEN[i] && !m.C.as
 export const watchList = (m) => [
   ['Fuera de plazo', late(m), 'Nunca han pasado a En curso y ya superan el plazo de su prioridad.', 'sl:4'],
   [`Con más de ${OLD_DAYS} días`, isOld(m), `Llevan más de ${OLD_DAYS} días abiertas: si sube, el backlog envejece.`, OLD_FILTER],
-  ['Escaladas', escalated(m), 'Con ticket de tercero, estén en el estado que estén (por eso no coincide con «espera tercero»: algunas ya se están trabajando o han vuelto a la cola).', 'es:1'],
+  ['Escaladas', escalated(m), 'Han estado en Pendiente de un tercero, estén ahora en el estado que estén (por eso no coincide con «espera tercero»: algunas ya se están trabajando o han vuelto a la cola).', 'es:1'],
   ['Mal escaladas', misrouted(m), MISROUTED_TIP, MISROUTED_FILTER],
   ['Reabiertas', reopened(m), REOPEN_TIP, REOPEN_FILTER],
   ['Críticas', (i) => m.C.pr[i] === m.CRIT, 'De prioridad crítica.', `pr:${m.CRIT}`],

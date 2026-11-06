@@ -90,7 +90,7 @@ export const createCharts = (m, ui) => {
     d1: ['En < 24 h', 'high', (s) => s.d1, 'De las resueltas, las resueltas en menos de 24 horas.'],
     reop: ['Reabiertas', 'low', (s) => s.reop, 'Volvieron de Resuelta a abierta.'],
     crit: ['Críticas', null, (s) => s.crit, 'Parte de prioridad crítica.'],
-    vend: ['Escaladas', null, (s) => s.vend, 'Parte con ticket de tercero.'],
+    vend: ['Escaladas', null, (s) => s.vend, 'Parte que ha estado en Pendiente de un tercero.'],
     open: ['Pendientes', null, (s) => s.open, 'Lo recibido en el periodo que sigue sin resolver.'],
     // con o.extra: top, el valor de otra dimensión que más se repite ({ label, share }); mi, los major incidents
     top: ['Lo que más falla', null, null, 'El módulo con más issues y su parte.'],

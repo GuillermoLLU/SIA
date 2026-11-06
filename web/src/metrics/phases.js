@@ -1,5 +1,5 @@
 // En qué se va el tiempo (sin DOM): el tiempo de las resueltas en tramos que se apilan, por separado las escaladas y
-// las que no (#48), y la gráfica que lo pinta (en Resolución y escalados, con los lados de arriba: empresas o personas).
+// las que no (#48), y la gráfica que lo pinta (en Resolución, con los lados de arriba: empresas o personas).
 // m: el modelo (model.js).
 //   escaladas      THesc (hasta escalar) partido por estados como lo que no se escala (en cola, en curso, esperando al
 //                  centro: server/metrics/dataset.js, hQ/hI/hPc; sin ellos, todo a la cola), el escalado (Tesc, más las otras

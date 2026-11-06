@@ -70,7 +70,7 @@ export const backlogTab = (t) => {
       { head: 'A vigilar', note: 'Dentro de las pendientes; se solapan.' },
       { label: 'Fuera de plazo', test: late, f: 'sl:4', better: 'low', tip: 'Nunca han pasado a En curso y ya superan el plazo de su prioridad.' },
       { label: `Con más de ${OLD_DAYS} días`, test: old, f: OLD_FILTER, better: 'low', tip: `Llevan más de ${OLD_DAYS} días abiertas.` },
-      { label: 'Escaladas', test: escd, f: 'es:1', tip: 'Con ticket de tercero, estén en el estado que estén.' },
+      { label: 'Escaladas', test: escd, f: 'es:1', tip: 'Han estado en Pendiente de un tercero, estén ahora en el estado que estén.' },
       { label: 'Mal escaladas', test: misr, f: MISROUTED_FILTER, better: 'low', tip: MISROUTED_TIP },
       { label: 'Reabiertas', test: reop, f: REOPEN_FILTER, better: 'low', tip: REOPEN_TIP },
       { label: 'Críticas', test: (i) => C.pr[i] === CRIT, f: `pr:${CRIT}` },
@@ -83,7 +83,7 @@ export const backlogTab = (t) => {
         partFig('Sin tocar', sit(1), 'low', 'En Asignada y sin ningún movimiento desde que se abrieron'),
         partFig('Fuera de plazo', late, 'low', 'Nunca han pasado a En curso y ya superan el plazo de su prioridad'),
         partFig(`Con más de ${OLD_DAYS} días`, old, 'low', `Llevan más de ${OLD_DAYS} días abiertas`),
-        partFig('Escaladas', escd, null, 'Con ticket de tercero: dependen de otros')),
+        partFig('Escaladas', escd, null, 'Han estado en Pendiente de un tercero: dependen de otros')),
       card('Cómo está lo pendiente', pendCmp(pendRows, op), { span: 's12', sub: `${pp ? 'Issues de cada uno; las de la empresa, la media por persona de su equipo.' : 'Qué parte de sus pendientes está en cada situación.'} En verde, quien va mejor en lo que depende de él; lo que espera a otros, sin color. Clic en una fila para filtrar.` }),
       card('Qué tiene pendiente cada uno', mixCmp(mixRows, op, 'Pendientes'), { span: 's12', sub: 'Los 8 módulos con más pendientes; «Resto», los demás. Clic en una fila para filtrar.' }));
   };
@@ -101,7 +101,7 @@ export const backlogTab = (t) => {
       ...SIT.map((s) => ({ ...s, test: (i) => inA(i) && s.test(i) })),
       { head: 'A vigilar', note: 'Dentro de las pendientes.' },
       { label: 'Fuera de plazo', tip: 'Sin iniciar: nunca han pasado a En curso y ya superan su SLA.', test: (i) => inA(i) && late(i), f: 'sl:4' },
-      { label: 'Escaladas', tip: 'Con ticket de tercero.', test: (i) => inA(i) && escd(i), f: 'es:1' },
+      { label: 'Escaladas', tip: 'Han estado en Pendiente de un tercero.', test: (i) => inA(i) && escd(i), f: 'es:1' },
       { label: 'Mal escaladas', tip: MISROUTED_TIP, test: (i) => inA(i) && misr(i), f: MISROUTED_FILTER },
       { label: 'Reabiertas', tip: REOPEN_TIP, test: (i) => inA(i) && reop(i), f: REOPEN_FILTER },
       { label: 'PRIO', test: (i) => inA(i) && cardsOf(i).includes(2), f: 'tj:2' },
@@ -109,7 +109,7 @@ export const backlogTab = (t) => {
       ...(orphans.length ? [{ head: 'Aparte', note: 'SGA, SISU o PRIO sin nadie asignado.' }, { label: 'Sin responsable', test: (i) => !C.as[i] }] : []),
     ];
     const prioCards = [{ head: 'Prioridad' }, ...asRows(prioRows()), { head: 'Tarjeta', note: 'Una PRIO cuenta también en su SGA o SISU.' }, ...asRows(CARD_ROWS())];
-    const modRows = topRows('mo', op, 12), esc3 = op.filter(escd);
+    const modRows = topRows('mo', op, 12), esc3 = op.filter((i) => m.C.vt[i] > 0);   // por el destino de su ticket
     const st = { total: true, foot: pend };
 
     return grid(ask('backlog'),

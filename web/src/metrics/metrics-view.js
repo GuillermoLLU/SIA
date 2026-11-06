@@ -17,6 +17,7 @@ import { createTabs, TABS } from './tabs.js';
 import { periodLabel } from './period.js';
 import { mountPeriodPanel } from './period-panel.js';
 import { attachTip } from './tip.js';
+import { toggleProject } from './resolution.js';
 import { PHASES, CSV_PHASES, CLEAR_PHASES } from './progress.js';
 import { mountMetricsModals } from './metrics-modals.js';
 import { progressCover } from './progress-cover.js';
@@ -37,7 +38,12 @@ const CALENDAR_ICON = svg('<rect x="3" y="5" width="18" height="16" rx="2"/><pat
 const SEARCH_ICON = svg('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>');
 const CHEVRON = svg('<path d="m6 9 6 6 6-6"/>');
 
-export const mountMetricsView = (root, { api, toast }) => {
+// team: una pestaña más, que es otra vista con sus propios datos, periodo y filtros (Equipo soporte): { id, label,
+// mount(host) → { show() } }. Se monta una vez, al abrirla; sus clics y su tarjeta se quedan en ella.
+export const mountMetricsView = (root, { api, toast, team = null }) => {
+  const teamHost = team && Object.assign(document.createElement('div'), { hidden: true });
+  let teamView = null;
+  for (const type of ['click', 'mousemove']) teamHost?.addEventListener(type, (e) => e.stopPropagation());
   let m = null, tabs = null, tab = 'resumen', loading = false, panel = null;
   // open: el desplegable abierto ('calendar', 'side0' o 'side1'); who: lo escrito en el buscador de
   // personas; searching: la búsqueda abierta
@@ -89,9 +95,10 @@ export const mountMetricsView = (root, { api, toast }) => {
         <div class="mt-find"><input type="search" data-q placeholder="Título o INC…" hidden><span class="mt-count" data-count></span>
           <button class="mt-search" data-search title="Buscar en el título o por número">${SEARCH_ICON}</button></div>
       </div>
-      <nav class="mt-tabs">${TABS.map(([k, l]) => `<button data-tab="${k}">${l}</button>`).join('')}</nav>
+      <nav class="mt-tabs">${[...TABS, ...(team ? [[team.id, team.label]] : [])].map(([k, l]) => `<button data-tab="${k}">${l}</button>`).join('')}</nav>
       <div class="mt-main" data-main></div>
     </div><div class="mt-tip" data-tip-box hidden></div>`;
+    if (teamHost) $('[data-main]').after(teamHost);
   };
 
   // Periodo: el botón dice qué fechas se miran; su panel (period-panel.js), la rejilla de meses y los campos Desde y
@@ -154,13 +161,22 @@ export const mountMetricsView = (root, { api, toast }) => {
     $('[data-q]').hidden = !(searching || S.q);
     $('[data-count]').innerHTML = `<b>${num(A.length)}</b> issues`;
     root.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('mt-on', b.dataset.tab === tab));
+    // la pestaña del equipo va por su cuenta: sin los filtros de arriba, que no le afectan
+    const onTeam = tab === team?.id;
+    for (const s of ['.mt-fbar', '[data-main]']) $(s).style.display = onTeam ? 'none' : '';
+    if (teamHost) teamHost.hidden = !onTeam;
+    if (onTeam) {
+      teamView ||= team.mount(teamHost);
+      teamView.show();
+      return;
+    }
     $('[data-main]').innerHTML = tabs.render(tab, A);
   };
 
   const start = (data) => {
     m = data ? createModel(data) : null;
     m?.resetPeriod();   // de partida, el mes en curso
-    ui.exp = {}; ui.sort = {}; tab = 'resumen'; searching = false; closePops();
+    ui.exp = {}; ui.sort = {}; ui.jiraPick = null; tab = 'resumen'; searching = false; closePops();
     if (!m) return renderEmpty();
     tabs = createTabs(m, createCharts(m, ui), ui);
     renderFrame();
@@ -296,12 +312,13 @@ export const mountMetricsView = (root, { api, toast }) => {
     }
   };
 
-  // La sábana del Resumen, a CSV: lo que se ve ahora (filtros y lados), entero, descargado como fichero (sheet.js).
+  // La sábana, a CSV (del Resumen o de Escalados): lo que se ve ahora (filtros y lados), entero, descargado como fichero (sheet.js).
   const exportSheet = () => {
-    const list = sheetOf(m);
+    const escalated = tab === 'escalados', list = escalated ? ui.escSheet.list : sheetOf(m);
     if (!list.length) return;
-    downloadText(sheetFile(m), sheetCsv(m, list), 'text/csv;charset=utf-8');
-    toast?.(`Exportadas ${num(list.length)} incidencias a ${sheetFile(m)}.`);
+    const file = escalated ? sheetFile(m, 'incidencias-escaladas') : sheetFile(m);
+    downloadText(file, sheetCsv(m, list, escalated ? ui.escSheet.cols : undefined), 'text/csv;charset=utf-8');
+    toast?.(`Exportadas ${num(list.length)} incidencias a ${file}.`);
   };
 
   root.addEventListener('click', (e) => {
@@ -352,7 +369,7 @@ export const mountMetricsView = (root, { api, toast }) => {
       if (searching) $('[data-q]').focus();
       return;
     }
-    const t = e.target.closest('[data-tab],[data-go],[data-rm],[data-exp],[data-sort],[data-evo],[data-flk],[data-shk],[data-only],[data-f2],[data-f]');
+    const t = e.target.closest('[data-tab],[data-go],[data-rm],[data-exp],[data-sort],[data-evo],[data-flk],[data-shk],[data-jc],[data-jc-clear],[data-only],[data-f2],[data-f]');
     if (!t) return;
     const d = t.dataset;
     if (d.tab || d.go) { tab = d.tab || d.go; root.scrollTop = 0; }
@@ -365,6 +382,8 @@ export const mountMetricsView = (root, { api, toast }) => {
       else if (!cur.includes(k)) ui.shifts = [...cur, k].sort();
       else if (cur.length > 1) ui.shifts = cur.filter((x) => x !== k);
     }
+    else if (d.jc) ui.jiraPick = toggleProject(ui.jiraShown, Number(d.jc));   // Escalados: los proyectos que se comparan y filtran
+    else if (d.jcClear != null) ui.jiraPick = [];
     // un selector: solo ese valor de la dimensión («dim:clave») o, sin clave («dim:»), todos (sin filtro)
     else if (d.only != null) { const [dim, k] = d.only.split(':'); if (k === '') delete S.f[dim]; else S.f[dim] = new Set([Number(k)]); }
     else if (d.rm) { const [dim, k] = filterKey(d.rm); S.f[dim].delete(k); }
@@ -404,5 +423,7 @@ export const mountMetricsView = (root, { api, toast }) => {
   return {
     // Al abrir la vista: siempre el Resumen.
     show: () => ready().then(() => { if (m && tab !== 'resumen') { tab = 'resumen'; render(); } }).catch(failed),
+    // De vuelta de la gestión del equipo: su pestaña.
+    showTeam: () => ready().then(() => { if (m) { tab = team.id; render(); } }).catch(failed),
   };
 };

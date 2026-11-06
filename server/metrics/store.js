@@ -41,16 +41,16 @@ export const createMetricsStore = (dir, { repo, source, jira = null, fs, now = (
   // El avance cuenta lo que entra en el informe.
   const counted = () => { if (progress) progress.done++; };
 
-  // Pide a Jira las claves que no se tienen y las que seguían sin resolver; las que Jira no conoce no se vuelven a pedir.
-  // Las de las issues abiertas (open), con su historial (si ha pasado de un equipo a otro: las mal escaladas del
-  // Backlog), y también las ya resueltas de las que aún no se sabe. Al resto no se le pide: pesa mucho. Y las de ITSMECOM
-  // traídas antes de guardar su equipo (team NULL): a quién se escala es su equipo (dataset.js).
-  const syncJira = async (keys, open) => {
+  // Pide a Jira, siempre con su historial (si pasó de un equipo a otro: los malos escalados), las claves que no se tienen, las
+  // que seguían sin resolver y las que aún no se sabe si cambiaron de equipo (moves NULL) o de cuál a cuál (hops NULL). Las que
+  // Jira no conoce no se vuelven a pedir. Y las de ITSMECOM traídas antes de guardar su equipo (team NULL): a quién se escala
+  // es su equipo (dataset.js).
+  const syncJira = async (keys) => {
     const saved = repo.jiraTickets();
-    const ask = keys.filter((k) => { const t = saved.get(k); return !t || (t.found && !t.resolved) || (t.found && t.moves == null && open.has(k)) || (t.found && t.team == null && k.startsWith(TEAM_PROJECT)); });
+    const ask = keys.filter((k) => { const t = saved.get(k); return !t || (t.found && !t.resolved) || (t.found && t.moves == null) || (t.found && t.team == null && k.startsWith(TEAM_PROJECT)) || (t.found && t.moves > 0 && t.hops == null); });
     progress = { phase: 'jira', done: 0, total: ask.length };
     try {
-      if (ask.length) repo.saveJira(await jira.tickets(ask, { history: new Set(ask.filter((k) => open.has(k))), onBatch: (n) => { progress.done = n; } }));
+      if (ask.length) repo.saveJira(await jira.tickets(ask, { history: new Set(ask), onBatch: (n) => { progress.done = n; } }));
       return publisher.jiraMeta();
     } catch (e) {
       return publisher.jiraMeta(e.message);

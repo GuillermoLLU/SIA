@@ -18,7 +18,7 @@ export const FLAG = {
   // Pendiente con motivo Third Party Vendor Action Reqd); de las escaladas cerradas (escalation.js), sin Jira válido
   // (ninguno suyo que no esté Discarded; la «mal escalada» de la #48), cerrada con el Jira abierto y cerrada en Remedy
   // antes que su Jira; y mal escalada: algún Jira suyo descartado o que pasó de un equipo a otro
-  IA_NOTE: 65536, THIRD_PARTY: 131072, BAD_ESCALATION: 262144, JIRA_OPEN: 524288, CLOSED_BEFORE_JIRA: 1048576, MISROUTED: 2097152,
+  IA_NOTE: 65536, THIRD_PARTY: 131072, BAD_ESCALATION: 262144, JIRA_OPEN: 524288, CLOSED_BEFORE_JIRA: 1048576, MISROUTED: 2097152, JIRA_DISCARDED: 4194304, JIRA_MOVED: 8388608,
 };
 
 const STAMP = /^(\d{4})-(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d)/;

@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createJira, madrid, movesOf, BATCH } from './jira.js';
+import { createJira, madrid, hopsOf, BATCH } from './jira.js';
+
+const movesOf = (changelog) => hopsOf(changelog).length;
 
 const CONFIG = () => ({ baseUrl: 'https://jira.example.com/jira/', token: 'tok' });
 // fetch falso: responde con los tickets que tiene de las claves de la JQL (o de la clave sola) y apunta cada URL.
@@ -39,7 +41,7 @@ test('tickets: por lotes, con el token, y las claves que Jira no conoce como no 
   assert.ok(fetch.urls[0].url.includes('fields=created,resolutiondate,status,customfield_18260'), 'con su equipo asignado');
   assert.equal(fetch.urls[0].auth, 'Bearer tok');
   assert.deepEqual(seen, [BATCH, BATCH + 1]);
-  assert.deepEqual(found, [{ key: 'SGA-1', created: '2026-02-03 10:00:00', resolved: '', status: 'Open', team: 'N2 Courier Support', moves: null }]);
+  assert.deepEqual(found, [{ key: 'SGA-1', created: '2026-02-03 10:00:00', resolved: '', status: 'Open', team: 'N2 Courier Support', moves: null, hops: null }]);
   assert.equal(missing.length, BATCH);
 });
 
@@ -53,6 +55,11 @@ test('un ticket movido de proyecto: la búsqueda lo da con su clave nueva; pedid
 test('sin configurar: 400 con lo que hay que hacer; token rechazado: lo dice', async () => {
   await assert.rejects(createJira({ config: () => ({ baseUrl: '', token: '' }), fetch: fakeFetch({}) }).tickets(['A-1']), (e) => e.status === 400 && /Credenciales → Jira/.test(e.message));
   await assert.rejects(createJira({ config: CONFIG, fetch: fakeFetch({}, 401) }).tickets(['A-1']), /rechazado el token/);
+});
+
+test('hopsOf: de qué equipo a cuál', () => {
+  const changelog = { histories: [{ items: [{ field: 'Equipo Asignado', fromString: 'Soporte Courier', toString: 'Desarrollo Courier' }] }, { items: [{ field: 'project', fromString: 'AP-Sisu', toString: 'MT-Sisu' }] }] };
+  assert.deepEqual(hopsOf(changelog), [['Soporte Courier', 'Desarrollo Courier'], ['AP-Sisu', 'MT-Sisu']]);
 });
 
 test('movesOf: cuenta los cambios de proyecto y de equipo de uno a otro; ponerle equipo por primera vez, no', () => {

@@ -12,8 +12,11 @@ export const SCOPE = { OUT: 0, SGA: 1, SISU: 2, REQUEST: 3 };
 export const MAJOR = 256;
 const PRIO = 2, NO_RESOLUTION = 32768;
 export const REOPENED = 512;
+// escalada (#48): ha estado en Pendiente con motivo Third Party Vendor Action Reqd, tenga o no ticket
+export const THIRD_PARTY = 131072;
+export const isEscalated = (C, i) => (C.fl[i] & THIRD_PARTY) !== 0;
 // mal escalada: algún Jira suyo se descartó o pasó de un equipo a otro (server/metrics/escalation.js, misrouted)
-export const MISROUTED = 2097152;
+export const MISROUTED = 2097152, JIRA_DISCARDED = 4194304, JIRA_MOVED = 8388608;
 // SISU o SGA, por el módulo (como lo reparte el equipo): estos módulos son de SISU; el resto, de SGA. Es otra cosa que
 // las tarjetas (CARDS), que salen de los filtros de Remedy.
 export const SISU_MODULES = new Set(['PACKING', 'ORDERS', 'DEVOLUCION PRODUCTO', 'SORTING', 'INBOUND', 'STOCK', 'WAVES', 'PERFORMANCE', 'PICKING', 'SISU']);
@@ -125,7 +128,7 @@ export const createModel = (data) => {
     tj: { name: 'Tarjeta', multi: true, label: (k) => CARDS[k],
       get: (i) => { const o = []; if (C.sc[i] === SCOPE.SGA) o.push(0); if (C.sc[i] === SCOPE.SISU) o.push(1); if (C.fl[i] & PRIO) o.push(2); return o.length ? o : [3]; } },
     sit: { name: 'Situación', get: situation, label: (k) => SITUATIONS[k] },
-    es: { name: 'Escalada', get: (i) => (C.vt[i] ? 1 : 0), label: (k) => (k ? 'Con ticket de tercero' : 'Sin ticket de tercero') },
+    es: { name: 'Escalada', get: (i) => (isEscalated(C, i) ? 1 : 0), label: (k) => (k ? 'Escalada a un tercero' : 'Sin escalar') },
     ss: { name: 'SISU o SGA', get: (i) => (SISU_MODULES.has(DI.module[C.mo[i]]) ? 0 : 1), label: (k) => SYSTEMS[k] },
     mx: { name: 'Mal escalada', get: (i) => (C.fl[i] & MISROUTED ? 1 : 0), label: (k) => (k ? 'Mal escalada (Jira descartado o de un equipo a otro)' : 'No mal escalada') },
     tu: { name: 'Turno', get: (i) => STYPE[i] % 3, label: (k) => `${SHIFTS[k]} (${SHIFT_HOURS[k]})` },
@@ -318,7 +321,7 @@ export const createModel = (data) => {
       if (!C.k3[i]) noCat++;
       if (!C.de[i]) noDesc++;
       if (C.pr[i] === CRIT) crit++;
-      if (C.vt[i]) vend++;
+      if (isEscalated(C, i)) vend++;
       if (C.fl[i] & REOPENED) reop++;
       if (C.nb[i]) bounce++;
       // SLA de inicio: iniciada a tiempo, tarde, sin iniciar y fuera de plazo, o cerrada sin pasar por En curso

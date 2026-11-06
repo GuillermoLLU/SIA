@@ -1,10 +1,48 @@
-// Cómo lo resolvemos (sin DOM): cuánto tarda lo resuelto por tramos, mes a mes, lo que unas veces se escala y
-// otras no, los tickets con muchas incidencias y, comparando personas, lo resuelto de cada lado.
+// Cómo lo resolvemos (sin DOM): cuánto tarda lo resuelto por tramos, mes a mes, los tiempos de lo escalado y, comparando
+// personas, lo resuelto de cada lado.
 // m: el modelo (model.js).
-import { MIN_ISSUES, MIXED_ESC, TICKET_MIN, clearlyWorse } from './rules.js';
+import { MIN_ISSUES, clearlyWorse } from './rules.js';
+import { isEscalated } from './model.js';
 
 export const solved = (m) => (i) => m.DIMS.tb.get(i) < 8;
-export const escalated = (m) => (i) => m.C.vt[i] > 0;
+export const escalated = (m) => (i) => isEscalated(m.C, i);
+
+// Los tiempos medios de unas escaladas resueltas: n, THesc y Tesc (cada uno, de las que lo tienen con sus tickets Jira,
+// y cuántas son; un ticket previo a la apertura no cuenta) y el tiempo total, de la apertura a la resolución.
+export const JIRA_MAX = 8;   // los proyectos que se comparan, como mucho, a la vez
+
+// La comparativa de proyectos Jira. rows: lo escalado y resuelto a Jira; picked: los elegidos (de partida, ninguno: solo
+// la media). options: todos los proyectos, de más a menos; picked: los elegidos que siguen en rows; shown: sus tiempos;
+// global: los de todo rows.
+export const jiraComparison = (m, rows, picked = null) => {
+  const options = m.group('vp', rows, true).filter((x) => x.k).map((x) => ({ k: x.k, label: m.DIMS.vp.label(x.k), n: x.n, rows: x.rows }));
+  const on = (picked || []).filter((k) => options.some((o) => o.k === k));
+  const shown = on.map((k) => options.find((o) => o.k === k)).map((o) => ({ k: o.k, label: o.label, times: escalationTimes(m, o.rows) }));
+  return { options: options.map(({ k, label, n }) => ({ k, label, n })), picked: on, shown, global: escalationTimes(m, rows) };
+};
+
+// Cuánto se aparta un tiempo de la media, en % entero: { text, cls } (más tiempo, peor: mt-up; menos, mejor: mt-down; lo
+// que redondea a 0, sin color). Sin alguno de los dos, null.
+export const variation = (v, base) => {
+  if (v == null || !base) return null;
+  const p = Math.round((v - base) / base * 100);
+  return p === 0 ? { text: '0 %', cls: '' } : p > 0 ? { text: `+${p} %`, cls: 'mt-up' } : { text: `−${-p} %`, cls: 'mt-down' };
+};
+
+// Pinchar un proyecto: lo añade o lo quita, sin pasar de JIRA_MAX.
+export const toggleProject = (picked, k) => {
+  if (picked.includes(k)) return picked.filter((x) => x !== k);
+  return picked.length < JIRA_MAX ? [...picked, k] : picked;
+};
+
+export const escalationTimes = (m, list) => {
+  const { C } = m;
+  const meanOf = (value) => {
+    const v = list.map(value).filter((x) => x >= 0);
+    return { n: v.length, avg: v.length ? v.reduce((a, b) => a + b, 0) / v.length : null };
+  };
+  return { n: list.length, the: meanOf((i) => C.the?.[i] ?? -1), tes: meanOf((i) => C.tes?.[i] ?? -1), total: meanOf((i) => C.res[i] - C.rep[i]) };
+};
 // cuántas de cada lado (por persona, comparando con personas): H, el divisor de cada lado
 export const perHead = (m) => [0, 1].map((k) => (m.perHead() ? m.heads(k).size || 1 : 1));
 
@@ -37,31 +75,6 @@ export const resolutionParts = (m) => {
 // el valor de un dato ([nombre, parte, valor…]) en unas partes, solo si hay resueltas
 export const partValue = (x, d) => { const s = x[d[1]]; return s.resolved ? d[2](s) : null; };
 export const partWorse = (x, d, v, tot) => x[d[1]].resolved >= MIN_ISSUES && clearlyWorse(v, partValue(tot, d), d[4]);
-
-// Unas veces se escala y otras no: problemas con al menos MIXED_ESC.min resueltas, escalados entre MIXED_ESC.from y
-// MIXED_ESC.to de las veces; los `top` primeros, agrupados por su módulo principal (el módulo, de más a menos
-// resueltas entre sus problemas). → { all: cuántos hay, groups: [[módulo, problemas]] }
-export const mixedEscalation = (m, top) => {
-  const esc = escalated(m);
-  const g = m.group('de', m.rows('de').filter(solved(m)), true).filter((x) => x.k && x.n >= MIXED_ESC.min)
-    .map((x) => ({ ...x, e: x.rows.filter(esc) })).filter((x) => x.e.length >= MIXED_ESC.from * x.n && x.e.length <= MIXED_ESC.to * x.n);
-  const shown = top ? g.slice(0, top) : g, byMo = new Map();
-  for (const x of shown) { const mo = m.group('mo', x.rows).find((y) => y.k)?.k ?? 0; if (!byMo.has(mo)) byMo.set(mo, []); byMo.get(mo).push(x); }
-  const groups = [...byMo].sort((a, b) => b[1].reduce((t, x) => t + x.n, 0) - a[1].reduce((t, x) => t + x.n, 0));
-  return { all: g.length, shown, groups };
-};
-
-// Un mismo ticket, muchas incidencias: tickets de tercero con TICKET_MIN o más incidencias ligadas, los que aún
-// tienen alguna abierta primero y de más a menos incidencias. Por ticket: centros distintos, la primera y la última
-// incidencia (minutos) y los días entre una y otra, y el problema más habitual (clave de dict.problem).
-export const tickets = (m, A) => {
-  const { C, OPEN } = m;
-  return m.group('vk', A, true).filter((x) => x.k && x.n >= TICKET_MIN).map((x) => {
-    const first = Math.min(...x.rows.map((i) => C.rep[i])), last = Math.max(...x.rows.map((i) => C.rep[i]));
-    return { k: x.k, n: x.n, rows: x.rows, open: x.rows.filter((i) => OPEN[i]).length, centres: new Set(x.rows.map((i) => C.ce[i])).size,
-      first, last, span: Math.floor(last / 1440) - Math.floor(first / 1440), problem: m.group('de', x.rows).find((y) => y.k)?.k ?? 0 };
-  }).sort((a, b) => (b.open > 0) - (a.open > 0) || b.n - a.n);
-};
 
 // comparando personas: lo resuelto de cada lado en una lista, con el volumen por persona (vol, H)
 export const resolvedPair = (m, lists) => {

@@ -31,6 +31,7 @@
 //           sp los pasos con quien los hizo: [0 resuelta, 1 a proveedor o 2 a cliente, instante, persona de dict.person]
 //           sR/sV/sC lo mismo, por turno: el número de cada turno de 8 h desde las 7:00 del 1 de enero de start (web
 //           shifts.js, slotOf), una vez por turno (lo atendido en el turno en que entró)
+//           vh de sus tickets Jira que cambiaron de equipo, el original y el final (dict.vhops; 0, ninguno o aún no se sabe)
 //           the/tes/tcr/tsr THesc, Tesc, Tcr y Tesc-r con sus tickets Jira (escalation.js; minutos, -1 no hay,
 //           the -2 ticket previo); fl lleva además las marcas de sin Jira válido, cerrada con el Jira abierto,
 //           cerrada en Remedy antes que su Jira y mal escalada (algún Jira suyo descartado o que pasó de un equipo a otro)
@@ -44,7 +45,7 @@ import { PENDING, OPEN_STATES } from './states.js';
 import { escalationOf } from './escalation.js';
 
 export const GROUP = 'AYS SOPORTE';
-export const FORMAT = 13;
+export const FORMAT = 15;
 // el proyecto Jira con muchos equipos: a quién se escala, su equipo (vp: «ITSMECOM · N2 Courier Support»)
 export const TEAM_PROJECT = 'ITSMECOM';
 
@@ -84,12 +85,12 @@ const slotsOf = (mins) => [...new Set(mins.filter((t) => t >= 0).map((t) => Math
 // start: el año de la primera issue del grupo.
 export const createDataset = ({ start }) => {
   const base = Date.UTC(start, 0, 1);
-  const D = Object.fromEntries(['status', 'reason', 'prio', 'svc', 'person', 'centre', 'op', 'module', 'cat', 'vtype', 'vproj', 'vkey', 'vtext', 'resol', 'problem'].map((k) => [k, dictionary()]));
+  const D = Object.fromEntries(['status', 'reason', 'prio', 'svc', 'person', 'centre', 'op', 'module', 'cat', 'vtype', 'vproj', 'vkey', 'vtext', 'vhops', 'resol', 'problem'].map((k) => [k, dictionary()]));
   const cols = Object.fromEntries(COLS.map((c) => [c, []]));
   const resolutions = [], resolutionCount = new Map(), resolvers = new Map();
   const stepsByRow = [], actionsBy = new Map();   // los pasos y las acciones, con el autor tal cual: la persona se sabe en build
   const spellings = [];   // por problema: cuántas veces se escribe de cada forma
-  const jira = [], keys = new Set(), openKeys = new Set(), spans = [];   // las claves Jira de cada issue y las de las abiertas (las cuentas de escalado se hacen en build)
+  const jira = [], keys = new Set(), spans = [];   // las claves Jira de cada issue (las cuentas de escalado se hacen en build)
   let total = 0, snapshot = 0, first = Infinity, last = -1;
 
   // Devuelve true si la incidencia entra en el informe (del grupo y sin avisos automáticos).
@@ -127,17 +128,18 @@ export const createDataset = ({ start }) => {
     const open = OPEN_STATES.includes(i.status);
     jira.push({ keys: i.jira, open });
     spans.push(i.flags & FLAG.THIRD_PARTY ? i.spans : null);   // solo de las escaladas: para partir su THesc
-    for (const k of i.jira) { keys.add(k); if (open) openKeys.add(k); }
+    for (const k of i.jira) keys.add(k);
     return true;
   };
 
   // Los tiempos de escalado de cada issue con sus tickets (Map clave → { created, resolved, status, found, moves }, en
   // hora de Madrid como Remedy); «ahora», la foto. Una clave sin ticket guardado no cuenta.
   const escalations = (tickets) => {
-    const at = (s) => minutesSince(base, s), out = { the: [], tes: [], tcr: [], tsr: [], hQ: [], hI: [], hPc: [], hPo: [] };
+    const at = (s) => minutesSince(base, s), out = { the: [], tes: [], tcr: [], tsr: [], hQ: [], hI: [], hPc: [], hPo: [], vh: [] };
     jira.forEach(({ keys: ks, open }, n) => {
-      const ts = ks.map((k) => tickets.get(k)).filter((t) => t?.found).map((t) => ({ created: at(t.created), resolved: at(t.resolved), status: t.status, moves: t.moves ?? 0 }));
+      const ts = ks.map((k) => tickets.get(k)).filter((t) => t?.found).map((t) => ({ created: at(t.created), resolved: at(t.resolved), status: t.status, moves: t.moves ?? 0, hops: t.hops ? JSON.parse(t.hops) : [] }));
       const e = escalationOf({ reported: cols.rep[n], resolved: cols.res[n], open, escalated: !!(cols.fl[n] & FLAG.THIRD_PARTY) }, ts, snapshot);
+      out.vh.push(D.vhops.id(e.routes.map(([from, to]) => `${from} → ${to}`).join('; ')));
       out.the.push(e.thesc); out.tes.push(e.tesc); out.tcr.push(e.tcr); out.tsr.push(e.tescr);
       // su THesc, por estados: lo de cada uno hasta el primer Jira; la cola, lo que queda (lo de antes del primer cambio,
       // también), como en lo que no se escala (web phases.js)
@@ -149,7 +151,7 @@ export const createDataset = ({ start }) => {
       const team = D.vproj.values[cols.vp[n]] === TEAM_PROJECT ? tickets.get(D.vkey.values[cols.vk[n]])?.team : '';
       if (team) cols.vp[n] = D.vproj.id(`${TEAM_PROJECT} · ${team}`);
       cols.fl[n] |= (e.bad ? FLAG.BAD_ESCALATION : 0) | (e.jiraOpen ? FLAG.JIRA_OPEN : 0) | (e.early ? FLAG.CLOSED_BEFORE_JIRA : 0)
-        | (e.misrouted ? FLAG.MISROUTED : 0);
+        | (e.misrouted ? FLAG.MISROUTED : 0) | (e.discarded ? FLAG.JIRA_DISCARDED : 0) | (e.moved ? FLAG.JIRA_MOVED : 0);
     });
     return out;
   };
@@ -180,6 +182,6 @@ export const createDataset = ({ start }) => {
     };
   };
 
-  // Las claves Jira de todas las issues, sin repetir, y las de las abiertas (para pedirlas a Jira antes de build).
-  return { add, build, jiraKeys: () => [...keys], openJiraKeys: () => [...openKeys] };
+  // Las claves Jira de todas las issues, sin repetir (para pedirlas a Jira antes de build).
+  return { add, build, jiraKeys: () => [...keys] };
 };

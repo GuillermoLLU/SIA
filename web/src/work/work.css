@@ -1,5 +1,7 @@
 /* Equipo soporte: usa las piezas de las Métricas (metrics.css); aquí, lo suyo. */
 .wk-main { padding-top: 14px; }
+/* dentro de la página de Métricas, que ya pone sus márgenes */
+.mt-page .wk-view .mt-page { padding: 0 0 16px; max-width: none; }
 .wk-team td:first-child { max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wk-team td:first-child .mt-sw { margin-right: 8px; }
 .wk-team tr.mt-grp td { text-transform: none; letter-spacing: 0; font-size: 12.5px; }

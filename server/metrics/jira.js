@@ -12,18 +12,18 @@ const ALONE = 8;
 export const TEAM = 'customfield_18260';
 const FIELDS = `created,resolutiondate,status,${TEAM}`;
 
-// Cuántas veces pasó un ticket de un equipo a otro, según su historial: un cambio de proyecto (se mueve y cambia de
+// Por qué equipos pasó un ticket, según su historial, [de, a] en cada paso: un cambio de proyecto (se mueve y cambia de
 // clave) o de su campo de equipo («Equipo Asignado», «Equipos Logística»…) de uno a otro; que se le ponga equipo por
 // primera vez no cuenta. El historial pesa (1,3 MB por cada 100 tickets): solo se pide cuando hace falta.
 const TEAM_FIELD = /^equipos?\b/i;
-export const movesOf = (changelog) => {
-  let n = 0;
+export const hopsOf = (changelog) => {
+  const hops = [];
   for (const h of changelog?.histories || []) {
     for (const it of h.items || []) {
-      if (it.field === 'project' || (TEAM_FIELD.test(it.field || '') && it.fromString && it.fromString !== it.toString)) n++;
+      if (it.field === 'project' || (TEAM_FIELD.test(it.field || '') && it.fromString && it.fromString !== it.toString)) hops.push([it.fromString || '', it.toString || '']);
     }
   }
-  return n;
+  return hops;
 };
 
 const fail = (message, status = 503) => Object.assign(new Error(message), { status });
@@ -52,9 +52,9 @@ export const createJira = ({ config, fetch = globalThis.fetch }) => {
     const { baseUrl, token } = config();
     return fetch(`${baseUrl.replace(/\/+$/, '')}/rest/api/2/${path}`, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
   };
-  // moves: con historial, cuántas veces pasó de un equipo a otro; sin él, null (no se sabe)
+  // moves y hops: con historial, cuántas veces pasó de un equipo a otro y de cuál a cuál; sin él, null (no se sabe)
   const ticketOf = (key, fields = {}, changelog = null) => ({ key, created: madrid(fields.created), resolved: madrid(fields.resolutiondate),
-    status: fields.status?.name || '', team: fields[TEAM]?.displayName || fields[TEAM]?.name || '', moves: changelog ? movesOf(changelog) : null });
+    status: fields.status?.name || '', team: fields[TEAM]?.displayName || fields[TEAM]?.name || '', moves: changelog ? hopsOf(changelog).length : null, hops: changelog ? hopsOf(changelog) : null });
   const expand = (history) => (history ? '&expand=changelog' : '');
 
   // Un lote de claves → sus tickets. validateQuery=warn: una clave que no existe (o un proyecto que no es de Jira,

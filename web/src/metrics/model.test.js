@@ -43,6 +43,7 @@ test('tarjetas: SGA y SISU por el ámbito, PRIO por la etiqueta (además de su S
 
 test('situación de cada issue: en curso, sin tocar o devuelta a Asignada, en espera de un tercero, del cliente u otro motivo, o cerrada; y si está escalada', () => {
   const d = data();
+  d.cols.fl[0] |= 131072;   // la primera, escalada: ha estado en Pendiente de un tercero
   d.dict.status = ['', 'CLOSED', 'ASSIGNED', 'IN_PROGRESS', 'PENDING'];
   d.dict.reason = ['', 'THIRD_PARTY_VENDOR_ACTION_REQD', 'CUSTOMER_FOLLOW_UP_REQUIRED', 'FUTURE_ENHANCEMENT'];
   d.cols.st = [3, 2, 4, 4, 4]; d.cols.rs = [0, 0, 1, 2, 3];
@@ -54,7 +55,7 @@ test('situación de cada issue: en curso, sin tocar o devuelta a Asignada, en es
   d.cols.vt[1] = 1;
   assert.equal(createModel(d).DIMS.sit.get(1), 2);   // sin cambios de estado pero escalada: ya se trabajó
   assert.equal(createModel(data()).DIMS.sit.get(0), 6);   // cerrada
-  assert.deepEqual([0, 1].map(createModel(data()).DIMS.es.get), [1, 0]);   // la 1 tiene ticket de tercero
+  assert.deepEqual([0, 1].map(createModel(d).DIMS.es.get), [1, 0]);   // la 1 ha estado en Pendiente de un tercero; tener ticket no basta
 });
 
 test('la foto de hoy no mira el periodo; con anySide, tampoco el lado', () => {
@@ -109,7 +110,9 @@ test('SLA de inicio: dentro, fuera, sin iniciar y fuera de plazo, cerrada sin pa
 });
 
 test('indicadores de un grupo', () => {
-  const m = createModel(data());
+  const d = data();
+  d.cols.fl[0] |= 131072;   // la primera, escalada
+  const m = createModel(d);
   const s = m.stats([0, 1]);
   assert.equal(s.avg, (60 + 3000) / 2);
   assert.equal(s.d1, 0.5);
@@ -223,13 +226,16 @@ test('Resolución no compara empresas; con personas, módulo a módulo y la medi
   m.S.sides = [{ company: 0 }, { company: 1 }]; m.refilter();
   let h = tabs.render('resolucion', m.rows());
   assert.match(h, /no compara empresas/);
-  assert.match(h, /Un mismo ticket/);
+  h = tabs.render('escalados', m.rows());
+  assert.match(h, /no compara: se ve solo Indra/);
+  assert.match(h, /Malos escalados/);
   m.S.sides = [{ people: new Set([1]) }, { company: 0 }]; m.refilter();   // ANA frente a Indra
   h = tabs.render('resolucion', m.rows());
   assert.match(h, /Módulo a módulo/);
   assert.match(h, /Media frente a sus módulos/);
   assert.match(h, /Indra, en sus módulos/);
-  assert.doesNotMatch(h, /Un mismo ticket|no compara/);
+  assert.doesNotMatch(h, /Malos escalados|no compara/);
+  assert.match(tabs.render('escalados', m.rows()), /no compara: se ve solo ANA/);
   assert.match(h, /<h3>En qué se va el tiempo<\/h3>/);
   m.S.sides = [{ people: new Set([2]) }, { people: new Set([1]) }]; m.refilter();   // dos personas: sin la referencia del equipo
   h = tabs.render('resolucion', m.rows());

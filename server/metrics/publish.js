@@ -20,7 +20,7 @@ export const createPublisher = ({ repo, dir, fs, now }) => {
   };
 
   // Las métricas de todo lo guardado en el repositorio. onRow() se llama por cada incidencia que entra en el informe.
-  // sync(claves, abiertas): pide a Jira lo que falte, antes de calcular, y devuelve meta.jira (sin él, no se pide nada).
+  // sync(claves): pide a Jira lo que falte, antes de calcular, y devuelve meta.jira (sin él, no se pide nada).
   const compute = async (name, onRow = () => {}, sync = null) => {
     const dataset = createDataset({ start: repo.firstYear(GROUP) ?? now().getUTCFullYear() });
     let n = 0;
@@ -28,7 +28,7 @@ export const createPublisher = ({ repo, dir, fs, now }) => {
       if (dataset.add(row)) onRow();
       if (++n % BATCH === 0) await pause();
     }
-    const jira = sync ? await sync(dataset.jiraKeys(), new Set(dataset.openJiraKeys())) : jiraMeta();
+    const jira = sync ? await sync(dataset.jiraKeys()) : jiraMeta();
     return dataset.build({ file: name, generated: now().toISOString(), tickets: repo.jiraTickets(), jira });
   };
 

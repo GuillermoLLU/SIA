@@ -243,6 +243,23 @@ test('Jira: de ITSMECOM (muchos equipos), a quién se escala es su equipo; los t
   clean(dir);
 });
 
+test('Jira: de lo que cambió de equipo sin saber de cuál a cuál se pide el historial, aunque esté cerrado, y llega a la tabla', async () => {
+  const dir = tmp();
+  const ticket = { created: '2026-02-01 11:00:00', resolved: '2026-02-02 11:00:00', status: 'Closed' };
+  const jira = { asked: [], tickets: async (keys, { history, onBatch }) => { jira.asked.push([[...keys], [...history]]); onBatch(keys.length); return { found: keys.map((k) => ({ key: k, ...ticket, moves: 1, hops: [['Equipo A', 'Equipo B']] })), missing: [] }; } };
+  const repo = createRepository({ DatabaseSync, file: path.join(dir, 'incidencias.sqlite'), fs, now });
+  repos.push(repo);
+  repo.saveJira({ found: [{ key: 'SGA-1', ...ticket, moves: 1, team: '' }], missing: [] });
+  const closed = row({ ...ISSUE, VENDORTICKETNUMBER: 'TEC: SGA-1', AUDIT_DETAIL: ESCALATED.AUDIT_DETAIL, REPORTEDDATE: '2026-02-01 10:00:00.000', LASTRESOLUTIONDATE: '2026-02-03 10:00:00.000', LASTMODIFIEDDATE: '2026-02-03 10:00:00.000' });
+  const store = createMetricsStore(dir, { repo, source: fakeSource([closed]), jira, fs, now });
+  await store.update();
+  assert.deepEqual(jira.asked[0], [['SGA-1'], ['SGA-1']]);
+  assert.deepEqual(JSON.parse(repo.jiraTickets().get('SGA-1').hops), [['Equipo A', 'Equipo B']]);
+  const { cols, dict } = await store.load();
+  assert.equal(dict.vhops[cols.vh[0]], 'Equipo A → Equipo B');
+  clean(dir);
+});
+
 test('Jira: pedido otra vez sin historial, se queda lo que ya se sabía de sus cambios de equipo y de su equipo', () => {
   const dir = tmp();
   const repo = createRepository({ DatabaseSync, file: path.join(dir, 'incidencias.sqlite'), fs, now });

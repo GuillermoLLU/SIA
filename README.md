@@ -59,7 +59,7 @@ Configuración → Credenciales → Snowflake. La primera vez se abre el navegad
 para entrar con la cuenta de Inditex (SSO); necesita la VPN.
 
 Cada persona ve las vistas que le dé su rol: el Chat siempre y, además,
-Issues, Equipo soporte, Métricas, Enlaces, Laboratorio, Administración y
+Issues, Métricas (con Equipo soporte como pestaña), Enlaces, Laboratorio, Administración y
 Personas.
 
 ## Cómo trabajamos

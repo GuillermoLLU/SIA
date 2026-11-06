@@ -33,8 +33,9 @@ export const SHEET_COLS = [
 export const sheetOf = (m) => m.today().filter((i) => m.OPEN[i]).sort((a, b) => m.C.rep[a] - m.C.rep[b]);
 
 // La tabla y su barra: cuántas son y el botón que las exporta enteras (data-export, en la vista). list: las incidencias;
-// id: el de su «Ver todos» (ui.exp[id], expanded); more: el botón (charts.js); empty: el texto sin ninguna; cols: sus columnas.
-export const sheetBody = (m, list, { id, expanded, more, empty, cols = SHEET_COLS }) => {
+// id: el de su «Ver todos» (ui.exp[id], expanded); more: el botón (charts.js); empty: el texto sin ninguna; cols: sus columnas;
+// exportable: si lleva el botón.
+export const sheetBody = (m, list, { id, expanded, more, empty, cols = SHEET_COLS, exportable = true }) => {
   const shown = expanded ? list : list.slice(0, TOP);
   const cellOf = ([label, f, kind], i) => {
     const v = f(m, i);
@@ -45,7 +46,7 @@ export const sheetBody = (m, list, { id, expanded, more, empty, cols = SHEET_COL
   const table = list.length ? `<div class="mt-tablewrap ${expanded ? 'mt-scroll' : ''}"><table class="mt-list"><thead><tr>${cols.map(([l, , kind]) => `<th${kind === 'num' ? ' class="mt-num"' : ''}>${l}</th>`).join('')}</tr></thead>
       <tbody>${shown.map((i) => `<tr>${cols.map((c) => cellOf(c, i)).join('')}</tr>`).join('')}</tbody></table></div>${more(id, list.length, TOP)}`
     : `<p class="mt-mut mt-small">${empty}</p>`;
-  return `<div class="mt-sheet-bar"><span class="mt-mut">${num(list.length)} incidencias</span><button class="mt-btn" data-export ${list.length ? '' : 'disabled'}>Exportar a CSV</button></div>${table}`;
+  return `<div class="mt-sheet-bar"><span class="mt-mut">${num(list.length)} incidencias</span>${exportable ? `<button class="mt-btn" data-export ${list.length ? '' : 'disabled'}>Exportar a CSV</button>` : ''}</div>${table}`;
 };
 
 // En CSV para Excel en español: separado por «;», cada campo entre comillas, UTF-8 con BOM (para las tildes) y, al

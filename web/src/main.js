@@ -8,7 +8,7 @@ import { createApi } from './ui/api.js';
 import { createDialogs } from './ui/dialog.js';
 import { createToast } from './ui/dom.js';
 import { bridgeFromQuery, isPhoneLocation, discoverBridge } from './app/discover.js';
-import { canView, baseNav, panelNav, teamView } from './app/nav.js';
+import { canView, baseNav } from './app/nav.js';
 import { createPermsWatch } from './app/perms.js';
 import { startIntro, reveal } from './app/intro.js';
 import { createAuthSession } from './auth/session.js';
@@ -144,12 +144,12 @@ const perms = createPermsWatch({
 const lab = mountLabView({ api, dialogs, perms: perms.perms, onSkills: palette.setSkills });
 const links = mountLinksView({ api, dialogs, perms: perms.perms });
 const projectsView = mountProjectsView(views.admin, { api, dialogs, toast });
-// Gestión del equipo (users/): la otra cara de Equipo soporte (se entra por su
-// icono); «Métricas equipo» vuelve a sus métricas si también tiene esa vista.
+// Gestión del equipo (users/): se entra con «Gestionar equipo», desde la pestaña Equipo soporte de Métricas;
+// «Métricas equipo» vuelve a ella.
 const usersView = canView(user, 'people')
-  ? mountPeopleView(views.users, { usersApi: createUsersApi(api), knowledgeApi: createKnowledgeApi(api), me: user, toast, onMetrics: canView(user, 'work') ? () => showView('work') : undefined })
+  ? mountPeopleView(views.users, { usersApi: createUsersApi(api), knowledgeApi: createKnowledgeApi(api), me: user, toast, onMetrics: canView(user, 'metrics') ? () => { showView('metrics'); PANELS.find((p) => p.name === 'metrics').ui?.showTeam(); } : undefined })
   : null;
-// Paneles (Issues, Backlog, Equipo soporte, Métricas, Métricas del servicio): una vista cada uno, sin base. Si
+// Paneles (Issues, Backlog, Métricas, Métricas del servicio): una vista cada uno, sin base. Si
 // el panel devuelve show(), se llama al abrirlo (Issues recarga su foto).
 const PANELS = [
   { name: 'issues', mount: (el) => user && mountIssuesView(el, {
@@ -157,9 +157,11 @@ const PANELS = [
     openChat: (host, issue) => mountIssueChat(host, { issue, wsUrl, loadProjects: chat.loadProjects, makeTerminal: chat.makeTerminal }),
   }) },
   { name: 'backlog', mount: (el) => user && mountBacklogView(el, { api: createBacklogApi(api), dialogs, toast }) },
-  { name: 'work', mount: (el) => user && mountWorkView(el, { api: createMetricsApi(api), toast,
-    onManage: canView(user, 'people') ? () => showView('users') : undefined }) },
-  { name: 'metrics', mount: (el) => user && mountMetricsView(el, { api: createMetricsApi(api), toast }) },
+  // Equipo soporte es una pestaña de Métricas, con su propio periodo y sus filtros
+  { name: 'metrics', mount: (el) => user && mountMetricsView(el, { api: createMetricsApi(api), toast, team: {
+    id: 'equipo', label: 'Equipo soporte',
+    mount: (host) => mountWorkView(host, { api: createMetricsApi(api), toast, onManage: canView(user, 'people') ? () => showView('users') : undefined }),
+  } }) },
   { name: 'service', mount: (el) => user && mountServiceView(el, { api: createMetricsApi(api) }) },
 ].map((p) => ({ ...p, nav: $(`nav-${p.name}`), view: $(`view-${p.name}`) }));
 
@@ -167,16 +169,16 @@ const onShow = { lab: () => lab.refresh(), admin: () => projectsView.show(), lin
 const showView = (name) => {
   for (const [k, v] of Object.entries(views)) v.hidden = name !== k;
   for (const [k, n] of Object.entries(nav)) n.classList.toggle('active', name === k);
-  // Las métricas y la gestión del equipo son las dos caras del equipo: un solo icono en la barra
-  for (const p of PANELS) { p.view.hidden = name !== p.name; p.nav.classList.toggle('active', name === p.name || (p.name === 'work' && name === 'users')); }
+  // La gestión del equipo se abre desde Métricas, y su icono sigue marcado
+  for (const p of PANELS) { p.view.hidden = name !== p.name; p.nav.classList.toggle('active', name === p.name || (p.name === 'metrics' && name === 'users')); }
   PANELS.find((p) => p.name === name)?.ui?.show?.();
   onShow[name]?.();
 };
 for (const [k, n] of Object.entries(nav)) n.addEventListener('click', () => showView(k));
 for (const p of PANELS) {
   p.nav.innerHTML = VIEWS.find((v) => v.id === p.name).icon;
-  p.nav.hidden = !panelNav(user, p.name);
-  p.nav.addEventListener('click', () => showView(p.name === 'work' ? teamView(user) : p.name));
+  p.nav.hidden = !canView(user, p.name);
+  p.nav.addEventListener('click', () => showView(p.name));
   p.ui = p.mount(p.view);
 }
 perms.refresh();

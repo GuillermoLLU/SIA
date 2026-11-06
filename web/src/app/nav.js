@@ -19,10 +19,3 @@ export const baseNav = (user, access) => {
   };
 };
 
-// Los paneles (Issues, Backlog, Equipo soporte, Métricas): una vista cada uno, sin
-// base. Equipo soporte es un solo icono para sus dos caras (métricas y
-// gestión de personas): sale si se tiene cualquiera de las dos.
-export const panelNav = (user, name) => (name === 'work' ? canView(user, 'work') || canView(user, 'people') : canView(user, name));
-
-// El icono de Equipo soporte abre las métricas del equipo o, si solo se gestiona, la gestión de personas.
-export const teamView = (user) => (canView(user, 'work') ? 'work' : 'users');

@@ -83,7 +83,7 @@ revoke all on schema platform from public, anon, authenticated;
 -- en web/src/users/views.js). Administrador las tiene siempre todas.
 create or replace function platform.known_views() returns text[]
 language sql immutable set search_path = '' as $$
-  select array['issues', 'backlog', 'work', 'metrics', 'service', 'links', 'lab', 'admin', 'people']
+  select array['issues', 'backlog', 'metrics', 'service', 'links', 'lab', 'admin', 'people']
 $$;
 
 -- Los criterios con que se ordena el backlog. Una regla de priorización es una
@@ -226,6 +226,9 @@ insert into platform.priority_rules (name, criteria, builtin)
   where not exists (select 1 from platform.priority_rules where builtin);
 
 -- Administrador, con todas las vistas que haya (también las que se añadan)
+-- Equipo soporte pasó a ser una pestaña de Métricas: su vista («work») ya no existe y no da acceso a nada.
+update platform.roles set views = array_remove(views, 'work') where 'work' = any (views);
+update platform.users set views = array_remove(views, 'work') where 'work' = any (views);
 update platform.roles set views = platform.known_views() where builtin = 'admin' and views is distinct from platform.known_views();
 update platform.users u set views = r.views from platform.roles r where r.builtin = 'admin' and u.role_id = r.id and u.views is distinct from r.views;
 

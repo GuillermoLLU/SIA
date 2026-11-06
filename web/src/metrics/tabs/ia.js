@@ -115,7 +115,7 @@ export const iaTab = (t) => {
       section('¿Cómo sale?'),
       card('Según cómo sale', qualityPivot(R, [['Con IA', '', [0, 1, 2].map((k) => [m.DIMS.ia.label(k), (i) => iaOf(i) === k, `ia:${k}`])], ['Sin IA', '', [['Sin IA', (i) => iaOf(i) === IA_NONE, `ia:${IA_NONE}`]]]],
         [['Volumen', [['Resueltas', (x) => x.resolved, num, null, '']]], ['Resolución', [['Media', (x) => (x.resolved ? x.avg : null), dur, 'low', 'De la apertura a la resolución.'], ['En < 24 h', (x) => (x.resolved ? x.d1 : null), (v) => pct(v), 'high', '']]],
-          ['Después', [['Reabiertas', (x) => (x.n ? x.reop : null), P1, 'low', 'Volvieron de Resuelta a abierta.'], ['Escaladas', (x) => (x.n ? x.vend : null), (v) => pct(v), null, 'Con ticket de tercero.']]]]),
+          ['Después', [['Reabiertas', (x) => (x.n ? x.reop : null), P1, 'low', 'Volvieron de Resuelta a abierta.'], ['Escaladas', (x) => (x.n ? x.vend : null), (v) => pct(v), null, 'Han estado en Pendiente de un tercero.']]]]),
         { span: 's12', sub: `Lo resuelto, según sus marcas de IA. ${WORSE_NOTE} Clic en una fila para filtrar.` }),
       section('¿Quién la usa?'),
       card('', scorecard('as', [['Volumen', ['n']], ['Con IA', ['iaN', 'iaShare']], ['Cómo sale', ['iaMix', 'iaOk', 'iaFail', 'iaUnrev']], ['Resolución', ['avg', 'd1']]],
@@ -150,7 +150,7 @@ export const iaTab = (t) => {
     };
     const blocks = [['Prioridad', prioRows()],
       ['Tipo de servicio', sv, 'Los cuatro con más issues.'],
-      ['Escalado', [['Sin escalar', (i) => !escd(i), 'es:0'], ['Escaladas', escd, 'es:1']], 'Con ticket de tercero.']]
+      ['Escalado', [['Sin escalar', (i) => !escd(i), 'es:0'], ['Escaladas', escd, 'es:1']], 'Han estado en Pendiente de un tercero.']]
       .map(([head, defs, note]) => ({ head, note, rows: defs.filter(([, x]) => A.some(x)).map(row) })).filter((b) => b.rows.length);
     all.forEach((y) => { y.part = y.ia ? 1 : null; });
     return [...blocks, { label: 'Todo', x: all, cls: 'mt-tot' }];
@@ -201,7 +201,7 @@ export const iaTab = (t) => {
       pp ? section('¿Cómo sale?') : '',
       pp ? card('Según cómo sale', pairTable('Uso de IA', [['Resueltas', (x) => x.r.resolved / x.H, perVol, null, ''], ['Media', (x) => (x.r.resolved ? x.r.avg : null), dur, 'low', 'De la apertura a la resolución.'],
         ['En < 24 h', (x) => (x.r.resolved ? x.r.d1 : null), (v) => pct(v), 'high', ''], ['Reabiertas', (x) => (x.r.n ? x.r.reop : null), (v) => pct(v, 1), 'low', 'Volvieron de Resuelta a abierta.'],
-        ['Escaladas', (x) => (x.r.n ? x.r.vend : null), (v) => pct(v), null, 'Con ticket de tercero.']],
+        ['Escaladas', (x) => (x.r.n ? x.r.vend : null), (v) => pct(v), null, 'Han estado en Pendiente de un tercero.']],
         [...[0, 1, 2, 3].map((k) => { const x = (i) => iaOf(i) === k, P2 = T.slice(0, 2).map((l) => stats(l.filter(x).filter(solved))); return { label: m.DIMS.ia.label(k), x: P2.map((r, j) => ({ r, H: ST[j].H })), cls: 'mt-clk', attrs: `data-f="ia:${k}"` }; }),
           { label: 'Todas las resueltas', x: T.slice(0, 2).map((l, j) => ({ r: stats(l.filter(solved)), H: ST[j].H })), cls: 'mt-tot' }], (x) => x.r.resolved, [['Volumen', 1], ['Resolución', 2], ['Seguimiento', 2]]),
         { span: 's12', sub: `Lo resuelto de cada uno, según sus marcas de IA. ${greenNote}${perNote} Clic en una fila para filtrar.` }) : '',

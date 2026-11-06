@@ -1,4 +1,4 @@
-// Vista «Equipo soporte» (vista work): un control rápido de la calidad del equipo y de
+// «Equipo soporte», una pestaña de Métricas: un control rápido de la calidad del equipo y de
 // cada persona (team.js). Con los datos de las Métricas, que se cargan desde
 // allí; se vuelven a leer al abrir la vista, por si se han actualizado desde
 // Snowflake. Es el equipo de Indra. Clic en una persona: el panel se filtra a sus
