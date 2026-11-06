@@ -29,7 +29,7 @@ export const panelNav = (user, name) => (name === 'work' ? canView(user, 'work')
 // no lleva barra lateral, sino la de arriba.
 export const usesTopbar = (user) => canView(user, 'issues') && viewsOf(user).every((v) => ['issues', 'chat', 'links'].includes(v));
 
-// Las vistas que entran con el cruce (app/crossfade.js): la mesa y el Chat, entre las que se va y se viene.
+// Las vistas que entran con el cruce (ui/crossfade.js): la mesa y el Chat, entre las que se va y se viene.
 export const crossesTo = (view) => view === 'chat' || view === 'issues';
 
 // La vista con la que se abre la app: la mesa de trabajo para quien la tiene; si no, el Chat.

@@ -16,6 +16,9 @@ export const createToast = (el) => {
   return toast;
 };
 
+// Quien pide menos movimiento en el sistema: las animaciones de adorno se saltan.
+export const prefersReducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 // Línea de estado bajo un formulario de Configuración: texto y, si lo hay, su color (ok / bad).
 export const setStatus = (el, text, cls = '') => { el.textContent = text; el.className = `settings-status${cls ? ` ${cls}` : ''}`; };
 

@@ -2,7 +2,7 @@
 // (Jira, GitHub y el usuario de Snowflake de las Métricas). Lo demás (el PIN, los enlaces) se
 // cuelgan de onOpen/onClose para releer su estado cuando se abre o se cierra.
 import { esc } from '../ui/html.js';
-import { setStatus } from '../ui/dom.js';
+import { setStatus, prefersReducedMotion } from '../ui/dom.js';
 import { jiraConfig, ghMask, addGithubKey, removeGithubKey, toggleGithubKey } from './credentials.js';
 
 export const mountSettings = ({ api }) => {
@@ -23,7 +23,7 @@ export const mountSettings = ({ api }) => {
     const text = side || (current ? boxOf(current).textContent : 'Configuración');
     if (title.textContent === text) return;
     title.textContent = text;
-    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (!prefersReducedMotion()) {
       title.animate([{ opacity: 0, filter: 'blur(6px)' }, { opacity: 1, filter: 'blur(0)' }], { duration: 400, easing: 'ease' });
     }
   };

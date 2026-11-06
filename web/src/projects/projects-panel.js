@@ -10,7 +10,7 @@ const entriesLabel = (n) => `${n} ${n === 1 ? 'entrada' : 'entradas'}`;
 export const mountProjectsPanel = ({ api, dialogs, toast, settings }) => {
   const $ = (id) => document.getElementById(id);
   const list = $('project-list'), name = $('project-name'), add = $('project-add'), status = $('project-status');
-  const box = document.querySelector('#settings-home [data-pane="administracion"]');
+  const box = document.querySelector('.settings-box[data-pane="administracion"]');
 
   const paint = (projects) => {
     list.innerHTML = projects.length ? projects.map((p) => `<li data-id="${esc(p.id)}" data-name="${esc(p.name)}" data-entries="${esc(p.entries)}">

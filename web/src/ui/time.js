@@ -11,6 +11,3 @@ export const ago = (ts, now = Date.now()) => {
   const days = Math.round(min / 1440);
   return days === 1 ? 'ayer' : days < 30 ? `hace ${days} días` : new Date(ts).toLocaleDateString('es-ES');
 };
-
-// Minutos y segundos de una duración en ms («4:05»), para cuentas atrás.
-export const mmss = (ms) => { const s = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };

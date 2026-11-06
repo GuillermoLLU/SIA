@@ -87,7 +87,7 @@ body.top-nav .ai-hero { top: calc(-1 * var(--topbar-h)); padding: calc(var(--top
   display: flex; align-items: center; gap: 16px; color: var(--text); white-space: nowrap;
   background: color-mix(in srgb, var(--surface) 72%, transparent);
   border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, .1);
+  box-shadow: var(--shadow-float);
   -webkit-backdrop-filter: blur(16px) saturate(180%);
   backdrop-filter: blur(16px) saturate(180%);
 }
@@ -142,7 +142,7 @@ body.top-nav .ai-hero { top: calc(-1 * var(--topbar-h)); padding: calc(var(--top
 @keyframes ia-turn { to { rotate: 360deg; } }
 @media (prefers-reduced-motion: reduce) { .ia-icon i { animation: none; } }
 
-/* El cruce entre vistas (crossTo, main.js) */
+/* El cruce entre vistas (crossesTo, app/nav.js; lo hace ui/crossfade.js) */
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: 0.32s; animation-timing-function: ease-in-out; }
 
 /* ── Views (chat / lab) ────────────────────────────────────── */
@@ -846,10 +846,9 @@ body.locked.slide-lock .app { transition: visibility 0s linear .22s; }
 
 /* ── Enlaces: las notas y el formulario ── */
 /* Las notas salen sobre Configuración, desde donde se abren, y los diálogos sobre cualquiera */
-#link-notes-modal { z-index: 45; }
+#link-notes-modal { z-index: 45; align-items: center; padding-top: 0; }
 .link-modal { width: min(720px, calc(100vw - 48px)); max-height: calc(100vh - 120px); }
 #dialog-overlay { z-index: 50; }
-#link-notes-modal { align-items: center; padding-top: 0; }
 .link-notes-body {
   padding: 20px 24px 26px; overflow-y: auto;
   font-size: 13.5px; line-height: 1.65; color: var(--text);

@@ -11,7 +11,7 @@ export const locksAtOnce = (dx, travel) => dx >= travel;
 export const locksOnRelease = (dx, travel) => dx >= travel / 2;
 
 // onLock(): bloquear. → { justSlid() }: si lo último fue arrastrar (el clic de después no cuenta)
-export const wireSlideLock = (ini, track, onLock) => {
+export const wireSlideLock = (ini, track, onLock, body = document.body) => {
   const travel = () => track.clientWidth - ini.offsetWidth;
   let startX = null;
   let dx = 0;
@@ -20,12 +20,12 @@ export const wireSlideLock = (ini, track, onLock) => {
     track.classList.remove('sliding');
     ini.style.transform = '';
     track.style.removeProperty('--slide');
-    document.body.style.removeProperty('--veil');
-    document.body.classList.remove('slide-lock');
+    body.style.removeProperty('--veil');
+    body.classList.remove('slide-lock');
   };
   const activate = () => {
     startX = null;
-    document.body.classList.add('slide-lock');
+    body.classList.add('slide-lock');
     onLock();
     setTimeout(rest, REST_MS);
   };
@@ -41,7 +41,7 @@ export const wireSlideLock = (ini, track, onLock) => {
     if (!slid) return;
     ini.style.transform = `translateX(${dx}px)`;
     track.style.setProperty('--slide', dx / travel());
-    document.body.style.setProperty('--veil', veilOf(dx, travel()));
+    body.style.setProperty('--veil', veilOf(dx, travel()));
     if (locksAtOnce(dx, travel())) activate();
   });
   const release = (e) => {

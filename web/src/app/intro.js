@@ -9,7 +9,7 @@
 // (revealDesk). Y si quien arranca lleva el ratón a la zona de la barra, no se
 // le hace esperar: entra ya, con su animación, y el campo aparece con ella.
 export const HERO_STEPS = [[750, 'asking'], [1500, 'ready']]; // ms desde que pinta el saludo
-export const NAV_FIRST_MS = 450; // lo que la barra le saca a la mesa: su caja ya ha llegado y aún asoma su contenido
+const NAV_FIRST_MS = 450; // lo que la barra le saca a la mesa: su caja ya ha llegado y aún asoma su contenido
 export const EDGE_PX = 72; // donde está la barra lateral (.sidebar): su ancho y su margen, con holgura
 
 // el ratón está donde estaría la barra
@@ -35,7 +35,7 @@ export const startIntro = (body = document.body, doc = document) => {
 };
 
 // first: qué se pinta primero ('hero' o 'chat') → [ms, clase] en orden
-export const revealPlan = (first) => ({ hero: HERO_STEPS }[first] || [[0, 'ready']]);
+export const revealPlan = (first) => (first === 'hero' ? HERO_STEPS : [[0, 'ready']]);
 
 // Cada paso llega a su hora; si el ratón ya adelantó la barra (hurry), no queda nada que hacer.
 export const reveal = (first, body = document.body) => {

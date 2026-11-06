@@ -575,8 +575,7 @@
 .mt-modal-wide .mt-modal-body { display: flex; flex-direction: column; gap: 14px; overflow: hidden; }
 .mt-modal-wide .mt-modal-body > * { flex: none; }
 .mt-sql-cal { position: relative; z-index: 1; }
-.mt-modal-wide .mt-sql { flex: 1 1 180px; min-height: 120px; max-height: none; }
-.mt-sql { margin: 0; max-height: min(44vh, 360px); overflow: auto; padding: 12px 14px; font: 12px/1.5 ui-monospace, Consolas, monospace; color: var(--text); background: var(--mt-soft); border: 1px solid var(--mt-line); white-space: pre; tab-size: 2; }
+.mt-sql { margin: 0; flex: 1 1 180px; min-height: 120px; overflow: auto; padding: 12px 14px; font: 12px/1.5 ui-monospace, Consolas, monospace; color: var(--text); background: var(--mt-soft); border: 1px solid var(--mt-line); white-space: pre; tab-size: 2; }
 
 /* Cancelar, dentro de la tarjeta de avance. */
 .mt-load-cancel { margin-top: 14px; height: 30px; padding: 0 14px; font-size: 13px; }
