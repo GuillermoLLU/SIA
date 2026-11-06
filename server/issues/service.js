@@ -6,7 +6,7 @@ import { queue } from './queue.js';
 import { loadRules, ruleById } from './rules.js';
 import { deskOf, brief } from './desk.js';
 import { today, history, dayKey } from './stats.js';
-import { cleanFields, cleanFile, fail } from './draft.js';
+import { cleanFields, cleanFile, MAX_IMAGES, fail } from './draft.js';
 import { resolveDraft, checkResolve, OPEN } from './resolve.js';
 import { timeline } from './timeline.js';
 import { editProblem } from './notes.js';
@@ -129,14 +129,26 @@ export const createIssuesService = ({ source, platform, drafts, now = () => new 
       await resolvable(who, id);
       return { at: write((d) => d.setText(who.user.id, id, fields)) };
     },
+    // una imagen más del borrador → { at, image: { n, name, type, size } }
     async saveDraftFile(who, id, body) {
       const file = cleanFile(body);
       await resolvable(who, id);
-      return { at: write((d) => d.setFile(who.user.id, id, file)), file: { name: file.name, type: file.type, size: file.data.length } };
+      const { at, n } = write((d) => {
+        if ((d.get(who.user.id, id)?.images?.length ?? 0) >= MAX_IMAGES) throw fail(`Como mucho ${MAX_IMAGES} imágenes por resolución.`);
+        return d.addImage(who.user.id, id, file);
+      });
+      return { at, image: { n, name: file.name, type: file.type, size: file.data.length } };
     },
-    async dropDraftFile(who, id) {
+    async dropDraftFile(who, id, n) {
       await resolvable(who, id);
-      return { at: write((d) => d.setFile(who.user.id, id, null)) };
+      return { at: write((d) => d.dropImage(who.user.id, id, n)) };
+    },
+    // la imagen n, para verla al retomar el borrador → { name, type, data (base64) }
+    async draftFile(who, id, n) {
+      await resolvable(who, id);
+      const f = quiet((d) => d.getImage(who.user.id, id, n), null);
+      if (!f) throw fail('No existe.', 404);
+      return { name: f.name, type: f.type, data: Buffer.from(f.data).toString('base64') };
     },
     // el CSV de la consulta, tal cual, por trozos → { file, taken, issues }
     importCsv: (chunks, name) => source.importCsv(chunks, name),

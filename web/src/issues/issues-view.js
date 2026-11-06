@@ -4,13 +4,15 @@
 // llena con el uso). Al abrir una, la pantalla de trabajo (work-screen.js). La mesa se refresca sola.
 import './issues.css';
 import { esc } from '../ui/html.js';
-import { LISTS, snapshotInfo, age, duration, weekBars } from './format.js';
-import { sev, origin, item } from './parts.js';
+import { LISTS, snapshotInfo, duration, weekBars } from './format.js';
+import { item } from './parts.js';
 import { onEscape } from '../ui/dialog.js';
+import { pressStartedIn } from '../ui/dom.js';
 import { pickClick, openPicker, closePickers } from '../ui/picker.js';
 import { workScreen, trailHtml, trailTab, releaseDialogHtml, sendsNote, noteEditorHtml } from './work-screen.js';
 import { ACTIONS, actionForm, readAction, isComplete } from './actions.js';
-import { resolveForm, resolveReview, resumeStep, stepMissing, STEPS, MAX_FILE, fileBox, localShort } from './resolve-form.js';
+import { createResolver } from './resolve-view.js';
+import { crossfade } from '../ui/crossfade.js';
 import { readEscalate, createEscalateDrafts } from './escalate.js';
 import { escalateForm, escalateLive } from './escalate-form.js';
 import { DESTINATIONS, OPEN_TICKETS } from './escalate-mock.js';
@@ -27,7 +29,6 @@ const ISSUE_ENTER_MS = 1000; // lo que dura la entrada de una issue (issues.css)
 export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => {
   const failed = (text) => (toast?.error || toast)?.(text);   // lo que falla, en rojo
   let data = null, now = new Date(), opened = null, onDesk = false, workTab = 'detail', chat = null, loading = false, picking = false;
-  let attached = null; // Resolver: el adjunto guardado en el borrador abierto ({ name, type, size })
   let issue = null; // la issue abierta: Escalar mira su criticidad, su estado y su ticket
   const closeChat = () => { chat?.dispose(); chat = null; };
 
@@ -139,13 +140,15 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   };
   // La primera vez, la mesa entra en cascada cuando llegan los datos. Al volver a
   // la vista sale al momento con lo que ya había (el cruce con la vista anterior
-  // lo hace main.js) y se pone al día por detrás.
+  // lo hace main.js) y se pone al día por detrás. Si se dejó una issue abierta
+  // (p. ej. para ir al Chat), se vuelve a esa issue, no a la mesa.
   const showDesk = async () => {
     if (!data) {
       await loadDesk();
       animateEnter(root, 'iss-enter', DESK_ENTER_MS);
       return;
     }
+    if (!onDesk && opened) return;
     now = new Date();
     renderDesk();
     refreshQuietly();
@@ -161,6 +164,8 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     root.querySelectorAll('[data-wpanel]').forEach((p) => { p.hidden = p.dataset.wpanel !== key; });
     if (key === 'trail') scrollTrailToStart();
   };
+  // Pulsar el fondo cierra la ventana de una acción; soltar fuera tras seleccionar texto dentro, no.
+  const pressedInModal = pressStartedIn(root, (t) => !!t.closest('.iss-modal > *'));
   root.addEventListener('click', async (e) => {
     const t = e.target;
     if (pickClick(root, t)) return;
@@ -184,10 +189,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
         act.disabled = true;
         try { return await openAction(act.dataset.act); } finally { act.disabled = false; }
       }
-      if (t.closest('[data-act-cancel]') || t.classList.contains('iss-modal')) return closeAction();
-      if (t.closest('[data-step-next]')) return stepNext(t.closest('form'));
-      if (t.closest('[data-step-back]')) { const form = t.closest('form'); return moveTo(form, Number(form.dataset.step) - 1); }
-      if (t.closest('[data-file-clear]')) return setFile(t.closest('form'), null);
+      if (t.closest('[data-act-cancel]') || (t.classList.contains('iss-modal') && !pressedInModal())) return closeAction();
       const ed = t.closest('[data-edit-note]');
       if (ed) return openNoteEditor(ed.dataset.editNote);
       if (t.closest('[data-edit-cancel]')) return refreshTrail();
@@ -209,102 +211,15 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   // Acciones: su formulario encima de la pantalla de trabajo. De momento se
   // valida y se avisa: nada sale hacia Remedy hasta conectar SIGLO.
   let people = [], offEscape = null;
-  const closeAction = () => { flushSave(); root.querySelector('.iss-modal')?.remove(); offEscape?.(); offEscape = null; };
+  const closeAction = () => { resolver.close(); root.querySelector('.iss-modal')?.remove(); offEscape?.(); offEscape = null; };
+  // Resolver vive en su módulo (resolve-view.js); al resolver, la ventana ya se ha ido y la mesa se pone al día con un cruce.
+  const resolver = createResolver(root, { api, dialogs, toast, onResolved: async () => {
+    const fresh = await api.desk().catch(() => null);
+    closeAction();
+    crossfade(() => { if (fresh) { data = fresh; now = new Date(); } renderDesk(); root.scrollTop = 0; });
+    toast?.('Informe enviado e incidencia resuelta. De momento no sale hacia Remedy (falta conectar SIGLO).');
+  } });
 
-  // Resolver: los tres pasos. No se sale de uno sin lo obligatorio; el 3 se
-  // pinta con lo escrito, como se va a enviar.
-  const showErr = (form, text) => { const err = form.querySelector('.iss-act-err'); err.textContent = text || ''; err.hidden = !text; };
-  const goStep = (form, n) => {
-    form.dataset.step = String(n);
-    form.elements.step.value = String(n);   // va en el borrador: al volver se retoma aquí
-    showErr(form, null);
-    form.querySelectorAll('[data-rstep]').forEach((p) => { p.hidden = p.dataset.rstep !== String(n); });
-    form.querySelectorAll('[data-step-mark]').forEach((m) => {
-      const k = Number(m.dataset.stepMark);
-      m.classList.toggle('done', k < n);
-      if (k === n) m.setAttribute('aria-current', 'step'); else m.removeAttribute('aria-current');
-    });
-    const last = n === STEPS.length;
-    // «¿Cómo se resolvió?» empieza con la nota interna recién escrita, si aún está vacío
-    const how = form.elements.how;
-    if (n === 2 && !how.value.trim()) how.value = form.elements.note?.value || '';
-    if (last) {
-      const { values } = readAction('resolve', Object.fromEntries(new FormData(form)));
-      form.querySelector('[data-rstep="3"]').innerHTML = resolveReview(values, attached, { lang: form.elements.lang.value, hour: new Date().getHours() });
-    }
-    form.querySelector('[data-act-cancel]').hidden = n !== 1;
-    form.querySelector('[data-step-back]').hidden = n === 1;
-    const next = form.querySelector('[data-step-next]');
-    next.hidden = last;
-    next.textContent = `Siguiente: ${STEPS[n]?.title.toLowerCase() ?? ''}`;
-    form.querySelector('[data-confirm-send]').hidden = !last;
-    (last ? form.querySelector('[data-confirm-send]') : form.querySelector(`[data-rstep="${n}"] textarea`))?.focus();
-  };
-  const stepNext = async (form) => {
-    const n = Number(form.dataset.step);
-    const missing = stepMissing(n, Object.fromEntries(new FormData(form)));
-    if (missing) {
-      showErr(form, `Falta: ${missing}`);
-      return [...form.querySelectorAll(`[data-rstep="${n}"] textarea`)].find((a) => !a.value.trim())?.focus();
-    }
-    if (n + 1 === STEPS.length) await saving;   // la revisión enseña el adjunto aunque aún se estuviera guardando
-    if (form.isConnected) moveTo(form, n + 1);
-  };
-  // Cambiar de paso guarda el borrador, aunque no se haya escrito nada más.
-  const moveTo = (form, n) => { goStep(form, n); saveNow(form); };
-  // El adjunto (uno): se guarda en el borrador en cuanto se elige o se suelta.
-  const base64 = (file) => new Promise((ok, ko) => {
-    const r = new FileReader();
-    r.onload = () => ok(String(r.result).split(',')[1] || '');
-    r.onerror = () => ko(r.error);
-    r.readAsDataURL(file);
-  });
-  // Todo lo que escribe en el borrador (el texto y el adjunto) va en una sola
-  // cola, `saving`. Lo que lo lee o lo borra (abrir, revisar, confirmar,
-  // descartar) espera a que acabe: si no, un guardado tardío traería un estado
-  // viejo o volvería a crear el borrador ya borrado. Cada trabajo guarda el id
-  // de su issue, por si mientras tanto se abre otra.
-  let autosave = null, saving = Promise.resolve();
-  const enqueue = (job) => (saving = saving.then(job).catch(() => {}));
-  const setFile = (form, file) => {
-    if (file && file.size > MAX_FILE) return showErr(form, 'El adjunto pasa de 15 MB: elige otro más pequeño.');   // el mismo texto que el bridge
-    if (file && !file.size) return showErr(form, 'El archivo está vacío (o es una carpeta): elige otro.');
-    showErr(form, null);
-    const id = opened, box = form.querySelector('[data-file-box]');
-    box.innerHTML = '<p class="iss-file-on">Guardando…</p>';
-    return enqueue(async () => {
-      let got = null;
-      try { got = file ? await api.saveDraftFile(id, { name: file.name, type: file.type, data: await base64(file) }) : await api.dropDraftFile(id); }
-      catch (e) { showErr(form, `No se ha podido guardar el adjunto: ${e.message}`); }
-      if (!form.isConnected) return;   // el modal ya se cerró: no se toca el de otra issue
-      if (got) {
-        attached = got.file || null;
-        form.querySelector('[data-autosave]').textContent = `Borrador guardado ${localShort(got.at)}`;
-      }
-      box.innerHTML = fileBox(attached);
-    });
-  };
-  // Lo escrito se guarda solo, un momento después de dejar de teclear, y al cerrar.
-  const saveNow = (form) => {
-    const label = form.querySelector('[data-autosave]');
-    const id = opened, fields = Object.fromEntries(new FormData(form));
-    return enqueue(() => api.saveDraft(id, fields)
-      .then(({ at }) => { label.textContent = `Borrador guardado ${localShort(at)}`; })
-      .catch((e) => { label.textContent = `No se ha podido guardar el borrador: ${e.message}`; }));
-  };
-  const flushSave = () => {
-    if (!autosave) return;
-    clearTimeout(autosave); autosave = null;
-    const form = root.querySelector('[data-act-form="resolve"]');
-    if (form) saveNow(form);
-  };
-  root.addEventListener('input', (e) => {
-    const form = e.target.closest('[data-act-form="resolve"]');
-    if (!form || e.target.matches('[data-file]')) return;   // el adjunto se guarda aparte (setFile)
-    showErr(form, null);   // lo que faltaba ya se está escribiendo
-    clearTimeout(autosave);
-    autosave = setTimeout(() => { autosave = null; saveNow(form); }, 800);
-  });
   // Escalar: el catálogo y los tickets abiertos son de prueba (escalate-mock.js).
   // Lo escrito se guarda por issue hasta escalar o unir (escDrafts).
   const escDrafts = createEscalateDrafts();
@@ -334,21 +249,10 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
 
   const openAction = async (key) => {
     closeAction();
+    if (key === 'resolve') return resolver.open(opened, issue?.link || null, closeAction);
     if (key === 'transfer') people = await api.teammates();
-    // Resolver: lo que hay en Remedy, lo que falta y mi borrador los da el
-    // bridge, que también dice si se puede (mía, en la foto y aún abierta)
-    let start = null;
-    if (key === 'resolve') {
-      await saving;   // lo que se guardaba al cerrar, antes de leer el borrador
-      start = await api.startResolve(opened);
-      attached = start.draft?.file || null;
-    }
-    const form = key === 'resolve' ? resolveForm(opened, start.check, start.draft) : key === 'escalate' ? escalateModal() : actionForm(key, opened, people);
-    root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${form}</div>`);
+    root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${key === 'escalate' ? escalateModal() : actionForm(key, opened, people)}</div>`);
     root.querySelector(key === 'escalate' ? '#iss-f-dest' : '.iss-act-form textarea, .iss-act-form input:not([type=hidden]), .iss-act-form select')?.focus();
-    // Resolver se retoma en el paso en el que se quedó (también enfoca lo suyo)
-    const resume = key === 'resolve' ? resumeStep(start.check, start.draft) : 1;
-    if (resume > 1) goStep(root.querySelector('[data-act-form="resolve"]'), resume);
     // Escape: con la lista del selector abierta la cierra; si no, cierra el modal
     offEscape = onEscape(() => (openPicker(root) ? closePickers(root) : closeAction()));
   };
@@ -421,29 +325,12 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     if (!form) return;
     e.preventDefault();
     const key = form.dataset.actForm;
-    if (key === 'resolve' && Number(form.dataset.step) < STEPS.length) return stepNext(form);
+    if (key === 'resolve') return;   // lo atiende resolve-view.js
     const raw = Object.fromEntries(new FormData(form));
     const { missing, values } = key === 'escalate' ? readEscalate(raw, DESTINATIONS) : readAction(key, raw);
     const err = form.querySelector('.iss-act-err');
     const fail = (text) => { err.textContent = text; err.hidden = false; form.querySelector('[type=submit]').disabled = false; };
     if (missing) return fail(`Falta: ${missing}.`);
-    // Resolver solo se envía desde el último paso, ya revisado. El bridge lo
-    // vuelve a comprobar todo y, si cumple, borra el borrador.
-    if (key === 'resolve') {
-      const send = form.querySelector('[data-confirm-send]');
-      if (send.disabled) return;   // un segundo clic mientras se envía
-      send.disabled = true;
-      // la issue y lo escrito de ESTE formulario, aunque mientras se abra otra
-      const id = opened, fields = Object.fromEntries(new FormData(form));
-      // lo último escrito, guardado antes: si el bridge lo rechaza, no se pierde
-      if (autosave) { clearTimeout(autosave); autosave = null; saveNow(form); }
-      try {
-        await saving;
-        await api.resolve(id, fields);
-      } catch (err) { send.disabled = false; return showErr(form, err.message); }
-      if (form.isConnected) closeAction();   // si ya se cerró, no se cierra el de otra issue
-      return toast?.('Resolver: comprobado, pero aún no se envía a Remedy (falta conectar SIGLO).');
-    }
     if (key === 'escalate') {
       const rootCause = issue.status === 'RESOLVED';
       escDrafts.drop(opened);   // escalada o unida: ya no hay nada pendiente
@@ -465,31 +352,6 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       toast?.(`${ACTIONS[key].label}: preparado, pero aún no se envía a Remedy (falta conectar SIGLO).`);
     } catch (e2) { fail(e2.message); }
   });
-  // Soltar el adjunto en cualquier parte del modal de Resolver, en el paso del
-  // mensaje al centro, que es el que lo lleva. Fuera de ahí no pasa nada: el
-  // navegador no abre ni descarga el archivo (en toda la página, no solo aquí).
-  const dropZone = (e) => e.target.closest?.('[data-act-form="resolve"][data-step="2"]');
-  const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
-  const ignoreDrop = (e) => {
-    if (!hasFiles(e) || (root.contains(e.target) && dropZone(e))) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'none';
-  };
-  document.addEventListener('dragover', ignoreDrop);
-  document.addEventListener('drop', ignoreDrop);
-  root.addEventListener('dragover', (e) => { const z = dropZone(e); if (z) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; z.classList.add('over'); } });
-  root.addEventListener('dragleave', (e) => { const z = dropZone(e); if (z && !z.contains(e.relatedTarget)) z.classList.remove('over'); });
-  root.addEventListener('drop', (e) => {
-    const z = dropZone(e);
-    if (!z) return;
-    e.preventDefault();
-    z.classList.remove('over');
-    const files = e.dataTransfer.files;
-    if (!files.length) return;
-    setFile(z, files[0]);
-    if (files.length > 1) toast?.('Solo se adjunta uno: el primero.');
-  });
-
   const upload = async (file) => {
     if (!file) return;
     loading = true;
@@ -505,7 +367,6 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   };
 
   root.addEventListener('change', (e) => {
-    if (e.target.matches('[data-file]') && e.target.files[0]) return setFile(e.target.closest('form'), e.target.files[0]);
     const form = e.target.closest('[data-act-form]');
     if (form) return syncSubmit(form);
     if (e.target.matches('[data-csv]')) { picking = false; upload(e.target.files[0]); }
@@ -521,6 +382,6 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
 
   return {
     show: () => showDesk().catch((err) => { root.innerHTML = `<div class="iss-page"><p class="iss-empty">No se pudieron cargar las issues: ${esc(err.message)}</p></div>`; }),
-    dispose: () => { clearInterval(refresher); window.removeEventListener('focus', picked); document.removeEventListener('dragover', ignoreDrop); document.removeEventListener('drop', ignoreDrop); closeChat(); },
+    dispose: () => { resolver.dispose(); clearInterval(refresher); window.removeEventListener('focus', picked); closeChat(); },
   };
 };

@@ -7,7 +7,7 @@ test('las tres acciones (las notas van en el histórico)', () => {
 });
 
 test('obligatorios: el primero que falte', () => {
-  assert.deepEqual(readAction('resolve', { note: 'Se relanzó', what: '  ' }), { missing: '¿Qué ocurrió?' });
+  assert.deepEqual(readAction('resolve', { note: 'Se relanzó', what: '  ' }), { missing: '¿Qué ha ocurrido?' });
   assert.deepEqual(readAction('transfer', { to: 'u1' }), { missing: 'Motivo' });
   assert.deepEqual(readAction('transfer', { to: 'u1', comment: ' Lleva dos llamadas. ' }), { values: { to: 'u1', comment: 'Lleva dos llamadas.' } });
 });

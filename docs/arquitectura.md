@@ -25,7 +25,7 @@ API y su vista:
 | `app/` | Descubrir el bridge, la navegación (qué icono ve cada persona, la barra lateral o la de arriba, y la vista con la que se abre) y la relectura de permisos |
 | `auth/` | Inicio de sesión y la sesión en el navegador |
 | `chat/` | El chat: su arranque (`start.js`: Claude, conocimiento autónomo y todo lo accesible), protocolo con el bridge, reconciliación entre dispositivos, terminal y adjuntos |
-| `issues/` | La mesa de issues de cada persona y la pantalla de trabajo de una issue (con su chat) |
+| `issues/` | La mesa de issues de cada persona, la pantalla de trabajo de una issue (con su chat) y Resolver (`resolve-view.js`, con el editor de fichas de imagen `tag-editor.js`) |
 | `backlog/` | Backlog: la cola del equipo entera para quien reparte (tarjetas que filtran, orden por regla, buscador, panel lateral con asignar), el editor de reglas de priorización (`rule-editor.js`, chips) y su modal; una vista sobre el dominio de Issues |
 | `metrics/` | Métricas: reglas (`rules.js`) y cálculo por pestaña en módulos puros; el HTML de cada pestaña en `metrics/tabs/` |
 | `work/` | Equipo soporte: una vista sobre el dominio de Métricas |

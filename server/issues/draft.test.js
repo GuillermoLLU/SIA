@@ -17,18 +17,21 @@ test('lo forzado desde devtools se rechaza, no se arregla', () => {
   bad({ note: 'a'.repeat(MAX_TEXT + 1) }, /pasa de 20\.000 caracteres/);
   bad({ lang: 'fr' }, 'Ese idioma no está.');
   bad({ lang: ['es'] }, 'Ese idioma no está.');
-  for (const step of ['4', 0, 'x', 1.5]) bad({ step }, 'El borrador no es válido.');
+  for (const step of ['6', 0, 'x', 1.5]) bad({ step }, 'El borrador no es válido.');
 });
 
-test('el adjunto: con nombre sin rutas, no vacío y de hasta 15 MB', () => {
-  const f = cleanFile({ name: '../c:\\cola.png', type: 'image/png', data: Buffer.from('hola').toString('base64') });
+test('la imagen: con nombre sin rutas, no vacía, de hasta 15 MB y de tipo imagen', () => {
+  const png = { type: 'image/png' };
+  const f = cleanFile({ name: '../c:\\cola.png', ...png, data: Buffer.from('hola').toString('base64') });
   assert.deepEqual([f.name, f.type, f.data.toString()], ['.._c:_cola.png', 'image/png', 'hola']);
-  assert.throws(() => cleanFile({ name: 'x.png' }), { status: 400, message: 'Falta el archivo.' });
-  assert.throws(() => cleanFile({ name: '', data: 'aG9sYQ==' }), { status: 400 });
-  assert.throws(() => cleanFile({ name: 'x', data: '' }), { message: 'Falta el archivo.' });
-  assert.throws(() => cleanFile({ name: 'x', data: '==' }), { message: 'El archivo no ha llegado bien.' });
-  assert.throws(() => cleanFile({ name: 'x', data: Buffer.alloc(MAX_FILE + 1).toString('base64') }), { status: 400, message: /15 MB/ });
-  assert.equal(cleanFile({ name: 'x', data: Buffer.alloc(MAX_FILE).toString('base64') }).data.length, MAX_FILE);   // justo 15 MB, sí
+  assert.throws(() => cleanFile({ name: 'x.png', ...png }), { status: 400, message: 'Falta el archivo.' });
+  assert.throws(() => cleanFile({ name: '', ...png, data: 'aG9sYQ==' }), { status: 400 });
+  assert.throws(() => cleanFile({ name: 'x', ...png, data: '' }), { message: 'Falta el archivo.' });
+  assert.throws(() => cleanFile({ name: 'x', ...png, data: '==' }), { message: 'El archivo no ha llegado bien.' });
+  assert.throws(() => cleanFile({ name: 'x', ...png, data: Buffer.alloc(MAX_FILE + 1).toString('base64') }), { status: 400, message: /15 MB/ });
+  assert.equal(cleanFile({ name: 'x', ...png, data: Buffer.alloc(MAX_FILE).toString('base64') }).data.length, MAX_FILE);   // justo 15 MB, sí
+  // lo que no es imagen no entra
+  for (const type of [undefined, '', 'text/plain', 'application/pdf']) assert.throws(() => cleanFile({ name: 'a.txt', type, data: 'aG9sYQ==' }), { status: 400, message: 'Solo se adjuntan imágenes.' });
 });
 
 test('el adjunto forzado: ni ejecutables, ni base64 roto, ni nombres con trampa, ni tipos inventados', () => {
@@ -39,7 +42,7 @@ test('el adjunto forzado: ni ejecutables, ni base64 roto, ni nombres con trampa,
   assert.throws(() => cleanFile({ name: 'a.txt', data: 7 }), { status: 400 });
   // el carácter que da la vuelta al texto («gpj.exe» se vería «exe.jpg»), los de control y los invisibles: 400, no se arreglan
   for (const name of ['foto‮gpj.exe', 'a\u0000b.txt', 'a\nb.txt', ' ​ ']) assert.throws(() => cleanFile({ name, data }), { status: 400, message: /caracteres ocultos/ });
-  // el tipo, solo si tiene forma de tipo
-  assert.equal(cleanFile({ name: 'a.txt', type: 'text/html"><script>', data }).type, '');
-  assert.equal(cleanFile({ name: 'a.txt', type: { a: 1 }, data }).type, '');
+  // el tipo, solo si tiene forma de tipo (y de imagen)
+  assert.throws(() => cleanFile({ name: 'a.png', type: 'image/png"><script>', data }), { message: 'Solo se adjuntan imágenes.' });
+  assert.throws(() => cleanFile({ name: 'a.png', type: { a: 1 }, data }), { message: 'Solo se adjuntan imágenes.' });
 });

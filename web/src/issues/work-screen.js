@@ -10,7 +10,7 @@ import { item } from './parts.js';
 
 const WORK_TABS = [
   { key: 'detail', label: 'Detalle' },
-  { key: 'remedy', label: 'Notas Remedy' },
+  { key: 'remedy', label: 'Seguimiento' },
   { key: 'trail', label: 'Notas internas' },
   { key: 'related', label: 'Relacionadas' },
 ];
