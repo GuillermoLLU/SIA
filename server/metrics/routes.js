@@ -38,8 +38,7 @@ export const metricsRoutes = (store, { json, readBody }) => {
       if (!handler) return json(res, 404, { error: 'no encontrado' });
       return await handler(req, res, query);
     } catch (e) {
-      if (e instanceof RangeError) return json(res, 400, { error: e.message });   // una fecha que no vale
-      return failed(json, res, e);
+      return failed(json, res, e);   // los errores del slice traen su status (400 un periodo que no vale, 409 una carga en marcha…)
     }
   };
 };

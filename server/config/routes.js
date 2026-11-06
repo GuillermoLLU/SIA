@@ -18,7 +18,7 @@ export const configRoutes = (store, { json, readBody, version }) => async (req, 
     // Solo el usuario se cambia desde la pantalla: el rol y el warehouse se quedan tal como están en la configuración.
     if (body.snowflake !== undefined) {
       const current = store.read().snowflake || {};
-      changes.snowflake = cleanSnowflake({ user: body.snowflake.user, role: current.role, warehouse: current.warehouse });
+      changes.snowflake = cleanSnowflake({ user: body.snowflake?.user, role: current.role, warehouse: current.warehouse });   // null: sin usuario
     }
     store.patch(changes);
     return json(res, 200, { ok: true });

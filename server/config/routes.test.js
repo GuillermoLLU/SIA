@@ -25,3 +25,9 @@ test('PUT de Snowflake: cambia el usuario y deja el rol y el warehouse tal como 
   await s.call('PUT', { snowflake: { user: 'luis', role: 'R_NUEVO', warehouse: 'WH_NUEVO' } });
   assert.deepEqual(s.cfg().snowflake, { user: 'luis', role: 'R_OTRO', warehouse: 'WH_OTRO' }, 'lo que llegue de rol y warehouse no cuenta');
 });
+
+test('PUT de Snowflake con null: no revienta; queda sin usuario y con el rol y el warehouse de antes', async () => {
+  const s = setup({ snowflake: { user: 'ana', role: 'R_OTRO', warehouse: 'WH_OTRO' } });
+  assert.equal((await s.call('PUT', { snowflake: null })).status, 200);
+  assert.deepEqual(s.cfg().snowflake, { user: '', role: 'R_OTRO', warehouse: 'WH_OTRO' });
+});

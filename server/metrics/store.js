@@ -79,7 +79,10 @@ export const createMetricsStore = (dir, { repo, source, fs, now = () => new Date
         const it = source.rows(sql, binds, { onConnect, onTotal })[Symbol.asyncIterator]();
         for (;;) {
           const step = await Promise.race([it.next(), stop]);
-          if (step === ABORTED) throw cancelled();
+          if (step === ABORTED) {
+            await it.return?.().catch(() => {});   // cierra el iterador: así el conector suelta la conexión de Snowflake
+            throw cancelled();
+          }
           if (step.done) break;
           const row = step.value;
           if (!rows++) checkColumns(row);
