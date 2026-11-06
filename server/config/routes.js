@@ -15,7 +15,11 @@ export const configRoutes = (store, { json, readBody, version, onTheme }) => asy
     const changes = {};
     if (body.jira !== undefined) changes.jira = cleanJira(body.jira);
     if (body.github !== undefined) changes.github = cleanGithub(body.github);
-    if (body.snowflake !== undefined) changes.snowflake = cleanSnowflake(body.snowflake);
+    // Solo el usuario se cambia desde la pantalla: el rol y el warehouse se quedan tal como están en la configuración.
+    if (body.snowflake !== undefined) {
+      const current = store.read().snowflake || {};
+      changes.snowflake = cleanSnowflake({ user: body.snowflake.user, role: current.role, warehouse: current.warehouse });
+    }
     const theme = body.theme !== undefined ? cleanTheme(body.theme) : null;
     if (theme) { changes.theme = theme; onTheme(theme); }
     store.patch(changes);

@@ -84,3 +84,11 @@ test('cada issue con su problema; se enseña la forma más escrita', () => {
   assert.deepEqual(cols.de, [1, 1, 1, 0, 2]);
   assert.deepEqual(dict.problem, ['', 'cancelar pedidos', 'otro']);
 });
+
+test('add dice si la incidencia entra en el informe (la misma regla que reportCount)', () => {
+  const ds = createDataset({ start: 2026 });
+  assert.equal(ds.add(row()), true);
+  assert.equal(ds.add(row({ INCIDENTNUMBER: 'INC000000000002', ASSIGNEDGROUP: 'OTRO GRUPO' })), false);
+  assert.equal(ds.add(row({ INCIDENTNUMBER: 'INC000000000003', TAGS: 'AUTOTEC' })), false);
+  assert.equal(ds.add(row({ INCIDENTNUMBER: 'INC000000000004', TAGS: 'SISUINC' })), true);
+});

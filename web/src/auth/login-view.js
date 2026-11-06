@@ -1,10 +1,16 @@
 // Puerta de inicio de sesión: pantalla completa antes de la app, con el aspecto
 // de la del candado (el halo, el tema). Primero solo la S en el centro, que hace
-// de botón: al pulsarla se desvanece y en su sitio aparece el formulario; un
-// clic fuera de él lo cierra y vuelve la S.
+// de botón: al pulsarla SIA comprueba el equipo (certificados del cliente y VPN,
+// /auth/check) y en su sitio aparece el formulario o, si falta algo, el aviso
+// con «Reintentar». Un clic fuera de ellos vuelve a la S.
 // Solo DOM; la sesión la lleva session.js.
 import './login.css';
 import { esc } from '../ui/html.js';
+import { netWarningHtml, shake } from '../ui/net-warning-view.js';
+
+// En desarrollo, con el aviso aparece «Modo Dev» en la esquina: pasar al
+// formulario aunque falte algo, sin tocar la vista que ve el usuario final.
+const DEV = Boolean(import.meta.env?.DEV);
 
 const markup = (logoHtml, lastEmail) => `<div class="login-stage">
 <button class="login-open" type="button" aria-label="Iniciar sesión">${logoHtml}</button>
@@ -18,7 +24,11 @@ const markup = (logoHtml, lastEmail) => `<div class="login-stage">
   </div>
   <div class="lock-msg" role="alert"></div>
 </form>
-</div>`;
+<div class="lock-card login-card login-warn net-warn" role="alert" inert></div>
+</div>
+${DEV ? `<span class="login-tip login-dev-tip" inert><button type="button" class="login-dev">Modo Dev</button><span role="tooltip">${DEV_TIP}</span></span>` : ''}`;
+
+const DEV_TIP = 'Solo en desarrollo: pasa al inicio de sesión y al resto de SIA aunque falte esto, para seguir trabajando. Lo que dependa de la red del cliente no responderá.';
 
 // Tapa la app hasta que el usuario entra. → promesa con el usuario.
 const loginGate = (session, logoHtml) => new Promise((resolve) => {
@@ -33,14 +43,14 @@ const loginGate = (session, logoHtml) => new Promise((resolve) => {
   const stage = el.querySelector('.login-stage');
   const opener = stage.querySelector('.login-open');
   const form = stage.querySelector('form');
+  const warn = stage.querySelector('.login-warn');
   const { email, password } = form.elements;
   const remember = form.querySelector('.login-remember .sw');
   const go = form.querySelector('.login-go');
   const msg = form.querySelector('.lock-msg');
-  const fail = (text) => {
-    msg.textContent = text;
-    form.classList.remove('bad'); void form.offsetWidth; form.classList.add('bad');
-  };
+  const dev = el.querySelector('.login-dev-tip');
+  let devMode = false; // «Modo Dev»: ya no se comprueba el equipo
+  const fail = (text) => { msg.textContent = text; shake(form); };
   const leave = (user) => {
     el.classList.add('leaving');
     setTimeout(() => {
@@ -51,6 +61,32 @@ const loginGate = (session, logoHtml) => new Promise((resolve) => {
     }, 220);
   };
 
+  // closed (la S) · form (el formulario) · warn (el aviso de lo que falta)
+  const show = (state) => {
+    stage.classList.toggle('open', state === 'form');
+    stage.classList.toggle('warn', state === 'warn');
+    opener.inert = state !== 'closed';
+    form.inert = state !== 'form';
+    warn.inert = state !== 'warn';
+    if (dev) { dev.classList.toggle('shown', state === 'warn' || devMode); dev.inert = state !== 'warn'; }
+    if (state === 'form') return (email.value ? password : email).focus({ preventScroll: true });
+    password.value = ''; msg.textContent = '';
+    if (state === 'closed') opener.focus({ preventScroll: true });
+  };
+  const showWarn = (r) => {
+    const again = stage.classList.contains('warn');
+    warn.innerHTML = netWarningHtml(r);   // el aviso de toda SIA (ui/net-warning-view.js)
+    show('warn');
+    if (again) shake(warn); // «Reintentar» y sigue faltando
+    warn.querySelector('[data-net-retry]').focus({ preventScroll: true });
+  };
+  // ¿Está el equipo listo? Sí: el formulario. No: el aviso.
+  const check = async () => {
+    if (devMode) return show('form');
+    const r = await session.check().catch(() => ({ error: 'Sin conexión con SIA.' }));
+    return r.ok ? show('form') : showWarn(r);
+  };
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const address = email.value.trim();
@@ -59,6 +95,7 @@ const loginGate = (session, logoHtml) => new Promise((resolve) => {
     try {
       const r = await session.login(address, password.value, remember.getAttribute('aria-checked') === 'true');
       if (r.user) return leave(r.user);
+      if (r.code && !devMode) return showWarn(r);
       password.value = ''; password.focus();
       fail(r.error);
     } catch { fail('Sin conexión con SIA.'); }
@@ -68,18 +105,27 @@ const loginGate = (session, logoHtml) => new Promise((resolve) => {
   form.querySelector('.login-remember').addEventListener('click', () => {
     remember.setAttribute('aria-checked', String(remember.getAttribute('aria-checked') !== 'true'));
   });
-  // La S abre el formulario; un clic fuera de él lo cierra y vuelve la S.
-  const setOpen = (open) => {
-    stage.classList.toggle('open', open);
-    opener.inert = open;
-    form.inert = !open;
-    if (open) return (email.value ? password : email).focus({ preventScroll: true });
-    password.value = ''; msg.textContent = '';
-    opener.focus({ preventScroll: true });
-  };
-  opener.addEventListener('click', () => setOpen(true));
+  warn.addEventListener('click', async (e) => {
+    const retry = e.target.closest('[data-net-retry]');
+    if (!retry) return;
+    retry.disabled = true; retry.textContent = 'Comprobando…';
+    await check();
+  });
+  // La S comprueba el equipo y abre el formulario o el aviso; un clic fuera vuelve a la S.
+  opener.addEventListener('click', async () => {
+    if (stage.classList.contains('checking')) return;
+    stage.classList.add('checking');
+    try { await check(); } finally { stage.classList.remove('checking'); }
+  });
   el.addEventListener('click', (e) => {
-    if (stage.classList.contains('open') && !form.contains(e.target) && !opener.contains(e.target)) setOpen(false);
+    if (e.target.closest('.login-dev')) {
+      devMode = true;
+      dev.classList.add('on');
+      dev.querySelector('.login-dev').textContent = 'Modo Dev activo';
+      return show('form');
+    }
+    const open = stage.classList.contains('open') || stage.classList.contains('warn');
+    if (open && !form.contains(e.target) && !warn.contains(e.target) && !opener.contains(e.target)) show('closed');
   });
   opener.focus();
 });
@@ -126,7 +172,7 @@ const passwordGate = (session, logoHtml) => new Promise((resolve) => {
 // si su contraseña la puso un admin, antes la cambia.
 export const ensureLogin = async (session, { logoHtml, paintTheme }) => {
   let user = null;
-  try { user = await session.current(); } catch { /* sin bridge: la puerta igualmente; su formulario avisa si sigue sin respuesta */ }
+  try { user = await session.current(); } catch { /* sin bridge o sin certificados: la puerta igualmente; la S lo comprueba */ }
   if (!user) { paintTheme(); user = await loginGate(session, logoHtml); }
   if (user.must_change_password) {
     paintTheme();

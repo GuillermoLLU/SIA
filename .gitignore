@@ -1,6 +1,7 @@
 # dependencias y builds
 node_modules
 dist-app/
+build/installer-config.nsh
 web/dist/
 
 # contenido generado/sincronizado en runtime (Supa es la fuente de verdad)
@@ -22,5 +23,8 @@ nohup.out
 *.sqlite-wal
 *.sqlite-shm
 
-# credenciales locales de Claude Code (MCP knowledge)
-.claude/settings.local.json
+# configuración local de agentes e IDE: skills, credenciales y MCP de cada equipo
+.agents/
+.claude/
+.idea/
+.mcp.json

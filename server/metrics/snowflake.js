@@ -4,37 +4,66 @@
 // no se abre; SIA no guarda ninguna contraseña. Se conecta en cada
 // actualización y se cierra al acabar.
 //
-// loadSdk: () => el módulo snowflake-sdk (se carga al usarse: pesa y solo lo
-// necesita Métricas). Desde la 3.4 (la 2.x la rechaza la política de Inditex).
+// loadSdk: () => el módulo snowflake-sdk (SIA lo carga al arrancar, en segundo plano:
+// pesa y solo lo necesita Métricas). Desde la 3.4 (la 2.x la rechaza la política de Inditex).
 // config: () => { user, role, warehouse } (config/config.js: cleanSnowflake).
+// refreshCerts: relee los certificados del sistema (el mismo que «Reintentar» del
+// login), para que la siguiente actualización valga sin reiniciar SIA.
+// onVpn: () => si está en la VPN del cliente (shared/vpn.js). Fuera, Snowflake no
+// responde: ready() lo dice antes de nada, sin cargar el conector ni abrir el navegador.
+// Lo que falta para la red del cliente sale con shared/client-network.js (la web lo explica).
 import { SESSION } from './query.js';
+import { isCertError } from '../shared/certs.js';
+import { clientNetworkError } from '../shared/client-network.js';
 
-export const ACCOUNT = 'INDITEX-INDITEX';
+const ACCOUNT = 'INDITEX-INDITEX';
 
 const fail = (message, status = 503) => Object.assign(new Error(message), { status });
+const noVpn = () => clientNetworkError('vpn', 'Sin conexión a la VPN del cliente: Snowflake solo responde dentro de su red. Conéctate a la VPN y vuelve a actualizar.');
 
-// Los errores de Snowflake, en lo que la persona puede hacer.
-export const explain = (e) => {
+// Los errores de Snowflake, en lo que la persona puede hacer. helpUrl: la guía
+// oficial del cliente (sia-instance.json); no va en el texto, que sale en un aviso
+// breve: se remite a la del inicio de sesión, que la enlaza.
+export const explain = (e, helpUrl = '') => {
   const code = String(e?.code ?? '');
   if (code === '390202') return fail('Snowflake ha rechazado esta versión del conector: actualiza SIA.');
   if (code === '002003') return fail('Tu rol de Snowflake no puede leer las tablas de Remedy (SGA.SIGLO): revisa el rol en Configuración → Snowflake.');
   if (code === '000606') return fail('Snowflake no tiene warehouse para la consulta: revisa el warehouse en Configuración → Snowflake.');
-  if (code === '401001' || /ENOTFOUND|ECONNREFUSED|ETIMEDOUT|CERT|certificate/i.test(`${code} ${e?.message}`)) {
-    return fail('No se llega a Snowflake: comprueba la VPN y que SIA arranca con los certificados del sistema (npm run dev:vpn).');
+  if (isCertError(e)) {
+    return clientNetworkError('certs', `Faltan los certificados del cliente en este equipo: ${helpUrl ? 'instálalos con la guía de certificados (la del aviso de inicio de sesión)' : 'pide a soporte la guía de certificados, instálalos'} y vuelve a actualizar. No hace falta reiniciar SIA.`, helpUrl);
+  }
+  if (code === '401001' || /ENOTFOUND|ECONNREFUSED|ETIMEDOUT/i.test(`${code} ${e?.message}`)) {
+    return noVpn();
   }
   return fail(`Snowflake: ${e?.message || 'error desconocido'}`);
 };
 
-export const createSnowflake = ({ loadSdk, config }) => {
+// Si el conector no carga (falta el paquete en esta copia de SIA), un mensaje que dice qué hacer, no un error genérico.
+export const connectorError = (e) => {
+  if (e?.code === 'ERR_MODULE_NOT_FOUND' || /snowflake-sdk/.test(e?.message ?? '')) {
+    return fail('Falta el conector de Snowflake en esta copia de SIA: en server/ ejecuta npm install y vuelve a arrancar SIA.');
+  }
+  return fail(`No se pudo cargar el conector de Snowflake: ${e?.message || 'error desconocido'}`);
+};
+
+export const createSnowflake = ({ loadSdk, config, certsHelpUrl = '', refreshCerts = async () => {}, onVpn = async () => true }) => {
+  // ¿Se puede intentar? Fuera de la VPN, no: se dice antes de tocar nada.
+  const ready = async () => { if (!(await onVpn())) throw noVpn(); };
   const run = (conn, sqlText) => new Promise((ok, ko) => conn.execute({ sqlText, complete: (e) => (e ? ko(e) : ok()) }));
 
   // Las filas de la consulta, una a una y como texto, con '' donde no hay valor:
-  // igual que las del CSV, para que decide (incidents.js) no vea cambios que no hay. onConnect(): el conector ya
+  // para que decide (incidents.js) no vea cambios que no hay. onConnect(): el conector ya
   // está cargado y empieza la conexión; onTotal(n): cuántas van a llegar, en cuanto Snowflake acaba la consulta.
   async function* rows(sql, binds, { onConnect = () => {}, onTotal = () => {} } = {}) {
     const { user, role, warehouse } = config();
     if (!user) throw fail('Configura tu usuario de Snowflake en Configuración → Snowflake.', 400);
-    const sdk = await loadSdk();
+    await ready();
+    let sdk;
+    try {
+      sdk = await loadSdk();
+    } catch (e) {
+      throw connectorError(e);
+    }
     onConnect();
     sdk.configure({ logLevel: 'ERROR' });
     const conn = sdk.createConnection({ account: ACCOUNT, username: user, role, warehouse,
@@ -50,11 +79,12 @@ export const createSnowflake = ({ loadSdk, config }) => {
         yield row;
       }
     } catch (e) {
-      throw e.status ? e : explain(e);
+      if (!e.status && isCertError(e)) await refreshCerts().catch(() => {});   // los que instale ya valdrán al volver a actualizar
+      throw e.status ? e : explain(e, certsHelpUrl);
     } finally {
       await new Promise((ok) => conn.destroy(() => ok()));
     }
   }
 
-  return { rows };
+  return { ready, rows };
 };

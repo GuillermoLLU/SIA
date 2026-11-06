@@ -32,12 +32,27 @@ del equipo**, trabaja las **issues** del servicio desde su mesa y sigue las
 La VPN firma la conexión con la base de la instancia con un certificado
 corporativo. El bridge confía también en los certificados del sistema (Windows o
 macOS) al arrancar, así que `node dev.mjs` y la app instalada funcionan igual
-dentro y fuera de la VPN. Requiere Node 22.19 o superior, y el certificado
-corporativo importado en el sistema.
+dentro y fuera de la VPN. Requiere Node 22.19 o superior.
 
-Si aun así aparece `No se pudo verificar el certificado de la base de la
-instancia` (un Node más antiguo), arranca con `npm run dev:vpn`, que es
-`node dev.mjs` con `NODE_USE_SYSTEM_CA=1`.
+SIA no trae ni gestiona esos certificados: cada persona los instala con la guía
+oficial del cliente. Se configuran en `sia-instance.json`, en `certificates`:
+`helpUrl` es la guía y `required` los nombres (CN) que deben estar en el
+sistema. `vpn.probeHost` es un nombre interno del cliente que solo resuelve a
+una dirección privada dentro de su red. SIA comprueba las dos cosas en dos
+sitios:
+
+- en el instalador de Windows, en la página «Comprobaciones previas», los
+  certificados: sin ellos no deja seguir (si no se pueden comprobar, avisa y
+  deja seguir con confirmación);
+- en la app, al pulsar la S: si falta algo, en lugar del formulario sale un
+  aviso corto (qué falta y la guía) con «Reintentar», que vuelve a
+  comprobar de verdad, relee los certificados del sistema y deja pasar al
+  formulario sin reiniciar SIA.
+
+En desarrollo, con el aviso aparece «Modo Dev» en la esquina superior
+derecha: pasa al formulario aunque falte algo, para seguir trabajando, y se
+queda como «Modo Dev activo»; en la app instalada no existe. Para ver el
+aviso, desconecta la VPN o quita los certificados del sistema.
 
 Métricas trae las incidencias de Remedy de Snowflake: pon tu usuario en
 Configuración → Credenciales → Snowflake. La primera vez se abre el navegador
@@ -101,7 +116,6 @@ Todo esto, carpeta a carpeta y con cómo se comunican, en
 | Comando | Qué hace |
 |---|---|
 | `node dev.mjs` | Arranca bridge y web en desarrollo |
-| `npm run dev:vpn` | Lo mismo con los certificados del sistema (detrás de la VPN) |
 | `npm test` | Las pruebas de dominio (segundos) |
 | `cd web && npx vite build` | Compila la web |
 | `npm run test:platform` / `test:rls` | Pruebas de la base en Docker (cuando se toca SQL) |

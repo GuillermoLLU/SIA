@@ -134,7 +134,7 @@ export const mountWorkView = (root, { api, onManage, toast }) => {
     show: async () => {
       try {
         const data = await api.load();
-        if (!data) { m = null; root.innerHTML = `${page('')}<div class="mt-empty"><b>Aún no hay datos</b><span>Se traen de Snowflake desde Métricas, con «Actualizar y generar informe».</span></div></div>`; return; }
+        if (!data) { m = null; root.innerHTML = `${page('')}<div class="mt-empty"><b>Aún no hay datos</b><span>Se cargan desde Métricas: con «Cargar datos» la primera vez, o con un CSV de Remedy.</span></div></div>`; return; }
         if (data.meta.generated !== generated) {
           generated = data.meta.generated;
           ui.person = null;   // los índices de las personas cambian con los datos

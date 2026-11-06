@@ -5,12 +5,14 @@
 //   POST login   { email, password, remember } → { token, user } | 401 | 429
 //   POST logout  → { ok }
 //   POST password { password } → { ok }   cambiar la propia (obligatorio si la puso un admin)
-// Si la base de la instancia no responde: 503 con el motivo.
+//   POST check   → { ok }   antes del formulario: certificados del cliente y VPN (preflight.js)
+// Si la base de la instancia no responde: 503 con el motivo (y code 'certs' o
+// 'vpn' + help si faltan los certificados del cliente o la VPN).
 
 import { passwordProblem } from './password.js';
 import { failed } from '../shared/http.js';
 
-export const authRoutes = (auth, { json, readBody, onSession, onLogout, platform }) => async (req, res, action) => {
+export const authRoutes = (auth, { json, readBody, onSession, onLogout, platform, preflight }) => async (req, res, action) => {
   const token = req.headers['x-sia-auth'];
   try {
     if (action === 'me' && req.method === 'GET') {
@@ -36,6 +38,10 @@ export const authRoutes = (auth, { json, readBody, onSession, onLogout, platform
       await platform.updateOwnPassword(ctx.accessToken, password);
       await platform.rpc(ctx.accessToken, 'platform_password_changed');
       auth.refreshProfile(token);
+      return json(res, 200, { ok: true });
+    }
+    if (action === 'check' && req.method === 'POST') {
+      await preflight();
       return json(res, 200, { ok: true });
     }
     if (action === 'logout' && req.method === 'POST') {

@@ -32,6 +32,13 @@ test('login rechazado: el texto del bridge o el de serie; sin bridge, lanza', as
   await assert.rejects(s.login('a', 'b', true));
 });
 
+test('sin certificados del cliente: login y check devuelven code y la guía', async () => {
+  const help = { url: 'https://guia.example' };
+  assert.deepEqual(await setup([reply(503, { error: 'Faltan.', code: 'certs', help })]).s.login('a', 'b', true), { error: 'Faltan.', code: 'certs', help });
+  assert.deepEqual(await setup([reply(200, { ok: true })]).s.check(), { ok: true });
+  assert.deepEqual(await setup([reply(503, { error: 'Faltan.', code: 'certs', help })]).s.check(), { error: 'Faltan.', code: 'certs', help });
+});
+
 test('current: sin token no pregunta; con 401 olvida el token; otro fallo sube', async () => {
   const none = setup([]);
   assert.equal(await none.s.current(), null);
