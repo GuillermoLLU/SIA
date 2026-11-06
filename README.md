@@ -120,3 +120,9 @@ Todo esto, carpeta a carpeta y con cómo se comunican, en
 | `cd web && npx vite build` | Compila la web |
 | `npm run test:platform` / `test:rls` | Pruebas de la base en Docker (cuando se toca SQL) |
 | `npm run dist` / `dist:win` | Empaquetar la app (macOS / Windows) |
+
+El instalador de Windows lleva solo lo que SIA usa al ejecutarse: después de
+empaquetar, `scripts/win-prune.cjs` quita de las dependencias los mapas de código,
+TypeScript, las versiones de navegador del motor de embeddings y de Azure y los
+binarios de otras plataformas. Si una dependencia nueva falla solo en la app
+instalada de Windows, mira primero esa lista. En macOS no se quita nada.
