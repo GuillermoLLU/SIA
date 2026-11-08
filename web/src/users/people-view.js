@@ -394,5 +394,9 @@ export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast, dialo
     if (name === 'rule' && value !== (ruleOf(rules, edit)?.id || '')) { edit = draftWithRule(edit, value); paintPerson(); }
   });
 
-  return { refresh: load };
+  // Al entrar en Equipo se empieza siempre por la lista: una ficha, un alta o los roles que se
+  // quedaron abiertos al salir de Configuración se descartan, con su borrador.
+  const reset = () => { if (screen === 'list') return; selected = null; edit = null; foot = null; draft = null; created = null; showScreen('list'); renderList(); };
+
+  return { refresh: load, reset };
 };

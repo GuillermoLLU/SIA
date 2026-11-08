@@ -134,7 +134,7 @@ settings.showBox('equipo', canView(user, 'people'));
 const usersView = canView(user, 'people')
   ? mountPeopleView($('settings-people'), { usersApi: createUsersApi(api), knowledgeApi: createKnowledgeApi(api), me: user, toast, dialogs, onMetrics: canView(user, 'work') ? () => { settings.close(); go('work'); } : undefined, onScreen: (sub) => settings.setFull(!!sub, sub?.back ?? null, sub?.parent ?? null) })   // la ficha, el alta y los roles, a todo el ancho; la lista, con los enlaces
   : null;
-settings.onPane((name) => { if (name === 'equipo') usersView.refresh(); });
+settings.onPane((name) => { if (name === 'equipo') { usersView.reset(); usersView.refresh(); } });
 // Priorización (backlog/): las reglas, en Configuración para quien tiene Backlog; a todo el ancho
 settings.showBox('priorizacion', canView(user, 'backlog'));
 const rulesView = canView(user, 'backlog') ? mountRulesView($('settings-rules'), { api: createBacklogApi(api), dialogs, toast, onChange: () => PANELS.find((p) => p.name === 'backlog')?.ui?.show?.() }) : null;
