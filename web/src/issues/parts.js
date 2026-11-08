@@ -18,6 +18,6 @@ const still = (i, now) => { const d = stillDays(i, now); return `<span class="is
 
 // Una issue en una lista; `key` dice qué tiempo enseñar (en curso, esperando o resuelta).
 export const item = (i, key, now) => `<button class="iss-item" data-id="${esc(i.id)}">
-    <span class="iss-line">${sev(i.priority)}<span class="iss-code">${esc(i.center || '—')}</span>${origin(i)}${key === 'waiting' && i.reason ? `<span class="iss-reason">${esc(REASON_ES[i.reason] || i.reason)}</span>` : ''}${handed(i.transferred)}${key === 'waiting' ? still(i, now) : `<span class="iss-when">${since(i, key, now)}</span>`}</span>
-    <span class="iss-text">${esc(i.text)}</span>
+    <span class="iss-line">${sev(i.priority)}<span class="iss-code">${esc(i.center || '—')}</span>${origin(i)}${key === 'waiting' && i.reason ? `<span class="iss-reason">${esc(REASON_ES[i.reason] || i.reason)}</span>` : ''}${handed(i.transferred)}${key === 'waiting' ? '' : `<span class="iss-when">${since(i, key, now)}</span>`}</span>
+    <span class="iss-text">${esc(i.text)}</span>${key === 'waiting' ? still(i, now) : ''}
   </button>`;

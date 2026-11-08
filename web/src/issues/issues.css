@@ -119,12 +119,16 @@
 .iss-text { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iss-reason { padding: 0 6px; border: 1px solid var(--border); font-size: 11px; }
 /* los días sin moverse de una pendiente: a la derecha, en su color según lo que lleva */
-.iss-still { margin-left: auto; display: inline-flex; align-items: baseline; gap: 5px; padding: 2px 8px; font-size: 11.5px; color: var(--text-low); white-space: nowrap; background: color-mix(in srgb, var(--text) 5%, transparent); }
-.iss-still b { font-size: 13px; font-weight: 650; color: var(--text); font-variant-numeric: tabular-nums; }
-.iss-still.slow { color: var(--iss-high); background: color-mix(in srgb, var(--iss-high) 10%, transparent); }
-.iss-still.slow b { color: var(--iss-high); }
-.iss-still.late { color: var(--iss-crit); background: color-mix(in srgb, var(--iss-crit) 10%, transparent); }
-.iss-still.late b { color: var(--iss-crit); }
+/* a la derecha del todo y centrado en la altura de la fila (las dos líneas), con la cifra grande;
+   naranja, como el aviso de la issue: más intenso cuanto más lleva parada */
+.iss-item:has(.iss-still) { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 14px; }
+.iss-item:has(.iss-still) > :not(.iss-still) { grid-column: 1; }
+.iss-still { grid-column: 2; grid-row: 1 / span 2; align-self: center; display: inline-flex; flex-direction: column; align-items: center; gap: 2px; min-width: 78px; padding: 6px 10px; font-size: 10.5px; letter-spacing: .02em; color: var(--text-low); white-space: nowrap; background: color-mix(in srgb, var(--text) 5%, transparent); }
+.iss-still b { font-size: 18px; font-weight: 650; line-height: 1; color: var(--text); font-variant-numeric: tabular-nums; }
+.iss-still.slow { color: color-mix(in srgb, var(--iss-high) 80%, var(--text-low)); background: color-mix(in srgb, var(--iss-high) 8%, transparent); }
+.iss-still.slow b { color: color-mix(in srgb, var(--iss-high) 85%, var(--text)); }
+.iss-still.late { color: var(--iss-high); background: color-mix(in srgb, var(--iss-high) 12%, transparent); }
+.iss-still.late b { color: var(--iss-high); }
 /* refrescar la mesa, en la cabecera de Seguimiento */
 .iss-card-h .iss-refresh { display: inline-flex; align-items: center; gap: 6px; height: 26px; margin-left: 4px; padding: 0 10px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: 600 11px var(--font-ui); letter-spacing: .04em; text-transform: uppercase; cursor: pointer; }
 .iss-card-h .iss-refresh:hover:not(:disabled) { border-color: var(--text); }
