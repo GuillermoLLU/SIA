@@ -40,7 +40,6 @@
 /* guardar, de una vez */
 .pr-save { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding-top: 16px; border-top: 1px solid var(--border); }
 .pr-save .lab-btn { height: 36px; padding: 0 16px; }
-.pr-save:not(.dirty) .lab-btn { opacity: .45; }
 .pr-msg { margin-right: auto; font-size: 12.5px; color: #f25f5c; }
 .pr-del { height: 36px; padding: 0 14px; border: 1px solid var(--border); background: var(--surface); color: var(--text-low); font: 12.5px var(--font-ui); cursor: pointer; }
 .pr-del:hover { color: #f25f5c; border-color: #f25f5c; }

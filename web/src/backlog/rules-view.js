@@ -6,9 +6,7 @@
 // confirmación. Guardar y borrar van a la base por el bridge.
 import './rules.css';
 import { esc } from '../ui/html.js';
-import { NEW_RULE, addCriterion, removeCriterion, placeCriterion, available, labelOf, draftOf } from './rule-editor.js';
-
-const sameRule = (a, b) => a.name === b.name && a.criteria.join() === b.criteria.join();
+import { NEW_RULE, addCriterion, removeCriterion, placeCriterion, available, labelOf, draftOf, isDirty } from './rule-editor.js';
 
 // host: el hueco de la sección · api: backlog-api.js · onChange(): las reglas han cambiado
 export const mountRulesView = (host, { api, dialogs, toast, onChange }) => {
@@ -18,7 +16,7 @@ export const mountRulesView = (host, { api, dialogs, toast, onChange }) => {
   let error = null, busy = false, loaded = false;
 
   const select = (rule) => { current = rule; draft = rule ? draftOf(rule) : { ...NEW_RULE }; error = null; render(); };
-  const dirty = () => (current ? !sameRule(draft, draftOf(current)) : !!(draft.name.trim() || draft.criteria.length));
+  const dirty = () => isDirty(current, draft);
 
   const ruleItem = (r) => `<button type="button" class="pr-item${current?.id === r.id ? ' on' : ''}" data-rule="${esc(r.id)}"><b>${esc(r.label)}</b><small>${r.criteria.length} criterio${r.criteria.length === 1 ? '' : 's'}${r.builtin ? ' · de serie' : ''}</small></button>`;
   const renderList = () => `${rules.map(ruleItem).join('')}${!current ? `<button type="button" class="pr-item on" disabled><b>${esc(draft.name.trim() || 'Nueva regla')}</b><small>sin guardar</small></button>` : ''}`;
@@ -39,7 +37,7 @@ export const mountRulesView = (host, { api, dialogs, toast, onChange }) => {
         <section class="pr-col" data-col="chosen"><h4 class="pr-sec-h">Orden de la regla</h4>${chosen(draft.criteria, true)}</section>
         <section class="pr-col" data-col="free"><h4 class="pr-sec-h">Criterios disponibles</h4><ul class="pr-chips" data-free>${free.map((c) => chip(c.id, { editable: true })).join('')}</ul></section>
       </div>
-      <div class="pr-save${changed ? ' dirty' : ''}">
+      <div class="pr-save">
         ${draft.id && !current?.builtin ? '<button type="button" class="pr-del" data-delete>Borrar regla</button>' : ''}
         <span class="pr-msg">${error ? esc(error) : ''}</span>
         <button type="button" class="lab-btn" data-discard${changed ? '' : ' disabled'}>Descartar</button>
@@ -61,7 +59,6 @@ export const mountRulesView = (host, { api, dialogs, toast, onChange }) => {
     if (!e.target.matches('[data-name]')) return;
     draft.name = e.target.value;
     const save = host.querySelector('.pr-save'), changed = dirty();
-    save.classList.toggle('dirty', changed);
     save.querySelector('[data-save]').disabled = !changed || busy;
     save.querySelector('[data-discard]').disabled = !changed;
     if (!current) host.querySelector('.pr-items').innerHTML = renderList();
@@ -144,11 +141,15 @@ export const mountRulesView = (host, { api, dialogs, toast, onChange }) => {
   });
 
   return {
-    // al entrar en la sección: las reglas al día (y la elegida, si sigue)
+    // al entrar en la sección: las reglas al día y la elegida, si sigue; con cambios sin guardar, se
+    // conservan (salir de Configuración no los descarta)
     async refresh() {
+      const kept = loaded && dirty() ? draft : null;
       try { await reload(); }
       catch (err) { host.innerHTML = `<p class="pr-empty">No se pudieron cargar las reglas: ${esc(err.message)}</p>`; return; }
-      select(rules.find((r) => r.id === current?.id) || rules[0] || null);
+      const again = rules.find((r) => r.id === current?.id) || null;
+      if (kept && (again || !current)) { current = again; draft = kept; error = null; return render(); }
+      select(again || rules[0] || null);
     },
   };
 };
