@@ -1,5 +1,5 @@
-// Laboratorio de skills: el catálogo (publicadas y borradores) y el editor
-// multifichero de una skill, con su visibilidad (común o de un proyecto). Los
+// Laboratorio de skills: el catálogo (publicadas y borradores, en Configuración → Skills) y el
+// editor multifichero de una skill, a pantalla completa, con su visibilidad (común o de un proyecto). Los
 // borradores son locales; publicar la deja en la base para todo el equipo.
 // Las reglas, en lab.js.
 import { esc, svg } from '../ui/html.js';
@@ -13,9 +13,10 @@ const CACHE_KEY = 'sia-lab-cache';
 
 // perms(): lo que abre la clave de poder en la base (owner decide las comunes)
 // · onSkills(list): el bridge ha resincronizado las skills (la paleta, al día)
-export const mountLabView = ({ api, dialogs, perms, onSkills }) => {
+// · onEditor(): se abre una skill, el editor a pantalla completa · onCatalog(): se vuelve al catálogo
+export const mountLabView = ({ api, dialogs, perms, onSkills, onEditor, onCatalog }) => {
   const $ = (id) => document.getElementById(id);
-  const catalog = $('lab-catalog'), cards = $('lab-cards'), work = $('lab-work');
+  const cards = $('lab-cards'), work = $('lab-work');
   const skillId = $('lab-skill-id'), state = $('lab-state'), statusEl = $('lab-status');
   const saveBtn = $('lab-save'), publishBtn = $('lab-publish'), deleteBtn = $('lab-delete'), refreshBtn = $('lab-refresh');
   const fileTabs = $('lab-file-tabs'), textarea = $('lab-textarea'), scopeSel = $('lab-scope');
@@ -26,8 +27,8 @@ export const mountLabView = ({ api, dialogs, perms, onSkills }) => {
 
   const setState = (text, dirty = false) => { state.textContent = text; state.className = `lab-state ${dirty ? 'dirty' : ''}`; };
   const status = (text) => { statusEl.textContent = text; };
-  const showCatalog = () => { work.hidden = true; catalog.hidden = false; refresh(); };
-  const showEditor = () => { catalog.hidden = true; work.hidden = false; };
+  const showCatalog = () => { work.hidden = true; onCatalog(); refresh(); };
+  const showEditor = () => { work.hidden = false; onEditor(); };
 
   // tags: [{ text, cls }] — van en su propia fila, alineados a la derecha; una
   // etiqueta larga se recorta con «…» dentro de la card y se lee entera al pasar el ratón

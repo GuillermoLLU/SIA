@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assistedPlan, originOf } from './assisted.js';
+import { assistedPlan, originOf, knowsOrigin } from './assisted.js';
 
 const LAUNCHERS = [{ id: 'claude', label: 'Claude', available: true }, { id: 'copilot', label: 'Copilot', available: false }];
 const PROJECTS = [{ id: 5, name: 'SISU' }, { id: 6, name: 'SGA' }];
@@ -22,4 +22,11 @@ test('sin Claude o sin el proyecto del origen, un motivo claro', () => {
   assert.match(assistedPlan({ launchers: [], projects: PROJECTS, origin: 'SGA' }).error, /no está configurado/);
   assert.match(assistedPlan({ launchers: [{ id: 'claude', available: false }], projects: PROJECTS, origin: 'SGA' }).error, /no está instalado/);
   assert.match(assistedPlan({ launchers: LAUNCHERS, projects: [PROJECTS[1]], origin: 'SISU' }).error, /conocimiento de SISU/);
+});
+
+test('knowsOrigin: solo quien tiene el proyecto del origen; sin la lista, no se filtra', () => {
+  assert.equal(knowsOrigin(['SISU'], { sisu: true }), true);
+  assert.equal(knowsOrigin(['SISU'], { sisu: false }), false);
+  assert.equal(knowsOrigin(['sga'], { sisu: false }), true);
+  assert.equal(knowsOrigin(undefined, { sisu: false }), true);
 });

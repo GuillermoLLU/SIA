@@ -20,10 +20,9 @@ export const baseNav = (user, access) => {
   };
 };
 
-// Los paneles (Issues, Backlog, Equipo soporte, Métricas): una vista cada uno, sin
-// base. Equipo soporte es un solo icono para sus dos caras (métricas y
-// gestión de personas): sale si se tiene cualquiera de las dos.
-export const panelNav = (user, name) => (name === 'work' ? canView(user, 'work') || canView(user, 'people') : canView(user, name));
+// Los paneles (Issues, Backlog, Equipo soporte, Métricas): una vista cada uno, sin base.
+// La gestión de personas (people) no es un panel: es la caja Equipo de Configuración.
+export const panelNav = (user, name) => canView(user, name);
 
 // Quien solo tiene la mesa, el Chat (que es de todos) y los enlaces (que están en Configuración)
 // no lleva barra lateral, sino la de arriba.
@@ -32,8 +31,16 @@ export const usesTopbar = (user) => canView(user, 'issues') && viewsOf(user).eve
 // Las vistas que entran con el cruce (ui/crossfade.js): la mesa y el Chat, entre las que se va y se viene.
 export const crossesTo = (view) => view === 'chat' || view === 'issues';
 
-// La vista con la que se abre la app: la mesa de trabajo para quien la tiene; si no, el Chat.
-export const firstView = (user) => (canView(user, 'issues') ? 'issues' : 'chat');
+// La vista con la que se abre la app: la mesa para quien la tiene; si no, el Chat; si tampoco, Métricas
+// (con sus cajas, o el aviso de que no tiene vistas).
+export const firstView = (user) => (canView(user, 'issues') ? 'issues' : canView(user, 'chat') ? 'chat' : 'hub');
 
-// El icono de Equipo soporte abre las métricas del equipo o, si solo se gestiona, la gestión de personas.
-export const teamView = (user) => (canView(user, 'work') ? 'work' : 'users');
+// Métricas, un solo icono con tres caras: al pulsarlo, una caja por cada una que se tenga.
+// «Equipo» abre las métricas del equipo (o su gestión, teamView); «Servicio», las métricas; «Backlog», el backlog.
+export const HUB = [
+  { name: 'work', label: 'Equipo' },
+  { name: 'metrics', label: 'Servicio' },
+  { name: 'backlog', label: 'Backlog' },
+];
+export const hubBoxes = (user) => HUB.filter((h) => panelNav(user, h.name));
+export const inHub = (view) => view === 'hub' || HUB.some((h) => h.name === view);

@@ -32,23 +32,24 @@ export const ACTIONS = {
 
 // El selector de persona es el propio de la app (ui/picker.js); abrir,
 // elegir y cerrar lo lleva la vista (issues-view.js).
-const picker = (f, people) => peoplePicker({ name: f.name, id: `iss-f-${f.name}`, people, empty: 'No hay más personas en Issues' });
+// empty: lo que dice sin nadie a quien elegir (p. ej. nadie más con el conocimiento de su origen)
+const picker = (f, people, empty) => peoplePicker({ name: f.name, id: `iss-f-${f.name}`, people, empty: empty || 'No hay más personas en Issues' });
 
-const field = (f, people) => {
+const field = (f, people, empty) => {
   const id = `iss-f-${f.name}`;
   const label = `<span>${f.label}${f.required ? '' : ' <i>(opcional)</i>'}</span>`;
   const hint = f.hint ? `<small>${f.hint}</small>` : '';
   // el selector no va dentro de un <label>: un clic en su lista rebotaría al botón
-  if (f.kind === 'person') return `<div class="iss-field">${label}${picker(f, people)}${hint}</div>`;
+  if (f.kind === 'person') return `<div class="iss-field">${label}${picker(f, people, empty)}${hint}</div>`;
   const input = f.kind === 'text' ? `<textarea id="${id}" name="${f.name}" rows="5"></textarea>` : `<input id="${id}" name="${f.name}" />`;
   return `<label class="iss-field" for="${id}">${label}${input}${hint}</label>`;
 };
 
-export const actionForm = (key, issueId, people = []) => {
+export const actionForm = (key, issueId, people = [], empty = '') => {
   const a = ACTIONS[key];
   return `<form class="iss-act-form" data-act-form="${key}" novalidate>
     <header><h3>${a.title}</h3><span>${esc(issueId)}</span></header>
-    ${a.fields.map((f) => field(f, people)).join('')}
+    ${a.fields.map((f) => field(f, people, empty)).join('')}
     ${a.local ? '' : '<p class="iss-act-note">Aún no se envía a Remedy: irá por SIGLO cuando lo conectemos.</p>'}
     <p class="iss-act-err" hidden></p>
     <footer><button type="button" class="lab-btn" data-act-cancel>Cancelar</button><button type="submit" class="lab-btn primary" disabled>${a.ok}</button></footer>

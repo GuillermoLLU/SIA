@@ -20,10 +20,10 @@ test('la mesa: la barra entra ya y retiene la cascada; aunque el ratón la adela
   }
 });
 
-test('el ratón en la zona de la barra la adelanta', () => {
-  assert.equal(wantsSidebar(10), true);
-  assert.equal(wantsSidebar(EDGE_PX), false);
-  assert.equal(wantsSidebar(-1), false);
+test('el ratón en la franja de abajo, donde va el dock, lo adelanta', () => {
+  assert.equal(wantsSidebar(790, 800), true);
+  assert.equal(wantsSidebar(800 - EDGE_PX, 800), false);
+  assert.equal(wantsSidebar(801, 800), false);
 });
 
 test('adelantar: todas las fases a la vez, y solo una vez', () => {
@@ -40,7 +40,7 @@ const fakeBody = (...initial) => {
 };
 const fakeDoc = () => {
   const listeners = new Set();
-  return { listeners, addEventListener: (_, fn) => listeners.add(fn), removeEventListener: (_, fn) => listeners.delete(fn), move: (x) => [...listeners].forEach((fn) => fn({ clientX: x })) };
+  return { listeners, addEventListener: (_, fn) => listeners.add(fn), removeEventListener: (_, fn) => listeners.delete(fn), documentElement: { clientHeight: 800 }, move: (y) => [...listeners].forEach((fn) => fn({ clientY: y })) };
 };
 
 test('arrancar: el ratón en la zona de la barra lo adelanta y deja de escucharse', () => {
@@ -49,7 +49,7 @@ test('arrancar: el ratón en la zona de la barra lo adelanta y deja de escuchars
   assert.equal(body.classes.has('booting'), true);
   doc.move(300);
   assert.equal(body.classes.has('booting'), true);
-  doc.move(20);
+  doc.move(780);
   assert.deepEqual([...body.classes].sort(), ['asking', 'ready']);
   assert.equal(doc.listeners.size, 0);
 });

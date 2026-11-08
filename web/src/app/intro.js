@@ -10,10 +10,10 @@
 // le hace esperar: entra ya, con su animación, y el campo aparece con ella.
 export const HERO_STEPS = [[750, 'asking'], [1500, 'ready']]; // ms desde que pinta el saludo
 const NAV_FIRST_MS = 450; // lo que la barra le saca a la mesa: su caja ya ha llegado y aún asoma su contenido
-export const EDGE_PX = 72; // donde está la barra lateral (.sidebar): su ancho y su margen, con holgura
+export const EDGE_PX = 72; // donde está el dock de paneles (.sidebar, abajo): su alto y su margen, con holgura
 
-// el ratón está donde estaría la barra
-export const wantsSidebar = (x, edge = EDGE_PX) => x >= 0 && x < edge;
+// el ratón está donde estaría el dock: en la franja de abajo de la ventana
+export const wantsSidebar = (y, height, edge = EDGE_PX) => y <= height && y > height - edge;
 
 // Saltarse las fases que falten: todo a la vez. → true si había algo que adelantar.
 export const hurry = (body = document.body) => {
@@ -28,7 +28,7 @@ export const hurry = (body = document.body) => {
 export const startIntro = (body = document.body, doc = document) => {
   body.classList.add('booting');
   const onMove = (e) => {
-    if (wantsSidebar(e.clientX)) hurry(body);
+    if (wantsSidebar(e.clientY, doc.documentElement.clientHeight)) hurry(body);
     if (!body.classList.contains('booting')) doc.removeEventListener('mousemove', onMove);
   };
   doc.addEventListener('mousemove', onMove);

@@ -61,6 +61,8 @@
 .iss-today dl { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; margin: 4px 0 0; font-size: 13px; }
 .iss-today dt { color: var(--text-low); }
 .iss-today dd { margin: 0; font-weight: 500; font-variant-numeric: tabular-nums; }
+.iss-today dd small { font-size: 12px; font-weight: 400; color: var(--text-low); }
+.iss-full { display: flex; justify-content: center; align-items: center; gap: 6px; margin-top: -8px; color: var(--danger); }
 
 /* sus cifras: una caja cada una; sin ancho, sin la explicación (queda al pasar el ratón) */
 .iss-kpis { flex: none; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 24px; }
@@ -96,10 +98,18 @@
 .iss-week-bar i { display: block; background: var(--accent); }
 .iss-week-bar i.sisu { background: var(--iss-sisu); }
 
-/* seguimiento */
-.iss-cols { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
-.iss-col { min-height: 0; }
-.iss-col .iss-items { flex: 1; min-height: 0; overflow-y: auto; }
+/* seguimiento: a la izquierda, en curso arriba y las resueltas debajo; a la derecha, a toda altura, las pendientes de terceros */
+.iss-cols { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.iss-col { min-height: 0; gap: 8px; padding: 14px 20px 8px; }
+.iss-col .iss-card-h { padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.iss-col h3 { font-size: 11px; line-height: 16px; letter-spacing: .6px; color: var(--text-low); }
+.iss-col .iss-card-h > span { font-size: 11px; }
+.iss-col[data-list="doing"] { grid-area: 1 / 1; }
+.iss-col[data-list="resolved"] { grid-area: 2 / 1; }
+.iss-col[data-list="waiting"] { grid-area: 1 / 2 / 3; }
+/* su scroll, discreto: fino y solo se ve al pasar por encima */
+.iss-col .iss-items { flex: 1; min-height: 0; overflow: hidden auto; scrollbar-width: thin; scrollbar-color: transparent transparent; transition: scrollbar-color .25s ease; }
+.iss-col .iss-items:hover { scrollbar-color: var(--border) transparent; }
 .iss-origin { font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: .4px; color: var(--accent); }
 .iss-origin.sisu { color: var(--iss-sisu); }
 .iss-items { display: flex; flex-direction: column; margin: -4px -8px 0; }
@@ -120,9 +130,10 @@
 .iss-tag-handed { padding: 0 8px; font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: .4px; color: var(--text); background: var(--bg); }
 .iss-tip { position: relative; display: inline-flex; color: var(--text-low); outline: none; }
 .iss-tip:hover, .iss-tip:focus-visible { color: var(--accent); }
-.iss-tip-box { position: absolute; left: 50%; bottom: calc(100% + 8px); z-index: 5; width: max-content; max-width: 320px; padding: 10px 12px; font-size: 12px; font-weight: 400; line-height: 1.45; color: var(--text); text-align: left; white-space: normal; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0, 0, 0, .18); transform: translateX(-50%); opacity: 0; pointer-events: none; transition: opacity .12s ease; }
+.iss-tip-box { display: none; position: fixed; z-index: 60; width: max-content; max-width: 320px; padding: 10px 12px; font-size: 12px; font-weight: 400; line-height: 1.45; color: var(--text); text-align: left; white-space: normal; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0, 0, 0, .18); pointer-events: none; }
+.iss-tip-box.show { display: block; animation: iss-tip-in .12s ease; }
+@keyframes iss-tip-in { from { opacity: 0; } }
 .iss-tip-box i { display: block; margin-top: 6px; padding-top: 6px; font-style: normal; color: var(--text-low); border-top: 1px solid var(--border); }
-.iss-tip:hover .iss-tip-box, .iss-tip:focus-visible .iss-tip-box { opacity: 1; }
 
 /* pantalla de trabajo: cabecera con acciones; a la izquierda, pestañas
    (análisis, detalle, relacionadas) y a la derecha el chat, a la misma altura */
@@ -597,6 +608,9 @@ a.rv-id:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 body.top-nav .iss-top { display: none; }
 body.top-nav .iss-page { padding-top: calc(var(--topbar-h) + 24px); padding-bottom: 24px; } /* la barra de arriba y su aire */
 body.top-nav .iss-work-page { padding-top: calc(var(--topbar-h) + 16px); padding-bottom: 16px; }
+/* con la barra lateral, la app ya empieza debajo de la barra de arriba: el aire normal */
+body.brand-nav .iss-page { padding-top: 24px; }
+body.brand-nav .iss-work-page { padding-top: 16px; }
 
 
 .iss-dlg-text { font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
@@ -605,6 +619,8 @@ body.top-nav .iss-work-page { padding-top: calc(var(--topbar-h) + 16px); padding
 
 @media (max-width: 1100px) {
   .iss-cols, .iss-work { grid-template-columns: 1fr; }
+  .iss-cols { grid-template-rows: none; }
+  .iss-col[data-list] { grid-area: auto; }
   .iss-desk { display: flex; flex-direction: column; }
   .iss-rail { display: contents; }
   .iss-today { order: -1; }

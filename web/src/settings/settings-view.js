@@ -18,20 +18,31 @@ export const mountSettings = ({ api }) => {
   const layout = modal.querySelector('.settings-layout');
   let current = null; // la sección abierta
   let side = null;    // el título de la columna de la derecha cuando ocupa todo el ancho
+  // El título es adónde lleva la flecha: desde una sección, «Configuración»; desde una pantalla
+  // dentro de una sección (la ficha de alguien, los roles), la sección o la pantalla anterior.
+  let fullBack = null, fullParent = null;   // la pantalla a todo el ancho: cómo se vuelve y de dónde
   const paintHead = () => {
     back.hidden = !current && !side;
-    const text = side || (current ? boxOf(current).textContent : 'Configuración');
+    const text = fullBack ? fullParent : side && current ? boxOf(current).textContent : 'Configuración';
     if (title.textContent === text) return;
     title.textContent = text;
     if (!prefersReducedMotion()) {
       title.animate([{ opacity: 0, filter: 'blur(6px)' }, { opacity: 1, filter: 'blur(0)' }], { duration: 400, easing: 'ease' });
     }
   };
+  const paneOpens = [];
+  // Una sección que necesita todo el ancho (Equipo): sin la columna de enlaces. back: lo que hace
+  // entonces la flecha (cerrar la ficha, salir de los roles) en vez de ir a las cajas; parent: el
+  // nombre de donde se viene, que enseña la cabecera junto a la flecha.
+  const setFull = (on, back = null, parent = null) => { layout.classList.toggle('full', !!on); fullBack = on ? back : null; fullParent = parent; paintHead(); };
+
   const showPane = (name) => {
     current = name;
+    setFull(false);
     home.hidden = !!name;
     for (const p of panes) p.hidden = p.dataset.pane !== name;
     paintHead();
+    if (name) for (const fn of paneOpens) fn(name);
   };
   const showSide = (text) => {
     side = text;
@@ -39,7 +50,7 @@ export const mountSettings = ({ api }) => {
     paintHead();
   };
   for (const b of boxes) b.addEventListener('click', () => showPane(b.dataset.pane));
-  back.addEventListener('click', () => (side ? showSide(null) : showPane(null)));
+  back.addEventListener('click', () => (side ? showSide(null) : fullBack ? fullBack() : showPane(null)));
 
   // Jira
   const jiraUrl = $('jira-url-input'), jiraToken = $('jira-token-input'), jiraStatus = $('jira-status');
@@ -93,12 +104,13 @@ export const mountSettings = ({ api }) => {
     saveGh(next);
   });
 
-  const open = async () => {
+  // pane: abrir ya en una sección (Skills, al volver del editor)
+  const open = async (pane = null) => {
     setStatus(jiraStatus, '');
     setStatus(sfStatus, '');
     setStatus(ghStatus, '');
     showSide(null);
-    showPane(null);
+    showPane(typeof pane === 'string' ? pane : null);
     modal.hidden = false;
     for (const fn of opens) fn();
     try {
@@ -113,13 +125,17 @@ export const mountSettings = ({ api }) => {
     } catch { /* bridge caído: campos vacíos */ }
   };
   const close = () => { modal.hidden = true; for (const fn of closes) fn(); };
-  btn.addEventListener('click', open);
+  btn.addEventListener('click', () => open());
   closeBtn.addEventListener('click', close);
   modal.addEventListener('mousedown', (e) => { if (e.target === modal) close(); });
 
   return {
     onOpen: (fn) => opens.push(fn),
     onClose: (fn) => closes.push(fn),
+    onPane: (fn) => paneOpens.push(fn),   // fn(name) al entrar en una sección
+    setFull,
+    open,
+    close,
     showSide,
     // enseñar o quitar una caja; si se quita estando en su sección, se vuelve a las cajas
     showBox: (pane, on) => {

@@ -5,6 +5,8 @@
 import { pickLauncher, CHAT_KNOWLEDGE } from '../chat/start.js';
 
 export const originOf = (issue) => (issue.sisu ? 'SISU' : 'SGA');
+// ¿Puede llevar esta issue alguien con estos proyectos (groups)? Solo con el de su origen.
+export const knowsOrigin = (groups, issue) => !Array.isArray(groups) || groups.some((g) => String(g).trim().toUpperCase() === originOf(issue));
 
 // launchers: los del bridge [{ id, label, available }]; projects: los visibles [{ id, name }].
 // → { launcher, knowledge, projects: [id], project } | { error }

@@ -12,7 +12,9 @@ import { pickClick, openPicker, closePickers } from '../ui/picker.js';
 import { workScreen, trailHtml, trailTab, releaseDialogHtml, sendsNote, noteEditorHtml } from './work-screen.js';
 import { ACTIONS, actionForm, readAction, isComplete } from './actions.js';
 import { createResolver } from './resolve-view.js';
+import { knowsOrigin, originOf } from './assisted.js';
 import { crossfade } from '../ui/crossfade.js';
+import { mountTips } from './tip.js';
 import { readEscalate, createEscalateDrafts } from './escalate.js';
 import { escalateForm, escalateLive } from './escalate-form.js';
 import { DESTINATIONS, OPEN_TICKETS } from './escalate-mock.js';
@@ -72,7 +74,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
             ${kpi('Cola general', data.free, 'sin coger, de todo el equipo')}
           </div>
         <div class="iss-cols">
-          ${lists.map((l) => `<section class="iss-card iss-col">
+          ${lists.map((l) => `<section class="iss-card iss-col" data-list="${l.key}">
             <div class="iss-card-h"><h3>${l.label}</h3><span>${l.items.length}</span></div>
             <div class="iss-items">${l.items.slice(0, 12).map((i) => item(i, l.key, now)).join('') || `<p class="iss-empty">${l.empty}</p>`}</div>
           </section>`).join('')}
@@ -83,8 +85,9 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
           <div class="iss-card-h"><h3>Hoy</h3>${snapButton(snapshotInfo(data.taken, now))}</div>
           <div class="iss-big"><b>${today.resolved}</b><span>resueltas · objetivo ${GOAL.min}–${GOAL.max}<br>${today.sga} de SGA · ${today.sisu} de SISU</span></div>
           <div class="iss-progress" role="img" aria-label="${today.resolved} de ${GOAL.max}"><i style="width:${Math.min(100, today.resolved / GOAL.max * 100)}%"></i><em style="left:${GOAL.min / GOAL.max * 100}%"></em></div>
-          <dl><dt>Cogidas en SIA</dt><dd>${history.claimedToday}</dd><dt>En curso</dt><dd>${count('doing')}</dd><dt>Pendientes de terceros</dt><dd>${count('waiting')}</dd></dl>
-          <button class="iss-take" data-take ${next ? '' : 'disabled'}>Asignar siguiente issue</button>
+          <dl><dt>Cogidas en SIA</dt><dd>${history.claimedToday}</dd><dt>En curso</dt><dd>${count('doing')} <small>/ ${data.maxDoing}</small></dd><dt>Pendientes de terceros</dt><dd>${count('waiting')}</dd></dl>
+          <button class="iss-take" data-take ${next && data.canTake ? '' : 'disabled'}>Asignar siguiente issue</button>
+          ${data.canTake ? '' : '<p class="iss-foot iss-full"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 2.4 17.5A2 2 0 0 0 4.1 20.5h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>No puedes tener más en curso</p>'}
         </section>
         <section class="iss-card iss-hist">
           <div class="iss-card-h"><h3>Histórico semanal</h3><span class="iss-legend"><i></i>SGA <i class="sisu"></i>SISU</span></div>
@@ -238,6 +241,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   };
   root.addEventListener('input', (e) => { const form = e.target.closest('[data-act-form="escalate"]'); if (form) refreshEscalate(form); });
   // Escribir en «Otro ticket» o pulsar «Unirla a…» elige esa opción sin buscar el radio.
+  mountTips(root);
   root.addEventListener('focusin', (e) => { if (e.target.name === 'linkedOther') e.target.closest('label').querySelector('[name="linked"]').checked = true; });
   root.addEventListener('click', (e) => {
     const use = e.target.closest('[data-esc-use-link]');
@@ -250,8 +254,10 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   const openAction = async (key) => {
     closeAction();
     if (key === 'resolve') return resolver.open(opened, issue?.link || null, closeAction);
-    if (key === 'transfer') people = await api.teammates();
-    root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${key === 'escalate' ? escalateModal() : actionForm(key, opened, people)}</div>`);
+    // traspasar: solo a quien tiene el conocimiento de su origen (SGA, SISU)
+    if (key === 'transfer') people = (await api.teammates()).filter((p) => !issue || knowsOrigin(p.groups, issue));
+    const empty = key === 'transfer' && issue ? `Nadie más tiene el conocimiento de ${originOf(issue)}` : '';
+    root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${key === 'escalate' ? escalateModal() : actionForm(key, opened, people, empty)}</div>`);
     root.querySelector(key === 'escalate' ? '#iss-f-dest' : '.iss-act-form textarea, .iss-act-form input:not([type=hidden]), .iss-act-form select')?.focus();
     // Escape: con la lista del selector abierta la cierra; si no, cierra el modal
     offEscape = onEscape(() => (openPicker(root) ? closePickers(root) : closeAction()));

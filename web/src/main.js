@@ -8,8 +8,10 @@ import { createDialogs } from './ui/dialog.js';
 import { createToast } from './ui/dom.js';
 import { crossfade } from './ui/crossfade.js';
 import { bridgeFromQuery, discoverBridge } from './app/discover.js';
-import { canView, baseNav, panelNav, teamView, firstView, usesTopbar, crossesTo } from './app/nav.js';
+import { canView, baseNav, firstView, usesTopbar, crossesTo, hubBoxes, inHub } from './app/nav.js';
 import { mountTopbar } from './app/topbar.js';
+import { mountDock } from './app/dock.js';
+import { mountHub } from './app/hub.js';
 import { createPermsWatch } from './app/perms.js';
 import { startIntro, reveal, revealDesk } from './app/intro.js';
 import { createAuthSession } from './auth/session.js';
@@ -32,6 +34,7 @@ import { mountIssuesView } from './issues/issues-view.js';
 import { createIssuesApi } from './issues/issues-api.js';
 import { mountIssueChat } from './issues/issue-chat.js';
 import { mountBacklogView } from './backlog/backlog-view.js';
+import { mountRulesView } from './backlog/rules-view.js';
 import { createBacklogApi } from './backlog/backlog-api.js';
 import { mountWorkView } from './work/work-view.js';
 import { mountMetricsView } from './metrics/metrics-view.js';
@@ -96,33 +99,47 @@ wireLogout($('settings-session'), { session });
 const linksDirectory = mountLinksDirectory({ api, dialogs, settings });
 
 /* ── Vistas: la barra lateral abre una cada vez ─────────────────── */
-const nav = { chat: $('nav-chat'), lab: $('nav-lab') };
-const views = { chat: $('view-chat'), lab: $('view-lab'), users: $('view-users') };
+const nav = { chat: $('nav-chat') };
+const views = { chat: $('view-chat'), lab: $('view-lab'), hub: $('view-hub') };
 const perms = createPermsWatch({
   api,
   onUpdate: (access, { quiet, changed }) => {
     const show = baseNav(user, access);
-    nav.lab.hidden = !show.lab;
-    if (!show.lab && !views.lab.hidden) showView('chat');
+    settings.showBox('skills', show.lab);
+    if (!show.lab && !views.lab.hidden) showView(firstView(user));
     settings.showBox('administracion', show.admin);
     linksDirectory.show(show.links, show.linksEdit);
     // el catálogo del Laboratorio depende de esos permisos: se repinta si han cambiado
     if (quiet && changed && !views.lab.hidden) lab.refresh({ background: true });
   },
   onLost: () => { // sin base (o bridge caído) no hay vista que abrir: fuera lo que depende de ella
-    nav.lab.hidden = true;
+    settings.showBox('skills', false);
     settings.showBox('administracion', false);
     linksDirectory.show(false);
-    if (!views.lab.hidden) showView('chat');
+    if (!views.lab.hidden) showView(firstView(user));
   },
 });
-const lab = mountLabView({ api, dialogs, perms: perms.perms, onSkills: palette.setSkills });
+// Las skills: el catálogo en Configuración → Skills; abrir una cierra el modal y el editor ocupa la
+// pantalla; al volver, de nuevo el catálogo sobre la vista que había.
+let beforeLab = firstView(user);
+const lab = mountLabView({
+  api, dialogs, perms: perms.perms, onSkills: palette.setSkills,
+  onEditor: () => { if (views.lab.hidden) beforeLab = currentView; settings.close(); showView('lab'); },
+  onCatalog: () => { showView(beforeLab); settings.open('skills'); },
+});
+settings.onPane((name) => { if (name === 'skills') lab.refresh(); });
 mountProjectsPanel({ api, dialogs, toast, settings });
-// Gestión del equipo (users/): la otra cara de Equipo soporte (se entra por su
-// icono); «Métricas equipo» vuelve a sus métricas si también tiene esa vista.
+// Gestión del equipo (users/): la caja Equipo de Configuración; «Métricas equipo» cierra el modal y
+// abre las métricas del equipo si también tiene esa vista.
+settings.showBox('equipo', canView(user, 'people'));
 const usersView = canView(user, 'people')
-  ? mountPeopleView(views.users, { usersApi: createUsersApi(api), knowledgeApi: createKnowledgeApi(api), me: user, toast, onMetrics: canView(user, 'work') ? () => showView('work') : undefined })
+  ? mountPeopleView($('settings-people'), { usersApi: createUsersApi(api), knowledgeApi: createKnowledgeApi(api), me: user, toast, dialogs, onMetrics: canView(user, 'work') ? () => { settings.close(); showView('work'); } : undefined, onScreen: (sub) => settings.setFull(!!sub, sub?.back ?? null, sub?.parent ?? null) })   // la ficha, el alta y los roles, a todo el ancho; la lista, con los enlaces
   : null;
+settings.onPane((name) => { if (name === 'equipo') usersView.refresh(); });
+// Priorización (backlog/): las reglas, en Configuración para quien tiene Backlog; a todo el ancho
+settings.showBox('priorizacion', canView(user, 'backlog'));
+const rulesView = canView(user, 'backlog') ? mountRulesView($('settings-rules'), { api: createBacklogApi(api), dialogs, toast, onChange: () => PANELS.find((p) => p.name === 'backlog')?.ui?.show?.() }) : null;
+settings.onPane((name) => { if (name === 'priorizacion') { settings.setFull(true); rulesView.refresh(); } });
 // Paneles (Issues, Backlog, Equipo soporte, Métricas): una vista cada uno, sin base. Si
 // el panel devuelve show(), se llama al abrirlo (Issues recarga su foto).
 const PANELS = [
@@ -134,30 +151,40 @@ const PANELS = [
   // clic en una persona de Equipo soporte: se abre en Métricas frente al resto de su equipo
   { name: 'work', mount: (el) => mountWorkView(el, { api: createMetricsApi(api),
     openPerson: (person) => { PANELS.find((p) => p.name === 'metrics').ui?.focus(person); showView('metrics'); },
-    onManage: canView(user, 'people') ? () => showView('users') : undefined }) },
+    onManage: canView(user, 'people') ? () => settings.open('equipo') : undefined }) },
   { name: 'metrics', mount: (el) => mountMetricsView(el, { api: createMetricsApi(api), toast }) },
-].map((p) => ({ ...p, nav: $(`nav-${p.name}`), view: $(`view-${p.name}`) }));
+].map((p) => ({ ...p, view: $(`view-${p.name}`) }));
+// El dock: Issues y Métricas (Equipo, Servicio y Backlog detrás de un solo icono, app/hub.js)
+const dock = { issues: $('nav-issues'), hub: $('nav-metrics') };
 
 let topbar = null;
-const onShow = { lab: () => lab.refresh(), users: () => usersView.refresh(), chat: () => { chat.refitActive(); chat.focusActive(); } };
+const onShow = { chat: () => { chat.refitActive(); chat.focusActive(); } };
+let currentView = 'chat';
 const showView = (name) => {
+  currentView = name;
   for (const [k, v] of Object.entries(views)) v.hidden = name !== k;
   for (const [k, n] of Object.entries(nav)) n.classList.toggle('active', name === k);
-  // Las métricas y la gestión del equipo son las dos caras del equipo: un solo icono en la barra
-  for (const p of PANELS) { p.view.hidden = name !== p.name; p.nav.classList.toggle('active', name === p.name || (p.name === 'work' && name === 'users')); }
+  for (const p of PANELS) p.view.hidden = name !== p.name;
+  dock.issues.classList.toggle('active', name === 'issues');
+  dock.hub.classList.toggle('active', inHub(name));
   topbar?.show(name);
   onShow[name]?.();
   return PANELS.find((p) => p.name === name)?.ui?.show?.(); // lo que tarda en pintarse, si es un panel
 };
 const go = (name) => (crossesTo(name) ? crossfade(() => showView(name)) : showView(name));
 for (const [k, n] of Object.entries(nav)) n.addEventListener('click', () => go(k));
-for (const p of PANELS) {
-  p.nav.innerHTML = VIEWS.find((v) => v.id === p.name).icon;
-  p.nav.hidden = !panelNav(user, p.name);
-  p.nav.addEventListener('click', () => go(p.name === 'work' ? teamView(user) : p.name));
-  p.ui = p.mount(p.view);
-}
-if (usesTopbar(user)) topbar = mountTopbar(document.querySelector('.app'), { name: user.name, chat: nav.chat, desk: $('nav-issues'), settings: $('settings-btn'), lock: $('lock-btn') });
+for (const p of PANELS) p.ui = p.mount(p.view);
+dock.issues.innerHTML = VIEWS.find((v) => v.id === 'issues').icon;
+dock.issues.hidden = !canView(user, 'issues');
+dock.issues.addEventListener('click', () => go('issues'));
+const hub = hubBoxes(user);
+dock.hub.innerHTML = VIEWS.find((v) => v.id === 'metrics').icon;
+dock.hub.hidden = !hub.length;
+dock.hub.addEventListener('click', () => go('hub'));
+mountHub(views.hub, { boxes: hub, go });
+// La barra de arriba (inicial, marca y Chat) para todo el mundo; quien tiene más vistas conserva además la lateral
+topbar = mountTopbar(document.querySelector('.app'), { name: user.name, chat: nav.chat, desk: $('nav-issues'), settings: $('settings-btn'), lock: $('lock-btn'), hasChat: canView(user, 'chat') });
+if (!usesTopbar(user)) { document.body.classList.add('brand-nav'); mountDock(document.querySelector('.sidebar')); }
 // Se abre en la mesa de trabajo: primero la barra y después la mesa (app/intro.js).
 const opening = firstView(user);
 if (opening !== 'chat') revealDesk();
