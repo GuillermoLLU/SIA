@@ -44,3 +44,7 @@ export const HUB = [
 ];
 export const hubBoxes = (user) => HUB.filter((h) => panelNav(user, h.name));
 export const inHub = (view) => view === 'hub' || HUB.some((h) => h.name === view);
+
+// El nombre de la sección en la que se está, en el centro de la barra de arriba.
+const VIEW_TITLES = { chat: 'Chat', issues: 'Mesa de trabajo', hub: 'Métricas', work: 'Equipo soporte', metrics: 'Métricas', backlog: 'Backlog', lab: 'Skills' };
+export const viewTitle = (view) => VIEW_TITLES[view] || '';

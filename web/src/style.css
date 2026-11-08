@@ -119,6 +119,8 @@ body.top-nav .ai-hero { top: calc(-1 * var(--topbar-h)); padding: calc(var(--top
 .top-brand-itx { display: flex; }
 .top-brand i { width: 1px; height: 24px; background: var(--border); }
 .top-brand-name { font-size: 16px; line-height: 20px; }
+/* la sección en la que se está, en el centro de la barra */
+.top-title { position: absolute; left: 50%; transform: translateX(-50%); font-size: 13px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--text); pointer-events: none; }
 .topbar { position: fixed; top: 12px; right: 30px; z-index: 20; display: flex; align-items: center; gap: 8px; }
 .top-btn {
   width: 40px; height: 40px; display: grid; place-items: center; padding: 0;

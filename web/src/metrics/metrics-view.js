@@ -63,7 +63,7 @@ export const mountMetricsView = (root, { api, toast }) => {
   };
 
   const renderEmpty = () => {
-    root.innerHTML = `<div class="mt-page mt-empty-page"><header class="mt-top"><h2 class="mt-title">Métricas</h2></header>
+    root.innerHTML = `<div class="mt-page mt-empty-page">
       <div class="mt-empty"><b>Aún no hay datos</b>
         <span>Trae de Snowflake las incidencias de Remedy (con notas e historial) desde 2026, o carga un CSV de esa misma consulta. Se guardan en el repositorio local de este ordenador y de él salen las métricas; cada vez que actualices, solo llega lo nuevo y lo cambiado.</span>
         <div class="mt-empty-actions">${loadButton()}${moreMenu(false)}</div></div></div>`;
@@ -76,7 +76,7 @@ export const mountMetricsView = (root, { api, toast }) => {
   const renderFrame = () => {
     const { meta } = m.data;
     root.innerHTML = `<div class="mt-page">
-      <header class="mt-top"><h2 class="mt-title">Métricas</h2>
+      <header class="mt-top">
         <span class="mt-date" data-coverage title="${esc(`${meta.file}, actualizado el ${dayOf(meta.generated)}`)}"></span>
         ${loadButton()}${moreMenu()}</header>
       <div class="mt-fbar">

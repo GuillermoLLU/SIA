@@ -26,7 +26,7 @@ export const mountBacklogView = (root, { api, dialogs, toast }) => {
   let opened = null, detail = null, people = [], side = { busy: false, error: null };
 
   // en la línea del título: el buscador (search) a la izquierda y el resto (tools) a la derecha
-  const page = (body, { search = '', tools = '' } = {}) => `<div class="bl-page"><header class="bl-head"><h2 class="iss-title">Backlog</h2>${search}${tools ? `<div class="bl-bar">${tools}</div>` : ''}</header>${body}</div>`;
+  const page = (body, { search = '', tools = '' } = {}) => `<div class="bl-page"><header class="bl-head">${search}${tools ? `<div class="bl-bar">${tools}</div>` : ''}</header>${body}</div>`;
 
   // una tarjeta del panel: qué se mide y el número; pulsada, filtra la lista
   const tile = (label, value, { key, value: v, on, kind = '' }) =>

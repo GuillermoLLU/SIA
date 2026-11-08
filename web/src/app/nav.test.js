@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { viewsOf, canView, baseNav, panelNav, firstView, usesTopbar, crossesTo, hubBoxes, inHub } from './nav.js';
+import { viewsOf, canView, baseNav, panelNav, firstView, usesTopbar, crossesTo, hubBoxes, inHub, viewTitle } from './nav.js';
 
 const u = (views) => ({ views });
 
@@ -62,4 +62,11 @@ test('hubBoxes: una caja por cara de Métricas que se tenga, en orden Equipo · 
 test('inHub: el icono de Métricas se marca con el selector y con cualquiera de sus caras', () => {
   for (const v of ['hub', 'work', 'metrics', 'backlog']) assert.equal(inHub(v), true, v);
   for (const v of ['chat', 'issues', 'lab', 'users']) assert.equal(inHub(v), false, v);
+});
+
+test('viewTitle: el nombre de cada sección para la barra de arriba; una que no existe, nada', () => {
+  assert.equal(viewTitle('issues'), 'Mesa de trabajo');
+  assert.equal(viewTitle('backlog'), 'Backlog');
+  assert.equal(viewTitle('chat'), 'Chat');
+  assert.equal(viewTitle('nope'), '');
 });

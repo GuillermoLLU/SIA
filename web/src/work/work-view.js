@@ -26,7 +26,7 @@ export const mountWorkView = (root, { api, openPerson }) => {
   const $ = (s) => root.querySelector(s);
 
   // cabecera: título, fecha de los datos y, a la derecha, el periodo (si hay datos)
-  const page = (body, tools = '') => `<div class="mt-page"><header class="mt-top wk-top"><h2 class="mt-title">Equipo soporte</h2>${body}<span class="wk-tools">${tools}</span></header>`;
+  const page = (body, tools = '') => `<div class="mt-page"><header class="mt-top wk-top">${body}<span class="wk-tools">${tools}</span></header>`;
 
   const renderFrame = () => {
     const period = '<div class="mt-period"><button class="mt-btn mt-icon-btn" data-calendar aria-haspopup="true">' + CALENDAR_ICON + '<span data-period></span></button><div class="mt-pop mt-cal" data-cal hidden></div></div>';

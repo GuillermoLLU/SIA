@@ -52,7 +52,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     closeChat();
     onDesk = true;
     if (!data.taken) {
-      root.innerHTML = `<div class="iss-page"><h2 class="iss-title">Issues</h2>
+      root.innerHTML = `<div class="iss-page">
         <div class="iss-none"><b>Aún no hay issues</b><span>De momento se cargan con el CSV de la consulta de Remedy (vale el mismo que el de Métricas); cuando SIA lea de Remedy, saldrán de ahí.</span>${loadButton('Cargar CSV')}</div></div>`;
       return;
     }
@@ -61,8 +61,6 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     const count = (key) => lists.find((l) => l.key === key).items.length;
     const used = history.weeks.some((w) => w.sga + w.sisu);
     root.innerHTML = `<div class="iss-page iss-desk-page">
-      <header class="iss-top"><h2 class="iss-title">Hola, ${esc((me?.name || '').split(' ')[0] || 'equipo')}</h2></header>
-
       <div class="iss-desk">
         <div class="iss-main">
           <div class="iss-kpis">

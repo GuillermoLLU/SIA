@@ -8,7 +8,7 @@ import { createDialogs } from './ui/dialog.js';
 import { createToast } from './ui/dom.js';
 import { crossfade } from './ui/crossfade.js';
 import { bridgeFromQuery, discoverBridge } from './app/discover.js';
-import { canView, baseNav, firstView, usesTopbar, crossesTo, hubBoxes, inHub } from './app/nav.js';
+import { canView, baseNav, firstView, usesTopbar, crossesTo, hubBoxes, inHub, viewTitle } from './app/nav.js';
 import { mountTopbar } from './app/topbar.js';
 import { mountDock } from './app/dock.js';
 import { mountHub } from './app/hub.js';
@@ -166,7 +166,7 @@ const showView = (name) => {
   for (const p of PANELS) p.view.hidden = name !== p.name;
   dock.issues.classList.toggle('active', name === 'issues');
   dock.hub.classList.toggle('active', inHub(name));
-  topbar?.show(name);
+  topbar?.show(name, viewTitle(name));
   onShow[name]?.();
   return PANELS.find((p) => p.name === name)?.ui?.show?.(); // lo que tarda en pintarse, si es un panel
 };

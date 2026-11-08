@@ -26,7 +26,6 @@
 }
 .mt-page { padding: 0 28px 48px; }
 .mt-top { display: flex; align-items: center; gap: 14px; padding: 22px 0 14px; }
-.mt-title { margin: 0; font-size: 22px; font-weight: 680; }
 .mt-date { font-size: 13px; color: var(--mt-low); }
 .mt-top .mt-load { margin-left: auto; }
 .mt-load { display: inline-flex; align-items: center; height: 32px; padding: 0 14px; border: 0; font-family: inherit; font-size: 13px; font-weight: 600; color: var(--surface); background: var(--accent); cursor: pointer; white-space: nowrap; }

@@ -16,7 +16,7 @@ const ARROW = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
 const mountBrand = (host) => {
   const brand = document.createElement('div');
   brand.className = 'top-brand';
-  brand.innerHTML = `<span class="top-brand-itx" role="img" aria-label="Inditex">${inditexLogo}</span><i></i><span class="top-brand-name">SIA</span>`;
+  brand.innerHTML = `<span class="top-brand-itx" role="img" aria-label="Inditex">${inditexLogo}</span><i></i><span class="top-brand-name">SIA</span><span class="top-title" aria-live="polite"></span>`;
   host.append(brand);
   return brand;
 };
@@ -50,8 +50,14 @@ export const mountTopbar = (host, { name, chat, desk, settings, lock, hasChat = 
   const slide = wireSlideLock(ini, user, () => lock.click());
   ini.addEventListener('click', () => { if (!slide.justSlid()) settings.click(); }); // venir de arrastrar no abre nada
 
+  const titleEl = host.querySelector('.top-title');
   return {
-    show: (view) => {
+    // view: la vista que se enseña; title: su nombre, en el centro de la barra
+    show: (view, title = '') => {
+      if (titleEl.textContent !== title) {
+        titleEl.textContent = title;
+        if (!matchMedia('(prefers-reduced-motion: reduce)').matches) titleEl.animate([{ opacity: 0, transform: 'translate(-50%, 4px)' }, { opacity: 1, transform: 'translate(-50%, 0)' }], { duration: 260, easing: 'ease' });
+      }
       target = view === 'chat' && hasDesk() ? desk : chat;
       chatBtn.title = target.title;
       chatBtn.setAttribute('aria-label', target.title);
