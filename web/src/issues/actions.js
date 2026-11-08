@@ -31,7 +31,7 @@ export const ACTIONS = {
   },
   // insistir a quien la tiene parada (proveedor, cliente, el equipo al que se escaló)
   chase: {
-    label: 'Reclamar al tercero', title: 'Reclamar al tercero', ok: 'Reclamar',
+    label: 'Reclamar respuesta', title: 'Reclamar respuesta', ok: 'Reclamar',
     fields: [
       { name: 'message', label: 'Qué le reclamas', kind: 'text', required: true },
     ],

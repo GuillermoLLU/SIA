@@ -96,7 +96,7 @@ const ACTION_BUTTON = {
   escalate: '<button class="lab-btn" data-act="escalate">Escalar</button>',
   transfer: '<button class="lab-btn" data-act="transfer">Traspasar</button>',
   release: '<button class="lab-btn" data-release>Devolver a la cola</button>',
-  chase: '<button class="lab-btn primary" data-act="chase">Reclamar al tercero</button>',
+  chase: '<button class="lab-btn primary" data-act="chase">Reclamar respuesta</button>',
 };
 const actionButton = (key) => ACTION_BUTTON[key];
 
@@ -108,7 +108,7 @@ const HANDOFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stro
 const escalatedTag = (i) => `<span class="iss-escalated" title="Pendiente de un tercero: resolver, escalar o devolverla no tiene sentido hasta que responda">${BELL}<b>Escalada${i.reason && REASON_ES[i.reason] && REASON_ES[i.reason] !== 'Escalada' ? ` a ${esc(REASON_ES[i.reason])}` : ''}</b><span>desde el ${when(pendingSince(i))}</span></span>`;
 // En «Reclamar», a modo de aviso, los días que lleva parada (con el color de la mesa, stillLevel)
 const pendingActs = (i, now) => { const d = stillDays(i, now); return `<aside class="iss-card iss-pending-acts" aria-label="Qué hacer con ella">
-      <button class="iss-big-act primary" data-act="chase">${BELL}<span>Reclamar al tercero</span><em class="iss-big-still ${stillLevel(d)}">${d} ${d === 1 ? 'día' : 'días'} sin moverse</em></button>
+      <button class="iss-big-act primary" data-act="chase">${BELL}<span>Reclamar respuesta</span><em class="iss-big-still ${stillLevel(d)}">${d} ${d === 1 ? 'día' : 'días'} sin moverse</em></button>
       <button class="iss-big-act" data-act="transfer">${HANDOFF}<span>Traspasar</span></button>
     </aside>`; };
 
