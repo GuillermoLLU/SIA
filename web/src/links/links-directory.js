@@ -63,7 +63,7 @@ export const mountLinksDirectory = ({ api, dialogs, settings }) => {
       const appears = on && box.hidden; // p. ej. llegan los permisos con Configuración ya abierta
       box.hidden = !on;
       if (edit !== canEdit) { canEdit = edit; paint(); }
-      if (!edit) settings.showSide(null);
+      if (!edit) settings.showSide(false);
       if (appears) refresh();
     },
   };

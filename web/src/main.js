@@ -42,7 +42,7 @@ import { createMetricsApi } from './metrics/metrics-api.js';
 
 const $ = (id) => document.getElementById(id);
 document.documentElement.classList.add('styled'); // los estilos ya están: la página puede verse (index.html)
-startIntro(); // la barra lateral espera al saludo de la portada (app/intro.js)
+startIntro(); // las barras esperan al saludo de la portada (app/intro.js)
 
 // Favicon de la pestaña (la S) y la S de las pantallas completas.
 document.head.appendChild(Object.assign(document.createElement('link'), { rel: 'icon', href: logoUrl }));

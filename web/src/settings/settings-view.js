@@ -1,14 +1,15 @@
 // Configuración (el modal): sus secciones, la versión y las conexiones
 // (Jira, GitHub y el usuario de Snowflake de las Métricas). Lo demás (el PIN, los enlaces) se
-// cuelgan de onOpen/onClose para releer su estado cuando se abre o se cierra.
+// cuelga de onOpen para releer su estado al abrirse, y de onPane al entrar en una sección.
 import { esc } from '../ui/html.js';
 import { setStatus, prefersReducedMotion } from '../ui/dom.js';
 import { jiraConfig, ghMask, addGithubKey, removeGithubKey, toggleGithubKey } from './credentials.js';
+import { headOf } from './head.js';
 
 export const mountSettings = ({ api }) => {
   const $ = (id) => document.getElementById(id);
   const modal = $('settings-modal'), btn = $('settings-btn'), closeBtn = $('settings-close'), version = $('settings-version');
-  const opens = [], closes = [];
+  const opens = [];
 
   /* Al abrir, una caja por sección; pulsar una enseña solo esa, con la flecha para volver */
   const home = $('settings-home'), title = $('settings-title'), back = $('settings-back');
@@ -17,13 +18,13 @@ export const mountSettings = ({ api }) => {
   const boxOf = (name) => boxes.find((b) => b.dataset.pane === name);
   const layout = modal.querySelector('.settings-layout');
   let current = null; // la sección abierta
-  let side = null;    // el título de la columna de la derecha cuando ocupa todo el ancho
-  // El título es adónde lleva la flecha: desde una sección, «Configuración»; desde una pantalla
-  // dentro de una sección (la ficha de alguien, los roles), la sección o la pantalla anterior.
+  let side = false;   // el formulario de un enlace, a todo el ancho de la columna de la derecha
   let fullBack = null, fullParent = null;   // la pantalla a todo el ancho: cómo se vuelve y de dónde
+  // El título es adónde lleva la flecha (head.js)
   const paintHead = () => {
-    back.hidden = !current && !side;
-    const text = fullBack ? fullParent : side && current ? boxOf(current).textContent : 'Configuración';
+    const head = headOf({ section: current, sectionName: current ? boxOf(current).textContent : '', side, full: fullBack ? { parent: fullParent } : null });
+    back.hidden = !head.back;
+    const text = head.title;
     if (title.textContent === text) return;
     title.textContent = text;
     if (!prefersReducedMotion()) {
@@ -44,13 +45,13 @@ export const mountSettings = ({ api }) => {
     paintHead();
     if (name) for (const fn of paneOpens) fn(name);
   };
-  const showSide = (text) => {
-    side = text;
-    layout.classList.toggle('side-open', !!text);
+  const showSide = (on) => {
+    side = !!on;
+    layout.classList.toggle('side-open', side);
     paintHead();
   };
   for (const b of boxes) b.addEventListener('click', () => showPane(b.dataset.pane));
-  back.addEventListener('click', () => (side ? showSide(null) : fullBack ? fullBack() : showPane(null)));
+  back.addEventListener('click', () => (side ? showSide(false) : fullBack ? fullBack() : showPane(null)));
 
   // Jira
   const jiraUrl = $('jira-url-input'), jiraToken = $('jira-token-input'), jiraStatus = $('jira-status');
@@ -109,8 +110,8 @@ export const mountSettings = ({ api }) => {
     setStatus(jiraStatus, '');
     setStatus(sfStatus, '');
     setStatus(ghStatus, '');
-    showSide(null);
-    showPane(typeof pane === 'string' ? pane : null);
+    showSide(false);
+    showPane(pane);
     modal.hidden = false;
     for (const fn of opens) fn();
     try {
@@ -124,14 +125,13 @@ export const mountSettings = ({ api }) => {
       renderGh();
     } catch { /* bridge caído: campos vacíos */ }
   };
-  const close = () => { modal.hidden = true; for (const fn of closes) fn(); };
+  const close = () => { modal.hidden = true; };
   btn.addEventListener('click', () => open());
   closeBtn.addEventListener('click', close);
   modal.addEventListener('mousedown', (e) => { if (e.target === modal) close(); });
 
   return {
     onOpen: (fn) => opens.push(fn),
-    onClose: (fn) => closes.push(fn),
     onPane: (fn) => paneOpens.push(fn),   // fn(name) al entrar en una sección
     setFull,
     open,

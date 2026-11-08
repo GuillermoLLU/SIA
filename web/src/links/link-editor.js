@@ -44,9 +44,9 @@ export const mountLinkEditor = ({ api, dialogs, settings, onChange }) => {
     fErr.hidden = true;
     fDelete.hidden = !l;
     paintImage();
-    settings.showSide(l ? 'Editar enlace' : 'Nuevo enlace');
+    settings.showSide(true);
   };
-  const close = () => settings.showSide(null);
+  const close = () => settings.showSide(false);
   const showError = (text) => { fErr.textContent = text; fErr.hidden = false; };
 
   /* La imagen se redimensiona AQUÍ, antes de guardarla: viaja dentro del

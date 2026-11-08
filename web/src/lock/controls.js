@@ -1,5 +1,5 @@
-// Bloqueo de pantalla del escritorio: el candado de la barra lateral, o arrastrar la
-// inicial en la de arriba, tapa la ventana hasta dar el PIN; la primera vez, antes de
+// Bloqueo de pantalla del escritorio: arrastrar la inicial de la barra de arriba (que pulsa
+// el botón del candado, oculto en la .sidebar) tapa la ventana hasta dar el PIN; la primera vez, antes de
 // bloquear, pide elegirlo. El PIN se cambia en Configuración → Seguridad. Lo guarda y
 // lo comprueba el bridge.
 import { esc } from '../ui/html.js';
