@@ -63,7 +63,7 @@ export const mountBacklogView = (root, { api, dialogs, toast }) => {
       search: `<label class="bl-search"><input type="search" data-q placeholder="Buscar una issue, un centro o un texto" value="${esc(filter.q)}" aria-label="Buscar en el backlog"></label>`,
       tools: `
         ${filtering ? `<p class="bl-shown"><b>${shown.length}</b> de ${c.total} · <button class="bl-clear" data-key="all">Ver todas</button></p>` : ''}
-        <div class="bl-order" title="Orden de la cola">${pickerHtml({ id: 'bl-rule', name: 'rule', value: data.rule, inline: true, groups: [{ options: data.rules.map((r) => ({ value: r.id, label: r.label })) }] })}</div>
+        <div class="bl-order" title="Orden de la cola"><span>Ordenar por</span>${pickerHtml({ id: 'bl-rule', name: 'rule', value: data.rule, inline: true, groups: [{ options: data.rules.map((r) => ({ value: r.id, label: r.label })) }] })}</div>
         <button type="button" class="iss-date bl-reload${snap.stale ? ' stale' : ''}" data-reload title="Datos de Remedy: pulsa para actualizar el backlog"${loading ? ' disabled' : ''}>${loading ? 'Actualizando…' : snap.date}${REFRESH_ICON}</button>`,
     });
   };
