@@ -64,8 +64,8 @@ funcionan igual, pero sin la base del equipo ni sus skills.
 
 ## Backlog y reglas de priorización
 
-Quien tiene la vista **Backlog** ve la cola entera del equipo: las issues de
-la foto que nadie tiene (sin responsable en Remedy ni cogidas en SIA), en el
+Quien tiene la vista **Backlog** ve la cola del equipo de sus orígenes (SGA,
+SISU, según su conocimiento): las issues de la foto que nadie tiene (sin responsable en Remedy ni cogidas en SIA), en el
 orden de una **regla de priorización**. Una regla es un nombre y una lista
 ordenada de criterios de un catálogo cerrado (`platform.known_criteria()`; qué
 hace cada uno, en `server/issues/queue.js`): el primero manda y los demás

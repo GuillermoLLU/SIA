@@ -71,3 +71,13 @@ test('asignar: a la base con el origen de la issue, que solo deja dársela a qui
     ['platform_assign_issue', { p_issue: 'INC2', p_to: 'u-ana', p_origin: 'SGA' }],
   ]);
 });
+
+test('el backlog de cada uno: solo lo de sus orígenes; el detalle de otro origen, como si no existiera', async () => {
+  const issues = [issue('INC1', { sisu: true }), issue('INC2'), issue('INC3', { sisu: true })];
+  const sisu = { user: { groups: ['SISU'] }, accessToken: 'jwt' };
+  assert.deepEqual((await service(issues).list(sisu)).issues.map((i) => i.id).sort(), ['INC1', 'INC3']);
+  assert.equal(await service(issues).get(sisu, 'INC2'), null);
+  assert.equal((await service(issues).get(sisu, 'INC1')).issue.id, 'INC1');
+  assert.equal((await service(issues).list({ user: { groups: [] }, accessToken: 'jwt' })).issues.length, 0);
+  assert.equal((await service(issues).list({ accessToken: 'jwt' })).issues.length, 3);   // sin la lista de proyectos, no se filtra
+});
