@@ -133,3 +133,9 @@ test('la cabecera de la issue: volver al panel, el título en una línea con su 
   assert.match(html, /data-act="resolve">Resolver<[\s\S]*data-act="escalate">Escalar<[\s\S]*data-act="transfer">Traspasar<[\s\S]*data-release>Devolver a la cola</);
   assert.doesNotMatch(html, /Mi mesa|iss-state/);
 });
+
+test('una issue pendiente de un tercero: solo reclamarle y traspasar', () => {
+  const html = workScreen({ issue: issue({ status: 'PENDING' }), sameCenter: [], now, mine: true });
+  assert.match(html, /data-act="chase">Reclamar al tercero<[\s\S]*data-act="transfer">Traspasar</);
+  assert.doesNotMatch(html, /data-act="resolve"|data-act="escalate"|data-release/);
+});

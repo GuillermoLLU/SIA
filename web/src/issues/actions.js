@@ -1,7 +1,8 @@
-// Las acciones sobre una issue (resolver, escalar, traspasar): su formulario
-// y qué hace falta para enviarlo. Traspasar se queda en SIA (la base de la
-// instancia); resolver y escalar irán a Remedy por SIGLO y, de momento, no se
-// envían. Las notas internas se escriben en la pestaña Notas internas.
+// Las acciones sobre una issue (resolver, escalar, traspasar, reclamar al tercero): su
+// formulario, qué hace falta para enviarlo y cuáles tiene cada issue según su estado.
+// Traspasar se queda en SIA (la base de la instancia); resolver, escalar y reclamar irán a
+// Remedy por SIGLO y, de momento, no se envían (la reclamación queda como nota interna).
+// Las notas internas se escriben en la pestaña Notas internas.
 import { esc } from '../ui/html.js';
 import { peoplePicker } from '../ui/picker.js';
 
@@ -26,6 +27,13 @@ export const ACTIONS = {
     fields: [
       { name: 'to', label: 'Compañero', kind: 'person', required: true },
       { name: 'comment', label: 'Motivo', kind: 'text', required: true },
+    ],
+  },
+  // insistir a quien la tiene parada (proveedor, cliente, el equipo al que se escaló)
+  chase: {
+    label: 'Reclamar al tercero', title: 'Reclamar al tercero', ok: 'Reclamar',
+    fields: [
+      { name: 'message', label: 'Qué le reclamas', kind: 'text', required: true },
     ],
   },
 };
@@ -55,6 +63,13 @@ export const actionForm = (key, issueId, people = [], empty = '') => {
     <footer><button type="button" class="lab-btn" data-act-cancel>Cancelar</button><button type="submit" class="lab-btn primary" disabled>${a.ok}</button></footer>
   </form>`;
 };
+
+// Qué se puede hacer con una issue: pendiente de un tercero, solo reclamarle o pasársela a un
+// compañero (traspasar no mira el tope de en curso: lo pendiente no cuenta); si no, resolver,
+// escalar, traspasar y, si es de uno, devolverla a la cola.
+export const actionsFor = (issue, mine) => (issue.status === 'PENDING'
+  ? ['chase', 'transfer']
+  : ['resolve', 'escalate', 'transfer', ...(mine ? ['release'] : [])]);
 
 // ¿Están todos los obligatorios? Mientras no, el botón de enviar sigue apagado.
 export const isComplete = (key, values) => !readAction(key, values).missing;

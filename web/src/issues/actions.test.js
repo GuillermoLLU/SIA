@@ -1,9 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ACTIONS, actionForm, readAction, isComplete } from './actions.js';
+import { ACTIONS, actionForm, readAction, isComplete, actionsFor } from './actions.js';
 
-test('las tres acciones (las notas van en el histórico)', () => {
-  assert.deepEqual(Object.keys(ACTIONS), ['resolve', 'escalate', 'transfer']);
+test('las acciones (las notas van en el histórico)', () => {
+  assert.deepEqual(Object.keys(ACTIONS), ['resolve', 'escalate', 'transfer', 'chase']);
+});
+
+test('actionsFor: pendiente de un tercero, solo reclamarle o traspasarla; si no, las de siempre', () => {
+  assert.deepEqual(actionsFor({ status: 'PENDING' }, true), ['chase', 'transfer']);
+  assert.deepEqual(actionsFor({ status: 'IN_PROGRESS' }, true), ['resolve', 'escalate', 'transfer', 'release']);
+  assert.deepEqual(actionsFor({ status: 'ASSIGNED' }, false), ['resolve', 'escalate', 'transfer']);
+});
+
+test('reclamar al tercero: el mensaje es obligatorio', () => {
+  assert.deepEqual(readAction('chase', { message: '  ' }), { missing: 'Qué le reclamas' });
+  assert.deepEqual(readAction('chase', { message: ' ¿Hay novedades? ' }), { values: { message: '¿Hay novedades?' } });
 });
 
 test('obligatorios: el primero que falte', () => {

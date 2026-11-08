@@ -7,6 +7,7 @@
 import { esc } from '../ui/html.js';
 import { STATUS_ES, SEVERITY_ES, when, whenIso, whenLabel, newestFirst, age } from './format.js';
 import { item } from './parts.js';
+import { actionsFor } from './actions.js';
 
 const WORK_TABS = [
   { key: 'detail', label: 'Detalle' },
@@ -89,16 +90,21 @@ export const noteFormHtml = () => `<form class="iss-note-form" data-note-form no
 export const releaseDialogHtml = (id, text) => `<div class="iss-dlg-issue"><span class="iss-dlg-code">${esc(id)}</span><span class="iss-dlg-text">${esc(text || '')}</span></div>
   <p class="iss-dlg-p">Volverá a la cola y podrá cogerla cualquier compañero.</p>`;
 
+// Los botones de las acciones (actions.js actionsFor): la primera, la principal
+const ACTION_BUTTON = {
+  resolve: '<button class="lab-btn primary" data-act="resolve">Resolver</button>',
+  escalate: '<button class="lab-btn" data-act="escalate">Escalar</button>',
+  transfer: '<button class="lab-btn" data-act="transfer">Traspasar</button>',
+  release: '<button class="lab-btn" data-release>Devolver a la cola</button>',
+  chase: '<button class="lab-btn primary" data-act="chase">Reclamar al tercero</button>',
+};
+const actionButton = (key) => ACTION_BUTTON[key];
+
 export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, meId = null, tab = 'detail' }) => `<div class="iss-page iss-work-page">
   <header class="iss-work-h">
     <button class="lab-btn primary" data-back>Volver al panel</button>
     <h2 title="${esc(i.text)}">${esc(i.text)}</h2>
-    <div class="iss-actions">
-      <button class="lab-btn primary" data-act="resolve">Resolver</button>
-      <button class="lab-btn" data-act="escalate">Escalar</button>
-      <button class="lab-btn" data-act="transfer">Traspasar</button>
-      ${mine ? '<button class="lab-btn" data-release>Devolver a la cola</button>' : ''}
-    </div>
+    <div class="iss-actions">${actionsFor(i, mine).map(actionButton).join('')}</div>
   </header>
 
   <div class="iss-work">
