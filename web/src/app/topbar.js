@@ -56,7 +56,8 @@ export const mountTopbar = (host, { name, chat, desk, settings, lock, hasChat = 
     show: (view, title = '') => {
       if (titleEl.textContent !== title) {
         titleEl.textContent = title;
-        if (!matchMedia('(prefers-reduced-motion: reduce)').matches) titleEl.animate([{ opacity: 0, transform: 'translate(-50%, 4px)' }, { opacity: 1, transform: 'translate(-50%, 0)' }], { duration: 260, easing: 'ease' });
+        // solo se funde: moverlo mientras cambia de ancho lo haría bailar de lado a lado
+        if (!matchMedia('(prefers-reduced-motion: reduce)').matches) titleEl.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 220, easing: 'ease' });
       }
       target = view === 'chat' && hasDesk() ? desk : chat;
       chatBtn.title = target.title;

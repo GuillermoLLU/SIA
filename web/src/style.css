@@ -806,7 +806,10 @@ body.ready .sidebar { transition: transform 0.65s cubic-bezier(0.2, 0.7, 0.2, 1)
 body.booting.brand-nav .sidebar { transform: translate(-50%, calc(100% + 48px)); } /* el dock sube desde abajo */
 body.booting :is(.topbar, .top-brand, .top-user) { opacity: 0; }
 body.ready .top-brand { animation: top-drop 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) backwards; }
-body.ready :is(.topbar, .top-user, .top-brand > *) { animation: top-in 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) 0.15s backwards; }
+body.ready :is(.topbar, .top-user, .top-brand > :not(.top-title)) { animation: top-in 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) 0.15s backwards; }
+/* el título va centrado con su propio transform: entra solo fundiéndose, sin moverse */
+body.ready .top-title { animation: top-fade 0.4s ease 0.15s backwards; }
+@keyframes top-fade { from { opacity: 0; } }
 @keyframes top-drop { from { opacity: 0; transform: translateY(-100%); } }
 @keyframes top-in { from { opacity: 0; transform: translateY(-8px); } }
 body.booting .ai-ask { opacity: 0; transition: opacity 0.6s ease; }
