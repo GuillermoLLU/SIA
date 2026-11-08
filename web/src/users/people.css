@@ -17,7 +17,7 @@
 .pp-tools-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
 .pp-tools .lab-btn.primary { height: 34px; padding: 0 16px; font-size: 13px; white-space: nowrap; }
 .pp-tools .pp-switch-view { height: 34px; white-space: nowrap; }
-.pp-switch-view { height: 32px; padding: 0 14px; font: inherit; font-size: 12px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text); background: var(--surface); border: 1px solid var(--border); cursor: pointer; }
+.pp-switch-view { padding: 0 14px; font: inherit; font-size: 12px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text); background: var(--surface); border: 1px solid var(--border); cursor: pointer; }
 .pp-switch-view:hover { border-color: var(--accent); color: var(--accent); }
 
 /* cuerpo: la lista o, en su pantalla, una ficha, el alta o los roles (.pp-pane.open) */
@@ -25,7 +25,6 @@
 .pp-list { flex: 1 1 0; min-width: 0; align-self: flex-start; max-height: 100%; overflow: auto; border: 1px solid var(--border); background: var(--surface); }
 .pp-pane.open .pp-tools, .pp-pane.open .pp-list { display: none; }
 .pp-screen { position: relative; flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 6px 4px 0; overflow: auto; animation: pp-in .18s ease; }
-.pp-screen[hidden] { display: none; }
 @keyframes pp-in { from { opacity: 0; transform: translateX(10px); } }
 
 /* el panel de un rol: se abre por la derecha ganando sitio a la lista de roles y se recoge igual
@@ -37,7 +36,7 @@
 .pp-drawer.in { width: 472px; opacity: 1; }
 .pp-drawer.out { opacity: 0; }
 .pp-drawer-in { flex: none; width: 440px; min-height: 100%; margin-left: 32px; padding-left: 32px; display: flex; flex-direction: column; border-left: 1px solid var(--border); }
-.pp-drawer .pp-rs-body { flex: 1; min-height: 0; overflow: auto; max-width: none; display: flex; flex-direction: column; justify-content: center; }   /* un rol: centrado en la altura */
+.pp-drawer .pp-rs-body { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; justify-content: center; }   /* un rol: centrado en la altura */
 .pp-drawer .pp-rs-foot { justify-content: center; padding: 18px 0 16px; }
 .pp-drawer-head { align-items: center; gap: 12px; padding-bottom: 12px; margin-bottom: 14px; }
 /* en el panel, los campos más juntos */
@@ -55,7 +54,6 @@
 .pp-rs-head h3 { margin: 0; font-size: 18px; font-weight: 650; color: var(--text); }
 .pp-rs-head p { margin: 4px 0 0; font-size: 13px; color: var(--text-low); }
 .pp-rs-head .lab-btn { margin-left: auto; height: 34px; padding: 0 16px; font-size: 13px; white-space: nowrap; }
-.pp-rs-body { max-width: 760px; }
 .pp-rs-foot { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; align-items: center; padding-top: 10px; }
 .pp-rs-foot .pp-msg { flex-basis: 100%; text-align: center; }
 .pp-rs-foot .pp-msg:empty { display: none; }
@@ -137,16 +135,13 @@
 .pp-kb.on { color: var(--text); border-color: var(--text); }
 .pp-kb:not(.on) { border-style: dashed; }
 .pp-kb:disabled { cursor: default; }
-/* lo desplegado al pulsar contraseña o borrar */
+/* lo desplegado al pulsar borrar: confirmarlo con su email */
 .pp-foot-open { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border: 1px solid var(--border); background: var(--bg); }
-.pp-foot-open p { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--text-low); }
 .pp-foot-open .settings-input { height: 36px; background: var(--surface); }
-.pp-foot-open .pp-pw .lab-btn { height: 36px; }
 .pp-foot-acts { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
 .pp-foot-acts .pp-msg { flex-basis: 100%; }
 .pp-foot-acts .pp-msg:empty { display: none; }
 .pp-k { font-size: 11px; font-weight: 650; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-low); }
-.pp-block { display: flex; flex-direction: column; gap: 14px; }
 
 /* el alta: el nombre y el email se escriben en la propia cabecera del perfil */
 .pp-id-input { width: 100%; height: 30px; margin-top: 4px; padding: 0 8px; border: 1px solid transparent; background: transparent; color: var(--text); font: 12.5px var(--font-ui); text-align: center; outline: none; }
@@ -170,11 +165,9 @@
 .pp-box.on:disabled:hover { border-color: var(--text); }
 .pp-box.off:disabled:hover { color: var(--text-low); border-color: var(--border); }
 
-/* campos (el alta, la contraseña, un rol) */
+/* un campo con su etiqueta encima (la regla de un rol) */
 .pp-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
 .pp-field > span { font-size: 12px; font-weight: 600; color: var(--text); }
-.pp-field > small { font-size: 12px; color: var(--text-low); }
-.pp-field .settings-input { height: 38px; }
 .pp-pw { display: flex; gap: 6px; }
 .pp-pw .settings-input { flex: 1; min-width: 0; font-family: var(--font-mono); letter-spacing: 0.02em; }
 .pp-pw .lab-btn { height: 38px; white-space: nowrap; }
