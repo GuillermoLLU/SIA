@@ -64,12 +64,14 @@ export const actionForm = (key, issueId, people = [], empty = '') => {
   </form>`;
 };
 
-// Qué se puede hacer con una issue: pendiente de un tercero, solo reclamarle o pasársela a un
-// compañero (traspasar no mira el tope de en curso: lo pendiente no cuenta); si no, resolver,
-// escalar, traspasar y, si es de uno, devolverla a la cola.
-export const actionsFor = (issue, mine) => (issue.status === 'PENDING'
-  ? ['chase', 'transfer']
-  : ['resolve', 'escalate', 'transfer', ...(mine ? ['release'] : [])]);
+// Qué se puede hacer con una issue: pendiente de un tercero, reclamarle respuesta; si no, resolverla
+// o escalarla. Traspasarla a un compañero o devolverla a la cola, solo si es de uno (cogida en SIA):
+// la base no mueve una issue que no tienes. Traspasar no mira el tope de en curso.
+export const actionsFor = (issue, mine) => [
+  ...(issue.status === 'PENDING' ? ['chase'] : ['resolve', 'escalate']),
+  ...(mine ? ['transfer'] : []),
+  ...(mine && issue.status !== 'PENDING' ? ['release'] : []),
+];
 
 // ¿Están todos los obligatorios? Mientras no, el botón de enviar sigue apagado.
 export const isComplete = (key, values) => !readAction(key, values).missing;

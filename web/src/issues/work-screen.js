@@ -96,9 +96,7 @@ const ACTION_BUTTON = {
   escalate: '<button class="lab-btn" data-act="escalate">Escalar</button>',
   transfer: '<button class="lab-btn" data-act="transfer">Traspasar</button>',
   release: '<button class="lab-btn" data-release>Devolver a la cola</button>',
-  chase: '<button class="lab-btn primary" data-act="chase">Reclamar respuesta</button>',
 };
-const actionButton = (key) => ACTION_BUTTON[key];
 
 // Pendiente de un tercero no hay nada que resolver con la IA: en lugar del chat, sus dos acciones,
 // grandes (y fuera de la cabecera, para no repetirlas)
@@ -106,17 +104,21 @@ const BELL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-
 const HANDOFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3l4 4-4 4"/><path d="M3 7h18"/><path d="M7 21l-4-4 4-4"/><path d="M21 17H3"/></svg>';
 // En la cabecera, donde irían Resolver y compañía: que ya está escalada, a quién y desde cuándo
 const escalatedTag = (i) => `<span class="iss-escalated" title="Pendiente de un tercero: resolver, escalar o devolverla no tiene sentido hasta que responda">${BELL}<b>Escalada${i.reason && REASON_ES[i.reason] && REASON_ES[i.reason] !== 'Escalada' ? ` a ${esc(REASON_ES[i.reason])}` : ''}</b><span>desde el ${when(pendingSince(i))}</span></span>`;
-// En «Reclamar», a modo de aviso, los días que lleva parada (con el color de la mesa, stillLevel)
-const pendingActs = (i, now) => { const d = stillDays(i, now); return `<aside class="iss-card iss-pending-acts" aria-label="Qué hacer con ella">
-      <button class="iss-big-act primary" data-act="chase">${BELL}<span>Reclamar respuesta</span><em class="iss-big-still ${stillLevel(d)}">${d} ${d === 1 ? 'día' : 'días'} sin moverse</em></button>
-      <button class="iss-big-act" data-act="transfer">${HANDOFF}<span>Traspasar</span></button>
-    </aside>`; };
+// Sus acciones (actionsFor), grandes. En «Reclamar», a modo de aviso, los días que lleva parada
+// (con el color de la mesa, stillLevel).
+const BIG_ACTION = {
+  chase: (i, now) => { const d = stillDays(i, now); return `<button class="iss-big-act primary" data-act="chase">${BELL}<span>Reclamar respuesta</span><em class="iss-big-still ${stillLevel(d)}">${d} ${d === 1 ? 'día' : 'días'} sin moverse</em></button>`; },
+  transfer: () => `<button class="iss-big-act" data-act="transfer">${HANDOFF}<span>Traspasar</span></button>`,
+};
+const pendingActs = (i, now, mine) => `<aside class="iss-card iss-pending-acts" aria-label="Qué hacer con ella">
+      ${actionsFor(i, mine).map((key) => BIG_ACTION[key](i, now)).join('')}
+    </aside>`;
 
 export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, meId = null, tab = 'detail' }) => `<div class="iss-page iss-work-page">
   <header class="iss-work-h">
     <button class="lab-btn primary" data-back>Volver al panel</button>
     <h2 title="${esc(i.text)}">${esc(i.text)}</h2>
-    <div class="iss-actions">${i.status === 'PENDING' ? escalatedTag(i) : actionsFor(i, mine).map(actionButton).join('')}</div>
+    <div class="iss-actions">${i.status === 'PENDING' ? escalatedTag(i) : actionsFor(i, mine).map((key) => ACTION_BUTTON[key]).join('')}</div>
   </header>
 
   <div class="iss-work">
@@ -177,7 +179,7 @@ export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, meI
       <div class="k-open"><span>Abierta</span><b>${age(i.reported, now)}</b><small>desde que se creó</small></div>
       <div class="k-moved"><span>Último movimiento</span><b>${i.modified ? `hace ${age(i.modified, now)}` : '—'}</b><small>${when(i.modified)}</small></div>
     </section>
-    ${i.status === 'PENDING' ? pendingActs(i, now) : `<aside class="iss-card iss-chat" aria-label="Resolución asistida por IA">
+    ${i.status === 'PENDING' ? pendingActs(i, now, mine) : `<aside class="iss-card iss-chat" aria-label="Resolución asistida por IA">
       <div class="iss-chat-body"></div>
     </aside>`}
     </div>

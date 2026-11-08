@@ -132,6 +132,8 @@ test('la cabecera de la issue: volver al panel, el título en una línea con su 
   assert.match(html, /<header class="iss-work-h">\s*<button class="lab-btn primary" data-back>Volver al panel<\/button>\s*<h2 title="Cola &lt;llena&gt;">Cola &lt;llena&gt;<\/h2>/);
   assert.match(html, /data-act="resolve">Resolver<[\s\S]*data-act="escalate">Escalar<[\s\S]*data-act="transfer">Traspasar<[\s\S]*data-release>Devolver a la cola</);
   assert.doesNotMatch(html, /Mi mesa|iss-state/);
+  const notMine = workScreen({ issue: issue(), sameCenter: [], now, mine: false });
+  assert.doesNotMatch(notMine, /data-act="transfer"|data-release/, 'sin cogerla en SIA no se traspasa ni se devuelve');
 });
 
 test('una issue pendiente de un tercero: en lugar del chat, reclamarle y traspasar, grandes', () => {
@@ -139,4 +141,7 @@ test('una issue pendiente de un tercero: en lugar del chat, reclamarle y traspas
   assert.match(html, /iss-pending-acts[\s\S]*data-act="chase">[\s\S]*Reclamar respuesta<\/span><em class="iss-big-still \w+">\d+ días? sin moverse<\/em>[\s\S]*data-act="transfer">[\s\S]*Traspasar/);
   assert.doesNotMatch(html, /data-act="resolve"|data-act="escalate"|data-release|iss-chat-body/);
   assert.match(html, /<div class="iss-actions"><span class="iss-escalated"[\s\S]*Escalada[\s\S]*desde el/, 'en la cabecera, que ya está escalada y desde cuándo');
+  const notMine = workScreen({ issue: issue({ status: 'PENDING' }), sameCenter: [], now, mine: false });
+  assert.match(notMine, /data-act="chase"/);
+  assert.doesNotMatch(notMine, /data-act="transfer"/, 'sin cogerla en SIA, solo reclamar');
 });

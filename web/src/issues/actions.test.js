@@ -6,10 +6,11 @@ test('las acciones (las notas van en el histórico)', () => {
   assert.deepEqual(Object.keys(ACTIONS), ['resolve', 'escalate', 'transfer', 'chase']);
 });
 
-test('actionsFor: pendiente de un tercero, solo reclamarle o traspasarla; si no, las de siempre', () => {
+test('actionsFor: pendiente de un tercero, reclamarle; traspasar y devolver, solo si es mía en SIA', () => {
   assert.deepEqual(actionsFor({ status: 'PENDING' }, true), ['chase', 'transfer']);
+  assert.deepEqual(actionsFor({ status: 'PENDING' }, false), ['chase'], 'asignada en Remedy pero sin coger en SIA: la base no deja traspasarla');
   assert.deepEqual(actionsFor({ status: 'IN_PROGRESS' }, true), ['resolve', 'escalate', 'transfer', 'release']);
-  assert.deepEqual(actionsFor({ status: 'ASSIGNED' }, false), ['resolve', 'escalate', 'transfer']);
+  assert.deepEqual(actionsFor({ status: 'ASSIGNED' }, false), ['resolve', 'escalate']);
 });
 
 test('reclamar al tercero: el mensaje es obligatorio', () => {

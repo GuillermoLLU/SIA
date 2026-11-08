@@ -244,7 +244,7 @@
 .iss-escalated b { font-weight: 650; }
 .iss-escalated span { color: color-mix(in srgb, var(--iss-high) 80%, var(--text)); }
 /* pendiente de un tercero: sus dos acciones, grandes, donde iría el chat */
-.iss-pending-acts { flex: 1; min-height: 0; display: grid; grid-template-rows: 1fr 1fr; gap: 12px; padding: 12px; }
+.iss-pending-acts { flex: 1; min-height: 0; display: grid; grid-auto-rows: minmax(0, 1fr); gap: 12px; padding: 12px; }   /* una o dos acciones, repartiendo el alto */
 .iss-big-act { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; min-height: 120px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: 600 15px var(--font-ui); letter-spacing: .02em; cursor: pointer; transition: border-color var(--motion-state), background var(--motion-state); }
 .iss-big-act svg { width: 30px; height: 30px; }
 .iss-big-act:hover { border-color: var(--text); }
