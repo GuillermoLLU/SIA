@@ -1,4 +1,4 @@
-// Métricas: la pantalla con una caja por cara (Equipo, Servicio, Backlog) al pulsar su icono del dock.
+// Métricas: la pantalla con una caja por cara (Equipo, Servicio) al pulsar su icono del dock.
 import { VIEWS } from '../users/views.js';
 
 // boxes: [{ name, label }] (nav.js hubBoxes) · go(name): abrir esa vista

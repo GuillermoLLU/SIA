@@ -35,12 +35,11 @@ export const crossesTo = (view) => view === 'chat' || view === 'issues';
 // (con sus cajas, o el aviso de que no tiene vistas).
 export const firstView = (user) => (canView(user, 'issues') ? 'issues' : canView(user, 'chat') ? 'chat' : 'hub');
 
-// Métricas, un solo icono con tres caras: al pulsarlo, una caja por cada una que se tenga.
-// «Equipo» abre las métricas del equipo (o su gestión, teamView); «Servicio», las métricas; «Backlog», el backlog.
+// Métricas, un solo icono con dos caras: al pulsarlo, una caja por cada una que se tenga.
+// «Equipo» abre las métricas del equipo; «Servicio», las del servicio. El Backlog tiene su icono.
 export const HUB = [
   { name: 'work', label: 'Equipo' },
   { name: 'metrics', label: 'Servicio' },
-  { name: 'backlog', label: 'Backlog' },
 ];
 export const hubBoxes = (user) => HUB.filter((h) => panelNav(user, h.name));
 export const inHub = (view) => view === 'hub' || HUB.some((h) => h.name === view);

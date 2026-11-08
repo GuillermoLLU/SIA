@@ -53,15 +53,16 @@ test('baseNav linksEdit: la vista y el permiso de la clave, los dos', () => {
   assert.equal(baseNav(u(['links']), null).linksEdit, false);
 });
 
-test('hubBoxes: una caja por cara de Métricas que se tenga, en orden Equipo · Servicio · Backlog', () => {
-  assert.deepEqual(hubBoxes(u(['backlog', 'metrics', 'work'])).map((h) => h.label), ['Equipo', 'Servicio', 'Backlog']);
+test('hubBoxes: una caja por cara de Métricas que se tenga, Equipo y Servicio; el Backlog va aparte', () => {
+  assert.deepEqual(hubBoxes(u(['backlog', 'metrics', 'work'])).map((h) => h.label), ['Equipo', 'Servicio']);
+  assert.deepEqual(hubBoxes(u(['backlog'])), []);
   assert.deepEqual(hubBoxes(u(['people'])), []);   // la gestión del equipo va en Configuración
   assert.deepEqual(hubBoxes(u(['issues'])), []);
 });
 
 test('inHub: el icono de Métricas se marca con el selector y con cualquiera de sus caras', () => {
-  for (const v of ['hub', 'work', 'metrics', 'backlog']) assert.equal(inHub(v), true, v);
-  for (const v of ['chat', 'issues', 'lab', 'users']) assert.equal(inHub(v), false, v);
+  for (const v of ['hub', 'work', 'metrics']) assert.equal(inHub(v), true, v);
+  for (const v of ['chat', 'issues', 'backlog', 'lab', 'users']) assert.equal(inHub(v), false, v);
 });
 
 test('viewTitle: el nombre de cada sección para la barra de arriba; una que no existe, nada', () => {

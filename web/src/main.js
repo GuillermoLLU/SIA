@@ -153,8 +153,8 @@ const PANELS = [
     openPerson: (person) => { PANELS.find((p) => p.name === 'metrics').ui?.focus(person); showView('metrics'); } }) },
   { name: 'metrics', mount: (el) => mountMetricsView(el, { api: createMetricsApi(api), toast }) },
 ].map((p) => ({ ...p, view: $(`view-${p.name}`) }));
-// El dock: Issues y Métricas (Equipo, Servicio y Backlog detrás de un solo icono, app/hub.js)
-const dock = { issues: $('nav-issues'), hub: $('nav-metrics') };
+// El dock: Issues, Backlog y Métricas (Equipo y Servicio detrás de un solo icono, app/hub.js)
+const dock = { issues: $('nav-issues'), backlog: $('nav-backlog'), hub: $('nav-metrics') };
 
 let topbar = null;
 const onShow = { chat: () => { chat.refitActive(); chat.focusActive(); } };
@@ -165,6 +165,7 @@ const showView = (name) => {
   for (const [k, n] of Object.entries(nav)) n.classList.toggle('active', name === k);
   for (const p of PANELS) p.view.hidden = name !== p.name;
   dock.issues.classList.toggle('active', name === 'issues');
+  dock.backlog.classList.toggle('active', name === 'backlog');
   dock.hub.classList.toggle('active', inHub(name));
   topbar?.show(name, viewTitle(name));
   onShow[name]?.();
@@ -176,6 +177,9 @@ for (const p of PANELS) p.ui = p.mount(p.view);
 dock.issues.innerHTML = VIEWS.find((v) => v.id === 'issues').icon;
 dock.issues.hidden = !canView(user, 'issues');
 dock.issues.addEventListener('click', () => go('issues'));
+dock.backlog.innerHTML = VIEWS.find((v) => v.id === 'backlog').icon;
+dock.backlog.hidden = !canView(user, 'backlog');
+dock.backlog.addEventListener('click', () => go('backlog'));
 const hub = hubBoxes(user);
 dock.hub.innerHTML = VIEWS.find((v) => v.id === 'metrics').icon;
 dock.hub.hidden = !hub.length;
