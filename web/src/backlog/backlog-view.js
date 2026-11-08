@@ -25,7 +25,8 @@ export const mountBacklogView = (root, { api, dialogs, toast }) => {
   // el panel lateral: la issue abierta, su detalle, el equipo y qué está en marcha
   let opened = null, detail = null, people = [], side = { busy: false, error: null };
 
-  const page = (body) => `<div class="bl-page"><h2 class="iss-title">Backlog</h2>${body}</div>`;
+  // tools: actualizar, la fecha de la foto, el orden y el buscador, en la línea del título, a la derecha
+  const page = (body, tools = '') => `<div class="bl-page"><header class="bl-head"><h2 class="iss-title">Backlog</h2>${tools ? `<div class="bl-bar">${tools}</div>` : ''}</header>${body}</div>`;
 
   // una tarjeta del panel: qué se mide y el número; pulsada, filtra la lista
   const tile = (label, value, { key, value: v, on, kind = '' }) =>
@@ -55,17 +56,15 @@ export const mountBacklogView = (root, { api, dialogs, toast }) => {
         ${tile('Priorizadas', c.prio, { key: 'prio', value: '', on: filter.prio, kind: 'prio' })}
         ${SEVERITIES.map((s) => tile(PLURAL[s], c.severity[s], { key: 'severity', value: s, on: filter.severity.includes(s), kind: s })).join('')}
       </div>
-      <div class="bl-bar">
-        <button class="bl-btn" data-reload${loading ? ' disabled' : ''}>${loading ? 'Actualizando…' : 'Actualizar backlog'}</button>
-        <span class="iss-snap${snap.stale ? ' stale' : ''}">${snap.text}</span>
-        ${filtering ? `<p class="bl-shown"><b>${shown.length}</b> de ${c.total} · <button class="bl-clear" data-key="all">Ver todas</button></p>` : ''}
-        <div class="bl-order"><span>Orden</span>${pickerHtml({ id: 'bl-rule', name: 'rule', value: data.rule, inline: true, groups: [{ options: data.rules.map((r) => ({ value: r.id, label: r.label })) }] })}</div>
-        <label class="bl-search"><input type="search" data-q placeholder="Buscar una issue, un centro o un texto" value="${esc(filter.q)}" aria-label="Buscar en el backlog"></label>
-      </div>
       <div class="bl-main">
         ${shown.length ? `<div class="bl-list">${shown.map(row).join('')}</div>` : `<p class="bl-empty">${c.total ? 'Ninguna issue cumple lo marcado.' : 'La cola está vacía: no queda nada sin coger.'}</p>`}
         ${opened ? `<aside class="bl-side" data-side aria-label="Detalle de la issue">${sideHtml()}</aside>` : ''}
-      </div>`);
+      </div>`, `
+        ${filtering ? `<p class="bl-shown"><b>${shown.length}</b> de ${c.total} · <button class="bl-clear" data-key="all">Ver todas</button></p>` : ''}
+        <button class="bl-btn" data-reload${loading ? ' disabled' : ''}>${loading ? 'Actualizando…' : 'Actualizar backlog'}</button>
+        <span class="iss-snap${snap.stale ? ' stale' : ''}">${snap.text}</span>
+        <div class="bl-order"><span>Orden</span>${pickerHtml({ id: 'bl-rule', name: 'rule', value: data.rule, inline: true, groups: [{ options: data.rules.map((r) => ({ value: r.id, label: r.label })) }] })}</div>
+        <label class="bl-search"><input type="search" data-q placeholder="Buscar una issue, un centro o un texto" value="${esc(filter.q)}" aria-label="Buscar en el backlog"></label>`);
   };
 
   const load = async () => {

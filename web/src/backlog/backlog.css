@@ -30,11 +30,13 @@
 .bl-btn { height: 28px; padding: 0 12px; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--text); background: var(--surface); border: 1px solid var(--border); cursor: pointer; }
 .bl-btn:hover:not(:disabled) { border-color: color-mix(in srgb, var(--text) 35%, var(--border)); }
 .bl-btn:disabled { opacity: .6; cursor: progress; }
-.bl-bar { display: flex; align-items: center; gap: 14px; }
+/* la cabecera: el título y, en su misma línea a la derecha, actualizar, la fecha, el orden y el buscador */
+.bl-head { display: flex; align-items: center; gap: 24px; min-height: 32px; }
+.bl-head .iss-title { flex-shrink: 0; }
+.bl-bar { display: flex; align-items: center; gap: 14px; margin-left: auto; min-width: 0; }
 .bl-bar .iss-snap { margin-left: 0; white-space: nowrap; }
 .bl-bar button, .bl-order { white-space: nowrap; }
-.bl-order { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; flex-shrink: 0; font-size: 12.5px; color: var(--text-low); --pick-h: 28px; }
-.bl-shown + .bl-order { margin-left: 0; }
+.bl-order { display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; font-size: 12.5px; color: var(--text-low); --pick-h: 28px; }
 .bl-search { position: relative; display: block; flex: 0 1 280px; min-width: 150px; } /* cede ancho cuando la barra va justa */
 .bl-search::before { content: ''; position: absolute; left: 10px; top: 50%; width: 15px; height: 15px; transform: translateY(-50%); background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E") center / contain no-repeat; pointer-events: none; }
 .bl-search input { box-sizing: border-box; width: 100%; height: 28px; padding: 0 10px 0 33px; font: inherit; font-size: 13px; color: var(--text); background: var(--surface); border: 1px solid var(--border); outline: none; -webkit-appearance: none; }
@@ -43,7 +45,7 @@
 
 /* la lista y, al abrir una issue, su detalle a la derecha */
 .bl-main { flex: 1; min-height: 0; display: flex; gap: 16px; }
-.bl-shown { display: flex; align-items: baseline; gap: 6px; margin: 0 2px 0 auto; font-size: 12.5px; color: var(--text-low); white-space: nowrap; }
+.bl-shown { display: flex; align-items: baseline; gap: 6px; margin: 0 2px 0 0; font-size: 12.5px; color: var(--text-low); white-space: nowrap; }
 .bl-shown b { color: var(--text); font-variant-numeric: tabular-nums; }
 .bl-clear { padding: 0; font: inherit; font-size: 12.5px; color: var(--accent); background: none; border: 0; cursor: pointer; }
 .bl-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); }
