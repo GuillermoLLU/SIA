@@ -6,7 +6,7 @@
 // acota por código, centro o texto (filter.js); filtrar no cambia el puesto.
 // Debajo, la lista con su propio scroll; al pulsar una issue se abre su
 // detalle a la derecha (side-panel.js), desde donde se asigna a alguien del
-// equipo. Se recarga al abrir la vista y con «Actualizar backlog». Es una
+// equipo. Se recarga al abrir la vista y al pulsar la fecha de la foto. Es una
 // vista sobre el dominio de Issues (sus piezas y estilos).
 import '../issues/issues.css';
 import './backlog.css';
@@ -64,15 +64,20 @@ export const mountBacklogView = (root, { api, dialogs, toast }) => {
       tools: `
         ${filtering ? `<p class="bl-shown"><b>${shown.length}</b> de ${c.total} · <button class="bl-clear" data-key="all">Ver todas</button></p>` : ''}
         <div class="bl-order" title="Orden de la cola"><span>Ordenar por</span>${pickerHtml({ id: 'bl-rule', name: 'rule', value: data.rule, inline: true, groups: [{ options: data.rules.map((r) => ({ value: r.id, label: r.label })) }] })}</div>
-        <button type="button" class="iss-date bl-reload${snap.stale ? ' stale' : ''}" data-reload title="Datos de Remedy: pulsa para actualizar el backlog"${loading ? ' disabled' : ''}>${loading ? 'Actualizando…' : snap.date}${REFRESH_ICON}</button>`,
+        <button type="button" class="iss-date bl-reload${snap.stale ? ' stale' : ''}" data-reload title="Datos de Remedy: pulsa para actualizar el backlog"${loading ? ' disabled' : ''}>${reloadInner(snap)}</button>`,
     });
   };
 
+  // la fecha de la foto, que recarga (en rojo si no es de hoy); mientras va, ocupada
+  const reloadInner = (snap) => `${loading ? 'Actualizando…' : snap.date}${REFRESH_ICON}`;
+
   // Si lo que llega es lo mismo que ya se ve, no se repinta (repintar a media entrada parpadea):
-  // solo vuelve el botón de actualizar.
+  // solo vuelve el botón de actualizar. La hora se toma antes de pintar: las edades y el aviso de
+  // la foto, al día aunque no lleguen datos nuevos.
   const load = async () => {
     loading = true;
     const before = data && JSON.stringify(data);
+    now = new Date();
     if (data) render(); // el botón de actualizar, ocupado
     try { data = await api.list(rule); rule = data.rule; now = new Date(); } // la regla pedida puede ya no existir: la que el bridge aplicó
     finally {
@@ -85,8 +90,10 @@ export const mountBacklogView = (root, { api, dialogs, toast }) => {
   const settleReload = () => {
     const b = root.querySelector('[data-reload]');
     if (!b) return render();
+    const snap = snapshotInfo(data.taken, now);
     b.disabled = false;
-    b.innerHTML = `${snapshotInfo(data.taken, now).date}${REFRESH_ICON}`;
+    b.classList.toggle('stale', snap.stale);
+    b.innerHTML = reloadInner(snap);
   };
 
   // el buscador repinta la lista sin perder el foco ni el cursor
