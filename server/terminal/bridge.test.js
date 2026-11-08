@@ -23,12 +23,13 @@ const fakeWs = (url = '/', remote = '127.0.0.1') => {
   return ws;
 };
 
-const setup = ({ locked = false, allowed } = {}) => {
+const setup = ({ locked = false, allowed = async () => true } = {}) => {
   const pty = fakePty();
   const cleaned = [];
+  let diskFull = false;
   const bridge = createTerminalBridge({
     pty,
-    launchers: { byId: (id) => ({ id: id || 'claude', label: 'Claude', cmd: 'claude' }), installed: (d) => d.id !== 'codex', list: () => [], prepare: (def, id, picked, base, prompt) => ({ cmd: def.cmd, args: [id, picked.join(','), prompt || ''] }), cleanup: (id) => cleaned.push(id) },
+    launchers: { byId: (id) => ({ id: id || 'claude', label: 'Claude', cmd: 'claude' }), installed: (d) => d.id !== 'codex', list: () => [], prepare: (def, id, picked, base, prompt) => { if (diskFull) throw new Error('ENOSPC: no queda espacio'); return { cmd: def.cmd, args: [id, picked.join(','), prompt || ''] }; }, cleanup: (id) => cleaned.push(id) },
     workspace: { modeDirFor: (mode) => `/ws/${mode}` },
     env: () => ({ A: '1' }),
     issues: { find: (id) => (id === 'INC1' ? { id: 'INC1', text: 'PDA', notes: '' } : null) },
@@ -37,13 +38,13 @@ const setup = ({ locked = false, allowed } = {}) => {
     skillsOf: () => [],
     skillSync: { maybe() {} },
     lock: { locked: () => locked },
-    ...(allowed ? { allowed } : {}),
+    allowed,
   });
   const server = new EventEmitter(); server.clients = new Set();
   bridge.attach(server);
   const connect = (ws) => { server.clients.add(ws); server.emit('connection', ws, ws.req); return ws; };
   const quiet = console.log; console.log = () => {};
-  return { bridge, pty, cleaned, connect, done: () => { console.log = quiet; } };
+  return { bridge, pty, cleaned, connect, fillDisk: () => { diskFull = true; }, done: () => { console.log = quiet; } };
 };
 const tick = () => new Promise((r) => setImmediate(r));
 
@@ -151,21 +152,53 @@ test('sin la vista Chat no se abre ni se reengancha un chat; el de una issue va 
   x.done();
 });
 
-test('reenganchar un chat del Chat sin su vista: error y no se engancha', async () => {
-  const open = setup();
-  const a = open.connect(fakeWs());
+test('reenganchar un chat del Chat sin su vista: error, no se engancha y quien lo tenía lo conserva', async () => {
+  let ok = true;
+  const x = setup({ allowed: async () => ok });
+  const a = x.connect(fakeWs());
   await tick();
   a.say({ type: 'start', launcher: 'claude', knowledge: 'demand', projects: [], cols: 80, rows: 24 });
   await tick(); await tick();
-  open.done();
   const sid = a.sent.find((m) => m.type === 'started').sessionId;
-  // la misma sesión vista por alguien sin el Chat
-  const denied = setup({ allowed: async () => false });
-  const b = denied.connect(fakeWs());
+  ok = false;   // desde otro dispositivo, alguien sin el Chat
+  const b = x.connect(fakeWs());
   await tick();
   b.say({ type: 'attach', sessionId: sid });
   await tick(); await tick();
-  assert.ok(b.sent.some((m) => m.type === 'gone' || m.type === 'error'));
+  assert.equal(b.sent.find((m) => m.type === 'error').message, 'No tienes acceso a este chat.');
   assert.ok(!b.sent.some((m) => m.type === 'history'));
-  denied.done();
+  assert.equal(a.closed, null, 'el primero no pasa a pasivo');
+  x.done();
+});
+
+test('reenganchar: si el socket se cierra mientras se comprueba el permiso, no le quita el chat a nadie', async () => {
+  let open;
+  const gate = new Promise((r) => { open = r; });
+  let slow = false;
+  const x = setup({ allowed: async () => { if (slow) await gate; return true; } });
+  const a = x.connect(fakeWs());
+  await tick();
+  a.say({ type: 'start', launcher: 'claude', knowledge: 'demand', projects: [], cols: 80, rows: 24 });
+  await tick(); await tick();
+  const sid = a.sent.find((m) => m.type === 'started').sessionId;
+  slow = true;
+  const b = x.connect(fakeWs());
+  b.say({ type: 'attach', sessionId: sid });
+  b.readyState = 3;   // se recarga la pestaña antes de que llegue la respuesta
+  open();
+  await tick(); await tick();
+  assert.equal(a.closed, null);
+  assert.ok(!b.sent.some((m) => m.type === 'history'));
+  x.done();
+});
+
+test('un fallo al abrir el chat (no se puede escribir su configuración) se cuenta en el socket y no tumba el bridge', async () => {
+  const x = setup();
+  const ws = x.connect(fakeWs());
+  await tick();
+  x.fillDisk();
+  ws.say({ type: 'start', launcher: 'claude', knowledge: 'demand', projects: [], cols: 80, rows: 24 });
+  await tick(); await tick();
+  assert.equal(ws.sent.find((m) => m.type === 'error').message, 'No se pudo abrir el chat: ENOSPC: no queda espacio');
+  x.done();
 });

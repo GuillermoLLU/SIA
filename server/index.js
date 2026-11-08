@@ -33,7 +33,6 @@ import { loadPlatformConfig } from './platform/config.js';
 import { createPlatformClient } from './platform/client.js';
 import { createAuth } from './auth/service.js';
 import { authRoutes } from './auth/routes.js';
-import { canChat } from './auth/views.js';
 import { createUserAdmin } from './users/service.js';
 import { usersRoutes } from './users/routes.js';
 import { createBaseAccess, fetchAll } from './base/client.js';
@@ -54,6 +53,7 @@ import { createIssuesSource } from './issues/source.js';
 import { createIssuesService } from './issues/service.js';
 import { issuesRoutes } from './issues/routes.js';
 import { createBacklogService } from './backlog/service.js';
+import { createWsAuth } from './terminal/ws-auth.js';
 import { backlogRoutes } from './backlog/routes.js';
 import { DatabaseSync } from 'node:sqlite';
 import { createMetricsStore } from './metrics/store.js';
@@ -118,10 +118,9 @@ export const startBridge = async ({ env = process.env } = {}) => {
   const issuesSource = createIssuesSource(workspace.issuesDir); // la foto, una sola para Issues y Backlog
   const issues = createIssuesService({ source: issuesSource, platform, drafts });
   const backlog = createBacklogService({ source: issuesSource, platform });
+  const wsAuth = createWsAuth({ auth, isLoopback });   // quién entra por el socket de los chats
   const bridge = createTerminalBridge({
-    pty, launchers, workspace, lock, skillSync, issues, skillsOf,
-    // abrir o reenganchar un chat: con la vista Chat (o Issues, el de una issue), según la sesión del socket
-    allowed: async (req, opts) => canChat((await auth.context(new URL(req.url, 'http://localhost').searchParams.get('a')).catch(() => null))?.user, opts),
+    pty, launchers, workspace, lock, skillSync, issues, skillsOf, allowed: wsAuth.allowed,
     // SHELL_SESSIONS_DISABLE quita el aviso «Restored session…» de macOS. cleanEnv
     // poda el entorno heredado y userEnv pone encima las credenciales personales,
     // leídas frescas en cada sesión: ese orden importa.
@@ -167,10 +166,8 @@ export const startBridge = async ({ env = process.env } = {}) => {
   apiServer.listen(ports.api, HOST, () => console.log(`[sia] lab API en http://localhost:${ports.api}`));
   await applyBase(null); // sin sesión aún: sin base (llega al iniciar sesión)
 
-  // El socket de los chats: solo desde esta máquina y con sesión iniciada
-  // (?a=<token>), comprobada al aceptar la conexión.
-  const wsSessionOk = async (req) => isLoopback(req) && !!(await auth.context(new URL(req.url, 'http://localhost').searchParams.get('a')).catch(() => null));
-  const wss = new WebSocketServer({ host: HOST, port: ports.ws, verifyClient: (info, cb) => { wsSessionOk(info.req).then((ok) => cb(ok, 401, 'Inicia sesión.')); } });
+  // El socket de los chats: solo desde esta máquina y con sesión iniciada, comprobada al aceptar la conexión
+  const wss = new WebSocketServer({ host: HOST, port: ports.ws, verifyClient: (info, cb) => { wsAuth.sessionOk(info.req).then((ok) => cb(ok, 401, 'Inicia sesión.')); } });
   wss.on('error', inUse(ports.ws));
   bridge.attach(wss);
   console.log(`[sia] terminal bridge listening on ws://localhost:${ports.ws}`);
