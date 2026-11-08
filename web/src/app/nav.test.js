@@ -69,5 +69,8 @@ test('viewTitle: el nombre de cada sección para la barra de arriba; una que no 
   assert.equal(viewTitle('issues'), 'Mesa de trabajo');
   assert.equal(viewTitle('backlog'), 'Backlog');
   assert.equal(viewTitle('chat'), 'Chat');
+  assert.equal(viewTitle('hub'), 'Métricas');
+  assert.equal(viewTitle('work'), 'Métricas del equipo');
+  assert.equal(viewTitle('metrics'), 'Métricas del servicio');
   assert.equal(viewTitle('nope'), '');
 });
