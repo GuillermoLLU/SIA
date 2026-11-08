@@ -248,9 +248,8 @@
 .iss-big-act { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; min-height: 120px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: 600 15px var(--font-ui); letter-spacing: .02em; cursor: pointer; transition: border-color var(--motion-state), background var(--motion-state); }
 .iss-big-act svg { width: 30px; height: 30px; }
 .iss-big-act:hover { border-color: var(--text); }
-/* la principal, en blanco como la otra pero con el borde negro; el negro, solo al pasar el ratón */
-.iss-big-act.primary { border-color: var(--text); }
-.iss-big-act.primary:hover { color: var(--surface); background: var(--accent); border-color: var(--accent); }
+/* la principal se distingue solo por la campana rellena */
+.iss-big-act.primary svg path:first-child { fill: currentColor; }
 .iss-big-act:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 /* en «Reclamar», el aviso de los días que lleva parada, en su color */
 .iss-big-still { margin-top: -2px; padding: 6px 14px; font: 650 15px var(--font-ui); font-style: normal; letter-spacing: .01em; color: var(--text-low); background: var(--bg); }
