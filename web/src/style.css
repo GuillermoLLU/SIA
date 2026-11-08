@@ -357,6 +357,7 @@ body.top-nav .ai-hero { top: calc(-1 * var(--topbar-h)); padding: calc(var(--top
 }
 /* tamaño fijo, el de la sección más alta (Conexiones), para que no cambie al pasar de una a otra;
    si la ventana o el contenido no dan, el panel hace scroll */
+/* el mismo ancho con y sin la columna de enlaces: sin ella, lo demás ocupa su sitio */
 .settings-modal { width: var(--settings-w); height: min(750px, calc(100vh - 40px)); }
 /* Configuración va centrada en vertical (el resto de modales cuelgan arriba) */
 #settings-modal { align-items: center; padding-top: 0; }
@@ -490,9 +491,7 @@ body.top-nav #settings-modal[hidden] .settings-modal { transform: scale(.98); op
   display: flex; flex-direction: column; border-left: 1px solid var(--border); background: var(--bg);
   transition: width .45s cubic-bezier(.22, 1, .36, 1), background .45s ease;
 }
-.settings-layout:not(.full) .settings-main { margin-right: var(--links-w); }
-/* sin la vista de Enlaces, su columna se queda, vacía: el modal mide y se reparte igual para todos */
-.settings-layout:not(.full):has(> .settings-links[hidden])::after { content: ''; position: absolute; top: 0; right: 0; bottom: 0; width: var(--links-w); border-left: 1px solid var(--border); background: var(--bg); }
+.settings-layout:not(.full):has(.settings-links:not([hidden])) .settings-main { margin-right: var(--links-w); }
 .settings-main, .dir-head, .dir-list, .dir-body { transition: opacity .3s ease, filter .3s ease, visibility .3s; }
 .side-open .settings-links { width: 100%; background: var(--surface); }
 /* una sección a todo el ancho (settings.setFull): la columna de enlaces se aparta */
