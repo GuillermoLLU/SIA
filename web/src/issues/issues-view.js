@@ -1,7 +1,8 @@
-// Vista «Issues»: la mesa de cada persona. Arriba, cómo trabaja en general y la cola; debajo, el
-// seguimiento de lo suyo en tres columnas. A la derecha, su día, con el botón de asignar la
-// siguiente (la cola de la base evita que dos cojan la misma), y su histórico medido en SIA (se
-// llena con el uso). Al abrir una, la pantalla de trabajo (work-screen.js). La mesa se refresca sola.
+// Vista «Issues»: la mesa de cada persona. Arriba, cómo trabaja en general y la cola; debajo, lo
+// suyo: En curso y Resueltas a la izquierda, Seguimiento a la derecha. A la derecha del todo, su
+// día, con el botón de asignar la siguiente (la cola de la base evita que dos cojan la misma), y
+// su histórico medido en SIA (se llena con el uso). Al abrir una, la pantalla de trabajo
+// (work-screen.js). La mesa se refresca sola.
 import './issues.css';
 import { esc } from '../ui/html.js';
 import { LISTS, snapshotInfo, duration, weekBars } from './format.js';

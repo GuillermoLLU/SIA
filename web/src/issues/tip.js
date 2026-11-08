@@ -11,14 +11,14 @@ export const tipPlace = (anchor, box, view) => {
   const top = above ? anchor.top - GAP - box.height : anchor.bottom + GAP;
   const centred = anchor.left + anchor.width / 2 - box.width / 2;
   const left = Math.min(Math.max(centred, EDGE), Math.max(view.width - box.width - EDGE, EDGE));
-  return { top, left, above };
+  return { top, left };
 };
 
 export const mountTips = (root, { doc = document } = {}) => {
   let open = null;   // { tip, box } mientras se enseña
   const hide = () => {
     if (!open) return;
-    open.box.classList.remove('show', 'below');
+    open.box.classList.remove('show');
     open.tip.append(open.box);
     open = null;
   };
@@ -29,10 +29,9 @@ export const mountTips = (root, { doc = document } = {}) => {
     if (!box) return;
     doc.body.append(box);
     box.classList.add('show');   // visible antes de medirla
-    const { top, left, above } = tipPlace(tip.getBoundingClientRect(), box.getBoundingClientRect(), { width: doc.documentElement.clientWidth });
+    const { top, left } = tipPlace(tip.getBoundingClientRect(), box.getBoundingClientRect(), { width: doc.documentElement.clientWidth });
     box.style.top = `${top}px`;
     box.style.left = `${left}px`;
-    box.classList.toggle('below', !above);
     open = { tip, box };
   };
   root.addEventListener('mouseover', (e) => { const tip = e.target.closest?.('.iss-tip'); if (tip) show(tip); });

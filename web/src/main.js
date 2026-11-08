@@ -146,7 +146,7 @@ const PANELS = [
     api: createIssuesApi(api), me: user, toast, dialogs,
     openChat: (host, issue) => mountIssueChat(host, { issue, wsUrl, loadProjects: chat.loadProjects, makeTerminal: chat.makeTerminal }),
   }) },
-  { name: 'backlog', mount: (el) => mountBacklogView(el, { api: createBacklogApi(api), dialogs, toast }) },
+  { name: 'backlog', mount: (el) => mountBacklogView(el, { api: createBacklogApi(api), toast }) },
   // clic en una persona de Equipo soporte: se abre en Métricas frente al resto de su equipo
   { name: 'work', mount: (el) => mountWorkView(el, { api: createMetricsApi(api),
     openPerson: (person) => { PANELS.find((p) => p.name === 'metrics').ui?.focus(person); go('metrics'); } }) },

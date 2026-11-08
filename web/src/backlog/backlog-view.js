@@ -20,7 +20,7 @@ import { pickerHtml, pickClick } from '../ui/picker.js';
 const PLURAL = { CRITICAL: 'Críticas', HIGH: 'Altas', MEDIUM: 'Medias', LOW: 'Bajas' };
 
 // toast: el de la app. Las reglas de priorización se editan en Configuración → Priorización (rules-view.js).
-export const mountBacklogView = (root, { api, dialogs, toast }) => {
+export const mountBacklogView = (root, { api, toast }) => {
   let data = null, filter = { ...EMPTY_FILTER }, now = new Date(), loading = false, rule = 'basic';
   // el panel lateral: la issue abierta, su detalle, el equipo y qué está en marcha
   let opened = null, detail = null, people = [], side = { busy: false, error: null };

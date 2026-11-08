@@ -31,7 +31,6 @@ test('seguimiento: lo que más tiempo lleva sin moverse, arriba', () => {
 test('since: el tiempo que toca a cada lista', () => {
   const i = { reported: '2026-10-04 11:14', modified: '2026-10-04 08:44', resolved: '2026-10-04 11:00' };
   assert.equal(since(i, 'doing', NOW), 'hace 30 min');
-  assert.equal(since(i, 'waiting', NOW), 'sin moverse 3 h');
   assert.equal(since(i, 'resolved', NOW), '04/10 11:00');
 });
 
@@ -50,7 +49,7 @@ test('una fecha ISO de la base sale en hora local con el formato de la mesa', ()
 test('la foto de Remedy: al día si es de hoy; si no, avisa', () => {
   const now = new Date('2026-10-29T12:00:00');
   const date = when(stamp(new Date('2026-10-29T09:30:00')));
-  assert.deepEqual(snapshotInfo('2026-10-29T09:30:00', now), { date, text: `Datos de Remedy del ${date}`, stale: false });
+  assert.deepEqual(snapshotInfo('2026-10-29T09:30:00', now), { date, stale: false });
   assert.equal(snapshotInfo('2026-10-21T10:09:00', now).stale, true);
   assert.equal(snapshotInfo('2026-10-28T23:59:00', now).stale, true);
 });

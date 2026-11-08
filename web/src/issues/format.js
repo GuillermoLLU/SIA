@@ -64,8 +64,7 @@ export const whenLabel = (s, now) => {
 export const snapshotInfo = (taken, now) => {
   const t = new Date(taken);
   const stale = t.toDateString() !== now.toDateString();
-  const date = when(stamp(t));
-  return { date, text: `Datos de Remedy del ${date}`, stale };
+  return { date: when(stamp(t)), stale };
 };
 
 // Minutos legibles: «30 min», «3 h», «3 d».
@@ -74,9 +73,9 @@ export const duration = (m) => (m < 60 ? `${Math.max(0, Math.round(m))} min` : m
 // Tiempo entre una fecha («YYYY-MM-DD HH:MM», hora local) y ahora, legible.
 export const age = (s, now) => duration((now - new Date(s.replace(' ', 'T'))) / 60000);
 
-// Qué tiempo enseña una issue en cada lista: sin moverse (esperando), cuándo
-// se resolvió, o cuánto hace que entró.
-export const since = (i, key, now) => (key === 'waiting' ? `sin moverse ${age(i.modified, now)}` : key === 'resolved' ? when(i.resolved) : `hace ${age(i.reported, now)}`);
+// Qué tiempo enseña una issue en En curso y Resueltas: cuánto hace que entró, o cuándo se resolvió
+// (Seguimiento enseña sus días sin moverse, stillInfo).
+export const since = (i, key, now) => (key === 'resolved' ? when(i.resolved) : `hace ${age(i.reported, now)}`);
 
 // Desde cuándo espera a un tercero: el último paso a Pendiente del historial de Remedy
 // (changes: [[fecha, de, a]]); sin él, su último cambio.
