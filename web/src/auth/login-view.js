@@ -70,6 +70,7 @@ const loginGate = (session, logoHtml) => new Promise((resolve) => {
     form.classList.remove('bad'); void form.offsetWidth; form.classList.add('bad');
   };
   const leave = async (user) => {
+    form.inert = true;   // ya dentro: ni un segundo Enter ni otro clic mientras da la bienvenida
     if (!user.must_change_password) await welcome(el, user);   // con contraseña que cambiar, antes su puerta
     el.classList.add('leaving');
     setTimeout(() => {
