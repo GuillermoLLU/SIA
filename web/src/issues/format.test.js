@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LISTS, when, whenIso, whenLabel, newestFirst, snapshotInfo, age, stamp, duration, since, weekBars, stillDays, stillLevel } from './format.js';
+import { LISTS, when, whenIso, whenLabel, newestFirst, snapshotInfo, age, stamp, duration, since, weekBars, stillDays, stillLevel, pendingSince } from './format.js';
 
 const NOW = new Date('2026-10-04T11:44:00');
 
@@ -75,4 +75,10 @@ test('stillDays y stillLevel: los días sin moverse de una pendiente, y si hay q
   assert.equal(stillDays(at('2026-10-01 11:00'), NOW), 3);
   assert.equal(stillDays(at('2026-09-20 11:00'), NOW), 14);
   assert.deepEqual([0, 2, 3, 6, 7, 30].map(stillLevel), ['ok', 'ok', 'slow', 'slow', 'late', 'late']);
+});
+
+test('pendingSince: el último paso a Pendiente del historial; sin él, su último cambio', () => {
+  const changes = [['2026-10-06 14:40', '', 'Assigned'], ['2026-10-06 20:55', 'Assigned', 'Pending'], ['2026-10-07 08:53', 'Pending', 'Assigned'], ['2026-10-21 14:38', 'In Progress', 'Pending']];
+  assert.equal(pendingSince({ changes, modified: '2026-10-21 14:40' }), '2026-10-21 14:38');
+  assert.equal(pendingSince({ changes: [], modified: '2026-10-21 14:40' }), '2026-10-21 14:40');
 });

@@ -64,6 +64,13 @@ export const age = (s, now) => duration((now - new Date(s.replace(' ', 'T'))) / 
 // se resolvió, o cuánto hace que entró.
 export const since = (i, key, now) => (key === 'waiting' ? `sin moverse ${age(i.modified, now)}` : key === 'resolved' ? when(i.resolved) : `hace ${age(i.reported, now)}`);
 
+// Desde cuándo espera a un tercero: el último paso a Pendiente del historial de Remedy
+// (changes: [[fecha, de, a]]); sin él, su último cambio.
+export const pendingSince = (i) => {
+  const last = [...(i.changes || [])].reverse().find(([, , to]) => /^pending$/i.test(String(to)));
+  return last ? last[0] : i.modified;
+};
+
 // Lo que lleva una pendiente de terceros sin moverse, en días, y cómo de mal: hasta 2 días va bien;
 // de 3 a 6, se va alargando; 7 o más, hay que mirarla.
 export const stillDays = (i, now) => Math.max(0, Math.floor((now - new Date(String(i.modified).replace(' ', 'T'))) / 86400000));
