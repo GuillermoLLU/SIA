@@ -150,8 +150,7 @@ const PANELS = [
   { name: 'backlog', mount: (el) => mountBacklogView(el, { api: createBacklogApi(api), dialogs, toast }) },
   // clic en una persona de Equipo soporte: se abre en Métricas frente al resto de su equipo
   { name: 'work', mount: (el) => mountWorkView(el, { api: createMetricsApi(api),
-    openPerson: (person) => { PANELS.find((p) => p.name === 'metrics').ui?.focus(person); showView('metrics'); },
-    onManage: canView(user, 'people') ? () => settings.open('equipo') : undefined }) },
+    openPerson: (person) => { PANELS.find((p) => p.name === 'metrics').ui?.focus(person); showView('metrics'); } }) },
   { name: 'metrics', mount: (el) => mountMetricsView(el, { api: createMetricsApi(api), toast }) },
 ].map((p) => ({ ...p, view: $(`view-${p.name}`) }));
 // El dock: Issues y Métricas (Equipo, Servicio y Backlog detrás de un solo icono, app/hub.js)
