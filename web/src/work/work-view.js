@@ -25,7 +25,8 @@ export const mountWorkView = (root, { api, openPerson }) => {
   const ui = { exp: {}, sort: {}, charts: new Set() };   // charts: los bloques con su gráfica desplegada
   const $ = (s) => root.querySelector(s);
 
-  // cabecera: título, fecha de los datos y, a la derecha, el periodo (si hay datos)
+  // cabecera: la fecha de los datos y, a la derecha, el periodo (si hay datos); el nombre de la
+  // sección va en la barra de arriba
   const page = (body, tools = '') => `<div class="mt-page"><header class="mt-top wk-top">${body}<span class="wk-tools">${tools}</span></header>`;
 
   const renderFrame = () => {

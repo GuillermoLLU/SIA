@@ -55,8 +55,7 @@
 .wk-col-x { margin-top: 4px; font-size: 11px; text-align: center; color: var(--mt-low); }
 .wk-pair { display: flex; flex: 1; align-items: flex-end; justify-content: center; gap: 2px; min-height: 0; }
 .wk-pair i { display: block; width: 42%; min-height: 1px; }
-/* cambiar de cara del equipo: métricas o gestión de personas (también en la cabecera de Personas) */
-/* a la derecha de la cabecera: el periodo y «Gestionar equipo»; el calendario se abre hacia la izquierda */
+/* a la derecha de la cabecera, el periodo; el calendario se abre hacia la izquierda */
 .wk-tools { display: flex; align-items: center; gap: 10px; margin-left: auto; }
 .wk-top .mt-pop { left: auto; right: 0; }
 .wk-top { border-bottom: 1px solid var(--border); }
