@@ -8,7 +8,7 @@ import { SEVERITY_ES, STATUS_ES, REASON_ES, when, whenIso, age } from '../issues
 import { sev, origin } from '../issues/parts.js';
 import { worklogHtml } from '../issues/work-screen.js';
 import { peoplePicker } from '../ui/picker.js';
-import { knowsOrigin, originOf } from '../issues/assisted.js';
+import { knowsOrigin, originOf } from '../issues/origin.js';
 
 // Priorizar: la prioridad es la etiqueta PRIO de Remedy, que pone negocio.
 const pinHtml = ({ prio }) => `<div class="bl-act"><h5>Priorizar</h5>

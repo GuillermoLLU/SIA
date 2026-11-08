@@ -1,14 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assistedPlan, originOf, knowsOrigin } from './assisted.js';
+import { assistedPlan } from './assisted.js';
 
 const LAUNCHERS = [{ id: 'claude', label: 'Claude', available: true }, { id: 'copilot', label: 'Copilot', available: false }];
 const PROJECTS = [{ id: 5, name: 'SISU' }, { id: 6, name: 'SGA' }];
-
-test('el origen de la issue decide el conocimiento', () => {
-  assert.equal(originOf({ sisu: true }), 'SISU');
-  assert.equal(originOf({ sisu: false }), 'SGA');
-});
 
 test('el plan: Claude, conocimiento autónomo y solo el proyecto del origen', () => {
   const p = assistedPlan({ launchers: LAUNCHERS, projects: PROJECTS, origin: 'SISU' });
@@ -22,11 +17,4 @@ test('sin Claude o sin el proyecto del origen, un motivo claro', () => {
   assert.match(assistedPlan({ launchers: [], projects: PROJECTS, origin: 'SGA' }).error, /no está configurado/);
   assert.match(assistedPlan({ launchers: [{ id: 'claude', available: false }], projects: PROJECTS, origin: 'SGA' }).error, /no está instalado/);
   assert.match(assistedPlan({ launchers: LAUNCHERS, projects: [PROJECTS[1]], origin: 'SISU' }).error, /conocimiento de SISU/);
-});
-
-test('knowsOrigin: solo quien tiene el proyecto del origen; sin la lista, no se filtra', () => {
-  assert.equal(knowsOrigin(['SISU'], { sisu: true }), true);
-  assert.equal(knowsOrigin(['SISU'], { sisu: false }), false);
-  assert.equal(knowsOrigin(['sga'], { sisu: false }), true);
-  assert.equal(knowsOrigin(undefined, { sisu: false }), true);
 });

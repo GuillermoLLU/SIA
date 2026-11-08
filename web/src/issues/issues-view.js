@@ -12,7 +12,7 @@ import { pickClick, openPicker, closePickers } from '../ui/picker.js';
 import { workScreen, trailHtml, trailTab, releaseDialogHtml, sendsNote, noteEditorHtml } from './work-screen.js';
 import { ACTIONS, actionForm, readAction, isComplete, chaseNote, chaseTarget } from './actions.js';
 import { createResolver } from './resolve-view.js';
-import { knowsOrigin, originOf } from './assisted.js';
+import { knowsOrigin, originOf } from './origin.js';
 import { crossfade } from '../ui/crossfade.js';
 import { mountTips } from './tip.js';
 import { readEscalate, createEscalateDrafts } from './escalate.js';
@@ -261,8 +261,8 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     closeAction();
     if (key === 'resolve') return resolver.open(opened, issue?.link || null, closeAction);
     // traspasar: solo a quien tiene el conocimiento de su origen (SGA, SISU)
-    if (key === 'transfer') people = (await api.teammates()).filter((p) => !issue || knowsOrigin(p.groups, issue));
-    const empty = key === 'transfer' && issue ? `Nadie más tiene el conocimiento de ${originOf(issue)}` : '';
+    if (key === 'transfer') people = (await api.teammates()).filter((p) => knowsOrigin(p.groups, issue));
+    const empty = key === 'transfer' ? `Nadie más tiene el conocimiento de ${originOf(issue)}` : '';
     root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${key === 'escalate' ? escalateModal() : actionForm(key, opened, people, empty)}</div>`);
     root.querySelector(key === 'escalate' ? '#iss-f-dest' : '.iss-act-form textarea, .iss-act-form input:not([type=hidden]), .iss-act-form select')?.focus();
     // Escape: con la lista del selector abierta la cierra; si no, cierra el modal
