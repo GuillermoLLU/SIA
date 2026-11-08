@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { viewsOf, canView, baseNav, panelNav, firstView, usesTopbar, hubBoxes, inHub, viewTitle } from './nav.js';
+import { viewsOf, canView, baseNav, panelNav, firstView, usesTopbar, hubBoxes, inHub, viewTitle, chatBackTo, iconOf } from './nav.js';
 
 const u = (views) => ({ views });
 
@@ -68,4 +68,12 @@ test('viewTitle: el nombre de cada sección para la barra de arriba; una que no 
   assert.equal(viewTitle('work'), 'Métricas del equipo');
   assert.equal(viewTitle('metrics'), 'Métricas del servicio');
   assert.equal(viewTitle('nope'), '');
+});
+
+test('chatBackTo e iconOf: desde el Chat se vuelve a la vista de la que se vino, con su icono', () => {
+  assert.equal(chatBackTo('backlog'), 'backlog');
+  assert.equal(chatBackTo('chat'), null);
+  assert.equal(chatBackTo(null), null);
+  assert.equal(iconOf('hub'), 'metrics');
+  assert.equal(iconOf('work'), 'work');
 });

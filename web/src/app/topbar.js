@@ -22,7 +22,7 @@ const mountBrand = (host) => {
 };
 
 // hasChat: si tiene la vista Chat; sin ella no hay botón de la IA (ni a qué volver)
-export const mountTopbar = (host, { name, chat, desk, settings, lock, hasChat = true }) => {
+export const mountTopbar = (host, { name, chat, settings, lock, hasChat = true }) => {
   document.body.classList.add('top-nav');
   const bar = document.createElement('div');
   bar.className = 'topbar';
@@ -39,9 +39,8 @@ export const mountTopbar = (host, { name, chat, desk, settings, lock, hasChat = 
 
   const chatBtn = bar.querySelector('.top-chat');
   chatBtn.hidden = !hasChat;
-  let target = chat;
-  chatBtn.addEventListener('click', () => target.click());
-  const hasDesk = () => !desk.hidden;   // sin la vista Issues (p. ej. un administrador), el botón solo lleva al Chat
+  let back = null;   // en el Chat: { icon, title, go } de la vista de la que se vino
+  chatBtn.addEventListener('click', () => (back ? back.go() : chat.click()));
 
   const ini = user.querySelector('.top-ini');
   ini.textContent = firstLetter(name);
@@ -61,13 +60,15 @@ export const mountTopbar = (host, { name, chat, desk, settings, lock, hasChat = 
     titleEl.classList.add('in');
   };
   return {
-    // view: la vista que se enseña; title: su nombre, en el centro de la barra
-    show: (view, title = '') => {
+    // view: la vista que se enseña; title: su nombre, en el centro de la barra; from: en el Chat,
+    // { icon, title, go } de la vista de la que se vino (el botón lleva de vuelta allí)
+    show: (view, title = '', from = null) => {
       swapTitle(title);
-      target = view === 'chat' && hasDesk() ? desk : chat;
-      chatBtn.title = target.title;
-      chatBtn.setAttribute('aria-label', target.title);
-      chatBtn.innerHTML = target === chat ? IA_ICON : target.innerHTML;
+      back = view === 'chat' ? from : null;
+      const label = back ? back.title : chat.title;
+      chatBtn.title = label;
+      chatBtn.setAttribute('aria-label', label);
+      chatBtn.innerHTML = back ? back.icon : IA_ICON;
     },
   };
 };

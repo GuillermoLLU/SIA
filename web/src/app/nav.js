@@ -45,3 +45,9 @@ export const inHub = (view) => view === 'hub' || HUB.some((h) => h.name === view
 // El nombre de la sección en la que se está, en el centro de la barra de arriba.
 const VIEW_TITLES = { chat: 'Chat', issues: 'Mesa de trabajo', hub: 'Métricas', work: 'Métricas del equipo', metrics: 'Métricas del servicio', backlog: 'Backlog', lab: 'Skills' };
 export const viewTitle = (view) => VIEW_TITLES[view] || '';
+
+// El Chat va por encima de todo: arriba, en lugar del botón de la IA, el de volver a la vista de la
+// que se vino (con su icono). → la vista a la que se vuelve, o null si no se vino de ninguna.
+export const chatBackTo = (from) => (from && from !== 'chat' ? from : null);
+// El icono de una vista (users/views.js); el selector de Métricas lleva el de Métricas.
+export const iconOf = (view) => (view === 'hub' ? 'metrics' : view);

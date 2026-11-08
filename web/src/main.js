@@ -7,7 +7,7 @@ import { createApi } from './ui/api.js';
 import { createDialogs } from './ui/dialog.js';
 import { createToast, prefersReducedMotion } from './ui/dom.js';
 import { bridgeFromQuery, discoverBridge } from './app/discover.js';
-import { canView, baseNav, firstView, usesTopbar, hubBoxes, inHub, viewTitle } from './app/nav.js';
+import { canView, baseNav, firstView, usesTopbar, hubBoxes, inHub, viewTitle, chatBackTo, iconOf } from './app/nav.js';
 import { mountTopbar } from './app/topbar.js';
 import { mountDock } from './app/dock.js';
 import { mountHub } from './app/hub.js';
@@ -158,15 +158,21 @@ const dock = { issues: $('nav-issues'), backlog: $('nav-backlog'), hub: $('nav-m
 let topbar = null;
 const onShow = { chat: () => { chat.refitActive(); chat.focusActive(); } };
 let currentView = 'chat';
+let beforeChat = null;   // la vista de la que se entró al Chat: arriba, su icono para volver
 const showView = (name) => {
+  if (name === 'chat' && currentView !== 'chat') beforeChat = chatBackTo(currentView);
   currentView = name;
+  document.body.classList.toggle('in-chat', name === 'chat');   // el Chat va por encima: sin el dock
   for (const [k, v] of Object.entries(views)) v.hidden = name !== k;
   for (const [k, n] of Object.entries(nav)) n.classList.toggle('active', name === k);
   for (const p of PANELS) p.view.hidden = name !== p.name;
   dock.issues.classList.toggle('active', name === 'issues');
   dock.backlog.classList.toggle('active', name === 'backlog');
   dock.hub.classList.toggle('active', inHub(name));
-  topbar?.show(name, viewTitle(name));
+  const from = name === 'chat' && beforeChat
+    ? { icon: VIEWS.find((v) => v.id === iconOf(beforeChat))?.icon || '', title: `Volver a ${viewTitle(beforeChat)}`, go: () => go(beforeChat) }
+    : null;
+  topbar?.show(name, viewTitle(name), from);
   onShow[name]?.();
   return PANELS.find((p) => p.name === name)?.ui?.show?.(); // lo que tarda en pintarse, si es un panel
 };
@@ -201,7 +207,7 @@ dock.hub.hidden = !hub.length;
 dock.hub.addEventListener('click', () => go('hub'));
 mountHub(views.hub, { boxes: hub, go });
 // La barra de arriba (inicial, marca y Chat) para todo el mundo; quien tiene más vistas conserva además la lateral
-topbar = mountTopbar(document.querySelector('.app'), { name: user.name, chat: nav.chat, desk: $('nav-issues'), settings: $('settings-btn'), lock: $('lock-btn'), hasChat: canView(user, 'chat') });
+topbar = mountTopbar(document.querySelector('.app'), { name: user.name, chat: nav.chat, settings: $('settings-btn'), lock: $('lock-btn'), hasChat: canView(user, 'chat') });
 if (!usesTopbar(user)) { document.body.classList.add('brand-nav'); mountDock(document.querySelector('.sidebar')); }
 // Se abre en la mesa de trabajo: primero la barra y después la mesa (app/intro.js).
 const opening = firstView(user);
