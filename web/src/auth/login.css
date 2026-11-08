@@ -40,3 +40,9 @@
 .login-password { width: min(320px, 100%); opacity: 1; transform: none; }
 .login-password .lock-logo { width: 96px; height: 96px; margin-bottom: 10px; }
 .login-hint { margin: 0; font-size: 12px; color: var(--text-low); text-align: center; }
+
+/* Al entrar (login-view.js, welcome): el formulario se va y en el centro quedan el logotipo de
+   Inditex, que sube desde abajo, y la bienvenida */
+.lock-gate.welcome .login-stage { opacity: 0; filter: blur(6px); transform: scale(.97); pointer-events: none; transition: opacity .38s ease, filter .38s ease, transform .38s ease; }
+.lock-welcome { position: absolute; left: 50%; top: calc(50% + 24px); margin: 0; transform: translateX(-50%); white-space: nowrap; font: 400 17px var(--font-ui); letter-spacing: .01em; color: var(--text-low); }
+.lock-welcome b { font-weight: 650; color: var(--text); }

@@ -5,7 +5,7 @@
 // Solo DOM; la sesión la lleva session.js.
 import './login.css';
 import { esc } from '../ui/html.js';
-import { pressStartedIn } from '../ui/dom.js';
+import { pressStartedIn, prefersReducedMotion } from '../ui/dom.js';
 import { CORP_HTML } from '../app/corp.js';
 
 const markup = (logoHtml, lastEmail) => `<div class="login-stage">
@@ -22,6 +22,31 @@ const markup = (logoHtml, lastEmail) => `<div class="login-stage">
   <div class="lock-msg" role="alert"></div>
 </form>
 </div>${CORP_HTML}`;
+
+// Al entrar: el formulario se desvanece, el logotipo de Inditex sube de abajo al centro y, debajo,
+// la bienvenida con el nombre. → promesa que se cumple cuando ya se ha leído, para dar paso a la app.
+const WELCOME_MS = { out: 380, rise: 950, text: 450, hold: 900 };
+const welcome = (el, user) => new Promise((resolve) => {
+  const corp = el.querySelector('.lock-corp');
+  if (!corp || prefersReducedMotion()) return resolve();
+  el.classList.add('welcome');
+  const r = corp.getBoundingClientRect();
+  const dy = Math.round(innerHeight / 2 - 22 - (r.top + r.height / 2));
+  corp.getAnimations().forEach((a) => a.finish());   // su entrada, si aún no había acabado
+  corp.animate(
+    [{ transform: 'translate(-50%, 0) scale(1)' }, { transform: `translate(-50%, ${dy}px) scale(1.7)` }],
+    { duration: WELCOME_MS.rise, delay: WELCOME_MS.out / 2, easing: 'cubic-bezier(.65, 0, .25, 1)', fill: 'forwards' },
+  );
+  const text = document.createElement('p');
+  text.className = 'lock-welcome';
+  text.innerHTML = `Te damos la bienvenida, <b>${esc(user.name || '')}</b>`;
+  el.append(text);
+  text.animate(
+    [{ opacity: 0, transform: 'translate(-50%, 8px)', filter: 'blur(4px)' }, { opacity: 1, transform: 'translate(-50%, 0)', filter: 'blur(0)' }],
+    { duration: WELCOME_MS.text, delay: WELCOME_MS.out / 2 + WELCOME_MS.rise - 150, easing: 'ease-out', fill: 'both' },
+  );
+  setTimeout(resolve, WELCOME_MS.out / 2 + WELCOME_MS.rise + WELCOME_MS.hold);
+});
 
 // Tapa la app hasta que el usuario entra. → promesa con el usuario.
 const loginGate = (session, logoHtml) => new Promise((resolve) => {
@@ -44,7 +69,8 @@ const loginGate = (session, logoHtml) => new Promise((resolve) => {
     msg.textContent = text;
     form.classList.remove('bad'); void form.offsetWidth; form.classList.add('bad');
   };
-  const leave = (user) => {
+  const leave = async (user) => {
+    if (!user.must_change_password) await welcome(el, user);   // con contraseña que cambiar, antes su puerta
     el.classList.add('leaving');
     setTimeout(() => {
       el.remove();
