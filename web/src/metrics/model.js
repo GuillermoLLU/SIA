@@ -14,6 +14,8 @@ const PRIO = 2, NO_RESOLUTION = 32768;
 export const REOPENED = 512;
 // escalada (#48): ha estado en Pendiente con motivo Third Party Vendor Action Reqd, tenga o no ticket
 export const THIRD_PARTY = 131072;
+// cerrada en Remedy con su Jira aún abierto: sin Tesc (server/metrics/escalation.js, jiraOpen)
+export const JIRA_OPEN = 524288;
 export const isEscalated = (C, i) => (C.fl[i] & THIRD_PARTY) !== 0;
 // mal escalada: algún Jira suyo se descartó o pasó de un equipo a otro (server/metrics/escalation.js, misrouted)
 export const MISROUTED = 2097152, JIRA_DISCARDED = 4194304, JIRA_MOVED = 8388608;
@@ -75,9 +77,10 @@ export const createModel = (data) => {
   const dayName = (min) => { const d = new Date(BASE + min * 6e4); return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}${LASTM >= 12 ? ` ${d.getUTCFullYear()}` : ''}`; };
   // Lo cargado, por días completos: del primer día con issues (MIN_D) al día de la foto, incluido (END_D, excluido).
   const MIN_D = Math.floor(meta.first / DAY) * DAY, END_D = (Math.floor(SNAP / DAY) + 1) * DAY;
-  // El periodo con el que abren las vistas (resetPeriod): el mes en curso (el de la foto) entero, del día 1, o del
-  // primer día con issues, hasta la foto.
-  const START_D = Math.max(MIN_D, minuteOf(LASTM));
+  // El periodo con el que abren las vistas (resetPeriod): el año fiscal en curso, del 1 de febrero (el último que no pase
+  // del mes de la foto), o del primer día con issues, hasta la foto. Los meses k cuentan desde enero de meta.start.
+  const FISCAL_M = LASTM - (((LASTM - 1) % 12) + 12) % 12;
+  const START_D = Math.max(MIN_D, minuteOf(FISCAL_M));
   const CRIT = DI.prio.indexOf('CRITICAL');
   const SLA = DI.prio.map((p) => SLA_MINUTES[p] ?? -1);
   // las prioridades de más a menos urgente y su SLA de inicio («Crítica · 0,25 h»)
@@ -233,11 +236,11 @@ export const createModel = (data) => {
     return (CACHE.pool = out);
   };
   // la foto de hoy: las que pasan los filtros sea cual sea su mes de apertura; con anySide, también las de
-  // ningún lado (para lo que aún no tiene responsable)
-  const today = (anySide = false) => {
-    const key = anySide ? 'today*' : 'today';
+  // ningún lado (para lo que aún no tiene responsable); sin contar el filtro de la dimensión `skip`, si se indica
+  const today = (anySide = false, skip) => {
+    const a = ACTIVE.indexOf(skip), key = `${anySide ? 'today*' : 'today'}${a < 0 ? '' : `:${skip}`}`;
     if (CACHE[key]) return CACHE[key];
-    const allow = OUT_PERIOD | (anySide ? OUT_SIDE : 0), out = [];
+    const allow = OUT_PERIOD | (anySide ? OUT_SIDE : 0) | (a < 0 ? 0 : 1 << a), out = [];
     for (let i = 0; i < N; i++) if (!(MASK[i] & ~allow)) out.push(i);
     return (CACHE[key] = out);
   };
@@ -356,7 +359,7 @@ export const createModel = (data) => {
   };
 
   return {
-    data, C, DI, N, BASE, SNAP, LASTM, SLA, PRIOS, CRIT, slaLabel, monthAt, monthName, minuteOf, dayName, fullMonth, MIN_D, END_D, setPeriod, resetPeriod, daily, inPeriod, MONTH, DOW, OPEN, TEAM, SIDE, DIMS, S, STYPE,
+    data, C, DI, N, BASE, SNAP, LASTM, SLA, PRIOS, CRIT, slaLabel, monthAt, monthName, minuteOf, dayName, fullMonth, MIN_D, END_D, START_D, setPeriod, resetPeriod, daily, inPeriod, MONTH, DOW, OPEN, TEAM, SIDE, DIMS, S, STYPE,
     CMP, CO, NAMES, refilter, rows, pool, today, toggle, isSel, anySel, group, bySide, trend, stats, periodSlots, clock,
     heads, perHead, alone, carry: (list) => carry(list, C, shiftType), shiftWork: (list) => shiftWork(list, C, (i) => OPEN[i], shiftType),
   };

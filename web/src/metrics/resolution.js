@@ -2,13 +2,42 @@
 // personas, lo resuelto de cada lado.
 // m: el modelo (model.js).
 import { MIN_ISSUES, clearlyWorse } from './rules.js';
-import { isEscalated } from './model.js';
+import { isEscalated, JIRA_OPEN } from './model.js';
 
 export const solved = (m) => (i) => m.DIMS.tb.get(i) < 8;
 export const escalated = (m) => (i) => isEscalated(m.C, i);
 
-// Los tiempos medios de unas escaladas resueltas: n, THesc y Tesc (cada uno, de las que lo tienen con sus tickets Jira,
-// y cuántas son; un ticket previo a la apertura no cuenta) y el tiempo total, de la apertura a la resolución.
+// El MTTR (#48): (TTR de las resueltas + lo que llevan abiertas las que siguen abiertas) / cuántas son; una cancelada sin
+// resolver no cuenta. hoursOf: lo de una (null si no cuenta). → { mttr, n } (sin ninguna, mttr null).
+export const hoursOf = (m, i) => (m.C.res[i] >= 0 ? Math.max(m.C.res[i] - m.C.rep[i], 0) : m.OPEN?.[i] ? Math.max(m.SNAP - m.C.rep[i], 0) : null);
+export const mttrOf = (m, list) => {
+  let sum = 0, n = 0;
+  for (const i of list) { const h = hoursOf(m, i); if (h != null) { sum += h; n++; } }
+  return { mttr: n ? sum / n : null, n };
+};
+// IDMTTR (#48): cuánto mueve una incidencia el MTTR de todas (base, mttrOf): (sus horas − MTTR) / cuántas son. Positivo,
+// lo sube; negativo, lo baja. Sin dato, null.
+export const idmttr = (h, base) => (h == null || base.mttr == null ? null : (h - base.mttr) / base.n);
+// El IDMTTR de un grupo: el MTTR de all menos el de all sin las de list (lo que está en list y no en all no lo mueve).
+// Sin MTTR con o sin ellas, null.
+export const idmttrOf = (m, all, list) => {
+  const out = new Set(list), base = mttrOf(m, all), rest = mttrOf(m, all.filter((i) => !out.has(i)));
+  return base.mttr == null || rest.mttr == null ? null : base.mttr - rest.mttr;
+};
+
+// Con su Jira aún sin resolver: sigue abierta en Remedy, o se cerró con el Jira abierto (JIRA_OPEN). Sin Jira, no.
+export const jiraPending = (m, i) => (m.C.tes?.[i] ?? -1) < 0 && (m.C.the?.[i] ?? -1) >= 0 && !!(m.C.fl?.[i] & JIRA_OPEN || m.OPEN?.[i]);
+// El Tesc de una escalada en Escalados: hasta que se resuelve su Jira de solución (tes) o, con el Jira aún sin resolver
+// (jiraPending), desde que se creó (la apertura más THesc) hasta la última carga. Sin Jira, -1.
+export const tescOf = (m, i) => {
+  const { C } = m, tes = C.tes?.[i] ?? -1;
+  if (tes >= 0) return tes;
+  return jiraPending(m, i) ? Math.max(m.SNAP - C.rep[i] - C.the[i], 0) : -1;
+};
+
+// Los tiempos medios de unas escaladas: n, THesc y Tesc (cada uno, de las que lo tienen con sus tickets Jira, y cuántas
+// son; un ticket previo a la apertura no cuenta), el tiempo total (hoursOf: de la apertura a la resolución o, abierta,
+// hasta la última carga) y jiraOpen: cuántas tienen su Jira aún sin resolver (su Tesc, hasta la última carga: tescOf).
 export const JIRA_MAX = 8;   // los proyectos que se comparan, como mucho, a la vez
 
 // La comparativa de proyectos Jira. rows: lo escalado y resuelto a Jira; picked: los elegidos (de partida, ninguno: solo
@@ -41,7 +70,7 @@ export const escalationTimes = (m, list) => {
     const v = list.map(value).filter((x) => x >= 0);
     return { n: v.length, avg: v.length ? v.reduce((a, b) => a + b, 0) / v.length : null };
   };
-  return { n: list.length, the: meanOf((i) => C.the?.[i] ?? -1), tes: meanOf((i) => C.tes?.[i] ?? -1), total: meanOf((i) => C.res[i] - C.rep[i]) };
+  return { n: list.length, the: meanOf((i) => C.the?.[i] ?? -1), tes: meanOf((i) => tescOf(m, i)), tsr: meanOf((i) => C.tsr?.[i] ?? -1), total: meanOf((i) => hoursOf(m, i) ?? -1), jiraOpen: list.filter((i) => jiraPending(m, i)).length };
 };
 // cuántas de cada lado (por persona, comparando con personas): H, el divisor de cada lado
 export const perHead = (m) => [0, 1].map((k) => (m.perHead() ? m.heads(k).size || 1 : 1));

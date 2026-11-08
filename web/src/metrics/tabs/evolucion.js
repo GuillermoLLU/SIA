@@ -1,11 +1,11 @@
 // La evolución del backlog día a día en el periodo (sin DOM): el backlog de cada día por prioridad y su tendencia, lo
 // que entra frente a lo atendido de eso el mismo día (flow) o frente a todo lo atendido ese día (flowAll). La enseña el
-// Histórico. t: lo común de las pestañas (common.js).
+// Histórico; el Resumen, solo el backlog de cada día (render({ only: 'backlog' })). t: lo común de las pestañas (common.js).
 import { esc } from '../../ui/html.js';
 import { num, dec, pct, nice } from '../format.js';
 import { backlogByDay, trendOf, flowByDay, flowByShift } from '../backlog.js';
 import { SHIFTS, SHIFT_HOURS } from '../shifts.js';
-import { lineScale, dayTicks } from '../plot.js';
+import { lineScale, dayTicks, dayBuckets, bucketTicks } from '../plot.js';
 import { DAY } from '../rules.js';
 
 export const evolutionOf = (t) => {
@@ -14,13 +14,25 @@ export const evolutionOf = (t) => {
   const { card, legend } = ch;
   // El backlog al acabar cada día del periodo (hasta la foto). Lo de antes de lo cargado no está.
   const days0 = () => [m.S.d0, Math.max(1, Math.round((Math.min(m.S.d1, m.END_D) - m.S.d0) / DAY))];
+  // El backlog, por días, semanas o meses (ui.evoStep; metrics-view.js, data-evo-step; de partida, por días): en cada
+  // tramo, lo que había abierto al acabar su último día (plot.js, dayBuckets). when: cómo se llama un tramo en su nota.
+  const STEPS = [['day', 'Días', 'cada día', 'al día'], ['week', 'Semanas', 'cada semana', 'a la semana'], ['month', 'Meses', 'cada mes', 'al mes']];
+  const stepOf = () => STEPS.find(([k]) => k === ui.evoStep) || STEPS[0];
+  const byStep = (n) => {
+    const step = stepOf()[0], bs = dayBuckets(m, n, step), d0 = m.S.d0, last = (b) => (step !== 'day' && b.to === n - 1 ? ' (hasta la última carga)' : '');
+    const when = (b) => (step === 'day' ? `${m.dayName(d0 + b.from * DAY)}, al acabar el día`
+      : step === 'week' ? `Semana del ${m.dayName(d0 + b.from * DAY)} al ${m.dayName(d0 + b.to * DAY)}, al acabar${last(b)}`
+        : `${m.monthName(m.monthAt(d0 + b.from * DAY))}, al acabar el mes${last(b)}`);
+    return { step, bs, at: (v) => bs.map((b) => v[b.to]), when, ticks: bucketTicks(m, bs, step) };
+  };
+  const stepPick = () => `<div class="mt-seg mt-seg-sm" role="group" aria-label="Cada cuánto">${STEPS.map(([k, l]) => { const on = k === stepOf()[0]; return `<button class="mt-seg-b ${on ? 'mt-on' : ''}" data-evo-step="${k}" aria-pressed="${on}">${l}</button>`; }).join('')}</div>`;
   // Sin comparar, en barras apiladas por prioridad (crítica abajo, pegada a la base; prioridad es un orden: un solo
   // tono, de oscuro a claro, metrics.css mt-pq) y, encima, su línea de tendencia (mínimos cuadrados, en tinta neutra).
   // El marco de una gráfica de barras por día (los n días del periodo): la escala (hasta max, con aire), la rejilla, el
   // eje de los días, dónde cae cada día (xc, en el centro de su hueco de ancho slot) y la franja de cada día para su
   // nota al pasar el ratón (tip(i)). Ocupa la fila entera: a su ancho, la letra sale a su tamaño.
-  const dayFrame = (n, top, tip) => {
-    const ticks = dayTicks(m, n), subs = ticks.some((t) => t.sub);
+  const dayFrame = (n, top, tip, ticks = dayTicks(m, n)) => {
+    const subs = ticks.some((t) => t.sub);
     const W = 1240, H = 250, L = 52, R = 12, T = 12, B = subs ? 38 : 26, slot = (W - L - R) / n;
     const max = Math.max(1, top) * 1.1, y = (v) => T + (H - T - B) * (1 - v / max), xc = (i) => L + slot * (i + 0.5);
     const grid0 = [0, 0.5, 1].map((p) => `<line x1="${L}" x2="${W - R}" y1="${y(max * p)}" y2="${y(max * p)}" class="mt-gridline"/><text x="${L - 6}" y="${y(max * p) + 4}" text-anchor="end" class="mt-axis">${num(max * p)}</text>`).join('');
@@ -40,19 +52,19 @@ export const evolutionOf = (t) => {
     return { W, H, slot, xc, y, stack, svg: (body) => `<svg viewBox="0 0 ${W} ${H}" class="mt-svg">${grid0}${body}${xs}${hits}</svg>` };
   };
   const evolutionStack = (list) => {
-    const [d0, n] = days0(), { C, PRIOS, DI } = m;
-    const parts = PRIOS.map((p) => ({ label: nice(DI.prio[p]), v: backlogByDay(m, list.filter((i) => C.pr[i] === p), d0, n) }));
-    const total = backlogByDay(m, list, d0, n);
+    const [d0, days] = days0(), { C, PRIOS, DI } = m, s = byStep(days), n = s.bs.length;
+    const parts = PRIOS.map((p) => ({ label: nice(DI.prio[p]), v: s.at(backlogByDay(m, list.filter((i) => C.pr[i] === p), d0, days)) }));
+    const total = s.at(backlogByDay(m, list, d0, days));
     const rest = total.map((t, i) => t - parts.reduce((s, p) => s + p.v[i], 0));
     if (rest.some(Boolean)) parts.push({ label: 'Sin prioridad', v: rest });
     const { a, b } = trendOf(total);
     const f = dayFrame(n, Math.max(...total, a, a + b * (n - 1)),
-      (i) => `${m.dayName(d0 + i * DAY)}, al acabar el día: ${num(total[i])} pendientes\n${parts.map((p) => `${p.label}: ${num(p.v[i])}`).join('\n')}`);
+      (i) => `${s.when(s.bs[i])}: ${num(total[i])} pendientes\n${parts.map((p) => `${p.label}: ${num(p.v[i])}`).join('\n')}`, s.ticks);
     const bw = Math.max(1, f.slot * 0.72);
     const bars = Array.from({ length: n }, (_, i) => f.stack(f.xc(i) - bw / 2, bw, parts.map((p, j) => ({ cls: `mt-pq${j}`, v: p.v[i] })))).join('');
     const trend = `<line class="mt-trend" x1="${f.xc(0)}" y1="${f.y(Math.max(a, 0)).toFixed(1)}" x2="${f.xc(n - 1)}" y2="${f.y(Math.max(a + b * (n - 1), 0)).toFixed(1)}"/>`;
-    const perDay = `${b > 0 ? '+' : b < 0 ? '−' : ''}${dec(Math.abs(b))} al día`;
-    const legend = `<div class="mt-legend">${parts.map((p, j) => `<span><i class="mt-pq${j}"></i>${p.label}</span>`).join('')}<span data-tip="Mínimos cuadrados sobre lo pendiente de cada día del periodo."><i class="mt-trend-key"></i>Tendencia (${perDay})</span></div>`;
+    const perDay = `${b > 0 ? '+' : b < 0 ? '−' : ''}${dec(Math.abs(b))} ${stepOf()[3]}`;
+    const legend = `<div class="mt-legend">${parts.map((p, j) => `<span><i class="mt-pq${j}"></i>${p.label}</span>`).join('')}<span data-tip="Mínimos cuadrados sobre lo pendiente de ${stepOf()[2]} del periodo."><i class="mt-trend-key"></i>Tendencia (${perDay})</span></div>`;
     return `${legend}${f.svg(bars + trend)}`;
   };
   // Entrantes frente a atendidas, día a día (backlog.js, flowByDay): en cada día, dos barras juntas, lo que entró y, al
@@ -95,9 +107,9 @@ export const evolutionOf = (t) => {
   };
   // Comparando, una línea por lado (apilar los dos lados no se leería).
   const evolution = (all) => {
-    const [d0, n] = days0(), cos = CO();
-    const per = cos.map((k) => backlogByDay(m, all[k], d0, n));
-    const ticks = dayTicks(m, n), subs = ticks.some((x) => x.sub);
+    const [d0, days] = days0(), cos = CO(), s = byStep(days), n = s.bs.length;
+    const per = cos.map((k) => s.at(backlogByDay(m, all[k], d0, days)));
+    const ticks = s.ticks, subs = ticks.some((x) => x.sub);
     const W = 1240, H = 230, L = 52, R = 12, T = 12, B = subs ? 38 : 26;   // ocupa la fila entera: a su ancho, la letra sale a su tamaño
     const { max, x, y } = lineScale(per.flat(), n - 1, { W, H, L, R, T, B });
     const grid0 = [0, 0.5, 1].map((p) => `<line x1="${L}" x2="${W - R}" y1="${y(max * p)}" y2="${y(max * p)}" class="mt-gridline"/><text x="${L - 6}" y="${y(max * p) + 4}" text-anchor="end" class="mt-axis">${num(max * p)}</text>`).join('');
@@ -107,31 +119,32 @@ export const evolutionOf = (t) => {
       + (n <= 62 ? v.map((p, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(p).toFixed(1)}" r="2.5" class="mt-f${cos[s]}"/>`).join('') : '')).join('');
     // al pasar el ratón por un día, lo de cada lado; la franja de cada día, más ancha que su punto
     const step = (W - L - R) / Math.max(n - 1, 1);
-    const hits = Array.from({ length: n }, (_, i) => `<rect class="mt-hit" x="${(x(i) - step / 2).toFixed(1)}" y="${T}" width="${step.toFixed(1)}" height="${H - T - B}" data-tip="${esc(`${m.dayName(d0 + i * DAY)}, al acabar el día\n${cos.map((k, s) => `${name(k)}: ${num(per[s][i])} pendientes`).join('\n')}`)}"/>`).join('');
+    const hits = Array.from({ length: n }, (_, i) => `<rect class="mt-hit" x="${(x(i) - step / 2).toFixed(1)}" y="${T}" width="${step.toFixed(1)}" height="${H - T - B}" data-tip="${esc(`${s.when(s.bs[i])}\n${cos.map((k, s) => `${name(k)}: ${num(per[s][i])} pendientes`).join('\n')}`)}"/>`).join('');
     return `<svg viewBox="0 0 ${W} ${H}" class="mt-svg">${grid0}${xs}${ser}${hits}</svg>`;
   };
 
   // La evolución del backlog, con su selector (ui.evo): el backlog de cada día (por prioridad y su tendencia), lo que
   // entra frente a lo atendido de eso mismo el día en que entró (flow) o frente a todo lo atendido ese día, también del
-  // backlog (flowAll). Comparando, una línea por lado del backlog, sin selector.
+  // backlog (flowAll). Comparando, una línea por lado del backlog, sin selector. Con only, solo esa vista, sin selector.
   const VIEWS = [['backlog', 'Backlog', 'Evolución del backlog'], ['flow', 'Entrantes vs atendidas entrantes', 'Entrantes frente a atendidas entrantes'],
     ['flowAll', 'Entrantes vs atendidas totales', 'Entrantes frente a atendidas totales']];
-  const evolutionCard = (all, cmp, loaded) => {
-    const view = cmp ? 'backlog' : VIEWS.some(([k]) => k === ui.evo) ? ui.evo : 'backlog';
-    const pick = cmp ? '' : `<div class="mt-seg mt-seg-sm" role="group" aria-label="Qué se ve">${VIEWS.map(([k, l]) => `<button class="mt-seg-b ${k === view ? 'mt-on' : ''}" data-evo="${k}" aria-pressed="${k === view}">${l}</button>`).join('')}</div>`;
+  const evolutionCard = (all, cmp, loaded, only = null) => {
+    const view = cmp ? 'backlog' : only || (VIEWS.some(([k]) => k === ui.evo) ? ui.evo : 'backlog');
+    const pick = cmp || only ? '' : `<div class="mt-seg mt-seg-sm" role="group" aria-label="Qué se ve">${VIEWS.map(([k, l]) => `<button class="mt-seg-b ${k === view ? 'mt-on' : ''}" data-evo="${k}" aria-pressed="${k === view}">${l}</button>`).join('')}</div>`;
     const list = all[CO()[0]];
+    const steps = view === 'backlog' ? stepPick() : '';
     const body = cmp ? `${legend()}${evolution(all)}` : view === 'backlog' ? evolutionStack(list) : flowChart(list, view === 'flowAll');
     const same = 'Cada día, lo que entró y, al lado, cuánto de eso se atendió el mismo día en que entró: pasó a Resuelta, a Pendiente de proveedor o a Pendiente de cliente (cada incidencia, una vez, en lo más avanzado: resuelta, luego proveedor, luego cliente).';
     const sub = view === 'flow' ? `${same} Pasa el ratón por un día para ver sus cifras.`
       : view === 'flowAll' ? `${same} Encima, en violeta, lo atendido ese día del backlog: lo que entró antes (una vez por incidencia y día). Pasa el ratón por un día para ver sus cifras.`
-        : `Cuántas había abiertas al acabar cada día del periodo${cmp ? '' : ', por prioridad, y su tendencia'}.${loaded} Pasa el ratón por un día para ver su cifra.`;
-    return card(VIEWS.find(([k]) => k === view)[2], pick + body, { span: 's12', sub });
+        : `Cuántas había abiertas al acabar ${stepOf()[2]} del periodo${cmp ? '' : ', por prioridad, y su tendencia'}.${loaded} Pasa el ratón por una barra para ver su cifra.`;
+    return card(VIEWS.find(([k]) => k === view)[2], `<div class="mt-evo-picks">${pick}${steps}</div>` + body, { span: 's12', sub });
   };
 
   // con todo lo de ahora (se abriera cuando se abriera: lo abierto antes del periodo también cuenta en su backlog), por lado
-  const render = () => {
+  const render = ({ only = null } = {}) => {
     const loaded = m.S.d0 - m.MIN_D < 30 * DAY ? ` Lo cargado empieza el ${m.dayName(m.MIN_D)}: lo abierto antes no está y los primeros días salen por debajo.` : '';
-    return evolutionCard(bySide(m.today()), CMP(), loaded);
+    return evolutionCard(bySide(m.today()), CMP(), loaded, only);
   };
 
   // Turnos: entrantes frente a atendidas en el mismo turno, de los turnos elegidos (ui.shifts: mañana, tarde y noche;

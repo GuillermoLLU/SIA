@@ -13,7 +13,7 @@ const render = (sides) => {
 const cut = (html, from) => { const a = html.indexOf(from); return html.slice(a, html.indexOf('</section>', a)); };
 
 test('Histórico: la pestaña, justo después del Resumen', () => {
-  assert.deepEqual(TABS.slice(0, 3).map(([k, l]) => [k, l]), [['resumen', 'Resumen'], ['historico', 'Histórico'], ['entrada', 'Entrada']]);
+  assert.deepEqual(TABS.slice(0, 4).map(([k, l]) => [k, l]), [['resumen', 'Resumen'], ['hoy', 'Foto de hoy'], ['historico', 'Histórico'], ['entrada', 'Entrada']]);
 });
 
 test('Histórico: lo recibido en el periodo, un bloque por pregunta y su evolución mes a mes', () => {

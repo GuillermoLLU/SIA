@@ -6,7 +6,7 @@
 // A respecto a B (compare.js); data-cmp lleva lo que enseña
 // la tarjeta al pasar el ratón.
 import { esc } from '../ui/html.js';
-import { num, pct, dur } from './format.js';
+import { num, pct, dur, signedDur } from './format.js';
 import { compareFigure } from './compare.js';
 import { SHIFTS } from './shifts.js';
 import { MIN_ISSUES, DAY, clearlyWorse, trendDelta, shadeSoft, HOT } from './rules.js';
@@ -22,7 +22,8 @@ export const createCharts = (m, ui) => {
   // título dentro y forma un bloque
   const card = (t, body, o = {}) => `<section class="mt-card ${o.span ? `mt-${o.span}` : ''} ${t ? '' : 'mt-flush'}">${t ? `<h3>${t}</h3>` : ''}${o.sub ? `<p class="mt-sub">${o.sub}</p>` : ''}${body}</section>`;
   const legend = () => `<div class="mt-legend">${CO().map((k) => `<span><i class="mt-c${k}"></i>${esc(name(k))}</span>`).join('')}</div>`;
-  const kpi = (l, v, d = '', cls = '') => `<div class="mt-kpi ${cls}"><div class="mt-kpi-l">${l}</div><div class="mt-kpi-v">${v}</div><div class="mt-kpi-d">${d}</div></div>`;
+  // attrs: atributos de más (p. ej., para pinchar la cifra: con cls mt-clk y un data-…)
+  const kpi = (l, v, d = '', cls = '', attrs = '') => `<div class="mt-kpi ${cls}"${attrs ? ` ${attrs}` : ''}><div class="mt-kpi-l">${l}</div><div class="mt-kpi-v">${v}</div><div class="mt-kpi-d">${d}</div></div>`;
   const kpis = (...k) => `<div class="mt-kpis">${k.join('')}</div>`;
   const more = (id, total, top) => (total > top ? `<button class="mt-more" data-exp="${id}">${ui.exp[id] ? 'Ver menos' : `Ver todos (${num(total)})`}</button>` : '');
   const empty = '<p class="mt-mut mt-small">Sin datos con estos filtros.</p>';
@@ -36,7 +37,8 @@ export const createCharts = (m, ui) => {
   // segundo (en verde o rojo si tiene un sentido mejor; en puntos si es un %, que es lo que se lee al mirar los dos
   // valores) y debajo el valor de cada uno. La nota, al pasar el ratón.
   const kpiCo = (label, ST, fmt, o = {}) => {
-    if (!CMP()) { const k = CO()[0]; return kpi(label, fmt(ST[k]), o.note || '', `mt-t${k}`); }
+    // o.pair: comparar ST[0] con ST[1] aunque no se comparen lados (el Resumen: el periodo con el anterior)
+    if (!CMP() && !o.pair) { const k = CO()[0]; return kpi(label, fmt(ST[k]), o.note || '', `mt-t${k}`); }
     const f = compareFigure(ST[0], ST[1], fmt, o.val, o.better);
     const nm = (k) => o.names?.[k] || name(k);   // o.names: otro nombre para cada lado en esta cifra
     const side = (k) => `<div class="mt-kpi-s"><i class="mt-c${k}"></i><span title="${esc(nm(k))}">${esc(nm(k))}</span><b>${ST[k].n ? fmt(ST[k]) : '—'}</b></div>`;
@@ -124,9 +126,15 @@ export const createCharts = (m, ui) => {
     escNoPend: ['Esc. sin Pendiente', 'low', (s) => s.escNoPend, 'De las cerradas con ticket de tercero, las que nunca pasaron a Pendiente.'],
     noCat: ['Sin tipología', 'low', (s) => (s.n ? s.noCat : null), 'Sin categorización 3 de Remedy.'],
     noDesc: ['Sin descripción', 'low', (s) => (s.n ? s.noDesc : null), 'El título no dice cuál es el problema.'],
+    // Escalados (con o.extra: tabs/escalados.js, withTimes): los tiempos de escalado (resolution.js, escalationTimes) y el IDMTTR
+    the: ['THesc', 'low', (s) => s.esc?.the.avg ?? null, 'Media de la apertura al primer Jira.'],
+    tes: ['Tesc', 'low', (s) => s.esc?.tes.avg ?? null, 'Media del Jira más antiguo a la resolución del Jira de solución o, sin resolver, a la última carga.'],
+    tsr: ['Tesc-r', 'low', (s) => s.esc?.tsr.avg ?? null, 'Media de lo que lleva su Jira resuelto sin cerrarse en Remedy.'],
+    age: ['Antigüedad', 'low', (s) => s.esc?.total.avg ?? null, 'Media de la apertura a la última carga.'],
+    idm: ['IDMTTR', null, (s) => s.idm ?? null, 'Lo que mueve el MTTR del periodo: el MTTR con ellas menos el MTTR sin ellas.'],
     same: ['Mismo cierre', null, (s) => s.same, 'De las resueltas, la parte cerrada con el mismo texto de resolución (el más usado). Si es alta, se resuelve siempre igual: se puede automatizar o llevar a la IA.'],
   };
-  const SC_FMT = { sla: (v) => (v == null ? '—' : pct(v)), avg: dur, d1: (v) => pct(v), reop: (v) => pct(v, 1), crit: (v) => pct(v), vend: (v) => pct(v), open: num, mi: (v) => (v ? num(v) : ''), nce: num, same: pct, w7: (v) => pct(v), d7: (v) => pct(v), d15: (v) => pct(v), mx: dur, tq: dur, tc: dur, tv: dur, iaN: (v) => (v ? num(v) : ''), iaShare: (v) => (v ? pct(v, 1) : ''), iaOk: (v) => (v == null ? '' : pct(v)), iaFail: (v) => (v == null ? '' : pct(v)), iaUnrev: (v) => (v == null ? '' : pct(v)), req: (v) => pct(v), rep: (v) => pct(v), slaKo: num, ip: dur, bounce: (v) => pct(v, 1), noIpDone: (v) => pct(v, 1), escNoPend: (v) => pct(v, 1), noCat: (v) => pct(v, 1), noDesc: (v) => pct(v, 1) };
+  const SC_FMT = { sla: (v) => (v == null ? '—' : pct(v)), avg: dur, d1: (v) => pct(v), reop: (v) => pct(v, 1), crit: (v) => pct(v), vend: (v) => pct(v), open: num, mi: (v) => (v ? num(v) : ''), nce: num, same: pct, w7: (v) => pct(v), d7: (v) => pct(v), d15: (v) => pct(v), mx: dur, tq: dur, tc: dur, tv: dur, iaN: (v) => (v ? num(v) : ''), iaShare: (v) => (v ? pct(v, 1) : ''), iaOk: (v) => (v == null ? '' : pct(v)), iaFail: (v) => (v == null ? '' : pct(v)), iaUnrev: (v) => (v == null ? '' : pct(v)), req: (v) => pct(v), rep: (v) => pct(v), slaKo: num, ip: dur, bounce: (v) => pct(v, 1), noIpDone: (v) => pct(v, 1), escNoPend: (v) => pct(v, 1), noCat: (v) => pct(v, 1), noDesc: (v) => pct(v, 1), the: dur, tes: dur, tsr: dur, age: dur, idm: signedDur };
   const scorecard = (dim, groups, o = {}) => {
     const id = o.id || `sc-${dim}`, list = o.rows || rows(dim), cmp = CMP(), cols = groups.flatMap(([, c]) => c);
     const side = (l) => (cmp ? bySide(l)[0] : l), other = (l) => bySide(l)[1];

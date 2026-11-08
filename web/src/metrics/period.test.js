@@ -26,10 +26,15 @@ test('el texto del periodo: siempre de qué fecha a qué fecha, y cuántos días
   assert.equal(daysLabel(m), '1 día');
 });
 
-test('el periodo de partida: el mes en curso entero, del día 1 a la foto', () => {
+test('el periodo de partida: el año fiscal en curso, del 1 de febrero a la foto; en enero, desde el febrero anterior', () => {
   const m = twoYears();
   m.resetPeriod();
-  assert.equal(periodLabel(m), '01/03/2026 – 11/03/2026');
+  assert.equal(periodLabel(m), '01/02/2026 – 11/03/2026');
+  const d = data(), year = 365 * 1440;   // la foto, el 11 de enero de 2026: desde el 1 de febrero de 2025
+  d.meta.start = 2025; d.meta.first = 0; d.meta.snapshot = year + 10 * 1440 + 600; d.meta.last = d.meta.snapshot;
+  const jan = createModel(d);
+  jan.resetPeriod();
+  assert.equal(periodLabel(jan), '01/02/2025 – 11/01/2026');
 });
 
 test('los últimos días: contando el de la foto; con menos cargados, desde el primero', () => {
@@ -109,7 +114,7 @@ test('un lado: su fecha, su mes elegido sólido, el año con ‹ › y los meses
 
 test('un lado que enseña otro año: ese mes con borde, y el elegido sigue siendo el de su fecha', () => {
   const m = twoYears();
-  m.resetPeriod();                       // marzo de 2026
+  m.resetPeriod();                       // de febrero a marzo de 2026
   const html = sideHtml(m, 'from', 2);   // enseña marzo de 2025
   assert.match(html, /<b>2025<\/b>/);
   assert.deepEqual(withClass(html, 'month', 'mt-shown'), [2]);

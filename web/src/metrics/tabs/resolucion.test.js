@@ -4,6 +4,7 @@ import { createModel } from '../model.js';
 import { createCharts } from '../charts.js';
 import { createTabs } from '../tabs.js';
 import { data } from '../fixture.js';
+import { afterDash } from './escalados.js';
 
 const render = (sides) => {
   const m = createModel(data()); m.S.sides = sides; m.refilter();
@@ -35,19 +36,28 @@ test('Resolución y escalados, comparando una persona con su equipo: una fila po
   assert.match(html, /<span class="mt-svc-who">Indra<\/span>/);
 });
 
-test('Escalados: los proyectos elegidos filtran las cifras, los proyectos y la sábana; sin elegir, todo', () => {
+// abiertas (Asignada, sin resolver): las de la lista
+const open = (d, list) => { for (const i of list) { d.cols.st[i] = 2; d.cols.res[i] = -1; } };
+
+test('Escalados: solo lo activo; los proyectos elegidos filtran las cifras, los proyectos y la sábana; sin elegir, todo', () => {
   const d = data();
   d.dict.vproj = ['', 'SGA', 'ITS'];
+  open(d, [3]);   // las de Indra: la 2 y la 3, abiertas, de SGA y de ITS; la 0, resuelta, no cuenta
   d.cols.fl = d.cols.fl.map((x) => x | 131072);
   d.cols.vt = d.cols.vt.map(() => 1);
   d.cols.vp = d.cols.vp.map((_, i) => (i % 2 ? 2 : 1));
   const m = createModel(d); m.S.sides = [{ company: 0 }, null]; m.refilter();
-  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  const ui = { exp: {}, sort: {}, escNow: true }, tabs = createTabs(m, createCharts(m, ui), ui);
   const kpiN = (h) => h.match(/Incidencias escaladas<\/div><div class="mt-kpi-v">(\d+)/)[1];
   const sheetRows = (h) => (h.slice(h.indexOf('Sábana de incidencias')).match(/<td class="mt-subj"/g) || []).length;
   const all = tabs.render('escalados', m.rows());
   const total = Number(kpiN(all));
   assert.ok(total > 0);
+  assert.equal(total, m.today().filter((i) => m.OPEN[i]).length);   // lo resuelto, aunque esté escalado, no cuenta
+  assert.ok(ui.escSheet.list.every((i) => m.OPEN[i]));
+  assert.equal(Number(kpiN(tabs.render('escalados', []))), total);   // sea cual sea el periodo
+  assert.match(all, /Antigüedad media/);
+  assert.doesNotMatch(all, /Tiempo total medio/);
   assert.equal(sheetRows(all), total);
   assert.equal(ui.escSheet.list.length, total);
   assert.doesNotMatch(all, /data-jc-clear/);
@@ -62,44 +72,59 @@ test('Escalados: los proyectos elegidos filtran las cifras, los proyectos y la s
   assert.doesNotMatch(one, /undefined|NaN/);
 });
 
-test('Malos escalados: con su motivo, abiertos o cerrados, y filtrados por los proyectos elegidos', () => {
+test('Malos escalados: con su motivo, solo los activos, y filtrados por los proyectos elegidos', () => {
   const d = data();
   d.dict.vproj = ['', 'SGA', 'ITS'];
+  open(d, [3]);   // y la 2, que ya lo está; la 0, cerrada, no sale
   d.cols.vt = d.cols.vt.map(() => 1);
   d.cols.vp = d.cols.vp.map((_, i) => (i % 2 ? 2 : 1));
-  d.cols.fl = d.cols.fl.map((x, i) => x | (i === 0 ? 2097152 | 4194304 : i === 1 ? 2097152 | 8388608 : i === 2 ? 2097152 | 4194304 | 8388608 : 0));
+  d.cols.fl = d.cols.fl.map((x, i) => x | (i === 0 ? 2097152 | 8388608 : i === 3 ? 2097152 | 4194304 : i === 2 ? 2097152 | 4194304 | 8388608 : 0) | (i > 1 ? 131072 : 0));   // las abiertas, escaladas: sus proyectos se eligen
   const m = createModel(d); m.S.sides = [{ company: 0 }, null]; m.refilter();
-  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  const ui = { exp: {}, sort: {}, escNow: true }, tabs = createTabs(m, createCharts(m, ui), ui);
   const card = (h) => h.slice(h.indexOf('<h3>Malos escalados</h3>'), h.indexOf('</section>', h.indexOf('<h3>Malos escalados</h3>')));
   const all = card(tabs.render('escalados', m.rows()));
   assert.match(all, /<td>Descartado en Jira<\/td>/);
   assert.match(all, /<th>Equipo original → final<\/th>/);
+  assert.match(all, /<th class="mt-num">THesc<\/th><th class="mt-num">Tesc<\/th><th class="mt-num">Tesc-r<\/th><th class="mt-num">Antigüedad<\/th><th class="mt-num">IDMTTR<\/th><\/tr>/);
   assert.match(all, /<td>Pendiente de actualizar<\/td>/);
   assert.doesNotMatch(all, /data-export/);
   assert.doesNotMatch(all, /undefined|NaN/);
-  const shown = m.rows().filter((i) => m.C.fl[i] & 2097152).length;
-  assert.match(all, new RegExp(`${shown} incidencias`));
-  ui.jiraPick = [1];
+  assert.doesNotMatch(all, /<td>Cambió de equipo<\/td>/);   // la cerrada
+  assert.match(all, /2 incidencias/);
+  ui.jiraPick = [2];
   const one = card(tabs.render('escalados', m.rows()));
-  assert.doesNotMatch(one, /<td>Cambió de equipo<\/td>/);
-  assert.match(one, /<td>SGA<\/td>/);
+  assert.doesNotMatch(one, /Descartado en Jira y Cambió de equipo/);
+  assert.match(one, /<td>ITS<\/td>/);
   ui.jiraPick = [];
-  assert.match(tabs.render('escalados', []), /Ningún mal escalado con estos filtros/);
+  m.toggle('pr', 1); m.refilter();   // las críticas: solo la cerrada, así que ninguno
+  assert.match(tabs.render('escalados', m.rows()), /Ningún mal escalado activo con estos filtros/);
 });
 
-test('¿Qué escalamos y a quién?: una tabla de los proyectos Jira de lo escalado y resuelto, como la de los módulos', () => {
+test('¿Qué escalamos y a quién?, en Activas: una tabla de los proyectos Jira de lo escalado y activo, como la de los módulos', () => {
   const d = data();
-  d.cols.fl[0] |= 131072;   // la crítica de Indra (resuelta, TEC: SGA-1), escalada
+  open(d, [0]);
+  d.cols.fl[0] |= 131072;   // la crítica de Indra (abierta, TEC: SGA-1), escalada
   const m = createModel(d); m.S.sides = [{ company: 0 }, null]; m.refilter();
-  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui), html = tabs.render('escalados', m.rows());
+  const ui = { exp: {}, sort: {}, escNow: true }, tabs = createTabs(m, createCharts(m, ui), ui), html = tabs.render('escalados', m.rows());
   const at = html.indexOf('¿Qué escalamos y a quién?'), card = html.slice(html.indexOf('<table class="mt-sc">', at), html.indexOf('</table>', at));
   const top = html.slice(0, html.indexOf('<table class="mt-sc">'));
-  for (const label of ['Incidencias escaladas', 'THesc medio', 'Tesc medio', 'Tiempo total medio']) assert.ok(top.includes(label), label);
+  for (const label of ['Incidencias escaladas', 'THesc medio', 'Tesc medio', 'Antigüedad media', 'IDMTTR']) assert.ok(top.includes(label), label);
+  assert.ok(top.indexOf('IDMTTR') > top.indexOf('Antigüedad media'));   // a la derecha del todo
+  assert.match(html.slice(html.indexOf('Sábana de incidencias')), /<th class="mt-num">IDMTTR<\/th>/);
+  // la sábana: sin estado ni módulo; el título, del guion en adelante
+  const sheet = html.slice(html.indexOf('Sábana de incidencias'));
+  const heads = sheet.slice(0, sheet.indexOf('</thead>'));
+  assert.doesNotMatch(heads, /<th>Estado<\/th>|<th>Módulo<\/th>/);
+  assert.match(heads, /<th>Título<\/th>/);
+  assert.match(sheet, /<td class="mt-subj" data-tip="Etiqueta mal">Etiqueta mal<\/td>/);
+  assert.equal(afterDash('100001 High ECOM ZARA C1 EWMS - Etiqueta mal'), 'Etiqueta mal');
+  assert.equal(afterDash('Sin guion'), 'Sin guion');
+  assert.equal(afterDash('Acaba en guion -'), 'Acaba en guion -');
   const jc = html.slice(html.indexOf('Proyectos Jira frente a la media'), html.indexOf('<table class="mt-sc">'));
   assert.match(jc, /data-jc="1" aria-pressed="false"/);      // de partida, solo la media
   assert.doesNotMatch(jc, /class="mt-c0"/);
   assert.equal((jc.match(/class="mt-jc-panel"/g) || []).length, 3);
-  for (const label of ['THesc medio', 'Tesc medio', 'Tiempo total medio', 'Media global']) assert.ok(jc.includes(label), label);
+  for (const label of ['THesc medio', 'Tesc medio', 'Antigüedad media', 'Media global']) assert.ok(jc.includes(label), label);
   assert.doesNotMatch(jc, /undefined|NaN/);
   ui.jiraPick = [1];
   const added = tabs.render('escalados', m.rows());
@@ -114,5 +139,75 @@ test('¿Qué escalamos y a quién?: una tabla de los proyectos Jira de lo escala
   assert.match(card, /<th rowspan="2" class="mt-sc-title">Proyectos Jira<\/th>/);
   assert.match(card, /data-f="vp:1"><th class="mt-r" title="SGA">SGA<\/th>/);
   assert.match(card, /Todo lo escalado a Jira/);
+  assert.match(card, /Activas/);
+  assert.doesNotMatch(card, /Media resol\./);   // lo activo no tiene tiempo de resolución
   assert.doesNotMatch(card, /\(sin clave Jira\)/);
+  // el desglose de los tiempos por proyecto, como arriba: THesc, Tesc, Tesc-r, antigüedad e IDMTTR
+  assert.match(card, />Tiempos de escalado</);
+  assert.match(card, /data-sort="rs-vp:the"[^>]*>THesc<\/th><th[^>]*data-sort="rs-vp:tes"[^>]*>Tesc<\/th><th[^>]*data-sort="rs-vp:tsr"[^>]*>Tesc-r<\/th><th[^>]*data-sort="rs-vp:age"[^>]*>Antigüedad<\/th><th[^>]*data-sort="rs-vp:idm"[^>]*>IDMTTR<\/th>/);
+  assert.doesNotMatch(card, /undefined|NaN/);
+});
+
+test('Escalados, en Histórico (de partida): lo escalado y resuelto del periodo, con su tiempo total; se cambia a Activas', () => {
+  const d = data();
+  d.cols.fl = d.cols.fl.map((x) => x | 131072);   // todas escaladas: de Indra, la 0 y la 3 resueltas y la 2 abierta
+  const m = createModel(d); m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  const kpiN = (h) => Number(h.match(/Incidencias escaladas<\/div><div class="mt-kpi-v">(\d+)/)[1]);
+  const past = tabs.render('escalados', m.rows());
+  assert.match(past, /data-esc-mode="past" aria-pressed="true"/);
+  assert.match(past, /data-esc-mode="now" aria-pressed="false"/);
+  assert.equal(kpiN(past), m.rows().filter((i) => !m.OPEN[i]).length);
+  assert.ok(ui.escSheet.list.every((i) => !m.OPEN[i]));
+  assert.match(past, /Tiempo total medio/);
+  assert.doesNotMatch(past, /Antigüedad media|Tesc-r/);
+  assert.match(past, /Media resol\./);   // los proyectos Jira, con lo que tardan
+  const pastCard = past.slice(past.indexOf('<table class="mt-sc">'), past.indexOf('</table>', past.indexOf('<table class="mt-sc">')));
+  assert.match(pastCard, />Tiempos de escalado</);
+  for (const c of ['the', 'tes', 'idm']) assert.match(pastCard, new RegExp(`data-sort="rs-vp:${c}"`), c);
+  assert.doesNotMatch(pastCard, /rs-vp:(tsr|age)"/);   // en Histórico, sin Tesc-r ni antigüedad: ya está la media de resolución
+  assert.doesNotMatch(pastCard, /undefined|NaN/);
+  assert.equal(kpiN(tabs.render('escalados', [])), 0);   // depende del periodo
+  assert.doesNotMatch(past, /data-only="sit:"/);
+  m.toggle('sit', 3); m.refilter();   // filtrando por la situación de ahora: lo resuelto no está en ninguna; se avisa
+  assert.match(tabs.render('escalados', m.rows()), /Histórico sale vacío\. <button class="mt-jc-clear" data-only="sit:">/);
+  m.toggle('sit', 3); m.refilter();
+  ui.escNow = true;
+  const now = tabs.render('escalados', m.rows());
+  assert.match(now, /data-esc-mode="now" aria-pressed="true"/);
+  assert.equal(kpiN(now), 1);
+  assert.match(now, /Antigüedad media/);
+  assert.doesNotMatch(now, /undefined|NaN/);
+});
+
+test('Sin Jira: un KPI junto a los tiempos que, al pincharlo, filtra la pestaña por ellas; en Activas y en Histórico', () => {
+  const d = data();
+  d.dict.reason = ['', 'THIRD_PARTY_VENDOR_ACTION_REQD'];
+  d.dict.status = ['', 'CLOSED', 'ASSIGNED', 'PENDING'];
+  d.cols.st[2] = 3; d.cols.rs[2] = 1;   // la 2 (de Indra, abierta), en Pendiente de un tercero y sin Jira
+  d.cols.fl = d.cols.fl.map((x) => x | 131072);   // todas escaladas; la 0 (resuelta) tiene SGA-1
+  const m = createModel(d); m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const ui = { exp: {}, sort: {}, escNow: true }, tabs = createTabs(m, createCharts(m, ui), ui);
+  const kpiOf = (h, l) => h.match(new RegExp(`<div class="mt-kpi ([^"]*)"([^>]*)><div class="mt-kpi-l">${l}</div><div class="mt-kpi-v">([^<]*)<`));
+  let h = tabs.render('escalados', m.rows());
+  assert.doesNotMatch(h, /<h3>Sin Jira<\/h3>/);   // ya no es un cuadro
+  const k = kpiOf(h, 'Sin Jira');
+  assert.equal(k[3], '1');
+  assert.match(k[1], /mt-clk/);
+  assert.match(k[2], /data-esc-nojira[^>]*aria-pressed="false"/);
+  assert.ok(h.indexOf('>Sin Jira<') < h.indexOf('>THesc medio<'));   // con los tiempos
+  ui.escNoJira = true;
+  h = tabs.render('escalados', m.rows());
+  assert.match(kpiOf(h, 'Sin Jira')[1], /mt-on/);
+  assert.match(h, /Pestaña filtrada por las Sin Jira/);
+  assert.deepEqual(ui.escSheet.list, [2]);
+  assert.equal(kpiOf(h, 'Incidencias escaladas')[3], '1');
+  assert.doesNotMatch(h, /undefined|NaN/);
+  ui.escNow = false;
+  h = tabs.render('escalados', m.rows());   // en Histórico: lo escalado y resuelto sin Jira (la 3; la 0 tiene SGA-1)
+  assert.equal(kpiOf(h, 'Sin Jira')[3], '1');
+  assert.deepEqual(ui.escSheet.list, [3]);
+  ui.escNoJira = false;
+  tabs.render('escalados', m.rows());
+  assert.deepEqual(ui.escSheet.list, [0, 3]);
 });

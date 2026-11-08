@@ -14,7 +14,7 @@ import { num } from './format.js';
 import { createModel, COMPANIES } from './model.js';
 import { createCharts } from './charts.js';
 import { createTabs, TABS } from './tabs.js';
-import { periodLabel } from './period.js';
+import { periodLabel, presetRange } from './period.js';
 import { mountPeriodPanel } from './period-panel.js';
 import { attachTip } from './tip.js';
 import { toggleProject } from './resolution.js';
@@ -175,8 +175,8 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
 
   const start = (data) => {
     m = data ? createModel(data) : null;
-    m?.resetPeriod();   // de partida, el mes en curso
-    ui.exp = {}; ui.sort = {}; ui.jiraPick = null; tab = 'resumen'; searching = false; closePops();
+    m?.resetPeriod();   // de partida, el año fiscal en curso (desde el 1 de febrero)
+    ui.exp = {}; ui.sort = {}; ui.jiraPick = null; ui.resCmp = null; tab = 'resumen'; searching = false; closePops();
     if (!m) return renderEmpty();
     tabs = createTabs(m, createCharts(m, ui), ui);
     renderFrame();
@@ -369,11 +369,27 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
       if (searching) $('[data-q]').focus();
       return;
     }
-    const t = e.target.closest('[data-tab],[data-go],[data-rm],[data-exp],[data-sort],[data-evo],[data-flk],[data-shk],[data-jc],[data-jc-clear],[data-only],[data-f2],[data-f]');
+    const t = e.target.closest('[data-tab],[data-go],[data-rm],[data-exp],[data-sort],[data-evo],[data-evo-step],[data-preset],[data-res-cmp],[data-flk],[data-shk],[data-jc],[data-jc-clear],[data-esc-mode],[data-esc-nojira],[data-only],[data-f2],[data-f]');
     if (!t) return;
     const d = t.dataset;
-    if (d.tab || d.go) { tab = d.tab || d.go; root.scrollTop = 0; }
-    else if (d.evo) ui.evo = d.evo;   // Resumen: la evolución del backlog o entrantes frente a atendidas
+    if (d.tab || d.go) {
+      const from = tab;
+      tab = d.tab || d.go; root.scrollTop = 0;
+      // Escalados se abre en Activas llegando desde Backlog o desde el enlace de Pendiente (proveedor) de Resumen; si no,
+      // en Histórico. Dentro, se cambia con data-esc-mode.
+      if (tab === 'escalados' && from !== 'escalados') { ui.escNow = from === 'backlog' || d.escNow != null; ui.escNoJira = false; }
+      if (d.rm) { const [dim, k] = filterKey(d.rm); S.f[dim]?.delete(k); }   // un enlace que quita un filtro al ir (Resumen → Escalados)
+    }
+    else if (d.evo) ui.evo = d.evo;   // Histórico: la evolución del backlog o entrantes frente a atendidas
+    else if (d.evoStep) ui.evoStep = d.evoStep;   // la evolución del backlog: por días, semanas o meses
+    // Resumen: las fechas rápidas (period.js, PRESETS) y con qué se compara: el periodo anterior (ui.resCmp) o T-Systems
+    // (el otro lado, como «+ Comparar»: vale para todas las pestañas); son excluyentes
+    else if (d.preset) { const r = presetRange(m, d.preset); if (r) m.setPeriod(...r); }
+    else if (d.resCmp) {
+      const off = () => { if (S.sides[1]) ({ sides: S.sides, colors } = withoutSide(S.sides, colors, 1)); };
+      if (d.resCmp === 'tsys') { const had = !!S.sides[1]; ui.resCmp = null; S.sides[1] = { company: 1 }; if (!had) colors[1] = freeColor(colors[0]); }
+      else { off(); ui.resCmp = d.resCmp === 'prev' ? 'prev' : null; }
+    }
     else if (d.flk) { ui.flowOff = { ...ui.flowOff, [d.flk]: !ui.flowOff?.[d.flk] }; }   // y en estas, encender o apagar una serie
     // Turnos: clic, solo ese turno; con Ctrl (o Cmd), sumarlo o quitarlo (sin quedarse sin ninguno)
     else if (d.shk != null) {
@@ -382,8 +398,10 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
       else if (!cur.includes(k)) ui.shifts = [...cur, k].sort();
       else if (cur.length > 1) ui.shifts = cur.filter((x) => x !== k);
     }
-    else if (d.jc) ui.jiraPick = toggleProject(ui.jiraShown, Number(d.jc));   // Escalados: los proyectos que se comparan y filtran
+    else if (d.jc) { ui.jiraPick = toggleProject(ui.jiraShown, Number(d.jc)); ui.escNoJira = false; }   // Escalados: los proyectos que se comparan y filtran
     else if (d.jcClear != null) ui.jiraPick = [];
+    else if (d.escMode) ui.escNow = d.escMode === 'now';   // Escalados: Activas o Histórico
+    else if (d.escNojira != null) { ui.escNoJira = !ui.escNoJira; if (ui.escNoJira) ui.jiraPick = []; }   // y filtrar por las Sin Jira (sin proyecto)
     // un selector: solo ese valor de la dimensión («dim:clave») o, sin clave («dim:»), todos (sin filtro)
     else if (d.only != null) { const [dim, k] = d.only.split(':'); if (k === '') delete S.f[dim]; else S.f[dim] = new Set([Number(k)]); }
     else if (d.rm) { const [dim, k] = filterKey(d.rm); S.f[dim].delete(k); }

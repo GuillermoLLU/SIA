@@ -15,6 +15,8 @@ export const dur = (m) => {
   const h = m / 60;
   return `${HOURS[h >= 10 ? 0 : h >= 1 ? 1 : 2].format(h)} h`;
 };
+// un tiempo con signo: lo que sube (+) o baja (−) algo, como el MTTR; lo que redondea a 0, sin signo
+export const signedDur = (v) => { if (v == null) return '—'; const t = dur(Math.abs(v)); return /^0 /.test(t) ? t : `${v > 0 ? '+' : '−'}${t}`; };
 
 export const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 export const DOWS = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'];
