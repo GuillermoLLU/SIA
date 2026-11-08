@@ -10,7 +10,7 @@ import { cleanFields, cleanFile, MAX_IMAGES, fail } from './draft.js';
 import { resolveDraft, checkResolve, OPEN } from './resolve.js';
 import { timeline } from './timeline.js';
 import { editProblem } from './notes.js';
-import { originOf, forGroups } from './origin.js';
+import { forGroups, originArg } from './origin.js';
 
 const WEEKS = 12;
 
@@ -55,10 +55,10 @@ export const createIssuesService = ({ source, platform, drafts, now = () => new 
   };
 
   return {
-    // → { taken, rules, free, next, maxDoing, canTake, desk, today, history }
+    // → { taken, free, next, maxDoing, canTake, desk, today, history }
     async desk({ user, accessToken: jwt }) {
       const snap = await snapshot(jwt);
-      const { taken, issues, claims, rules, now } = snap;
+      const { taken, issues, claims, now } = snap;
       const since = new Date(now.getTime() - WEEKS * 7 * 86400000).toISOString();
       const [transfers, events] = await Promise.all([platform.rpc(jwt, 'platform_my_transfers'), platform.rpc(jwt, 'platform_my_issue_events', { p_since: since })]);
       const mine = queueOf(snap, user.rule, user.groups);   // la que le toca: sin coger, de sus orígenes y en el orden de su regla
@@ -66,7 +66,6 @@ export const createIssuesService = ({ source, platform, drafts, now = () => new 
       const nextIssue = mine.length ? issues.find((i) => i.id === mine[0]) : null;
       return {
         taken,
-        rules: rules.map(({ id, label }) => ({ id, label })),
         free: mine.length,   // lo que puede coger: solo de sus orígenes
         next: nextIssue ? brief(nextIssue) : null,
         maxDoing: MAX_DOING,
@@ -81,20 +80,18 @@ export const createIssuesService = ({ source, platform, drafts, now = () => new 
       return (await platform.rpc(jwt, 'platform_issue_teammates')).filter((t) => t.id !== user.id);
     },
     // la base se queda con la primera libre que nadie tenga → id | null. La cola, en el orden
-    // de la regla de la persona (user.rule, de su rol o personalizada) o de la que se pida.
-    async next({ user, accessToken: jwt }, ruleId = user.rule) {
+    // de la regla de la persona (user.rule, de su rol o personalizada).
+    async next({ user, accessToken: jwt }) {
       const snap = await snapshot(jwt);
       if (!canTake(deskOf(snap.issues, user, snap.claims))) throw fail(`Ya tienes ${MAX_DOING} en curso: resuelve alguna antes de coger otra.`, 409);
-      const candidates = queueOf(snap, ruleId, user.groups);   // solo lo de sus orígenes
+      const candidates = queueOf(snap, user.rule, user.groups);   // solo lo de sus orígenes
       return (await platform.rpc(jwt, 'platform_claim_next_issue', { p_candidates: candidates.slice(0, 500) })) || null;
     },
     release: ({ accessToken: jwt }, id) => platform.rpc(jwt, 'platform_release_issue', { p_issue: id }),
     // a un compañero de Issues; el motivo queda como nota del traspaso
     // con el origen de la issue: la base solo la deja pasar a quien tiene ese conocimiento
-    transfer: ({ accessToken: jwt }, id, { to, comment }) => {
-      const issue = source.load().issues.find((i) => i.id === id);
-      return platform.rpc(jwt, 'platform_transfer_issue', { p_issue: id, p_to: to, p_comment: comment, ...(issue ? { p_origin: originOf(issue) } : {}) });
-    },
+    transfer: ({ accessToken: jwt }, id, { to, comment }) =>
+      platform.rpc(jwt, 'platform_transfer_issue', { p_issue: id, p_to: to, p_comment: comment, ...originArg(source.load().issues, id) }),
     // una nota interna del equipo → su id
     addNote: ({ accessToken: jwt }, id, body) => platform.rpc(jwt, 'platform_add_issue_note', { p_issue: id, p_body: body }),
     // editar una nota propia, dentro de su plazo (notes.js) → { ok } | { error }

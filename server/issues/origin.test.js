@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { originOf, knowsOrigin, forGroups } from './origin.js';
+import { originOf, knowsOrigin, forGroups, originArg } from './origin.js';
 
 const sga = { id: 'INC1', sisu: false }, sisu = { id: 'INC2', sisu: true };
 
@@ -20,4 +20,9 @@ test('knowsOrigin: con un proyecto de ese nombre, sin importar mayúsculas; sin 
 test('forGroups: solo lo de sus orígenes', () => {
   assert.deepEqual(forGroups([sga, sisu], ['SISU']).map((i) => i.id), ['INC2']);
   assert.deepEqual(forGroups([sga, sisu], ['SGA', 'SISU']).map((i) => i.id), ['INC1', 'INC2']);
+});
+
+test('originArg: el origen para la base, de la issue de la foto; si ya no está, sin origen', () => {
+  assert.deepEqual(originArg([sga, sisu], 'INC2'), { p_origin: 'SISU' });
+  assert.deepEqual(originArg([sga, sisu], 'INC9'), {});
 });

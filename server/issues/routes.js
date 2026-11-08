@@ -1,15 +1,15 @@
 // /api/issues (vista Issues; la exige el bridge, que ya ha resuelto la sesión:
 // `who` = { user, accessToken }).
-//   GET  /              → { taken, rules, free, next, maxDoing, canTake, desk, today, history }
+//   GET  /              → { taken, free, next, maxDoing, canTake, desk, today, history }
 //                         (free: lo que queda sin coger que puede llevar, de sus orígenes)
 //                         (next: la que tocaría ahora; desk: mis issues, en breve;
 //                          history: lo medido en SIA, 12 semanas)
 //   GET  /:id           → { issue, sameCenter, timeline }
 //                         (timeline: su histórico en SIA, movimientos y notas por orden)
 //   GET  /:id/timeline  → { timeline }
-//   GET  /teammates     → { teammates: [{ id, name }] }  (el equipo de Issues, sin mí)
-//   POST /next          { rule? } → { id }  (en el orden de la regla de la persona, o de la que se pida;
-//                                           null: no queda ninguna libre; 409 con el tope de en curso)
+//   GET  /teammates     → { teammates: [{ id, name, groups }] }  (el equipo de Issues, sin mí; groups: sus proyectos)
+//   POST /next          → { id }  (en el orden de la regla de la persona; null: no queda ninguna libre;
+//                                409 con el tope de en curso)
 //   POST /:id/release   → { ok }  (devolverla a la cola)
 //   GET  /:id/resolve   → { check, draft }  (abrir Resolver: lo que hay en Remedy y lo
 //                         que falta, resolve.js, y mi borrador, drafts.js, o null)
@@ -41,7 +41,7 @@ export const issuesRoutes = (issues, { json, readBody }) => async (req, res, [id
     }
     if (!id && req.method === 'GET') return json(res, 200, await issues.desk(who));
     if (id === 'teammates' && !action && req.method === 'GET') return json(res, 200, { teammates: await issues.teammates(who) });
-    if (id === 'next' && !action && req.method === 'POST') { const { rule } = await readBody(req); return json(res, 200, { id: await issues.next(who, rule ?? undefined) }); }
+    if (id === 'next' && !action && req.method === 'POST') return json(res, 200, { id: await issues.next(who) });
     if (!ISSUE_ID.test(id || '')) return json(res, 404, { error: 'No existe.' });
     if (action === 'release' && req.method === 'POST') { await issues.release(who, id); return json(res, 200, { ok: true }); }
     if (action === 'resolve' && !part) {

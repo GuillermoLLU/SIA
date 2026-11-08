@@ -53,10 +53,9 @@ const setup = (claims = [], { issues = ISSUES, broken, transfers = [], rules = [
   return { call, calls, loads, imports, store };
 };
 
-test('GET /: libres, reglas y mi mesa (responsable en Remedy o cogida en SIA)', async () => {
+test('GET /: libres, la siguiente y mi mesa (responsable en Remedy o cogida en SIA)', async () => {
   const { body } = await setup([{ issue_id: 'INC1', user_id: 'u-ana', user_name: 'Ana López' }]).call('GET', []);
   assert.equal(body.free, 1);
-  assert.deepEqual(body.rules, [{ id: 'basic', label: 'Regla básica' }]);
   assert.deepEqual(body.desk.map((i) => [i.id, i.claimed]), [['INC1', true], ['INC3', false]]);
   assert.equal(body.desk[0].notes, undefined);
   assert.equal(body.next.id, 'INC2');
@@ -73,7 +72,7 @@ test('GET /: la que me han traspasado sale marcada con de quién viene y el moti
 
 test('POST /next: manda la cola en orden de la regla y devuelve la que se lleva', async () => {
   const { call, calls } = setup();
-  const r = await call('POST', ['next'], { rule: 'basic' });
+  const r = await call('POST', ['next'], {});
   assert.deepEqual(r.body, { id: 'INC2' });
   assert.deepEqual(calls.at(-1), ['platform_claim_next_issue', { p_candidates: ['INC2', 'INC1'] }]);
 });
@@ -98,7 +97,7 @@ test('la cola va en el orden de la regla de la persona (su rol o personalizada);
   assert.deepEqual((await sev.call('POST', ['next'], {})).body, { id: 'INC4' });
   const basic = setup([], { issues, rules });
   assert.equal((await basic.call('GET', [])).body.next.id, 'INC2');
-  assert.deepEqual((await basic.call('POST', ['next'], { rule: 'r-sev' })).body, { id: 'INC4' });   // la que se pida, por encima
+  assert.deepEqual((await basic.call('POST', ['next'], { rule: 'r-sev' })).body, { id: 'INC2' });   // pedir otra regla no cambia la suya
 });
 
 test('GET /:id: el detalle completo, quién la tiene, las del mismo centro y su histórico en SIA', async () => {
@@ -296,7 +295,7 @@ test('POST /next: con el tope de en curso no coge otra (409) y la mesa lo dice',
   const desk = await call('GET', []);
   assert.equal(desk.body.canTake, false);
   assert.equal(desk.body.maxDoing, 5);
-  const r = await call('POST', ['next'], { rule: 'basic' });
+  const r = await call('POST', ['next'], {});
   assert.equal(r.status, 409);
   assert.ok(!calls.some(([fn]) => fn === 'platform_claim_next_issue'));
 });
