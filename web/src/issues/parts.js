@@ -2,6 +2,9 @@
 import { esc } from '../ui/html.js';
 import { SEVERITY_ES, REASON_ES, since, whenIso } from './format.js';
 
+// El icono de recargar que acompaña a la fecha de la foto de Remedy (la mesa, el Backlog)
+export const REFRESH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36L21 8"/><path d="M21 3v5h-5"/></svg>';
+
 export const sev = (p) => `<span class="iss-sev ${esc(p)}">${esc(SEVERITY_ES[p] || p)}</span>`;
 export const origin = (i) => `<span class="iss-origin${i.sisu ? ' sisu' : ''}">${i.sisu ? 'SISU' : 'SGA'}</span>`;
 

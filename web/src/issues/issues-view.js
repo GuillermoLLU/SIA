@@ -5,7 +5,7 @@
 import './issues.css';
 import { esc } from '../ui/html.js';
 import { LISTS, snapshotInfo, duration, weekBars } from './format.js';
-import { item } from './parts.js';
+import { item, REFRESH_ICON } from './parts.js';
 import { onEscape } from '../ui/dialog.js';
 import { pressStartedIn } from '../ui/dom.js';
 import { pickClick, openPicker, closePickers } from '../ui/picker.js';
@@ -38,7 +38,6 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   const fileLabel = (cls, label, title = '') => `<label class="${cls} ${loading ? 'iss-busy' : ''}" title="${title}">${loading ? 'Cargando…' : label}<input type="file" accept=".csv,text/csv" data-csv hidden ${loading ? 'disabled' : ''}></label>`;
   const loadButton = (label) => fileLabel('iss-load', label);
   // La fecha de los datos es también el botón de cargar otra foto.
-  const REFRESH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36L21 8"/><path d="M21 3v5h-5"/></svg>';
   const snapButton = ({ date, stale }) => fileLabel(`iss-date${stale ? ' stale' : ''}`, `${date}${stale ? REFRESH_ICON : ''}`, stale ? 'Datos de Remedy sin actualizar: pulsa para cargar un CSV nuevo. Lo medido en SIA sí es de hoy.' : 'Datos de Remedy: pulsa para cargar otro CSV');
 
   const kpi = (label, value, hint) => `<div class="iss-kpi" title="${hint}"><span>${label}</span><b>${value}</b><small>${hint}</small></div>`;
