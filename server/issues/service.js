@@ -61,14 +61,13 @@ export const createIssuesService = ({ source, platform, drafts, now = () => new 
       const { taken, issues, claims, rules, now } = snap;
       const since = new Date(now.getTime() - WEEKS * 7 * 86400000).toISOString();
       const [transfers, events] = await Promise.all([platform.rpc(jwt, 'platform_my_transfers'), platform.rpc(jwt, 'platform_my_issue_events', { p_since: since })]);
-      const free = queueOf(snap);   // la cola del equipo entera, sin coger
-      const mine = queueOf(snap, user.rule, user.groups);   // la que le toca: sus orígenes, en el orden de su regla
+      const mine = queueOf(snap, user.rule, user.groups);   // la que le toca: sin coger, de sus orígenes y en el orden de su regla
       const desk = deskOf(issues, user, claims, transfers);
       const nextIssue = mine.length ? issues.find((i) => i.id === mine[0]) : null;
       return {
         taken,
         rules: rules.map(({ id, label }) => ({ id, label })),
-        free: free.length,
+        free: mine.length,   // lo que puede coger: solo de sus orígenes
         next: nextIssue ? brief(nextIssue) : null,
         maxDoing: MAX_DOING,
         canTake: canTake(desk),

@@ -1,6 +1,7 @@
 // /api/issues (vista Issues; la exige el bridge, que ya ha resuelto la sesión:
 // `who` = { user, accessToken }).
 //   GET  /              → { taken, rules, free, next, maxDoing, canTake, desk, today, history }
+//                         (free: lo que queda sin coger que puede llevar, de sus orígenes)
 //                         (next: la que tocaría ahora; desk: mis issues, en breve;
 //                          history: lo medido en SIA, 12 semanas)
 //   GET  /:id           → { issue, sameCenter, timeline }

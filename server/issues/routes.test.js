@@ -83,7 +83,7 @@ test('la cola de cada uno, solo de sus orígenes: con SISU no le toca una de SGA
   const sisu = setup([], { issues, who: { ...WHO, user: { ...WHO.user, groups: ['SISU'] } } });
   const desk = (await sisu.call('GET', [])).body;
   assert.equal(desk.next.id, 'INC4');
-  assert.equal(desk.free, 3, 'la cola general sigue siendo la del equipo entera');
+  assert.equal(desk.free, 1, 'la cola cuenta solo lo que puede coger: lo de SISU');
   assert.deepEqual((await sisu.call('POST', ['next'], {})).body, { id: 'INC4' });
   assert.deepEqual(sisu.calls.at(-1), ['platform_claim_next_issue', { p_candidates: ['INC4'] }]);
   const none = setup([], { who: { ...WHO, user: { ...WHO.user, groups: [] } } });

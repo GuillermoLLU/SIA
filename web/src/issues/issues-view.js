@@ -71,7 +71,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
             ${kpi('Cogidas a tiempo', history.onTimePct == null ? '—' : `${history.onTimePct} %`, 'críticas en 15 min, altas en 2 h')}
             ${kpi('Tiempo medio en coger', history.avgPickMin == null ? '—' : duration(history.avgPickMin), 'desde que entra la issue')}
             ${kpi('Tiempo típico de resolución', '—', 'cuando se resuelva desde SIA')}
-            ${kpi('Cola general', data.free, 'sin coger, de todo el equipo')}
+            ${kpi('Cola', data.free, 'sin coger, de lo que puedes llevar')}
           </div>
         <div class="iss-cols">
           ${lists.map((l) => `<section class="iss-card iss-col" data-list="${l.key}">
