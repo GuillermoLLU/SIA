@@ -14,13 +14,12 @@ import { esc } from '../ui/html.js';
 import { snapshotInfo, age } from '../issues/format.js';
 import { sev, origin } from '../issues/parts.js';
 import { EMPTY_FILTER, SEVERITIES, filterIssues, toggle, tileCounts, isFiltering } from './filter.js';
-import { openRulesModal } from './rules-modal.js';
 import { sidePanel } from './side-panel.js';
 import { pickerHtml, pickClick } from '../ui/picker.js';
 
 const PLURAL = { CRITICAL: 'Críticas', HIGH: 'Altas', MEDIUM: 'Medias', LOW: 'Bajas' };
 
-// dialogs y toast: los de la app. «Reglas de priorización» abre el modal (rules-modal.js).
+// toast: el de la app. Las reglas de priorización se editan en Configuración → Priorización (rules-view.js).
 export const mountBacklogView = (root, { api, dialogs, toast }) => {
   let data = null, filter = { ...EMPTY_FILTER }, now = new Date(), loading = false, rule = 'basic';
   // el panel lateral: la issue abierta, su detalle, el equipo y qué está en marcha
@@ -62,7 +61,6 @@ export const mountBacklogView = (root, { api, dialogs, toast }) => {
         ${filtering ? `<p class="bl-shown"><b>${shown.length}</b> de ${c.total} · <button class="bl-clear" data-key="all">Ver todas</button></p>` : ''}
         <div class="bl-order"><span>Orden</span>${pickerHtml({ id: 'bl-rule', name: 'rule', value: data.rule, inline: true, groups: [{ options: data.rules.map((r) => ({ value: r.id, label: r.label })) }] })}</div>
         <label class="bl-search"><input type="search" data-q placeholder="Buscar una issue, un centro o un texto" value="${esc(filter.q)}" aria-label="Buscar en el backlog"></label>
-        <button class="bl-btn" data-rules>Reglas de priorización</button>
       </div>
       <div class="bl-main">
         ${shown.length ? `<div class="bl-list">${shown.map(row).join('')}</div>` : `<p class="bl-empty">${c.total ? 'Ninguna issue cumple lo marcado.' : 'La cola está vacía: no queda nada sin coger.'}</p>`}
@@ -130,7 +128,6 @@ export const mountBacklogView = (root, { api, dialogs, toast }) => {
     if (rowEl) return rowEl.dataset.id === opened ? closeSide() : openIssue(rowEl.dataset.id);
     if (e.target.closest('[data-side-close]')) return closeSide();
     if (e.target.closest('[data-prioritize]')) return toast?.('Pendiente: priorizar es poner la etiqueta PRIO en Remedy, y SIA aún no puede escribirla. De momento, en Remedy.');
-    if (e.target.closest('[data-rules]')) return openRulesModal({ api, dialogs, toast, onChange: () => load().catch(() => {}) }).catch((err) => toast?.(`No se pudieron cargar las reglas: ${err.message}`));
     if (e.target.closest('[data-reload]')) return load().catch((err) => toast?.(`No se pudo actualizar el backlog: ${err.message}`));
     const b = e.target.closest('[data-key]');
     if (!b) return;

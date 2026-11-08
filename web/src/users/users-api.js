@@ -1,4 +1,4 @@
-// Cliente de /api/users (vista Personas): personas y roles. Los errores de reglas llegan
+// Cliente de /api/users (Equipo): personas, roles y las reglas de priorización. Los errores de reglas llegan
 // como Error con el texto del bridge («Ya hay un usuario…»). `api`: ui/api.js.
 
 export const createUsersApi = (api) => {
@@ -11,5 +11,6 @@ export const createUsersApi = (api) => {
     roles: async () => (await api('/users/roles')).roles,
     saveRole: (roleId, role) => (roleId ? api(`/users/roles/${id(roleId)}`, { method: 'PUT', body: role }) : api('/users/roles', { method: 'POST', body: role })),
     removeRole: (roleId) => api(`/users/roles/${id(roleId)}`, { method: 'DELETE' }),
+    rules: async () => (await api('/users/rules')).rules,   // las de priorización, para elegir la de cada rol y persona
   };
 };

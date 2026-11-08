@@ -1,16 +1,17 @@
-// Vista «Equipo soporte · gestión» (vista people, antes Personas; para quien la tiene). Lista con buscador y filtros y,
-// al pulsar a alguien, su ficha: rol, contraseña y acceso (cada uno con su
-// modal), sus vistas (cajas que se encienden y apagan: tocar una lo deja con
-// vistas personalizadas) y su conocimiento: los
-// proyectos de la base de la instancia que ve (la base la ve todo el mundo). Alta
-// en un modal propio. La base la fija la instancia. Solo DOM: los datos van
-// por users-api.js y knowledge-api.js y las reglas las pone la base.
+// «Equipo» (Configuración; vista people, para quien la tiene). Dos niveles: la lista del equipo,
+// solo para leer (buscador y filtro; pulsar a alguien entra en su ficha), y la ficha de una
+// persona, que ocupa la caja: rol, regla de priorización y acceso, sus vistas y su conocimiento
+// se editan en borrador y se guardan de una vez («Guardar cambios»); una contraseña nueva y
+// borrar van aparte. El alta es la misma pantalla vacía. Los roles, en su pantalla con un panel al
+// lado. Una vista o una regla sueltas dejan a la persona personalizada (sin rol). Solo DOM: los
+// datos van por users-api.js y knowledge-api.js y las reglas las pone la base.
 import './people.css';
-import { openModal, closeModal } from './modal.js';
 import { strongPassword } from './password.js';
-import { VIEWS, CHAT_ICON } from './views.js';
-import { viewsText, initials, knOf, filterChips, listRows, validFilter, roleName as roleNameOf, toggled } from './people.js';
+import { VIEWS } from './views.js';
+import { viewsText, initials, knOf, filterChips, listRows, validFilter, roleName as roleNameOf, ruleOf, toggled, personDraft, draftWithRole, draftWithView, draftWithRule, personPatch, hasChanges } from './people.js';
 import { esc, svg, TRASH_ICON } from '../ui/html.js';
+import { prefersReducedMotion } from '../ui/dom.js';
+import { pickerHtml, pickClick } from '../ui/picker.js';
 import { ago } from '../ui/time.js';
 
 // Iconos de rol: los de serie, uno común para los creados y el de personalizado.
@@ -21,355 +22,377 @@ const ROLE_ICON = {
   custom: svg('<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>', { width: 1.7 }),
 };
 const roleIcon = (r) => ROLE_ICON[r?.builtin] || (r ? ROLE_ICON.role : ROLE_ICON.custom);
+const DB_ICON = svg('<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>', { width: 1.6 });
 const copyText = async (text, input, toast) => {
   try { await navigator.clipboard.writeText(text); toast('Copiado'); }
   catch { input?.select(); toast('Selecciónalo y cópialo con ⌘C'); }
 };
-const roleCards = (roles, current) => `<div class="pp-roles" role="radiogroup" aria-label="Rol">${roles.map((r) =>
-  `<button type="button" class="pp-role-card" role="radio" data-role="${esc(r.id)}" aria-checked="${current === r.id}"><span class="r-ico">${roleIcon(r)}</span><b>${esc(r.name)}</b><span>${viewsText(r.views)}</span></button>`).join('')}</div>`;
-const wireRoleCards = (el) => el.addEventListener('click', (e) => {
-  const c = e.target.closest('[data-role]');
-  if (c) el.querySelectorAll('[data-role]').forEach((x) => x.setAttribute('aria-checked', String(x === c)));
-});
-const pickedRole = (el) => el.querySelector('[data-role][aria-checked="true"]')?.dataset.role || null;
-
-// onMetrics: si la persona también ve Equipo soporte, «Métricas equipo» vuelve a sus métricas.
-export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast, onMetrics }) => {
-  let people = [], kbase = null, roles = [], filter = 'all', query = '', selected = null;
+// La contraseña con sus botones (una nueva y en el alta)
+const passwordField = (value, attr) => `<div class="pp-pw"><input class="settings-input" ${attr} value="${esc(value)}" aria-label="Contraseña" spellcheck="false" /><button type="button" class="lab-btn" data-pw-copy>Copiar</button><button type="button" class="lab-btn" data-pw-regen title="Generar otra" aria-label="Generar otra">↻</button></div>`;
+// Las cajas de vistas (la ficha y el editor de roles): las que se tienen, encendidas; attr, el data-* de cada caja
+const viewBoxes = (views, attr, disabled = false) => VIEWS.map((v) => { const on = views.includes(v.id); return `<button type="button" class="pp-box ${on ? 'on' : 'off'}" ${attr}="${v.id}" aria-pressed="${on}"${disabled ? ' disabled' : ''}><span class="b-ico">${v.icon}</span><span class="b-name">${v.label}</span></button>`; }).join('');
+// Vive en Configuración → Equipo. onMetrics: si la persona también ve Equipo soporte, «Métricas equipo» abre sus métricas.
+// onScreen({ back, parent } | null): se ha entrado en una pantalla dentro de la caja (una ficha,
+// el alta, los roles): cómo se vuelve y de dónde; null al estar en la lista.
+export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast, dialogs, onMetrics, onScreen }) => {
+  let people = [], kbase = null, roles = [], rules = [], filter = 'all', query = '';
+  let selected = null;   // la persona de la ficha
+  let edit = null;       // su borrador: rol, vistas, regla, acceso y proyectos (se guarda de una vez)
+  let foot = null;       // la confirmación de borrar, desplegada: { kind: 'delete' }
+  let draft = null;      // el alta: como el borrador de una ficha, con nombre, email y contraseña inicial
+  let created = null;    // la persona recién dada de alta: { id, email, pw, warning }, para copiar sus datos en su ficha
 
   root.innerHTML = `
-    <header class="pp-head"><h2>Equipo soporte</h2>${onMetrics ? '<button class="pp-switch-view" data-metrics>Métricas equipo</button>' : ''}</header>
-    <div class="pp-rule"></div>
     <div class="pp-tools">
       <input class="settings-input" data-q placeholder="Buscar por nombre o email" aria-label="Buscar persona" />
-      <span class="pp-chips" data-chips></span>
-      <button class="lab-btn" data-act="roles">Roles</button>
-      <button class="lab-btn primary" data-act="new">+ Nueva persona</button>
+      <span class="pp-filter" data-chips></span>
+      <span class="pp-tools-right">
+        <button class="pp-switch-view" data-act="roles">Roles</button>
+        ${onMetrics ? '<button class="pp-switch-view" data-metrics>Métricas equipo</button>' : ''}
+        <button class="lab-btn primary" data-act="new">+ Nueva persona</button>
+      </span>
     </div>
     <div class="pp-body" data-body>
       <div class="pp-list" data-list></div>
-      <aside class="pp-panel" data-panel hidden></aside>
+      <section class="pp-screen pp-person" data-person-screen hidden></section>
+      <section class="pp-screen" data-roles-screen hidden></section>
     </div>`;
   const $ = (s) => root.querySelector(s);
-  const panel = $('[data-panel]');
+  const personEl = $('[data-person-screen]'), rolesEl = $('[data-roles-screen]');
 
   const load = async () => {
-    try { [people, kbase, roles] = await Promise.all([usersApi.list(), knowledgeApi.base(), usersApi.roles()]); }
+    try { [people, kbase, roles, rules] = await Promise.all([usersApi.list(), knowledgeApi.base(), usersApi.roles(), usersApi.rules()]); }
     catch (e) { $('[data-list]').innerHTML = `<div class="pp-empty">No se pudo cargar: ${esc(e.message)}</div>`; return; }
-    if (selected && !people.some((p) => p.id === selected)) selected = null;
     filter = validFilter(filter, roles);
     renderChips();
     renderList();
-    if (selected) renderPanel(); else panel.hidden = true;
+    if (screen === 'person') { if (personById(selected)) paintPerson(); else leavePerson(); }
+    else if (screen === 'new') paintNew();
+    else if (screen === 'roles') paintRoles();
   };
   const groupName = (id) => kbase?.groups?.find((g) => g.id === id)?.name;
-  const person = () => people.find((p) => p.id === selected);
-
+  const personById = (id) => people.find((p) => p.id === id);
   const roleById = (id) => roles.find((r) => r.id === id) || null;
   const roleName = (p) => roleNameOf(roles, p);
+  const ruleLabel = (x) => ruleOf(rules, x)?.label || 'Regla básica';
+  const ruleOptions = () => [{ options: rules.map((r) => ({ value: r.id, label: r.label })) }];
+  const roleOptions = () => [{ options: roles.map((r) => ({ value: r.id, label: r.name })) }];
 
-  /* ── lista ── */
+  /* ── qué ocupa la caja: la lista, una ficha, el alta o los roles ── */
+  let screen = 'list';
+  const showScreen = (name, sub = null) => {
+    screen = name;
+    root.classList.toggle('open', name !== 'list');
+    personEl.hidden = name !== 'person' && name !== 'new';
+    rolesEl.hidden = name !== 'roles';
+    if (name !== 'roles') closeRoleEditor();
+    onScreen?.(sub);
+  };
+
+  /* ── la lista: solo para leer; pulsar a alguien entra en su ficha ── */
   const renderChips = () => {
-    $('[data-chips]').innerHTML = filterChips(roles).map(([f, label]) => `<button class="pp-chip${filter === f ? ' on' : ''}" data-f="${esc(f)}">${esc(label)}</button>`).join('');
+    $('[data-chips]').innerHTML = pickerHtml({ id: 'pp-filter', name: 'filter', value: filter, inline: true, groups: [{ options: filterChips(roles).map(([value, label]) => ({ value, label })) }] });
   };
   const knTags = (p) => {
     const names = knOf(p).map(groupName).filter(Boolean);
     return names.length ? names.map((n) => `<span class="pp-tag">${esc(n)}</span>`).join('') : '<span class="pp-tag none">Sin conocimiento</span>';
   };
   const renderList = () => {
-    $('[data-body]').classList.toggle('open', !panel.hidden);
     const rows = listRows(people, filter, query);
-    $('[data-list]').innerHTML = `<div class="pp-row hd"><span></span><span>Persona</span><span>Rol</span><span class="pp-kn">Conocimiento</span><span>Acceso</span></div>`
-      + (rows.length ? rows.map((p) => `<div class="pp-row${p.active ? '' : ' off'}${selected === p.id ? ' current' : ''}" data-id="${esc(p.id)}">
+    $('[data-list]').innerHTML = `<div class="pp-row hd"><span></span><span>Persona</span><span>Rol</span><span>Prioridad</span><span>Conocimiento</span><span>Acceso</span></div>`
+      + (rows.length ? rows.map((p) => `<button type="button" class="pp-row${p.active ? '' : ' off'}" data-id="${esc(p.id)}">
         <span class="pp-av">${esc(initials(p.name))}</span>
         <span class="pp-who"><b>${esc(p.name)}${p.id === me.id ? ' (tú)' : ''}</b><span>${esc(p.email)}</span></span>
-        <span class="pp-role ${roleById(p.role_id)?.builtin || (p.role_id ? '' : 'custom')}">${esc(roleName(p))}</span>
+        <span class="pp-cell${p.role_id ? '' : ' low'}">${esc(roleName(p))}</span>
+        <span class="pp-cell">${esc(ruleLabel(p))}</span>
         <span class="pp-kn">${knTags(p)}</span>
-        <span class="pp-state ${p.active ? 'on' : 'off'}">${p.active ? 'Activa' : 'Desactivada'}</span>
-      </div>`).join('') : '<div class="pp-empty">Nadie coincide con la búsqueda.</div>');
+        <span class="pp-state ${p.active ? 'on' : 'off'}">${p.active ? 'Puede entrar' : 'Sin acceso'}</span>
+      </button>`).join('') : '<div class="pp-empty">Nadie coincide con la búsqueda.</div>');
   };
 
-  /* ── ficha ── */
-  // Vistas: una caja por vista; pulsarla la da o la quita al momento.
-  const viewsBlock = (p, self) => {
-    const has = (v) => (p.views || []).includes(v);
-    const n = VIEWS.filter((v) => has(v.id)).length;
-    return `<div class="pp-block">
-      <div class="pp-block-head"><span class="pp-k">Vistas</span>
-        <span class="pp-sum">${self ? 'Las tuyas no las puedes cambiar' : n ? `Ve el Chat y ${n} de ${VIEWS.length} vistas más` : 'Solo ve el Chat'}</span></div>
-      <div class="pp-views">
-        <div class="pp-box on fixed"><span class="b-ico">${CHAT_ICON}</span><span class="b-name">Chat</span><span class="b-meta">Siempre</span></div>
-        ${VIEWS.map((v) => `<button class="pp-box ${has(v.id) ? 'on' : 'off'}" data-view="${v.id}" aria-pressed="${has(v.id)}"${self ? ' disabled' : ''}>
-          <span class="b-ico">${v.icon}</span><span class="b-name">${v.label}</span><span class="b-meta">${has(v.id) ? 'La ve' : 'No la ve'}</span></button>`).join('')}
-      </div>
-    </div>`;
+  /* ── la ficha de una persona ── */
+  const openPerson = (id) => { selected = id; foot = null; edit = personDraft(personById(id)); showScreen('person', { back: closePerson, parent: 'Equipo' }); paintPerson(); };
+  const leavePerson = () => { selected = null; foot = null; edit = null; created = null; showScreen('list'); renderList(); };
+  const patchNow = () => personPatch(personById(selected), edit, rules);
+  // Volver con cambios sin guardar: se pregunta
+  const closePerson = async () => {
+    if (selected && edit && (hasChanges(patchNow()) || edit.pw) && !(await dialogs.confirm('Cambios sin guardar', '<p class="dlg-lead">Si vuelves al equipo se pierden los cambios de esta persona.</p>', 'Descartar cambios'))) return;
+    leavePerson();
   };
-  // Conocimiento: los proyectos que ve (pulsar uno lo da o lo quita).
-  const knowledgeBlock = (sel, { copyFrom = true } = {}) => {
-    const b = kbase, groups = b?.groups || [];
-    const head = (sum, none) => `<div class="pp-block-head"><span class="pp-k">Conocimiento</span><span class="pp-sum${none ? ' none' : ''}">${sum}</span>
-      ${copyFrom && groups.length ? '<button class="pp-link" data-act="kn-copy">Igual que otra persona…</button>' : ''}</div>`;
-    if (!b) return `<div class="pp-block">${head('', false)}<div class="pp-callout">La instancia aún no tiene base de conocimiento.</div></div>`;
-    if (!b.groups) return `<div class="pp-block">${head('', false)}<div class="pp-callout">${esc(b.groupsError || 'La base aún no tiene su clave de poder, así que SIA no puede leer sus proyectos.')}</div></div>`;
-    if (!groups.length) return `<div class="pp-block">${head('', false)}<div class="pp-callout">«${esc(b.name)}» aún no tiene proyectos: créalos en Administración.</div></div>`;
-    const n = groups.filter((g) => sel.includes(g.id)).length;
-    return `<div class="pp-block">${head(n ? `Ve ${n} de ${groups.length} proyectos` : 'No ve ningún proyecto', !n)}
-      <div class="pp-groups">${groups.map((g) => `<button type="button" class="pp-g" data-g="${esc(g.id)}" aria-pressed="${sel.includes(g.id)}">${esc(g.name)}</button>`).join('')}</div>
-    </div>`;
+  // Los proyectos de la base, como cajas con el icono de base de datos (encendidas las que ve)
+  const knowledgeBlock = (sel, attr, disabled = false) => {
+    const groups = kbase?.groups || [];
+    if (!kbase) return '<div class="pp-callout">La instancia aún no tiene base de conocimiento.</div>';
+    if (!kbase.groups) return `<div class="pp-callout">${esc(kbase.groupsError || 'La base aún no tiene su clave de poder, así que SIA no puede leer sus proyectos.')}</div>`;
+    if (!groups.length) return `<div class="pp-callout">«${esc(kbase.name)}» aún no tiene proyectos: créalos en Administración.</div>`;
+    return `<div class="pp-kbs">${groups.map((g) => { const on = sel.includes(g.id); return `<button type="button" class="pp-kb${on ? ' on' : ''}" ${attr}="${esc(g.id)}" aria-pressed="${on}"${disabled ? ' disabled' : ''} title="${on ? 'Lo ve · quitar' : 'No lo ve · dar'}">${DB_ICON}<span>${esc(g.name)}</span></button>`; }).join('')}</div>`;
   };
-  const renderPanel = () => {
-    const p = person(), self = p.id === me.id;
-    panel.hidden = false;
-    panel.innerHTML = `
-      <div class="pp-ph"><span class="pp-av${p.active ? '' : ' off'}">${esc(initials(p.name))}</span>
-        <div><h3>${esc(p.name)}</h3><p>${esc(p.email)} · último acceso ${ago(p.last_sign_in_at)}</p>
-          <span class="pp-state ${p.active ? 'on' : 'off'}">${p.active ? 'Activa · puede entrar' : 'Desactivada · no puede entrar'}</span></div>
-        <div class="pp-ph-actions"><button class="pp-x" data-act="close" aria-label="Cerrar ficha">×</button>
-          ${self ? '' : `<button class="icon-btn danger" data-act="delete" title="Borrar persona" aria-label="Borrar persona">${TRASH_ICON}</button>`}</div></div>
-      <div class="pp-pb">
-        <div class="pp-item"><span class="pp-k">Rol</span><span class="pp-v">${esc(roleName(p))}${self ? '<small>El tuyo no lo puedes cambiar.</small>' : p.role_id ? '' : '<small>Sus vistas no siguen a ningún rol.</small>'}</span>${self ? '<span></span>' : '<button class="lab-btn" data-act="role">Cambiar</button>'}</div>
-        <div class="pp-item"><span class="pp-k">Contraseña</span><span class="pp-v">${p.must_change_password ? 'Pendiente de cambiar' : 'La eligió la propia persona'}<small>${p.must_change_password ? 'La puso un administrador: se le pedirá cambiarla al entrar.' : 'Si la olvida, genera una nueva.'}</small></span>${self ? '<span></span>' : '<button class="lab-btn" data-act="password">Generar nueva</button>'}</div>
-        <div class="pp-item"><span class="pp-k">Acceso a SIA</span><span class="pp-v">${p.active ? 'Puede iniciar sesión' : 'No puede iniciar sesión'}<small>${self ? 'Tu propio acceso no lo puedes desactivar.' : p.active ? 'Desactívala para cortarle el acceso sin borrarla.' : 'Su rol y su conocimiento se conservan.'}</small></span>
-          ${self ? '<span></span>' : `<button class="lab-btn${p.active ? ' pp-danger' : ''}" data-act="access">${p.active ? 'Desactivar acceso' : 'Reactivar acceso'}</button>`}</div>
-        ${viewsBlock(p, self)}
-        ${knowledgeBlock(knOf(p))}
+  // Lo desplegado bajo los botones: la confirmación de borrar
+  const footHtml = () => (foot?.kind !== 'delete' ? '' : `<div class="pp-foot-open" title="No se puede deshacer: para cortarle el acceso sin borrarla, desactívala">
+        <input class="settings-input" data-foot-confirm placeholder="Escribe su email para borrarla" autocomplete="off" spellcheck="false" />
+        <div class="pp-foot-acts"><span class="pp-msg" data-foot-msg></span><button class="lab-btn" data-foot-cancel>Cancelar</button><button class="lab-btn pp-danger-solid" data-foot-ok>Borrar persona</button></div></div>`);
+  // La ficha: a la izquierda, una pieza con quién es, su cuenta y las acciones; a la derecha, sus
+  // vistas (interruptores) y su conocimiento (bases), cada uno con su cabecera.
+  const paintPerson = () => {
+    const p = personById(selected), self = p.id === me.id, d = edit, dirty = hasChanges(patchNow()) || !!d.pw;
+    personEl.innerHTML = `
+      <div class="pp-cols">
+        <aside class="pp-profile">
+          <div class="pp-id">
+            <span class="pp-av${d.active ? '' : ' off'}">${esc(initials(p.name))}</span>
+            <h3>${esc(p.name)}${self ? ' (tú)' : ''}</h3>
+            <p>${esc(p.email)}</p>
+            <p class="pp-id-seen">Último acceso ${ago(p.last_sign_in_at)}</p>
+          </div>
+          <dl class="pp-props">
+            <div><dt>Rol</dt><dd>${pickerHtml({ id: 'pp-role', name: 'role', value: d.role_id || '', placeholder: 'Personalizado', disabled: self, groups: roleOptions() })}</dd></div>
+            <div><dt>Prioridad</dt><dd>${pickerHtml({ id: 'pp-rule', name: 'rule', value: ruleOf(rules, d)?.id || '', placeholder: 'Regla básica', disabled: self || !rules.length, groups: ruleOptions() })}</dd></div>
+            <div><dt>Acceso</dt><dd><div class="pp-access"><span>${d.active ? 'Puede entrar' : 'Sin acceso'}</span><button type="button" class="sw" role="switch" aria-checked="${d.active}" data-access aria-label="${d.active ? 'Desactivar acceso' : 'Reactivar acceso'}"${self ? ' disabled' : ''}><span class="knob"></span></button></div></dd></div>
+          </dl>
+          ${created?.id === p.id ? `<div class="pp-newpw" title="Pásaselos por un canal seguro"><span class="pp-k">Datos de acceso</span>
+            <div class="pp-pw"><input class="settings-input" data-copy="email" value="${esc(created.email)}" readonly /><button type="button" class="lab-btn" data-copy-of="email">Copiar</button></div>
+            <div class="pp-pw"><input class="settings-input" data-copy="pw" value="${esc(created.pw)}" readonly /><button type="button" class="lab-btn" data-copy-of="pw">Copiar</button></div>
+            <button type="button" class="pp-act" data-copy-both>Copiar los dos</button>${created.warning ? `<p class="pp-msg">${esc(created.warning)}</p>` : ''}</div>` : ''}
+          ${d.pw ? `<div class="pp-newpw" title="Sustituye a la actual y cierra sus sesiones; al entrar se le pedirá cambiarla"><span class="pp-k">Contraseña nueva</span>${passwordField(d.pw, 'data-edit-pw')}</div>` : ''}
+          ${self ? '' : `<div class="pp-profile-acts">
+            <button type="button" class="pp-act${d.pw ? ' on' : ''}" data-new-pw>Contraseña nueva</button>
+            <button type="button" class="pp-act danger${foot?.kind === 'delete' ? ' on' : ''}" data-foot="delete">Borrar persona</button>
+          </div>${footHtml()}`}
+        </aside>
+        <div class="pp-perms">
+          <div class="pp-perms-body">
+            <section class="pp-sec"><h4 class="pp-sec-h">Vistas</h4><div class="pp-views">${viewBoxes(d.views, 'data-view', self)}</div></section>
+            <section class="pp-sec"><h4 class="pp-sec-h">Conocimiento</h4>${knowledgeBlock(d.kn, 'data-g', self)}</section>
+          </div>
+          ${self ? '' : `<div class="pp-save${dirty ? ' dirty' : ''}"><span class="pp-msg" data-save-msg></span><button type="button" class="lab-btn" data-discard${dirty ? '' : ' disabled'}>Descartar</button><button type="button" class="lab-btn primary" data-save${dirty ? '' : ' disabled'}>Guardar cambios</button></div>`}
+        </div>
       </div>`;
-    renderList();
+    if (foot) personEl.querySelector('[data-foot-confirm]')?.focus();
   };
-  const openPerson = (id) => { selected = id; renderPanel(); };
-  const closePerson = () => { selected = null; panel.hidden = true; renderList(); };
+  // Guardar el borrador de una vez: la cuenta, las vistas y la contraseña nueva, y luego los proyectos
+  const savePerson = async (btn) => {
+    const p = personById(selected), patch = patchNow(), msg = personEl.querySelector('[data-save-msg]');
+    btn.disabled = true;
+    try {
+      let warning = null;
+      const user = { ...(patch.user || {}), ...(edit.pw ? { password: edit.pw } : {}) };
+      if (Object.keys(user).length) warning = (await usersApi.update(p.id, user))?.warning || null;
+      if (patch.projects) await knowledgeApi.setProjects(p.id, patch.projects);
+      toast(warning || `Cambios de ${p.name} guardados`);
+      await load();
+      edit = personDraft(personById(selected));
+      paintPerson();
+    } catch (e) { msg.textContent = e.message; btn.disabled = false; }
+  };
+
+  /* ── el alta: la ficha misma, vacía; «Dar de alta» en vez de guardar. Al crearla se abre su
+     ficha con sus datos de acceso para copiar. ── */
+  const openNew = () => {
+    const agent = roles.find((r) => r.builtin === 'agent') || roles[0];
+    const empty = { role_id: null, views: ['chat', 'links'], rule_id: null, active: true, kn: [] };
+    draft = { ...(agent ? draftWithRole(empty, agent) : empty), name: '', email: '', pw: strongPassword() };
+    showScreen('new', { back: closeNew, parent: 'Equipo' });
+    paintNew();
+  };
+  const closeNew = () => { draft = null; showScreen('list'); renderList(); };
+  const paintNew = () => {
+    const d = draft;
+    personEl.innerHTML = `
+      <div class="pp-cols">
+        <aside class="pp-profile">
+          <div class="pp-id">
+            <span class="pp-av" data-new-av>${esc(initials(d.name))}</span>
+            <input class="pp-id-input pp-id-name" data-new="name" value="${esc(d.name)}" placeholder="Nombre y apellidos" aria-label="Nombre" autocomplete="off" />
+            <input class="pp-id-input" data-new="email" type="email" value="${esc(d.email)}" placeholder="nombre@empresa.com" aria-label="Email" autocomplete="off" spellcheck="false" />
+          </div>
+          <dl class="pp-props">
+            <div><dt>Rol</dt><dd>${pickerHtml({ id: 'pp-new-role', name: 'new-role', value: d.role_id || '', placeholder: 'Personalizado', groups: roleOptions() })}</dd></div>
+            <div><dt>Prioridad</dt><dd>${pickerHtml({ id: 'pp-new-rule', name: 'new-rule', value: ruleOf(rules, d)?.id || '', placeholder: 'Regla básica', disabled: !rules.length, groups: ruleOptions() })}</dd></div>
+          </dl>
+          <div class="pp-newpw" title="Se le pedirá cambiarla al entrar por primera vez"><span class="pp-k">Contraseña inicial</span>${passwordField(d.pw, 'data-new="pw"')}</div>
+        </aside>
+        <div class="pp-perms">
+          <div class="pp-perms-body">
+            <section class="pp-sec"><h4 class="pp-sec-h">Vistas</h4><div class="pp-views">${viewBoxes(d.views, 'data-new-view')}</div></section>
+            <section class="pp-sec"><h4 class="pp-sec-h">Conocimiento</h4>${knowledgeBlock(d.kn, 'data-new-g')}</section>
+          </div>
+          <div class="pp-save dirty"><span class="pp-msg" data-new-msg></span><button type="button" class="lab-btn" data-new-cancel>Cancelar</button><button type="button" class="lab-btn primary" data-new-ok>Dar de alta</button></div>
+        </div>
+      </div>`;
+    if (!d.name) personEl.querySelector('[data-new="name"]').focus();
+  };
+  // Dar de alta con su rol y sus proyectos; si sus vistas o su regla no son las de un rol, se le
+  // ponen después (queda personalizada). Luego, su ficha con los datos de acceso.
+  const createPerson = async (msg, ok) => {
+    const d = draft;
+    ok.disabled = true;
+    try {
+      const r = await usersApi.create({ email: d.email.trim(), name: d.name.trim(), role: d.role_id || null, password: d.pw, projects: d.kn });
+      let warning = r.warning || null;
+      if (!d.role_id) warning = (await usersApi.update(r.user.id, { views: d.views, rule: ruleOf(rules, d)?.id }))?.warning || warning;
+      created = { id: r.user.id, email: r.user.email, pw: d.pw, warning };
+      draft = null;
+      await load();
+      openPerson(r.user.id);
+      toast(`${r.user.name} ya puede entrar`);
+    } catch (e) { msg.textContent = e.message; ok.disabled = false; }
+  };
 
   // Guardar algo y volver a pintar con lo que dice la base (con su aviso, si trae).
   const save = async (fn, okText, msgEl) => {
-    try { const r = await fn(); closeModal(); toast(r?.warning || okText); await load(); return true; }
+    try { const r = await fn(); toast(r?.warning || okText); await load(); return true; }
     catch (e) { if (msgEl) msgEl.textContent = e.message; else toast(e.message); return false; }
   };
-  const footer = (okLabel, okClass = 'primary') => `<span class="pp-msg" data-msg></span><button class="lab-btn" data-cancel>Cancelar</button><button class="lab-btn ${okClass}" data-ok>${okLabel}</button>`;
-  const wireFoot = (m, onOk) => {
-    m.querySelector('[data-cancel]').addEventListener('click', closeModal);
-    const ok = m.querySelector('[data-ok]');
-    ok.addEventListener('click', async () => { ok.disabled = true; await onOk(m.querySelector('[data-msg]')); ok.disabled = false; });
-  };
 
-  /* ── modales de la ficha ── */
-  const roleModal = () => {
-    const p = person();
-    const m = openModal({ title: `Rol de ${p.name}`, lead: 'Se le ponen las vistas del rol, y las cambiará cuando cambie el rol.', body: roleCards(roles, p.role_id), foot: footer('Guardar'), wide: roles.length > 2 });
-    wireRoleCards(m);
-    wireFoot(m, (msg) => (pickedRole(m) ? save(() => usersApi.update(p.id, { role: pickedRole(m) }), 'Rol guardado', msg) : (msg.textContent = 'Elige un rol.')));
+  /* ── roles: una pantalla con la lista; un rol, en un panel al lado ── */
+  // Un panel lateral (.pp-drawer): entra abriéndose por la derecha y, al cerrar, se recoge igual;
+  // lo de dentro va en .pp-drawer-in, de ancho fijo, para que no se reajuste mientras se mueve.
+  const openDrawer = (host, html) => {
+    const el = document.createElement('aside');
+    el.className = 'pp-drawer';
+    el.innerHTML = `<div class="pp-drawer-in">${html}</div>`;
+    host.append(el);
+    if (prefersReducedMotion()) el.classList.add('in');
+    else requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('in')));
+    return el;
   };
-  const accessModal = () => {
-    const p = person();
-    const m = openModal(p.active
-      ? { title: `Desactivar el acceso de ${p.name}`, lead: 'No podrá iniciar sesión y se cerrarán sus sesiones abiertas. No se borra nada: puedes reactivarla cuando quieras.',
-        body: '<div class="pp-callout"><b>Qué se conserva:</b> su rol y su conocimiento asignado.</div>', foot: footer('Desactivar acceso', 'pp-danger-solid') }
-      : { title: `Reactivar el acceso de ${p.name}`, lead: 'Podrá volver a iniciar sesión con su contraseña, con el mismo rol y el mismo conocimiento.', foot: footer('Reactivar acceso') });
-    wireFoot(m, (msg) => save(() => usersApi.update(p.id, { active: !p.active }), p.active ? 'Acceso desactivado' : 'Acceso reactivado', msg));
+  const dropDrawer = (el) => {
+    if (!el) return;
+    if (prefersReducedMotion() || !el.classList.contains('in')) return el.remove();
+    el.classList.remove('in');
+    el.classList.add('out');
+    const done = () => el.remove();
+    el.addEventListener('transitionend', done, { once: true });
+    setTimeout(done, 400);   // por si no llega el evento
   };
-  const passwordModal = () => {
-    const p = person();
-    const m = openModal({ title: `Nueva contraseña para ${p.name}`, lead: 'Sustituye a la actual y cierra sus sesiones abiertas. Pásasela por un canal seguro: al entrar se le pedirá cambiarla.',
-      body: `<div class="pp-pw"><input class="settings-input" data-pw value="${esc(strongPassword())}" aria-label="Nueva contraseña" spellcheck="false" /><button class="lab-btn" data-copy>Copiar</button><button class="lab-btn" data-regen title="Generar otra" aria-label="Generar otra">↻</button></div>`,
-      foot: footer('Guardar contraseña') });
-    const input = m.querySelector('[data-pw]');
-    m.querySelector('[data-copy]').addEventListener('click', () => copyText(input.value, input, toast));
-    m.querySelector('[data-regen]').addEventListener('click', () => { input.value = strongPassword(); });
-    wireFoot(m, (msg) => save(() => usersApi.update(p.id, { password: input.value }), 'Contraseña guardada', msg));
-  };
-  const deleteModal = () => {
-    const p = person();
-    const m = openModal({ title: `Borrar a ${p.name}`, lead: 'Se borra su usuario y su conocimiento asignado. No se puede deshacer. Si solo quieres cortarle el acceso, desactívala.',
-      body: `<label class="pp-field" style="margin:0"><span>Escribe su email para confirmar</span><input class="settings-input" data-confirm placeholder="${esc(p.email)}" autocomplete="off" spellcheck="false" /></label>`,
-      foot: footer('Borrar', 'pp-danger-solid') });
-    wireFoot(m, async (msg) => {
-      if (m.querySelector('[data-confirm]').value.trim().toLowerCase() !== p.email) { msg.textContent = 'El email no coincide.'; return; }
-      if (await save(() => usersApi.remove(p.id), 'Persona borrada', msg)) closePerson();
-    });
-  };
-
-  // Copiar el conocimiento de otra persona: elegir (como en la lista) y revisar.
-  const copyModal = (who, excludeId, onApply) => {
-    const m = openModal({ title: '¿De quién copias el conocimiento?', lead: `${who} verá sus mismos proyectos.`, body: '<div data-c></div>',
-      foot: '<span class="pp-msg" data-msg></span><button class="lab-btn" data-cancel>Cancelar</button>' });
-    m.querySelector('[data-cancel]').addEventListener('click', closeModal);
-    const body = m.querySelector('[data-c]');
-    const pick = (q = '') => {
-      const who2 = people.filter((p) => p.id !== excludeId && knOf(p).length && `${p.name} ${p.email}`.toLowerCase().includes(q));
-      body.innerHTML = `<input class="settings-input" data-pq placeholder="Buscar persona" aria-label="Buscar persona" value="${esc(q)}" />
-        <div class="pp-picks">${who2.length ? who2.map((p) => `<button type="button" class="pp-pick" data-pick="${esc(p.id)}">
-          <span class="pp-av${p.active ? '' : ' off'}">${esc(initials(p.name))}</span>
-          <span class="pp-who"><b>${esc(p.name)}</b><span>${esc(p.email)}</span></span><span class="pp-kn">${knTags(p)}</span></button>`).join('')
-          : '<div class="pp-empty">Nadie con ese nombre tiene conocimiento asignado.</div>'}</div>`;
-      const qi = body.querySelector('[data-pq]');
-      qi.focus(); qi.setSelectionRange(q.length, q.length);
-      qi.addEventListener('input', () => pick(qi.value.toLowerCase()));
-    };
-    const review = (src) => {
-      m.querySelector('h3').textContent = `Igual que ${src.name}`;
-      body.innerHTML = `<button type="button" class="pp-back" data-back>← Elegir otra persona</button>
-        <div class="pp-review"><div>${esc(kbase?.name || 'Base')} <span>· ${knOf(src).map((id) => esc(groupName(id) || '?')).join(', ')}</span></div></div>`;
-      const foot = m.querySelector('.pp-mf');
-      foot.innerHTML = '<span class="pp-msg" data-msg></span><button class="lab-btn" data-cancel>Cancelar</button><button class="lab-btn primary" data-ok>Aplicar</button>';
-      wireFoot(m, (msg) => onApply(src, msg));
-    };
-    body.addEventListener('click', (e) => {
-      const p = e.target.closest('[data-pick]');
-      if (p) return review(people.find((x) => x.id === p.dataset.pick));
-      if (e.target.closest('[data-back]')) {
-        m.querySelector('h3').textContent = '¿De quién copias el conocimiento?';
-        m.querySelector('.pp-mf').innerHTML = '<span class="pp-msg" data-msg></span><button class="lab-btn" data-cancel>Cancelar</button>';
-        m.querySelector('[data-cancel]').addEventListener('click', closeModal);
-        pick();
-      }
-    });
-    pick();
-  };
-
-  /* ── roles: lista, crear, editar (se aplica a quien lo tiene) y borrar ── */
-  const rolesModal = () => {
-    const m = openModal({ title: 'Roles', lead: 'Un rol es un conjunto de vistas. Cambiarlo cambia a todas las personas que lo tienen.', wide: true,
-      body: '<div class="pp-rolelist" data-rl></div>',
-      foot: '<span class="pp-msg" data-msg></span><button class="lab-btn" data-cancel>Cerrar</button><button class="lab-btn primary" data-new-role>+ Nuevo rol</button>' });
-    const paint = () => {
-      m.querySelector('[data-rl]').innerHTML = roles.map((r) => `<div class="pp-rl">
+  const closeRoleEditor = () => { dropDrawer(rolesEl.querySelector('.pp-drawer:not(.out)')); };
+  let confirmDel = null;   // el rol cuya fila pregunta si se borra
+  let roleRule = null;     // la regla elegida en el panel del rol
+  const openRoles = () => { confirmDel = null; showScreen('roles', { back: closeRoles, parent: 'Equipo' }); paintRoles(); };
+  const closeRoles = () => { showScreen('list'); renderList(); };
+  const paintRoles = () => {
+    rolesEl.innerHTML = `<div class="pp-rs-main"><div class="pp-rs-head"><div><h3>Roles</h3><p>Un rol es un conjunto de vistas y una regla de priorización. Cambiarlo cambia a todas las personas que lo tienen.</p></div>
+        <button class="lab-btn primary" data-new-role>+ Nuevo rol</button></div>
+      <div class="pp-rolelist">${roles.map((r) => `<div class="pp-rl">
         <span class="r-ico">${roleIcon(r)}</span>
         <span class="pp-rl-main"><b>${esc(r.name)}</b><span>${viewsText(r.views)}</span></span>
+        <span class="pp-rl-rule">${esc(ruleLabel(r))}</span>
         <span class="pp-rl-n">${Number(r.people)} ${Number(r.people) === 1 ? 'persona' : 'personas'}</span>
         ${r.builtin === 'admin' ? '<span class="pp-rl-fixed">Todas las vistas, fijo</span>'
+          : confirmDel === r.id ? `<span class="pp-rl-ask">${Number(r.people) ? `${Number(r.people) === 1 ? 'La persona que lo tiene se queda' : `Las ${Number(r.people)} personas que lo tienen se quedan`} con sus vistas y su regla, como personalizadas.` : 'Nadie lo tiene.'}</span><button class="lab-btn" data-del-no>Cancelar</button><button class="lab-btn pp-danger-solid" data-del-yes="${esc(r.id)}">Borrar rol</button>`
           : `<button class="lab-btn" data-edit="${esc(r.id)}">Editar</button>${r.builtin ? '<span class="pp-rl-gap"></span>' : `<button class="icon-btn danger" data-del="${esc(r.id)}" title="Borrar rol" aria-label="Borrar rol">${TRASH_ICON}</button>`}`}
-      </div>`).join('');
-    };
-    paint();
-    m.querySelector('[data-cancel]').addEventListener('click', closeModal);
-    m.querySelector('[data-new-role]').addEventListener('click', () => roleEditor(null, paint));
-    m.querySelector('[data-rl]').addEventListener('click', (e) => {
-      const edit = e.target.closest('[data-edit]')?.dataset.edit, del = e.target.closest('[data-del]')?.dataset.del;
-      if (edit) roleEditor(roleById(edit), paint);
-      if (del) roleDelete(roleById(del), paint);
-    });
+      </div>`).join('')}</div></div>`;
   };
-  // Crear o editar un rol: nombre y vistas (cajas como las de la ficha).
-  const roleEditor = (r, repaint) => {
-    let views = [...(r?.views || ['links'])];
+  // Crear o editar un rol: nombre, regla y vistas, en un panel al lado de la lista de roles.
+  const openRoleEditor = (r) => {
+    let views = [...(r?.views || ['chat', 'links'])];
     const n = Number(r?.people || 0);
-    const m = openModal({ title: r ? `Editar «${r.name}»` : 'Nuevo rol', lead: r && n ? `Se aplica a ${n === 1 ? 'la persona que lo tiene' : `las ${n} personas que lo tienen`}.` : 'Qué vistas trae quien lo tenga.', wide: true,
-      body: `<label class="pp-field"><span>Nombre</span><input class="settings-input" data-rname maxlength="40" placeholder="Supervisor" value="${esc(r?.name || '')}" autocomplete="off" /></label>
-        <div class="pp-field"><span>Vistas</span><div class="pp-views" data-rviews></div></div>`,
-      foot: footer(r ? 'Guardar' : 'Crear rol') });
-    const paint = () => {
-      m.querySelector('[data-rviews]').innerHTML = `<div class="pp-box on fixed"><span class="b-ico">${CHAT_ICON}</span><span class="b-name">Chat</span><span class="b-meta">Siempre</span></div>`
-        + VIEWS.map((v) => `<button type="button" class="pp-box ${views.includes(v.id) ? 'on' : 'off'}" data-v="${v.id}" aria-pressed="${views.includes(v.id)}"><span class="b-ico">${v.icon}</span><span class="b-name">${v.label}</span><span class="b-meta">${views.includes(v.id) ? 'La ve' : 'No la ve'}</span></button>`).join('');
-    };
+    roleRule = ruleOf(rules, r || {})?.id || null;
+    closeRoleEditor();
+    // El nombre hace de título: se escribe ahí mismo.
+    const drawer = openDrawer(rolesEl, `<div class="pp-rs-head pp-drawer-head"><input class="settings-input pp-rname" data-rname maxlength="40" placeholder="Nombre del rol" aria-label="Nombre del rol" value="${esc(r?.name || '')}" autocomplete="off" />
+        <button class="pp-x" data-role-cancel aria-label="Cerrar">×</button></div>
+      <div class="pp-rs-body">
+        ${r && n ? `<p class="pp-drawer-note">Se aplica a ${n === 1 ? 'la persona que lo tiene' : `las ${n} personas que lo tienen`}.</p>` : ''}
+        <div class="pp-field"><span>Prioriza con</span>${pickerHtml({ id: 'pp-role-rule', name: 'role-rule', value: roleRule || '', placeholder: 'Regla básica', disabled: !rules.length, groups: ruleOptions() })}</div>
+        <div class="pp-views" data-rviews></div>
+      </div>
+      <div class="pp-rs-foot"><span class="pp-msg" data-msg></span><button class="lab-btn" data-role-cancel>Cancelar</button><button class="lab-btn primary" data-role-save>${r ? 'Guardar' : 'Crear rol'}</button></div>`);
+    const paint = () => { drawer.querySelector('[data-rviews]').innerHTML = viewBoxes(views, 'data-v'); };
     paint();
-    m.querySelector('[data-rviews]').addEventListener('click', (e) => {
+    drawer.querySelector('[data-rviews]').addEventListener('click', (e) => {
       const v = e.target.closest('[data-v]')?.dataset.v;
       if (v) { views = toggled(views, v); paint(); }
     });
-    m.querySelector('[data-rname]').focus();
-    wireFoot(m, async (msg) => {
+    drawer.querySelector('[data-rname]').focus();
+    for (const b of drawer.querySelectorAll('[data-role-cancel]')) b.addEventListener('click', closeRoleEditor);
+    const saveBtn = drawer.querySelector('[data-role-save]');
+    saveBtn.addEventListener('click', async () => {
+      saveBtn.disabled = true;
       try {
-        const res = await usersApi.saveRole(r?.id, { name: m.querySelector('[data-rname]').value.trim(), views });
-        closeModal(); toast(res?.warning || (r ? 'Rol guardado' : 'Rol creado'));
-        await load(); repaint();
-      } catch (e) { msg.textContent = e.message; }
+        const res = await usersApi.saveRole(r?.id, { name: drawer.querySelector('[data-rname]').value.trim(), views, rule: roleRule });
+        toast(res?.warning || (r ? 'Rol guardado' : 'Rol creado'));
+        await load(); openRoles();
+      } catch (e) { drawer.querySelector('[data-msg]').textContent = e.message; saveBtn.disabled = false; }
     });
   };
-  const roleDelete = (r, repaint) => {
-    const n = Number(r.people);
-    const m = openModal({ title: `Borrar «${r.name}»`, lead: n ? `${n === 1 ? 'La persona que lo tiene se queda' : `Las ${n} personas que lo tienen se quedan`} con sus vistas, como personalizadas.` : 'Nadie lo tiene.', foot: footer('Borrar rol', 'pp-danger-solid') });
-    wireFoot(m, async (msg) => {
-      try { await usersApi.removeRole(r.id); closeModal(); toast('Rol borrado'); await load(); repaint(); }
-      catch (e) { msg.textContent = e.message; }
-    });
-  };
-
-  /* ── alta: modal propio; el conocimiento se elige en él ── */
-  const newModal = () => {
-    const draft = { kn: [] };
-    const m = openModal({ title: 'Nueva persona', lead: 'Se crea activa y puede entrar en cuanto le pases sus datos.', wide: true,
-      body: `<div class="pp-fields2">
-          <label class="pp-field"><span>Nombre</span><input class="settings-input" data-name placeholder="Nombre y apellidos" autocomplete="off" /></label>
-          <label class="pp-field"><span>Email</span><input class="settings-input" data-email type="email" placeholder="nombre@empresa.com" autocomplete="off" spellcheck="false" /></label>
-        </div>
-        <div class="pp-field" data-roles><span>Rol</span>${roleCards(roles, roles.find((r) => r.builtin === 'agent')?.id)}</div>
-        <div class="pp-field"><span>Contraseña inicial</span>
-          <div class="pp-pw"><input class="settings-input" data-pw value="${esc(strongPassword())}" aria-label="Contraseña inicial" spellcheck="false" /><button type="button" class="lab-btn" data-copy>Copiar</button><button type="button" class="lab-btn" data-regen title="Generar otra" aria-label="Generar otra">↻</button></div>
-          <small>Se le pedirá cambiarla al entrar por primera vez.</small></div>
-        <div data-kn></div>`,
-      foot: footer('Crear persona') });
-    const val = (s) => m.querySelector(s).value.trim();
-    const pw = m.querySelector('[data-pw]');
-    wireRoleCards(m.querySelector('[data-roles]'));
-    m.querySelector('[data-copy]').addEventListener('click', () => copyText(pw.value, pw, toast));
-    m.querySelector('[data-regen]').addEventListener('click', () => { pw.value = strongPassword(); });
-    const who = () => val('[data-name]') || 'la nueva persona';
-    const paintKn = () => { m.querySelector('[data-kn]').innerHTML = knowledgeBlock(draft.kn); };
-    m.querySelector('[data-kn]').addEventListener('click', (e) => {
-      const g = e.target.closest('[data-g]')?.dataset.g;
-      if (g) { draft.kn = toggled(draft.kn, g); paintKn(); }
-      if (e.target.closest('[data-act="kn-copy"]')) copyModal(who(), null, (src) => { draft.kn = knOf(src); closeModal(); paintKn(); });
-    });
-    paintKn();
-    m.querySelector('[data-name]').focus();
-    wireFoot(m, async (msg) => {
-      try {
-        const r = await usersApi.create({ email: val('[data-email]'), name: val('[data-name]'), role: pickedRole(m), password: pw.value, projects: draft.kn });
-        created(m, r.user, pw.value, r.warning);
-        load();
-      } catch (e) { msg.textContent = e.message; }
-    });
-  };
-  // La persona creada: sus datos de acceso para copiar.
-  const created = (m, u, password, warning) => {
-    m.classList.remove('wide');
-    m.querySelector('.pp-mh').innerHTML = '<div><h3></h3><p>Pásale sus datos de acceso por un canal seguro.</p></div>';
-    m.querySelector('h3').textContent = `${u.name} ya puede entrar`;
-    m.querySelector('.pp-mb').innerHTML = `
-      <label class="pp-field"><span>Email</span><div class="pp-pw"><input class="settings-input" data-ce value="${esc(u.email)}" readonly /><button class="lab-btn" data-c="ce">Copiar</button></div></label>
-      <label class="pp-field" style="margin:0"><span>Contraseña inicial</span><div class="pp-pw"><input class="settings-input" data-cp value="${esc(password)}" readonly /><button class="lab-btn" data-c="cp">Copiar</button></div></label>
-      ${warning ? `<p class="pp-msg" style="margin-top:12px">${esc(warning)}</p>` : ''}`;
-    m.querySelector('.pp-mf').innerHTML = '<button class="lab-btn" data-both>Copiar los dos</button><button class="lab-btn primary" data-go>Ver su ficha</button>';
-    m.querySelector('.pp-mb').addEventListener('click', (e) => {
-      const c = e.target.closest('[data-c]');
-      if (c) { const i = m.querySelector(`[data-${c.dataset.c}]`); copyText(i.value, i, toast); }
-    });
-    m.querySelector('[data-both]').addEventListener('click', () => copyText(`Email: ${u.email}\nContraseña: ${password}`, null, toast));
-    m.querySelector('[data-go]').addEventListener('click', async () => { closeModal(); await load(); openPerson(u.id); });
-  };
-
-  /* ── interacción de la vista ── */
-  root.addEventListener('click', (e) => {
-    if (e.target.closest('[data-metrics]')) return onMetrics();
-    const chip = e.target.closest('.pp-chip');
-    if (chip) { filter = chip.dataset.f; root.querySelectorAll('.pp-chip').forEach((c) => c.classList.toggle('on', c === chip)); return renderList(); }
-    const row = e.target.closest('.pp-row:not(.hd)');
-    if (row) return selected === row.dataset.id ? closePerson() : openPerson(row.dataset.id);
-    const act = e.target.closest('[data-act]')?.dataset.act;
-    if (act === 'new') return newModal();
-    if (act === 'roles') return rolesModal();
-    if (act === 'close') return closePerson();
-    if (act === 'role') return roleModal();
-    if (act === 'access') return accessModal();
-    if (act === 'password') return passwordModal();
-    if (act === 'delete') return deleteModal();
-    const p = person();
-    const view = e.target.closest('.pp-panel [data-view]');
-    if (view && p) {
-      const v = VIEWS.find((x) => x.id === view.dataset.view), on = (p.views || []).includes(v.id);
-      const views = toggled(p.views || [], v.id);
-      const custom = p.role_id ? ' (vistas personalizadas)' : '';
-      return save(() => usersApi.update(p.id, { views }), `${p.name} ${on ? 'ya no ve' : 'ya ve'} ${v.label}${custom}`);
+  rolesEl.addEventListener('click', async (e) => {
+    const t = e.target;
+    if (t.closest('[data-new-role]')) return openRoleEditor(null);
+    const edit = t.closest('[data-edit]')?.dataset.edit;
+    if (edit) return openRoleEditor(roleById(edit));
+    const del = t.closest('[data-del]')?.dataset.del;
+    if (del) { confirmDel = del; return paintRoles(); }
+    if (t.closest('[data-del-no]')) { confirmDel = null; return paintRoles(); }
+    const yes = t.closest('[data-del-yes]')?.dataset.delYes;
+    if (yes) {
+      try { await usersApi.removeRole(yes); toast('Rol borrado'); confirmDel = null; await load(); paintRoles(); }
+      catch (err) { toast(err.message); }
     }
-    if (act === 'kn-copy' && p) {
-      return copyModal(p.name, p.id, (src, msg) => save(() => knowledgeApi.copy(p.id, src.id), `Mismo conocimiento que ${src.name}`, msg));
+  });
+
+  /* ── interacción: la lista y la ficha ── */
+  root.addEventListener('click', async (e) => {
+    if (pickClick(root, e.target)) return;
+    const t = e.target;
+    if (t.closest('[data-metrics]')) return onMetrics();
+    if (t.closest('[data-act="new"]')) return openNew();
+    if (t.closest('[data-act="roles"]')) return openRoles();
+    const row = t.closest('.pp-row:not(.hd)');
+    if (row) return openPerson(row.dataset.id);
+    if (!personEl.contains(t)) return;
+    const pwInput = personEl.querySelector('[data-edit-pw], [data-new="pw"]');
+    if (t.closest('[data-pw-copy]')) return copyText(pwInput.value, pwInput, toast);
+    if (t.closest('[data-pw-regen]')) { pwInput.value = strongPassword(); if (screen === 'new') draft.pw = pwInput.value; else edit = { ...edit, pw: pwInput.value }; return; }
+    // el alta
+    if (screen === 'new') {
+      const v = t.closest('[data-new-view]')?.dataset.newView;
+      if (v) { draft = { ...draft, ...draftWithView(draft, v) }; return paintNew(); }
+      const g = t.closest('[data-new-g]')?.dataset.newG;
+      if (g) { draft.kn = toggled(draft.kn, g); return paintNew(); }
+      if (t.closest('[data-new-cancel]')) return closeNew();
+      if (t.closest('[data-new-ok]')) return createPerson(personEl.querySelector('[data-new-msg]'), t.closest('[data-new-ok]'));
+      return;
     }
-    const g = e.target.closest('.pp-panel [data-g]')?.dataset.g;
-    if (g && p) {
-      const cur = knOf(p), on = cur.includes(g);
-      return save(() => knowledgeApi.setProjects(p.id, toggled(cur, g)), on ? `${p.name} ya no ve ${groupName(g)}` : `${p.name} ya ve ${groupName(g)}`);
+    // los datos de acceso de quien se acaba de dar de alta
+    const of = t.closest('[data-copy-of]')?.dataset.copyOf;
+    if (of) { const i = personEl.querySelector(`[data-copy="${of}"]`); return copyText(i.value, i, toast); }
+    if (t.closest('[data-copy-both]')) return copyText(`Email: ${created.email}\nContraseña: ${created.pw}`, null, toast);
+    // la ficha
+    const p = personById(selected);
+    if (!p) return;
+    const view = t.closest('[data-view]');
+    if (view) { edit = draftWithView(edit, view.dataset.view); return paintPerson(); }
+    const g = t.closest('[data-g]')?.dataset.g;
+    if (g) { edit = { ...edit, kn: toggled(edit.kn, g) }; return paintPerson(); }
+    if (t.closest('[data-access]')) { edit = { ...edit, active: !edit.active }; return paintPerson(); }
+    if (t.closest('[data-new-pw]')) { edit = { ...edit, pw: edit.pw ? null : strongPassword() }; return paintPerson(); }
+    if (t.closest('[data-discard]')) { edit = personDraft(p); return paintPerson(); }
+    if (t.closest('[data-save]')) return savePerson(t.closest('[data-save]'));
+    if (t.closest('[data-foot="delete"]')) { foot = foot ? null : { kind: 'delete' }; return paintPerson(); }
+    if (t.closest('[data-foot-cancel]')) { foot = null; return paintPerson(); }
+    if (t.closest('[data-foot-ok]')) {
+      const msg = personEl.querySelector('[data-foot-msg]'), ok = t.closest('[data-foot-ok]');
+      if (personEl.querySelector('[data-foot-confirm]').value.trim().toLowerCase() !== p.email) { msg.textContent = 'El email no coincide.'; return; }
+      ok.disabled = true;
+      if (await save(() => usersApi.remove(p.id), 'Persona borrada', msg)) leavePerson();
+      if (ok.isConnected) ok.disabled = false;
     }
   });
   $('[data-q]').addEventListener('input', (e) => { query = e.target.value.trim().toLowerCase(); renderList(); });
+  root.addEventListener('input', (e) => {
+    const { name, value } = e.target;
+    if (name === 'filter') { filter = value; return renderList(); }
+    if (name === 'role-rule') { roleRule = value || null; return; }
+    if ('editPw' in e.target.dataset) { edit = { ...edit, pw: e.target.value }; personEl.querySelector('[data-save]').disabled = false; personEl.querySelector('[data-discard]').disabled = false; personEl.querySelector('.pp-save').classList.add('dirty'); return; }
+    if (e.target.dataset.new) { draft[e.target.dataset.new] = value; if (e.target.dataset.new === 'name') personEl.querySelector('[data-new-av]').textContent = initials(value); return; }
+    if (name === 'new-role' && roleById(value)) { draft = { ...draft, ...draftWithRole(draft, roleById(value)) }; return paintNew(); }
+    if (name === 'new-rule') { draft = { ...draft, ...draftWithRule(draft, value) }; return paintNew(); }
+    // el rol y la regla, desde los selectores de la ficha
+    if (!edit) return;
+    if (name === 'role' && value !== (edit.role_id || '') && roleById(value)) { edit = draftWithRole(edit, roleById(value)); paintPerson(); }
+    if (name === 'rule' && value !== (ruleOf(rules, edit)?.id || '')) { edit = draftWithRule(edit, value); paintPerson(); }
+  });
 
   return { refresh: load };
 };
