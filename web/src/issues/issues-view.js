@@ -138,19 +138,19 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       scrolled().forEach((el, i) => { el.scrollTop = tops[i] ?? 0; });
     }).catch(() => {});
   };
-  // La primera vez, la mesa entra en cascada cuando llegan los datos. Al volver a
-  // la vista sale al momento con lo que ya había (el cruce con la vista anterior
-  // lo hace main.js) y se pone al día por detrás. Si se dejó una issue abierta
-  // (p. ej. para ir al Chat), se vuelve a esa issue, no a la mesa.
+  // Al entrar en la vista, la mesa llega en cascada: la primera vez cuando llegan los datos; al
+  // volver, al momento con lo que ya había, y se pone al día por detrás. Si se dejó una issue
+  // abierta (p. ej. para ir al Chat), se vuelve a esa issue, que entra como al abrirla.
   const showDesk = async () => {
     if (!data) {
       await loadDesk();
       animateEnter(root, 'iss-enter', DESK_ENTER_MS);
       return;
     }
-    if (!onDesk && opened) return;
+    if (!onDesk && opened) { const page = root.querySelector('.iss-work-page'); if (page) animateEnter(page, 'iss-opening', ISSUE_ENTER_MS); return; }
     now = new Date();
     renderDesk();
+    animateEnter(root, 'iss-enter', DESK_ENTER_MS);
     refreshQuietly();
   };
   const openIssue = async (id) => renderIssue(await api.get(id));

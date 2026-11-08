@@ -5,8 +5,7 @@ import './style.css';
 import logoUrl from './logo.png';
 import { createApi } from './ui/api.js';
 import { createDialogs } from './ui/dialog.js';
-import { createToast } from './ui/dom.js';
-import { crossfade } from './ui/crossfade.js';
+import { createToast, prefersReducedMotion } from './ui/dom.js';
 import { bridgeFromQuery, discoverBridge } from './app/discover.js';
 import { canView, baseNav, firstView, usesTopbar, hubBoxes, inHub, viewTitle } from './app/nav.js';
 import { mountTopbar } from './app/topbar.js';
@@ -171,8 +170,18 @@ const showView = (name) => {
   onShow[name]?.();
   return PANELS.find((p) => p.name === name)?.ui?.show?.(); // lo que tarda en pintarse, si es un panel
 };
-// pasar de una vista a otra: siempre con el cruce (la anterior se disuelve mientras entra la nueva)
-const go = (name) => crossfade(() => showView(name));
+// pasar de una vista a otra: la nueva entra en cascada (.view-enter, style.css), como una issue al abrirla
+const viewEl = (name) => views[name] || PANELS.find((p) => p.name === name)?.view;
+const go = (name) => {
+  showView(name);
+  const el = viewEl(name);
+  if (!el || prefersReducedMotion()) return;
+  el.classList.remove('view-enter');
+  void el.offsetWidth;   // reiniciar la cascada si se vuelve a la misma
+  el.classList.add('view-enter');
+  clearTimeout(el.enterTimer);
+  el.enterTimer = setTimeout(() => el.classList.remove('view-enter'), 1000);   // lo que tarde en pintarse también entra
+};
 for (const [k, n] of Object.entries(nav)) n.addEventListener('click', () => go(k));
 for (const p of PANELS) p.ui = p.mount(p.view);
 dock.issues.innerHTML = VIEWS.find((v) => v.id === 'issues').icon;
