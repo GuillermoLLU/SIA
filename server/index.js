@@ -33,12 +33,12 @@ import { loadPlatformConfig } from './platform/config.js';
 import { createPlatformClient } from './platform/client.js';
 import { createAuth } from './auth/service.js';
 import { authRoutes } from './auth/routes.js';
-import { can, canChat } from './auth/views.js';
+import { canChat } from './auth/views.js';
 import { createUserAdmin } from './users/service.js';
 import { usersRoutes } from './users/routes.js';
 import { createBaseAccess, fetchAll } from './base/client.js';
 import { createBaseAccess as createKnowledgeBaseAccess } from './knowledge/base-access.js';
-import { toAssignedBase } from './knowledge/assigned.js';
+import { createAssignedBase } from './knowledge/assigned-base.js';
 import { createKnowledge } from './knowledge/service.js';
 import { knowledgeRoutes } from './knowledge/routes.js';
 import { createProjects } from './projects/service.js';
@@ -97,38 +97,18 @@ export const startBridge = async ({ env = process.env } = {}) => {
   const users = createUserAdmin({ platform });
   const knowledge = createKnowledge({ platform, ...createKnowledgeBaseAccess({ createClient, fetch, newId: randomUUID }) });
 
-  // La base de conocimiento: una por instancia, la asigna la plataforma a quien
-  // inicia sesión en este bridge (el último que entra). Solo en memoria.
-  let assigned = null; // { id, name, url, key, tokens, powerKey } | null
+  // La base de conocimiento en uso: la que la plataforma asigna a quien inicia sesión (knowledge/assigned-base.js)
+  const assigned = createAssignedBase({ auth, knowledge, onSwitch: (b) => applyBase(b) });
   const baseAccess = createBaseAccess({ createClient, fetch: supaFetch });
-  const base = { ...baseAccess, current: () => assigned };
+  const base = { ...baseAccess, current: assigned.current };
   const skillSync = createSkillSync({ clientFor: base.clientFor, needsSchema: base.needsSchema, workspace });
   const skillsOf = (b) => skillList(b ? workspace.skillsDirFor(b) : workspace.skillsDir);
   // otra base (o ninguna): fuera lo cacheado de la anterior y la copia local de skills se rehace
-  const applyBase = async () => {
+  const applyBase = async (b) => {
     base.clearStatus();
-    console.log(assigned ? `[sia] base de conocimiento en uso: ${assigned.name}` : '[sia] sin base de conocimiento en uso');
-    await skillSync.switchTo(assigned);
+    console.log(b ? `[sia] base de conocimiento en uso: ${b.name}` : '[sia] sin base de conocimiento en uso');
+    await skillSync.switchTo(b);
   };
-  // lo asignado a quien inicia sesión (o abre la app con la sesión guardada)
-  const loadAssigned = async (token) => {
-    try {
-      const ctx = await auth.context(token);
-      if (!ctx) return;
-      // quien gestiona Personas deja al día las claves de todos (por si algo
-      // cambió fuera de SIA o quedó a medias); sin esperar
-      if (can(ctx.user, 'people')) {
-        knowledge.syncPeople(ctx.accessToken, null)
-          .then((problems) => problems.forEach((p) => console.warn(`[sia] clave de poder de una persona: ${p}`)))
-          .catch((e) => console.warn(`[sia] no se pudieron revisar las claves de las personas: ${e.message}`));
-      }
-      const next = toAssignedBase(await knowledge.mine(ctx.accessToken));
-      if (JSON.stringify(next) === JSON.stringify(assigned)) return;
-      assigned = next;
-      await applyBase();
-    } catch (e) { console.warn(`[sia] no se pudo cargar el conocimiento asignado: ${e.message}`); }
-  };
-  const clearAssigned = async () => { assigned = null; await applyBase(); };
   const syncKeys = (jwt, userId, opts) => knowledge.syncPeople(jwt, userId ? [userId] : null, opts);
 
   // Sin la BBDD de borradores el bridge arranca igual: Resolver va sin borrador.
@@ -156,11 +136,11 @@ export const startBridge = async ({ env = process.env } = {}) => {
   const loadSdk = async () => (snowflakeSdk ??= (await import('snowflake-sdk')).default);
   loadSdk().catch((e) => console.error(`[sia] conector de Snowflake sin cargar (se reintenta al actualizar): ${e.message}`));
   const routes = {
-    auth: authRoutes(auth, { ...http_, onSession: loadAssigned, onLogout: clearAssigned, platform }),
+    auth: authRoutes(auth, { ...http_, onSession: assigned.login, onLogout: assigned.clear, platform }),
     lock: lockRoutes(lock, http_),
     config: configRoutes(config, { ...http_, version }),
     users: usersRoutes(users, { ...http_, syncKeys, assignKnowledge: (jwt, userId, ids) => knowledge.setProjects(jwt, userId, ids), refreshProfile: (token) => auth.refreshProfile(token) }),
-    knowledge: knowledgeRoutes(knowledge, { ...http_, syncKeys, onChange: () => loadAssigned() }),
+    knowledge: knowledgeRoutes(knowledge, { ...http_, syncKeys, onChange: (who) => assigned.reload(who.token) }),
     issues: issuesRoutes(issues, http_),
     backlog: backlogRoutes(backlog, http_),
     metrics: metricsRoutes(createMetricsStore(workspace.metricsDir, {
@@ -169,7 +149,7 @@ export const startBridge = async ({ env = process.env } = {}) => {
       fs,
       log: console.log,
     }), { json, readBody }),
-    projects: projectsRoutes(createProjects({ newId: randomUUID, fetchAll }), { ...http_, onProjectRemoved: () => skillSync.sync(assigned) }),
+    projects: projectsRoutes(createProjects({ newId: randomUUID, fetchAll }), { ...http_, onProjectRemoved: () => skillSync.sync(assigned.current()) }),
     skills: skillsRoutes({ ...http_, sync: skillSync, drafts: createDrafts(workspace.draftsDir), workspace }),
     links: linksRoutes(http_),
     uploads: uploadsRoutes(workspace.uploadsDir, { ...http_, sendFile }),
@@ -180,15 +160,12 @@ export const startBridge = async ({ env = process.env } = {}) => {
 
   // Solo escucha en esta máquina: la web llega por file:// (app) o por Vite (dev).
   const HOST = '127.0.0.1';
-  // sin la base cargada, la de quien llama (una sola carga aunque lleguen varias peticiones a la vez)
-  let loadingBase = null;
-  const ensureBase = (token) => (loadingBase ||= loadAssigned(token).finally(() => { loadingBase = null; }));
-  const apiServer = http.createServer(createRouter({ ping, base, auth, lock, routes, ensureBase }));
+  const apiServer = http.createServer(createRouter({ ping, base, auth, lock, routes, ensureBase: assigned.ensure }));
   // puerto ocupado por otro SIA: no es fatal, la UI hablará con el que ya escucha
   const inUse = (port) => (err) => { if (err.code === 'EADDRINUSE') console.warn(`[sia] puerto ${port} en uso — usando la instancia existente`); else throw err; };
   apiServer.on('error', inUse(ports.api));
   apiServer.listen(ports.api, HOST, () => console.log(`[sia] lab API en http://localhost:${ports.api}`));
-  await applyBase(); // sin sesión aún: sin base (llega al iniciar sesión)
+  await applyBase(null); // sin sesión aún: sin base (llega al iniciar sesión)
 
   // El socket de los chats: solo desde esta máquina y con sesión iniciada
   // (?a=<token>), comprobada al aceptar la conexión.

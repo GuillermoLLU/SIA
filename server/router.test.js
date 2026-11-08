@@ -49,3 +49,27 @@ test('sin la base cargada (bridge recién reiniciado con la web abierta), se car
   assert.deepEqual(seen, ['ensure:tok', 'projects']);
   assert.equal(res.status, 200, 'no un 503 de «sin base»');
 });
+
+test('sin base: si la de quien llama tampoco carga, «sin base» (503); con la base ya cargada no se vuelve a pedir', async () => {
+  const seen = [];
+  const make = (kb) => createRouter({
+    ping: () => ({ sia: true }),
+    base: { current: () => kb, clientFor: () => ({}), permsFor: async () => ({ admin: true }), accessibleProjects: async () => [] },
+    auth: { context: async () => ({ user: { id: 'u1', views: ['admin'] }, accessToken: 'jwt' }) },
+    lock: { locked: () => false },
+    routes: { projects: (req, res) => { seen.push('projects'); res.writeHead(200); res.end('{}'); } },
+    ensureBase: async () => { seen.push('ensure'); },
+  });
+  const ask = async (router) => {
+    const res = { status: 0, body: '', setHeader() {}, writeHead(s2) { this.status = s2; }, end(b) { this.body = b ?? ''; } };
+    await router({ method: 'GET', url: '/api/admin/check', headers: { 'x-sia-auth': 'tok' }, socket: { remoteAddress: '127.0.0.1' } }, res);
+    return res;
+  };
+  const lost = await ask(make(null));
+  assert.equal(lost.status, 503);
+  assert.equal(JSON.parse(lost.body).noDb, true);
+  assert.deepEqual(seen, ['ensure']);
+  seen.length = 0;
+  assert.equal((await ask(make({ id: 'b1' }))).status, 200);
+  assert.deepEqual(seen, ['projects']);
+});
