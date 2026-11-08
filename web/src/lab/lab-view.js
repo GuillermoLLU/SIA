@@ -27,7 +27,7 @@ export const mountLabView = ({ api, dialogs, perms, onSkills, onEditor, onCatalo
 
   const setState = (text, dirty = false) => { state.textContent = text; state.className = `lab-state ${dirty ? 'dirty' : ''}`; };
   const status = (text) => { statusEl.textContent = text; };
-  const showCatalog = () => { work.hidden = true; onCatalog(); refresh(); };
+  const showCatalog = () => { work.hidden = true; onCatalog(); };   // onCatalog abre Configuración → Skills, que lo refresca
   const showEditor = () => { work.hidden = false; onEditor(); };
 
   // tags: [{ text, cls }] — van en su propia fila, alineados a la derecha; una

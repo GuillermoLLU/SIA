@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { viewsOf, canView, baseNav, panelNav, firstView, destinations, showsDock, usesTopbar, hubBoxes, inHub, viewTitle, chatBackTo, iconOf } from './nav.js';
+import { viewsOf, canView, baseNav, firstView, destinations, showsDock, dockItems, dockOf, usesTopbar, hubBoxes, hubTarget, inHub, viewTitle, nextBackTo, iconOf } from './nav.js';
 
 const u = (views) => ({ views });
 
@@ -19,10 +19,19 @@ test('baseNav: la vista de la persona y lo que abre la base', () => {
   assert.deepEqual(baseNav(u([]), { perms: { lab: true, admin: true } }), { lab: false, admin: false, links: false, linksEdit: false });
 });
 
-test('panelNav: cada panel con su vista; la gestión de personas no es un panel', () => {
-  assert.equal(panelNav(u(['work']), 'work'), true);
-  assert.equal(panelNav(u(['people']), 'work'), false);
-  assert.equal(panelNav(u(['metrics']), 'metrics'), true);
+test('dockItems: los iconos que lleva cada uno; Métricas, directo a su cara si solo tiene una', () => {
+  assert.deepEqual(dockItems(u(['issues', 'backlog', 'work', 'metrics'])), [
+    { key: 'issues', icon: 'issues', view: 'issues' }, { key: 'backlog', icon: 'backlog', view: 'backlog' }, { key: 'hub', icon: 'metrics', view: 'hub' }]);
+  assert.deepEqual(dockItems(u(['issues', 'metrics'])).at(-1), { key: 'hub', icon: 'metrics', view: 'metrics' });
+  assert.deepEqual(dockItems(u(['chat', 'people'])), [], 'la gestión de personas no es una cara de Métricas');
+});
+
+test('hubTarget y dockOf: a dónde lleva el icono de Métricas y qué icono se marca en cada vista', () => {
+  assert.equal(hubTarget(u(['work', 'metrics'])), 'hub');
+  assert.equal(hubTarget(u(['work'])), 'work');
+  for (const v of ['hub', 'work', 'metrics']) assert.equal(dockOf(v), 'hub', v);
+  assert.equal(dockOf('backlog'), 'backlog');
+  assert.equal(dockOf('chat'), 'chat');
 });
 
 test('firstView: la primera del dock antes que el Chat; si no, el Chat; sin ninguno, Métricas', () => {
@@ -79,13 +88,16 @@ test('viewTitle: el nombre de cada sección para la barra de arriba; una que no 
   assert.equal(viewTitle('hub'), 'Métricas');
   assert.equal(viewTitle('work'), 'Métricas del equipo');
   assert.equal(viewTitle('metrics'), 'Métricas del servicio');
+  assert.equal(viewTitle('lab'), 'Skills');
   assert.equal(viewTitle('nope'), '');
 });
 
-test('chatBackTo e iconOf: desde el Chat se vuelve a la vista de la que se vino, con su icono', () => {
-  assert.equal(chatBackTo('backlog'), 'backlog');
-  assert.equal(chatBackTo('chat'), null);
-  assert.equal(chatBackTo(null), null);
+test('nextBackTo e iconOf: desde el Chat se vuelve a la vista de la que se vino, con su icono', () => {
+  assert.equal(nextBackTo(null, 'backlog', 'chat'), 'backlog', 'al entrar al Chat desde el Backlog');
+  assert.equal(nextBackTo('backlog', 'chat', 'chat'), 'backlog', 'volver a enseñar el Chat no cambia nada');
+  assert.equal(nextBackTo('backlog', 'lab', 'chat'), 'backlog', 'del editor de skills se vuelve a la de antes: no es un destino');
+  assert.equal(nextBackTo('backlog', 'chat', 'issues'), 'backlog', 'fuera del Chat no importa');
+  assert.equal(nextBackTo(null, null, 'chat'), null, 'abrir la app en el Chat: no hay a dónde volver');
   assert.equal(iconOf('hub'), 'metrics');
   assert.equal(iconOf('work'), 'work');
 });
