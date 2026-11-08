@@ -11,6 +11,7 @@ import { CORP_HTML } from '../app/corp.js';
 const markup = (logoHtml, lastEmail) => `<div class="login-stage">
 <button class="login-open" type="button" aria-label="Iniciar sesión">${logoHtml}</button>
 <form class="lock-card login-card" novalidate inert>
+  <h1 class="login-title">SIA</h1>
   <input class="settings-input login-input" name="email" type="email" placeholder="Email" autocomplete="username" autocapitalize="off" spellcheck="false" value="${esc(lastEmail)}" />
   <input class="settings-input login-input" name="password" type="password" placeholder="Contraseña" autocomplete="current-password" />
   <button class="lab-btn primary login-go" type="submit">Iniciar sesión</button>
