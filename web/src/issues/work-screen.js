@@ -5,7 +5,7 @@
 // asistida por IA (issue-chat.js), que vive mientras la issue esté abierta.
 // Las parecidas, por conectar: solo su hueco.
 import { esc } from '../ui/html.js';
-import { STATUS_ES, SEVERITY_ES, when, whenIso, whenLabel, newestFirst, age, pendingSince, stillDays, stillLevel, escalatedLabel } from './format.js';
+import { STATUS_ES, SEVERITY_ES, when, whenIso, whenLabel, newestFirst, age, pendingSince, stillInfo, escalatedLabel } from './format.js';
 import { item } from './parts.js';
 import { actionsFor } from './actions.js';
 
@@ -107,7 +107,7 @@ const escalatedTag = (i) => `<span class="iss-escalated" title="Pendiente de un 
 // Sus acciones (actionsFor), grandes. En «Reclamar», a modo de aviso, los días que lleva parada
 // (con el color de la mesa, stillLevel).
 const BIG_ACTION = {
-  chase: (i, now) => { const d = stillDays(i, now); return `<button class="iss-big-act primary" data-act="chase">${BELL}<span>Reclamar respuesta</span><em class="iss-big-still ${stillLevel(d)}">${d} ${d === 1 ? 'día' : 'días'} sin moverse</em></button>`; },
+  chase: (i, now) => { const s = stillInfo(i, now); return `<button class="iss-big-act primary" data-act="chase">${BELL}<span>Reclamar respuesta</span><em class="iss-big-still ${s.level}">${s.label} sin moverse</em></button>`; },
   transfer: () => `<button class="iss-big-act" data-act="transfer">${HANDOFF}<span>Traspasar</span></button>`,
 };
 const pendingActs = (i, now, mine) => `<aside class="iss-card iss-pending-acts" aria-label="Qué hacer con ella">

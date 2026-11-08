@@ -89,6 +89,8 @@ export const pendingSince = (i) => {
 // de 3 a 6, se va alargando; 7 o más, hay que mirarla.
 export const stillDays = (i, now) => Math.max(0, Math.floor((now - new Date(String(i.modified).replace(' ', 'T'))) / 86400000));
 export const stillLevel = (days) => (days >= 7 ? 'late' : days >= 3 ? 'slow' : 'ok');
+// listos para enseñar: { days, level, label: «1 día» | «N días» }
+export const stillInfo = (i, now) => { const days = stillDays(i, now); return { days, level: stillLevel(days), label: `${days} ${days === 1 ? 'día' : 'días'}` }; };
 
 // Las barras de cogidas por semana: a qué altura (%) va cada parte, con un
 // techo mínimo de 5 para que una semana floja no llene la gráfica.

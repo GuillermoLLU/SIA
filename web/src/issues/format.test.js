@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LISTS, when, whenIso, whenLabel, newestFirst, snapshotInfo, age, stamp, duration, since, weekBars, stillDays, stillLevel, pendingSince, thirdOf, escalatedLabel } from './format.js';
+import { LISTS, when, whenIso, whenLabel, newestFirst, snapshotInfo, age, stamp, duration, since, weekBars, stillDays, stillLevel, stillInfo, pendingSince, thirdOf, escalatedLabel } from './format.js';
 
 const NOW = new Date('2026-10-04T11:44:00');
 
@@ -97,4 +97,11 @@ test('escalatedLabel: a quién está escalada; si no se sabe, su motivo; sin mot
   assert.equal(escalatedLabel({ reason: 'PURCHASE_ORDER_APPROVAL' }), 'Escalada · Aprobación de pedido');
   assert.equal(escalatedLabel({ reason: 'ESCALATED_ACCORDING_TO_PROCEDURE' }), 'Escalada', 'sin repetir «Escalada · Escalada»');
   assert.equal(escalatedLabel({ reason: '' }), 'Escalada');
+});
+
+test('stillInfo: los días sin moverse, con su nivel y en singular o plural', () => {
+  const now = new Date('2026-10-29T12:00:00');
+  assert.deepEqual(stillInfo({ modified: '2026-10-28 11:00' }, now), { days: 1, level: 'ok', label: '1 día' });
+  assert.deepEqual(stillInfo({ modified: '2026-10-26 12:00' }, now), { days: 3, level: 'slow', label: '3 días' });
+  assert.deepEqual(stillInfo({ modified: '2026-10-22 09:00' }, now), { days: 7, level: 'late', label: '7 días' });
 });
