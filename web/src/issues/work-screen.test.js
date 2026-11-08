@@ -134,8 +134,9 @@ test('la cabecera de la issue: volver al panel, el título en una línea con su 
   assert.doesNotMatch(html, /Mi mesa|iss-state/);
 });
 
-test('una issue pendiente de un tercero: solo reclamarle y traspasar', () => {
+test('una issue pendiente de un tercero: en lugar del chat, reclamarle y traspasar, grandes', () => {
   const html = workScreen({ issue: issue({ status: 'PENDING' }), sameCenter: [], now, mine: true });
-  assert.match(html, /data-act="chase">Reclamar al tercero<[\s\S]*data-act="transfer">Traspasar</);
-  assert.doesNotMatch(html, /data-act="resolve"|data-act="escalate"|data-release/);
+  assert.match(html, /iss-pending-acts[\s\S]*data-act="chase">[\s\S]*Reclamar al tercero[\s\S]*data-act="transfer">[\s\S]*Traspasar/);
+  assert.doesNotMatch(html, /data-act="resolve"|data-act="escalate"|data-release|iss-chat-body/);
+  assert.match(html, /<div class="iss-actions"><\/div>/, 'ni repetidas en la cabecera');
 });

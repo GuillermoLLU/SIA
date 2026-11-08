@@ -114,7 +114,8 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     root.innerHTML = workScreen({ issue: i, sameCenter, timeline, now, mine, meId: me?.id, tab: workTab });
     animateEnter(root.querySelector('.iss-work-page'), 'iss-opening', ISSUE_ENTER_MS);
     if (workTab === 'trail') scrollTrailToStart();
-    chat = openChat?.(root.querySelector('.iss-chat-body'), i) || null;
+    const chatHost = root.querySelector('.iss-chat-body');   // pendiente de un tercero no hay chat
+    chat = chatHost ? openChat?.(chatHost, i) || null : null;
     root.scrollTop = 0;
   };
 

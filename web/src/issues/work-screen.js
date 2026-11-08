@@ -100,11 +100,20 @@ const ACTION_BUTTON = {
 };
 const actionButton = (key) => ACTION_BUTTON[key];
 
+// Pendiente de un tercero no hay nada que resolver con la IA: en lugar del chat, sus dos acciones,
+// grandes (y fuera de la cabecera, para no repetirlas)
+const BELL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>';
+const HANDOFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3l4 4-4 4"/><path d="M3 7h18"/><path d="M7 21l-4-4 4-4"/><path d="M21 17H3"/></svg>';
+const pendingActs = `<aside class="iss-card iss-pending-acts" aria-label="Qué hacer con ella">
+      <button class="iss-big-act primary" data-act="chase">${BELL}<span>Reclamar al tercero</span></button>
+      <button class="iss-big-act" data-act="transfer">${HANDOFF}<span>Traspasar</span></button>
+    </aside>`;
+
 export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, meId = null, tab = 'detail' }) => `<div class="iss-page iss-work-page">
   <header class="iss-work-h">
     <button class="lab-btn primary" data-back>Volver al panel</button>
     <h2 title="${esc(i.text)}">${esc(i.text)}</h2>
-    <div class="iss-actions">${actionsFor(i, mine).map(actionButton).join('')}</div>
+    <div class="iss-actions">${i.status === 'PENDING' ? '' : actionsFor(i, mine).map(actionButton).join('')}</div>
   </header>
 
   <div class="iss-work">
@@ -165,9 +174,9 @@ export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, meI
       <div class="k-open"><span>Abierta</span><b>${age(i.reported, now)}</b><small>desde que se creó</small></div>
       <div class="k-moved"><span>Último movimiento</span><b>${i.modified ? `hace ${age(i.modified, now)}` : '—'}</b><small>${when(i.modified)}</small></div>
     </section>
-    <aside class="iss-card iss-chat" aria-label="Resolución asistida por IA">
+    ${i.status === 'PENDING' ? pendingActs : `<aside class="iss-card iss-chat" aria-label="Resolución asistida por IA">
       <div class="iss-chat-body"></div>
-    </aside>
+    </aside>`}
     </div>
   </div>
 </div>`;
