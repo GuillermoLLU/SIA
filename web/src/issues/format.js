@@ -64,6 +64,11 @@ export const age = (s, now) => duration((now - new Date(s.replace(' ', 'T'))) / 
 // se resolvió, o cuánto hace que entró.
 export const since = (i, key, now) => (key === 'waiting' ? `sin moverse ${age(i.modified, now)}` : key === 'resolved' ? when(i.resolved) : `hace ${age(i.reported, now)}`);
 
+// Lo que lleva una pendiente de terceros sin moverse, en días, y cómo de mal: hasta 2 días va bien;
+// de 3 a 6, se va alargando; 7 o más, hay que mirarla.
+export const stillDays = (i, now) => Math.max(0, Math.floor((now - new Date(String(i.modified).replace(' ', 'T'))) / 86400000));
+export const stillLevel = (days) => (days >= 7 ? 'late' : days >= 3 ? 'slow' : 'ok');
+
 // Las barras de cogidas por semana: a qué altura (%) va cada parte, con un
 // techo mínimo de 5 para que una semana floja no llene la gráfica.
 export const weekBars = (weeks) => {

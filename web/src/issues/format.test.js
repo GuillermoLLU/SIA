@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LISTS, when, whenIso, whenLabel, newestFirst, snapshotInfo, age, stamp, duration, since, weekBars } from './format.js';
+import { LISTS, when, whenIso, whenLabel, newestFirst, snapshotInfo, age, stamp, duration, since, weekBars, stillDays, stillLevel } from './format.js';
 
 const NOW = new Date('2026-10-04T11:44:00');
 
@@ -67,4 +67,12 @@ test('cuándo, frente a hoy: HOY con la hora; otro día, la fecha; otro año, co
   const l = [1, 2, 3];
   assert.deepEqual(newestFirst(l), [3, 2, 1]);
   assert.deepEqual(l, [1, 2, 3]);
+});
+
+test('stillDays y stillLevel: los días sin moverse de una pendiente, y si hay que mirarla', () => {
+  const at = (d) => ({ modified: d });
+  assert.equal(stillDays(at('2026-10-04 09:00'), NOW), 0);
+  assert.equal(stillDays(at('2026-10-01 11:00'), NOW), 3);
+  assert.equal(stillDays(at('2026-09-20 11:00'), NOW), 14);
+  assert.deepEqual([0, 2, 3, 6, 7, 30].map(stillLevel), ['ok', 'ok', 'slow', 'slow', 'late', 'late']);
 });

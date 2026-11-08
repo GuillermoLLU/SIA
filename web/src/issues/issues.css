@@ -118,6 +118,19 @@
 .iss-when { margin-left: auto; font-variant-numeric: tabular-nums; }
 .iss-text { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iss-reason { padding: 0 6px; border: 1px solid var(--border); font-size: 11px; }
+/* los días sin moverse de una pendiente: a la derecha, en su color según lo que lleva */
+.iss-still { margin-left: auto; display: inline-flex; align-items: baseline; gap: 5px; padding: 2px 8px; font-size: 11.5px; color: var(--text-low); white-space: nowrap; background: color-mix(in srgb, var(--text) 5%, transparent); }
+.iss-still b { font-size: 13px; font-weight: 650; color: var(--text); font-variant-numeric: tabular-nums; }
+.iss-still.slow { color: var(--iss-high); background: color-mix(in srgb, var(--iss-high) 10%, transparent); }
+.iss-still.slow b { color: var(--iss-high); }
+.iss-still.late { color: var(--iss-crit); background: color-mix(in srgb, var(--iss-crit) 10%, transparent); }
+.iss-still.late b { color: var(--iss-crit); }
+/* refrescar la mesa, en la cabecera de Seguimiento */
+.iss-card-h .iss-refresh { display: inline-flex; align-items: center; gap: 6px; height: 26px; margin-left: 4px; padding: 0 10px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: 600 11px var(--font-ui); letter-spacing: .04em; text-transform: uppercase; cursor: pointer; }
+.iss-card-h .iss-refresh:hover:not(:disabled) { border-color: var(--text); }
+.iss-card-h .iss-refresh svg { width: 13px; height: 13px; }
+.iss-card-h .iss-refresh.busy svg { animation: iss-spin .8s linear infinite; }
+@keyframes iss-spin { to { transform: rotate(360deg); } }
 .iss-sev { font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: .4px; text-transform: uppercase; color: var(--text-low); }
 .iss-sev.CRITICAL { color: var(--iss-crit); }
 .iss-sev.HIGH { color: var(--iss-high); }

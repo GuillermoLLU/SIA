@@ -72,7 +72,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
           </div>
         <div class="iss-cols">
           ${lists.map((l) => `<section class="iss-card iss-col" data-list="${l.key}">
-            <div class="iss-card-h"><h3>${l.label}</h3><span>${l.items.length}</span></div>
+            <div class="iss-card-h"><h3>${l.label}</h3><span>${l.items.length}</span>${l.key === 'waiting' ? `<button type="button" class="iss-refresh" data-refresh title="Volver a leer la mesa">${REFRESH_ICON}Refrescar</button>` : ''}</div>
             <div class="iss-items">${l.items.slice(0, 12).map((i) => item(i, l.key, now)).join('') || `<p class="iss-empty">${l.empty}</p>`}</div>
           </section>`).join('')}
         </div>
@@ -173,6 +173,14 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     // cambio llegaría a un input que ya no está en la página
     if (t.matches('[data-csv]')) { picking = true; return; }
     try {
+      // refrescar la mesa (Seguimiento): volver a leerla, con el botón ocupado mientras tanto
+      const refresh = t.closest('[data-refresh]');
+      if (refresh) {
+        refresh.disabled = true;
+        refresh.classList.add('busy');
+        await loadDesk();
+        return toast?.('Mesa al día');
+      }
       const take = t.closest('[data-take]');
       if (take) {
         take.disabled = true;
