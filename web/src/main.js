@@ -179,8 +179,13 @@ const go = (name) => {
   el.classList.remove('view-enter');
   void el.offsetWidth;   // reiniciar la cascada si se vuelve a la misma
   el.classList.add('view-enter');
+  // si la vista se repinta mientras entra (llegan datos frescos), lo nuevo sale ya quieto: repetir
+  // la cascada desde cero es lo que parpadea
+  el.enterWatch?.disconnect();
+  el.enterWatch = new MutationObserver(() => { el.classList.remove('view-enter'); el.enterWatch.disconnect(); });
+  el.enterWatch.observe(el, { childList: true });
   clearTimeout(el.enterTimer);
-  el.enterTimer = setTimeout(() => el.classList.remove('view-enter'), 1000);   // lo que tarde en pintarse también entra
+  el.enterTimer = setTimeout(() => { el.classList.remove('view-enter'); el.enterWatch.disconnect(); }, 1000);
 };
 for (const [k, n] of Object.entries(nav)) n.addEventListener('click', () => go(k));
 for (const p of PANELS) p.ui = p.mount(p.view);

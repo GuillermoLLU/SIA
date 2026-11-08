@@ -68,11 +68,25 @@ export const mountBacklogView = (root, { api, dialogs, toast }) => {
     });
   };
 
+  // Si lo que llega es lo mismo que ya se ve, no se repinta (repintar a media entrada parpadea):
+  // solo vuelve el botón de actualizar.
   const load = async () => {
     loading = true;
+    const before = data && JSON.stringify(data);
     if (data) render(); // el botón de actualizar, ocupado
     try { data = await api.list(rule); rule = data.rule; now = new Date(); } // la regla pedida puede ya no existir: la que el bridge aplicó
-    finally { loading = false; if (data) render(); }
+    finally {
+      loading = false;
+      const same = before && data && JSON.stringify(data) === before;
+      if (same) settleReload(); else if (data) render();
+    }
+  };
+  // el botón de actualizar, otra vez libre y con la fecha de la foto, sin repintar nada más
+  const settleReload = () => {
+    const b = root.querySelector('[data-reload]');
+    if (!b) return render();
+    b.disabled = false;
+    b.innerHTML = `${snapshotInfo(data.taken, now).date}${REFRESH_ICON}`;
   };
 
   // el buscador repinta la lista sin perder el foco ni el cursor
