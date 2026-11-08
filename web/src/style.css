@@ -94,6 +94,8 @@ body.brand-nav .sidebar {
   -webkit-backdrop-filter: blur(22px) saturate(190%); backdrop-filter: blur(22px) saturate(190%);
   transition: opacity .35s ease, transform 0.65s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
+/* con un solo destino no hay dock (app/nav.js, showsDock) */
+body.brand-nav.no-dock .sidebar { display: none; }
 /* en el Chat, que va por encima de todo, el dock se esconde hacia abajo */
 body.brand-nav.in-chat .sidebar { transform: translate(-50%, calc(100% + 40px)); opacity: 0; pointer-events: none; }
 body.brand-nav .sidebar.dim { opacity: .22; }

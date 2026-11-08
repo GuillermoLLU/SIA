@@ -7,7 +7,7 @@ import { createApi } from './ui/api.js';
 import { createDialogs } from './ui/dialog.js';
 import { createToast, prefersReducedMotion } from './ui/dom.js';
 import { bridgeFromQuery, discoverBridge } from './app/discover.js';
-import { canView, baseNav, firstView, usesTopbar, hubBoxes, inHub, viewTitle, chatBackTo, iconOf } from './app/nav.js';
+import { canView, baseNav, firstView, showsDock, usesTopbar, hubBoxes, inHub, viewTitle, chatBackTo, iconOf } from './app/nav.js';
 import { mountTopbar } from './app/topbar.js';
 import { mountDock } from './app/dock.js';
 import { mountHub } from './app/hub.js';
@@ -208,7 +208,12 @@ dock.hub.addEventListener('click', () => go('hub'));
 mountHub(views.hub, { boxes: hub, go });
 // La barra de arriba (inicial, marca y Chat) para todo el mundo; quien tiene más vistas conserva además la lateral
 topbar = mountTopbar(document.querySelector('.app'), { name: user.name, chat: nav.chat, settings: $('settings-btn'), lock: $('lock-btn'), hasChat: canView(user, 'chat') });
-if (!usesTopbar(user)) { document.body.classList.add('brand-nav'); mountDock(document.querySelector('.sidebar')); }
+// con un solo destino (y el Chat arriba), sin dock
+if (!usesTopbar(user)) {
+  document.body.classList.add('brand-nav');
+  if (showsDock(user)) mountDock(document.querySelector('.sidebar'));
+  else document.body.classList.add('no-dock');
+}
 // Se abre en la mesa de trabajo: primero la barra y después la mesa (app/intro.js).
 const opening = firstView(user);
 if (opening !== 'chat') revealDesk();

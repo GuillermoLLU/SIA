@@ -29,9 +29,23 @@ export const panelNav = (user, name) => canView(user, name);
 export const usesTopbar = (user) => canView(user, 'issues') && viewsOf(user).every((v) => ['issues', 'chat', 'links'].includes(v));
 
 
-// La vista con la que se abre la app: la mesa para quien la tiene; si no, el Chat; si tampoco, Métricas
-// (con sus cajas, o el aviso de que no tiene vistas).
-export const firstView = (user) => (canView(user, 'issues') ? 'issues' : canView(user, 'chat') ? 'chat' : 'hub');
+// A dónde lleva el dock, en su orden: la mesa, el Backlog y cada cara de Métricas por separado
+// (con las dos, el selector hace falta para cambiar de una a otra).
+export const destinations = (user) => [
+  ...['issues', 'backlog'].filter((v) => canView(user, v)),
+  ...hubBoxes(user).map((h) => h.name),
+];
+// Con un solo destino no hay dock: la vista y, arriba, el Chat.
+export const showsDock = (user) => destinations(user).length > 1;
+
+// La vista con la que se abre la app: la primera de las que lleva el dock (el Chat es auxiliar, va
+// arriba); de Métricas, directamente la única cara que se tenga, o su selector si tiene las dos.
+// Sin ninguna, el Chat; sin Chat tampoco, Métricas con el aviso de que no tiene vistas.
+export const firstView = (user) => {
+  const [first, ...rest] = destinations(user);
+  if (!first) return canView(user, 'chat') ? 'chat' : 'hub';
+  return inHub(first) && rest.length ? 'hub' : first;
+};
 
 // Métricas, un solo icono con dos caras: al pulsarlo, una caja por cada una que se tenga.
 // «Equipo» abre las métricas del equipo; «Servicio», las del servicio. El Backlog tiene su icono.

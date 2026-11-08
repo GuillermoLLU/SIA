@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { viewsOf, canView, baseNav, panelNav, firstView, usesTopbar, hubBoxes, inHub, viewTitle, chatBackTo, iconOf } from './nav.js';
+import { viewsOf, canView, baseNav, panelNav, firstView, destinations, showsDock, usesTopbar, hubBoxes, inHub, viewTitle, chatBackTo, iconOf } from './nav.js';
 
 const u = (views) => ({ views });
 
@@ -25,11 +25,23 @@ test('panelNav: cada panel con su vista; la gestión de personas no es un panel'
   assert.equal(panelNav(u(['metrics']), 'metrics'), true);
 });
 
-test('firstView: la mesa a quien la tiene; si no, el Chat; sin ninguno, Métricas', () => {
+test('firstView: la primera del dock antes que el Chat; si no, el Chat; sin ninguno, Métricas', () => {
   assert.equal(firstView(u(['issues', 'links'])), 'issues');
+  assert.equal(firstView(u(['backlog', 'chat'])), 'backlog');
+  assert.equal(firstView(u(['chat', 'backlog', 'metrics'])), 'backlog');
+  assert.equal(firstView(u(['chat', 'metrics'])), 'metrics');
+  assert.equal(firstView(u(['chat', 'work', 'metrics'])), 'hub');
   assert.equal(firstView(u(['chat', 'links'])), 'chat');
-  assert.equal(firstView(u(['metrics'])), 'hub');
   assert.equal(firstView(u([])), 'hub');
+});
+
+test('showsDock: solo con más de un destino (cada cara de Métricas cuenta)', () => {
+  assert.deepEqual(destinations(u(['chat', 'metrics', 'issues', 'work', 'backlog'])), ['issues', 'backlog', 'work', 'metrics']);
+  assert.equal(showsDock(u(['backlog', 'chat'])), false);
+  assert.equal(showsDock(u(['issues', 'chat', 'links', 'lab'])), false);
+  assert.equal(showsDock(u(['metrics', 'chat'])), false);
+  assert.equal(showsDock(u(['work', 'metrics'])), true);
+  assert.equal(showsDock(u(['issues', 'backlog'])), true);
 });
 
 test('usesTopbar: la mesa, con el Chat y los enlaces como mucho', () => {
