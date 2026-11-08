@@ -1,4 +1,4 @@
-// El dock de paneles, flotando abajo en el centro (la .sidebar con body.brand-nav): mientras se
+// El dock de paneles, flotando abajo en el centro (la .sidebar, style.css): mientras se
 // hace scroll pierde opacidad para leer lo que tapa, y la recupera al rato o al pasar el ratón.
 
 export const IDLE_MS = 900;

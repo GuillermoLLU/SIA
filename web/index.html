@@ -12,18 +12,18 @@
   </head>
   <body>
     <div class="app">
+      <!-- El dock (app/dock.js): los iconos de los paneles. El Chat, el bloqueo y la Configuración
+           están en la barra de arriba, que pulsa estos botones (ocultos). -->
       <nav class="sidebar">
         <!-- Chat -->
         <button class="nav-btn" id="nav-chat" title="Chat" aria-label="Chat">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.6-.8L3 21l1.9-5.4A8.38 8.38 0 0 1 4 11.5 8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z"/></svg>
         </button>
-        <!-- Paneles (su icono lo pone web/src/users/views.js) -->
+        <!-- Paneles (su icono lo pone web/src/users/views.js): la mesa, el Backlog y Métricas (Equipo y
+             Servicio, a elegir en su pantalla si tiene las dos: app/hub.js) -->
         <button class="nav-btn" id="nav-issues" title="Issues" aria-label="Issues" hidden></button>
-        <!-- Métricas: Equipo, Servicio y Backlog, a elegir en su pantalla (app/hub.js) -->
         <button class="nav-btn" id="nav-backlog" title="Backlog" aria-label="Backlog" hidden></button>
         <button class="nav-btn" id="nav-metrics" title="Métricas" aria-label="Métricas" hidden></button>
-
-        <span class="nav-spacer"></span>
 
         <!-- Bloquear la pantalla: tapa la ventana hasta dar el PIN; los chats siguen trabajando -->
         <button class="nav-btn" id="lock-btn" title="Bloquear pantalla" aria-label="Bloquear pantalla">

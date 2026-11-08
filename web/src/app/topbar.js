@@ -1,8 +1,8 @@
-// La barra de arriba, para todo el mundo (quien tiene la barra lateral la conserva debajo, body.brand-nav):
-// a la izquierda, la inicial de la persona (pulsarla abre Configuración y arrastrarla a la
-// derecha bloquea: slide-lock.js) y la marca; a la derecha, el botón que lleva al Chat y, desde
-// él, a la mesa. Cada uno pulsa el de la barra lateral, que sigue en la página aunque no se vea:
-// lo que hacen no se duplica.
+// La barra de arriba, para todo el mundo (body.top-nav): a la izquierda, la inicial de la persona
+// (pulsarla abre Configuración y arrastrarla a la derecha bloquea: slide-lock.js) y la marca; en
+// el centro, el nombre de la sección; a la derecha, el botón que lleva al Chat y, desde él, de
+// vuelta a la vista de la que se vino. Cada botón pulsa el suyo de la .sidebar, que sigue en la
+// página aunque no se vea: lo que hacen no se duplica.
 import inditexLogo from './inditex.svg?raw';
 import { firstLetter } from '../ui/html.js';
 import { wireSlideLock } from './slide-lock.js';

@@ -1,13 +1,13 @@
 // El arranque de la app, por fases: primero el saludo de la portada del Chat,
 // solo, en el centro; después aparece el campo de la pregunta; y por último
-// entra la barra lateral deslizándose desde la izquierda. Se hace con clases
-// en <body>: `booting` desde que carga la página, `asking` cuando toca el
-// campo y `ready` cuando toca la barra (y se quita `booting`). Si al cargar ya
+// entran las barras: la de arriba baja y el dock sube desde abajo. Se hace con
+// clases en <body>: `booting` desde que carga la página, `asking` cuando toca el
+// campo y `ready` cuando tocan las barras (y se quita `booting`). Si al cargar ya
 // hay un chat vivo (vuelve la terminal), o el bridge no contesta, no hay
-// portada que esperar y la barra entra al momento. Si se abre en la mesa de
-// trabajo, entra primero la barra, sin esperar a los datos, y después la mesa
-// (revealDesk). Y si quien arranca lleva el ratón a la zona de la barra, no se
-// le hace esperar: entra ya, con su animación, y el campo aparece con ella.
+// portada que esperar y entran al momento. Si se abre en otra vista (la mesa…),
+// entran primero las barras, sin esperar a los datos, y después la vista
+// (revealDesk). Y si quien arranca lleva el ratón a la zona del dock, abajo, no
+// se le hace esperar: entra ya, con su animación, y el campo aparece con ella.
 export const HERO_STEPS = [[750, 'asking'], [1500, 'ready']]; // ms desde que pinta el saludo
 const NAV_FIRST_MS = 450; // lo que la barra le saca a la mesa: su caja ya ha llegado y aún asoma su contenido
 export const EDGE_PX = 72; // donde está el dock de paneles (.sidebar, abajo): su alto y su margen, con holgura

@@ -12,7 +12,7 @@
   --iss-rail-w: 320px;
   overflow-y: auto; color: var(--text);
 }
-.iss-page { flex: none; width: 100%; min-height: 100%; margin: 0 auto; padding: 24px 32px 48px; display: flex; flex-direction: column; gap: 24px; }
+.iss-page { flex: none; width: 100%; min-height: 100%; margin: 0 auto; padding: 24px 32px; display: flex; flex-direction: column; gap: 24px; }
 .iss-load { display: inline-flex; align-items: center; font-size: 13px; line-height: 20px; text-transform: uppercase; color: var(--text); cursor: pointer; white-space: nowrap; transition: color var(--motion-state); }
 .iss-load:hover { color: var(--text-low); }
 .iss-load:has(input:focus-visible), .iss-date:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 1px; }
@@ -637,11 +637,9 @@ a.rv-id:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
   .iss-opening :is(.iss-chat, .iss-pending-acts) { animation-delay: 320ms; }
 }
 @keyframes iss-show { from { opacity: 0; } }
-body.top-nav .iss-page { padding-top: calc(var(--topbar-h) + 24px); padding-bottom: 24px; } /* la barra de arriba y su aire */
-body.top-nav .iss-work-page { padding-top: calc(var(--topbar-h) + 16px); padding-bottom: 16px; }
-/* con la barra lateral, la app ya empieza debajo de la barra de arriba: el aire normal */
-body.brand-nav .iss-page { padding-top: 24px; }
-body.brand-nav .iss-work-page { padding-top: 16px; }
+/* con la barra de arriba flotando sobre la vista (style.css), la mesa y la issue dejan su hueco */
+body.top-nav:not(.brand-nav) .iss-page { padding-top: calc(var(--topbar-h) + 24px); }
+body.top-nav:not(.brand-nav) .iss-work-page { padding-top: calc(var(--topbar-h) + 16px); }
 
 
 .iss-dlg-text { font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
