@@ -7,8 +7,9 @@
 //   PUT    /:id   { name?, role?, views?, rule?, active?, password? } → { ok }
 //                 role: id de rol (pone sus vistas y su regla); views o rule sueltas: personalizado
 //   DELETE /:id   → { ok }
-//   GET    /roles → { roles }      POST /roles { name, views, rule? } → { id }
-//   PUT    /roles/:id { name, views, rule? } → { ok }   (cambia a quien lo tiene)
+//   GET    /roles → { roles }      POST /roles { name, views, rule } → { id }
+//   PUT    /roles/:id { name, views, rule } → { ok }   (cambia a quien lo tiene)
+//                 rule: id de la regla de priorización, o null para la básica
 //   DELETE /roles/:id → { ok }      (quien lo tenía se queda con sus vistas y su regla)
 //   GET    /rules → { rules: [{ id, label, builtin }] }  (las de priorización, para elegir)
 // Los errores de la base o de la función llegan con su estado y su texto.

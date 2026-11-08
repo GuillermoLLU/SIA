@@ -1,5 +1,5 @@
-// Las vistas de SIA que se dan a cada persona (las mismas que exige el
-// bridge, server/auth/views.js), el Chat incluido.
+// Las vistas de SIA que se dan a cada persona, el Chat incluido: las de platform.known_views(), con
+// su etiqueta y su icono para Equipo.
 import { svg } from '../ui/html.js';
 
 export const CHAT_ICON = svg('<path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.6-.8L3 21l1.9-5.4A8.38 8.38 0 0 1 4 11.5 8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z"/>');

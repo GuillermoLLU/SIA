@@ -32,7 +32,7 @@ export const createUserAdmin = ({ platform }) => ({
   // Roles: nombre, vistas y regla de priorización (null: la básica). Guardar uno cambia las
   // vistas y la regla de quien lo tiene.
   roles: (jwt) => platform.rpc(jwt, 'platform_list_roles'),
-  saveRole: (jwt, id, { name, views, rule = null }) => platform.rpc(jwt, 'platform_save_role', { p_role: id, p_name: name, p_views: views, p_rule: rule }),
+  saveRole: (jwt, id, { name, views, rule }) => platform.rpc(jwt, 'platform_save_role', { p_role: id, p_name: name, p_views: views, p_rule: rule ?? null }),
   removeRole: (jwt, id) => platform.rpc(jwt, 'platform_delete_role', { p_role: id }),
 
   // Las reglas de priorización, para elegir la de cada rol y cada persona (se editan en el Backlog)
