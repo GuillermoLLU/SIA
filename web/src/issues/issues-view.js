@@ -33,6 +33,8 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   let data = null, now = new Date(), opened = null, onDesk = false, workTab = 'detail', chat = null, loading = false, picking = false;
   let issue = null; // la issue abierta: Escalar mira su criticidad, su estado y su ticket
   const closeChat = () => { chat?.dispose(); chat = null; };
+  // el tooltip de «Traspasada» se saca al body: al repintar, fuera, o se quedaría flotando
+  const hideTip = mountTips(root);
 
   // Cargar la foto (el CSV de la consulta de Remedy, hasta leer de Remedy).
   const fileLabel = (cls, label, title = '') => `<label class="${cls} ${loading ? 'iss-busy' : ''}" title="${title}">${loading ? 'Cargando…' : label}<input type="file" accept=".csv,text/csv" data-csv hidden ${loading ? 'disabled' : ''}></label>`;
@@ -50,6 +52,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
 
   const renderDesk = () => {
     closeChat();
+    hideTip();
     onDesk = true;
     if (!data.taken) {
       root.innerHTML = `<div class="iss-page">
@@ -110,6 +113,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     issue = i;
     closeChat();
     closeAction();
+    hideTip();
     now = new Date(); // el histórico y las edades, a la hora de abrirla
     root.innerHTML = workScreen({ issue: i, sameCenter, timeline, now, mine, meId: me?.id, tab: workTab });
     animateEnter(root.querySelector('.iss-work-page'), 'iss-opening', ISSUE_ENTER_MS);
@@ -179,7 +183,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       if (refresh) {
         refresh.disabled = true;
         refresh.classList.add('busy');
-        await loadDesk();
+        try { await loadDesk(); } finally { refresh.disabled = false; refresh.classList.remove('busy'); }   // si falla, se puede volver a intentar
         return toast?.('Mesa al día');
       }
       const take = t.closest('[data-take]');
@@ -247,7 +251,6 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   };
   root.addEventListener('input', (e) => { const form = e.target.closest('[data-act-form="escalate"]'); if (form) refreshEscalate(form); });
   // Escribir en «Otro ticket» o pulsar «Unirla a…» elige esa opción sin buscar el radio.
-  mountTips(root);
   root.addEventListener('focusin', (e) => { if (e.target.name === 'linkedOther') e.target.closest('label').querySelector('[name="linked"]').checked = true; });
   root.addEventListener('click', (e) => {
     const use = e.target.closest('[data-esc-use-link]');
