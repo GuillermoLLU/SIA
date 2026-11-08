@@ -136,7 +136,7 @@ test('la cabecera de la issue: volver al panel, el título en una línea con su 
 
 test('una issue pendiente de un tercero: en lugar del chat, reclamarle y traspasar, grandes', () => {
   const html = workScreen({ issue: issue({ status: 'PENDING' }), sameCenter: [], now, mine: true });
-  assert.match(html, /iss-pending-acts[\s\S]*data-act="chase">[\s\S]*Reclamar al tercero[\s\S]*data-act="transfer">[\s\S]*Traspasar/);
+  assert.match(html, /iss-pending-acts[\s\S]*data-act="chase">[\s\S]*Reclamar al tercero<\/span><em class="iss-big-still \w+">\d+ días? sin moverse<\/em>[\s\S]*data-act="transfer">[\s\S]*Traspasar/);
   assert.doesNotMatch(html, /data-act="resolve"|data-act="escalate"|data-release|iss-chat-body/);
   assert.match(html, /<div class="iss-actions"><span class="iss-escalated"[\s\S]*Escalada[\s\S]*desde el/, 'en la cabecera, que ya está escalada y desde cuándo');
 });
