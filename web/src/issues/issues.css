@@ -248,9 +248,10 @@
 .iss-big-act.primary:hover { background: color-mix(in srgb, var(--accent) 82%, var(--surface)); }
 .iss-big-act:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 /* en «Reclamar», el aviso de los días que lleva parada, en su color */
-.iss-big-still { margin-top: -4px; padding: 3px 10px; font: 600 12px var(--font-ui); font-style: normal; letter-spacing: .02em; color: var(--surface); background: color-mix(in srgb, var(--surface) 16%, transparent); }
-.iss-big-still.slow { background: var(--iss-high); }
-.iss-big-still.late { background: var(--iss-crit); }
+.iss-big-still { margin-top: -2px; padding: 6px 14px; font: 650 15px var(--font-ui); font-style: normal; letter-spacing: .01em; color: var(--surface); background: color-mix(in srgb, var(--surface) 16%, transparent); }
+/* naranja, no rojo: es un aviso, no un error (más intenso cuanto más lleva parada) */
+.iss-big-still.slow { background: color-mix(in srgb, var(--iss-high) 80%, var(--accent)); }
+.iss-big-still.late { background: var(--iss-high); }
 .iss-chat-body { flex: 1; min-height: 0; display: flex; flex-direction: column; margin: 0 -8px -8px; }
 .iss-chat-body .term-host { flex: 1; min-height: 0; height: auto; padding: 6px; background: var(--bg); }
 .iss-chat-start { flex: 1; display: flex; flex-direction: column; gap: 14px; padding: 8px; overflow-y: auto; }
