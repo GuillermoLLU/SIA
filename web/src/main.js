@@ -8,7 +8,7 @@ import { createDialogs } from './ui/dialog.js';
 import { createToast } from './ui/dom.js';
 import { crossfade } from './ui/crossfade.js';
 import { bridgeFromQuery, discoverBridge } from './app/discover.js';
-import { canView, baseNav, firstView, usesTopbar, crossesTo, hubBoxes, inHub, viewTitle } from './app/nav.js';
+import { canView, baseNav, firstView, usesTopbar, hubBoxes, inHub, viewTitle } from './app/nav.js';
 import { mountTopbar } from './app/topbar.js';
 import { mountDock } from './app/dock.js';
 import { mountHub } from './app/hub.js';
@@ -124,8 +124,8 @@ const perms = createPermsWatch({
 let beforeLab = firstView(user);
 const lab = mountLabView({
   api, dialogs, perms: perms.perms, onSkills: palette.setSkills,
-  onEditor: () => { if (views.lab.hidden) beforeLab = currentView; settings.close(); showView('lab'); },
-  onCatalog: () => { showView(beforeLab); settings.open('skills'); },
+  onEditor: () => { if (views.lab.hidden) beforeLab = currentView; settings.close(); go('lab'); },
+  onCatalog: () => { go(beforeLab); settings.open('skills'); },
 });
 settings.onPane((name) => { if (name === 'skills') lab.refresh(); });
 mountProjectsPanel({ api, dialogs, toast, settings });
@@ -133,7 +133,7 @@ mountProjectsPanel({ api, dialogs, toast, settings });
 // abre las métricas del equipo si también tiene esa vista.
 settings.showBox('equipo', canView(user, 'people'));
 const usersView = canView(user, 'people')
-  ? mountPeopleView($('settings-people'), { usersApi: createUsersApi(api), knowledgeApi: createKnowledgeApi(api), me: user, toast, dialogs, onMetrics: canView(user, 'work') ? () => { settings.close(); showView('work'); } : undefined, onScreen: (sub) => settings.setFull(!!sub, sub?.back ?? null, sub?.parent ?? null) })   // la ficha, el alta y los roles, a todo el ancho; la lista, con los enlaces
+  ? mountPeopleView($('settings-people'), { usersApi: createUsersApi(api), knowledgeApi: createKnowledgeApi(api), me: user, toast, dialogs, onMetrics: canView(user, 'work') ? () => { settings.close(); go('work'); } : undefined, onScreen: (sub) => settings.setFull(!!sub, sub?.back ?? null, sub?.parent ?? null) })   // la ficha, el alta y los roles, a todo el ancho; la lista, con los enlaces
   : null;
 settings.onPane((name) => { if (name === 'equipo') usersView.refresh(); });
 // Priorización (backlog/): las reglas, en Configuración para quien tiene Backlog; a todo el ancho
@@ -150,7 +150,7 @@ const PANELS = [
   { name: 'backlog', mount: (el) => mountBacklogView(el, { api: createBacklogApi(api), dialogs, toast }) },
   // clic en una persona de Equipo soporte: se abre en Métricas frente al resto de su equipo
   { name: 'work', mount: (el) => mountWorkView(el, { api: createMetricsApi(api),
-    openPerson: (person) => { PANELS.find((p) => p.name === 'metrics').ui?.focus(person); showView('metrics'); } }) },
+    openPerson: (person) => { PANELS.find((p) => p.name === 'metrics').ui?.focus(person); go('metrics'); } }) },
   { name: 'metrics', mount: (el) => mountMetricsView(el, { api: createMetricsApi(api), toast }) },
 ].map((p) => ({ ...p, view: $(`view-${p.name}`) }));
 // El dock: Issues, Backlog y Métricas (Equipo y Servicio detrás de un solo icono, app/hub.js)
@@ -171,7 +171,8 @@ const showView = (name) => {
   onShow[name]?.();
   return PANELS.find((p) => p.name === name)?.ui?.show?.(); // lo que tarda en pintarse, si es un panel
 };
-const go = (name) => (crossesTo(name) ? crossfade(() => showView(name)) : showView(name));
+// pasar de una vista a otra: siempre con el cruce (la anterior se disuelve mientras entra la nueva)
+const go = (name) => crossfade(() => showView(name));
 for (const [k, n] of Object.entries(nav)) n.addEventListener('click', () => go(k));
 for (const p of PANELS) p.ui = p.mount(p.view);
 dock.issues.innerHTML = VIEWS.find((v) => v.id === 'issues').icon;

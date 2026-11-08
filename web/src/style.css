@@ -170,8 +170,21 @@ body.top-nav .ai-hero { top: calc(-1 * var(--topbar-h)); padding: calc(var(--top
 @keyframes ia-turn { to { rotate: 360deg; } }
 @media (prefers-reduced-motion: reduce) { .ia-icon i { animation: none; } }
 
-/* El cruce entre vistas (crossesTo, app/nav.js; lo hace ui/crossfade.js) */
-::view-transition-old(root), ::view-transition-new(root) { animation-duration: 0.32s; animation-timing-function: ease-in-out; }
+/* El cruce entre vistas (ui/crossfade.js): la anterior se disuelve desenfocándose mientras la nueva
+   aparece enfocándose, solapadas, sin fotogramas vacíos */
+::view-transition-old(root) { animation: vt-out 0.34s cubic-bezier(.4, 0, .2, 1) both; }
+::view-transition-new(root) { animation: vt-in 0.46s cubic-bezier(.2, .7, .2, 1) both; }
+@keyframes vt-out { to { opacity: 0; filter: blur(6px); } }
+@keyframes vt-in { from { opacity: 0; filter: blur(6px); } }
+/* la barra de arriba y el dock no entran en el cruce: se quedan quietos y nítidos (solo se
+   funde lo que cambia en ellos, el título o el icono marcado) */
+.top-brand { view-transition-name: sia-top; }
+.top-user { view-transition-name: sia-user; }
+.topbar { view-transition-name: sia-ia; }
+body.brand-nav .sidebar { view-transition-name: sia-dock; }
+::view-transition-group(sia-top), ::view-transition-group(sia-user), ::view-transition-group(sia-ia), ::view-transition-group(sia-dock) { animation: none; }
+::view-transition-old(sia-top), ::view-transition-new(sia-top), ::view-transition-old(sia-dock), ::view-transition-new(sia-dock) { animation-duration: .3s; }
+::view-transition-old(sia-user), ::view-transition-new(sia-user), ::view-transition-old(sia-ia), ::view-transition-new(sia-ia) { animation: none; }
 
 /* ── Views (chat / lab) ────────────────────────────────────── */
 .view[hidden] { display: none; }

@@ -51,14 +51,25 @@ export const mountTopbar = (host, { name, chat, desk, settings, lock, hasChat = 
   ini.addEventListener('click', () => { if (!slide.justSlid()) settings.click(); }); // venir de arrastrar no abre nada
 
   const titleEl = host.querySelector('.top-title');
+  // Cambiar el título: el que hay se desenfoca y se va, y el nuevo entra enfocándose, en su sitio
+  // (moverlo mientras cambia de ancho lo haría bailar). Si se cambia otra vez a medias, gana el último.
+  let wanted = titleEl.textContent, leaving = null;
+  const swapTitle = (title) => {
+    wanted = title;
+    if (leaving || titleEl.textContent === title) return;
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches || !titleEl.textContent) { titleEl.textContent = title; return; }
+    leaving = titleEl.animate([{ opacity: 1, filter: 'blur(0)' }, { opacity: 0, filter: 'blur(5px)' }], { duration: 170, easing: 'ease-in', fill: 'forwards' });
+    leaving.onfinish = () => {
+      titleEl.textContent = wanted;
+      leaving.cancel();
+      leaving = null;
+      titleEl.animate([{ opacity: 0, filter: 'blur(5px)' }, { opacity: 1, filter: 'blur(0)' }], { duration: 300, easing: 'ease-out' });
+    };
+  };
   return {
     // view: la vista que se enseña; title: su nombre, en el centro de la barra
     show: (view, title = '') => {
-      if (titleEl.textContent !== title) {
-        titleEl.textContent = title;
-        // solo se funde: moverlo mientras cambia de ancho lo haría bailar de lado a lado
-        if (!matchMedia('(prefers-reduced-motion: reduce)').matches) titleEl.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 220, easing: 'ease' });
-      }
+      swapTitle(title);
       target = view === 'chat' && hasDesk() ? desk : chat;
       chatBtn.title = target.title;
       chatBtn.setAttribute('aria-label', target.title);

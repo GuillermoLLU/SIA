@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { viewsOf, canView, baseNav, panelNav, firstView, usesTopbar, crossesTo, hubBoxes, inHub, viewTitle } from './nav.js';
+import { viewsOf, canView, baseNav, panelNav, firstView, usesTopbar, hubBoxes, inHub, viewTitle } from './nav.js';
 
 const u = (views) => ({ views });
 
@@ -39,11 +39,6 @@ test('usesTopbar: la mesa, con el Chat y los enlaces como mucho', () => {
   assert.equal(usesTopbar(u(['links'])), false);
 });
 
-test('crossesTo: la mesa y el Chat entran con el cruce; lo demás, no', () => {
-  assert.equal(crossesTo('chat'), true);
-  assert.equal(crossesTo('issues'), true);
-  assert.equal(crossesTo('metrics'), false);
-});
 
 test('baseNav linksEdit: la vista y el permiso de la clave, los dos', () => {
   const access = (links) => ({ perms: { links } });
