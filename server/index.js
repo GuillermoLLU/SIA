@@ -180,7 +180,10 @@ export const startBridge = async ({ env = process.env } = {}) => {
 
   // Solo escucha en esta máquina: la web llega por file:// (app) o por Vite (dev).
   const HOST = '127.0.0.1';
-  const apiServer = http.createServer(createRouter({ ping, base, auth, lock, routes }));
+  // sin la base cargada, la de quien llama (una sola carga aunque lleguen varias peticiones a la vez)
+  let loadingBase = null;
+  const ensureBase = (token) => (loadingBase ||= loadAssigned(token).finally(() => { loadingBase = null; }));
+  const apiServer = http.createServer(createRouter({ ping, base, auth, lock, routes, ensureBase }));
   // puerto ocupado por otro SIA: no es fatal, la UI hablará con el que ya escucha
   const inUse = (port) => (err) => { if (err.code === 'EADDRINUSE') console.warn(`[sia] puerto ${port} en uso — usando la instancia existente`); else throw err; };
   apiServer.on('error', inUse(ports.api));

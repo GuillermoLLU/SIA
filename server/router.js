@@ -12,7 +12,9 @@ const DB_FREE = new Set(['version', 'config', 'upload', 'uploads']);
 // GET de un adjunto: un <img> no lleva cabeceras; es un fichero de aquí
 const sessionFree = (parts, method) => (parts[1] === 'uploads' && method === 'GET') || parts[1] === 'version';
 
-export const createRouter = ({ ping, base, auth, lock, routes }) => {
+// ensureBase(token): sin la base de conocimiento cargada (p. ej. tras reiniciar el bridge con la web
+// abierta), cargar la de quien llama antes de seguir; si no, la web la daría por perdida.
+export const createRouter = ({ ping, base, auth, lock, routes, ensureBase = async () => {} }) => {
   return async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-SIA-Auth');
@@ -56,6 +58,7 @@ export const createRouter = ({ ping, base, auth, lock, routes }) => {
 
       // lo demás necesita la base de conocimiento y lo que abre en ella la
       // clave de poder de quien ha iniciado sesión
+      if (!base.current() && who) await ensureBase(who.token);
       const kb = base.current();
       if (!kb && !DB_FREE.has(parts[1])) return json(res, 503, { error: NO_DB_MSG, noDb: true });
       const ctx = { db: kb ? base.clientFor(kb) : noDbClient, base: kb, perms: await base.permsFor(kb) };

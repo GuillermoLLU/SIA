@@ -33,3 +33,19 @@ test('con el candado echado, solo el candado y el ping; sin sesión, nada más',
   assert.equal((await call('/api/users', { locked: true })).status, 423);
   assert.equal((await call('/api/users')).status, 401);
 });
+
+test('sin la base cargada (bridge recién reiniciado con la web abierta), se carga la de quien llama y sigue', async () => {
+  let kb = null; const seen = [];
+  const router = createRouter({
+    ping: () => ({ sia: true }),
+    base: { current: () => kb, clientFor: () => ({}), permsFor: async () => ({ admin: true }), accessibleProjects: async () => [] },
+    auth: { context: async () => ({ user: { id: 'u1', views: ['admin'] }, accessToken: 'jwt' }) },
+    lock: { locked: () => false },
+    routes: { projects: (req, res) => { seen.push('projects'); res.writeHead(200); res.end('{}'); } },
+    ensureBase: async (token) => { seen.push(`ensure:${token}`); kb = { id: 'b1' }; },
+  });
+  const res = { status: 0, setHeader() {}, writeHead(s2) { this.status = s2; }, end() {} };
+  await router({ method: 'GET', url: '/api/admin/check', headers: { 'x-sia-auth': 'tok' }, socket: { remoteAddress: '127.0.0.1' } }, res);
+  assert.deepEqual(seen, ['ensure:tok', 'projects']);
+  assert.equal(res.status, 200, 'no un 503 de «sin base»');
+});
