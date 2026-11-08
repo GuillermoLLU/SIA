@@ -6,6 +6,7 @@
 import './login.css';
 import { esc } from '../ui/html.js';
 import { pressStartedIn } from '../ui/dom.js';
+import { CORP_HTML } from '../app/corp.js';
 
 const markup = (logoHtml, lastEmail) => `<div class="login-stage">
 <button class="login-open" type="button" aria-label="Iniciar sesión">${logoHtml}</button>
@@ -19,7 +20,7 @@ const markup = (logoHtml, lastEmail) => `<div class="login-stage">
   </div>
   <div class="lock-msg" role="alert"></div>
 </form>
-</div>`;
+</div>${CORP_HTML}`;
 
 // Tapa la app hasta que el usuario entra. → promesa con el usuario.
 const loginGate = (session, logoHtml) => new Promise((resolve) => {
@@ -102,7 +103,7 @@ const passwordGate = (session, logoHtml) => new Promise((resolve) => {
     <p class="login-hint">Mínimo 6 caracteres.</p>
     <button class="lab-btn primary login-go" type="submit">Guardar y entrar</button>
     <div class="lock-msg" role="alert"></div>
-  </form>`;
+  </form>${CORP_HTML}`;
   document.body.appendChild(el);
   const form = el.querySelector('form');
   const { password, repeat } = form.elements;

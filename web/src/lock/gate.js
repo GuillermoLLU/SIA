@@ -8,6 +8,7 @@
 // veces da la misma.
 import { pinPad } from './pin-pad.js';
 import { LOCK_PIN_LEN, unlockOutcome } from './pin.js';
+import { CORP_HTML } from '../app/corp.js';
 
 // api: el cliente del bridge · logoHtml: la S
 export const createLockGate = ({ api, logoHtml }) => {
@@ -23,7 +24,7 @@ export const createLockGate = ({ api, logoHtml }) => {
       const el = document.createElement('div');
       el.id = 'lock-gate';
       el.className = 'lock-gate';
-      el.innerHTML = `<div class="lock-card">${logoHtml}<div data-slot="pad"></div><div class="lock-wait" id="lock-wait"></div></div>`;
+      el.innerHTML = `<div class="lock-card">${logoHtml}<div data-slot="pad"></div><div class="lock-wait" id="lock-wait"></div></div>${CORP_HTML}`;
       document.body.appendChild(el);
       const wait = el.querySelector('#lock-wait');
       let waitTimer = 0;

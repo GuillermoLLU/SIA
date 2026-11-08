@@ -858,6 +858,12 @@ body.locked.slide-lock .app { transition: visibility 0s linear .22s; }
 .lock-gate.leaving { opacity: 0; }
 @keyframes lock-in { from { opacity: 0; } to { opacity: 1; } }
 .lock-card { display: flex; flex-direction: column; align-items: center; text-align: center; }
+/* La firma de Inditex, abajo y centrada en todas las puertas (app/corp.js): el logotipo en el
+   color de texto del tema, que aparece un poco después que la tarjeta */
+.lock-corp { position: absolute; left: 50%; bottom: 48px; transform: translateX(-50%); display: flex; color: var(--text); animation: lock-corp-in .6s ease .15s both; pointer-events: none; }
+.lock-corp svg { width: 112px; height: auto; }
+@keyframes lock-corp-in { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@media (prefers-reduced-motion: reduce) { .lock-corp { animation: none; } }
 /* Solo la S y las casillas, sin textos ni pistas. El logo es un PNG negro, que
    en un tema oscuro no se vería: se usa como máscara y se pinta con el color
    de texto del tema, así sale limpia y sin fondo en cualquiera. */
