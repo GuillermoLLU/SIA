@@ -9,14 +9,14 @@ const issue = (id, o = {}) => ({ id, center: '100', text: id, priority: 'HIGH', 
 const ISSUES = [issue('INC1'), issue('INC2', { prio: true }), issue('INC3', { assignee: 'ANA LOPEZ GARCIA', status: 'PENDING' })];
 const WHO = { user: { id: 'u-ana', name: 'Ana López' }, accessToken: 'jwt' };
 
-const setup = (claims = [], { issues = ISSUES, broken, transfers = [] } = {}) => {
+const setup = (claims = [], { issues = ISSUES, broken, transfers = [], rules = [], who = WHO } = {}) => {
   const calls = [];
   const platform = {
     rpc: async (jwt, fn, args) => {
       calls.push([fn, args]);
       if (fn === 'platform_issue_claims') return claims;
       if (fn === 'platform_my_issue_events') return [];
-      if (fn === 'platform_list_rules') return [];
+      if (fn === 'platform_list_rules') return rules;
       if (fn === 'platform_issue_teammates') return [{ id: 'u-ana', name: 'Ana López' }, { id: 'u-luis', name: 'Luis' }];
       if (fn === 'platform_claim_next_issue') return args.p_candidates[0] ?? null;
       if (fn === 'platform_issue_events') return args.p_issue === 'INC1' ? [{ id: 1, action: 'claimed', actor_name: 'Ana López', from_name: null, to_name: 'Ana López', happened_at: '2026-10-06T08:00:00+00:00' }] : [];
@@ -48,7 +48,7 @@ const setup = (claims = [], { issues = ISSUES, broken, transfers = [] } = {}) =>
   const route = issuesRoutes(createIssuesService({ source, platform, drafts: broken === undefined ? drafts : broken, now: () => new Date('2026-10-04T12:00:00Z') }), { json: (res, status, body) => Object.assign(res, { status, body }), readBody: async (req) => req.body || {} });
   const call = async (method, path, body, query = '') => {
     const res = {}, req = { method, body, setEncoding() {}, resume() {}, [Symbol.asyncIterator]: async function* () { yield body; } };
-    await route(req, res, path, WHO, new URLSearchParams(query)); return res;
+    await route(req, res, path, who, new URLSearchParams(query)); return res;
   };
   return { call, calls, loads, imports, store };
 };
@@ -78,6 +78,29 @@ test('POST /next: manda la cola en orden de la regla y devuelve la que se lleva'
   assert.deepEqual(calls.at(-1), ['platform_claim_next_issue', { p_candidates: ['INC2', 'INC1'] }]);
 });
 
+test('la cola de cada uno, solo de sus orígenes: con SISU no le toca una de SGA', async () => {
+  const issues = [...ISSUES, issue('INC4', { sisu: true, priority: 'LOW' })];
+  const sisu = setup([], { issues, who: { ...WHO, user: { ...WHO.user, groups: ['SISU'] } } });
+  const desk = (await sisu.call('GET', [])).body;
+  assert.equal(desk.next.id, 'INC4');
+  assert.equal(desk.free, 3, 'la cola general sigue siendo la del equipo entera');
+  assert.deepEqual((await sisu.call('POST', ['next'], {})).body, { id: 'INC4' });
+  assert.deepEqual(sisu.calls.at(-1), ['platform_claim_next_issue', { p_candidates: ['INC4'] }]);
+  const none = setup([], { who: { ...WHO, user: { ...WHO.user, groups: [] } } });
+  assert.equal((await none.call('GET', [])).body.next, null, 'sin conocimiento, ninguna');
+});
+
+test('la cola va en el orden de la regla de la persona (su rol o personalizada); sin regla, la básica', async () => {
+  const rules = [{ id: 'r-sev', name: 'Criticidad', criteria: ['severity'], builtin: false }];
+  const issues = [...ISSUES, issue('INC4', { priority: 'CRITICAL' })];
+  const sev = setup([], { issues, rules, who: { ...WHO, user: { ...WHO.user, rule: 'r-sev' } } });
+  assert.equal((await sev.call('GET', [])).body.next.id, 'INC4');
+  assert.deepEqual((await sev.call('POST', ['next'], {})).body, { id: 'INC4' });
+  const basic = setup([], { issues, rules });
+  assert.equal((await basic.call('GET', [])).body.next.id, 'INC2');
+  assert.deepEqual((await basic.call('POST', ['next'], { rule: 'r-sev' })).body, { id: 'INC4' });   // la que se pida, por encima
+});
+
 test('GET /:id: el detalle completo, quién la tiene, las del mismo centro y su histórico en SIA', async () => {
   const { body } = await setup([{ issue_id: 'INC1', user_id: 'u-ana', user_name: 'Ana López', claimed_at: '2026-10-06T08:00:00Z' }]).call('GET', ['INC1']);
   assert.equal(body.issue.notes, 'detalle');
@@ -87,11 +110,13 @@ test('GET /:id: el detalle completo, quién la tiene, las del mismo centro y su 
   assert.equal(body.timeline[1].byId, 'u-ana');
 });
 
-test('traspasar: a la base con el compañero y el motivo limpio; sin compañero válido o sin motivo, 400', async () => {
+test('traspasar: a la base con el compañero, el motivo limpio y el origen de la issue; sin compañero válido o sin motivo, 400', async () => {
   const { call, calls, loads } = setup();
   loads.n = 0;
   assert.deepEqual((await call('POST', ['INC1', 'transfer'], { to: '11111111-1111-1111-1111-111111111111', comment: '  Lleva dos llamadas.  ' })).body, { ok: true });
-  assert.deepEqual(calls.at(-1), ['platform_transfer_issue', { p_issue: 'INC1', p_to: '11111111-1111-1111-1111-111111111111', p_comment: 'Lleva dos llamadas.' }]);
+  assert.deepEqual(calls.at(-1), ['platform_transfer_issue', { p_issue: 'INC1', p_to: '11111111-1111-1111-1111-111111111111', p_comment: 'Lleva dos llamadas.', p_origin: 'SGA' }]);
+  assert.equal(loads.n, 1, 'la foto, para saber su origen');
+  loads.n = 0;
   const n = calls.length;
   assert.equal((await call('POST', ['INC1', 'transfer'], { to: '11111111-1111-1111-1111-111111111111', comment: '   ' })).status, 400);
   assert.equal((await call('POST', ['INC1', 'transfer'], { to: '11111111-1111-1111-1111-111111111111' })).status, 400);
@@ -263,4 +288,15 @@ test('quitar una imagen pasa la misma comprobación y no crea un borrador vacío
   assert.equal((await call('DELETE', ['INC1', 'draft', 'file', '1'])).status, 403);
   assert.equal((await call('DELETE', ['INC5', 'draft', 'file', '1'])).status, 409);
   assert.equal(store.size, 0);
+});
+
+test('POST /next: con el tope de en curso no coge otra (409) y la mesa lo dice', async () => {
+  const mine = Array.from({ length: 5 }, (_, i) => issue(`M${i}`, { assignee: 'ANA LOPEZ GARCIA', status: 'IN_PROGRESS' }));
+  const { call, calls } = setup([], { issues: [...ISSUES, ...mine] });
+  const desk = await call('GET', []);
+  assert.equal(desk.body.canTake, false);
+  assert.equal(desk.body.maxDoing, 5);
+  const r = await call('POST', ['next'], { rule: 'basic' });
+  assert.equal(r.status, 409);
+  assert.ok(!calls.some(([fn]) => fn === 'platform_claim_next_issue'));
 });

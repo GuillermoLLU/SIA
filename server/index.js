@@ -33,7 +33,7 @@ import { loadPlatformConfig } from './platform/config.js';
 import { createPlatformClient } from './platform/client.js';
 import { createAuth } from './auth/service.js';
 import { authRoutes } from './auth/routes.js';
-import { can } from './auth/views.js';
+import { can, canChat } from './auth/views.js';
 import { createUserAdmin } from './users/service.js';
 import { usersRoutes } from './users/routes.js';
 import { createBaseAccess, fetchAll } from './base/client.js';
@@ -140,6 +140,8 @@ export const startBridge = async ({ env = process.env } = {}) => {
   const backlog = createBacklogService({ source: issuesSource, platform });
   const bridge = createTerminalBridge({
     pty, launchers, workspace, lock, skillSync, issues, skillsOf,
+    // abrir o reenganchar un chat: con la vista Chat (o Issues, el de una issue), según la sesión del socket
+    allowed: async (req, opts) => canChat((await auth.context(new URL(req.url, 'http://localhost').searchParams.get('a')).catch(() => null))?.user, opts),
     // SHELL_SESSIONS_DISABLE quita el aviso «Restored session…» de macOS. cleanEnv
     // poda el entorno heredado y userEnv pone encima las credenciales personales,
     // leídas frescas en cada sesión: ese orden importa.

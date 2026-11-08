@@ -4,12 +4,13 @@
 // SIGLO la asigna en Remedy.
 import { queue } from './queue.js';
 import { loadRules, ruleById } from './rules.js';
-import { deskOf, brief } from './desk.js';
+import { deskOf, brief, canTake, MAX_DOING } from './desk.js';
 import { today, history, dayKey } from './stats.js';
 import { cleanFields, cleanFile, MAX_IMAGES, fail } from './draft.js';
 import { resolveDraft, checkResolve, OPEN } from './resolve.js';
 import { timeline } from './timeline.js';
 import { editProblem } from './notes.js';
+import { originOf, forGroups } from './origin.js';
 
 const WEEKS = 12;
 
@@ -22,8 +23,8 @@ export const createIssuesService = ({ source, platform, drafts, now = () => new 
     const [claims, rules] = await Promise.all([platform.rpc(jwt, 'platform_issue_claims'), loadRules(platform, jwt)]);
     return { taken, issues, claims, claimed: new Set(claims.map((c) => c.issue_id)), rules, now: now() };
   };
-  // la cola de una regla
-  const queueOf = ({ issues, claimed, rules, now }, ruleId) => queue(issues, claimed, now, ruleById(rules, ruleId).criteria);
+  // la cola de una regla; con groups (los proyectos de alguien), solo la de sus orígenes
+  const queueOf = ({ issues, claimed, rules, now }, ruleId, groups) => queue(forGroups(issues, groups), claimed, now, ruleById(rules, ruleId).criteria);
   // el histórico de una issue: sus movimientos y notas, unidos por orden
   const timelineOf = async (jwt, id) => {
     const [events, notes] = await Promise.all([platform.rpc(jwt, 'platform_issue_events', { p_issue: id }), platform.rpc(jwt, 'platform_issue_notes', { p_issue: id })]);
@@ -54,37 +55,47 @@ export const createIssuesService = ({ source, platform, drafts, now = () => new 
   };
 
   return {
-    // → { taken, rules, free, next, desk, today, history }
+    // → { taken, rules, free, next, maxDoing, canTake, desk, today, history }
     async desk({ user, accessToken: jwt }) {
       const snap = await snapshot(jwt);
       const { taken, issues, claims, rules, now } = snap;
       const since = new Date(now.getTime() - WEEKS * 7 * 86400000).toISOString();
       const [transfers, events] = await Promise.all([platform.rpc(jwt, 'platform_my_transfers'), platform.rpc(jwt, 'platform_my_issue_events', { p_since: since })]);
-      const free = queueOf(snap);
+      const free = queueOf(snap);   // la cola del equipo entera, sin coger
+      const mine = queueOf(snap, user.rule, user.groups);   // la que le toca: sus orígenes, en el orden de su regla
       const desk = deskOf(issues, user, claims, transfers);
-      const nextIssue = free.length ? issues.find((i) => i.id === free[0]) : null;
+      const nextIssue = mine.length ? issues.find((i) => i.id === mine[0]) : null;
       return {
         taken,
         rules: rules.map(({ id, label }) => ({ id, label })),
         free: free.length,
         next: nextIssue ? brief(nextIssue) : null,
+        maxDoing: MAX_DOING,
+        canTake: canTake(desk),
         desk: desk.map(brief),
         today: today(desk, dayKey(now)),
         history: history(events, new Map(issues.map((i) => [i.id, i])), now, WEEKS),
       };
     },
-    // el equipo de Issues, sin mí
+    // el equipo de Issues, sin mí, con sus proyectos (a quién se puede traspasar según el origen)
     async teammates({ user, accessToken: jwt }) {
       return (await platform.rpc(jwt, 'platform_issue_teammates')).filter((t) => t.id !== user.id);
     },
-    // la base se queda con la primera libre que nadie tenga → id | null
-    async next({ accessToken: jwt }, ruleId) {
-      const candidates = queueOf(await snapshot(jwt), ruleId);
+    // la base se queda con la primera libre que nadie tenga → id | null. La cola, en el orden
+    // de la regla de la persona (user.rule, de su rol o personalizada) o de la que se pida.
+    async next({ user, accessToken: jwt }, ruleId = user.rule) {
+      const snap = await snapshot(jwt);
+      if (!canTake(deskOf(snap.issues, user, snap.claims))) throw fail(`Ya tienes ${MAX_DOING} en curso: resuelve alguna antes de coger otra.`, 409);
+      const candidates = queueOf(snap, ruleId, user.groups);   // solo lo de sus orígenes
       return (await platform.rpc(jwt, 'platform_claim_next_issue', { p_candidates: candidates.slice(0, 500) })) || null;
     },
     release: ({ accessToken: jwt }, id) => platform.rpc(jwt, 'platform_release_issue', { p_issue: id }),
     // a un compañero de Issues; el motivo queda como nota del traspaso
-    transfer: ({ accessToken: jwt }, id, { to, comment }) => platform.rpc(jwt, 'platform_transfer_issue', { p_issue: id, p_to: to, p_comment: comment }),
+    // con el origen de la issue: la base solo la deja pasar a quien tiene ese conocimiento
+    transfer: ({ accessToken: jwt }, id, { to, comment }) => {
+      const issue = source.load().issues.find((i) => i.id === id);
+      return platform.rpc(jwt, 'platform_transfer_issue', { p_issue: id, p_to: to, p_comment: comment, ...(issue ? { p_origin: originOf(issue) } : {}) });
+    },
     // una nota interna del equipo → su id
     addNote: ({ accessToken: jwt }, id, body) => platform.rpc(jwt, 'platform_add_issue_note', { p_issue: id, p_body: body }),
     // editar una nota propia, dentro de su plazo (notes.js) → { ok } | { error }

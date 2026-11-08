@@ -56,3 +56,18 @@ test('sin foto, nada que repartir', async () => {
   const r = await s.list({ accessToken: 'jwt' });
   assert.deepEqual([r.taken, r.issues], [null, []]);
 });
+
+test('asignar: a la base con el origen de la issue, que solo deja dársela a quien tiene ese conocimiento', async () => {
+  const calls = [];
+  const backlog = createBacklogService({
+    source: { load: () => ({ taken: 't', issues: [issue('INC1', { sisu: true }), issue('INC2')] }) },
+    platform: { rpc: async (jwt, fn, args) => { calls.push([fn, args]); return null; } },
+    now: NOW,
+  });
+  await backlog.assign({ accessToken: 'jwt' }, 'INC1', 'u-ana');
+  await backlog.assign({ accessToken: 'jwt' }, 'INC2', 'u-ana');
+  assert.deepEqual(calls, [
+    ['platform_assign_issue', { p_issue: 'INC1', p_to: 'u-ana', p_origin: 'SISU' }],
+    ['platform_assign_issue', { p_issue: 'INC2', p_to: 'u-ana', p_origin: 'SGA' }],
+  ]);
+});

@@ -8,6 +8,7 @@
 import { queue, CRITERIA } from '../issues/queue.js';
 import { brief } from '../issues/desk.js';
 import { loadRules, ruleById, ruleProblem } from '../issues/rules.js';
+import { originOf } from '../issues/origin.js';
 
 export const createBacklogService = ({ source, platform, now = () => new Date() }) => ({
   // → { taken, rule, rules, issues: [brief…] } en el orden de la regla pedida (la básica si no existe)
@@ -26,10 +27,13 @@ export const createBacklogService = ({ source, platform, now = () => new Date() 
     const holder = (await platform.rpc(jwt, 'platform_issue_claims')).find((c) => c.issue_id === id);
     return { issue, claimedBy: holder ? { id: holder.user_id, name: holder.user_name, at: holder.claimed_at } : null };
   },
-  // el equipo de Issues (a quién se puede asignar) → [{ id, name }]
+  // el equipo de Issues (a quién se puede asignar) → [{ id, name, groups }]: groups, sus proyectos
   people: ({ accessToken: jwt }) => platform.rpc(jwt, 'platform_issue_teammates'),
-  // asignarla a alguien del equipo: pasa a su mesa
-  assign: ({ accessToken: jwt }, id, to) => platform.rpc(jwt, 'platform_assign_issue', { p_issue: id, p_to: to }),
+  // asignarla a alguien del equipo: pasa a su mesa. Con el origen: solo a quien tiene ese conocimiento
+  assign: ({ accessToken: jwt }, id, to) => {
+    const issue = source.load().issues.find((i) => i.id === id);
+    return platform.rpc(jwt, 'platform_assign_issue', { p_issue: id, p_to: to, ...(issue ? { p_origin: originOf(issue) } : {}) });
+  },
   // el catálogo de criterios y las reglas con los suyos → { criteria: [{ id, label }], rules: [{ id, label, criteria, builtin }] }
   rules: async ({ accessToken: jwt }) => ({ criteria: CRITERIA.map(({ id, label }) => ({ id, label })), rules: await loadRules(platform, jwt) }),
   // crear (id null) o cambiar una regla → { id } | { error } (rules.js dice qué falla)

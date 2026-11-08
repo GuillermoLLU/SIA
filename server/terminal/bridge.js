@@ -5,11 +5,11 @@
 // la base y el candado.
 //   deps: pty, launchers, workspace, env() → entorno de los chats,
 //         issues.find(id), accessibleProjects(base), currentBase(), skillsOf(base),
-//         skillSync, lock
+//         skillSync, lock, allowed(req, { issue }) → si quien conecta puede abrir ese chat
 import { CLOSE, MAX_ASSETS, appendBuffer, sessionList, pickMode, pickProjects, isIssueId, assetFrom, firstPrompt } from './sessions.js';
 import { issueContext } from '../issues/context.js';
 
-export const createTerminalBridge = ({ pty, launchers, workspace, env, issues, accessibleProjects, currentBase, skillsOf, skillSync, lock }) => {
+export const createTerminalBridge = ({ pty, launchers, workspace, env, issues, accessibleProjects, currentBase, skillsOf, skillSync, lock, allowed = async () => true }) => {
   const sessions = new Map(); // id → { id, term, buffer, meta, assets, ws }
   const servers = [];         // los WebSocketServer que entran por aquí
   let seq = 0;
@@ -78,6 +78,8 @@ export const createTerminalBridge = ({ pty, launchers, workspace, env, issues, a
       if (sess || starting) return;
       starting = true;
       try {
+        const forIssue = msg.issue !== undefined && msg.issue !== null;
+        if (!(await allowed(req, { issue: forIssue }))) return send(ws, { type: 'error', message: forIssue ? 'Sin la vista Issues no se abre el chat de una issue.' : 'No tienes el Chat.' });
         let issue = null;
         if (msg.issue !== undefined && msg.issue !== null) {
           issue = isIssueId(msg.issue) ? issues.find(msg.issue) : null;
@@ -101,8 +103,11 @@ export const createTerminalBridge = ({ pty, launchers, workspace, env, issues, a
       else if (msg.type === 'attach') {
         const s = sessions.get(msg.sessionId);
         if (!s) return send(ws, { type: 'gone' });
-        bind(s);
-        send(ws, { type: 'history', data: s.buffer });
+        allowed(req, { issue: !!s.meta.issue }).then((ok) => {
+          if (!ok) return send(ws, { type: 'error', message: 'No tienes acceso a este chat.' });
+          bind(s);
+          send(ws, { type: 'history', data: s.buffer });
+        });
       } else if (msg.type === 'input' && sess) sess.term.write(msg.data);
       else if (msg.type === 'resize' && sess && msg.cols > 0 && msg.rows > 0) { try { sess.term.resize(msg.cols, msg.rows); } catch { /* cambio de tamaño a destiempo */ } }
       else if (msg.type === 'asset' && sess) {

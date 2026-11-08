@@ -1,9 +1,12 @@
-// Vistas: lo que cada persona puede ver y hacer en SIA (el Chat, siempre).
+// Vistas: lo que cada persona puede ver y hacer en SIA (el Chat también se da o se quita).
 // Las decide la base de la instancia (platform.users.views); el rol solo
 // pone las de partida. Aquí, qué vista exige cada ruta de la API: la web
 // esconde lo que no toca y el bridge lo rechaza igual.
 
-export const VIEWS = ['issues', 'backlog', 'work', 'metrics', 'links', 'lab', 'admin', 'people'];
+export const VIEWS = ['chat', 'issues', 'backlog', 'work', 'metrics', 'links', 'lab', 'admin', 'people'];
+
+// Abrir o reenganchar un chat: el del Chat exige su vista; el de una issue, la de Issues.
+export const canChat = (user, { issue = false } = {}) => can(user, issue ? 'issues' : 'chat');
 
 export const can = (user, view) => Array.isArray(user?.views) && user.views.includes(view);
 

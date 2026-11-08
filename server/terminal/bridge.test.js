@@ -23,7 +23,7 @@ const fakeWs = (url = '/', remote = '127.0.0.1') => {
   return ws;
 };
 
-const setup = ({ locked = false } = {}) => {
+const setup = ({ locked = false, allowed } = {}) => {
   const pty = fakePty();
   const cleaned = [];
   const bridge = createTerminalBridge({
@@ -37,6 +37,7 @@ const setup = ({ locked = false } = {}) => {
     skillsOf: () => [],
     skillSync: { maybe() {} },
     lock: { locked: () => locked },
+    ...(allowed ? { allowed } : {}),
   });
   const server = new EventEmitter(); server.clients = new Set();
   bridge.attach(server);
@@ -65,6 +66,7 @@ test('start: lanza el CLI con sus argumentos, engancha y avisa; data y history',
   // otro socket se engancha: el primero recibe 4409 y el nuevo, el scrollback
   const ws2 = x.connect(fakeWs());
   ws2.say({ type: 'attach', sessionId: 's1' });
+  await tick();   // engancharse espera a comprobar que puede abrir ese chat
   assert.deepEqual(ws.closed, [4409, 'handoff']);
   assert.deepEqual(ws2.sent.find((m) => m.type === 'history'), { type: 'history', data: 'hola mundo' });
   ws2.say({ type: 'attach', sessionId: 'nope' });
@@ -133,4 +135,37 @@ test('CLI no instalado: error; con el candado echado se cierra el socket', async
   const y = setup({ locked: true });
   assert.deepEqual(y.connect(fakeWs()).closed, [4423, 'bloqueado']);
   y.done();
+});
+
+test('sin la vista Chat no se abre ni se reengancha un chat; el de una issue va con Issues', async () => {
+  const x = setup({ allowed: async (req, { issue }) => issue });   // tiene Issues, no el Chat
+  const ws = x.connect(fakeWs());
+  await tick();
+  ws.say({ type: 'start', launcher: 'claude', knowledge: 'demand', projects: [], cols: 80, rows: 24 });
+  await tick(); await tick();
+  assert.equal(x.pty.spawned.length, 0);
+  assert.equal(ws.sent.find((m) => m.type === 'error').message, 'No tienes el Chat.');
+  ws.say({ type: 'start', launcher: 'claude', knowledge: 'demand', projects: [], cols: 80, rows: 24, issue: 'INC1' });
+  await tick(); await tick(); await tick();
+  assert.equal(x.pty.spawned.length, 1);   // el de la issue, sí
+  x.done();
+});
+
+test('reenganchar un chat del Chat sin su vista: error y no se engancha', async () => {
+  const open = setup();
+  const a = open.connect(fakeWs());
+  await tick();
+  a.say({ type: 'start', launcher: 'claude', knowledge: 'demand', projects: [], cols: 80, rows: 24 });
+  await tick(); await tick();
+  open.done();
+  const sid = a.sent.find((m) => m.type === 'started').sessionId;
+  // la misma sesión vista por alguien sin el Chat
+  const denied = setup({ allowed: async () => false });
+  const b = denied.connect(fakeWs());
+  await tick();
+  b.say({ type: 'attach', sessionId: sid });
+  await tick(); await tick();
+  assert.ok(b.sent.some((m) => m.type === 'gone' || m.type === 'error'));
+  assert.ok(!b.sent.some((m) => m.type === 'history'));
+  denied.done();
 });
