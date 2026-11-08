@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ACTIONS, actionForm, readAction, isComplete, actionsFor } from './actions.js';
+import { ACTIONS, actionForm, readAction, isComplete, actionsFor, chaseNote, chaseTarget } from './actions.js';
 
 test('las acciones (las notas van en el histórico)', () => {
   assert.deepEqual(Object.keys(ACTIONS), ['resolve', 'escalate', 'transfer', 'chase']);
@@ -11,6 +11,12 @@ test('actionsFor: pendiente de un tercero, reclamarle; traspasar y devolver, sol
   assert.deepEqual(actionsFor({ status: 'PENDING' }, false), ['chase'], 'asignada en Remedy pero sin coger en SIA: la base no deja traspasarla');
   assert.deepEqual(actionsFor({ status: 'IN_PROGRESS' }, true), ['resolve', 'escalate', 'transfer', 'release']);
   assert.deepEqual(actionsFor({ status: 'ASSIGNED' }, false), ['resolve', 'escalate']);
+});
+
+test('reclamar respuesta: la nota dice a quién se reclama; si el motivo no lo dice, «al tercero»', () => {
+  assert.equal(chaseNote({ reason: 'THIRD_PARTY_VENDOR_ACTION_REQD' }, '¿Hay novedades?'), 'Reclamado a Proveedor: ¿Hay novedades?');
+  assert.equal(chaseNote({ reason: 'ESCALATED_ACCORDING_TO_PROCEDURE' }, '¿Algo?'), 'Reclamado al tercero: ¿Algo?');
+  assert.equal(chaseTarget({ reason: '' }), 'al tercero');
 });
 
 test('reclamar al tercero: el mensaje es obligatorio', () => {

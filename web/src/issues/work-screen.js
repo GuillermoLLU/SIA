@@ -5,7 +5,7 @@
 // asistida por IA (issue-chat.js), que vive mientras la issue esté abierta.
 // Las parecidas, por conectar: solo su hueco.
 import { esc } from '../ui/html.js';
-import { STATUS_ES, SEVERITY_ES, REASON_ES, when, whenIso, whenLabel, newestFirst, age, pendingSince, stillDays, stillLevel } from './format.js';
+import { STATUS_ES, SEVERITY_ES, when, whenIso, whenLabel, newestFirst, age, pendingSince, stillDays, stillLevel, escalatedLabel } from './format.js';
 import { item } from './parts.js';
 import { actionsFor } from './actions.js';
 
@@ -103,7 +103,7 @@ const ACTION_BUTTON = {
 const BELL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>';
 const HANDOFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3l4 4-4 4"/><path d="M3 7h18"/><path d="M7 21l-4-4 4-4"/><path d="M21 17H3"/></svg>';
 // En la cabecera, donde irían Resolver y compañía: que ya está escalada, a quién y desde cuándo
-const escalatedTag = (i) => `<span class="iss-escalated" title="Pendiente de un tercero: resolver, escalar o devolverla no tiene sentido hasta que responda">${BELL}<b>Escalada${i.reason && REASON_ES[i.reason] && REASON_ES[i.reason] !== 'Escalada' ? ` a ${esc(REASON_ES[i.reason])}` : ''}</b><span>desde el ${when(pendingSince(i))}</span></span>`;
+const escalatedTag = (i) => `<span class="iss-escalated" title="Pendiente de un tercero: resolver, escalar o devolverla no tiene sentido hasta que responda">${BELL}<b>${esc(escalatedLabel(i))}</b><span>desde el ${when(pendingSince(i))}</span></span>`;
 // Sus acciones (actionsFor), grandes. En «Reclamar», a modo de aviso, los días que lleva parada
 // (con el color de la mesa, stillLevel).
 const BIG_ACTION = {

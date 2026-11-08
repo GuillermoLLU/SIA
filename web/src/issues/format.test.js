@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LISTS, when, whenIso, whenLabel, newestFirst, snapshotInfo, age, stamp, duration, since, weekBars, stillDays, stillLevel, pendingSince } from './format.js';
+import { LISTS, when, whenIso, whenLabel, newestFirst, snapshotInfo, age, stamp, duration, since, weekBars, stillDays, stillLevel, pendingSince, thirdOf, escalatedLabel } from './format.js';
 
 const NOW = new Date('2026-10-04T11:44:00');
 
@@ -81,4 +81,20 @@ test('pendingSince: el último paso a Pendiente del historial; sin él, su últi
   const changes = [['2026-10-06 14:40', '', 'Assigned'], ['2026-10-06 20:55', 'Assigned', 'Pending'], ['2026-10-07 08:53', 'Pending', 'Assigned'], ['2026-10-21 14:38', 'In Progress', 'Pending']];
   assert.equal(pendingSince({ changes, modified: '2026-10-21 14:40' }), '2026-10-21 14:38');
   assert.equal(pendingSince({ changes: [], modified: '2026-10-21 14:40' }), '2026-10-21 14:40');
+});
+
+test('thirdOf: a quién espera una pendiente, por el código de su motivo; si no lo dice, null', () => {
+  assert.equal(thirdOf({ reason: 'THIRD_PARTY_VENDOR_ACTION_REQD' }), 'Proveedor');
+  assert.equal(thirdOf({ reason: 'SUPPLIER_DELIVERY' }), 'Proveedor');
+  assert.equal(thirdOf({ reason: 'CUSTOMER_FOLLOW_UP_REQUIRED' }), 'Cliente');
+  assert.equal(thirdOf({ reason: 'LOCAL_SITE_ACTION_REQUIRED' }), 'Centro');
+  assert.equal(thirdOf({ reason: 'ESCALATED_ACCORDING_TO_PROCEDURE' }), null);
+  assert.equal(thirdOf({ reason: '' }), null);
+});
+
+test('escalatedLabel: a quién está escalada; si no se sabe, su motivo; sin motivo, solo «Escalada»', () => {
+  assert.equal(escalatedLabel({ reason: 'THIRD_PARTY_VENDOR_ACTION_REQD' }), 'Escalada a Proveedor');
+  assert.equal(escalatedLabel({ reason: 'PURCHASE_ORDER_APPROVAL' }), 'Escalada · Aprobación de pedido');
+  assert.equal(escalatedLabel({ reason: 'ESCALATED_ACCORDING_TO_PROCEDURE' }), 'Escalada', 'sin repetir «Escalada · Escalada»');
+  assert.equal(escalatedLabel({ reason: '' }), 'Escalada');
 });

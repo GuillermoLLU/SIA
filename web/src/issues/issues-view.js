@@ -4,13 +4,13 @@
 // llena con el uso). Al abrir una, la pantalla de trabajo (work-screen.js). La mesa se refresca sola.
 import './issues.css';
 import { esc } from '../ui/html.js';
-import { LISTS, snapshotInfo, duration, weekBars, REASON_ES } from './format.js';
+import { LISTS, snapshotInfo, duration, weekBars } from './format.js';
 import { item, REFRESH_ICON } from './parts.js';
 import { onEscape } from '../ui/dialog.js';
 import { pressStartedIn } from '../ui/dom.js';
 import { pickClick, openPicker, closePickers } from '../ui/picker.js';
 import { workScreen, trailHtml, trailTab, releaseDialogHtml, sendsNote, noteEditorHtml } from './work-screen.js';
-import { ACTIONS, actionForm, readAction, isComplete } from './actions.js';
+import { ACTIONS, actionForm, readAction, isComplete, chaseNote, chaseTarget } from './actions.js';
 import { createResolver } from './resolve-view.js';
 import { knowsOrigin, originOf } from './assisted.js';
 import { crossfade } from '../ui/crossfade.js';
@@ -361,12 +361,10 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
         return toast?.(`Traspasada a ${who}.`);
       }
       if (key === 'chase') {
-        // de momento no llega al tercero: queda en el histórico como nota, con a quién y qué
-        const third = REASON_ES[issue.reason] || 'el tercero';
-        await api.addNote(opened, `Reclamado a ${third}: ${values.message}`);
+        await api.addNote(opened, chaseNote(issue, values.message));
         closeAction();
         await refreshTrail();
-        return toast?.(`Reclamación a ${third} anotada en el histórico. Aún no le llega: irá por SIGLO cuando lo conectemos.`);
+        return toast?.(`Reclamación ${chaseTarget(issue)} anotada en el histórico. Aún no le llega: irá por SIGLO cuando lo conectemos.`);
       }
       closeAction();
       toast?.(`${ACTIONS[key].label}: preparado, pero aún no se envía a Remedy (falta conectar SIGLO).`);

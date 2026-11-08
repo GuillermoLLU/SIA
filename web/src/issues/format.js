@@ -14,6 +14,20 @@ export const REASON_ES = {
   LOCAL_SITE_ACTION_REQUIRED: 'Centro',
 };
 
+// A quién espera una pendiente (el tercero al que se escaló), por el código de su motivo en Remedy;
+// null si el motivo no lo dice (escalada según el procedimiento, aprobación de pedido…).
+const THIRD = {
+  THIRD_PARTY_VENDOR_ACTION_REQD: 'Proveedor', SUPPLIER_DELIVERY: 'Proveedor',
+  CLIENT_ACTION_REQUIRED: 'Cliente', CUSTOMER_FOLLOW_UP_REQUIRED: 'Cliente',
+  REQUEST_SSGG: 'SSGG', LOCAL_SITE_ACTION_REQUIRED: 'Centro',
+};
+export const thirdOf = (issue) => THIRD[issue.reason] || null;
+// Cómo se dice en la cabecera de la issue: a quién está escalada o, si no se sabe, su motivo
+export const escalatedLabel = (issue) => {
+  const third = thirdOf(issue), reason = REASON_ES[issue.reason];
+  return third ? `Escalada a ${third}` : reason && reason !== 'Escalada' ? `Escalada · ${reason}` : 'Escalada';
+};
+
 // La mesa: en qué estoy, qué espera a otros (lo que más tiempo lleva sin
 // moverse, arriba) y lo último que he resuelto.
 export const LISTS = [

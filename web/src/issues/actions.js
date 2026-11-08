@@ -5,6 +5,7 @@
 // Las notas internas se escriben en la pestaña Notas internas.
 import { esc } from '../ui/html.js';
 import { peoplePicker } from '../ui/picker.js';
+import { thirdOf } from './format.js';
 
 export const ACTIONS = {
   resolve: {
@@ -72,6 +73,11 @@ export const actionsFor = (issue, mine) => [
   ...(mine ? ['transfer'] : []),
   ...(mine && issue.status !== 'PENDING' ? ['release'] : []),
 ];
+
+// «Reclamar respuesta» aún no llega al tercero: queda en el histórico como nota, con a quién y qué.
+// chaseTarget: «a Proveedor», o «al tercero» si el motivo no dice a quién.
+export const chaseTarget = (issue) => { const third = thirdOf(issue); return third ? `a ${third}` : 'al tercero'; };
+export const chaseNote = (issue, message) => `Reclamado ${chaseTarget(issue)}: ${message}`;
 
 // ¿Están todos los obligatorios? Mientras no, el botón de enviar sigue apagado.
 export const isComplete = (key, values) => !readAction(key, values).missing;

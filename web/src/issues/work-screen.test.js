@@ -145,3 +145,12 @@ test('una issue pendiente de un tercero: en lugar del chat, reclamarle y traspas
   assert.match(notMine, /data-act="chase"/);
   assert.doesNotMatch(notMine, /data-act="transfer"/, 'sin cogerla en SIA, solo reclamar');
 });
+
+test('la cabecera de una pendiente: a quién está escalada, desde que pasó a Pendiente, y los días en su color', () => {
+  const pending = issue({ status: 'PENDING', reason: 'THIRD_PARTY_VENDOR_ACTION_REQD', modified: '2026-09-20 09:00',
+    changes: [['2026-09-01 10:00', '', 'ASSIGNED'], ['2026-09-15 08:30', 'ASSIGNED', 'PENDING']] });
+  const html = workScreen({ issue: pending, sameCenter: [], now, mine: true });
+  assert.match(html, /<b>Escalada a Proveedor<\/b><span>desde el 15\/09 08:30<\/span>/);
+  assert.match(html, /<em class="iss-big-still late">11 días sin moverse<\/em>/, 'siete días o más: hay que mirarla');
+  assert.match(workScreen({ issue: { ...pending, reason: 'ESCALATED_ACCORDING_TO_PROCEDURE' }, sameCenter: [], now, mine: true }), /<b>Escalada<\/b>/);
+});
