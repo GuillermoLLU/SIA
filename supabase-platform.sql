@@ -49,7 +49,8 @@
 --  una vista o la regla de alguien lo deja personalizado (sin rol). Dos vienen de serie:
 --    Administrador  todas, fijo. El primero se nombra desde el SQL Editor
 --                   (platform.grant_admin).
---    Agente         Enlaces (editable, no se borra). Es el rol de toda alta.
+--    Agente         Chat y Enlaces, con la regla básica (editable, no se borra). Es el rol
+--                   de toda alta.
 --
 --  Seguridad
 --    · Las tablas viven en el esquema privado `platform`, que la Data API NO
@@ -59,8 +60,8 @@
 --      DEFINER con search_path vacío y nombres cualificados, comprueban quién
 --      llama (auth.uid()) y sus vistas antes de nada, y solo las puede ejecutar
 --      el rol authenticated (anon, no).
---    · Nadie cambia su propio rol ni sus vistas, ni edita el rol que tiene, ni
---      se desactiva: siempre queda alguien con Personas.
+--    · Nadie cambia su propio rol, sus vistas ni su regla, ni edita el rol que
+--      tiene, ni se desactiva: siempre queda alguien con Personas.
 --    · Un usuario desactivado no pasa ninguna comprobación.
 --    · Los tokens de grupo solo se devuelven enteros a su titular; a los
 --      admins, como huella (sha256). Las claves secret de Supabase se rechazan.
@@ -81,8 +82,9 @@ begin;
 create schema if not exists platform;
 revoke all on schema platform from public, anon, authenticated;
 
--- Las vistas que existen (una más = añadirla aquí, en server/auth/views.js y
--- en web/src/users/views.js). Administrador las tiene siempre todas.
+-- Las vistas que existen (una más = añadirla aquí, en web/src/users/views.js con su etiqueta y su
+-- icono y, si abre rutas propias, en viewsForRoute de server/auth/views.js). Administrador las
+-- tiene siempre todas.
 create or replace function platform.known_views() returns text[]
 language sql immutable set search_path = '' as $$
   select array['chat', 'issues', 'backlog', 'work', 'metrics', 'links', 'lab', 'admin', 'people']
@@ -235,7 +237,6 @@ insert into platform.priority_rules (name, criteria, builtin)
   select 'Regla básica', array['recent', 'prio', 'month', 'severity', 'age'], true
   where not exists (select 1 from platform.priority_rules where builtin);
 
--- Administrador, con todas las vistas que haya (también las que se añadan)
 -- El Chat pasó a ser una vista que se puede quitar: en las bases ya montadas, quien existía lo
 -- conserva. Una sola vez: la marca es el valor por defecto de users.views, que pasa a llevarlo.
 do $$
@@ -247,6 +248,7 @@ begin
     alter table platform.users alter column views set default array['chat', 'links'];
   end if;
 end $$;
+-- Administrador, con todas las vistas que haya (también las que se añadan)
 update platform.roles set views = platform.known_views() where builtin = 'admin' and views is distinct from platform.known_views();
 update platform.users u set views = r.views from platform.roles r where r.builtin = 'admin' and u.role_id = r.id and u.views is distinct from r.views;
 
@@ -318,10 +320,10 @@ create trigger sia_on_auth_user_email after update of email on auth.users
   execute function platform.on_auth_user_email();
 
 -- Personas que ya estaban en Authentication antes de este SQL: su fila.
-insert into platform.users (id, email, name, role_id, views)
+insert into platform.users (id, email, name, role_id, views, rule_id)
 select a.id, lower(a.email),
        left(coalesce(nullif(btrim(a.raw_user_meta_data ->> 'name'), ''), split_part(a.email, '@', 1)), 80),
-       r.id, r.views
+       r.id, r.views, r.rule_id
 from auth.users a cross join platform.roles r
 where a.email is not null and r.builtin = 'agent'
 on conflict (id) do nothing;
@@ -341,6 +343,18 @@ begin
     raise exception 'Sesión no válida o cuenta desactivada.' using errcode = '42501';
   end if;
   return v_me;
+end $$;
+
+-- Que quien recibe una issue (asignada o traspasada) tenga el conocimiento de su origen (SGA,
+-- SISU…): algún proyecto suyo con ese nombre. Sin origen (null), no se comprueba.
+drop function if exists platform.knows_origin(uuid, text);  -- la versión que solo respondía sí o no
+create or replace function platform.require_origin(p_user uuid, p_origin text) returns void
+language plpgsql stable set search_path = '' as $$
+begin
+  if p_origin is not null and not exists (select 1 from platform.knowledge_grants g
+                                          where g.user_id = p_user and upper(btrim(g.group_name)) = upper(btrim(p_origin))) then
+    raise exception 'Esa persona no tiene el conocimiento de %.', upper(btrim(p_origin)) using errcode = '42501';
+  end if;
 end $$;
 
 -- ¿Tiene alguna de esas vistas? (y está activo)
@@ -450,14 +464,6 @@ revoke all on all functions in schema platform from public, anon, authenticated;
 --  API para la app (RPC). Todas exigen sesión; anon no puede llamarlas.
 -- ════════════════════════════════════════════════════════════════════════
 
--- ¿Tiene esta persona el conocimiento del origen de una issue (SGA, SISU…)? Lo tiene si alguno de
--- sus proyectos se llama así. Sin origen (null), no se comprueba.
-create or replace function platform.knows_origin(p_user uuid, p_origin text) returns boolean
-language sql stable security definer set search_path = '' as $$
-  select p_origin is null or exists (select 1 from platform.knowledge_grants g
-                                     where g.user_id = p_user and upper(btrim(g.group_name)) = upper(btrim(p_origin)))
-$$;
-
 -- Quién soy (y si tengo que cambiar la contraseña antes de seguir).
 create or replace function public.platform_whoami() returns jsonb
 language plpgsql stable security definer set search_path = '' as $$
@@ -530,10 +536,10 @@ begin
 end $$;
 
 -- Cada uno cambia su nombre. Quien tiene Personas cambia además el nombre,
--- el rol, las vistas y si está activo de los demás, pero nunca lo suyo
--- (siempre queda alguien con Personas). Un rol pone sus vistas; unas vistas
--- sueltas dejan a la persona sin rol (personalizado). Desactivar cierra sus
--- sesiones.
+-- el rol, las vistas, la regla y si está activo de los demás, pero nunca lo
+-- suyo (siempre queda alguien con Personas). Un rol pone sus vistas y su
+-- regla; unas vistas o una regla sueltas dejan a la persona sin rol
+-- (personalizado). Desactivar cierra sus sesiones.
 drop function if exists public.platform_update_user(uuid, text, uuid, boolean, text[]);  -- la firma sin regla
 create or replace function public.platform_update_user(p_user uuid, p_name text default null, p_role uuid default null,
                                                        p_active boolean default null, p_views text[] default null,
@@ -577,7 +583,7 @@ begin
   if not found then raise exception 'Ese usuario no existe.' using errcode = 'P0002'; end if;
   if p_active = false then perform platform.revoke_sessions(p_user); end if;
   perform platform.audit(v_me, 'user.update', p_user,
-    jsonb_strip_nulls(jsonb_build_object('name', nullif(btrim(p_name), ''), 'role', p_role, 'views', to_jsonb(v_views), 'rule', p_rule, 'active', p_active)));
+    jsonb_strip_nulls(jsonb_build_object('name', nullif(btrim(p_name), ''), 'role', p_role, 'views', to_jsonb(v_views), 'rule', v_rule, 'active', p_active)));
 exception
   when check_violation then raise exception 'Nombre no válido (1-80 caracteres).' using errcode = '23514';
 end $$;
@@ -829,7 +835,7 @@ begin
   if not exists (select 1 from platform.users u where u.id = p_to and u.active and 'issues' = any (u.views)) then
     raise exception 'Esa persona no está en Issues.' using errcode = 'P0002';
   end if;
-  if not platform.knows_origin(p_to, p_origin) then raise exception 'Esa persona no tiene el conocimiento de %.', upper(btrim(p_origin)) using errcode = '42501'; end if;
+  perform platform.require_origin(p_to, p_origin);
   update platform.issue_claims set user_id = p_to, claimed_at = now() where issue_id = p_issue and user_id = v_me;
   if not found then raise exception 'Esa issue no es tuya.' using errcode = '42501'; end if;
   insert into platform.issue_notes (issue_id, author, kind, body) values (p_issue, v_me, 'transfer', btrim(p_comment)) returning id into v_note;
@@ -914,8 +920,6 @@ exception
   when check_violation then raise exception 'La nota necesita texto, hasta 4.000 caracteres.' using errcode = '22023';
 end $$;
 
--- El equipo de Issues: las personas activas con la vista Issues (para
--- traspasar una issue a un compañero).
 -- ── Asignar desde el Backlog ──────────────────────────────────────────────
 -- La prioridad de una issue es la etiqueta PRIO de Remedy (la pone negocio);
 -- SIA no lleva una lista propia. Hubo una (issue_priorities) en una versión
@@ -937,7 +941,7 @@ begin
   if not exists (select 1 from platform.users u where u.id = p_to and u.active and 'issues' = any (u.views)) then
     raise exception 'Solo se asigna a alguien activo con la vista Issues.' using errcode = '22023';
   end if;
-  if not platform.knows_origin(p_to, p_origin) then raise exception 'Esa persona no tiene el conocimiento de %.', upper(btrim(p_origin)) using errcode = '42501'; end if;
+  perform platform.require_origin(p_to, p_origin);
   select u.name into v_holder from platform.issue_claims c join platform.users u on u.id = c.user_id where c.issue_id = p_issue;
   if found then raise exception 'Esa issue ya la tiene %.', v_holder using errcode = '23505'; end if;
   insert into platform.issue_claims (issue_id, user_id) values (p_issue, p_to);
@@ -947,10 +951,10 @@ exception
 end $$;
 
 -- ── Reglas de priorización del backlog ────────────────────────────────────
--- Las ven quienes cogen issues o reparten (Issues, Backlog): un nombre y sus
--- criterios en orden. Las crean, cambian y borran quienes reparten (Backlog).
--- La básica (builtin) va primero; se ajusta como las demás, pero no se borra. Las ven Issues
--- y Backlog, y quien gestiona el equipo (elige la de cada rol y cada persona).
+-- Un nombre y sus criterios en orden. Las ven Issues, Backlog y quien gestiona el
+-- equipo (elige la de cada rol y cada persona); las crean, cambian y borran quienes
+-- reparten (Backlog). La básica (builtin) va primero; se ajusta como las demás, pero
+-- no se borra.
 drop function if exists public.platform_list_rules();
 create function public.platform_list_rules()
 returns table (id uuid, name text, criteria text[], builtin boolean)
@@ -998,8 +1002,9 @@ begin
   perform platform.audit(v_me, 'rule.delete', null, jsonb_build_object('rule', p_rule));
 end $$;
 
+-- El equipo de Issues: las personas activas con la vista Issues (a quién traspasar o asignar),
+-- con los nombres de sus proyectos (groups): a quién se le puede dar una issue según su origen.
 drop function if exists public.platform_issue_teammates();
--- Con los nombres de sus proyectos (groups): a quién se le puede dar una issue según su origen.
 create function public.platform_issue_teammates()
 returns table (id uuid, name text, groups text[])
 language plpgsql stable security definer set search_path = '' as $$

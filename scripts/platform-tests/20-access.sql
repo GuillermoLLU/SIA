@@ -100,7 +100,7 @@ select public.platform_update_user(:U1, null, :RAGENT);
 select public.platform_update_user(:U2, null, :RAGENT);
 
 -- vistas: el rol es el punto de partida; después, una a una
-select assert_eq((select (public.platform_whoami() -> 'views') ?& array['issues', 'backlog', 'work', 'metrics', 'links', 'lab', 'admin', 'people']), true, 'el admin, todas');
+select assert_eq((select (public.platform_whoami() -> 'views') ?& array['chat', 'issues', 'backlog', 'work', 'metrics', 'links', 'lab', 'admin', 'people']), true, 'el admin, todas (el Chat también)');
 select public.platform_update_user(:U1, null, null, null, array['people', 'links', 'people']);
 select assert_eq((select views from public.platform_list_users() where id = :U1), array['links', 'people'], 'vistas a mano, sin repetir');
 select expect_error($$select public.platform_update_user('00000000-0000-0000-0000-0000000000a2', null, null, null, array['root'])$$, 'vista desconocida');
@@ -114,7 +114,7 @@ select expect_error($$select public.platform_update_user('00000000-0000-0000-000
 select t_as(:AD);
 select public.platform_update_user(:U1, null, null, null, array[]::text[]);
 select t_as(:U1);
-select assert_eq((public.platform_whoami() -> 'views'), '[]'::jsonb, 'sin vistas: solo el Chat');
+select assert_eq((public.platform_whoami() -> 'views'), '[]'::jsonb, 'sin vistas: ni el Chat');
 select assert_eq(public.platform_can_manage_users(), false, 'y sin Personas');
 select t_as(:AD);
 select public.platform_update_user(:U1, null, :RAGENT);
@@ -314,6 +314,14 @@ insert into platform.knowledge_grants (user_id, base_id, group_name, group_token
 set role authenticated;
 select t_as(:AD);
 select assert_eq((select groups from public.platform_issue_teammates() where id = :U2), array['SGA'], 'el equipo lleva los proyectos de cada uno');
+-- traspasar también exige el conocimiento del origen; sin origen (fuera de la foto), no se comprueba
+select expect_error($$select public.platform_transfer_issue('INC1', '00000000-0000-0000-0000-0000000000a3', 'Es de SISU.', 'SISU')$$, 'sin el conocimiento de SISU no se le traspasa');
+select public.platform_transfer_issue('INC1', :U2, 'Es de SGA: tuya.', ' sga ');
+select assert_eq((select user_name from public.platform_issue_claims() where issue_id = 'INC1'), 'agente.dos', 'con el conocimiento del origen, sí');
+select t_as(:U2);
+select assert_eq((public.platform_whoami() -> 'groups'), '["SGA"]'::jsonb, 'quién soy lleva mis proyectos (los orígenes que puedo llevar)');
+select public.platform_transfer_issue('INC1', :AD, 'Vuelve al admin.');
+select t_as(:AD);
 select public.platform_assign_issue('INC3', :U2, 'sga');
 select assert_eq((select user_name from public.platform_issue_claims() where issue_id = 'INC3'), 'agente.dos', 'asignada: ya es suya');
 select assert_eq((select string_agg(action || ':' || coalesce(actor_name, '-') || ':' || coalesce(from_name, '-') || ':' || coalesce(to_name, '-'), ',') from public.platform_issue_events('INC3')), 'assigned:Admin:-:agente.dos', 'en el histórico, quién la asignó y a quién');
@@ -331,12 +339,15 @@ select assert_eq((select string_agg(name || ':' || array_to_string(criteria, '+'
 select assert_eq(public.platform_save_rule(:RURG, 'Urgencias SISU', array['sisu', 'severity', 'age']), :RURG, 'cambiarla devuelve el mismo id');
 select assert_eq((select array_to_string(criteria, '+') from public.platform_list_rules() where name = 'Urgencias SISU'), 'sisu+severity+age', 'y el orden de los criterios se respeta');
 -- la regla de cada rol y de cada persona: el rol la pone, cambiársela a alguien lo deja personalizado
+\set RURG '(select id from public.platform_list_rules() where name = ''Urgencias SISU'')'
+select assert_eq(:RURG is not null, true, 'la regla de las pruebas existe (con su nombre nuevo)');
 \set RBASIC '(select id from public.platform_list_rules() where builtin)'
 select expect_error($$select public.platform_save_role(null, 'Turno', array['links'], '00000000-0000-0000-0000-00000000dead')$$, 'un rol con una regla que no existe, no');
 select public.platform_save_role(null, 'Turno', array['links'], :RURG);
 select assert_eq((select rule_id from public.platform_list_roles() where name = 'Turno'), :RURG, 'el rol guarda su regla');
 select public.platform_update_user(:U1, null, (select id from public.platform_list_roles() where name = 'Turno'));
 select assert_eq((select rule_id from public.platform_list_users() where id = :U1), :RURG, 'asignar el rol pone su regla');
+select assert_eq((select (details ->> 'rule')::uuid from public.platform_list_audit() where action = 'user.update' order by happened_at desc limit 1), :RURG, 'y la auditoría apunta la regla que se aplicó');
 select assert_eq((public.platform_whoami() ->> 'rule') is null, true, 'el admin, sin regla propia: la básica');
 select expect_error($$select public.platform_update_user('00000000-0000-0000-0000-0000000000a2', null, null, null, null, '00000000-0000-0000-0000-00000000dead')$$, 'una regla que no existe, no');
 select expect_error($$select public.platform_update_user('00000000-0000-0000-0000-0000000000a1', null, null, null, null, (select id from public.platform_list_rules() where builtin))$$, 'nadie cambia su propia regla');

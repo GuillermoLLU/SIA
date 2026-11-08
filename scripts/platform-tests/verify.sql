@@ -94,6 +94,14 @@ checks (orden, comprobacion, ok, detalle) as (
     'columnas: ' || (select count(*) from information_schema.columns where table_schema = 'platform' and column_name = 'rule_id' and table_name in ('roles', 'users'))::text || ' de 2 · firmas con p_rule: '
       || (select count(*) from api where proname in ('platform_update_user', 'platform_save_role') and pg_get_function_arguments(oid) like '%p_rule%')::text || ' de 2 · versiones antiguas aún presentes: '
       || (select count(*) from api where proname in ('platform_update_user', 'platform_save_role') and pg_get_function_arguments(oid) not like '%p_rule%')::text
+  union all
+  select 17, 'Asignar y traspasar comprueban el origen: una sola firma de cada, con p_origin',
+    (select count(*) from api where proname in ('platform_assign_issue', 'platform_transfer_issue')) = 2
+      and (select count(*) from api where proname in ('platform_assign_issue', 'platform_transfer_issue') and pg_get_function_arguments(oid) like '%p_origin%') = 2
+      and exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'platform' and p.proname = 'require_origin'),
+    'firmas: ' || (select count(*) from api where proname in ('platform_assign_issue', 'platform_transfer_issue'))::text || ' (2 esperadas) · con p_origin: '
+      || (select count(*) from api where proname in ('platform_assign_issue', 'platform_transfer_issue') and pg_get_function_arguments(oid) like '%p_origin%')::text || ' · platform.require_origin: '
+      || case when exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'platform' and p.proname = 'require_origin') then 'sí' else 'falta' end
 )
 select orden as "#", case when ok then 'OK' else 'FALLO' end as estado, comprobacion, detalle
 from checks order by orden;

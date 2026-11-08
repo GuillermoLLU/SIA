@@ -84,7 +84,8 @@ Cada issue tiene un **origen**, SGA o SISU, y solo la lleva quien tiene el
 conocimiento de ese origen, es decir, un proyecto de la base con su nombre: al
 coger la siguiente, la cola de cada persona solo trae issues de sus orígenes; al
 asignar o traspasar, solo se puede elegir a quien lo tiene, y la base lo vuelve a
-comprobar (`platform.knows_origin`).
+comprobar (`platform.require_origin`, que rechaza con «Esa persona no tiene el
+conocimiento de SGA.»).
 
 Desde el Backlog se **asigna** una issue a alguien del equipo de Issues: pasa a
 su mesa como cogida y en el histórico queda «asignada» por quien lo hizo
