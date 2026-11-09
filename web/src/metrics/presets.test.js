@@ -5,6 +5,7 @@ import { createCharts } from './charts.js';
 import { createTabs } from './tabs.js';
 import { data } from './fixture.js';
 import { PRESETS, presetRange, presetOf, prevRange, rangeLabel, periodLabel, cmpOptions, cmpRange } from './period.js';
+import { companyPick, presetPick, comparePop, pickCompany, pickPreset } from './quick-bar.js';
 
 // dos años cargados, con la foto el 11 de marzo de 2026 (como twoYears de period.test.js)
 const twoYears = () => {
@@ -61,31 +62,33 @@ test('Resumen: fechas rápidas y «Comparar», con su pop-up: sin comparar, un p
   const m = twoYears(); m.S.sides = [{ company: 0 }, null]; m.resetPeriod(); m.refilter();
   const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
   let html = tabs.render('resumen', m.rows());
-  const bar = (h) => h.slice(h.indexOf('<div class="mt-res-bar">'), h.indexOf('<section'));
-  const pop = (h) => h.slice(h.indexOf('<div class="mt-pop mt-res-pop"'), h.indexOf('<section'));
-  for (const [k] of PRESETS) assert.match(bar(html), new RegExp(`data-preset="${k}"`));
-  assert.match(bar(html), /data-preset="fy" aria-pressed="true"/);
+  // la barra de arriba (quick-bar.js): la empresa, las fechas rápidas y «Comparar»; en la pestaña, ya no
+  const bar = () => companyPick(m) + presetPick(m, ui) + comparePop(m, ui);
+  const pop = () => { const h = bar(); return h.slice(h.indexOf('<div class="mt-pop mt-res-pop"')); };
+  assert.doesNotMatch(html, /data-preset|data-res-pop/);
+  for (const [k] of PRESETS) assert.match(bar(), new RegExp(`data-preset="${k}"`));
+  assert.match(bar(), /data-preset="fy" aria-pressed="true"/);
   // el botón, sin comparar y sin ×; el pop-up, cerrado, sin «Sin comparar»: marcada la de periodos y, de partida, el
   // actual frente al anterior
-  assert.match(bar(html), /<button class="mt-btn " data-res-pop aria-haspopup="true" aria-expanded="false">Comparar<\/button>/);
-  assert.match(pop(html), /data-res-popup hidden/);
-  assert.doesNotMatch(pop(html), /value="none"|Sin comparar/);
-  assert.match(pop(html), /value="periods" checked/);
-  assert.doesNotMatch(bar(html), /data-res-clear/);
-  assert.match(pop(html), /<select data-res-a[^>]*><option value="cur" selected/);
-  assert.doesNotMatch(pop(html).slice(0, pop(html).indexOf('data-res-b')), /value="prev"/);   // el primero, sin el anterior
-  assert.match(pop(html), /<select data-res-b[^>]*><option value="prev" selected/);
-  assert.match(pop(html), /value="tsys"/);
-  assert.match(pop(html), /data-res-apply/);
+  assert.match(bar(), /<button class="mt-btn " data-res-pop aria-haspopup="true" aria-expanded="false">Comparar<\/button>/);
+  assert.match(pop(), /data-res-popup hidden/);
+  assert.doesNotMatch(pop(), /value="none"|Sin comparar/);
+  assert.match(pop(), /value="periods" checked/);
+  assert.doesNotMatch(bar(), /data-res-clear/);
+  assert.match(pop(), /<select data-res-a[^>]*><option value="cur" selected/);
+  assert.doesNotMatch(pop().slice(0, pop().indexOf('data-res-b')), /value="prev"/);   // el primero, sin el anterior
+  assert.match(pop(), /<select data-res-b[^>]*><option value="prev" selected/);
+  assert.match(pop(), /value="tsys"/);
+  assert.match(pop(), /data-res-apply/);
   assert.equal((html.match(/class="mt-kpi mt-kpi-co[ "]/g) || []).length, 0);
   ui.resPop = true;
   assert.doesNotMatch(pop(tabs.render('resumen', m.rows())), /data-res-popup hidden/);
   // un periodo frente a otro: cada KPI con los dos; solo los KPIs
   ui.resPop = false; ui.resCmp = { a: 'm:13', b: 'm:12' };
   html = tabs.render('resumen', m.rows());
-  assert.match(bar(html), /Comparar: <b>feb 2026 vs ene 2026<\/b><\/button><button class="mt-btn mt-x" data-res-clear title="Quitar la comparación"/);
-  assert.match(pop(html), /value="periods" checked/);
-  assert.match(pop(html), /<option value="m:13" selected/);
+  assert.match(bar(), /Comparar: <b>feb 2026 vs ene 2026<\/b><\/button><button class="mt-btn mt-x" data-res-clear title="Quitar la comparación"/);
+  assert.match(pop(), /value="periods" checked/);
+  assert.match(pop(), /<option value="m:13" selected/);
   assert.equal((html.match(/class="mt-kpi mt-kpi-co[ "]/g) || []).length, 4);
   assert.match(html, /<span title="feb 2026">feb 2026<\/span>/);
   assert.match(html, /<span title="ene 2026">ene 2026<\/span>/);
@@ -117,9 +120,55 @@ test('Resumen: fechas rápidas y «Comparar», con su pop-up: sin comparar, un p
   // el mismo periodo frente a T-Systems (el otro lado): manda sobre la de periodos
   m.S.sides[1] = { company: 1 }; m.refilter();
   html = tabs.render('resumen', m.rows());
-  assert.match(bar(html), /Comparar: <b>Indra vs T-Systems<\/b>/);
-  assert.match(pop(html), /value="tsys" checked/);
-  assert.match(bar(html), /data-res-clear/);   // también se quita con la ×
+  assert.match(bar(), /Comparar: <b>Indra vs T-Systems<\/b>/);
+  assert.match(pop(), /value="tsys" checked/);
+  assert.match(bar(), /data-res-clear/);   // también se quita con la ×
   assert.equal((html.match(/<svg class="mt-donut"/g) || []).length, 2);
   assert.match(html, /<span title="T-Systems">T-Systems<\/span>/);
 });
+
+test('la barra de arriba: Indra | T-Systems y las fechas rápidas; Ctrl+clic en una segunda, comparar', () => {
+  const m = twoYears(); m.S.sides = [{ company: 0 }, null]; m.resetPeriod(); m.refilter();
+  const ui = {};
+  const ops = { off: () => { m.S.sides[1] = null; }, add: (c) => { m.S.sides[1] = { company: c }; } };
+  const btn = (h, attr) => h.match(new RegExp(`<button class="mt-seg-b ([^"]*)" ${attr} aria-pressed="(true|false)"`)).slice(1);
+  // de partida: Indra y el año fiscal, marcados
+  assert.deepEqual(btn(companyPick(m), 'data-qco="0"'), ['mt-on', 'true']);
+  assert.deepEqual(btn(companyPick(m), 'data-qco="1"'), ['', 'false']);
+  assert.deepEqual(btn(presetPick(m, ui), 'data-preset="fy"'), ['mt-on', 'true']);
+  // Ctrl+clic en T-Systems: Indra frente a T-Systems (T-Systems, con el color del otro lado); otra vez, deja de comparar
+  assert.equal(pickCompany(m, ui, 1, true, ops), true);
+  assert.deepEqual(m.S.sides, [{ company: 0 }, { company: 1 }]);
+  assert.deepEqual(btn(companyPick(m), 'data-qco="1"'), ['mt-on mt-qb', 'true']);
+  assert.match(comparePop(m, ui), /Comparar: <b>Indra vs T-Systems<\/b>/);
+  assert.equal(pickCompany(m, ui, 1, true, ops), true);
+  assert.equal(m.S.sides[1], null);
+  assert.equal(pickCompany(m, ui, 0, true, ops), false);   // Ctrl+clic en la que se mira: nada
+  // clic en T-Systems: mirar T-Systems, sin comparar
+  assert.equal(pickCompany(m, ui, 1, false, ops), true);
+  assert.deepEqual(m.S.sides, [{ company: 1 }, null]);
+  assert.doesNotMatch(comparePop(m, ui), /value="tsys"/);   // mirando T-Systems, no se compara con ella misma
+  m.S.sides = [{ company: 0 }, null];
+  // Ctrl+clic en «Mes pasado»: el periodo de ahora frente al mes pasado (y no frente a T-Systems); otra vez, deja de comparar
+  m.S.sides[1] = { company: 1 };
+  assert.equal(pickPreset(m, ui, 'prev', true, presetRange(m, 'prev'), ops), true);
+  assert.deepEqual(ui.resCmp, { a: 'cur', b: 'p:prev' });
+  assert.equal(m.S.sides[1], null);
+  assert.deepEqual(btn(presetPick(m, ui), 'data-preset="prev"'), ['mt-on mt-qb', 'true']);
+  assert.deepEqual(btn(presetPick(m, ui), 'data-preset="fy"'), ['mt-on', 'true']);
+  assert.match(comparePop(m, ui), /Comparar: <b>Periodo actual vs Mes pasado<\/b>/);
+  assert.equal(pickPreset(m, ui, 'prev', true, presetRange(m, 'prev'), ops), true);
+  assert.equal(ui.resCmp, null);
+  assert.equal(pickPreset(m, ui, 'fy', true, presetRange(m, 'fy'), ops), false);   // Ctrl+clic en la de ahora: nada
+  // clic en una fecha rápida: ese periodo, sin comparar periodos
+  ui.resCmp = { a: 'cur', b: 'prev' };
+  assert.equal(pickPreset(m, ui, 'month', false, presetRange(m, 'month'), ops), true);
+  assert.equal(ui.resCmp, null);
+  assert.equal(periodLabel(m), '01/03/2026 – 11/03/2026');
+  // comparando periodos, el Resumen lo enseña en sus KPIs
+  ui.resCmp = { a: 'cur', b: 'p:prev' };
+  const tabs = createTabs(m, createCharts(m, { exp: {}, sort: {} }), Object.assign(ui, { exp: {}, sort: {} }));
+  m.refilter();
+  assert.match(tabs.render('resumen', m.rows()), /<span title="Mes pasado">Mes pasado<\/span>/);
+});
+

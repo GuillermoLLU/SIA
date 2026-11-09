@@ -47,8 +47,8 @@ test('Resumen: la corona de Foto de hoy (lo abierto ahora) y, del periodo, MTTR,
   assert.ok(html.indexOf('>Entrantes<') < html.indexOf('>MTTR<'));
   // las fechas, arriba y fuera de las tarjetas (abren el calendario de arriba); en la misma fila, la corona (s4) y, a su
   // derecha, los KPIs (s8); abajo del todo, el backlog de cada día, en barras por prioridad y sin selector de vista
-  const bar = html.slice(html.indexOf('<div class="mt-res-bar">'), html.indexOf('<section'));
-  assert.match(bar, new RegExp(`<button class="mt-btn mt-res-dates" data-calendar[^>]*>${periodLabel(m).replace(/[/]/g, '\/')}</button>`));
+  // las fechas y «Comparar» ya no están en la pestaña: van arriba del todo, en la barra de Métricas (quick-bar.js)
+  assert.doesNotMatch(html, /mt-res-bar|data-preset|data-calendar|data-res-pop/);
   const cards = [...html.matchAll(/<section class="mt-card mt-(s\d+)[^"]*"><h3>([^<]*)<\/h3>/g)].map((x) => [x[1], x[2]]);
   assert.deepEqual(cards, [['s4', 'En qué estado está'], ['s8', 'Del periodo'], ['s12', 'Evolución del backlog']]);
   const evo = html.slice(html.indexOf('<h3>Evolución del backlog</h3>'));
@@ -58,7 +58,6 @@ test('Resumen: la corona de Foto de hoy (lo abierto ahora) y, del periodo, MTTR,
   // debajo, un enlace al Histórico con estas mismas fechas, en la vista del backlog
   assert.match(evo, new RegExp(`<p class="mt-dn-go"><button class="mt-go" data-go="historico" data-go-evo="backlog" data-period="${m.S.d0}:${m.S.d1}"[^>]*>Ver en Histórico →</button></p>`));
   assert.doesNotMatch(tabs.render('historico', m.rows()), /Ver en Histórico/);   // en el propio Histórico, no
-  assert.equal((html.match(/data-calendar/g) || []).length, 1);
   // de partida, el año fiscal en curso: desde el 1 de febrero (o desde lo primero cargado)
   m.resetPeriod();
   assert.equal(m.S.d0, Math.max(m.MIN_D, m.minuteOf(m.LASTM - (((m.LASTM - 1) % 12) + 12) % 12)));

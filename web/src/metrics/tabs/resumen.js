@@ -3,20 +3,15 @@
 //   MTTR          (TTR de las resueltas + lo que llevan las abiertas) / cuántas son (#48; resolution.js, mttrOf)
 //   %IQA          de las auditadas, el % con calidad 3 o 4. Aún sin datos: la nota del agente de calidad (#55) no llega
 //   Uso de la IA  de lo recibido, lo que tiene alguna marca de IA (ia.js, iaStats; como «Con IA» de la pestaña IA)
-// Arriba del todo, las fechas que se miran: su botón abre el calendario de arriba (metrics-view.js, data-calendar), que vale
-// para todas las pestañas; de partida, el año fiscal en curso, desde el 1 de febrero (model.js, resetPeriod). Los KPIs, en una tarjeta a la derecha de
-// la corona; abajo del todo, el backlog al acabar cada día del periodo, en barras por prioridad (evolucion.js).
-// Arriba, también las fechas rápidas (period.js, PRESETS) y el botón «Comparar», que abre un pop-up (ui.resPop;
-// metrics-view.js, data-res-pop y data-res-apply) para elegir qué se compara y con qué (comparando, la × del botón la
-// quita: data-res-clear):
-//   un periodo frente a otro  (ui.resCmp = { a, b }: claves de period.js, cmpOptions; de partida, el actual y el anterior)
-//   el mismo periodo frente a T-Systems  (el otro lado, como «+ Comparar»: vale para todas las pestañas)
-// Comparando lados, la corona ocupa la fila y los KPIs van debajo, cada uno con los dos lados y su diferencia (charts.js,
-// kpiCo); el backlog, una línea por lado. Comparando periodos, los KPIs con los dos y el backlog, una línea por periodo,
-// cada una desde su primer día (evolucion.js, periods).
+// Las fechas, la empresa y «Comparar» van arriba del todo, en la barra de Métricas (quick-bar.js): valen para todas las
+// pestañas; de partida, el año fiscal en curso. Los KPIs, en una tarjeta a la derecha de la corona; abajo del todo, el
+// backlog al acabar cada día del periodo, en barras por prioridad (evolucion.js). Comparando lados, la corona ocupa la
+// fila y los KPIs van debajo, cada uno con los dos lados y su diferencia (charts.js, kpiCo); el backlog, una línea por
+// lado. Comparando periodos (ui.resCmp), los KPIs con los dos y el backlog, una línea por periodo, cada una desde su
+// primer día (evolucion.js, periods).
 import { esc } from '../../ui/html.js';
 import { num, pct, dur } from '../format.js';
-import { periodLabel, PRESETS, presetOf, rangeLabel, cmpOptions, cmpRange, cmpName } from '../period.js';
+import { rangeLabel, cmpRange, cmpName } from '../period.js';
 import { mttrOf } from '../resolution.js';
 import { iaStats } from '../ia.js';
 import { stateCard } from './hoy.js';
@@ -36,7 +31,6 @@ export const resumenTab = (t) => {
   const cmpMode = () => (CMP() ? 'side' : ui.resCmp?.a && ui.resCmp?.b ? 'periods' : null);
   // lo del primer lado abierto en un rango, con los filtros de arriba (sea cual sea el periodo de arriba)
   const inRange = (r) => (r ? bySide(m.today())[CO()[0]].filter((i) => C.rep[i] >= r[0] && C.rep[i] < r[1]) : []);
-  const isTsys = () => CMP() && S.sides[1]?.company === 1 && !S.sides[1].people;
 
   // los KPIs de unas incidencias: { n, v } de cada uno
   const figures = (l) => {
@@ -78,38 +72,8 @@ export const resumenTab = (t) => {
       { span: CMP() ? 's12' : 's8', sub });
   };
 
-  // Arriba, fuera de las tarjetas: las fechas rápidas, el botón de las fechas (abre el calendario de arriba) y con qué
-  // se compara. Valen para los KPIs y para el backlog de cada día.
-  const seg = (label, items) => `<div class="mt-seg mt-seg-sm" role="group" aria-label="${label}">${items.map(([attr, l, on, tip]) => `<button class="mt-seg-b ${on ? 'mt-on' : ''}" ${attr} aria-pressed="${on}"${tip ? ` data-tip="${esc(tip)}"` : ''}>${l}</button>`).join('')}</div>`;
-  // «Comparar»: el botón dice qué se compara y, comparando, lleva una × que lo quita; su pop-up, las dos opciones (la
-  // marcada, la de ahora; sin comparar, la de periodos) y, para la de
-  // periodos, dos selectores (cmpOptions: el primero sin «Periodo anterior», el segundo sin «Periodo actual»). Se aplica
-  // con su botón (data-res-apply); «Cancelar» o un clic fuera lo cierran sin tocar nada.
-  const comparePop = () => {
-    const mode = cmpMode(), tsys = isTsys(), canTsys = !(S.sides[0]?.company === 1 && !S.sides[0].people);
-    const now = mode === 'periods' ? 'periods' : tsys ? 'tsys' : mode === 'side' ? 'other' : 'none', checked = now === 'tsys' ? 'tsys' : 'periods';
-    const { a = 'cur', b = 'prev' } = ui.resCmp || {}, opts = cmpOptions(m);
-    const select = (attr, pick, skip) => `<select ${attr} aria-label="Periodo">${opts.filter(([k]) => k !== skip).map(([k, l, r]) => `<option value="${k}" ${k === pick ? 'selected' : ''} ${r ? '' : 'disabled'}>${esc(l)}${r && !k.startsWith('m:') ? ` · ${esc(rangeLabel(m, r))}` : ''}</option>`).join('')}</select>`;
-    const radio = (v, label, body = '') => `<label class="mt-res-opt"><input type="radio" name="res-mode" value="${v}" ${checked === v ? 'checked' : ''}><span>${label}</span></label>${body}`;
-    const label = now === 'periods' ? `${cmpName(m, a)} vs ${cmpName(m, b)}` : now === 'tsys' ? `${m.NAMES()[0]} vs T-Systems` : now === 'other' ? `${m.NAMES()[0]} vs ${m.NAMES()[1]}` : '';
-    const pop = `<div class="mt-pop mt-res-pop" data-res-popup ${ui.resPop ? '' : 'hidden'}>
-        <p class="mt-pp-title">Qué comparar</p>
-        ${radio('periods', 'Un periodo frente a otro', `<div class="mt-res-sel">${select('data-res-a', a, 'prev')}<span class="mt-mut">vs</span>${select('data-res-b', b, 'cur')}</div>`)}
-        ${canTsys ? radio('tsys', 'El mismo periodo frente a T-Systems', '<p class="mt-mut mt-small mt-res-hint">Compara también las demás pestañas, como «+ Comparar».</p>') : ''}
-        <div class="mt-res-actions"><button class="mt-btn" data-res-pop>Cancelar</button><button class="mt-btn mt-res-go" data-res-apply>Comparar</button></div>
-      </div>`;
-    const clear = now === 'none' ? '' : '<button class="mt-btn mt-x" data-res-clear title="Quitar la comparación" aria-label="Quitar la comparación">×</button>';
-    return `<div class="mt-res-cmp"><button class="mt-btn ${now === 'none' ? '' : 'mt-on'}" data-res-pop aria-haspopup="true" aria-expanded="${!!ui.resPop}">Comparar${label ? `: <b>${esc(label)}</b>` : ''}</button>${clear}${pop}</div>`;
-  };
-  const bar = () => {
-    const now = presetOf(m);
-    const quick = seg('Fechas rápidas', PRESETS.map(([k, l]) => [`data-preset="${k}"`, l, now === k]));
-    const dates = `<button class="mt-btn mt-res-dates" data-calendar aria-haspopup="true" data-tip="Elegir otras fechas: valen para todas las pestañas.">${esc(periodLabel(m))}</button>`;
-    return `<div class="mt-res-bar"><span class="mt-mut">Periodo</span>${quick}${dates}${comparePop()}</div>`;
-  };
-
   return (A) => {
     const P = bySide(m.today()).map((l) => l.filter((i) => OPEN[i]));
-    return grid(ask('resumen'), bar(), stateOf(P, { link: true }), periodKpis(A), evolution({ only: 'backlog', periods: periods(), link: true }));
+    return grid(ask('resumen'), stateOf(P, { link: true }), periodKpis(A), evolution({ only: 'backlog', periods: periods(), link: true }));
   };
 };

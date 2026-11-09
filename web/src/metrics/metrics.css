@@ -765,3 +765,6 @@ i.mt-pq0 { background: var(--mt-pq0); } i.mt-pq1 { background: var(--mt-pq1); } 
 .mt-res-go { font-weight: 600; }
 /* el enlace de un KPI a su pestaña (Resumen: MTTR, %IQA, Uso de la IA), debajo y a la derecha, como el de la corona */
 .mt-kpi-go { margin: 8px -8px 0 0; text-align: right; }
+/* la barra de arriba: lo comparado (Ctrl+clic en una segunda empresa o fecha rápida), con el color del otro lado */
+.mt-seg-b.mt-qb { background: color-mix(in srgb, var(--mt-base1, var(--mt-low)) 22%, var(--surface)); border-color: var(--mt-base1, var(--mt-line)); color: var(--text); }
+.mt-fbar .mt-res-cmp { margin-left: 0; }

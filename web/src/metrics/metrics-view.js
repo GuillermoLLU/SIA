@@ -15,6 +15,7 @@ import { createModel, COMPANIES } from './model.js';
 import { createCharts } from './charts.js';
 import { createTabs, TABS } from './tabs.js';
 import { periodLabel, presetRange } from './period.js';
+import { companyPick, presetPick, comparePop, pickCompany, pickPreset } from './quick-bar.js';
 import { mountPeriodPanel } from './period-panel.js';
 import { attachTip } from './tip.js';
 import { toggleProject } from './resolution.js';
@@ -89,8 +90,9 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
         <span class="mt-date" data-coverage title="${esc(`${meta.file}, actualizado el ${dayOf(meta.generated)}`)}"></span>
         ${loadButton()}${moreMenu()}</header>
       <div class="mt-fbar">
-        ${sideSlot(0)}<span class="mt-vs" data-vs>frente a</span>${sideSlot(1)}<button class="mt-btn mt-add" data-side-add>+ Comparar</button>
-        <div class="mt-period"><button class="mt-btn mt-icon-btn" data-calendar aria-haspopup="true">${CALENDAR_ICON}<span data-period></span></button><div class="mt-pop mt-cal" data-cal hidden></div></div>
+        ${sideSlot(0)}<span class="mt-vs" data-vs>frente a</span>${sideSlot(1)}<div data-qco></div>
+        <div data-presets></div><div class="mt-period"><button class="mt-btn mt-icon-btn" data-calendar aria-haspopup="true">${CALENDAR_ICON}<span data-period></span></button><div class="mt-pop mt-cal" data-cal hidden></div></div>
+        <div data-cmp></div>
         <div class="mt-chips" data-chips></div>
         <div class="mt-find"><input type="search" data-q placeholder="Título o INC…" hidden><span class="mt-count" data-count></span>
           <button class="mt-search" data-search title="Buscar en el título o por número">${SEARCH_ICON}</button></div>
@@ -117,7 +119,6 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     colors.forEach((c, k) => root.style.setProperty(`--mt-base${k}`, c));
     $('[data-slot="1"]').hidden = !two;
     $('[data-vs]').hidden = !two;
-    $('[data-side-add]').hidden = two;
     for (const k of [0, 1]) {
       const s = S.sides[k], other = S.sides[1 - k];
       $(`[data-side-remove="${k}"]`).hidden = !two;
@@ -137,6 +138,11 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
         ${l.map((x) => `<button data-pick-person="${k}:${x.k}" class="${mine.has(x.k) ? 'mt-on' : ''}" aria-pressed="${mine.has(x.k)}" ${theirs.has(x.k) ? 'disabled title="Ya está en el otro lado"' : ''}><i class="mt-check"></i><span>${esc(DIMS.as.label(x.k))}</span><small>${num(x.n)}</small></button>`).join('')}`).join('')
         || '<p class="mt-mut">Nadie con ese nombre.</p>';
     }
+  };
+  // el otro lado: quitarlo (queda el primero) o poner en él una empresa, con un color libre si no estaba
+  const sideOps = {
+    off: () => { if (m.S.sides[1]) ({ sides: m.S.sides, colors } = withoutSide(m.S.sides, colors, 1)); },
+    add: (c) => { const had = !!m.S.sides[1]; m.S.sides[1] = { company: c }; if (!had) colors[1] = freeColor(colors[0]); },
   };
   const closePops = () => { open = null; who = ''; };
   const togglePop = (which) => {
@@ -158,6 +164,9 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     $('[data-coverage]').textContent = coverage(m);
     renderPeriod();
     renderSides();
+    $('[data-qco]').innerHTML = companyPick(m);
+    $('[data-presets]').innerHTML = presetPick(m, ui);
+    $('[data-cmp]').innerHTML = comparePop(m, ui);
     $('[data-q]').hidden = !(searching || S.q);
     $('[data-count]').innerHTML = `<b>${num(A.length)}</b> incidencias`;
     root.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('mt-on', b.dataset.tab === tab));
@@ -372,7 +381,7 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     // Resumen: el pop-up de «Comparar» se cierra con un clic fuera de él (sin aplicar nada)
     const outRes = ui.resPop && !e.target.closest('.mt-res-cmp');
     if (outRes) ui.resPop = false;
-    const t = e.target.closest('[data-tab],[data-go],[data-rm],[data-exp],[data-sort],[data-evo],[data-evo-step],[data-preset],[data-res-pop],[data-res-apply],[data-res-clear],[data-flk],[data-shk],[data-jc],[data-jc-clear],[data-esc-mode],[data-esc-nojira],[data-only],[data-f2],[data-f]');
+    const t = e.target.closest('[data-tab],[data-go],[data-rm],[data-exp],[data-sort],[data-evo],[data-evo-step],[data-qco],[data-preset],[data-res-pop],[data-res-apply],[data-res-clear],[data-flk],[data-shk],[data-jc],[data-jc-clear],[data-esc-mode],[data-esc-nojira],[data-only],[data-f2],[data-f]');
     if (!t) { if (outRes) render(); return; }
     const d = t.dataset;
     if (d.tab || d.go) {
@@ -388,10 +397,11 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     }
     else if (d.evo) ui.evo = d.evo;   // Histórico: la evolución del backlog o entrantes frente a atendidas
     else if (d.evoStep) ui.evoStep = d.evoStep;   // la evolución del backlog: por días, semanas o meses
-    // Resumen: las fechas rápidas (period.js, PRESETS) y «Comparar»: abrir o cerrar su pop-up y aplicar lo elegido en
-    // él. Un periodo frente a otro (ui.resCmp) o el mismo frente a T-Systems (el otro lado, como «+ Comparar»: vale para
-    // todas las pestañas); son excluyentes
-    else if (d.preset) { const r = presetRange(m, d.preset); if (r) m.setPeriod(...r); }
+    // La barra de arriba (quick-bar.js): la empresa y las fechas rápidas (con Ctrl, o Cmd, se comparan con lo elegido) y
+    // «Comparar»: abrir o cerrar su pop-up y aplicar lo elegido en él. Un periodo frente a otro (ui.resCmp, del Resumen)
+    // o el mismo frente a T-Systems (el otro lado: vale para todas las pestañas); son excluyentes
+    else if (d.qco != null) { if (!pickCompany(m, ui, Number(d.qco), e.ctrlKey || e.metaKey, sideOps)) return; }
+    else if (d.preset) { const r = presetRange(m, d.preset); if (!r || !pickPreset(m, ui, d.preset, e.ctrlKey || e.metaKey, r, sideOps)) return; }
     else if (d.resPop != null) ui.resPop = !ui.resPop;
     else if (d.resApply != null) {
       const pop = t.closest('[data-res-popup]'), mode = pop.querySelector('input[name="res-mode"]:checked')?.value;
