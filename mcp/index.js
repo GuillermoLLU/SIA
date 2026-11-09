@@ -20,6 +20,8 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
+import os from 'node:os';
+import path from 'node:path';
 
 const SUPABASE_URL = process.env.SIA_SUPABASE_URL || '';
 const SUPABASE_KEY = process.env.SIA_SUPABASE_KEY || '';
@@ -37,18 +39,26 @@ if (typeof globalThis.WebSocket === 'undefined') {
 {
   const { fetch: undiciFetch, Agent } = await import('undici');
   const agent = new Agent({ connect: { rejectUnauthorized: false } });
-  globalThis.fetch = (url, opts = {}) => undiciFetch(url, { ...opts, dispatcher: agent });
+  // Response global: transformers solo guarda en caché lo que es instanceof Response
+  globalThis.fetch = async (url, opts = {}) => {
+    const r = await undiciFetch(url, { ...opts, dispatcher: agent });
+    return new Response(r.body, { status: r.status, statusText: r.statusText, headers: r.headers });
+  };
 }
 const supabase = HAS_DB
   ? createClient(SUPABASE_URL, SUPABASE_KEY, { global: { fetch: (u, o) => globalThis.fetch(u, o), headers: ACCESS_TOKENS ? { 'x-sia-tokens': ACCESS_TOKENS } : {} } })
   : null;
 
 // Lazy: el modelo (~120 MB) se descarga a la caché la primera vez y se reusa.
+// La caché va en ~/.sia/models y no en la de la librería (dentro de
+// node_modules): en la app instalada eso es el paquete, de solo lectura, y
+// además se borraría en cada actualización.
 let embedderPromise = null;
 const getEmbedder = () => {
-  embedderPromise ??= import('@xenova/transformers').then(({ pipeline }) =>
-    pipeline('feature-extraction', 'Xenova/multilingual-e5-small'),
-  );
+  embedderPromise ??= import('@xenova/transformers').then(({ pipeline, env }) => {
+    env.cacheDir = path.join(os.homedir(), '.sia', 'models');
+    return pipeline('feature-extraction', 'Xenova/multilingual-e5-small');
+  });
   return embedderPromise;
 };
 
