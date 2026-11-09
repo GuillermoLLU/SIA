@@ -1,6 +1,7 @@
 // La evolución del backlog día a día en el periodo (sin DOM): el backlog de cada día por prioridad y su tendencia, lo
-// que entra frente a lo atendido de eso el mismo día (flow) o frente a todo lo atendido ese día (flowAll). La enseña el
-// Histórico; el Resumen, solo el backlog de cada día (render({ only: 'backlog' })). t: lo común de las pestañas (common.js).
+// que entra frente a lo atendido de eso el mismo día (flow) o frente a todo lo atendido ese día (flowAll). El Resumen y el
+// Histórico enseñan el backlog de cada día (render({ only: 'backlog' })); Entrantes, lo que entra frente a lo atendido
+// (render({ views: ['flow', 'flowAll'] })). t: lo común de las pestañas (common.js).
 import { esc } from '../../ui/html.js';
 import { num, dec, pct, nice } from '../format.js';
 import { backlogByDay, trendOf, flowByDay, flowByShift } from '../backlog.js';
@@ -151,34 +152,37 @@ export const evolutionOf = (t) => {
 
   // La evolución del backlog, con su selector (ui.evo): el backlog de cada día (por prioridad y su tendencia), lo que
   // entra frente a lo atendido de eso mismo el día en que entró (flow) o frente a todo lo atendido ese día, también del
-  // backlog (flowAll). Comparando, una línea por lado del backlog, sin selector. Con only, solo esa vista, sin selector.
+  // backlog (flowAll). Comparando, una línea por lado del backlog, sin selector. Con only, solo esa vista, sin selector;
+  // con views, solo esas, con su selector si son varias (lo que entra frente a lo atendido, comparando, del primer lado).
   const VIEWS = [['backlog', 'Backlog', 'Evolución del backlog'], ['flow', 'Entrantes vs atendidas entrantes', 'Entrantes frente a atendidas entrantes'],
     ['flowAll', 'Entrantes vs atendidas totales', 'Entrantes frente a atendidas totales']];
   // link (el Resumen): un enlace al Histórico, debajo, con las fechas de la gráfica (data-period: las de arriba o,
   // comparando periodos, las del primero) y en su vista del backlog (data-go-evo; metrics-view.js)
   const toHistory = (range) => `<p class="mt-dn-go"><button class="mt-go" data-go="historico" data-go-evo="backlog"${range ? ` data-period="${range[0]}:${range[1]}"` : ''} data-tip="Abre el Histórico con estas mismas fechas: lo recibido en el periodo y la evolución del backlog.">Ver en Histórico →</button></p>`;
-  const evolutionCard = (all, cmp, loaded, only = null, periods = null, link = false) => {
+  const evolutionCard = (all, cmp, loaded, only = null, periods = null, link = false, views = null) => {
     if (periods && !cmp) {
       const sub = `Cuántas había abiertas al acabar ${stepOf()[2]} de cada periodo, contando desde su primer día: ${periods.map((p) => `${esc(p.label)} (${p.range ? `${m.dayName(p.range[0])} – ${m.dayName(Math.min(p.range[1], m.END_D) - DAY)}` : 'sin datos'})`).join(' frente a ')}. Pasa el ratón por un punto para ver sus cifras.`;
       return card('Evolución del backlog', `<div class="mt-evo-picks">${stepPick()}</div>${evolutionPeriods(all[CO()[0]], periods)}${link ? toHistory(periods[0].range) : ''}`, { span: 's12', sub });
     }
-    const view = cmp ? 'backlog' : only || (VIEWS.some(([k]) => k === ui.evo) ? ui.evo : 'backlog');
-    const pick = cmp || only ? '' : `<div class="mt-seg mt-seg-sm" role="group" aria-label="Qué se ve">${VIEWS.map(([k, l]) => `<button class="mt-seg-b ${k === view ? 'mt-on' : ''}" data-evo="${k}" aria-pressed="${k === view}">${l}</button>`).join('')}</div>`;
+    const shown = views ? VIEWS.filter(([k]) => views.includes(k)) : VIEWS;
+    const view = views ? (views.includes(ui.evo) ? ui.evo : views[0]) : cmp ? 'backlog' : only || (VIEWS.some(([k]) => k === ui.evo) ? ui.evo : 'backlog');
+    const pick = (cmp && !views) || only || shown.length < 2 ? '' : `<div class="mt-seg mt-seg-sm" role="group" aria-label="Qué se ve">${shown.map(([k, l]) => `<button class="mt-seg-b ${k === view ? 'mt-on' : ''}" data-evo="${k}" aria-pressed="${k === view}">${l}</button>`).join('')}</div>`;
     const list = all[CO()[0]];
     const steps = view === 'backlog' ? stepPick() : '';
-    const body = cmp ? `${legend()}${evolution(all)}` : view === 'backlog' ? evolutionStack(list) : flowChart(list, view === 'flowAll');
+    const body = view !== 'backlog' ? flowChart(list, view === 'flowAll') : cmp ? `${legend()}${evolution(all)}` : evolutionStack(list);
+    const whose = cmp && view !== 'backlog' ? ` Comparando, de ${esc(name(CO()[0]))}.` : '';
     const same = 'Cada día, lo que entró y, al lado, cuánto de eso se atendió el mismo día en que entró: pasó a Resuelta, a Pendiente de proveedor o a Pendiente de cliente (cada incidencia, una vez, en lo más avanzado: resuelta, luego proveedor, luego cliente).';
-    const sub = view === 'flow' ? `${same} Pasa el ratón por un día para ver sus cifras.`
-      : view === 'flowAll' ? `${same} Encima, en violeta, lo atendido ese día del backlog: lo que entró antes (una vez por incidencia y día). Pasa el ratón por un día para ver sus cifras.`
+    const sub = view === 'flow' ? `${same} Pasa el ratón por un día para ver sus cifras.${whose}`
+      : view === 'flowAll' ? `${same} Encima, en violeta, lo atendido ese día del backlog: lo que entró antes (una vez por incidencia y día). Pasa el ratón por un día para ver sus cifras.${whose}`
         : `Cuántas había abiertas al acabar ${stepOf()[2]} del periodo${cmp ? '' : ', por prioridad, y su tendencia'}.${loaded} Pasa el ratón por una barra para ver su cifra.`;
     return card(VIEWS.find(([k]) => k === view)[2], `<div class="mt-evo-picks">${pick}${steps}</div>` + body + (link ? toHistory([m.S.d0, m.S.d1]) : ''), { span: 's12', sub });
   };
 
   // con todo lo de ahora (se abriera cuando se abriera: lo abierto antes del periodo también cuenta en su backlog), por lado
-  // periods: comparar periodos (el Resumen), una línea por periodo; link: el enlace al Histórico
-  const render = ({ only = null, periods = null, link = false } = {}) => {
+  // periods: comparar periodos (el Resumen), una línea por periodo; link: el enlace al Histórico; views: qué vistas
+  const render = ({ only = null, periods = null, link = false, views = null } = {}) => {
     const loaded = m.S.d0 - m.MIN_D < 30 * DAY ? ` Lo cargado empieza el ${m.dayName(m.MIN_D)}: lo abierto antes no está y los primeros días salen por debajo.` : '';
-    return evolutionCard(bySide(m.today()), CMP(), loaded, only, periods, link);
+    return evolutionCard(bySide(m.today()), CMP(), loaded, only, periods, link, views);
   };
 
   // Turnos: entrantes frente a atendidas en el mismo turno, de los turnos elegidos (ui.shifts: mañana, tarde y noche;

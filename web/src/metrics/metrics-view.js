@@ -185,7 +185,7 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
   const start = (data) => {
     m = data ? createModel(data) : null;
     m?.resetPeriod();   // de partida, el año fiscal en curso (desde el 1 de febrero)
-    ui.exp = {}; ui.sort = {}; ui.jiraPick = null; ui.resCmp = null; ui.resPop = false; tab = 'resumen'; searching = false; closePops();
+    ui.exp = {}; ui.sort = {}; ui.jiraPick = null; ui.resCmp = null; ui.resPop = false; ui.cliFilter = null; tab = 'resumen'; searching = false; closePops();
     if (!m) return renderEmpty();
     tabs = createTabs(m, createCharts(m, ui), ui);
     renderFrame();
@@ -323,10 +323,12 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
 
   // La sábana, a CSV (del Resumen o de Escalados): lo que se ve ahora (filtros y lados), entero, descargado como fichero (sheet.js).
   const exportSheet = () => {
-    const escalated = tab === 'escalados', list = escalated ? ui.escSheet.list : sheetOf(m);
+    // la sábana de la pestaña: la de Escalados o la de Pendiente de cliente, con sus columnas; si no, lo abierto ahora
+    const own = { escalados: [ui.escSheet, 'incidencias-escaladas'], cliente: [ui.cliSheet, 'pendientes-de-cliente'] }[tab];
+    const list = own ? own[0].list : sheetOf(m);
     if (!list.length) return;
-    const file = escalated ? sheetFile(m, 'incidencias-escaladas') : sheetFile(m);
-    downloadText(file, sheetCsv(m, list, escalated ? ui.escSheet.cols : undefined), 'text/csv;charset=utf-8');
+    const file = own ? sheetFile(m, own[1]) : sheetFile(m);
+    downloadText(file, sheetCsv(m, list, own?.[0].cols), 'text/csv;charset=utf-8');
     toast?.(`Exportadas ${num(list.length)} incidencias a ${file}.`);
   };
 
@@ -381,7 +383,7 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     // Resumen: el pop-up de «Comparar» se cierra con un clic fuera de él (sin aplicar nada)
     const outRes = ui.resPop && !e.target.closest('.mt-res-cmp');
     if (outRes) ui.resPop = false;
-    const t = e.target.closest('[data-tab],[data-go],[data-rm],[data-exp],[data-sort],[data-evo],[data-evo-step],[data-qco],[data-preset],[data-res-pop],[data-res-apply],[data-res-clear],[data-flk],[data-shk],[data-jc],[data-jc-clear],[data-esc-mode],[data-esc-nojira],[data-only],[data-f2],[data-f]');
+    const t = e.target.closest('[data-tab],[data-go],[data-rm],[data-exp],[data-sort],[data-evo],[data-evo-step],[data-qco],[data-preset],[data-cli-f],[data-res-pop],[data-res-apply],[data-res-clear],[data-flk],[data-shk],[data-jc],[data-jc-clear],[data-esc-mode],[data-esc-nojira],[data-only],[data-f2],[data-f]');
     if (!t) { if (outRes) render(); return; }
     const d = t.dataset;
     if (d.tab || d.go) {
@@ -400,6 +402,8 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     // La barra de arriba (quick-bar.js): la empresa y las fechas rápidas (con Ctrl, o Cmd, se comparan con lo elegido) y
     // «Comparar»: abrir o cerrar su pop-up y aplicar lo elegido en él. Un periodo frente a otro (ui.resCmp, del Resumen)
     // o el mismo frente a T-Systems (el otro lado: vale para todas las pestañas); son excluyentes
+    // Pendiente de cliente: filtrar su sábana por un KPI o un motivo (otra vez, o vacío, lo quita)
+    else if (d.cliF != null) ui.cliFilter = !d.cliF || ui.cliFilter === d.cliF ? null : d.cliF;
     else if (d.qco != null) { if (!pickCompany(m, ui, Number(d.qco), e.ctrlKey || e.metaKey, sideOps)) return; }
     else if (d.preset) { const r = presetRange(m, d.preset); if (!r || !pickPreset(m, ui, d.preset, e.ctrlKey || e.metaKey, r, sideOps)) return; }
     else if (d.resPop != null) ui.resPop = !ui.resPop;

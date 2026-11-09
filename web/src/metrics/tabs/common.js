@@ -13,9 +13,10 @@ import { late as lateOf, isOld, escalated as escalatedOf } from '../backlog.js';
 import { blockHead, blocksOf } from '../pieces.js';
 import { perHead as perHeadOf, solved as solvedOf } from '../resolution.js';
 
-export const TABS = [['resumen', 'Resumen'], ['hoy', 'Foto de hoy'], ['historico', 'Histórico'], ['entrada', 'Entrada'], ['backlog', 'Backlog'], ['modulos', 'Módulos y focos'],
-  ['resolucion', 'Resolución'], ['tiempos', 'Análisis tiempos'], ['escalados', 'Escalados'], ['sla', 'SLA y calidad'], ['calidad', 'Calidad'],
-  ['ia', 'Uso de la IA'], ['turnos', 'Turnos']];
+// el orden: primero las que se miran a diario (de Resumen a Histórico); el resto, de momento, en el de antes
+export const TABS = [['resumen', 'Resumen'], ['hoy', 'Foto de hoy'], ['escalados', 'Escalados'], ['cliente', 'Pendiente de cliente'],
+  ['entrada', 'Entrantes'], ['tiempos', 'Análisis tiempos'], ['calidad', 'Calidad'], ['ia', 'Uso de la IA'], ['historico', 'Histórico'],
+  ['backlog', 'Backlog'], ['modulos', 'Módulos y focos'], ['resolucion', 'Resolución'], ['sla', 'SLA y calidad'], ['turnos', 'Turnos']];
 export const QUESTIONS = {
   resumen: ['¿Cómo vamos?', 'De un vistazo: en qué estado está lo abierto ahora y, de lo recibido en el periodo, el MTTR, el %IQA y el uso de la IA. El detalle, en cada pestaña.'],
   hoy: ['¿Cómo está hoy?', 'Cómo está el backlog ahora: en qué estado, desde cuándo, y de qué. Lo recibido en el periodo y cómo ha ido el backlog día a día, en el Histórico.'],
@@ -24,6 +25,7 @@ export const QUESTIONS = {
   backlog: ['¿Qué tenemos pendiente?', 'Lo recibido en el periodo que sigue sin resolver: en qué punto está, desde cuándo y qué conviene vigilar.'],
   modulos: ['¿De dónde viene?', 'Los módulos, centros y problemas que concentran el trabajo, y lo que se repite.'],
   resolucion: ['¿Cómo lo resolvemos?', 'Cuánto tardamos, en qué se va el tiempo, y qué módulos tardan más. Tiempos de lo resuelto, en tiempo natural.'],
+  cliente: ['¿Qué esperamos del cliente?', 'Lo que está ahora en Pendiente del centro o del cliente, a fecha de la última carga y sea cual sea el periodo: cuánto, desde cuándo, si lo estamos reclamando y por qué esperamos.'],
   tiempos: ['¿En qué se nos va el tiempo?', 'El análisis de los tiempos del servicio, empezando por el MTTR. En construcción.'],
   calidad: ['¿Cómo de bien queda el trabajo?', 'La calidad del trabajo, empezando por el %IQA (la nota del agente de calidad, tarea #55). En construcción.'],
   escalados: ['¿Qué escalamos y a quién?', 'En Activas, lo escalado que sigue abierto (a fecha de la última carga, sea cual sea el periodo); en Histórico, lo escalado y resuelto del periodo. Cuánto tarda, a qué proyectos Jira se escala y los malos escalados: tickets que se descartan o pasan de un equipo a otro.'],

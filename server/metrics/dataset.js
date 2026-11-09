@@ -35,9 +35,13 @@
 //           the/tes/tcr/tsr THesc, Tesc, Tcr y Tesc-r con sus tickets Jira (escalation.js; minutos, -1 no hay,
 //           the -2 ticket previo); fl lleva además las marcas de sin Jira válido, cerrada con el Jira abierto,
 //           cerrada en Remedy antes que su Jira y mal escalada (algún Jira suyo descartado o que pasó de un equipo a otro)
+//           nC veces que pasó a Pendiente de cliente · pn nuestra última nota pública (minutos desde el 1 de enero de
+//           start; -1 ninguna) y pm su motivo (pending-reason.js, PENDING_REASONS; 0 sin nota): de alguien del equipo
+//           (dict.person), aproximando lo público (pending-reason.js, isPublicNote)
 //           hQ/hI/hPc/hPo el THesc de las escaladas repartido por estados (en cola, en curso, esperando al centro y
 //           otras esperas, también de un tercero; minutos, -1 no hay): lo de antes del primer Jira, que suma su THesc
 import { readIssue, minutesSince, timeUntil, FLAG } from './remedy.js';
+import { PENDING_REASONS } from './pending-reason.js';
 import { loginsOf, companyOf } from './companies.js';
 import { sessionsOf } from './sessions.js';
 import { THEME_NAMES, problemKey } from './themes.js';
@@ -45,7 +49,7 @@ import { PENDING, OPEN_STATES } from './states.js';
 import { escalationOf } from './escalation.js';
 
 export const GROUP = 'AYS SOPORTE';
-export const FORMAT = 15;
+export const FORMAT = 16;
 // el proyecto Jira con muchos equipos: a quién se escala, su equipo (vp: «ITSMECOM · N2 Courier Support»)
 export const TEAM_PROJECT = 'ITSMECOM';
 
@@ -76,7 +80,7 @@ const dictionary = () => {
 };
 
 const COLS = ['id', 'rep', 'res', 'lm', 'st', 'rs', 'pr', 'sv', 'as', 'ce', 'op', 'mo', 'k3', 'sc', 'fl', 'vt', 'vp', 'vk', 'vn',
-  'fr', 'ip', 'tA', 'tI', 'tPc', 'tPv', 'tPo', 'nb', 'np', 'th', 'su', 'de', 'eR', 'eV', 'eC', 'sR', 'sV', 'sC'];
+  'fr', 'ip', 'tA', 'tI', 'tPc', 'tPv', 'tPo', 'nb', 'np', 'nC', 'th', 'su', 'de', 'eR', 'eV', 'eC', 'sR', 'sV', 'sC'];
 // los días (desde el 1 de enero de start) de cada evento de una issue, sin repetir: una vez por issue, tipo y día
 const daysOf = (mins) => [...new Set(mins.filter((t) => t >= 0).map((t) => Math.floor(t / 1440)))];
 // y de cada turno de 8 h desde las 7:00 (mañana de 7 a 15, tarde de 15 a 23 y noche de 23 a 7: web shifts.js, slotOf)
@@ -88,7 +92,7 @@ export const createDataset = ({ start }) => {
   const D = Object.fromEntries(['status', 'reason', 'prio', 'svc', 'person', 'centre', 'op', 'module', 'cat', 'vtype', 'vproj', 'vkey', 'vtext', 'vhops', 'resol', 'problem'].map((k) => [k, dictionary()]));
   const cols = Object.fromEntries(COLS.map((c) => [c, []]));
   const resolutions = [], resolutionCount = new Map(), resolvers = new Map();
-  const stepsByRow = [], actionsBy = new Map();   // los pasos y las acciones, con el autor tal cual: la persona se sabe en build
+  const stepsByRow = [], actionsBy = new Map(), notesByRow = [];   // los pasos y las acciones, con el autor tal cual: la persona se sabe en build
   const spellings = [];   // por problema: cuántas veces se escribe de cada forma
   const jira = [], keys = new Set(), spans = [];   // las claves Jira de cada issue (las cuentas de escalado se hacen en build)
   let total = 0, snapshot = 0, first = Infinity, last = -1;
@@ -118,12 +122,13 @@ export const createDataset = ({ start }) => {
       sv: D.svc.id(i.service), as: D.person.id(i.assignee), ce: D.centre.id(i.centre), op: D.op.id(i.operation), mo: D.module.id(i.module),
       k3: D.cat.id(i.category), sc: i.scope, fl: i.flags, vt: D.vtype.id(i.vendor.type), vp: D.vproj.id(i.vendor.project), vk: D.vkey.id(i.vendor.key), vn: D.vtext.id(i.vendorText),
       fr: i.first, ip: i.start, tA: i.time.queue, tI: i.time.work, tPc: i.time.client, tPv: i.time.vendor, tPo: i.time.other,
-      nb: i.bounces, np: i.pendings, th: i.themes, su: own(i.title), de,
+      nb: i.bounces, np: i.pendings, nC: i.clientPendings, th: i.themes, su: own(i.title), de,
       eR: daysOf(i.events.resolved), eV: daysOf(i.events.vendor), eC: daysOf(i.events.client),
       sR: slotsOf(i.events.resolved), sV: slotsOf(i.events.vendor), sC: slotsOf(i.events.client),
     };
     for (const c of COLS) cols[c].push(row[c]);
     stepsByRow.push(i.steps);
+    notesByRow.push(i.publicNotes);
     for (const [t, who] of i.actions) { const l = actionsBy.get(who); if (l) l.push(t); else actionsBy.set(who, [t]); }
     const open = OPEN_STATES.includes(i.status);
     jira.push({ keys: i.jira, open });
@@ -166,6 +171,10 @@ export const createDataset = ({ start }) => {
     const people = D.person.values, ids = new Map(people.map((name, n) => [name, n]));
     // el autor viene por usuario o por nombre; las cuentas de sistema y quien no es de la lista, de nadie (0)
     const personOf = (who) => ids.get(byLogin.get(who) ?? who) || 0;
+    // nuestra última nota pública: la última de alguien del equipo (personOf), con su motivo
+    const lastOurs = notesByRow.map((notes) => notes.filter(([, who]) => personOf(who)).reduce((a, b) => (!a || b[0] >= a[0] ? b : a), null));
+    cols.pn = lastOurs.map((n) => (n ? n[0] : -1));
+    cols.pm = lastOurs.map((n) => (n ? n[2] : 0));
     cols.sp = stepsByRow.map((steps) => steps.filter(([, t]) => t >= 0).map(([kind, t, who]) => [kind, t, personOf(who)]).filter(([, , p]) => p));
     const actionsOf = people.map(() => []);
     for (const [who, times] of actionsBy) { const p = personOf(who); if (p) actionsOf[p].push(...times); }
@@ -176,6 +185,7 @@ export const createDataset = ({ start }) => {
       dict,
       themes: THEME_NAMES,
       reasons: PENDING,
+      pendingReasons: PENDING_REASONS,   // los motivos de Pendiente de cliente (cols.pm)
       company: people.map((name) => companyOf(name, logins.get(name) || [])),
       sessions: actionsOf.map(sessionsOf),
       cols,

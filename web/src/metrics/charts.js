@@ -40,13 +40,19 @@ export const createCharts = (m, ui) => {
     // o.pair: comparar ST[0] con ST[1] aunque no se comparen lados (el Resumen: el periodo con el anterior). o.go:
     // [pestaña, nombre], un enlace a esa pestaña debajo, como el de la corona («Ver … →»; metrics-view.js, data-go)
     const go = o.go ? `<p class="mt-kpi-go"><button class="mt-go" data-go="${o.go[0]}">Ver ${esc(o.go[1])} →</button></p>` : '';
-    if (!CMP() && !o.pair) { const k = CO()[0]; return kpi(label, fmt(ST[k]), (o.note || '') + go, `mt-t${k}`); }
+    // o.pctSign: la diferencia de un porcentaje, con «%» en vez de «pts» (son puntos: 41 % frente a 53 %, «−12 %»).
+    // o.tip: la definición (o.note), al pasar el ratón por el KPI en vez de debajo. o.pick: el KPI se pincha para
+    // filtrar ({ attr: su data-…, on: si está filtrando }; quien lo pinta dice qué hace el clic)
+    const tip = o.tip && o.note ? o.note + (o.pick ? `\n${o.pick.on ? 'Clic para quitar el filtro.' : 'Clic para ver solo estas.'}` : '') : '';
+    const pickCls = o.pick ? ` mt-clk${o.pick.on ? ' mt-on' : ''}` : '';
+    const attrs = [tip ? `data-tip="${esc(tip)}"` : '', o.pick ? `${o.pick.attr} role="button" tabindex="0" aria-pressed="${!!o.pick.on}"` : ''].filter(Boolean).join(' ');
+    if (!CMP() && !o.pair) { const k = CO()[0]; return kpi(label, fmt(ST[k]), (o.tip ? '' : o.note || '') + go, `mt-t${k}${pickCls}`, attrs); }
     const f = compareFigure(ST[0], ST[1], fmt, o.val, o.better);
     const nm = (k) => o.names?.[k] || name(k);   // o.names: otro nombre para cada lado en esta cifra
     // o.side: cómo se ve la cifra de cada lado, si no como fmt (que es lo que se compara: solo el valor)
     const side = (k) => `<div class="mt-kpi-s"><i class="mt-c${k}"></i><span title="${esc(nm(k))}">${esc(nm(k))}</span><b>${ST[k].n ? (o.side || fmt)(ST[k]) : '—'}</b></div>`;
-    return `<div class="mt-kpi mt-kpi-co"><div class="mt-kpi-l" ${o.note ? `data-tip="${esc(o.note)}"` : ''}>${label}</div>
-      <div class="mt-kpi-v ${f ? `mt-diff ${f.cls}` : 'mt-mut'}">${f ? (f.pts || f.main) : '—'}</div>${side(0)}${side(1)}${go}</div>`;
+    return `<div class="mt-kpi mt-kpi-co${pickCls}"${attrs ? ` ${attrs}` : ''}><div class="mt-kpi-l" ${o.note && !o.tip ? `data-tip="${esc(o.note)}"` : ''}>${label}</div>
+      <div class="mt-kpi-v ${f ? `mt-diff ${f.cls}` : 'mt-mut'}">${f ? (o.pctSign && f.pts ? f.pts.replace(/ pts$/, ' %') : f.pts || f.main) : '—'}</div>${side(0)}${side(1)}${go}</div>`;
   };
 
   // Líneas de evolución en el periodo que se mira, una por lado: por meses o, si es de un mes o menos, por días

@@ -1,10 +1,12 @@
-// Entrada: lo que entra, cómo se va cerrando y lo que queda pendiente, con tablas que cuadran (flow.js):
-// cada una con su total, y los totales iguales a las cifras de arriba.
+// Entrantes: lo que entra, cómo se va cerrando y lo que queda pendiente, con tablas que cuadran (flow.js):
+// cada una con su total, y los totales iguales a las cifras de arriba. Debajo de las cifras, lo que entra frente a lo
+// atendido día a día: de lo que entró, o de todo (evolucion.js; antes, en el Histórico).
 import { num, dec, pct, nice } from '../format.js';
 import { CARDS } from '../model.js';
 import { OLD_DAYS } from '../rules.js';
 import { closedInPeriod as closedIn, ledger as ledgerOf } from '../flow.js';
 import { opt } from './common.js';
+import { evolutionOf } from './evolucion.js';
 
 const PLURAL = { CRITICAL: 'Críticas', HIGH: 'Altas', MEDIUM: 'Medias', LOW: 'Bajas' };
 
@@ -55,6 +57,7 @@ export const entradaTab = (t) => {
   const { m, ch, grid, ask, REQ, slaPct, heads, monthRows, prioRows, asRows, shareOf, table, cardsOf, days, topRows, volume, teamNames, headsNote, mixCmp, pairTable } = t;
   const { C, DI, S, PRIOS, slaLabel, CMP, stats, bySide } = m;
   const { card, kpis, kpiCo, matrix } = ch;
+  const evolution = evolutionOf(t);
   const ledgerCmp = (units, per, day) => {
     const pp = m.perHead(), H = heads(), groups = LEDGER_CMP[pp ? 'pp' : 'co'];
     const dayText = (x) => (day ? x.replace('pasó en el mes', 'pasó en el día').replace('ese mes', 'ese día').replace('en el mes', 'el mismo día').replace('meses anteriores', 'días anteriores').replace('acabar el mes', 'acabar el día').replace('el mismo mes', 'el mismo día') : x);
@@ -91,9 +94,9 @@ export const entradaTab = (t) => {
     return grid(ask('entrada'),
       kpis(kpiCo(`Recibidas${each}`, volume(T), (s) => num(Math.round(s.v)), { val: (s) => Math.round(s.v), note: `abiertas en el periodo${headsNote()}`, names: teamNames() }),
         kpiCo(`Entran al día${each}`, volume(T, d), (s) => dec(s.v), { val: (s) => s.v, note: `de media, en días naturales${headsNote()}`, names: teamNames() }),
-        kpiCo(`Cerramos al día${each}`, volume(closed, d), (s) => dec(s.v), { val: (s) => s.v, note: `de media, todo lo cerrado en el periodo${headsNote()}`, names: teamNames() }),
-        ...PRIOS.map((p) => kpiCo(`% ${PLURAL[DI.prio[p]] || nice(DI.prio[p])}`, ST.map((s) => ({ n: s.n, v: s.n ? s.prio[p] / s.n : null })), sharePct, { val: (s) => s.v, note: `SLA de inicio: ${slaLabel(p).split(' · ')[1]}` })),
-        kpiCo('% Peticiones', shareOf(T, (i) => C.sv[i] === REQ), sharePct, { val: (s) => s.v, note: 'de usuario' })),
+        kpiCo(`Resolvemos al día${each}`, volume(closed, d), (s) => dec(s.v), { val: (s) => s.v, note: `de media, todo lo resuelto o cerrado en el periodo${headsNote()}`, names: teamNames() }),
+        ...PRIOS.map((p) => kpiCo(`% ${PLURAL[DI.prio[p]] || nice(DI.prio[p])}`, ST.map((s) => ({ n: s.n, v: s.n ? s.prio[p] / s.n : null })), sharePct, { val: (s) => s.v, pctSign: true, note: `SLA de inicio: ${slaLabel(p).split(' · ')[1]}` }))),
+      evolution({ views: ['flow', 'flowAll'] }),
       card(m.daily() ? 'Día a día: lo que entra, lo que se cierra y lo que queda' : 'Mes a mes: lo que entra, lo que se cierra y lo que queda', ledger(A),
         { span: 's12', sub: CMP() ? '' : `«Por cerrar»: de lo recibido cada mes, lo que sigue abierto hoy; su total son las pendientes de la pestaña Backlog. Pasa el ratón por una cabecera para ver qué cuenta.${S.from === S.to ? '' : ' Clic en un mes para filtrar; con un solo mes, día a día.'}` }),
       CMP() ? card('Qué recibe cada uno', mixCmp(inRows, A), { span: 's12' })

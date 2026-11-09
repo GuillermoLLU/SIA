@@ -28,12 +28,12 @@ test('Resumen: la corona de Foto de hoy (lo abierto ahora) y, del periodo, MTTR,
   assert.equal(ring(html).replace(toHoy, ''), ring(hoy));
   assert.ok(html.indexOf('En qué estado está') < html.indexOf('>MTTR<'));
   // cada KPI, con un enlace a su pestaña debajo, como el de la corona: MTTR a Análisis tiempos, %IQA a Calidad y Uso de
-  // la IA a Uso de la IA; Entrantes, sin enlace
+  // la IA a Uso de la IA y Entrantes a Entrantes
   const kpiHtml = (label) => { const a = html.indexOf(`>${label}</div>`); return html.slice(a, html.indexOf('<div class="mt-kpi ', a)); };
   assert.match(kpiHtml('MTTR'), /<p class="mt-kpi-go"><button class="mt-go" data-go="tiempos">Ver Análisis tiempos →<\/button><\/p>/);
   assert.match(kpiHtml('%IQA'), /<button class="mt-go" data-go="calidad">Ver Calidad →<\/button>/);
   assert.match(html, /<button class="mt-go" data-go="ia">Ver Uso de la IA →<\/button>/);
-  assert.doesNotMatch(kpiHtml('Entrantes'), /data-go/);
+  assert.match(kpiHtml('Entrantes'), /<p class="mt-kpi-go"><button class="mt-go" data-go="entrada">Ver Entrantes →<\/button><\/p>/);
   assert.doesNotMatch(html, /mt-clk mt-kpi-go|role="link"/);   // el KPI ya no se pincha entero
   const A = m.rows();
   assert.equal(kpiOf(html, 'MTTR'), dur(mttrOf(m, A).mttr));
@@ -43,7 +43,7 @@ test('Resumen: la corona de Foto de hoy (lo abierto ahora) y, del periodo, MTTR,
   // Entrantes (el primer KPI): las que entraron en el periodo y, debajo, cuántas de esas están resueltas
   const solvedN = A.filter((i) => m.DIMS.tb.get(i) < 8).length;
   assert.equal(kpiOf(html, 'Entrantes'), String(A.length));
-  assert.match(html, new RegExp(`<div class="mt-kpi-d">${solvedN} resueltas \\(${pct(solvedN / A.length)}\\)</div>`));
+  assert.match(html, new RegExp(`<div class="mt-kpi-d">${solvedN} resueltas \\(${pct(solvedN / A.length)}\\)<p class="mt-kpi-go">`));
   assert.ok(html.indexOf('>Entrantes<') < html.indexOf('>MTTR<'));
   // las fechas, arriba y fuera de las tarjetas (abren el calendario de arriba); en la misma fila, la corona (s4) y, a su
   // derecha, los KPIs (s8); abajo del todo, el backlog de cada día, en barras por prioridad y sin selector de vista
@@ -116,7 +116,7 @@ test('Resumen, comparando: la corona de cada lado y cada KPI con los dos lados',
   assert.match(inc, /<div class="mt-kpi-v mt-diff">\+2 <small class="mt-mut">· \+1 res\.<\/small><\/div>/);
   assert.doesNotMatch(inc, /%|pts|good|bad/);
   assert.match(html, /<section class="mt-card mt-s12 [^"]*"><h3>Del periodo<\/h3>/);   // comparando, debajo de la corona
-  assert.equal((html.match(/<p class="mt-kpi-go">/g) || []).length, 3);   // los enlaces, también comparando
+  assert.equal((html.match(/<p class="mt-kpi-go">/g) || []).length, 4);   // los enlaces, también comparando (Entrantes incluido)
   assert.match(html.slice(html.indexOf('<h3>Evolución del backlog</h3>')), /<polyline class="mt-line mt-s0"[\s\S]*<polyline class="mt-line mt-s1"/);   // una línea por lado
   assert.doesNotMatch(html, /undefined|NaN/);
 });
@@ -126,6 +126,7 @@ test('Análisis tiempos y Calidad: pestañas nuevas, vacías por ahora; IA pasa 
   const label = (k) => TABS.find(([x]) => x === k)?.[1];
   assert.equal(label('tiempos'), 'Análisis tiempos');
   assert.equal(label('calidad'), 'Calidad');
+  assert.equal(label('cliente'), 'Pendiente de cliente');   // ya con contenido: cliente.test.js
   assert.equal(label('ia'), 'Uso de la IA');
   for (const k of ['tiempos', 'calidad']) {
     const html = tabs.render(k, m.rows());

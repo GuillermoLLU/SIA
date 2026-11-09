@@ -93,19 +93,26 @@ test('el backlog ahora, comparando: las cifras de cada lado y una tabla de dos l
   assert.equal((cut(render([{ company: 0 }, { company: 1 }], 'historico'), '<h3>Evolución del backlog</h3>').match(/<polyline class="mt-line mt-s\d"/g) || []).length, 2);
 });
 
-test('la evolución, en el Histórico, con su selector: el backlog (de partida), entrantes vs atendidas entrantes o vs atendidas totales', () => {
+test('entrantes vs atendidas, en Entrantes (ya no en el Histórico), con su selector: atendidas entrantes (de partida) o totales', () => {
   const run = (evo) => {
     const d = data();
     d.cols.eV[0] = [5];   // la crítica de Indra, que entró el día 0, pasa a proveedor el 5: atendida del backlog
     const m = createModel(d); m.S.sides = [{ company: 0 }, null]; m.refilter();
-    const ui = { exp: {}, sort: {}, evo }, html = createTabs(m, createCharts(m, ui), ui).render('historico', m.rows());
-    const a = html.indexOf('data-evo="backlog"');
-    return html.slice(html.lastIndexOf('<section', a), html.indexOf('</section>', a));
+    const ui = { exp: {}, sort: {}, evo }, tabs = createTabs(m, createCharts(m, ui), ui), html = tabs.render('entrada', m.rows());
+    const a = html.indexOf('data-evo="flow"');
+    return { sec: html.slice(html.lastIndexOf('<section', a), html.indexOf('</section>', a)), hist: tabs.render('historico', m.rows()), html };
   };
-  const back = run(undefined), flow = run('flow'), all = run('flowAll');
+  const first = run(undefined), back = first.sec, flow = run('flow').sec, all = run('flowAll').sec;
+  // de partida (y con el backlog elegido en otra pestaña), atendidas entrantes; el selector, sin el backlog
   assert.deepEqual([...back.matchAll(/<button class="mt-seg-b ([^"]*)" data-evo="(\w+)"[^>]*>([^<]*)<\/button>/g)].map((x) => [x[2], x[3], x[1] === 'mt-on']),
-    [['backlog', 'Backlog', true], ['flow', 'Entrantes vs atendidas entrantes', false], ['flowAll', 'Entrantes vs atendidas totales', false]]);
-  assert.match(back, /<h3>Evolución del backlog<\/h3>/);
+    [['flow', 'Entrantes vs atendidas entrantes', true], ['flowAll', 'Entrantes vs atendidas totales', false]]);
+  assert.match(run('backlog').sec, /data-evo="flow" aria-pressed="true"/);
+  // debajo de las cifras de arriba, antes de la tabla mes a mes
+  assert.ok(first.html.indexOf('% Bajas') < first.html.indexOf('data-evo="flow"'));
+  assert.ok(first.html.indexOf('data-evo="flow"') < first.html.indexOf('lo que entra, lo que se cierra y lo que queda'));
+  // el Histórico, solo con el backlog y sin selector de vista
+  assert.match(first.hist, /<h3>Evolución del backlog<\/h3>/);
+  assert.doesNotMatch(first.hist, /data-evo=|Entrantes frente a atendidas/);
   // entrantes vs atendidas entrantes: Indra, entran 3 (la crítica, la baja y la media) y se resuelven el mismo día 2
   assert.match(flow, /<h3>Entrantes frente a atendidas entrantes<\/h3>/);
   assert.match(flow, /En el periodo: 3 entrantes · 2 atendidas el día que entraron \(67 %\)<\/span>/);
@@ -123,8 +130,8 @@ test('la evolución, en el Histórico, con su selector: el backlog (de partida),
 test('entrantes vs atendidas: cada serie de lo atendido se enciende y se apaga en la leyenda', () => {
   const run = (flowOff) => {
     const m = createModel(data()); m.S.sides = [{ company: 0 }, null]; m.refilter();
-    const ui = { exp: {}, sort: {}, evo: 'flow', flowOff }, html = createTabs(m, createCharts(m, ui), ui).render('historico', m.rows());
-    const a = html.indexOf('data-evo="backlog"');
+    const ui = { exp: {}, sort: {}, evo: 'flow', flowOff }, html = createTabs(m, createCharts(m, ui), ui).render('entrada', m.rows());
+    const a = html.indexOf('data-evo="flow"');
     return html.slice(html.lastIndexOf('<section', a), html.indexOf('</section>', a));
   };
   const on = run(undefined), off = run({ res: true });
@@ -143,8 +150,8 @@ test('vs atendidas totales: lo del backlog sigue a lo que se mira (sin resueltas
     const d = data();
     d.cols.eV[0] = [5]; d.cols.eR[0] = [0, 6];   // la crítica de Indra: a proveedor el día 5 y otra vez resuelta el 6
     const m = createModel(d); m.S.sides = [{ company: 0 }, null]; m.refilter();
-    const ui = { exp: {}, sort: {}, evo: 'flowAll', flowOff }, html = createTabs(m, createCharts(m, ui), ui).render('historico', m.rows());
-    const a = html.indexOf('data-evo="backlog"');
+    const ui = { exp: {}, sort: {}, evo: 'flowAll', flowOff }, html = createTabs(m, createCharts(m, ui), ui).render('entrada', m.rows());
+    const a = html.indexOf('data-evo="flow"');
     return html.slice(html.lastIndexOf('<section', a), html.indexOf('</section>', a));
   };
   assert.match(run(undefined), / · 2 del backlog<\/span>/);

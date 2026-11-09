@@ -9,6 +9,7 @@ import { readTitle } from './themes.js';
 import { entries } from '../shared/remedy-entries.js';
 import { fold, norm, key, toCode } from './text.js';
 import { OPEN_STATES, DONE_STATES, CANCELLED, PENDING } from './states.js';
+import { isPublicNote, reasonOf } from './pending-reason.js';
 
 // Marcas de una issue (bits de `flags`). La web las nombra con los mismos bits.
 export const FLAG = {
@@ -195,6 +196,10 @@ export const readIssue = (r, base) => {
     vendor: vendorOf(r.VENDORTICKETNUMBER), vendorText: r.VENDORTICKETNUMBER.trim(),
     jira: jiraKeys(r.VENDORTICKETNUMBER, r.WORKLOG_DETAIL),
     first: h.first, start: h.start, time: h.time, bounces: h.bounces, pendings: h.pendings,
+    // las veces que pasó a Pendiente de cliente (los rebotes, si son 2 o más) y las notas que se leen como públicas
+    // (pending-reason.js), con su motivo: [instante, autor, motivo]; de quién son se sabe al montar los datos
+    clientPendings: h.events.client.length,
+    publicNotes: entries(r.WORKLOG_DETAIL).filter((e) => isPublicNote(e.who, e.text)).map((e) => [at(e.at), e.who, reasonOf(e.text)]).filter(([t]) => t >= 0),
     resolvedBy: h.resolvedBy, events: h.events, steps: h.steps, spans: h.spans,
     // todo lo que hace cada uno en la issue, cambios y notas, para sus sesiones (sessions.js): [instante, quién]
     actions: [...entries(r.AUDIT_DETAIL), ...entries(r.WORKLOG_DETAIL)].map((e) => [at(e.at), e.who]).filter(([t]) => t >= 0),

@@ -42,7 +42,7 @@ export const historicoTab = (t) => {
     // eR, eV, eC, los días en que pasó), se abrieran cuando se abrieran: cada incidencia, una vez por día
     const NOW = bySide(m.today()), a0 = m.S.d0, a1 = Math.min(m.S.d1, m.END_D);
     const moves = (col) => NOW.map((l) => ({ n: l.length, v: l.reduce((s, i) => s + new Set((C[col]?.[i] || []).filter((e) => e * DAY >= a0 && e * DAY < a1)).size, 0) / d }));
-    return grid(ask('historico'), evolution(),
+    return grid(ask('historico'), evolution({ only: 'backlog' }),
       `<div class="mt-answers">${[
         answer(['entrada', 'backlog'], [
           fig('Recibidas', ST, (s) => num(s.n), sv('n')),

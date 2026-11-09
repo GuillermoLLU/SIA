@@ -92,3 +92,23 @@ test('add dice si la incidencia entra en el informe (la misma regla que reportCo
   assert.equal(ds.add(row({ INCIDENTNUMBER: 'INC000000000003', TAGS: 'AUTOTEC' })), false);
   assert.equal(ds.add(row({ INCIDENTNUMBER: 'INC000000000004', TAGS: 'SISUINC' })), true);
 });
+
+test('Pendiente de cliente: las veces que entró (nC) y nuestra última nota pública (pn) con su motivo (pm)', () => {
+  const ds = createDataset({ start: 2026 });
+  const when = (h) => `2026-03-01 ${h}:00.000`;
+  ds.add(row({
+    STATUS: 'PENDING',
+    AUDIT_DETAIL: [`${when('10:00')} - ANAL - Status_Reason:  → Client Action Required`, `${when('12:00')} - ANAL - Status_Reason: Client Action Required → `,
+      `${when('13:00')} - ANAL - Status_Reason:  → Client Action Required`].join(' | '),
+    WORKLOG_DETAIL: [`${when('10:05')} - ANA LOPEZ - ¿Nos podéis enviar una captura?`, `${when('10:30')} - ANA LOPEZ - [ANALISIS] interno`,
+      `${when('11:00')} - pepe.centro - Os la adjunto`, `${when('13:05')} - ANA LOPEZ - Aplicado el workaround: ¿podéis validar?`,
+      `${when('14:00')} - logsup.ia - Resumen de la IA`].join(' | '),
+  }));
+  ds.add(row({ INCIDENTNUMBER: 'INC000000000002', WORKLOG_DETAIL: `${when('09:00')} - pepe.centro - Hola` }));   // ninguna nuestra
+  const out = ds.build({ file: 'x', generated: 'g' });
+  const at = (h) => (Date.UTC(2026, 2, 1, Number(h.slice(0, 2)), Number(h.slice(3))) - Date.UTC(2026, 0, 1)) / 6e4;
+  assert.deepEqual(out.cols.nC, [2, 0]);
+  assert.deepEqual(out.cols.pn, [at('13:05'), -1]);   // la última de alguien del equipo; ni la interna, ni la del centro, ni la de la IA
+  assert.deepEqual(out.cols.pm, [2, 0]);              // validación de solución/workaround; sin nota pública
+  assert.equal(out.pendingReasons[2], 'Validación de solución/workaround');
+});
