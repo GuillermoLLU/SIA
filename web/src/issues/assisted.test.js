@@ -5,7 +5,7 @@ import { assistedPlan, originOf } from './assisted.js';
 const LAUNCHERS = [{ id: 'claude', label: 'Claude', available: true }, { id: 'copilot', label: 'Copilot', available: false }];
 const PROJECTS = [{ id: 5, name: 'SISU' }, { id: 6, name: 'SGA' }];
 
-test('el origen de la issue decide el conocimiento', () => {
+test('el origen de la incidencia decide el conocimiento', () => {
   assert.equal(originOf({ sisu: true }), 'SISU');
   assert.equal(originOf({ sisu: false }), 'SGA');
 });

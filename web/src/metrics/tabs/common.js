@@ -14,7 +14,8 @@ import { blockHead, blocksOf } from '../pieces.js';
 import { perHead as perHeadOf, solved as solvedOf } from '../resolution.js';
 
 export const TABS = [['resumen', 'Resumen'], ['hoy', 'Foto de hoy'], ['historico', 'Histórico'], ['entrada', 'Entrada'], ['backlog', 'Backlog'], ['modulos', 'Módulos y focos'],
-  ['resolucion', 'Resolución'], ['escalados', 'Escalados'], ['sla', 'SLA y calidad'], ['ia', 'IA'], ['turnos', 'Turnos']];
+  ['resolucion', 'Resolución'], ['tiempos', 'Análisis tiempos'], ['escalados', 'Escalados'], ['sla', 'SLA y calidad'], ['calidad', 'Calidad'],
+  ['ia', 'Uso de la IA'], ['turnos', 'Turnos']];
 export const QUESTIONS = {
   resumen: ['¿Cómo vamos?', 'De un vistazo: en qué estado está lo abierto ahora y, de lo recibido en el periodo, el MTTR, el %IQA y el uso de la IA. El detalle, en cada pestaña.'],
   hoy: ['¿Cómo está hoy?', 'Cómo está el backlog ahora: en qué estado, desde cuándo, y de qué. Lo recibido en el periodo y cómo ha ido el backlog día a día, en el Histórico.'],
@@ -23,16 +24,18 @@ export const QUESTIONS = {
   backlog: ['¿Qué tenemos pendiente?', 'Lo recibido en el periodo que sigue sin resolver: en qué punto está, desde cuándo y qué conviene vigilar.'],
   modulos: ['¿De dónde viene?', 'Los módulos, centros y problemas que concentran el trabajo, y lo que se repite.'],
   resolucion: ['¿Cómo lo resolvemos?', 'Cuánto tardamos, en qué se va el tiempo, y qué módulos tardan más. Tiempos de lo resuelto, en tiempo natural.'],
+  tiempos: ['¿En qué se nos va el tiempo?', 'El análisis de los tiempos del servicio, empezando por el MTTR. En construcción.'],
+  calidad: ['¿Cómo de bien queda el trabajo?', 'La calidad del trabajo, empezando por el %IQA (la nota del agente de calidad, tarea #55). En construcción.'],
   escalados: ['¿Qué escalamos y a quién?', 'En Activas, lo escalado que sigue abierto (a fecha de la última carga, sea cual sea el periodo); en Histórico, lo escalado y resuelto del periodo. Cuánto tarda, a qué proyectos Jira se escala y los malos escalados: tickets que se descartan o pasan de un equipo a otro.'],
   sla: ['¿Cómo de bien lo hacemos?', `Si empezamos a tiempo (SLA de inicio: de la apertura al primer paso a En curso, en tiempo natural; ${slaText()}), si el trabajo queda bien hecho y si queda bien registrado.`],
-  ia: ['¿Cuánto usamos la IA y cómo sale?', 'Por las marcas de IA de Remedy: en TAGS (IA_SOLVED…, IA_FAIL) y en las notas ([ACT IA], [INFORME IA], notas del agente de IA, [HITL_REVIEW_OK], [HITL_REVIEW_NOT_OK], [IA_FAIL]…). Una issue con IA puede estar revisada OK, con fallo o sin revisar.'],
+  ia: ['¿Cuánto usamos la IA y cómo sale?', 'Por las marcas de IA de Remedy: en TAGS (IA_SOLVED…, IA_FAIL) y en las notas ([ACT IA], [INFORME IA], notas del agente de IA, [HITL_REVIEW_OK], [HITL_REVIEW_NOT_OK], [IA_FAIL]…). Una incidencia con IA puede estar revisada OK, con fallo o sin revisar.'],
   turnos: ['¿Cuándo entra y cuándo lo trabajamos?', `Por turnos: ${SHIFTS.map((s, k) => `${s.toLowerCase()} de ${SHIFT_HOURS[k]}`).join(', ')}. El turno se cuenta por la hora en que empieza: la noche del domingo es de fin de semana.`],
 };
 
-export const WORSE_NOTE = `En ocre, lo que va un ${Math.round(WORSE * 100)} % o más peor que el total (con al menos ${MIN_ISSUES} issues).`;
+export const WORSE_NOTE = `En ocre, lo que va un ${Math.round(WORSE * 100)} % o más peor que el total (con al menos ${MIN_ISSUES} incidencias).`;
 export const MONTH_NOTE = 'Por mes de apertura. * mes incompleto: los últimos meses salen mejor de lo que acabarán, porque lo lento aún no se ha resuelto.';
 // la evolución día a día (periodos de un mes o menos)
-export const DAY_NOTE = 'Por día de apertura. * día de la última carga, incompleto. Los últimos días salen mejor de lo que acabarán, porque lo lento aún no se ha resuelto. Un día con menos de 10 issues no se pinta.';
+export const DAY_NOTE = 'Por día de apertura. * día de la última carga, incompleto. Los últimos días salen mejor de lo que acabarán, porque lo lento aún no se ha resuelto. Un día con menos de 10 incidencias no se pinta.';
 export const opt = (f) => (v) => (v == null ? '—' : f(v));
 export const P1 = (v) => pct(v, 1);
 export const optDur = (v) => (v == null ? '—' : dur(v));
@@ -74,7 +77,7 @@ export const createCommon = (m, ch, ui) => {
 
   // Tabla de cortes fijos (prioridad, ámbito, turno, día…): una fila por corte; la diferencia entre los lados o el valor del único que se mira.
   const SLICE = {
-    n: ['Issues', (s) => num(s.n), (s) => s.n], avg: ['Media resol.', (s) => dur(s.avg), (s) => s.avg, 'low'],
+    n: ['Incidencias', (s) => num(s.n), (s) => s.n], avg: ['Media resol.', (s) => dur(s.avg), (s) => s.avg, 'low'],
     sla: ['Dentro de SLA', slaPct, (s) => s.sla, 'high'], ip: ['Media hasta En curso', (s) => dur(s.ip), (s) => s.ip, 'low'],
     inShift: ['Empezadas en su turno', (s) => opt(pct)(s.inShift), (s) => s.inShift, 'high'],
   };
@@ -132,7 +135,7 @@ export const createCommon = (m, ch, ui) => {
       return `<td class="mt-num ${k ? 'mt-msep' : 'mt-gsep'}">${H[k] > 1 ? dec(n) : num(n)}</td><td class="mt-num mt-mix-p">${pct(sh)}</td>
         <td class="mt-mix-bar" data-tip="${esc(`${label} · ${sideLabel(k)}\n${H[k] > 1 ? `${dec(n)} por persona (${num(c)} en total)` : `${num(c)} issues`} · ${pct(sh, 1)} de lo suyo`)}"><i class="mt-c${k}" style="width:${(sh * 100).toFixed(1)}%"></i></td>`;
     }).join('');
-    return sideTable({ cols: '<th class="mt-num">Issues</th><th class="mt-num">%</th><th></th>', blocks: blocksOf(rowsDef), cells: (r) => cells(r.test, r.label), lead: { label: lead, cells: cells(null, lead) }, labelTip: true });
+    return sideTable({ cols: '<th class="mt-num">Incidencias</th><th class="mt-num">%</th><th></th>', blocks: blocksOf(rowsDef), cells: (r) => cells(r.test, r.label), lead: { label: lead, cells: cells(null, lead) }, labelTip: true });
   };
   // La tabla de comparar de todas las pestañas (pair-table.js), con el nombre de cada lado. base: lo que cuenta para
   // marcar quién va mejor, si el dato no dice otra cosa (de serie, las resueltas).

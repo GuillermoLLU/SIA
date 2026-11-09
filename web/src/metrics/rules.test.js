@@ -12,7 +12,7 @@ test('claramente peor: un 15 % o más y, en los porcentajes, al menos un punto',
   assert.equal(clearlyWorse(null, 0.1, 'low'), false);
 });
 
-test('variación de 90 días: nada con pocas issues; sube o baja desde un 10 %', () => {
+test('variación de 90 días: nada con pocas incidencias; sube o baja desde un 10 %', () => {
   assert.equal(trendDelta({ now: 10, prev: 14 }), null);
   assert.deepEqual(trendDelta({ now: 20, prev: 10 }), { d: 1, dir: 'up' });
   assert.deepEqual(trendDelta({ now: 10, prev: 20 }), { d: -0.5, dir: 'down' });

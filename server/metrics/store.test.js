@@ -125,7 +125,7 @@ const fakeJira = (known, error) => {
 const ESCALATED = row({ ...ISSUE, STATUS: 'ASSIGNED', VENDORTICKETNUMBER: 'TEC: SGA-1', WORKLOG_DETAIL: '2026-02-01 10:30:00.000 - ana - Abierto SGA-2 y FINISHED-1',
   AUDIT_DETAIL: '2026-02-01 10:20:00.000 - ana - Status_Reason:  → Third Party Vendor Action Reqd', LASTMODIFIEDDATE: '2026-02-03 10:00:00.000' });
 
-test('Jira: pide las claves de las issues y calcula los tiempos de escalado; la siguiente, solo las que seguían sin resolver', async () => {
+test('Jira: pide las claves de las incidencias y calcula los tiempos de escalado; la siguiente, solo las que seguían sin resolver', async () => {
   const dir = tmp();
   const jira = fakeJira({ 'SGA-1': { created: '2026-02-01 11:00:00', resolved: '2026-02-02 11:00:00', status: 'Closed' }, 'SGA-2': { created: '2026-02-01 12:00:00', resolved: '', status: 'Open' } });
   const repo = createRepository({ DatabaseSync, file: path.join(dir, 'incidencias.sqlite'), fs, now });
@@ -211,7 +211,7 @@ test('dos actualizaciones a la vez: la segunda, 409', async () => {
   clean(dir);
 });
 
-test('Jira: de las issues abiertas se pide el historial (cambios de equipo), también de los tickets ya resueltos que no lo tenían', async () => {
+test('Jira: de las incidencias abiertas se pide el historial (cambios de equipo), también de los tickets ya resueltos que no lo tenían', async () => {
   const dir = tmp();
   const jira = fakeJira({ 'SGA-1': { created: '2026-02-01 11:00:00', resolved: '2026-02-02 11:00:00', status: 'Closed' }, 'SGA-2': { created: '2026-02-01 12:00:00', resolved: '', status: 'Open' } });
   const repo = createRepository({ DatabaseSync, file: path.join(dir, 'incidencias.sqlite'), fs, now });

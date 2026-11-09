@@ -74,7 +74,7 @@ export const issuesRoutes = (issues, { json, readBody }) => async (req, res, [id
     if (action === 'timeline' && req.method === 'GET') return json(res, 200, { timeline: await issues.timeline(who, id) });
     if (!action && req.method === 'GET') {
       const got = await issues.get(who, id);
-      return got ? json(res, 200, got) : json(res, 404, { error: 'Esa issue ya no está en la foto.' });
+      return got ? json(res, 200, got) : json(res, 404, { error: 'Esa incidencia ya no está en la foto.' });
     }
     return json(res, 404, { error: 'no encontrado' });
   } catch (e) {

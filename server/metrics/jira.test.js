@@ -45,7 +45,7 @@ test('tickets: por lotes, con el token, y las claves que Jira no conoce como no 
   assert.equal(missing.length, BATCH);
 });
 
-test('un ticket movido de proyecto: la búsqueda lo da con su clave nueva; pedido solo, se guarda con la que tienen las issues', async () => {
+test('un ticket movido de proyecto: la búsqueda lo da con su clave nueva; pedido solo, se guarda con la que tienen las incidencias', async () => {
   const fetch = fakeFetch({ 'SISUSTOCKG-7': { created: '2026-02-03T10:00:00.000+0100', resolutiondate: '2026-02-04T10:00:00.000+0100', status: { name: 'Cerrada' } } }, 200, { 'SISUSTOCK-7': 'SISUSTOCKG-7' });
   const { found, missing } = await createJira({ config: CONFIG, fetch }).tickets(['SISUSTOCK-7', 'REJ-6']);
   assert.deepEqual(found.map((t) => t.key).sort(), ['SISUSTOCK-7', 'SISUSTOCKG-7']);

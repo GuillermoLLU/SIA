@@ -38,7 +38,7 @@ export const createTerminalBridge = ({ pty, launchers, workspace, env, issues, a
     }
     const s = { id, term, buffer: '', meta: { launcher: def.id, knowledge: mode, ...(issue ? { issue: issue.id } : {}) }, assets: [], ws: null };
     sessions.set(id, s);
-    console.log(`[sia] session open (${def.id}${issue ? `, issue ${issue.id}` : ''}, conocimiento ${mode}, base ${base?.name || '-'}, proyectos [${picked.join(',')}], id ${id}, pid ${term.pid})`);
+    console.log(`[sia] session open (${def.id}${issue ? `, incidencia ${issue.id}` : ''}, conocimiento ${mode}, base ${base?.name || '-'}, proyectos [${picked.join(',')}], id ${id}, pid ${term.pid})`);
     term.onData((data) => { s.buffer = appendBuffer(s.buffer, data); send(s.ws, { type: 'data', data }); });
     term.onExit(() => {
       console.log(`[sia] session ended (id ${id})`);
@@ -90,7 +90,7 @@ export const createTerminalBridge = ({ pty, launchers, workspace, env, issues, a
         let issue = null;
         if (msg.issue !== undefined && msg.issue !== null) {
           issue = isIssueId(msg.issue) ? issues.find(msg.issue) : null;
-          if (!issue) return send(ws, { type: 'error', message: 'Esa issue ya no está en la foto.' });
+          if (!issue) return send(ws, { type: 'error', message: 'Esa incidencia ya no está en la foto.' });
           const open = [...sessions.values()].find((x) => x.meta.issue === issue.id);
           if (open) { bind(open); send(ws, { type: 'started', sessionId: open.id }); return send(ws, { type: 'history', data: open.buffer }); }
         }

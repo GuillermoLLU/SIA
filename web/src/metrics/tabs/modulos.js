@@ -26,11 +26,11 @@ export const modulosTab = (t) => {
   const owners = (A) => {
     const g = ownersOf(m, A);
     const body = g.map((x) => {
-      const top = x.top.map((p) => `<span class="mt-own ${isSel('as', p.k) ? 'mt-sel' : ''}" data-f="as:${p.k}" data-tip="${esc(`${m.DIMS.as.label(p.k)}\n${num(p.n)} de ${num(x.n)} issues de ${m.DIMS.mo.label(x.k)}`)}">${esc(m.DIMS.as.label(p.k))} <b>${pct(p.n / x.n)}</b></span>`).join('');
+      const top = x.top.map((p) => `<span class="mt-own ${isSel('as', p.k) ? 'mt-sel' : ''}" data-f="as:${p.k}" data-tip="${esc(`${m.DIMS.as.label(p.k)}\n${num(p.n)} de ${num(x.n)} incidencias de ${m.DIMS.mo.label(x.k)}`)}">${esc(m.DIMS.as.label(p.k))} <b>${pct(p.n / x.n)}</b></span>`).join('');
       return `<tr class="mt-clk ${isSel('mo', x.k) ? 'mt-sel' : ''}" data-f="mo:${x.k}"><td>${esc(m.DIMS.mo.label(x.k))}</td><td class="mt-num">${num(x.n)}</td><td class="mt-num">${x.people}</td><td class="mt-num">${x.n80}</td><td class="mt-owns">${top}</td></tr>`;
     }).join('');
-    return g.length ? `<div class="mt-tablewrap"><table class="mt-owners"><thead><tr><th>Módulo</th><th class="mt-num">Issues</th><th class="mt-num" data-tip="Personas con alguna issue del módulo.">Personas</th>
-      <th class="mt-num" data-tip="Cuántas personas, de la que más lleva a la que menos, suman el ${OWNERS_PCT} % de las issues del módulo.">Llevan el ${OWNERS_PCT} %</th><th>Quién lleva más</th></tr></thead><tbody>${body}</tbody></table></div>` : '<p class="mt-mut mt-small">Sin datos con estos filtros.</p>';
+    return g.length ? `<div class="mt-tablewrap"><table class="mt-owners"><thead><tr><th>Módulo</th><th class="mt-num">Incidencias</th><th class="mt-num" data-tip="Personas con alguna incidencia del módulo.">Personas</th>
+      <th class="mt-num" data-tip="Cuántas personas, de la que más lleva a la que menos, suman el ${OWNERS_PCT} % de las incidencias del módulo.">Llevan el ${OWNERS_PCT} %</th><th>Quién lleva más</th></tr></thead><tbody>${body}</tbody></table></div>` : '<p class="mt-mut mt-small">Sin datos con estos filtros.</p>';
   };
 
   // Módulos y focos de un solo lado; note: un aviso arriba
@@ -50,8 +50,8 @@ export const modulosTab = (t) => {
     if (CMP() && !m.perHead()) return m.alone((A1) => modulesView(A1, `<p class="mt-note">Esta pestaña no compara empresas: cada una recibe trabajo distinto. Se ve solo ${esc(name(0))}.</p>`));
     if (CMP()) {
       const rowsDef = [{ head: 'Módulo' }, ...topRows('mo', A, 12), { head: 'Centro' }, ...topRows('ce', A, 8), { head: 'Tema', note: 'El principal del título.' }, ...topRows('tp', A, 8)];
-      return grid(ask('modulos'), card('Qué toca cada uno', mixCmp(rowsDef, A, 'Issues'),
-        { span: 's12', sub: `En qué se ha especializado cada uno: sus issues de cada módulo, centro y tema y qué parte son de lo suyo${m.perHead() && S.sides.some((x) => !x.people) ? '; las de la empresa, la media por persona de su equipo' : ''}. Clic en una fila para filtrar.` }));
+      return grid(ask('modulos'), card('Qué toca cada uno', mixCmp(rowsDef, A, 'Incidencias'),
+        { span: 's12', sub: `En qué se ha especializado cada uno: sus incidencias de cada módulo, centro y tema y qué parte son de lo suyo${m.perHead() && S.sides.some((x) => !x.people) ? '; las de la empresa, la media por persona de su equipo' : ''}. Clic en una fila para filtrar.` }));
     }
     return modulesView(A);
   };

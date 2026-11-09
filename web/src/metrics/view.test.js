@@ -49,7 +49,7 @@ test('cobertura: el periodo elegido, recortado a la primera y la última apertur
   const d = data(); d.meta.last = at(2, 3);
   const early = createModel(d);
   early.setPeriod(at(2, 5), at(2, 12));
-  assert.equal(coverage(early), 'Sin issues del 05/03/2026 al 11/03/2026');
+  assert.equal(coverage(early), 'Sin incidencias del 05/03/2026 al 11/03/2026');
 });
 
 test('cobertura con más de un año', () => {

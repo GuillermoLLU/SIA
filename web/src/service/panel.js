@@ -101,7 +101,7 @@ export const servicePanel = (t) => {
   const escalationCard = (V, on, jira) => {
     const S = V.stats;
     const rows = [
-      ['THesc', 'De la apertura al primer Jira creado después; los tickets previos a la apertura no cuentan.', (s) => s.esc.thesc, dur, (s) => `${num(s.esc.nThesc)} issues · ${num(s.esc.previous)} con ticket previo`],
+      ['THesc', 'De la apertura al primer Jira creado después; los tickets previos a la apertura no cuentan.', (s) => s.esc.thesc, dur, (s) => `${num(s.esc.nThesc)} incidencias · ${num(s.esc.previous)} con ticket previo`],
       ['Tesc', 'Del Jira más antiguo (también los Discarded) a la resolución del Jira de solución final; solo escaladas.', (s) => s.esc.tesc, dur, (s) => `${num(s.esc.nTesc)} escaladas`],
       ['Tesc-r', 'De la resolución del Jira de solución final a ahora: escaladas que siguen abiertas en Remedy con su Jira ya resuelto.', (s) => s.esc.tescr, dur, (s) => `${num(s.esc.nTescr)} abiertas`],
       ['Escaladas', 'Abiertas en el periodo que estuvieron en Pendiente con motivo Third Party Vendor Action Reqd.', (s) => s.esc.n, num],
@@ -118,7 +118,7 @@ export const servicePanel = (t) => {
         ['Tesc', 'El día en que se resuelve su Jira de solución final.', (f) => plain(f.esc.tesc, dur)],
         ['Tesc-r', 'El día en que se resuelve su Jira de solución final, de las que siguen abiertas.', (f) => plain(f.esc.tescr, dur)],
       ]),
-    { span: 's12', sub: `Sin SLA en la oferta. Los tiempos, con los tickets Jira de cada issue; las marcas, de lo abierto en el periodo.${note}` });
+    { span: 's12', sub: `Sin SLA en la oferta. Los tiempos, con los tickets Jira de cada incidencia; las marcas, de lo abierto en el periodo.${note}` });
   };
 
   // Uso de la IA: sin SLA.

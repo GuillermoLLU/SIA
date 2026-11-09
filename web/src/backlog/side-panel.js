@@ -16,7 +16,7 @@ const pinHtml = ({ prio }) => `<div class="bl-act"><h5>Priorizar</h5>
 
 // Asignarla a alguien del equipo (people: [{ id, name }]), con el selector propio de la app.
 const assignHtml = ({ people, busy }) => `<form class="bl-act bl-act-form" data-assign-form><h5>Asignar</h5>
-    <div class="bl-act-row">${peoplePicker({ name: 'to', id: 'bl-assign-to', people, empty: 'Nadie en Issues' })}<button type="submit" class="lab-btn primary" ${busy ? 'disabled' : ''}>${busy ? 'Asignando…' : 'Asignar'}</button></div>
+    <div class="bl-act-row">${peoplePicker({ name: 'to', id: 'bl-assign-to', people, empty: 'Nadie en Incidencias' })}<button type="submit" class="lab-btn primary" ${busy ? 'disabled' : ''}>${busy ? 'Asignando…' : 'Asignar'}</button></div>
     <small class="bl-act-note">Pasará a su mesa como cogida.</small></form>`;
 
 // detail: lo que da GET /backlog/:id

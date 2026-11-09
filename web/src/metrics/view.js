@@ -12,7 +12,7 @@ export const freeColor = (taken) => COLORS.find(([c]) => c !== taken)[0];
 // «Datos desde 03/01/2026 hasta 13/10/2026»: el periodo elegido, recortado a la primera y la última apertura de lo cargado
 export const coverage = (m) => {
   const { S, BASE, data: { meta } } = m, from = Math.max(S.d0, meta.first), to = Math.min(S.d1 - 1, meta.last);
-  return from <= to ? `Datos desde ${dmy(BASE + from * 6e4)} hasta ${dmy(BASE + to * 6e4)}` : `Sin issues del ${dmy(BASE + S.d0 * 6e4)} al ${dmy(BASE + (S.d1 - 1) * 6e4)}`;
+  return from <= to ? `Datos desde ${dmy(BASE + from * 6e4)} hasta ${dmy(BASE + to * 6e4)}` : `Sin incidencias del ${dmy(BASE + S.d0 * 6e4)} al ${dmy(BASE + (S.d1 - 1) * 6e4)}`;
 };
 // «14 de oct», en UTC como el resto de las fechas de las Métricas
 export const dayOf = (iso) => { const d = new Date(iso); return `${d.getUTCDate()} de ${MONTHS[d.getUTCMonth()]}`; };

@@ -51,7 +51,7 @@ export const backlogTab = (t) => {
         <td class="mt-num mt-mix-p ${ok(!pp && main === k)}">${v[k].sh == null ? '—' : pct(v[k].sh)}</td><td class="mt-num ${ok(old === k)}">${dur(v[k].age)}</td>`).join('');
     };
     const rowAttrs = (r) => (r.f ? `data-f${r.f.includes('|') ? '2' : ''}="${r.f}" ${r.tip ? `data-tip="${esc(r.tip)}"` : ''}` : '');
-    return sideTable({ cls: 'mt-pend2', cols: '<th class="mt-num">Issues</th><th class="mt-num">%</th><th class="mt-num" data-tip="Lo que llevan abiertas, de media.">Antigüedad</th>',
+    return sideTable({ cls: 'mt-pend2', cols: '<th class="mt-num">Incidencias</th><th class="mt-num">%</th><th class="mt-num" data-tip="Lo que llevan abiertas, de media.">Antigüedad</th>',
       blocks: blocksOf(rowsDef), cells, lead: { label: 'Pendientes', cells: cells({}) }, leadAtEnd: true, rowAttrs });
   };
   // Backlog, comparando: las cifras de arriba, cómo está lo pendiente de cada uno y qué tiene pendiente. Sin lo que no
@@ -84,7 +84,7 @@ export const backlogTab = (t) => {
         partFig('Fuera de plazo', late, 'low', 'Nunca han pasado a En curso y ya superan el plazo de su prioridad'),
         partFig(`Con más de ${OLD_DAYS} días`, old, 'low', `Llevan más de ${OLD_DAYS} días abiertas`),
         partFig('Escaladas', escd, null, 'Han estado en Pendiente de un tercero: dependen de otros')),
-      card('Cómo está lo pendiente', pendCmp(pendRows, op), { span: 's12', sub: `${pp ? 'Issues de cada uno; las de la empresa, la media por persona de su equipo.' : 'Qué parte de sus pendientes está en cada situación.'} En verde, quien va mejor en lo que depende de él; lo que espera a otros, sin color. Clic en una fila para filtrar.` }),
+      card('Cómo está lo pendiente', pendCmp(pendRows, op), { span: 's12', sub: `${pp ? 'Incidencias de cada uno; las de la empresa, la media por persona de su equipo.' : 'Qué parte de sus pendientes está en cada situación.'} En verde, quien va mejor en lo que depende de él; lo que espera a otros, sin color. Clic en una fila para filtrar.` }),
       card('Qué tiene pendiente cada uno', mixCmp(mixRows, op, 'Pendientes'), { span: 's12', sub: 'Los 8 módulos con más pendientes; «Resto», los demás. Clic en una fila para filtrar.' }));
   };
 

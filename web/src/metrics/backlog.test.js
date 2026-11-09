@@ -6,7 +6,7 @@ import { situations, late, isOld, orphansIn, watchList, pendingCells, backlogFig
 
 const model = (d = data(), sides) => { const m = createModel(d); if (sides) m.S.sides = sides; m.refilter(); return m; };
 
-test('fuera de plazo y con más de 15 días, issue a issue', () => {
+test('fuera de plazo y con más de 15 días, incidencia a incidencia', () => {
   const m = model();
   assert.deepEqual([0, 2, 3].map(late(m)), [false, true, false]);   // la 3: abierta, sin empezar y con 200 min > 2 h
   assert.deepEqual([0, 2].map(isOld(m)), [true, false]);

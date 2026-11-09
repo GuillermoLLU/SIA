@@ -36,9 +36,11 @@ export const stateCard = (t) => {
   };
   // filtrado por Pendiente (proveedor): un enlace a Escalados, en Activas y sin ese filtro, que allí sobra (Activas ya es
   // lo escalado y abierto) y vaciaría Histórico (metrics-view.js, data-esc-now y data-rm)
-  return (P) => {
+  // link: un enlace a Foto de hoy, debajo (el Resumen; en la propia Foto de hoy, no)
+  return (P, { link = false } = {}) => {
+    const toHoy = link ? '<p class="mt-dn-go"><button class="mt-go" data-go="hoy" data-tip="Abre Foto de hoy: el backlog de ahora, por antigüedad, prioridad, centro y módulo, quién tiene qué y la sábana.">Ver Foto de hoy →</button></p>' : '';
     const toEscalated = m.isSel('sit', 3) ? '<p class="mt-dn-go"><button class="mt-go" data-go="escalados" data-esc-now data-rm="sit:3" data-tip="Abre Escalados en Activas: todo lo escalado y abierto, con sus tiempos, sus proyectos Jira y los malos escalados.">Ver en Escalados →</button></p>' : '';
-    return ch.card('En qué estado está', haveNow(P) + toEscalated, { span: CMP() ? 's12' : 's4', sub: 'Lo abierto, por su estado. Clic en uno para filtrar.' });
+    return ch.card('En qué estado está', haveNow(P) + toEscalated + toHoy, { span: CMP() ? 's12' : 's4', sub: 'Lo abierto, por su estado. Clic en uno para filtrar.' });
   };
 };
 

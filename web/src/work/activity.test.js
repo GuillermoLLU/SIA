@@ -5,7 +5,7 @@ import { dailyActivity, turnsByDay, comparePerDay, pickDays, activityPanel, axis
 const DAY = 1440;
 const dayName = (min) => `d${min / DAY}`;
 
-test('cuenta cada paso en su día, solo los del periodo, una vez por issue y día, y solo de quien se mira', () => {
+test('cuenta cada paso en su día, solo los del periodo, una vez por incidencia y día, y solo de quien se mira', () => {
   const C = { sp: [[[0, 2 * DAY, 1], [1, 2 * DAY + 5, 1], [0, 2 * DAY + 9, 1], [0, 9 * DAY, 1]], [[0, 3 * DAY, 2], [2, 4 * DAY, 2]]] };
   const days = dailyActivity(C, [0, 1], [2 * DAY, 5 * DAY]);
   assert.deepEqual(days, [

@@ -54,6 +54,19 @@ export const prevRange = (m) => {
 // «01/10/2026 – 08/10/2026» de un rango [d0, d1)
 export const rangeLabel = (m, [a, b]) => `${dmy(m.BASE + a * 6e4)} – ${dmy(m.BASE + (b - 1) * 6e4)}`;
 
+// Los periodos que se pueden comparar uno con otro (el Resumen, «Comparar»): [clave, nombre, rango [d0, d1) o null].
+// El actual (el de arriba) y el anterior (prevRange), las fechas rápidas y cada mes cargado, del más reciente al más
+// antiguo. Cada rango, limitado a lo cargado; sin datos, null.
+export const cmpOptions = (m) => {
+  const clamp = (r) => { if (!r) return null; const a = Math.max(m.MIN_D, r[0]), b = Math.min(m.END_D, r[1]); return a < b ? [a, b] : null; };
+  const months = [];
+  for (let k = m.LASTM; k >= m.monthAt(m.MIN_D); k--) months.push([`m:${k}`, m.monthName(k), wholeMonth(m, k)]);
+  return [['cur', 'Periodo actual', [m.S.d0, m.S.d1]], ['prev', 'Periodo anterior', prevRange(m)],
+    ...PRESETS.filter(([k]) => k !== 'all').map(([k, l, f]) => [`p:${k}`, l, f(m)]), ...months].map(([k, l, r]) => [k, l, clamp(r)]);
+};
+export const cmpRange = (m, key) => cmpOptions(m).find(([k]) => k === key)?.[2] ?? null;
+export const cmpName = (m, key) => cmpOptions(m).find(([k]) => k === key)?.[1] ?? key;
+
 // el día (sus 00:00) de cada extremo del periodo
 export const sideDay = (m, side) => (side === 'from' ? m.S.d0 : m.S.d1 - DAY);
 

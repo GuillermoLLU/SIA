@@ -79,8 +79,8 @@ export const historicoTab = (t) => {
           fig('Empezadas en el turno en que entran', ST, (s) => opt(pct)(s.inShift), sv('inShift'), 'high')]),
       ].join('')}</div>`,
       card(m.daily() ? 'Evolución día a día' : 'Evolución mes a mes', `${CMP() ? legend() : ''}<div class="mt-trio">
-        <div><p class="mt-small"><b>Issues recibidas</b></p>${lines(A, (s) => s.n, num, { height: 170 })}</div>
+        <div><p class="mt-small"><b>Incidencias recibidas</b></p>${lines(A, (s) => s.n, num, { height: 170 })}</div>
         <div><p class="mt-small"><b>Empezadas dentro del SLA</b></p>${lines(A, (s) => s.sla, (v) => pct(v), { height: 170 })}</div>
-        <div><p class="mt-small"><b>Media de resolución</b></p>${lines(A, (s) => s.avg, dur, { height: 170 })}</div></div>`, { span: 's12', sub: m.daily() ? DAY_NOTE : `${MONTH_NOTE} Un mes con menos de 10 issues no se pinta.` }));
+        <div><p class="mt-small"><b>Media de resolución</b></p>${lines(A, (s) => s.avg, dur, { height: 170 })}</div></div>`, { span: 's12', sub: m.daily() ? DAY_NOTE : `${MONTH_NOTE} Un mes con menos de 10 incidencias no se pinta.` }));
   };
 };

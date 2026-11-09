@@ -49,8 +49,8 @@ export const dayTicks = (m, n) => {
 // Los tramos de una gráfica de los n días del periodo (desde m.S.d0): cada día, cada semana (de lunes a domingo) o cada
 // mes ('day', 'week', 'month'). Cada uno, { from, to }: su primer y su último día (índices, incluidos); los de los
 // extremos pueden ser incompletos (el periodo empieza o acaba a mitad de semana o de mes).
-export const dayBuckets = (m, n, step = 'day') => {
-  const date = (k) => new Date(m.BASE + (m.S.d0 + k * DAY) * 6e4);
+export const dayBuckets = (m, n, step = 'day', d0 = m.S.d0) => {
+  const date = (k) => new Date(m.BASE + (d0 + k * DAY) * 6e4);
   // la semana: días desde 1970 (un jueves), corridos para que cambie en lunes
   const keyOf = step === 'week' ? (d) => Math.floor((Math.round(d.getTime() / 864e5) + 3) / 7)
     : step === 'month' ? (d) => d.getUTCFullYear() * 12 + d.getUTCMonth() : null;

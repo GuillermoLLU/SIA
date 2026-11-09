@@ -17,7 +17,7 @@ const PLURAL = { CRITICAL: 'Críticas', HIGH: 'Altas', MEDIUM: 'Medias', LOW: 'B
 const LEDGER_GROUPS = [['Lo recibido ese mes', 4], ['Lo que pasó en el mes', 5]];
 // Cada dato: [nombre, cómo se ve, nota]. De un solo lado (comparando, ledgerCmp).
 const LEDGER = [
-  ['Recibidas', (s) => num(s.in), 'Issues abiertas en ese mes (o día).'],
+  ['Recibidas', (s) => num(s.in), 'Incidencias abiertas en ese mes (o día).'],
   ['% cerrado en el mes', (s) => (s.in ? pct(s.same / s.in, 1) : '—'), 'De las recibidas en ese mes, las que se cerraron antes de acabar el mismo mes. Se puede comparar entre meses: cuanto más bajo, más se queda para después.'],
   ['% cerrado hasta hoy', (s) => (s.in ? pct(s.closed / s.in, 1) : '—'), 'De las recibidas en ese mes, las que ya están resueltas, cerradas o canceladas hoy. En los meses pasados tiende al 100 %.'],
   ['Por cerrar', (s) => num(s.still), 'De las recibidas en ese mes, las que siguen sin resolver hoy. Su total es el backlog del periodo.'],
@@ -34,7 +34,7 @@ const LEDGER = [
 // que se abre más de lo que se cierra. Cada dato: [nombre, valor, tipo (p %, n número, v volumen), mejor, nota].
 const LEDGER_CMP = {
   co: [['Lo recibido ese mes', [
-    ['Recibidas', (s) => s.in, 'n', null, 'Issues abiertas en ese mes.'],
+    ['Recibidas', (s) => s.in, 'n', null, 'Incidencias abiertas en ese mes.'],
     ['% cerrado en el mes', (s) => (s.in ? s.same / s.in : null), 'p', 'high', 'De las recibidas en ese mes, las cerradas antes de acabar el mismo mes.'],
     ['% cerrado hasta hoy', (s) => (s.in ? s.closed / s.in : null), 'p', 'high', 'De las recibidas en ese mes, las que ya están resueltas, cerradas o canceladas hoy.']]],
   ['Lo que pasó en el mes', [
@@ -42,7 +42,7 @@ const LEDGER_CMP = {
     ['% de meses anteriores', (s) => (s.out ? s.prev / s.out : null), 'p', 'warn', 'De lo resuelto en el mes, lo que se abrió en un mes anterior: el esfuerzo en sacar backlog.'],
     [`% pendientes con más de ${OLD_DAYS} días`, (s) => (s.open ? s.old / s.open : null), 'p', 'low', `De lo pendiente al acabar el mes, lo que ya llevaba más de ${OLD_DAYS} días abierto: si sube, el backlog envejece.`]]]],
   pp: [['Lo recibido ese mes', [
-    ['Recibidas', (s) => s.in, 'v', null, 'Issues abiertas en ese mes.'],
+    ['Recibidas', (s) => s.in, 'v', null, 'Incidencias abiertas en ese mes.'],
     ['% cerrado en el mes', (s) => (s.in ? s.same / s.in : null), 'p', 'high', 'De las recibidas en ese mes, las cerradas antes de acabar el mismo mes.']]],
   ['Lo que pasó en el mes', [
     ['Resueltas', (s) => s.out, 'v', 'high', 'Lo resuelto en el mes, se abriera cuando se abriera.'],

@@ -15,7 +15,7 @@ test('quién tiene qué: lo abierto de cada persona en sus columnas, con su tota
   assert.deepEqual(t.tot, [1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0]);
 });
 
-test('sin el último cambio de cada issue (datos viejos), sin la columna de lo parado', () => {
+test('sin el último cambio de cada incidencia (datos viejos), sin la columna de lo parado', () => {
   assert.equal(whoHas(model()).cols.length, 10);
 });
 

@@ -88,14 +88,14 @@ export const resolveForm = (issueId, r, saved = null) => `<form class="iss-act-f
 
     <div class="iss-rstep" data-rstep="1">
       <section class="iss-rs">
-        <h4>Lo que ya hay en Remedy ${tip('Las notas internas que pide el procedimiento, leídas del historial de la issue. Te lo enseñamos para que no tengas que ir a buscarlo: lo que ya está escrito se aprovecha.')}</h4>
+        <h4>Lo que ya hay en Remedy ${tip('Las notas internas que pide el procedimiento, leídas del historial de la incidencia. Te lo enseñamos para que no tengas que ir a buscarlo: lo que ya está escrito se aprovecha.')}</h4>
         <ul class="iss-done">${r.notes.map(done).join('')}</ul>
         ${r.warnings.length ? `<ul class="iss-warn">${r.warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}
         ${r.missing.length ? `<p class="iss-block" role="alert">Para escribir la nota de cierre faltan en Remedy: <b>${r.missing.map(esc).join(', ')}</b>. Añádelas en Remedy y vuelve a cargar la foto.</p>` : ''}
       </section>
 
       <section class="iss-rs">
-        <h4>Nota interna de resolución <em>Solo la ve el equipo</em> ${tip('Se guarda en el historial de Remedy como <b>[RESOLUCION]</b>. No le llega al centro. La leen la auditoría de calidad y quien coja la issue si se reabre: cuenta qué se hizo, con el detalle técnico que haga falta.')}</h4>
+        <h4>Nota interna de resolución <em>Solo la ve el equipo</em> ${tip('Se guarda en el historial de Remedy como <b>[RESOLUCION]</b>. No le llega al centro. La leen la auditoría de calidad y quien coja la incidencia si se reabre: cuenta qué se hizo, con el detalle técnico que haga falta.')}</h4>
         ${r.resolution
           ? `<blockquote>${esc(r.resolution.text)}</blockquote><input type="hidden" name="note" value="${esc(r.resolution.text)}" />`
           : `<label class="iss-field" for="iss-f-note"><span>¿Qué se ha hecho?</span>
@@ -105,7 +105,7 @@ export const resolveForm = (issueId, r, saved = null) => `<form class="iss-act-f
 
     <div class="iss-rstep" data-rstep="2" hidden>
       <section class="iss-rs">
-        <div class="iss-rs-h"><h4>Mensaje al centro <em>Lo reciben el centro y quien haya participado</em> ${tip('Es la nota externa de resolución en Remedy. Le llega a quien abrió la issue y a todos los que han participado (proveedor, desarrollo…). Lo lee gente que no es técnica, así que va sin jerga. La auditoría comprueba que trae los tres puntos y que «¿Qué ocurrió?» coincide con tu nota de diagnóstico. El saludo y la despedida se ponen solos.')}</h4>
+        <div class="iss-rs-h"><h4>Mensaje al centro <em>Lo reciben el centro y quien haya participado</em> ${tip('Es la nota externa de resolución en Remedy. Le llega a quien abrió la incidencia y a todos los que han participado (proveedor, desarrollo…). Lo lee gente que no es técnica, así que va sin jerga. La auditoría comprueba que trae los tres puntos y que «¿Qué ocurrió?» coincide con tu nota de diagnóstico. El saludo y la despedida se ponen solos.')}</h4>
         <fieldset class="iss-lang"><legend>Idioma del mensaje</legend>${LANGS.map((l) => `<label><input type="radio" name="lang" value="${l.key}"${(saved?.lang || 'es') === l.key ? ' checked' : ''} /><span>${l.label}</span></label>`).join('')}</fieldset></div>
         <label class="iss-field" for="iss-f-what"><span>¿Qué ocurrió?</span>
         ${area('what', 3, r.draft.what, saved)}</label>

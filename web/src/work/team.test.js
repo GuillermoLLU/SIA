@@ -142,7 +142,7 @@ test('filtrar a una persona: los bloques y la tabla, solo sus datos; sin la fila
   assert.ok(rowOf(h, 'ANA') && !rowOf(h, 'PEPE'));
   assert.doesNotMatch(h, /Equipo Indra/);
   assert.match(h, /Solo los datos de <b>ANA<\/b><button[^>]*data-person-clear/);
-  assert.match(h, /<div class="wk-key"><b>10<\/b><span>issues en el periodo/);
+  assert.match(h, /<div class="wk-key"><b>10<\/b><span>incidencias en el periodo/);
   assert.match(h, /<h3>Pendientes<\/h3>[\s\S]*?<div class="wk-hero"><b>0<\/b>/);   // la abierta de PEPE no cuenta
   ui.person = null;
   const all = teamPanel(m, createCharts(m, ui), ui);
@@ -189,7 +189,7 @@ test('Actividad: arriba del todo, del equipo o de la persona filtrada; con días
   assert.equal((sel.match(/data-act-day=/g) || []).length, 3);
   assert.match(sel, /wk-act-out" data-act-day="0"/);
   assert.match(sel, /Resueltas <b>10</);   // la leyenda, solo lo elegido
-  assert.match(sel, /<div class="wk-key"><b>10<\/b><span>issues con actividad esos días/);   // lo hecho ese día: las 10 de PEPE
+  assert.match(sel, /<div class="wk-key"><b>10<\/b><span>incidencias con actividad esos días/);   // lo hecho ese día: las 10 de PEPE
 });
 
 test('Días sueltos: los bloques y la tabla, solo lo de esos días, no lo que queda entre ellos', () => {
@@ -198,7 +198,7 @@ test('Días sueltos: los bloques y la tabla, solo lo de esos días, no lo que qu
   const m = createModel(d), ui = { exp: {}, sort: {}, charts: new Set(), range: { base: [0, 3 * 1440], days: [0, 2 * 1440] } };
   m.S.sides = [{ company: 0 }, null]; m.setPeriod(0, 3 * 1440); m.refilter();   // ANA resuelve el día 0 y PEPE, el 1, que queda fuera
   const h = teamPanel(m, createCharts(m, ui), ui);
-  assert.match(h, /<div class="wk-key"><b>10<\/b><span>issues con actividad esos días/);
+  assert.match(h, /<div class="wk-key"><b>10<\/b><span>incidencias con actividad esos días/);
   assert.ok(rowOf(h, 'ANA') && !rowOf(h, 'PEPE'));
   assert.match(h, /wk-act-out" data-act-day="1440"/);
   assert.doesNotMatch(h, /wk-act-out" data-act-day="0"/);
@@ -224,7 +224,7 @@ test('Sábana: abajo del todo, las incidencias del panel, abiertas o cerradas, c
   assert.match(teamPanel(m, createCharts(m, ui), ui), /Ninguna incidencia con estos filtros/);
 });
 
-test('Días elegidos: lo hecho en ellos, aunque la issue se creara antes; tiempos y calidad, de lo resuelto esos días', () => {
+test('Días elegidos: lo hecho en ellos, aunque la incidencia se creara antes; tiempos y calidad, de lo resuelto esos días', () => {
   const d = data();
   // creadas el día 0: ANA resuelve sus 10 el día 5; PEPE solo escala sus 10 el día 5 y las resuelve después
   d.cols.rep = d.cols.rep.map(() => 100); d.cols.res = d.cols.as.map((a) => (a === 1 ? 5 * 1440 + 100 : a === 2 ? 9 * 1440 + 100 : 3100));
@@ -233,7 +233,7 @@ test('Días elegidos: lo hecho en ellos, aunque la issue se creara antes; tiempo
   m.S.sides = [{ company: 0 }, null]; m.setPeriod(5 * 1440, 6 * 1440); m.refilter();
   assert.equal(m.rows().length, 0);   // ninguna creada ese día
   const h = teamPanel(m, createCharts(m, ui), ui);
-  assert.match(h, /<div class="wk-key"><b>20<\/b><span>issues con actividad esos días/);
+  assert.match(h, /<div class="wk-key"><b>20<\/b><span>incidencias con actividad esos días/);
   assert.ok(rowOf(h, 'ANA') && rowOf(h, 'PEPE'));
   assert.equal(teamIssues(m, ui).length, 20);
   // el TTR del equipo: solo el de las 10 de ANA, resueltas ese día
@@ -262,7 +262,7 @@ test('Actividad frente a la media: todo el equipo, por día; una persona, por tu
   assert.match(ana, /Resueltas: 10 en 1,00 turno\s+Por turno: 10,0/);
 });
 
-test('los pasos son de quien los hizo: un técnico ve lo que resolvió él, aunque hoy la issue la lleve otro', () => {
+test('los pasos son de quien los hizo: un técnico ve lo que resolvió él, aunque hoy la incidencia la lleve otro', () => {
   const d = data();
   d.cols.sp = d.cols.as.map((a) => (a === 1 ? [[0, 1100, 2]] : []));   // las 10 de ANA las resolvió PEPE
   const m = createModel(d), ui = { exp: {}, sort: {}, charts: new Set(), person: 2 };
@@ -281,7 +281,7 @@ test('por turno: sin los turnos del bridge, lo dice', () => {
   assert.match(render([{ company: 0 }, null]), /Faltan los turnos de lo resuelto[^<]*reinicia SIA/);
 });
 
-test('al ordenar por una media o un %, quien tiene menos de MIN issues va al final', () => {
+test('al ordenar por una media o un %, quien tiene menos de MIN incidencias va al final', () => {
   const d = data(); d.company[3] = 0;   // LUIS, en el equipo, con 1 issue
   const m = createModel(d), ui = { exp: {}, sort: { team: ['avg', 1] } };
   m.S.sides = [{ company: 0 }, null]; m.refilter();

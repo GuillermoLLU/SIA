@@ -8,7 +8,7 @@ export const CHAT_ICON = svg('<path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 
 const TEAM_ICON = svg('<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8"/><path d="M18.5 14.2a6.5 6.5 0 0 1 3 5.8"/>');
 
 export const VIEWS = [
-  { id: 'issues', label: 'Issues', icon: svg('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.2"/>') },
+  { id: 'issues', label: 'Incidencias', icon: svg('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.2"/>') },
   { id: 'backlog', label: 'Backlog', icon: svg('<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/>') },
   { id: 'metrics', label: 'Métricas', icon: svg('<path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/>') },
   { id: 'service', label: 'Métricas del servicio', icon: svg('<path d="M12 3 4 6v6c0 4.5 3.2 7.8 8 9 4.8-1.2 8-4.5 8-9V6l-8-3z"/><path d="m9 12 2 2 4-4"/>') },

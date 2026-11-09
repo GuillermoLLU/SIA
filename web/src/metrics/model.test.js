@@ -5,7 +5,7 @@ import { data, SNAP } from './fixture.js';
 import { createCharts } from './charts.js';
 import { createTabs, TABS } from './tabs.js';
 
-test('lo derivado de cada issue: empresa, abierta, mes', () => {
+test('lo derivado de cada incidencia: empresa, abierta, mes', () => {
   const m = createModel(data());
   assert.deepEqual([...m.TEAM], [0, 1, 0, 0, 2]);
   assert.deepEqual([...m.OPEN], [0, 0, 1, 0, 0]);
@@ -26,7 +26,7 @@ test('de partida, solo nuestro equipo (Indra); comparar es añadir un segundo la
   assert.deepEqual(m.rows(), [0, 2, 3, 4]);
 });
 
-test('el turno en que entra cada issue y si se empezó en ese mismo turno', () => {
+test('el turno en que entra cada incidencia y si se empezó en ese mismo turno', () => {
   const m = createModel(data());
   // minuto 1.000 = 1 de enero, 16:40 (tarde); 2.000 = 2 de enero, 9:20 (mañana); 6.000 = 5 de enero (lunes), 4:00 (noche del domingo)
   assert.deepEqual([0, 1, 4].map(m.DIMS.tu.get), [1, 0, 2]);
@@ -41,7 +41,7 @@ test('tarjetas: SGA y SISU por el ámbito, PRIO por la etiqueta (además de su S
   assert.deepEqual([0, 1, 3].map(m.DIMS.tj.get), [[0, 2], [1], [3]]);
 });
 
-test('situación de cada issue: en curso, sin tocar o devuelta a Asignada, en espera de un tercero, del cliente u otro motivo, o cerrada; y si está escalada', () => {
+test('situación de cada incidencia: en curso, sin tocar o devuelta a Asignada, en espera de un tercero, del cliente u otro motivo, o cerrada; y si está escalada', () => {
   const d = data();
   d.cols.fl[0] |= 131072;   // la primera, escalada: ha estado en Pendiente de un tercero
   d.dict.status = ['', 'CLOSED', 'ASSIGNED', 'IN_PROGRESS', 'PENDING'];
@@ -142,7 +142,7 @@ test('todas las pestañas se pintan en cada modo, sin huecos ni NaN', () => {
   }
 });
 
-test('tema principal: el primero de los suyos, para que cada issue cuente en uno solo; sin tema, el último', () => {
+test('tema principal: el primero de los suyos, para que cada incidencia cuente en uno solo; sin tema, el último', () => {
   const m = createModel(data());   // th: [A, B, A y B, ninguno, ninguno]
   assert.deepEqual([0, 1, 2, 3].map(m.DIMS.tp.get), [0, 1, 0, 2]);
   assert.equal(m.DIMS.tp.label(2), 'Sin tema detectado');
@@ -275,7 +275,7 @@ test('SLA y calidad comparando: entre empresas, por prioridad y con el mismo tra
   assert.doesNotMatch(h, /Por turno y día de entrada|Módulo a módulo|undefined|NaN/);
 });
 
-test('IA: uso de cada issue por sus marcas (con fallo manda sobre revisada OK) y la pestaña sin huecos', () => {
+test('IA: uso de cada incidencia por sus marcas (con fallo manda sobre revisada OK) y la pestaña sin huecos', () => {
   const d = data();
   d.cols.fl[0] = 32 | 2048 | 4096; d.cols.fl[1] = 2048 | 4096 | 8192; d.cols.fl[2] = 2048;
   const m = createModel(d);

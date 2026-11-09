@@ -37,13 +37,16 @@ export const createCharts = (m, ui) => {
   // segundo (en verde o rojo si tiene un sentido mejor; en puntos si es un %, que es lo que se lee al mirar los dos
   // valores) y debajo el valor de cada uno. La nota, al pasar el ratón.
   const kpiCo = (label, ST, fmt, o = {}) => {
-    // o.pair: comparar ST[0] con ST[1] aunque no se comparen lados (el Resumen: el periodo con el anterior)
-    if (!CMP() && !o.pair) { const k = CO()[0]; return kpi(label, fmt(ST[k]), o.note || '', `mt-t${k}`); }
+    // o.pair: comparar ST[0] con ST[1] aunque no se comparen lados (el Resumen: el periodo con el anterior). o.go:
+    // [pestaña, nombre], un enlace a esa pestaña debajo, como el de la corona («Ver … →»; metrics-view.js, data-go)
+    const go = o.go ? `<p class="mt-kpi-go"><button class="mt-go" data-go="${o.go[0]}">Ver ${esc(o.go[1])} →</button></p>` : '';
+    if (!CMP() && !o.pair) { const k = CO()[0]; return kpi(label, fmt(ST[k]), (o.note || '') + go, `mt-t${k}`); }
     const f = compareFigure(ST[0], ST[1], fmt, o.val, o.better);
     const nm = (k) => o.names?.[k] || name(k);   // o.names: otro nombre para cada lado en esta cifra
-    const side = (k) => `<div class="mt-kpi-s"><i class="mt-c${k}"></i><span title="${esc(nm(k))}">${esc(nm(k))}</span><b>${ST[k].n ? fmt(ST[k]) : '—'}</b></div>`;
+    // o.side: cómo se ve la cifra de cada lado, si no como fmt (que es lo que se compara: solo el valor)
+    const side = (k) => `<div class="mt-kpi-s"><i class="mt-c${k}"></i><span title="${esc(nm(k))}">${esc(nm(k))}</span><b>${ST[k].n ? (o.side || fmt)(ST[k]) : '—'}</b></div>`;
     return `<div class="mt-kpi mt-kpi-co"><div class="mt-kpi-l" ${o.note ? `data-tip="${esc(o.note)}"` : ''}>${label}</div>
-      <div class="mt-kpi-v ${f ? `mt-diff ${f.cls}` : 'mt-mut'}">${f ? (f.pts || f.main) : '—'}</div>${side(0)}${side(1)}</div>`;
+      <div class="mt-kpi-v ${f ? `mt-diff ${f.cls}` : 'mt-mut'}">${f ? (f.pts || f.main) : '—'}</div>${side(0)}${side(1)}${go}</div>`;
   };
 
   // Líneas de evolución en el periodo que se mira, una por lado: por meses o, si es de un mes o menos, por días
@@ -85,7 +88,7 @@ export const createCharts = (m, ui) => {
   // o.child: { dim, top, noun }: cada fila se despliega (▸) en sus valores de otra dimensión (los temas, en sus problemas),
   // ordenados igual; los o.child.top primeros y «Otros», para que sumen la fila.
   const SC = {
-    n: ['Issues', null, (s) => s.n, 'Issues recibidas en el periodo y su parte del total.'],
+    n: ['Incidencias', null, (s) => s.n, 'Incidencias recibidas en el periodo y su parte del total.'],
     dl: ['90 días', null, (s) => (s.tr.prev ? (s.tr.now - s.tr.prev) / s.tr.prev : 0), 'Últimos 90 días de la foto frente a los 90 anteriores.'],
     sla: ['En SLA', 'high', (s) => s.sla, 'Empezadas (paso a En curso) dentro del plazo de su prioridad.'],
     avg: ['Media resol.', 'low', (s) => s.avg, 'Tiempo medio de la apertura a la resolución.'],
@@ -95,8 +98,8 @@ export const createCharts = (m, ui) => {
     vend: ['Escaladas', null, (s) => s.vend, 'Parte que ha estado en Pendiente de un tercero.'],
     open: ['Pendientes', null, (s) => s.open, 'Lo recibido en el periodo que sigue sin resolver.'],
     // con o.extra: top, el valor de otra dimensión que más se repite ({ label, share }); mi, los major incidents
-    top: ['Lo que más falla', null, null, 'El módulo con más issues y su parte.'],
-    mi: ['Major inc.', null, (s) => s.mi, 'Issues con la etiqueta de major incident en sus notas de trabajo.'],
+    top: ['Lo que más falla', null, null, 'El módulo con más incidencias y su parte.'],
+    mi: ['Major inc.', null, (s) => s.mi, 'Incidencias con la etiqueta de major incident en sus notas de trabajo.'],
     // con o.extra: nce, en cuántos centros pasa; same, de las resueltas, la parte cerrada con el texto más usado
     nce: ['Centros', null, (s) => s.nce, 'En cuántos centros distintos ha pasado. En uno, es algo local; en muchos, del sistema.'],
     // Resolución: lo resuelto, cuánto tarda y en qué se le va el tiempo (de media por resuelta: model.js, stats rt)
@@ -108,7 +111,7 @@ export const createCharts = (m, ui) => {
     tc: ['Espera cliente', null, (s) => (s.resolved ? s.rt[2] / s.resolved : null), 'Tiempo medio en Pendiente del centro o del cliente.'],
     tv: ['Espera tercero', null, (s) => (s.resolved ? s.rt[3] / s.resolved : null), 'Tiempo medio en Pendiente de un tercero.'],
     // IA (con o.extra: tabs.js, iaView)
-    iaN: ['Issues', null, (s) => s.iaN, 'Con alguna marca de IA.'],
+    iaN: ['Incidencias', null, (s) => s.iaN, 'Con alguna marca de IA.'],
     iaShare: ['% de las suyas', null, (s) => s.iaShare, 'De lo recibido, lo que tiene alguna marca de IA.'],
     // el 5.º: sobre cuántas se marca si va peor (si no, sus issues)
     iaOk: ['Revisadas OK', 'high', (s) => s.iaOk, 'De las de IA, con revisión humana OK y sin fallo.', (s) => s.iaN],
@@ -117,7 +120,7 @@ export const createCharts = (m, ui) => {
     // con o.cell: la celda la pinta quien llama (el reparto de las de IA en una barra)
     iaMix: ['Reparto', null, null, 'Revisadas OK, con fallo y sin revisar.'],
     req: ['% peticiones', null, (s) => s.req, 'Tipo de servicio Petición de usuario.'],
-    rep: ['Resol. repetida', null, (s) => s.rep, 'Issues cuyo texto de resolución se ha usado 4 veces o más.'],
+    rep: ['Resol. repetida', null, (s) => s.rep, 'Incidencias cuyo texto de resolución se ha usado 4 veces o más.'],
     // SLA y calidad
     slaKo: ['Fuera de SLA', null, (s) => s.slaKo, 'Empezadas tarde y abiertas que siguen sin empezar pasado el plazo.'],
     ip: ['Hasta En curso', 'low', (s) => s.ip, 'Media de la apertura al primer paso a En curso.'],
@@ -152,7 +155,7 @@ export const createCharts = (m, ui) => {
     // la barra, su parte real del total (el total, entera; «Resto», lo que suma)
     const cell = (c, r, isRef) => {
       if (c === 'n') return `<td><div class="mt-sc-vol"><em>${pct(r.n / T, 1)}</em><span class="mt-sc-bar"><i style="width:${(r.n / T * 100).toFixed(1)}%"></i></span><b>${num(r.n)}</b></div></td>`;
-      if (c === 'top') return `<td class="mt-sc-top">${r.top ? `<span data-tip="${esc(`${r.top.label}\n${pct(r.top.share, 1)} de sus issues`)}">${esc(r.top.label)}</span><em>${pct(r.top.share)}</em>` : ''}</td>`;
+      if (c === 'top') return `<td class="mt-sc-top">${r.top ? `<span data-tip="${esc(`${r.top.label}\n${pct(r.top.share, 1)} de sus incidencias`)}">${esc(r.top.label)}</span><em>${pct(r.top.share)}</em>` : ''}</td>`;
       if (o.cell?.[c]) return `<td class="mt-tbar">${o.cell[c](r)}</td>`;
       if (c === 'dl') return `<td class="mt-num" data-tip="${esc(`Últimos 90 días: ${num(r.tr.now)}\n90 anteriores: ${num(r.tr.prev)}`)}">${delta(r.tr)}</td>`;
       const v = SC[c][2](r), shown = v == null ? '—' : SC_FMT[c](v);
@@ -195,7 +198,7 @@ export const createCharts = (m, ui) => {
     const { mt, max } = heatCounts(R, Cc, list, (i) => keys(dr, i), (i) => keys(dc, i), SIDE);
     const cell = (t, r, c) => {
       const v = t[0] + t[1] + t[2], a = shadeSoft(v, max);
-      return `<td class="${a > HOT ? 'mt-hot' : ''}" style="--mt-a:${a}%" data-f2="${rd}:${R[r].k}|${cd}:${Cc[c].k}" data-tip="${esc(`${dr.label(R[r].k)} × ${dc.label(Cc[c].k)}\n${num(v)} issues\n${CO().map((k) => `${name(k)}: ${num(t[k])}`).join(' · ')}`)}">${v || ''}</td>`;
+      return `<td class="${a > HOT ? 'mt-hot' : ''}" style="--mt-a:${a}%" data-f2="${rd}:${R[r].k}|${cd}:${Cc[c].k}" data-tip="${esc(`${dr.label(R[r].k)} × ${dc.label(Cc[c].k)}\n${num(v)} incidencias\n${CO().map((k) => `${name(k)}: ${num(t[k])}`).join(' · ')}`)}">${v || ''}</td>`;
     };
     // cabeceras en horizontal; si son muchas (módulos, centros…), columnas iguales y el nombre cortado con «…» (entero al pasar el ratón)
     const v = 'mt-h', wide = Cc.length > 6;

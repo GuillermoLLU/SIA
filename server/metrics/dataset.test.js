@@ -51,7 +51,7 @@ test('la primera y la última apertura, sin contar los avisos automáticos', () 
   assert.deepEqual([meta.first, meta.last], [at('2025-06-01T00:00:00'), at('2026-10-13T12:00:00')]);
 });
 
-test('el último cambio de cada issue, en minutos como la apertura', () => {
+test('el último cambio de cada incidencia, en minutos como la apertura', () => {
   const ds = createDataset({ start: 2026 });
   ds.add(row({ LASTMODIFIEDDATE: '2026-03-02 10:00:00' }));
   const { cols, meta } = ds.build({ file: 'x', generated: 'y' });
@@ -68,15 +68,15 @@ test('resoluciones repetidas: solo las usadas 4 veces o más', () => {
   assert.equal(dict.resol[1], 'reinicio #');
 });
 
-test('unos datos que no son los de la consulta, o sin issues del grupo: error con estado 400', () => {
-  assert.throws(() => checkColumns({ A: '1' }), (e) => e.status === 400 && /La consulta de issues no trae/.test(e.message));
+test('unos datos que no son los de la consulta, o sin incidencias del grupo: error con estado 400', () => {
+  assert.throws(() => checkColumns({ A: '1' }), (e) => e.status === 400 && /La consulta de incidencias no trae/.test(e.message));
   assert.doesNotThrow(() => checkColumns(row()));
   const ds = createDataset({ start: 2026 });
   ds.add(row({ ASSIGNEDGROUP: 'OTRO' }));
-  assert.throws(() => ds.build({ file: 'x', generated: 'y' }), (e) => e.status === 400 && /No hay issues del grupo AYS SOPORTE/.test(e.message));
+  assert.throws(() => ds.build({ file: 'x', generated: 'y' }), (e) => e.status === 400 && /No hay incidencias del grupo AYS SOPORTE/.test(e.message));
 });
 
-test('cada issue con su problema; se enseña la forma más escrita', () => {
+test('cada incidencia con su problema; se enseña la forma más escrita', () => {
   const ds = createDataset({ start: 2026 });
   const titles = ['100001 High X - Cancelar pedidos', '100001 High X - Cancelar pedido', '100001 High X - Cancelar pedidos', '100001 High X', '100001 High X - Otro'];
   titles.forEach((SUMMARY, n) => ds.add(row({ INCIDENTNUMBER: `INC00000000003${n}`, SUMMARY })));

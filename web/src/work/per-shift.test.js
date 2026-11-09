@@ -7,7 +7,7 @@ const model = ({ rep, sp, sessions, company = [2, 0, 0, 1] }) => ({
   N: rep.length, S: { sides: [{ company: 0 }, null] }, C: { rep, sp }, data: { sessions, company },
 });
 
-test('los pasos son de quien los hizo y cuentan con su sesión; entrante, si la issue se abrió en las 8 h que acaban con ella', () => {
+test('los pasos son de quien los hizo y cuentan con su sesión; entrante, si la incidencia se abrió en las 8 h que acaban con ella', () => {
   const sessions = [[], [[10 * H, 20 * H, 1], [40 * H, 41 * H, 0.125]], [], []];
   const m = model({
     rep: [13 * H, 5 * H, 41 * H, 13 * H],

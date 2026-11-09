@@ -164,12 +164,12 @@ export const resolucionTab = (t) => {
         kpi('Esperando a terceros', on ? pct(s.rt[3] / rtTot) : '—', 'del tiempo de vida de lo resuelto')),
       section('¿Cuánto tardamos?'),
       card('Cuánto tardan', ttrTable(m.rows('tb')), { span: 's12', sub: 'Lo resuelto sin escalar, escalado y todo, repartido según lo que tardó (cada fila suma el 100 %); cada bloque, con su total. Clic en una celda para filtrar.' }),
-      card('Mes a mes', resMonthly(A), { span: 's12', sub: `${MONTH_NOTE} ${WORSE_NOTE.replace('issues', 'resueltas')} Clic en un mes para filtrar.` }),
+      card('Mes a mes', resMonthly(A), { span: 's12', sub: `${MONTH_NOTE} ${WORSE_NOTE.replace('incidencias', 'resueltas')} Clic en un mes para filtrar.` }),
       section('¿En qué se va el tiempo?'),
       card('Por prioridad, escalado y tarjeta', timeTable(A), { span: 's12', sub: 'Lo que pasa de media cada resuelta en cada estado, según el historial de cambios. Clic en una fila para filtrar.' }),
       section('¿Qué módulos tardan más?'),
       card('', scorecard('mo', [['Volumen', ['n']], ['Cuánto tarda', ['avg', 'd1', 'd7', 'd15', 'mx']], ['En qué se va', ['tq', 'tc', 'tv']], ['Escalado', ['vend']]],
-        { id: 'rs-mo', rows: m.rows('mo').filter(solved), skip: noK, refLabel: 'Todos los módulos', title: 'Módulos', n: ['Resueltas', 'Issues resueltas y su parte del total.'] }), { span: 's12' }));
+        { id: 'rs-mo', rows: m.rows('mo').filter(solved), skip: noK, refLabel: 'Todos los módulos', title: 'Módulos', n: ['Resueltas', 'Incidencias resueltas y su parte del total.'] }), { span: 's12' }));
   };
 
   return (A) => {

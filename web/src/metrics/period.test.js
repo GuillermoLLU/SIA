@@ -46,7 +46,7 @@ test('los últimos días: contando el de la foto; con menos cargados, desde el p
   assert.equal(m.S.d0, m.MIN_D);
 });
 
-test('el rango se limita a lo cargado: ni antes del primer día con issues ni después de la foto', () => {
+test('el rango se limita a lo cargado: ni antes del primer día con incidencias ni después de la foto', () => {
   const m = model();
   m.setPeriod(at(0, 1) - 99999, at(5, 1));
   assert.deepEqual([m.S.d0, m.S.d1], [m.MIN_D, m.END_D]);

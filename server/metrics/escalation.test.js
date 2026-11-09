@@ -55,7 +55,7 @@ test('sin escalar: solo THesc, aunque tenga Jira', () => {
   assert.deepEqual(escalationOf(issue({ escalated: false, open: false, resolved: 5000 }), [{ created: 1100, resolved: 4000, status: 'Closed' }], NOW), { ...NONE, thesc: 100 });
 });
 
-test('mal escalada: alguno de sus tickets se descartó o pasó de un equipo a otro, esté como esté la issue', () => {
+test('mal escalada: alguno de sus tickets se descartó o pasó de un equipo a otro, esté como esté la incidencia', () => {
   const t = (o) => ({ created: 1100, resolved: -1, status: 'Open', moves: 0, ...o });
   // de un equipo a otro: del original al final, aunque pasara por otros; un ticket, una ruta
   assert.deepEqual(escalationOf(issue(), [t({ moves: 2, hops: [['A', 'B'], ['B', 'C']] }), t({ moves: 1, hops: [['X', 'Y']] }), t()], NOW).routes, [['A', 'C'], ['X', 'Y']]);

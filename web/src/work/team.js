@@ -27,14 +27,14 @@ const tan = (s) => (s.resolved ? s.rt[1] / s.resolved : null);
 // Columnas de la tabla por persona: [cabecera, cómo se ve, valor, qué es mejor, qué mide]. Las de
 // prioridad se añaden con el modelo (sus índices dependen de los datos).
 const COLS = {
-  n: ['Issues', (s) => num(s.n), (s) => s.n, null, 'Issues que tiene asignadas, creadas en el periodo.'],
+  n: ['Incidencias', (s) => num(s.n), (s) => s.n, null, 'Incidencias que tiene asignadas, creadas en el periodo.'],
   open: ['Pendientes', (s) => num(s.open), (s) => s.open, null, 'Las que tiene asignadas y siguen sin resolver.'],
   sla: ['SLA cumplido', donePct, (s) => s.slaDone, 'high',
     `De las que ha resuelto, el % que pasó a En curso dentro del plazo de su prioridad: ${slaText()}.`],
-  tatt: ['Tatt medio', (s) => dur(s.ip), (s) => s.ip, 'low', 'Tiempo medio desde que se abre la issue hasta que pasa a En curso por primera vez, de las que han empezado (como en las Métricas del servicio).'],
+  tatt: ['Tatt medio', (s) => dur(s.ip), (s) => s.ip, 'low', 'Tiempo medio desde que se abre la incidencia hasta que pasa a En curso por primera vez, de las que han empezado (como en las Métricas del servicio).'],
   tan: ['Tan medio', (s) => dur(tan(s)), tan, 'low', 'De las que ha resuelto, tiempo medio de análisis: la suma de los tramos En curso, sin las esperas en Pendiente.'],
-  avg: ['TTR medio', (s) => dur(s.avg), (s) => s.avg, 'low', 'Tiempo medio de resolución (TTR): desde que se abre la issue hasta que se resuelve, en horas y días naturales.'],
-  reop: ['Reabiertas', (s) => pct(s.reop, 1), (s) => s.reop, 'low', '% de issues que se reabrieron después de resolverse.'],
+  avg: ['TTR medio', (s) => dur(s.avg), (s) => s.avg, 'low', 'Tiempo medio de resolución (TTR): desde que se abre la incidencia hasta que se resuelve, en horas y días naturales.'],
+  reop: ['Reabiertas', (s) => pct(s.reop, 1), (s) => s.reop, 'low', '% de incidencias que se reabrieron después de resolverse.'],
   ...shiftCols(),
   iqa: ['%IQA', () => '—', () => null, 'high', 'De las auditadas, el % con calidad 3 o 4 (sobre 4: la nota mínima de técnica, proceso y comunicación). Pendiente: la nota del agente de calidad (tarea #55) aún no llega a SIA.'],
   ia: ['Con IA', (s) => (s.resolved ? pct(s.ia / s.resolved, 1) : '—'), (s) => (s.resolved ? s.ia / s.resolved : null), null, 'De las que ha resuelto, el % en el que intervino la IA (marcas en TAGS o en las notas).'],
@@ -108,7 +108,7 @@ export const teamPanel = (m, ch, ui) => {
   // las prioridades, una columna cada una (cuántas de cada)
   const PRIO = { CRITICAL: 'Críticas', HIGH: 'Altas', MEDIUM: 'Medias', LOW: 'Bajas' };
   const cols = { ...COLS };
-  for (const p of m.PRIOS) cols[`p${p}`] = [PRIO[m.DI.prio[p]], (s) => num(s.prio[p]), (s) => s.prio[p], null, `Issues de prioridad ${m.slaLabel(p)}.`];
+  for (const p of m.PRIOS) cols[`p${p}`] = [PRIO[m.DI.prio[p]], (s) => num(s.prio[p]), (s) => s.prio[p], null, `Incidencias de prioridad ${m.slaLabel(p)}.`];
   const order = ['n', 'open', ...m.PRIOS.map((p) => `p${p}`), 'sla', 'tatt', 'tan', 'avg', 'reop', 'r', 're', 'rb', 'v', 've', 'vb', 'c', 'ce', 'cb', 'iqa', 'ia'];
 
   // Pendientes: todo lo que el equipo tiene sin resolver (caiga o no en sus búsquedas de Remedy) y lo
@@ -194,7 +194,7 @@ export const teamPanel = (m, ch, ui) => {
   const byPrio = m.PRIOS.map((p) => [p, m.bySide(doneRows.filter((i) => C.pr[i] === p)).map(m.stats)]);
 
   // la media al día, en la línea del título; sus colores son también la leyenda de las barras
-  const volume = block('volume', 'Volumen', chosen ? 'issues con actividad esos días' : 'issues en el periodo', fig((s) => num(s.n)), [],
+  const volume = block('volume', 'Volumen', chosen ? 'incidencias con actividad esos días' : 'incidencias en el periodo', fig((s) => num(s.n)), [],
     `<span class="wk-aside">Media al día <i class="mt-sw mt-c2"></i><b>${perDay(newDays.size ? flowAt.in.length / newDays.size : null)}</b> nuevas <i class="mt-sw mt-c${k0}"></i><b>${perDay(resolvedDays.size ? resolvedIn / resolvedDays.size : null)}</b> resueltas</span>`, () => (charts.has('volumeMonths') ? flowBars() : weekdayBars()));
   const backlog = block('queue', 'Pendientes', 'sin resolver', num(queue.all), [
     item(mineLabel, num(queue.mine), `mt-c${k0}`),
@@ -230,7 +230,7 @@ export const teamPanel = (m, ch, ui) => {
   const row = (s) => `<tr class="mt-clk" data-person="${s.k}" title="${who == null ? 'Ver solo sus datos' : 'Quitar el filtro'}"><td title="${esc(m.DIMS.as.label(s.k))}"><i class="mt-sw mt-c${k0}"></i>${esc(m.DIMS.as.label(s.k))}</td>${order.map((c) => cell(s, c)).join('')}</tr>`;
   const teamRow = `<tr class="mt-grp"><td>Equipo ${esc(name)}</td>${order.map((c) => `<td class="mt-num">${cols[c][1](ST[k0])}</td>`).join('')}</tr>`;
   const table = `<div class="mt-tablewrap"><table class="wk-team"><thead><tr><th>Persona</th>${order.map(th).join('')}</tr></thead>
-    <tbody>${people.filter((p) => who == null || p.k === who).map(row).join('') || `<tr><td colspan="${order.length + 1}" class="mt-mut">Nadie con issues en este periodo.</td></tr>`}${who == null ? teamRow : ''}</tbody></table></div>`;
+    <tbody>${people.filter((p) => who == null || p.k === who).map(row).join('') || `<tr><td colspan="${order.length + 1}" class="mt-mut">Nadie con incidencias en este periodo.</td></tr>`}${who == null ? teamRow : ''}</tbody></table></div>`;
 
   // la actividad se pinta sobre el periodo de partida, aunque haya días elegidos (activity.js)
   const activityRange = ui.range?.base || [S.d0, S.d1], picked = ui.actSeries ?? null;

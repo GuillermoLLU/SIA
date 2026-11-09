@@ -159,7 +159,7 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     renderPeriod();
     renderSides();
     $('[data-q]').hidden = !(searching || S.q);
-    $('[data-count]').innerHTML = `<b>${num(A.length)}</b> issues`;
+    $('[data-count]').innerHTML = `<b>${num(A.length)}</b> incidencias`;
     root.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('mt-on', b.dataset.tab === tab));
     // la pestaña del equipo va por su cuenta: sin los filtros de arriba, que no le afectan
     const onTeam = tab === team?.id;
@@ -176,7 +176,7 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
   const start = (data) => {
     m = data ? createModel(data) : null;
     m?.resetPeriod();   // de partida, el año fiscal en curso (desde el 1 de febrero)
-    ui.exp = {}; ui.sort = {}; ui.jiraPick = null; ui.resCmp = null; tab = 'resumen'; searching = false; closePops();
+    ui.exp = {}; ui.sort = {}; ui.jiraPick = null; ui.resCmp = null; ui.resPop = false; tab = 'resumen'; searching = false; closePops();
     if (!m) return renderEmpty();
     tabs = createTabs(m, createCharts(m, ui), ui);
     renderFrame();
@@ -369,8 +369,11 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
       if (searching) $('[data-q]').focus();
       return;
     }
-    const t = e.target.closest('[data-tab],[data-go],[data-rm],[data-exp],[data-sort],[data-evo],[data-evo-step],[data-preset],[data-res-cmp],[data-flk],[data-shk],[data-jc],[data-jc-clear],[data-esc-mode],[data-esc-nojira],[data-only],[data-f2],[data-f]');
-    if (!t) return;
+    // Resumen: el pop-up de «Comparar» se cierra con un clic fuera de él (sin aplicar nada)
+    const outRes = ui.resPop && !e.target.closest('.mt-res-cmp');
+    if (outRes) ui.resPop = false;
+    const t = e.target.closest('[data-tab],[data-go],[data-rm],[data-exp],[data-sort],[data-evo],[data-evo-step],[data-preset],[data-res-pop],[data-res-apply],[data-res-clear],[data-flk],[data-shk],[data-jc],[data-jc-clear],[data-esc-mode],[data-esc-nojira],[data-only],[data-f2],[data-f]');
+    if (!t) { if (outRes) render(); return; }
     const d = t.dataset;
     if (d.tab || d.go) {
       const from = tab;
@@ -379,17 +382,26 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
       // en Histórico. Dentro, se cambia con data-esc-mode.
       if (tab === 'escalados' && from !== 'escalados') { ui.escNow = from === 'backlog' || d.escNow != null; ui.escNoJira = false; }
       if (d.rm) { const [dim, k] = filterKey(d.rm); S.f[dim]?.delete(k); }   // un enlace que quita un filtro al ir (Resumen → Escalados)
+      // un enlace con fechas y vista (Resumen → Histórico): esas fechas arriba y esa vista de la evolución
+      if (d.period) { const [a, b] = d.period.split(':').map(Number); m.setPeriod(a, b); }
+      if (d.goEvo) ui.evo = d.goEvo;
     }
     else if (d.evo) ui.evo = d.evo;   // Histórico: la evolución del backlog o entrantes frente a atendidas
     else if (d.evoStep) ui.evoStep = d.evoStep;   // la evolución del backlog: por días, semanas o meses
-    // Resumen: las fechas rápidas (period.js, PRESETS) y con qué se compara: el periodo anterior (ui.resCmp) o T-Systems
-    // (el otro lado, como «+ Comparar»: vale para todas las pestañas); son excluyentes
+    // Resumen: las fechas rápidas (period.js, PRESETS) y «Comparar»: abrir o cerrar su pop-up y aplicar lo elegido en
+    // él. Un periodo frente a otro (ui.resCmp) o el mismo frente a T-Systems (el otro lado, como «+ Comparar»: vale para
+    // todas las pestañas); son excluyentes
     else if (d.preset) { const r = presetRange(m, d.preset); if (r) m.setPeriod(...r); }
-    else if (d.resCmp) {
+    else if (d.resPop != null) ui.resPop = !ui.resPop;
+    else if (d.resApply != null) {
+      const pop = t.closest('[data-res-popup]'), mode = pop.querySelector('input[name="res-mode"]:checked')?.value;
       const off = () => { if (S.sides[1]) ({ sides: S.sides, colors } = withoutSide(S.sides, colors, 1)); };
-      if (d.resCmp === 'tsys') { const had = !!S.sides[1]; ui.resCmp = null; S.sides[1] = { company: 1 }; if (!had) colors[1] = freeColor(colors[0]); }
-      else { off(); ui.resCmp = d.resCmp === 'prev' ? 'prev' : null; }
+      if (mode === 'tsys') { const had = !!S.sides[1]; ui.resCmp = null; S.sides[1] = { company: 1 }; if (!had) colors[1] = freeColor(colors[0]); }
+      else if (mode === 'periods') { off(); ui.resCmp = { a: pop.querySelector('[data-res-a]').value, b: pop.querySelector('[data-res-b]').value }; }
+      ui.resPop = false;
     }
+    // y la × de «Comparar»: quita la comparación, sea de periodos o con T-Systems
+    else if (d.resClear != null) { if (S.sides[1]) ({ sides: S.sides, colors } = withoutSide(S.sides, colors, 1)); ui.resCmp = null; ui.resPop = false; }
     else if (d.flk) { ui.flowOff = { ...ui.flowOff, [d.flk]: !ui.flowOff?.[d.flk] }; }   // y en estas, encender o apagar una serie
     // Turnos: clic, solo ese turno; con Ctrl (o Cmd), sumarlo o quitarlo (sin quedarse sin ninguno)
     else if (d.shk != null) {

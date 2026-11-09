@@ -61,7 +61,7 @@ export class DataError extends Error {
 // La primera fila dice si los datos son los de la consulta de issues.
 export const checkColumns = (row) => {
   const missing = REQUIRED.filter((c) => !(c in row));
-  if (missing.length) throw new DataError(`La consulta de issues no trae ${missing.join(', ')}.`);
+  if (missing.length) throw new DataError(`La consulta de incidencias no trae ${missing.join(', ')}.`);
 };
 
 // Copia propia de un texto que se guarda. Los trozos de un campo pueden ser
@@ -158,7 +158,7 @@ export const createDataset = ({ start }) => {
 
   // tickets: los tickets Jira guardados (repository.js: jiraTickets); jiraMeta: lo que va en meta.jira.
   const build = ({ file, generated, tickets = new Map(), jira: jiraMeta = null }) => {
-    if (!cols.id.length) throw new DataError(`No hay issues del grupo ${GROUP} en los datos cargados.`);
+    if (!cols.id.length) throw new DataError(`No hay incidencias del grupo ${GROUP} en los datos cargados.`);
     Object.assign(cols, escalations(tickets));
     cols.rz = resolutions.map((z) => (z && resolutionCount.get(z) >= 4 ? D.resol.id(z) : 0));
     const logins = new Map(), byLogin = loginsOf(resolvers);

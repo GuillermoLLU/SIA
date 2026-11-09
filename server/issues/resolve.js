@@ -81,7 +81,7 @@ const REQUIRED = [['note', 'Nota interna de resolución'], ['what', '¿Qué ocur
 // está en Remedy, vale esa y no la que llegue. Lanza 409 si no se puede resolver
 // y 400 si falta un campo.
 export const checkResolve = (issue, fields) => {
-  if (!OPEN.has(issue.status)) throw fail('Esta issue ya está resuelta o cerrada.', 409);
+  if (!OPEN.has(issue.status)) throw fail('Esta incidencia ya está resuelta o cerrada.', 409);
   const r = resolveDraft(issue);
   if (r.missing.length) throw fail(`Para escribir la nota de cierre faltan en Remedy: ${r.missing.join(', ')}.`, 409);
   const out = { ...fields, note: r.resolution ? r.resolution.text : fields.note };

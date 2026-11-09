@@ -109,7 +109,7 @@ test('tipo de operación por el prefijo de la categoría 2', () => {
   assert.equal(operationOf(''), 'Sin clasificar');
 });
 
-test('fila entera → issue medida', () => {
+test('fila entera → incidencia medida', () => {
   const i = readIssue({
     INCIDENTNUMBER: 'INC000000000123', ASSIGNEE: ' ANA LOPEZ ', SUMMARY: ' 100001 High ECOM ZARA X PACKING - Etiqueta mal impresa ',
     PRIORITY: 'HIGH', STATUS: 'CLOSED', STATUSREASON: '', SERVICETYPE: 'USER_SERVICE_RESTORATION', TAGS: 'SIGLO_TIP_SOL=3; PRIO;IA_SOLVED_OK',

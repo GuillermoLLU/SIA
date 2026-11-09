@@ -13,7 +13,7 @@ const open = () => {
 };
 const TEXT = { note: 'n', what: 'w', how: 'h', prevent: 'p', lang: 'en', step: 2 };
 
-test('texto y adjunto, por persona e issue, y se recupera al volver a abrir', () => {
+test('texto y adjunto, por persona e incidencia, y se recupera al volver a abrir', () => {
   const { file, drafts } = open();
   assert.equal(drafts.get('u1', 'INC1'), null);
   assert.equal(drafts.setText('u1', 'INC1', TEXT), '2026-10-28T15:20:00.000Z');
