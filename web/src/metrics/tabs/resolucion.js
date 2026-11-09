@@ -10,7 +10,6 @@ import { blockHead } from '../pieces.js';
 import { personVsTeam, expectedAvg } from '../peers.js';
 import { ttrBlocks, bestOf, resolutionParts, partValue, partWorse, resolvedPair, modulesBySide } from '../resolution.js';
 import { WORSE_NOTE, MONTH_NOTE, opt, optDur, avgOf } from './common.js';
-import { phasesOf, phasesChart, PHASES_NOTE } from '../phases.js';
 
 const STATES = [['En cola', 'En Asignada: sin coger o de vuelta a la cola. Incluye lo que espera a otros sin pasar a Pendiente.'], ['En curso', 'En En curso.'],
   ['Espera cliente', 'En Pendiente del centro o del cliente.'], ['Espera tercero', 'En Pendiente de un tercero.'], ['Otro motivo', 'En Pendiente por otro motivo o sin motivo.']];
@@ -127,20 +126,13 @@ export const resolucionTab = (t) => {
     return kpiCo('Media frente a sus módulos', out, durOf, { val: (s) => s.v, better: 'low', names,
       note: `Lo que tardaría ${COMPANIES[S.sides[tm].company]} con los mismos módulos que ${name(p)}: la media del equipo en cada módulo, con el peso que ese módulo tiene en lo suyo.` });
   };
-  // En qué se va el tiempo (phases.js), de lo que se mira: una fila por lado (comparando con personas, una empresa es
-  // todo su equipo, como en el resto de la pestaña)
-  const phases = phasesOf(m);
-  const timesCard = (A) => {
-    const rows = CMP() ? bySide(A).slice(0, 2).map((l, k) => ({ who: name(k), p: phases(l) })) : [{ who: name(m.CO()[0]), p: phases(A) }];
-    return card('En qué se va el tiempo', phasesChart(rows, { jiraAt: m.data.meta.jira?.at }), { span: 's12', sub: PHASES_NOTE });
-  };
   const resolutionCmp = (A) => {
     const T = bySide(A), R = T.map((l) => l.filter(solved)), ST = T.map(stats), team = S.sides.some((x) => !x.people), each = team ? ' por persona' : '';
     const part = (f) => ST.map((s) => ({ n: s.resolved, v: s.resolved ? f(s) : null }));
     const wait = ST.map((s) => { const x = s.rt.reduce((a, b) => a + b, 0); return { n: s.resolved, v: x ? s.rt[3] / x : null }; });
     const esc1 = R.map((l) => ({ n: l.length, v: l.length ? l.filter(escd).length / l.length : null }));
     const P = (s) => opt(pct)(s.v), names = teamNames();
-    return grid(ask('resolucion'), timesCard(A),
+    return grid(ask('resolucion'),
       kpis(kpiCo(`Resueltas${each}`, volume(R), team ? (s) => dec(s.v) : (s) => num(s.v), { val: (s) => s.v, note: `de lo recibido en el periodo${team ? headsNote() : ''}`, names }),
         kpiCo('Media de resolución', part((s) => s.avg), durOf, { val: (s) => s.v, better: 'low', note: 'De la apertura a la resolución.' }),
         sameModules(A) || '',
@@ -157,7 +149,7 @@ export const resolucionTab = (t) => {
   };
   const resolutionView = (A, note = '') => {
     const s = stats(A), R = A.filter(solved), rtTot = s.rt.reduce((a, b) => a + b, 0) || 1, on = s.resolved > 0;
-    return grid(ask('resolucion'), note, timesCard(A),
+    return grid(ask('resolucion'), note,
       kpis(kpi('Resueltas', num(s.resolved), `de ${num(s.n)} recibidas`), kpi('Media de resolución', avgOf(s), 'de la apertura a la resolución'),
         kpi('En < 24 h', on ? pct(s.d1) : '—', 'de las resueltas'), kpi('De 24 a 168 h', on ? pct(s.d7) : '—', 'de las resueltas'),
         kpi('De 168 a 360 h', on ? pct(s.d15) : '—', 'de las resueltas'), kpi('La que más tardó', on ? dur(s.mx) : '—', 'la resuelta más lenta'), kpi('Escaladas', on ? pct(R.filter(escd).length / R.length) : '—', 'de las resueltas, en Pendiente de un tercero en algún momento'),

@@ -35,6 +35,7 @@
 //           the/tes/tcr/tsr THesc, Tesc, Tcr y Tesc-r con sus tickets Jira (escalation.js; minutos, -1 no hay,
 //           the -2 ticket previo); fl lleva además las marcas de sin Jira válido, cerrada con el Jira abierto,
 //           cerrada en Remedy antes que su Jira y mal escalada (algún Jira suyo descartado o que pasó de un equipo a otro)
+//           pc problema común (problems.js, PROBLEM_NAMES; 0 sin clasificar), por el título y la descripción del centro
 //           nC veces que pasó a Pendiente de cliente · pn nuestra última nota pública (minutos desde el 1 de enero de
 //           start; -1 ninguna) y pm su motivo (pending-reason.js, PENDING_REASONS; 0 sin nota): de alguien del equipo
 //           (dict.person), aproximando lo público (pending-reason.js, isPublicNote)
@@ -42,6 +43,7 @@
 //           otras esperas, también de un tercero; minutos, -1 no hay): lo de antes del primer Jira, que suma su THesc
 import { readIssue, minutesSince, timeUntil, FLAG } from './remedy.js';
 import { PENDING_REASONS } from './pending-reason.js';
+import { PROBLEM_NAMES } from './problems.js';
 import { loginsOf, companyOf } from './companies.js';
 import { sessionsOf } from './sessions.js';
 import { THEME_NAMES, problemKey } from './themes.js';
@@ -49,7 +51,7 @@ import { PENDING, OPEN_STATES } from './states.js';
 import { escalationOf } from './escalation.js';
 
 export const GROUP = 'AYS SOPORTE';
-export const FORMAT = 16;
+export const FORMAT = 17;
 // el proyecto Jira con muchos equipos: a quién se escala, su equipo (vp: «ITSMECOM · N2 Courier Support»)
 export const TEAM_PROJECT = 'ITSMECOM';
 
@@ -80,7 +82,7 @@ const dictionary = () => {
 };
 
 const COLS = ['id', 'rep', 'res', 'lm', 'st', 'rs', 'pr', 'sv', 'as', 'ce', 'op', 'mo', 'k3', 'sc', 'fl', 'vt', 'vp', 'vk', 'vn',
-  'fr', 'ip', 'tA', 'tI', 'tPc', 'tPv', 'tPo', 'nb', 'np', 'nC', 'th', 'su', 'de', 'eR', 'eV', 'eC', 'sR', 'sV', 'sC'];
+  'fr', 'ip', 'tA', 'tI', 'tPc', 'tPv', 'tPo', 'nb', 'np', 'nC', 'pc', 'th', 'su', 'de', 'eR', 'eV', 'eC', 'sR', 'sV', 'sC'];
 // los días (desde el 1 de enero de start) de cada evento de una issue, sin repetir: una vez por issue, tipo y día
 const daysOf = (mins) => [...new Set(mins.filter((t) => t >= 0).map((t) => Math.floor(t / 1440)))];
 // y de cada turno de 8 h desde las 7:00 (mañana de 7 a 15, tarde de 15 a 23 y noche de 23 a 7: web shifts.js, slotOf)
@@ -122,7 +124,7 @@ export const createDataset = ({ start }) => {
       sv: D.svc.id(i.service), as: D.person.id(i.assignee), ce: D.centre.id(i.centre), op: D.op.id(i.operation), mo: D.module.id(i.module),
       k3: D.cat.id(i.category), sc: i.scope, fl: i.flags, vt: D.vtype.id(i.vendor.type), vp: D.vproj.id(i.vendor.project), vk: D.vkey.id(i.vendor.key), vn: D.vtext.id(i.vendorText),
       fr: i.first, ip: i.start, tA: i.time.queue, tI: i.time.work, tPc: i.time.client, tPv: i.time.vendor, tPo: i.time.other,
-      nb: i.bounces, np: i.pendings, nC: i.clientPendings, th: i.themes, su: own(i.title), de,
+      nb: i.bounces, np: i.pendings, nC: i.clientPendings, pc: i.common, th: i.themes, su: own(i.title), de,
       eR: daysOf(i.events.resolved), eV: daysOf(i.events.vendor), eC: daysOf(i.events.client),
       sR: slotsOf(i.events.resolved), sV: slotsOf(i.events.vendor), sC: slotsOf(i.events.client),
     };
@@ -186,6 +188,7 @@ export const createDataset = ({ start }) => {
       themes: THEME_NAMES,
       reasons: PENDING,
       pendingReasons: PENDING_REASONS,   // los motivos de Pendiente de cliente (cols.pm)
+      problems: PROBLEM_NAMES,           // los problemas comunes (cols.pc)
       company: people.map((name) => companyOf(name, logins.get(name) || [])),
       sessions: actionsOf.map(sessionsOf),
       cols,

@@ -108,7 +108,7 @@ test('entrantes vs atendidas, en Entrantes (ya no en el Histórico), con su sele
     [['flow', 'Entrantes vs atendidas entrantes', true], ['flowAll', 'Entrantes vs atendidas totales', false]]);
   assert.match(run('backlog').sec, /data-evo="flow" aria-pressed="true"/);
   // debajo de las cifras de arriba, antes de la tabla mes a mes
-  assert.ok(first.html.indexOf('% Bajas') < first.html.indexOf('data-evo="flow"'));
+  assert.ok(first.html.indexOf('% Bajas en SLA') < first.html.indexOf('data-evo="flow"'));
   assert.ok(first.html.indexOf('data-evo="flow"') < first.html.indexOf('lo que entra, lo que se cierra y lo que queda'));
   // el Histórico, solo con el backlog y sin selector de vista
   assert.match(first.hist, /<h3>Evolución del backlog<\/h3>/);
@@ -177,3 +177,37 @@ test('la sábana: abajo del todo, lo abierto ahora con los filtros, con su enlac
   assert.match(sheet, /<td><a href="https:\/\/itx\.onbmc\.com[^"]*INC000000000003%22" target="_blank" rel="noopener">INC000000000003<\/a><\/td>/);
   assert.match(sheet, /<td>Media<\/td><td>Asignada<\/td><td>ANA<\/td>/);
 });
+
+test('Entrantes: el % de lo que entra que se resuelve el mismo día en que entra', () => {
+  const m = createModel(data()); m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const ui = { exp: {}, sort: {} }, html = createTabs(m, createCharts(m, ui), ui).render('entrada', m.rows());
+  // Indra: entran 3 (la crítica, la media y la baja); la crítica y la baja, resueltas el día que entraron (como en la gráfica)
+  assert.match(html, /<div class="mt-kpi-l">% resuelto el día que entra<\/div><div class="mt-kpi-v">67 %<\/div><div class="mt-kpi-d">de lo que entró, resuelto el mismo día<\/div>/);
+  assert.ok(html.indexOf('Resolvemos al día') < html.indexOf('% resuelto el día que entra'));
+  assert.match(html, /En el periodo: 3 entrantes · 2 atendidas el día que entraron \(67 %\)/);   // cuadra con la gráfica
+});
+
+test('Entrantes: el % de lo que entra que se gestiona (resuelve o escala) el mismo día en que entra', () => {
+  const d = data();
+  d.cols.eV[2] = [Math.floor(d.cols.rep[2] / 1440)];   // la media de Indra, abierta: escalada a proveedor el día que entró
+  const m = createModel(d); m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const ui = { exp: {}, sort: {} }, html = createTabs(m, createCharts(m, ui), ui).render('entrada', m.rows());
+  // de las 3 de Indra: 2 resueltas el mismo día y 1 escalada el mismo día
+  assert.match(html, /<div class="mt-kpi-l">% resuelto el día que entra<\/div><div class="mt-kpi-v">67 %<\/div>/);
+  assert.match(html, /<div class="mt-kpi-l">% gestionado el día que entra<\/div><div class="mt-kpi-v">100 %<\/div><div class="mt-kpi-d">de lo que entró, resuelto o escalado el mismo día<\/div>/);
+  assert.ok(html.indexOf('% resuelto el día que entra') < html.indexOf('% gestionado el día que entra'));
+});
+
+test('Entrantes: de cada prioridad, el % empezado dentro de su SLA de inicio (no el reparto de lo recibido)', () => {
+  const m = createModel(data()); m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const ui = { exp: {}, sort: {} }, html = createTabs(m, createCharts(m, ui), ui).render('entrada', m.rows());
+  const st = (p) => m.stats(m.rows().filter((i) => m.C.pr[i] === p)).sla;
+  const kpi = (l) => html.match(new RegExp(`<div class="mt-kpi-l">${l}</div><div class="mt-kpi-v">([^<]*)</div><div class="mt-kpi-d">([^<]*)</div>`))?.slice(1);
+  // Indra: la crítica, en curso a los 10 min (SLA de 15): en SLA; la media, abierta y sin empezar, ya fuera de plazo
+  assert.deepEqual(kpi('% Críticas en SLA'), ['100 %', `empezadas en ${m.slaLabel(1).split(' · ')[1]}`]);
+  assert.equal(st(1), 1);
+  assert.equal(kpi('% Medias en SLA')[0], '0 %');
+  assert.equal(kpi('% Bajas en SLA')[0], '—');   // la baja se cerró sin pasar por En curso: no cuenta
+  assert.doesNotMatch(html, /<div class="mt-kpi-l">% Críticas<\/div>/);   // el reparto, ya no
+});
+

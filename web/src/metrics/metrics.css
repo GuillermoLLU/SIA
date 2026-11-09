@@ -768,3 +768,11 @@ i.mt-pq0 { background: var(--mt-pq0); } i.mt-pq1 { background: var(--mt-pq1); } 
 /* la barra de arriba: lo comparado (Ctrl+clic en una segunda empresa o fecha rápida), con el color del otro lado */
 .mt-seg-b.mt-qb { background: color-mix(in srgb, var(--mt-base1, var(--mt-low)) 22%, var(--surface)); border-color: var(--mt-base1, var(--mt-line)); color: var(--text); }
 .mt-fbar .mt-res-cmp { margin-left: 0; }
+/* Análisis tiempos, por módulo: una barra de su tiempo total (a la escala del que más), partida por estados */
+.mt-mo-times .mt-mo-cell { width: 26%; min-width: 120px; }
+.mt-mo-bar { display: flex; height: 12px; min-width: 2px; overflow: hidden; border-radius: 0 3px 3px 0; }
+.mt-mo-bar i { display: block; height: 100%; }
+.mt-mo-times th .mt-dn-sw { margin-right: 4px; }
+/* Análisis tiempos, problemas comunes: la barra de cuántas, y los módulos, que no ensanchen la tabla */
+.mt-pc-times td.mt-blist-bar { width: 18%; min-width: 90px; }
+.mt-pc-times td:last-child { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

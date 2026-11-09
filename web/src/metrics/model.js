@@ -139,6 +139,8 @@ export const createModel = (data) => {
     age: { name: 'Antigüedad', get: (i) => AGE_LIMITS.findIndex((l) => SNAP - C.rep[i] < l), label: (k) => AGE_NAMES[k] },
     tb: { name: 'Tiempo de resolución', get: (i) => TB[i], label: (k) => TTR_NAMES[k] },
     de: { name: 'Problema', get: (i) => C.de[i], label: (k) => DI.problem[k] || '(título sin descripción del problema)' },
+    // el problema común (server/metrics/problems.js: por el título y la descripción del centro; 0, sin clasificar)
+    pc: { name: 'Problema común', get: (i) => C.pc?.[i] ?? 0, label: (k) => data.problems?.[k] || 'Sin clasificar' },
     th: { name: 'Tema', multi: true, label: (k) => data.themes[k] || 'Sin tema detectado',
       get: (i) => { const t = C.th[i], o = []; if (!t) return [data.themes.length]; for (let j = 0; j < data.themes.length; j++) if (t >> j & 1) o.push(j); return o; } },
     // el primero de sus temas (van de más concreto a más general: «cancelar pedido» es Cancelar, no Pedidos), para

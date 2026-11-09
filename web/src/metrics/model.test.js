@@ -236,7 +236,7 @@ test('Resolución no compara empresas; con personas, módulo a módulo y la medi
   assert.match(h, /Indra, en sus módulos/);
   assert.doesNotMatch(h, /Malos escalados|no compara/);
   assert.match(tabs.render('escalados', m.rows()), /no compara: se ve solo ANA/);
-  assert.match(h, /<h3>En qué se va el tiempo<\/h3>/);
+  assert.doesNotMatch(h, /<h3>En qué se va el tiempo<\/h3>/);   // ahora en Análisis tiempos
   m.S.sides = [{ people: new Set([2]) }, { people: new Set([1]) }]; m.refilter();   // dos personas: sin la referencia del equipo
   h = tabs.render('resolucion', m.rows());
   assert.match(h, /Módulo a módulo/);

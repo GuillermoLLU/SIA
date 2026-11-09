@@ -6,24 +6,26 @@ import { createTabs } from '../tabs.js';
 import { data } from '../fixture.js';
 import { afterDash } from './escalados.js';
 
-const render = (sides) => {
+const render = (sides, tab = 'resolucion') => {
   const m = createModel(data()); m.S.sides = sides; m.refilter();
   const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
-  return tabs.render('resolucion', m.rows());
+  return tabs.render(tab, m.rows());
 };
 // la tarjeta de las dos barras, dentro de «¿En qué se va el tiempo?»
 const times = (html) => { const a = html.indexOf('<h3>En qué se va el tiempo</h3>'); return html.slice(a, html.indexOf('</section>', a)); };
 
-test('Resolución y escalados: en qué se va el tiempo, arriba del todo (antes de las cifras), sin comparar y comparando', () => {
-  for (const sides of [[{ company: 0 }, null], [{ people: new Set([1]) }, { company: 0 }]]) {
-    const html = render(sides), card = html.indexOf('<h3>En qué se va el tiempo</h3>');
-    assert.ok(card > 0 && card < html.indexOf('mt-kpis'));
-    assert.equal(html.indexOf('<section'), html.lastIndexOf('<section', card));
+test('En qué se va el tiempo: en Análisis tiempos (ya no en Resolución), sin comparar y comparando', () => {
+  for (const sides of [[{ company: 0 }, null], [{ people: new Set([1]) }, { company: 0 }], [{ company: 0 }, { company: 1 }]]) {
+    const html = render(sides, 'tiempos'), card = html.indexOf('<h3>En qué se va el tiempo</h3>');
+    assert.ok(card > 0);
+    assert.equal(html.indexOf('<section'), html.lastIndexOf('<section', card));   // la primera tarjeta
+    assert.doesNotMatch(html, /En construcción|undefined|NaN/);
+    assert.doesNotMatch(render(sides), /<h3>En qué se va el tiempo<\/h3>/);
   }
 });
 
 test('Resolución y escalados: en qué se va el tiempo, con las dos barras y una fila por barra para lo que se mira', () => {
-  const html = times(render([{ company: 0 }, null]));
+  const html = times(render([{ company: 0 }, null], 'tiempos'));
   assert.equal((html.match(/class="mt-svc-time"/g) || []).length, 2);
   assert.deepEqual([...html.matchAll(/<span class="mt-svc-who">([^<]*)<\/span>/g)].map((x) => x[1]), ['Indra', 'Indra']);
   // Indra, sin escalar: la crítica (60 min) y la baja (100 min) resueltas
@@ -31,7 +33,7 @@ test('Resolución y escalados: en qué se va el tiempo, con las dos barras y una
 });
 
 test('Resolución y escalados, comparando una persona con su equipo: una fila por cada lado en cada barra', () => {
-  const html = times(render([{ people: new Set([1]) }, { company: 0 }]));
+  const html = times(render([{ people: new Set([1]) }, { company: 0 }], 'tiempos'));
   assert.equal((html.match(/<span class="mt-svc-who">/g) || []).length, 4);
   assert.match(html, /<span class="mt-svc-who">Indra<\/span>/);
 });
@@ -210,4 +212,103 @@ test('Sin Jira: un KPI junto a los tiempos que, al pincharlo, filtra la pestaña
   ui.escNoJira = false;
   tabs.render('escalados', m.rows());
   assert.deepEqual(ui.escSheet.list, [0, 3]);
+});
+
+test('En qué se va el tiempo: Actual (lo abierto, hasta hoy) o Histórico (lo resuelto del periodo, de partida)', () => {
+  const m = createModel(data()); m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  let html = times(tabs.render('tiempos', m.rows()));
+  assert.match(html, /data-times-mode="past" aria-pressed="true"/);
+  assert.match(html, /data-times-mode="now" aria-pressed="false"/);
+  assert.match(html, /2 resueltas/);   // Indra, sin escalar: la crítica y la baja
+  ui.timesNow = true;
+  html = times(tabs.render('tiempos', m.rows()));
+  assert.match(html, /data-times-mode="now" aria-pressed="true"/);
+  // Indra: abierta, solo la media (sin tocar, en cola desde hace 200 min): toda su barra, en cola
+  assert.match(html, /1 abiertas/);
+  assert.match(html, /<b>3,3 h<\/b>/);
+  assert.match(html, /En cola: 3,3 h \(100 %\)/);
+  assert.match(html, /De media por incidencia abierta/);
+  assert.doesNotMatch(html, /undefined|NaN/);
+  assert.equal(times(tabs.render('tiempos', [])), html);   // sea cual sea el periodo
+});
+
+test('Análisis tiempos, por módulo: de más a menos tiempo total, con su parte, su media y en qué se le va; sigue Actual o Histórico', () => {
+  const m = createModel(data()); m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  const card = (h) => { const a = h.indexOf('<h3>Por módulo</h3>'); return h.slice(a, h.indexOf('</section>', a)); };
+  const rows = (h) => [...card(h).matchAll(/<tr class="mt-clk [^"]*" data-f="mo:(\d+)"><th class="mt-r" title="([^"]*)">[^<]*<\/th>\s*<td class="mt-num">(\d+)<\/td><td class="mt-num"><b>([^<]*)<\/b><\/td><td class="mt-num">([^<]*)<\/td>/g)].map((x) => [x[2], +x[3], x[4], x[5]]);
+  // Histórico, Indra: resueltas la crítica (EWMS, 60 min) y la baja (PACKING, 100 min): PACKING, la primera
+  let html = tabs.render('tiempos', m.rows());
+  assert.ok(html.indexOf('<h3>En qué se va el tiempo</h3>') < html.indexOf('<h3>Por módulo</h3>'));
+  assert.deepEqual(rows(html), [['PACKING', 1, '1,7 h', '62,5 %'], ['EWMS', 1, '1 h', '37,5 %']]);
+  assert.match(card(html), /<tr class="mt-tot"><th class="mt-r">Total<\/th><td class="mt-num">2<\/td><td class="mt-num"><b>2,7 h<\/b><\/td><td class="mt-num">100 %<\/td>/);
+  for (const h of ['En cola', 'En curso', 'Esperando al centro', 'Esperando a terceros', 'Otras esperas']) assert.match(card(html), new RegExp(`</i>${h}</th>`), h);
+  // Actual: lo abierto ahora, la media (EWMS, 200 min en cola)
+  ui.timesNow = true;
+  html = tabs.render('tiempos', m.rows());
+  assert.deepEqual(rows(html), [['EWMS', 1, '3,3 h', '100,0 %']]);
+  assert.match(card(html), /<th class="mt-num">Abiertas<\/th>/);
+  assert.doesNotMatch(html, /undefined|NaN/);
+  // sin nada, lo dice
+  ui.timesNow = false;
+  assert.match(tabs.render('tiempos', []), /Nada resuelto con estos filtros/);
+});
+
+test('Análisis tiempos, problemas comunes: de más a menos incidencias, con su tiempo y sus módulos; sin clasificar, al final; clic, filtrar', () => {
+  const d = data();
+  d.problems = ['Sin clasificar', 'Etiqueta de transporte', 'Impresoras e impresión'];
+  d.cols.pc = [1, 2, 0, 1, 2];   // Indra: la crítica (EWMS) y la baja (PACKING), resueltas, con etiqueta de transporte; la media, abierta, sin clasificar
+  const m = createModel(d); m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  const card = (h) => { const a = h.indexOf('<h3>Problemas comunes</h3>'); return h.slice(a, h.indexOf('</section>', a)); };
+  const rows = (h) => [...card(h).matchAll(/data-f="pc:(\d+)"><th class="mt-r" title="([^"]*)">[^<]*<\/th>\s*<td class="mt-num"><b>(\d+)<\/b><\/td>/g)].map((x) => [x[2], +x[3]]);
+  let html = tabs.render('tiempos', m.rows());
+  assert.ok(html.indexOf('<h3>Por módulo</h3>') < html.indexOf('<h3>Problemas comunes</h3>'));
+  assert.deepEqual(rows(html), [['Etiqueta de transporte', 2]]);
+  assert.match(card(html), /EWMS 1 · PACKING 1|PACKING 1 · EWMS 1/);
+  // Actual: lo abierto (la media, sin clasificar): solo esa fila, al final y apagada
+  ui.timesNow = true;
+  html = tabs.render('tiempos', m.rows());
+  assert.deepEqual(rows(html), [['Sin clasificar', 1]]);
+  assert.match(card(html), /<tr class="mt-clk mt-mut /);
+  // filtrar por un problema: la fila marcada; el filtro, como cualquier otro
+  ui.timesNow = false;
+  m.toggle('pc', 1); m.refilter();
+  html = tabs.render('tiempos', m.rows());
+  assert.match(card(html), /<tr class="mt-clk  mt-sel" data-f="pc:1">/);
+  assert.equal(m.DIMS.pc.label(1), 'Etiqueta de transporte');
+  // sin los problemas en los datos (de antes), lo avisa
+  const old = createModel(data()); old.S.sides = [{ company: 0 }, null]; old.refilter();
+  const u2 = { exp: {}, sort: {} };
+  assert.match(createTabs(old, createCharts(old, u2), u2).render('tiempos', old.rows()), /Faltan los problemas comunes: reinicia SIA/);
+});
+
+test('Análisis tiempos: la sábana, abajo del todo, con las incidencias de las tablas; pinchar un módulo o un problema la filtra', () => {
+  const d = data();
+  d.problems = ['Sin clasificar', 'Etiqueta de transporte'];
+  d.cols.pc = [1, 0, 0, 0, 0];
+  const m = createModel(d); m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  let html = tabs.render('tiempos', m.rows());
+  const sheet = html.slice(html.indexOf('<h3>Sábana de incidencias</h3>'));
+  assert.ok(html.indexOf('<h3>Problemas comunes</h3>') < html.indexOf('<h3>Sábana de incidencias</h3>'));
+  // Histórico, Indra: las resueltas, de la que más tardó (la baja, 100 min) a la que menos (la crítica, 60)
+  assert.deepEqual(ui.timesSheet.list, [3, 0]);
+  for (const h of ['Problema común', 'Módulo', 'Tiempo de resolución']) assert.match(sheet, new RegExp(`<th[^>]*>${h}</th>`), h);
+  assert.match(sheet, /<td>Etiqueta de transporte<\/td>/);
+  assert.match(sheet, /data-export/);
+  // pinchar un problema (o un módulo): la sábana, solo esas
+  m.toggle('pc', 1); m.refilter();
+  html = tabs.render('tiempos', m.rows());
+  assert.deepEqual(ui.timesSheet.list, [0]);
+  assert.match(html, /Filtrada por lo que has pinchado arriba/);
+  m.toggle('pc', 1); m.toggle('mo', 2); m.refilter();   // PACKING
+  tabs.render('tiempos', m.rows());
+  assert.deepEqual(ui.timesSheet.list, [3]);
+  // Actual: lo abierto, con su antigüedad y su estado
+  m.toggle('mo', 2); m.refilter(); ui.timesNow = true;
+  html = tabs.render('tiempos', m.rows());
+  assert.deepEqual(ui.timesSheet.list, [2]);
+  assert.match(html.slice(html.indexOf('<h3>Sábana de incidencias</h3>')), /<th[^>]*>Antigüedad<\/th>/);
 });

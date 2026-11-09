@@ -26,7 +26,7 @@ export const QUESTIONS = {
   modulos: ['¿De dónde viene?', 'Los módulos, centros y problemas que concentran el trabajo, y lo que se repite.'],
   resolucion: ['¿Cómo lo resolvemos?', 'Cuánto tardamos, en qué se va el tiempo, y qué módulos tardan más. Tiempos de lo resuelto, en tiempo natural.'],
   cliente: ['¿Qué esperamos del cliente?', 'Lo que está ahora en Pendiente del centro o del cliente, a fecha de la última carga y sea cual sea el periodo: cuánto, desde cuándo, si lo estamos reclamando y por qué esperamos.'],
-  tiempos: ['¿En qué se nos va el tiempo?', 'El análisis de los tiempos del servicio, empezando por el MTTR. En construcción.'],
+  tiempos: ['¿En qué se nos va el tiempo?', 'Lo que pasa de media cada fase, sin escalar y escalado, según el historial de cambios: en Actual, lo que llevan hasta hoy las que siguen abiertas; en Histórico, lo resuelto del periodo.'],
   calidad: ['¿Cómo de bien queda el trabajo?', 'La calidad del trabajo, empezando por el %IQA (la nota del agente de calidad, tarea #55). En construcción.'],
   escalados: ['¿Qué escalamos y a quién?', 'En Activas, lo escalado que sigue abierto (a fecha de la última carga, sea cual sea el periodo); en Histórico, lo escalado y resuelto del periodo. Cuánto tarda, a qué proyectos Jira se escala y los malos escalados: tickets que se descartan o pasan de un equipo a otro.'],
   sla: ['¿Cómo de bien lo hacemos?', `Si empezamos a tiempo (SLA de inicio: de la apertura al primer paso a En curso, en tiempo natural; ${slaText()}), si el trabajo queda bien hecho y si queda bien registrado.`],

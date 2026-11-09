@@ -112,3 +112,14 @@ test('Pendiente de cliente: las veces que entró (nC) y nuestra última nota pú
   assert.deepEqual(out.cols.pm, [2, 0]);              // validación de solución/workaround; sin nota pública
   assert.equal(out.pendingReasons[2], 'Validación de solución/workaround');
 });
+
+test('el problema común de cada incidencia (pc), por el título y la descripción, con sus nombres', () => {
+  const ds = createDataset({ start: 2026 });
+  ds.add(row({ SUMMARY: '100711 High PAQUETERIA - Limpiar puesto paletizado', NOTES: 'Teléfono Contacto: 1\nHola' }));
+  ds.add(row({ INCIDENTNUMBER: 'INC000000000002', SUMMARY: 'Algo', NOTES: 'Contact Phone: 1\nHello' }));
+  const out = ds.build({ file: 'x', generated: 'g' });
+  assert.equal(out.problems[out.cols.pc[0]], 'Puesto de paletizado (limpiar o liberar)');
+  assert.equal(out.cols.pc[1], 0);
+  assert.equal(out.problems[0], 'Sin clasificar');
+});
+

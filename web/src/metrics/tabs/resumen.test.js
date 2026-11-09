@@ -128,7 +128,7 @@ test('Análisis tiempos y Calidad: pestañas nuevas, vacías por ahora; IA pasa 
   assert.equal(label('calidad'), 'Calidad');
   assert.equal(label('cliente'), 'Pendiente de cliente');   // ya con contenido: cliente.test.js
   assert.equal(label('ia'), 'Uso de la IA');
-  for (const k of ['tiempos', 'calidad']) {
+  for (const k of ['calidad']) {   // Análisis tiempos ya tiene contenido: resolucion.test.js
     const html = tabs.render(k, m.rows());
     assert.match(html, /<h3>En construcción<\/h3>/);
     assert.match(html, /class="mt-ask"/);

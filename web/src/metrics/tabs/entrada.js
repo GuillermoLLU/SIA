@@ -3,7 +3,7 @@
 // atendido día a día: de lo que entró, o de todo (evolucion.js; antes, en el Histórico).
 import { num, dec, pct, nice } from '../format.js';
 import { CARDS } from '../model.js';
-import { OLD_DAYS } from '../rules.js';
+import { OLD_DAYS, DAY } from '../rules.js';
 import { closedInPeriod as closedIn, ledger as ledgerOf } from '../flow.js';
 import { opt } from './common.js';
 import { evolutionOf } from './evolucion.js';
@@ -95,7 +95,17 @@ export const entradaTab = (t) => {
       kpis(kpiCo(`Recibidas${each}`, volume(T), (s) => num(Math.round(s.v)), { val: (s) => Math.round(s.v), note: `abiertas en el periodo${headsNote()}`, names: teamNames() }),
         kpiCo(`Entran al día${each}`, volume(T, d), (s) => dec(s.v), { val: (s) => s.v, note: `de media, en días naturales${headsNote()}`, names: teamNames() }),
         kpiCo(`Resolvemos al día${each}`, volume(closed, d), (s) => dec(s.v), { val: (s) => s.v, note: `de media, todo lo resuelto o cerrado en el periodo${headsNote()}`, names: teamNames() }),
-        ...PRIOS.map((p) => kpiCo(`% ${PLURAL[DI.prio[p]] || nice(DI.prio[p])}`, ST.map((s) => ({ n: s.n, v: s.n ? s.prio[p] / s.n : null })), sharePct, { val: (s) => s.v, pctSign: true, note: `SLA de inicio: ${slaLabel(p).split(' · ')[1]}` }))),
+        // de lo que entró en el periodo, lo que pasó a Resuelta el mismo día en que entró (como en la gráfica de entrantes
+        // frente a atendidas: backlog.js, flowByDay)
+        kpiCo('% resuelto el día que entra', shareOf(T, (i) => (C.eR?.[i] || []).includes(Math.floor(C.rep[i] / DAY))), sharePct,
+          { val: (s) => s.v, better: 'high', pctSign: true, note: 'de lo que entró, resuelto el mismo día' }),
+        // y gestionado: resuelto o escalado (pasado a Pendiente de proveedor) el mismo día en que entró
+        kpiCo('% gestionado el día que entra', shareOf(T, (i) => { const d = Math.floor(C.rep[i] / DAY); return (C.eR?.[i] || []).includes(d) || (C.eV?.[i] || []).includes(d); }), sharePct,
+          { val: (s) => s.v, better: 'high', pctSign: true, note: 'de lo que entró, resuelto o escalado el mismo día' }),
+        // de cada prioridad, la parte que se empezó dentro de su SLA de inicio (de la apertura al primer paso a En curso;
+        // las abiertas sin empezar y ya fuera de plazo cuentan como fuera: model.js, stats sla), como en SLA y calidad
+        ...PRIOS.map((p) => kpiCo(`% ${PLURAL[DI.prio[p]] || nice(DI.prio[p])} en SLA`, T.map((l) => { const st = stats(l.filter((i) => C.pr[i] === p)); return { n: st.n, v: st.sla }; }), sharePct,
+          { val: (s) => s.v, better: 'high', pctSign: true, note: `empezadas en ${slaLabel(p).split(' · ')[1]}` }))),
       evolution({ views: ['flow', 'flowAll'] }),
       card(m.daily() ? 'Día a día: lo que entra, lo que se cierra y lo que queda' : 'Mes a mes: lo que entra, lo que se cierra y lo que queda', ledger(A),
         { span: 's12', sub: CMP() ? '' : `«Por cerrar»: de lo recibido cada mes, lo que sigue abierto hoy; su total son las pendientes de la pestaña Backlog. Pasa el ratón por una cabecera para ver qué cuenta.${S.from === S.to ? '' : ' Clic en un mes para filtrar; con un solo mes, día a día.'}` }),
