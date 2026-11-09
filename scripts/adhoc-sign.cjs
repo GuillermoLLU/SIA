@@ -15,7 +15,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const fixSpawnHelpers = (app) => {
-  const pty = path.join(app, 'Contents', 'Resources', 'app', 'node_modules', 'node-pty');
+  const pty = path.join(app, 'Contents', 'Resources', 'app.asar.unpacked', 'node_modules', 'node-pty'); // nativo: fuera del asar
   const helpers = [];
   for (const sub of ['prebuilds', 'build']) {
     const root = path.join(pty, sub);
