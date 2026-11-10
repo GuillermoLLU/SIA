@@ -152,6 +152,9 @@
 .mt-chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 6px 2px 10px; font-size: 12.5px; background: var(--mt-sel); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border)); }
 .mt-chip b { font-weight: 600; }
 .mt-chip button { padding: 0 3px; font-size: 14px; line-height: 1; color: var(--mt-low); background: none; border: 0; cursor: pointer; }
+/* «Quitar filtros», detrás de los chips */
+.mt-reset { padding: 2px 10px; font: inherit; font-size: 12.5px; color: var(--mt-low); background: none; border: 1px dashed var(--mt-line); cursor: pointer; }
+.mt-reset:hover { color: var(--text); border-color: var(--text); }
 .mt-btn { padding: 5px 11px; font: inherit; font-size: 13px; color: var(--text); background: var(--surface); border: 1px solid var(--mt-line); cursor: pointer; }
 .mt-btn:hover { background: var(--mt-soft); }
 .mt-count { font-size: 13px; color: var(--mt-low); white-space: nowrap; }
@@ -236,6 +239,7 @@
 .mt-view table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .mt-view th, .mt-view td { padding: 6px 8px; text-align: left; vertical-align: middle; border-bottom: 1px solid var(--border); }
 .mt-view th { position: sticky; top: 0; font-size: 12px; font-weight: 600; color: var(--mt-low); white-space: nowrap; background: var(--mt-card); }
+.mt-view th.mt-colsort { cursor: pointer; user-select: none; } .mt-view th.mt-colsort:hover { color: var(--text); } .mt-srt-a { font-weight: 700; }
 .mt-view th[data-sort] { cursor: pointer; } .mt-view th[data-sort]:hover, .mt-view th.mt-srt { color: var(--text); }
 .mt-view .mt-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .mt-clk { cursor: pointer; } .mt-clk:hover td { background: var(--mt-soft); } .mt-sel td { background: var(--mt-sel); }
@@ -339,13 +343,26 @@
 /* Lo pendiente (Entrada y backlog): total · en qué punto están (barra que suma el total) · a vigilar · aparte */
 .mt-stock { grid-column: span 12; display: grid; grid-template-columns: minmax(150px, 1fr) minmax(0, 2.6fr) minmax(220px, 1.3fr) minmax(150px, 1fr); gap: 12px; }
 .mt-stock.mt-st-noapart { grid-template-columns: minmax(150px, 1fr) minmax(0, 2.6fr) minmax(220px, 1.3fr); }
+/* Pendiente de cliente: por módulo afectado y por centro */
+.mt-cli-g { width: 100%; table-layout: fixed; } .mt-cli-g th:first-child { width: 30%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Escalados: el selector de cómo se agrupa su tabla, encima de ella */
+.mt-esc-by { display: flex; align-items: center; gap: 10px; padding: 12px 14px 8px; font-size: 12.5px; color: var(--mt-low); }
+.mt-esc-by .mt-seg { grid-column: auto; } .mt-esc-by .mt-seg.mt-seg-sm { margin-bottom: 0; }
+/* Foto de hoy: arriba, SISU o SGA y la prioridad, en una fila */
+.mt-hoy-picks { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.mt-hoy-picks .mt-seg { grid-column: auto; }
+/* sin el total (Foto de hoy: está en la corona), a la derecha de la corona */
+.mt-stock.mt-st-side { grid-column: span 8; align-self: stretch; }
+@media (max-width: 1100px) { .mt-stock.mt-st-side { grid-column: span 12; } }
+.mt-stock.mt-st-nototal { grid-template-columns: minmax(0, 2.6fr) minmax(220px, 1.3fr) minmax(150px, 1fr); }
+.mt-stock.mt-st-nototal.mt-st-noapart { grid-template-columns: minmax(0, 2.6fr) minmax(220px, 1.3fr); }
 .mt-st { padding: 14px 16px; background: var(--mt-card); border: 1px solid var(--mt-line); box-shadow: var(--mt-shadow); }
 .mt-st h4 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; margin: 0 0 10px; font-size: 12px; font-weight: 650; letter-spacing: .4px; text-transform: uppercase; color: var(--mt-low); }
 .mt-st h4 small { font-size: 11.5px; font-weight: 400; letter-spacing: 0; text-transform: none; }
 .mt-st p { margin: 6px 0 0; font-size: 12.5px; line-height: 1.4; color: var(--mt-low); }
 .mt-st-big { display: flex; align-items: baseline; gap: 8px; }
 .mt-st-big b { font-size: 34px; font-weight: 700; letter-spacing: -.5px; font-variant-numeric: tabular-nums; color: var(--text); }
-.mt-st-total { border-top: 3px solid var(--mt-c0); }
+.mt-st-total, .mt-st-age { border-top: 3px solid var(--mt-c0); }
 .mt-st-apart { border-top: 3px solid var(--mt-c2); background: var(--mt-soft); }
 .mt-st-apart p b { font-size: inherit; color: var(--text); }
 .mt-st-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
@@ -752,6 +769,14 @@ i.mt-pq0 { background: var(--mt-pq0); } i.mt-pq1 { background: var(--mt-pq1); } 
 /* la evolución del backlog: sus selectores (qué se ve y cada cuánto), en una fila */
 .mt-evo-picks { display: flex; flex-wrap: wrap; gap: 8px; }
 .mt-evo-picks:empty { display: none; }
+/* SLAs: el interruptor Dentro ⇄ Fuera de los KPIs, a la derecha de Actual / Histórico */
+.mt-evo-picks:has(.mt-slasw) { grid-column: 1 / -1; flex-wrap: nowrap; align-items: center; gap: 14px; margin-bottom: 10px; } .mt-evo-picks:has(.mt-slasw) .mt-seg-sm { margin-bottom: 0; }
+.mt-slasw { flex: none; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--mt-low); user-select: none; }
+.mt-slasw span { cursor: pointer; } .mt-slasw span:hover, .mt-slasw span.mt-on { color: var(--text); }
+.mt-slasw i { position: relative; width: 28px; height: 16px; border-radius: 8px; cursor: pointer; background: color-mix(in srgb, var(--text) 22%, var(--surface)); transition: background .15s; }
+.mt-slasw i::after { content: ''; position: absolute; top: 2px; left: 8px; width: 12px; height: 12px; border-radius: 50%; background: var(--surface); transition: left .15s; }
+.mt-slasw.mt-in i { background: var(--mt-good); } .mt-slasw.mt-in i::after { left: 2px; }
+.mt-slasw.mt-out i { background: var(--mt-bad); } .mt-slasw.mt-out i::after { left: 14px; }
 /* Resumen: «Comparar» y su pop-up (qué comparar: sin comparar, un periodo frente a otro o frente a T-Systems) */
 .mt-res-cmp { position: relative; display: flex; margin-left: 12px; }
 .mt-res-cmp > .mt-x { margin-left: -1px; padding: 5px 9px; }

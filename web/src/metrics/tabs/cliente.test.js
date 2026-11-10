@@ -111,3 +111,29 @@ test('Pendiente de cliente: las definiciones, al pasar el ratón; Sin reclamar, 
   assert.deepEqual(ui.cliSheet.list, [0, 2]);
 });
 
+
+test('Pendiente de cliente: por módulo afectado y por centro, con sus cifras y el total; clic en una fila, filtra todo', () => {
+  const { m, html } = setup();
+  const cardOf = (h, title) => { const a = h.indexOf(`<h3>${title}</h3>`); return a < 0 ? '' : h.slice(a, h.indexOf('</section>', a)); };
+  const rowsOf = (c) => [...c.matchAll(/<tr class="mt-clk[^"]*" data-f="(\w+:\d+)"><th[^>]*>([^<]*)<\/th>((?:<td[^>]*>[^<]*<\/td>)+)/g)]
+    .map((x) => [x[1], x[2], [...x[3].matchAll(/>([^<]*)<\/td>/g)].map((y) => y[1])]);
+  const tot = (c) => [...c.slice(c.indexOf('<tr class="mt-tot">')).matchAll(/>([^<]*)<\/td>/g)].map((y) => y[1]);
+  assert.ok(html.indexOf('<h3>Motivo de pendiente</h3>') < html.indexOf('<h3>Por módulo afectado</h3>'));
+  assert.ok(html.indexOf('<h3>Por módulo afectado</h3>') < html.indexOf('<h3>Por centro</h3>'));
+  assert.ok(html.indexOf('<h3>Por centro</h3>') < html.indexOf('<h3>Sábana de incidencias</h3>'));
+  for (const [dim, title] of [['mo', 'Por módulo afectado'], ['ce', 'Por centro']]) {
+    const c = cardOf(html, title), rows = rowsOf(c);
+    // las dos de Indra en Pendiente de cliente (la 0 y la 2), repartidas por su módulo o su centro
+    const want = m.group(dim, [0, 2]).map((x) => [`${dim}:${x.k}`, m.DIMS[dim].label(x.k), x.n]);
+    assert.deepEqual(rows.map((r) => [r[0], r[1], Number(r[2][0])]), want, title);
+    assert.deepEqual(tot(c).slice(0, 2), ['2', '100 %']);
+    assert.equal(tot(c)[3], '1'); assert.equal(tot(c)[4], '1');   // sin reclamar > 24 h (la 0) y rebotes (la 0)
+    assert.doesNotMatch(c, /undefined|NaN/);
+  }
+  // filtrando un módulo: esa fila marcada y las demás apagadas, que siguen a la vista
+  const k = m.C.mo[0]; m.toggle('mo', k); m.refilter();
+  const ui2 = { exp: {}, sort: {} }, h2 = createTabs(m, createCharts(m, ui2), ui2).render('cliente', m.rows());
+  const mo2 = cardOf(h2, 'Por módulo afectado');
+  assert.match(mo2, new RegExp(`<tr class="mt-clk mt-sel" data-f="mo:${k}">`));
+  assert.equal(rowsOf(mo2).length, rowsOf(cardOf(html, 'Por módulo afectado')).length);
+});

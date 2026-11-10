@@ -3,6 +3,7 @@
 // (sheetOf); en Equipo soporte, lo que hay en su panel. m: el modelo (model.js).
 import { esc } from '../ui/html.js';
 import { nice, title, num, dur, dmy } from './format.js';
+import { cellValue, orderOf } from './table-sort.js';
 
 export const REMEDY = 'https://itx.onbmc.com/arsys/servlet/ViewFormServlet?server=onbmc-s&form=HPD:Help+Desk&qual=%271000000161%27%3D%22';
 export const incId = (id) => `INC${String(id).padStart(12, '0')}`;
@@ -13,18 +14,19 @@ const two = (n) => String(n).padStart(2, '0');
 // minutos desde BASE → «dd/mm/aaaa hh:mm», con la hora tal cual viene en el dato
 const when = (m, min) => { const d = new Date(m.BASE + min * 6e4); return `${dmy(d.getTime())} ${two(d.getUTCHours())}:${two(d.getUTCMinutes())}`; };
 
-// Las columnas: [nombre, valor de la issue i como texto, 'num' si va como cifra]
+// Las columnas: [nombre, valor de la issue i como texto, 'num' si va como cifra, y por qué se ordena si no es por lo que
+// se ve (la fecha, el tiempo en minutos…)]
 export const SHEET_COLS = [
   ['Incidencia', (m, i) => incId(m.C.id[i])],
-  ['Abierta', (m, i) => when(m, m.C.rep[i])],
+  ['Abierta', (m, i) => when(m, m.C.rep[i]), undefined, (m, i) => m.C.rep[i]],
   ['Título', (m, i) => m.C.su[i]],
   ['Prioridad', (m, i) => nice(m.DI.prio[m.C.pr[i]])],
   ['Estado', (m, i) => `${nice(m.DI.status[m.C.st[i]])}${m.C.rs[i] ? ` · ${title(m.DI.reason[m.C.rs[i]])}` : ''}`],
-  ['Responsable', (m, i) => m.DIMS.as.label(m.C.as[i])],
+  ['Responsable', (m, i) => (m.C.as[i] ? m.DIMS.as.label(m.C.as[i]) : '')],   // sin nadie, vacío
   ['Centro', (m, i) => m.DIMS.ce.label(m.C.ce[i])],
   ['Módulo', (m, i) => m.DIMS.mo.label(m.C.mo[i])],
   ['SISU o SGA', (m, i) => m.DIMS.ss.label(m.DIMS.ss.get(i))],
-  ['Antigüedad', (m, i) => dur(m.SNAP - m.C.rep[i]), 'num'],
+  ['Antigüedad', (m, i) => dur(m.SNAP - m.C.rep[i]), 'num', (m, i) => m.SNAP - m.C.rep[i]],
   // el campo de Remedy tal cual (puede llevar varias claves y su prefijo: «TEC: ITSMECOM-5356582 / ITSMECOM-5321940»)
   ['Vendor Ticket Number', (m, i) => m.DI.vtext?.[m.C.vn?.[i]] ?? ''],
 ];
@@ -34,8 +36,16 @@ export const sheetOf = (m) => m.today().filter((i) => m.OPEN[i]).sort((a, b) => 
 
 // La tabla y su barra: cuántas son y el botón que las exporta enteras (data-export, en la vista). list: las incidencias;
 // id: el de su «Ver todos» (ui.exp[id], expanded); more: el botón (charts.js); empty: el texto sin ninguna; cols: sus columnas;
-// exportable: si lleva el botón.
-export const sheetBody = (m, list, { id, expanded, more, empty, cols = SHEET_COLS, exportable = true }) => {
+// exportable: si lleva el botón. ui.sort[id]: [columna, ±1], la columna por la que se ordena (clic en su cabecera,
+// data-sort: metrics-view.js); se ordena la lista entera, no solo lo que se ve, y en su sitio, así que lo que exporta
+// el botón sale en ese orden. Sin ella, como venga.
+export const sheetBody = (m, list, { ui, id, expanded, more, empty, cols = SHEET_COLS, exportable = true }) => {
+  const srt = ui?.sort?.[id], col = srt && cols[Number(srt[0])];
+  if (col) {
+    const key = col[3] || ((mm, i) => cellValue(col[1](mm, i)));
+    const order = orderOf(list.map((i) => key(m, i)), srt[1] < 0 ? -1 : 1), sorted = order.map((k) => list[k]);
+    list.splice(0, list.length, ...sorted);
+  }
   const shown = expanded ? list : list.slice(0, TOP);
   const cellOf = ([label, f, kind], i) => {
     const v = f(m, i);
@@ -43,7 +53,9 @@ export const sheetBody = (m, list, { id, expanded, more, empty, cols = SHEET_COL
     if (label === 'Título') return `<td class="mt-subj" data-tip="${esc(v)}">${esc(v)}</td>`;
     return `<td${kind === 'num' ? ' class="mt-num"' : ''}>${esc(v)}</td>`;
   };
-  const table = list.length ? `<div class="mt-tablewrap ${expanded ? 'mt-scroll' : ''}"><table class="mt-list"><thead><tr>${cols.map(([l, , kind]) => `<th${kind === 'num' ? ' class="mt-num"' : ''}>${l}</th>`).join('')}</tr></thead>
+  const table = list.length ? `<div class="mt-tablewrap ${expanded ? 'mt-scroll' : ''}"><table class="mt-list"><thead><tr>${cols.map(([l, , kind], j) => { const on = col && Number(srt[0]) === j;
+      const cls = [kind === 'num' ? 'mt-num' : '', on ? 'mt-srt' : ''].filter(Boolean).join(' ');
+      return `<th${cls ? ` class="${cls}"` : ''}${ui ? ` data-sort="${id}:${j}"` : ''}>${l}${on ? (srt[1] < 0 ? ' ↓' : ' ↑') : ''}</th>`; }).join('')}</tr></thead>
       <tbody>${shown.map((i) => `<tr>${cols.map((c) => cellOf(c, i)).join('')}</tr>`).join('')}</tbody></table></div>${more(id, list.length, TOP)}`
     : `<p class="mt-mut mt-small">${empty}</p>`;
   return `<div class="mt-sheet-bar"><span class="mt-mut">${num(list.length)} incidencias</span>${exportable ? `<button class="mt-btn" data-export ${list.length ? '' : 'disabled'}>Exportar a CSV</button>` : ''}</div>${table}`;

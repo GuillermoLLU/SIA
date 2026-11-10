@@ -17,7 +17,7 @@ test('lo pendiente: su situación, lo que conviene vigilar y lo que no tiene a n
   const op = m.rows().filter((i) => m.OPEN[i]);
   assert.deepEqual(op, [2]);
   assert.deepEqual(situations(m).map((x) => op.filter(x.test).length), [0, 1, 0, 0, 0, 0]);   // sin tocar
-  assert.deepEqual(watchList(m).map(([l, t]) => [l, op.filter(t).length]), [['Fuera de plazo', 1], ['Con más de 15 días', 0], ['Escaladas', 0], ['Mal escaladas', 0], ['Reabiertas', 0], ['Críticas', 0], ['PRIO', 0]]);
+  assert.deepEqual(watchList(m).map(([l, t]) => [l, op.filter(t).length]), [['Fuera de plazo', 1], ['Sin tocar', 1], ['Con más de 15 días', 0], ['Escaladas', 0], ['Mal escaladas', 0], ['Reabiertas', 0], ['Críticas', 0], ['PRIO', 0]]);
   // una pendiente con algún Jira descartado o que pasó de un equipo a otro: mal escalada, y filtra por esa marca
   const d3 = data(); d3.cols.fl[2] |= 2097152;
   const m3 = model(d3), op3 = m3.rows().filter((i) => m3.OPEN[i]), mis = watchList(m3).find(([l]) => l === 'Mal escaladas');

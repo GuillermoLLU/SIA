@@ -133,3 +133,15 @@ test('el panel: cabecera con el periodo y los dos lados, con los meses a la izqu
   assert.match(html, /Desde[\s\S]*Hasta/);
   assert.doesNotMatch(html, /<input|data-last|data-month-all|Todo/);
 });
+
+test('Desde la más antigua que sigue abierta de una empresa (Equipo soporte, de partida): de su día a la foto; sin ninguna, null', async () => {
+  const { sinceOldestOpen } = await import('./period.js');
+  const { createModel } = await import('./model.js');
+  const { data } = await import('./fixture.js');
+  const m = createModel(data());
+  const open = [...Array(m.N).keys()].filter((i) => m.OPEN[i] && m.TEAM[i] === 0), first = Math.min(...open.map((i) => m.C.rep[i]));
+  assert.ok(open.length);
+  assert.deepEqual(sinceOldestOpen(m, 0), [Math.floor(first / 1440) * 1440, m.END_D]);
+  const d = data(); d.cols.st = d.cols.st.map(() => d.dict.status.indexOf('CLOSED'));
+  assert.equal(sinceOldestOpen(createModel(d), 0), null);
+});

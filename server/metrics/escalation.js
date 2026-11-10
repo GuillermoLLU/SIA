@@ -8,9 +8,12 @@
 //   THesc  apertura → creación del primero de sus tickets. Si solo los hay anteriores, es un ticket previo
 //          (PREVIOUS) y no cuenta en la media.
 //   Tesc   creación del más antiguo de sus tickets, también los Discarded → resolución del Jira de solución final.
+//          Abierta en Remedy y sin solución final aún (algún Jira suyo sin resolver): → ahora, el escalado sigue en marcha.
 //   Tcr    resolución del Jira de solución final → resolución en Remedy. Si Remedy se cerró antes (early), no hay.
 //   Tesc-r resolución del Jira de solución final → ahora; solo las que siguen abiertas en Remedy.
-// Jira de solución final: el último resuelto de sus tickets que no está Discarded (ni cancelado). Tesc, Tcr y Tesc-r
+// Jira de solución final: el último resuelto de sus tickets que no está Discarded (ni cancelado). Si la issue sigue
+// abierta y alguno de esos tickets aún no se ha resuelto, no hay solución final todavía (se sigue esperando a Jira),
+// aunque otro ya esté resuelto (p. ej., uno citado en una nota): Tesc hasta ahora y sin Tesc-r. Tesc, Tcr y Tesc-r
 // son solo de las escaladas (Pendiente con motivo Third Party Vendor Action Reqd: remedy.js, THIRD_PARTY). De las
 // escaladas ya cerradas sin solución final: sin Jira válido (bad; la «mal escalada» de la #48) si no tiene ningún
 // ticket suyo que no esté Discarded, y cerrada con el Jira abierto (jiraOpen) si lo tiene pero sin resolver; con ticket
@@ -38,8 +41,11 @@ export const escalationOf = (i, tickets, now) => {
   if (!i.escalated) return out;
   if (!valid.length) return { ...out, bad: !i.open && !previous };
   const final = valid.filter((t) => t.resolved >= 0).sort((a, b) => b.resolved - a.resolved)[0];
+  const first = Math.min(...mine.map((t) => t.created));
+  // abierta y con un Jira suyo sin resolver: el escalado sigue, Tesc hasta ahora; sin solución final, sin Tesc-r
+  if (i.open && (!final || valid.some((t) => t.resolved < 0))) return { ...out, tesc: Math.max(now - first, 0) };
   if (!final) return { ...out, jiraOpen: !i.open };
-  out.tesc = Math.max(final.resolved - Math.min(...mine.map((t) => t.created)), 0);
+  out.tesc = Math.max(final.resolved - first, 0);
   if (closed) {
     if (i.resolved >= final.resolved) out.tcr = i.resolved - final.resolved;
     else out.early = true;

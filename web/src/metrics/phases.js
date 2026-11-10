@@ -91,18 +91,20 @@ export const timeParts = (m, now = false) => (i) => {
 };
 // Por módulo: lo de cada uno (resuelto del periodo o, now, abierto ahora), de más a menos tiempo total. Cada uno,
 // { k, n, total, mean, parts (medias por estado) }; total, la suma de todos.
-export const modulesTimes = (m, list, now = false) => {
+// groupTimes: lo mismo, por otra columna (col: 'mo', el módulo; 'ce', el centro…)
+export const groupTimes = (m, list, now = false, col = 'mo') => {
   const { C, OPEN } = m, of = timeParts(m, now), by = new Map();
   for (const i of list) {
     if (now ? !OPEN[i] : C.res[i] < 0 || OPEN[i]) continue;
-    const p = of(i), x = by.get(C.mo[i]) || { k: C.mo[i], n: 0, sum: [0, 0, 0, 0, 0] };
+    const k = C[col][i], p = of(i), x = by.get(k) || { k, n: 0, sum: [0, 0, 0, 0, 0] };
     p.forEach((v, j) => { x.sum[j] += v; });
-    x.n++; by.set(C.mo[i], x);
+    x.n++; by.set(k, x);
   }
   const rows = [...by.values()].map((x) => { const total = x.sum.reduce((a, b) => a + b, 0); return { k: x.k, n: x.n, total, mean: total / x.n, parts: x.sum.map((v) => v / x.n) }; });
   rows.sort((a, b) => b.total - a.total || b.n - a.n);
   return { rows, total: rows.reduce((s, r) => s + r.total, 0), n: rows.reduce((s, r) => s + r.n, 0) };
 };
+export const modulesTimes = (m, list, now = false) => groupTimes(m, list, now, 'mo');
 
 // Problemas comunes (server/metrics/problems.js, cols.pc): lo de cada uno (resuelto del periodo o, now, abierto ahora),
 // de más a menos incidencias, con su tiempo (el de resolución o, abierta, lo que lleva) y sus módulos principales. El 0

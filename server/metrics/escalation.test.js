@@ -66,3 +66,24 @@ test('mal escalada: alguno de sus tickets se descartó o pasó de un equipo a ot
   // un ticket de otra incidencia citado en las notas (anterior a la apertura) no cuenta
   assert.equal(escalationOf(issue(), [t({ created: 500, moves: 3 }), t({})], NOW).misrouted, false);
 });
+
+test('Abierta y con un Jira suyo aún sin resolver: Tesc hasta ahora y sin Tesc-r, aunque otro suyo ya esté resuelto (el caso de SISUPAC-9207 abierto y SISUPAC-9215 cerrado)', () => {
+  const tickets = [{ created: 1100, resolved: -1, status: 'Backlog' }, { created: 1200, resolved: 4000, status: 'Cerrada' }];
+  const e = escalationOf(issue(), tickets, NOW);
+  assert.equal(e.tescr, -1); assert.equal(e.tesc, NOW - 1100);   // Tesc, del primero hasta ahora: sigue escalada
+  assert.equal(e.thesc, 100);   // el THesc, sí: el primero se creó
+  // un descartado sin resolver no cuenta: sigue habiendo solución final
+  assert.equal(escalationOf(issue(), [{ created: 1100, resolved: -1, status: 'Discarded' }, { created: 1200, resolved: 4000, status: 'Cerrada' }], NOW).tescr, NOW - 4000);
+  // un ticket previo (de antes de abrirse) sin resolver, tampoco
+  assert.equal(escalationOf(issue(), [{ created: 500, resolved: -1, status: 'Backlog' }, { created: 1200, resolved: 4000, status: 'Cerrada' }], NOW).tescr, NOW - 4000);
+  // cerrada en Remedy: como antes (su Tcr, del último resuelto)
+  assert.equal(escalationOf(issue({ open: false, resolved: 4500 }), tickets, NOW).tcr, 500);
+});
+
+test('Abierta y con todos sus Jira sin resolver: Tesc hasta ahora y sin Tesc-r; cerrada así, sin Tesc y con el Jira abierto', () => {
+  const open = [{ created: 1100, resolved: -1, status: 'Backlog' }];
+  const e = escalationOf(issue(), open, NOW);
+  assert.equal(e.tesc, NOW - 1100); assert.equal(e.tescr, -1); assert.equal(e.jiraOpen, false);
+  const c = escalationOf(issue({ open: false, resolved: 5000 }), open, NOW);
+  assert.equal(c.tesc, -1); assert.equal(c.jiraOpen, true);
+});

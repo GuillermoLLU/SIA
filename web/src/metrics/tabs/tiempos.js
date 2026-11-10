@@ -13,9 +13,12 @@ import { esc } from '../../ui/html.js';
 import { SHEET_COLS, sheetBody } from '../sheet.js';
 import { afterDash } from './escalados.js';
 import { num, pct, dur } from '../format.js';
-import { phasesOf, phasesNowOf, phasesChart, PHASES_NOTE, PHASES_NOW_NOTE, modulesTimes, PARTS, problemsTimes } from '../phases.js';
+import { phasesOf, phasesNowOf, phasesChart, PHASES_NOTE, PHASES_NOW_NOTE, groupTimes, PARTS, problemsTimes } from '../phases.js';
 
-const TOP = 15;   // los módulos que se ven; el resto, en una fila
+const TOP = 15;   // los módulos (o centros) que se ven; el resto, en una fila
+// el desglose, por módulo (de partida) o por centro (ui.timesBy; metrics-view.js, data-times-by): [dimensión, en el
+// selector, título, cómo se llaman en plural, de qué va]
+const BY = [['mo', 'Módulo', 'Por módulo', 'módulos', 'Qué módulo nos ocupa más'], ['ce', 'Centro', 'Por centro', 'centros', 'Qué centro nos ocupa más']];
 
 export const tiemposTab = (t) => {
   const { m, ch, ui, grid, ask, name } = t;
@@ -30,30 +33,34 @@ export const tiemposTab = (t) => {
     const rows = CMP() ? T.slice(0, 2).map((l, k) => ({ who: name(k), p: phases(l) })) : [{ who: name(CO()[0]), p: phases(T[CO()[0]]) }];
     return ch.card('En qué se va el tiempo', `<div class="mt-evo-picks">${modes(on)}</div>${phasesChart(rows, { jiraAt: m.data.meta.jira?.at, now: on })}`, { span: 's12', sub: on ? PHASES_NOW_NOTE : PHASES_NOTE });
   };
-  // el desglose por módulo, del primer lado: una fila por módulo, con una barra de su tiempo total partida por estados
+  // el desglose por módulo (o por centro), del primer lado: una fila por cada uno, con una barra de su tiempo total
+  // partida por estados. Sin su propio filtro, para que al pinchar uno se vean los demás
   const modulesCard = (A) => {
-    const on = !!ui.timesNow, list = on ? bySide(m.today())[CO()[0]] : bySide(A)[CO()[0]];
-    const { rows, total, n } = modulesTimes(m, list, on);
-    if (!rows.length) return ch.card('Por módulo', `<p class="mt-mut mt-small">${on ? 'Nada abierto' : 'Nada resuelto'} con estos filtros.</p>`, { span: 's12' });
+    const [dim, , title, plural, what] = BY.find(([k]) => k === ui.timesBy) || BY[0];
+    const pick = `<div class="mt-evo-picks"><div class="mt-seg mt-seg-sm" role="group" aria-label="Desglose por">${BY.map(([k, l]) => `<button class="mt-seg-b ${k === dim ? 'mt-on' : ''}" data-times-by="${k}" aria-pressed="${k === dim}">${l}</button>`).join('')}</div></div>`;
+    // (en Histórico, lo de la pestaña, A; si hay un filtro de esa dimensión, lo mismo sin él)
+    const on = !!ui.timesNow, list = bySide(on ? m.today(false, dim) : m.anySel(dim) ? m.rows(dim) : A)[CO()[0]];
+    const { rows, total, n } = groupTimes(m, list, on, dim);
+    if (!rows.length) return ch.card(title, `${pick}<p class="mt-mut mt-small">${on ? 'Nada abierto' : 'Nada resuelto'} con estos filtros.</p>`, { span: 's12' });
     const top = rows.slice(0, TOP), rest = rows.slice(TOP), max = top[0].total || 1;
     const restRow = rest.length ? (() => { const sum = rest.reduce((s, r) => s + r.total, 0), cnt = rest.reduce((s, r) => s + r.n, 0);
-      return { k: null, label: `Resto (${num(rest.length)} módulos)`, n: cnt, total: sum, mean: sum / cnt, parts: PARTS.map((_, j) => rest.reduce((s, r) => s + r.parts[j] * r.n, 0) / cnt) }; })() : null;
+      return { k: null, label: `Resto (${num(rest.length)} ${plural})`, n: cnt, total: sum, mean: sum / cnt, parts: PARTS.map((_, j) => rest.reduce((s, r) => s + r.parts[j] * r.n, 0) / cnt) }; })() : null;
     const done = on ? 'abiertas' : 'resueltas';
     const row = (r) => {
-      const label = r.label || m.DIMS.mo.label(r.k), sel = r.k != null && m.isSel('mo', r.k);
+      const label = r.label || m.DIMS[dim].label(r.k), sel = r.k != null && m.isSel(dim, r.k), any = m.anySel(dim);
       const bar = `<span class="mt-mo-bar" style="width:${(r.total / max * 100).toFixed(1)}%">${r.parts.map((v, j) => `<i class="mt-svc-${PARTS[j][1]}" style="flex-grow:${(v * r.n).toFixed(1)}" data-tip="${esc(`${label}
 ${PARTS[j][0]}: ${dur(v * r.n)} en total, ${dur(v)} de media`)}"></i>`).join('')}</span>`;
-      return `<tr class="${r.k != null ? 'mt-clk' : 'mt-mut'} ${sel ? 'mt-sel' : ''}" ${r.k != null ? `data-f="mo:${r.k}"` : ''}><th class="mt-r" title="${esc(label)}">${esc(label)}</th>
+      return `<tr class="${r.k != null ? 'mt-clk' : 'mt-mut'} ${sel ? 'mt-sel' : r.k != null && any ? 'mt-off' : ''}" ${r.k != null ? `data-f="${dim}:${r.k}"` : ''}><th class="mt-r" title="${esc(label)}">${esc(label)}</th>
         <td class="mt-num">${num(r.n)}</td><td class="mt-num"><b>${dur(r.total)}</b></td><td class="mt-num">${pct(r.total / total, 1)}</td><td class="mt-mo-cell">${bar}</td>
         <td class="mt-num">${dur(r.mean)}</td>${r.parts.map((v) => `<td class="mt-num">${dur(v)}</td>`).join('')}</tr>`;
     };
-    const head = `<tr><th>Módulo</th><th class="mt-num">${on ? 'Abiertas' : 'Resueltas'}</th><th class="mt-num" data-tip="La suma del tiempo de sus incidencias: lo que nos ocupa ese módulo.">Tiempo total</th><th class="mt-num">% del tiempo</th><th></th>
+    const head = `<tr><th>${BY.find(([k]) => k === dim)[1]}</th><th class="mt-num">${on ? 'Abiertas' : 'Resueltas'}</th><th class="mt-num" data-tip="La suma del tiempo de sus incidencias: lo que nos ocupa ese módulo.">Tiempo total</th><th class="mt-num">% del tiempo</th><th></th>
       <th class="mt-num" data-tip="${on ? 'Lo que llevan abiertas, de media.' : 'Su tiempo de resolución medio.'}">Media</th>${PARTS.map(([l, cls]) => `<th class="mt-num"><i class="mt-dn-sw mt-svc-${cls}"></i>${l}</th>`).join('')}</tr>`;
     const totalRow = `<tr class="mt-tot"><th class="mt-r">Total</th><td class="mt-num">${num(n)}</td><td class="mt-num"><b>${dur(total)}</b></td><td class="mt-num">100 %</td><td></td><td class="mt-num">${dur(total / n)}</td>${PARTS.map((_, j) => `<td class="mt-num">${dur(rows.reduce((s, r) => s + r.parts[j] * r.n, 0) / n)}</td>`).join('')}</tr>`;
     const legend = `<div class="mt-legend">${PARTS.map(([l, cls]) => `<span><i class="mt-svc-${cls}"></i>${l}</span>`).join('')}</div>`;
     const whose = CMP() ? ` Comparando, de ${esc(name(CO()[0]))}.` : '';
-    return ch.card('Por módulo', `${legend}<div class="mt-tablewrap"><table class="mt-list mt-mo-times"><thead>${head}</thead><tbody>${top.map(row).join('')}${restRow ? row(restRow) : ''}${totalRow}</tbody></table></div>`,
-      { span: 's12', sub: `Qué módulo nos ocupa más: el tiempo de sus incidencias ${done}, sumado, de más a menos, con su parte del total; la media y en qué se le va el tiempo, de media por incidencia. Los ${TOP} con más tiempo; el resto, en una fila. Clic en un módulo para filtrar.${whose}` });
+    return ch.card(title, `${pick}${legend}<div class="mt-tablewrap"><table class="mt-list mt-mo-times"><thead>${head}</thead><tbody>${top.map(row).join('')}${restRow ? row(restRow) : ''}${totalRow}</tbody></table></div>`,
+      { span: 's12', sub: `${what}: el tiempo de sus incidencias ${done}, sumado, de más a menos, con su parte del total; la media y en qué se le va el tiempo, de media por incidencia. Los ${TOP} con más tiempo; el resto, en una fila. Clic en ${dim === 'mo' ? 'un módulo' : 'un centro'} para filtrar.${whose}` });
   };
   // los problemas comunes, del primer lado: cuántas, su parte, su tiempo y su parte del tiempo, la media y sus módulos
   const problemsCard = (A) => {
@@ -82,8 +89,8 @@ ${PARTS[j][0]}: ${dur(v * r.n)} en total, ${dur(v)} de media`)}"></i>`).join('')
     const cols = [shared('Incidencia'), ['Título', (mm, i) => afterDash(mm.C.su[i])], ['Problema común', (mm, i) => mm.DIMS.pc.label(mm.DIMS.pc.get(i))], shared('Módulo'),
       shared('Prioridad'), ...(on ? [shared('Estado')] : []), shared('Responsable'), shared('Centro'), [on ? 'Antigüedad' : 'Tiempo de resolución', (mm, i) => dur(time(i)), 'num']];
     ui.timesSheet = { list, cols };   // lo que exporta el botón (metrics-view.js)
-    const filtered = m.S.f.mo?.size || m.S.f.pc?.size ? ' Filtrada por lo que has pinchado arriba (quítalo en los filtros de la barra).' : '';
-    return ch.card('Sábana de incidencias', sheetBody(m, list, { id: 'times-sheet', expanded: ui.exp['times-sheet'], more: ch.more, empty: `${on ? 'Nada abierto' : 'Nada resuelto'} con estos filtros.`, cols }),
+    const filtered = m.S.f.mo?.size || m.S.f.ce?.size || m.S.f.pc?.size ? ' Filtrada por lo que has pinchado arriba (quítalo en los filtros de la barra).' : '';
+    return ch.card('Sábana de incidencias', sheetBody(m, list, { ui, id: 'times-sheet', expanded: ui.exp['times-sheet'], more: ch.more, empty: `${on ? 'Nada abierto' : 'Nada resuelto'} con estos filtros.`, cols }),
       { span: 's12', sub: `Las incidencias ${on ? 'abiertas ahora' : 'resueltas del periodo'} de las tablas de arriba, con los filtros de la barra, de la que más tiempo ${on ? 'lleva' : 'tardó'} a la que menos. Pincha un módulo o un problema para ver solo esas.${filtered} Exportar a CSV las descarga todas, con su enlace a Remedy.` });
   };
   return (A) => grid(ask('tiempos'), timesCard(A), modulesCard(A), problemsCard(A), sheetCard(A));

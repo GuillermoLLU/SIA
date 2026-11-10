@@ -57,9 +57,9 @@ const DATA_ICON = icon('<rect x="3" y="4" width="18" height="16" rx="2"/><path d
 // bloques que se leen mejor como gráfica: siempre así, sin icono para cambiar
 const CHART_ONLY = new Set(['volume', 'ia']);
 
-// La pestaña «Conclusiones de calidad», a la que se llega desde el bloque Calidad: de momento, sin contenido.
+// La pestaña «Calidad», a la que se llega desde el bloque Calidad: de momento, sin contenido.
 export const conclusionsPanel = () => `<div class="wk-panel">
-    <div class="wk-page-h"><button class="wk-switch-view" data-page="team">← Equipo soporte</button><h3>Conclusiones de calidad</h3></div>
+    <div class="wk-page-h"><button class="wk-switch-view" data-page="team">← Equipo soporte</button><h3>Calidad</h3></div>
     <div class="mt-empty"><b>En construcción</b></div>
   </div>`;
 
@@ -136,7 +136,7 @@ export const teamPanel = (m, ch, ui) => {
   const block = (id, title, label, hero, items, extra, chart) => {
     const fixed = CHART_ONLY.has(id), asChart = fixed || charts.has(id);
     // en los bloques que son siempre gráfica, `extra` va en la línea del título, a la derecha
-    const link = id === 'quality' ? '<button class="wk-block-link" data-page="conclusions">Conclusiones de calidad</button>' : '';
+    const link = id === 'quality' ? '<button class="wk-block-link" data-page="conclusions">Calidad</button>' : '';
     const months = charts.has('volumeMonths');   // Volumen: por día de la semana o, con su icono, por mes
     const toggle = id === 'volume' ? `<button class="wk-chart-btn" data-chart="volumeMonths" title="${months ? 'Ver por día de la semana' : 'Ver por mes'}">${months ? DATA_ICON : CHART_ICON}</button>` : '';
     const head = `<div class="wk-block-h"><h3>${title}</h3>${link}${fixed ? `${extra}${toggle}` : `<button class="wk-chart-btn" data-chart="${id}" title="${asChart ? 'Ver los datos' : `Ver la evolución por ${m.daily() ? 'día' : 'mes'}`}">${asChart ? DATA_ICON : CHART_ICON}</button>`}</div>`;
@@ -249,6 +249,6 @@ export const teamPanel = (m, ch, ui) => {
     <div class="mt-grid">
     ${card('El equipo, persona a persona', table, { span: 's12', sub: counts ? '' : 'Faltan los turnos de lo resuelto, escalado y pendiente de cliente (RPT, EPPT, PCPT): reinicia SIA para que el bridge los calcule.' })}
     </div>
-    <div class="wk-sheet">${card('Sábana de incidencias', sheetBody(m, teamIssues(m, ui), { id: 'team-sheet', expanded: ui.exp['team-sheet'], more: ch.more, empty: 'Ninguna incidencia con estos filtros.', cols: TEAM_SHEET_COLS }), { span: 's12', sub: `Las incidencias del panel, abiertas o cerradas: ${chosen ? 'con algún paso en los días elegidos' : 'creadas en el periodo'}${who == null ? '' : ', del técnico elegido'}. Exportar a CSV las descarga todas, con su enlace a Remedy, para abrirlas en Excel.` })}</div>
+    <div class="wk-sheet">${card('Sábana de incidencias', sheetBody(m, teamIssues(m, ui), { ui, id: 'team-sheet', expanded: ui.exp['team-sheet'], more: ch.more, empty: 'Ninguna incidencia con estos filtros.', cols: TEAM_SHEET_COLS }), { span: 's12', sub: `Las incidencias del panel, abiertas o cerradas: ${chosen ? 'con algún paso en los días elegidos' : 'creadas en el periodo'}${who == null ? '' : ', del técnico elegido'}. Exportar a CSV las descarga todas, con su enlace a Remedy, para abrirlas en Excel.` })}</div>
   </div>`;
 };

@@ -44,7 +44,7 @@ export const historicoTab = (t) => {
     const moves = (col) => NOW.map((l) => ({ n: l.length, v: l.reduce((s, i) => s + new Set((C[col]?.[i] || []).filter((e) => e * DAY >= a0 && e * DAY < a1)).size, 0) / d }));
     return grid(ask('historico'), evolution({ only: 'backlog' }),
       `<div class="mt-answers">${[
-        answer(['entrada', 'backlog'], [
+        answer(['entrada', 'hoy'], [
           fig('Recibidas', ST, (s) => num(s.n), sv('n')),
           fig('Entran al día', ST.map((s) => ({ n: s.n, v: s.n / d })), (s) => dec(s.v), sv('v'), null, 'Recibidas entre los días naturales del periodo.'),
           fig('Resueltas al día', moves('eR'), (s) => dec(s.v), sv('v'), 'high', 'Las veces que una incidencia pasó a Resuelta en el periodo (una vez por día; si se reabrió y se volvió a resolver, cuenta otra vez), entre sus días naturales.'),

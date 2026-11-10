@@ -89,7 +89,7 @@ test('Resumen: fechas rápidas y «Comparar», con su pop-up: sin comparar, un p
   assert.match(bar(), /Comparar: <b>feb 2026 vs ene 2026<\/b><\/button><button class="mt-btn mt-x" data-res-clear title="Quitar la comparación"/);
   assert.match(pop(), /value="periods" checked/);
   assert.match(pop(), /<option value="m:13" selected/);
-  assert.equal((html.match(/class="mt-kpi mt-kpi-co[ "]/g) || []).length, 4);
+  assert.equal((html.match(/class="mt-kpi mt-kpi-co[ "]/g) || []).length, 5);
   assert.match(html, /<span title="feb 2026">feb 2026<\/span>/);
   assert.match(html, /<span title="ene 2026">ene 2026<\/span>/);
   assert.match(html, /feb 2026 \(01\/02\/2026 – 28\/02\/2026\) frente a ene 2026 \(01\/01\/2026 – 31\/01\/2026\)/);

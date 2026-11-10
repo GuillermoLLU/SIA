@@ -1,6 +1,7 @@
 // Pendiente de cliente: lo que está ahora en Pendiente del centro o del cliente (situación «Espera cliente»: model.js,
 // SITUATIONS), a fecha de la última carga y sea cual sea el periodo. Arriba, sus KPIs; debajo, por qué se espera al
-// cliente (el motivo de nuestra última nota pública: server/metrics/pending-reason.js) y, abajo del todo, la sábana.
+// cliente (el motivo de nuestra última nota pública: server/metrics/pending-reason.js), por módulo afectado y por
+// centro y, abajo del todo, la sábana.
 //   Pendientes de cliente     cuántas
 //   MTTR                      el de estas incidencias (resolution.js, mttrOf); al estar todas abiertas, lo que llevan
 //                             abiertas de media
@@ -28,7 +29,7 @@ const ORDER = [1, 2, 3, 4, 5, 0];
 
 export const clienteTab = (t) => {
   const { m, ch, ui, grid, ask } = t;
-  const { C, OPEN, DIMS, SNAP, CO, bySide } = m;
+  const { C, OPEN, DIMS, SNAP, CO, bySide, isSel, anySel } = m;
   const { card, kpis, kpiCo } = ch;
   const labels = m.data.pendingReasons || REASONS;
   const ready = !!(C.pn && C.pm && C.nC);   // unos datos de antes no traen las notas públicas ni los rebotes
@@ -69,13 +70,38 @@ export const clienteTab = (t) => {
     return card('Motivo de pendiente', body, { span: 's12', sub: 'Por qué esperamos al cliente, según nuestra última nota pública (por sus palabras: lo que pide, si es validar una solución, comunicar el cierre o que decida el cliente). Clic en un motivo para ver solo esas en la sábana.' });
   };
 
+  // Por módulo afectado y por centro: lo pendiente de cliente del primer lado, los 10 con más (y «Resto»), con cuántas y
+  // qué parte, lo que llevan en pendiente de cliente de media, cuántas sin reclamar más de 24 h, los rebotes y la
+  // antigüedad media; al final, el total. Cada tabla, sin su propio filtro, para que al pinchar una fila (filtra todo)
+  // se vean las demás apagadas.
+  const TOP = 10;
+  const pendingOf = (skip) => bySide(m.today(false, skip))[CO()[0]].filter((i) => OPEN[i] && DIMS.sit.get(i) === CLIENT_SIT);
+  const groupCard = (dim, title, noun) => {
+    const l = pendingOf(dim), g = m.group(dim, l, true), top = g.slice(0, TOP), rest = g.slice(TOP).flatMap((x) => x.rows), any = anySel(dim);
+    const opt = (f) => (v) => (v == null ? '—' : f(v));
+    const cells = (rows) => [`<td class="mt-num">${num(rows.length)}</td><td class="mt-num mt-mut">${l.length ? pct(rows.length / l.length) : '—'}</td>`,
+      `<td class="mt-num">${opt(dur)(mean(rows, inPending))}</td>`,
+      `<td class="mt-num">${ready ? num(rows.filter(quiet).length) : '—'}</td><td class="mt-num">${ready ? num(rows.filter((i) => C.nC[i] >= 2).length) : '—'}</td>`,
+      `<td class="mt-num">${opt(dur)(mean(rows, (i) => SNAP - C.rep[i]))}</td>`].join('');
+    const row = (x) => `<tr class="mt-clk ${isSel(dim, x.k) ? 'mt-sel' : any ? 'mt-off' : ''}" data-f="${dim}:${x.k}"><th class="mt-r" title="${esc(DIMS[dim].label(x.k))}">${esc(DIMS[dim].label(x.k))}</th>${cells(x.rows)}</tr>`;
+    const body = l.length ? `<div class="mt-tablewrap"><table class="mt-cli-g"><thead><tr><th>${esc(noun)}</th><th class="mt-num">Incidencias</th><th class="mt-num">%</th>
+      <th class="mt-num" data-tip="Lo que llevan en Pendiente de cliente, sumando todas las veces, de media.">En pendiente</th>
+      <th class="mt-num" data-tip="Sin nota pública nuestra en las últimas 24 horas (o sin ninguna).">Sin reclamar &gt; 24 h</th>
+      <th class="mt-num" data-tip="Las que han pasado a Pendiente de cliente 2 veces o más.">Rebotes</th>
+      <th class="mt-num" data-tip="Lo que llevan abiertas, de media.">Antigüedad</th></tr></thead><tbody>
+      ${top.map(row).join('')}${rest.length ? `<tr class="mt-mut"><th class="mt-r">Resto (${num(g.length - TOP)})</th>${cells(rest)}</tr>` : ''}
+      <tr class="mt-tot"><th class="mt-r">Total</th>${cells(l)}</tr></tbody></table></div>` : '<p class="mt-mut mt-small">Nada en Pendiente de cliente con estos filtros.</p>';
+    const whose = m.CMP() ? ` Comparando, de ${esc(t.name(CO()[0]))}.` : '';
+    return card(title, body, { span: 's6', sub: `Los ${TOP} ${noun === 'Módulo' ? 'módulos' : 'centros'} con más pendientes de cliente; «Resto», los demás.${whose} Clic en una fila para filtrar.` });
+  };
+
   // la sábana: lo pendiente de cliente, de la más antigua a la más reciente, con sus tiempos y su motivo
   const shared = (label) => SHEET_COLS.find(([l]) => l === label);
   const sheetCols = (base) => [
     shared('Incidencia'), ['Título', (mm, i) => afterDash(mm.C.su[i])], shared('Prioridad'), shared('Responsable'), shared('Centro'), shared('Módulo'),
     ['Antigüedad', (mm, i) => dur(SNAP - mm.C.rep[i]), 'num'],
     ['En pendiente de cliente', (mm, i) => dur(inPending(i)), 'num'],
-    ['Última nota pública', (mm, i) => (ready && C.pn[i] >= 0 ? `hace ${dur(SNAP - C.pn[i])}` : '—'), 'num'],
+    ['Última nota pública', (mm, i) => (ready && C.pn[i] >= 0 ? `hace ${dur(SNAP - C.pn[i])}` : '—'), 'num', (mm, i) => (ready && C.pn[i] >= 0 ? SNAP - C.pn[i] : null)],
     ['Motivo', (mm, i) => (ready ? labels[reasonOf(i)] : '')],
     ['Veces en pendiente', (mm, i) => (ready ? num(C.nC[i]) : '—'), 'num'],
     ['IDMTTR', (mm, i) => signedDur(idmttr(hoursOf(mm, i), base)), 'num'],
@@ -88,8 +114,8 @@ export const clienteTab = (t) => {
     ui.cliSheet = { list, cols };   // lo que exporta el botón (metrics-view.js), con el filtro
     const filtered = f ? `<p class="mt-note">Sábana filtrada: ${num(list.length)} de ${num(all.length)}, ${esc(f[1])}. <button class="mt-jc-clear" data-cli-f="">Quitar filtro</button></p>` : '';
     const old = ready ? '' : '<p class="mt-note">Faltan las notas públicas y los rebotes: reinicia SIA para que el bridge los calcule.</p>';
-    return grid(ask('cliente'), old, kpiCards(P, A), reasonCard(all), filtered,
-      card('Sábana de incidencias', sheetBody(m, list, { id: 'cli-sheet', expanded: ui.exp['cli-sheet'], more: ch.more, empty: 'Nada en Pendiente de cliente con estos filtros.', cols }),
+    return grid(ask('cliente'), old, kpiCards(P, A), reasonCard(all), groupCard('mo', 'Por módulo afectado', 'Módulo'), groupCard('ce', 'Por centro', 'Centro'), filtered,
+      card('Sábana de incidencias', sheetBody(m, list, { ui, id: 'cli-sheet', expanded: ui.exp['cli-sheet'], more: ch.more, empty: 'Nada en Pendiente de cliente con estos filtros.', cols }),
         { span: 's12', sub: 'Lo que está ahora en Pendiente de cliente, con los filtros de arriba, de la más antigua a la más reciente. Exportar a CSV las descarga todas, con su enlace a Remedy.' }));
   };
 };

@@ -29,11 +29,13 @@ export const MISROUTED_TIP = 'Algún Jira suyo se descartó o pasó de un equipo
 const cards = (m) => (i) => m.DIMS.tj.get(i);
 export const isPrio = (m) => (i) => cards(m)(i).includes(2);
 // lo que no tiene a nadie: abierto, de las tarjetas del equipo (SGA, SISU o PRIO) y del periodo, con los filtros
-export const orphansIn = (m) => m.today(true).filter((i) => m.OPEN[i] && !m.C.as[i] && m.inPeriod(i) && cards(m)(i).some((k) => k < 3));
+// now: lo abierto ahora, se abriera cuando se abriera (Foto de hoy); si no, solo lo recibido en el periodo
+export const orphansIn = (m, now = false) => m.today(true).filter((i) => m.OPEN[i] && !m.C.as[i] && (now || m.inPeriod(i)) && cards(m)(i).some((k) => k < 3));
 
 // Lo que conviene vigilar dentro de lo pendiente (se solapa: no se suma): [nombre, prueba, nota, filtro].
 export const watchList = (m) => [
   ['Fuera de plazo', late(m), 'Nunca han pasado a En curso y ya superan el plazo de su prioridad.', 'sl:4'],
+  ['Sin tocar', (i) => m.DIMS.sit.get(i) === 1, 'En Asignada y sin ningún movimiento desde que se abrieron: nadie las ha mirado.', 'sit:1'],
   [`Con más de ${OLD_DAYS} días`, isOld(m), `Llevan más de ${OLD_DAYS} días abiertas: si sube, el backlog envejece.`, OLD_FILTER],
   ['Escaladas', escalated(m), 'Han estado en Pendiente de un tercero, estén ahora en el estado que estén (por eso no coincide con «espera tercero»: algunas ya se están trabajando o han vuelto a la cola).', 'es:1'],
   ['Mal escaladas', misrouted(m), MISROUTED_TIP, MISROUTED_FILTER],

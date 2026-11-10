@@ -103,7 +103,7 @@ export const entradaTab = (t) => {
         kpiCo('% gestionado el día que entra', shareOf(T, (i) => { const d = Math.floor(C.rep[i] / DAY); return (C.eR?.[i] || []).includes(d) || (C.eV?.[i] || []).includes(d); }), sharePct,
           { val: (s) => s.v, better: 'high', pctSign: true, note: 'de lo que entró, resuelto o escalado el mismo día' }),
         // de cada prioridad, la parte que se empezó dentro de su SLA de inicio (de la apertura al primer paso a En curso;
-        // las abiertas sin empezar y ya fuera de plazo cuentan como fuera: model.js, stats sla), como en SLA y calidad
+        // las abiertas sin empezar y ya fuera de plazo cuentan como fuera: model.js, stats sla), como en SLAs
         ...PRIOS.map((p) => kpiCo(`% ${PLURAL[DI.prio[p]] || nice(DI.prio[p])} en SLA`, T.map((l) => { const st = stats(l.filter((i) => C.pr[i] === p)); return { n: st.n, v: st.sla }; }), sharePct,
           { val: (s) => s.v, better: 'high', pctSign: true, note: `empezadas en ${slaLabel(p).split(' · ')[1]}` }))),
       evolution({ views: ['flow', 'flowAll'] }),

@@ -95,14 +95,14 @@ test('Tatt, Tan y TTR medios, por persona y del equipo; el Tan, solo de las resu
   assert.deepEqual(times('Equipo Indra'), [dur((5 + 300) / 2), dur((9 * 30 + 10 * 150) / 19), dur((9 * 60 + 10 * 7000) / 19)]);
 });
 
-test('Conclusiones de calidad: se llega desde el bloque Calidad, con cifras o como gráfica, y se vuelve al equipo', () => {
-  const link = /<h3>Calidad<\/h3><button class="wk-block-link" data-page="conclusions">Conclusiones de calidad</;
+test('La página de Calidad: se llega desde el bloque Calidad, con cifras o como gráfica, y se vuelve al equipo', () => {
+  const link = /<h3>Calidad<\/h3><button class="wk-block-link" data-page="conclusions">Calidad</;
   assert.match(render([{ company: 0 }, null]), link);
   assert.match(render([{ company: 0 }, null], new Set(['quality'])), link);
   assert.equal((render([{ company: 0 }, null]).match(/data-page="conclusions"/g) || []).length, 1);   // solo en Calidad
   const h = conclusionsPanel();
   assert.match(h, /data-page="team"/);
-  assert.match(h, /<h3>Conclusiones de calidad<\/h3>/);
+  assert.match(h, /<h3>Calidad<\/h3>/);
   assert.match(h, /En construcción/);
 });
 
@@ -211,9 +211,9 @@ test('Sábana: abajo del todo, las incidencias del panel, abiertas o cerradas, c
   assert.ok(h.indexOf('persona a persona') < h.indexOf('Sábana de incidencias'));
   assert.match(sheet, /20 incidencias<\/span><button class="mt-btn" data-export >Exportar a CSV/);
   assert.equal((sheet.match(/<td class="mt-subj"/g) || []).length, 20);
-  assert.match(sheet, /<th class="mt-num">Antigüedad o TTR<\/th><th class="mt-num">Nota final de la auditoría<\/th><th>IA<\/th>/);
+  assert.match(sheet, /<th class="mt-num"[^>]*>Antigüedad o TTR<\/th><th class="mt-num"[^>]*>Nota final de la auditoría<\/th><th[^>]*>IA<\/th>/);
   assert.doesNotMatch(sheet, /Fecha apertura/);
-  assert.doesNotMatch(sheet, /<th>Responsable/);
+  assert.doesNotMatch(sheet, /<th[^>]*>Responsable/);
   assert.ok(sheet.includes(`<td class="mt-num">${dur(60)}</td><td class="mt-num">—</td><td>No</td>`));   // resuelta en 60 min: su TTR; sin nota
   assert.doesNotMatch(sheet, /undefined|NaN/);
   assert.deepEqual(teamIssues(m, ui).slice(0, 2), [0, 1]);   // de la más antigua a la más reciente

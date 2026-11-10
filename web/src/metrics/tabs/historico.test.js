@@ -15,6 +15,7 @@ const cut = (html, from) => { const a = html.indexOf(from); return html.slice(a,
 test('el orden de las pestañas: Resumen, Foto de hoy, Escalados, Pendiente de cliente, Entrantes, Análisis tiempos, Calidad, Uso de la IA e Histórico; luego, el resto', () => {
   assert.deepEqual(TABS.slice(0, 9).map(([k, l]) => [k, l]), [['resumen', 'Resumen'], ['hoy', 'Foto de hoy'], ['escalados', 'Escalados'],
     ['cliente', 'Pendiente de cliente'], ['entrada', 'Entrantes'], ['tiempos', 'Análisis tiempos'], ['calidad', 'Calidad'], ['ia', 'Uso de la IA'], ['historico', 'Histórico']]);
+  assert.deepEqual(TABS[9], ['sla', 'SLAs']);   // detrás del Histórico
   assert.equal(new Set(TABS.map(([k]) => k)).size, TABS.length);   // ninguna repetida
 });
 
@@ -26,7 +27,7 @@ test('Histórico: lo recibido en el periodo, un bloque por pregunta y su evoluci
   const have = cut(html, '¿Qué tenemos?');
   for (const l of ['Recibidas', 'Entran al día', 'Pendientes', 'Fuera de plazo']) assert.match(have, new RegExp(`<span>${l}</span>`));
   assert.match(have, /<span>Recibidas<\/span><b>3<\/b>/);
-  assert.match(have, /data-go="entrada"[^>]*>Entrantes →<\/button><button class="mt-go" data-go="backlog"/);
+  assert.match(have, /data-go="entrada"[^>]*>Entrantes →<\/button><button class="mt-go" data-go="hoy">Foto de hoy →/);
   assert.match(html, /<h3>Evolución mes a mes<\/h3>/);
   // y lo primero, antes de los bloques, la evolución del backlog día a día
   const ev = html.indexOf('<h3>Evolución del backlog</h3>');

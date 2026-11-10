@@ -193,12 +193,16 @@ test('Mes a mes comparando: entre empresas, en relación a lo que entra; persona
   assert.doesNotMatch(h, /undefined|NaN/);
 });
 
-test('Entrada y Backlog comparando, sin tarjetas (cada empresa las usa a su manera); sin comparar, Entrada sí las tiene', () => {
+test('Entrada y Foto de hoy comparando, sin tarjetas (cada empresa las usa a su manera); sin comparar, Entrada sí las tiene', () => {
   const m = createModel(data()), ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
   m.refilter();
   assert.match(tabs.render('entrada', m.rows()), />Tarjeta</);
   m.S.sides = [{ company: 0 }, { company: 1 }]; m.refilter();
-  for (const tab of ['entrada', 'backlog']) assert.doesNotMatch(tabs.render(tab, m.rows()), />Tarjeta<|>PRIO<|undefined|NaN/);
+  assert.doesNotMatch(tabs.render('entrada', m.rows()), />Tarjeta<|>PRIO<|undefined|NaN/);
+  // en Foto de hoy, lo de la antigua pestaña Backlog (Quién tiene qué sí lleva su columna PRIO)
+  const hoy = tabs.render('hoy', m.rows()), back = hoy.slice(hoy.indexOf('¿En qué punto está lo pendiente?'), hoy.indexOf('<h3>Quién tiene qué</h3>'));
+  assert.ok(back.includes('<h3>Cómo está lo pendiente</h3>'));
+  assert.doesNotMatch(back, />Tarjeta<|>PRIO<|undefined|NaN/);
 });
 
 test('Módulos no compara empresas: se pinta solo la primera y el lado de comparar se queda como estaba', () => {
@@ -353,4 +357,80 @@ test('el periodo es un rango de fechas: filtra por apertura y la tendencia cuent
   m.setPeriod(m.MIN_D, m.END_D);             // hasta la foto (marzo de 2026): ya es de hace más de un año
   assert.equal(m.trend([0]).now, 0);
   assert.equal(m.inPeriod(2), true);
+});
+
+test('Módulos y focos: el selector de criticidad arriba, con lo recibido en el periodo de cada una; filtra todo y se marca', () => {
+  const m = createModel(data()); m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  const picks = (h) => [...h.slice(0, h.indexOf('<p class="mt-ask">')).matchAll(/<button class="mt-seg-b ([^"]*)" data-only="pr:(\d*)"[^>]*>([^<]*)(?:<small>(\d+)<\/small>)?/g)]
+    .map((x) => [x[3], x[1].includes('mt-on'), x[4] == null ? null : Number(x[4])]);
+  const html = tabs.render('modulos', m.rows());
+  assert.ok(html.indexOf('aria-label="Prioridad"') < html.indexOf('¿De dónde viene?'));
+  const count = (p) => m.rows().filter((i) => m.C.pr[i] === m.DI.prio.indexOf(p)).length;
+  assert.deepEqual(picks(html), [['Todas', true, null], ['Crítica', false, count('CRITICAL')], ['Alta', false, count('HIGH')], ['Media', false, count('MEDIUM')], ['Baja', false, count('LOW')]]);
+  // con una elegida: marcada, lo de la pestaña solo de ella y las cifras de las demás, como estaban
+  const before = picks(html).map((x) => x[2]);
+  m.S.f.pr = new Set([m.DI.prio.indexOf('CRITICAL')]); m.refilter();
+  const one = tabs.render('modulos', m.rows());
+  assert.deepEqual(picks(one).map((x) => x[1]), [false, true, false, false, false]);
+  assert.deepEqual(picks(one).map((x) => x[2]), before);
+  assert.ok(m.rows().every((i) => m.C.pr[i] === m.DI.prio.indexOf('CRITICAL')));
+  // comparando con personas, también
+  m.S.f = {}; m.S.sides = [{ people: new Set([1]) }, { company: 0 }]; m.refilter();
+  assert.match(tabs.render('modulos', m.rows()), /aria-label="Prioridad"/);
+});
+
+test('Módulos y focos: Actual (lo abierto ahora, sea cual sea el periodo) o Histórico (de partida), con los mismos cuadros', () => {
+  const m = createModel(data()); m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  const titles = (h) => [...h.matchAll(/<h3>([^<]*)<\/h3>|class="mt-sc-title">([^<]*)</g)].map((x) => x[1] || x[2]);
+  const vol = (h, title) => { const a = h.indexOf(`class="mt-sc-title">${title}<`); const b = h.indexOf('class="mt-sc-ref"', a); return h.slice(b, h.indexOf('</tr>', b)).match(/<b>(\d+)<\/b>/)?.[1]; };
+  const past = tabs.render('modulos', m.rows());
+  assert.match(past, /data-mod-mode="past" aria-pressed="true"/);
+  assert.ok(past.indexOf('data-mod-mode') < past.indexOf('aria-label="Prioridad"'));   // a la izquierda de la criticidad
+  const period = [m.S.d0, m.S.d1];
+  ui.modNow = true;
+  const now = tabs.render('modulos', m.rows());
+  assert.deepEqual([m.S.d0, m.S.d1], period);   // el periodo, como estaba
+  assert.match(now, /data-mod-mode="now" aria-pressed="true"/);
+  assert.deepEqual(titles(now), titles(past));
+  // de Indra, abierta solo la media: una en todas las tablas; en Histórico, todo lo recibido
+  const open = m.rows().filter((i) => m.OPEN[i] && m.SIDE[i] === 0).length;
+  assert.equal(Number(vol(now, 'Módulos')), open);
+  assert.equal(Number(vol(past, 'Módulos')), m.rows().filter((i) => m.SIDE[i] === 0).length);
+  assert.equal(tabs.render('modulos', []), now);   // sea cual sea el periodo
+  assert.doesNotMatch(now, /undefined|NaN/);
+  // la criticidad, con lo abierto
+  const medias = [...now.matchAll(/data-only="pr:(\d+)"[^>]*>[^<]*<small>(\d+)<\/small>/g)].reduce((s, x) => s + Number(x[2]), 0);
+  assert.equal(medias, open);
+});
+
+test('Lo sin técnico que cae en las búsquedas del equipo (SGA, SISU o PRIO) es de Indra: cuenta en su lado en todas las pestañas, también comparando con T-Systems; con personas, no', async () => {
+  const { SEARCH_OWNER } = await import('./model.js');
+  const d = data(); d.cols.as[2] = 0;   // la abierta de Indra (de SGA o SISU), sin técnico
+  const m = createModel(d);
+  assert.equal(SEARCH_OWNER, 0);
+  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  const ring = (h) => { const a = h.indexOf('<h3>En qué estado está</h3>'); return h.slice(a, h.indexOf('</section>', a)); };
+  const total = (h, col = 0) => Number([...ring(h).match(/<tr class="mt-dn-sum"[^>]*><th>Incidencias<\/th>(.*?)<\/tr>/)[1].matchAll(/<b>(\d+)<\/b>/g)][col][1]);
+  const inScope = m.C.sc[2] === 1 || m.C.sc[2] === 2;
+  assert.ok(inScope, 'la 2 cae en las búsquedas');
+  for (const sides of [[{ company: 0 }, null], [{ company: 0 }, { company: 1 }]]) {
+    m.S.sides = sides; m.refilter();
+    assert.equal(m.SIDE[2], 0, JSON.stringify(sides));
+    for (const tab of ['resumen', 'hoy']) assert.equal(total(tabs.render(tab, m.rows())), 1, `${tab} ${JSON.stringify(sides)}`);
+    tabs.render('hoy', m.rows());
+    assert.ok(ui.hoySheet.list.includes(2));   // en la sábana, con el responsable vacío
+    assert.doesNotMatch(tabs.render('hoy', m.rows()).slice(tabs.render('hoy', m.rows()).indexOf('Sábana de incidencias')), /\(sin responsable\)/);
+  }
+  // pinchando «Asignada» (sin tocar o devuelta), también
+  m.S.sides = [{ company: 0 }, null]; m.S.f.sit = new Set([1, 2]); m.refilter();
+  assert.ok(m.rows().includes(2) || m.today().includes(2));
+  // con personas: no es de nadie
+  m.S.f = {}; m.S.sides = [{ people: new Set([1]) }, null]; m.refilter();
+  assert.equal(m.SIDE[2], 2);
+  // fuera de las búsquedas y sin técnico: de nadie
+  const d2 = data(); d2.cols.as[2] = 0; d2.cols.sc[2] = 0; d2.cols.fl[2] &= ~2;
+  const m2 = createModel(d2); m2.S.sides = [{ company: 0 }, { company: 1 }]; m2.refilter();
+  assert.equal(m2.SIDE[2], 2);
 });

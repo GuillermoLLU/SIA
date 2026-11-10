@@ -86,8 +86,8 @@ test('Malos escalados: con su motivo, solo los activos, y filtrados por los proy
   const card = (h) => h.slice(h.indexOf('<h3>Malos escalados</h3>'), h.indexOf('</section>', h.indexOf('<h3>Malos escalados</h3>')));
   const all = card(tabs.render('escalados', m.rows()));
   assert.match(all, /<td>Descartado en Jira<\/td>/);
-  assert.match(all, /<th>Equipo original → final<\/th>/);
-  assert.match(all, /<th class="mt-num">THesc<\/th><th class="mt-num">Tesc<\/th><th class="mt-num">Tesc-r<\/th><th class="mt-num">Antigüedad<\/th><th class="mt-num">IDMTTR<\/th><\/tr>/);
+  assert.match(all, /<th[^>]*>Equipo original → final<\/th>/);
+  assert.match(all, /<th class="mt-num"[^>]*>THesc<\/th><th class="mt-num"[^>]*>Tesc<\/th><th class="mt-num"[^>]*>Tesc-r<\/th><th class="mt-num"[^>]*>Antigüedad<\/th><th class="mt-num"[^>]*>IDMTTR<\/th><\/tr>/);
   assert.match(all, /<td>Pendiente de actualizar<\/td>/);
   assert.doesNotMatch(all, /data-export/);
   assert.doesNotMatch(all, /undefined|NaN/);
@@ -112,12 +112,12 @@ test('¿Qué escalamos y a quién?, en Activas: una tabla de los proyectos Jira 
   const top = html.slice(0, html.indexOf('<table class="mt-sc">'));
   for (const label of ['Incidencias escaladas', 'THesc medio', 'Tesc medio', 'Antigüedad media', 'IDMTTR']) assert.ok(top.includes(label), label);
   assert.ok(top.indexOf('IDMTTR') > top.indexOf('Antigüedad media'));   // a la derecha del todo
-  assert.match(html.slice(html.indexOf('Sábana de incidencias')), /<th class="mt-num">IDMTTR<\/th>/);
+  assert.match(html.slice(html.indexOf('Sábana de incidencias')), /<th class="mt-num"[^>]*>IDMTTR<\/th>/);
   // la sábana: sin estado ni módulo; el título, del guion en adelante
   const sheet = html.slice(html.indexOf('Sábana de incidencias'));
   const heads = sheet.slice(0, sheet.indexOf('</thead>'));
-  assert.doesNotMatch(heads, /<th>Estado<\/th>|<th>Módulo<\/th>/);
-  assert.match(heads, /<th>Título<\/th>/);
+  assert.doesNotMatch(heads, /<th[^>]*>Estado<\/th>|<th[^>]*>Módulo<\/th>/);
+  assert.match(heads, /<th[^>]*>Título<\/th>/);
   assert.match(sheet, /<td class="mt-subj" data-tip="Etiqueta mal">Etiqueta mal<\/td>/);
   assert.equal(afterDash('100001 High ECOM ZARA C1 EWMS - Etiqueta mal'), 'Etiqueta mal');
   assert.equal(afterDash('Sin guion'), 'Sin guion');
@@ -311,4 +311,61 @@ test('Análisis tiempos: la sábana, abajo del todo, con las incidencias de las 
   html = tabs.render('tiempos', m.rows());
   assert.deepEqual(ui.timesSheet.list, [2]);
   assert.match(html.slice(html.indexOf('<h3>Sábana de incidencias</h3>')), /<th[^>]*>Antigüedad<\/th>/);
+});
+
+test('Escalados: la tabla de lo escalado se agrupa por proyecto Jira (de partida), módulo o centro, con las mismas incidencias y columnas', () => {
+  const d = data();
+  open(d, [0]);
+  d.cols.fl[0] |= 131072;   // la crítica de Indra (abierta, TEC: SGA-1), escalada
+  const m = createModel(d); m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const ui = { exp: {}, sort: {}, escNow: true }, tabs = createTabs(m, createCharts(m, ui), ui);
+  const table = (h) => h.slice(h.indexOf('<div class="mt-esc-by">'), h.indexOf('</table>', h.indexOf('<div class="mt-esc-by">')));
+  const picks = (h) => [...table(h).matchAll(/<button class="mt-seg-b ([^"]*)" data-esc-by="(\w+)"[^>]*>([^<]*)</g)].map((x) => [x[2], x[3], x[1].includes('mt-on')]);
+  const cols = (h) => [...table(h).matchAll(/data-sort="rs-\w+:(\w+)"/g)].map((x) => x[1]);
+  const jira = tabs.render('escalados', m.rows());
+  assert.deepEqual(picks(jira), [['vp', 'Proyecto Jira', true], ['mo', 'Módulo', false], ['ce', 'Centro', false]]);
+  assert.match(table(jira), /<th rowspan="2" class="mt-sc-title">Proyectos Jira<\/th>/);
+  assert.match(table(jira), /Todo lo escalado a Jira/);
+  const mod = m.DIMS.mo.label(m.C.mo[0]), ce = m.DIMS.ce.label(m.C.ce[0]);
+  for (const [k, title, f, label] of [['mo', 'Módulos', `mo:${m.C.mo[0]}`, mod], ['ce', 'Centros', `ce:${m.C.ce[0]}`, ce]]) {
+    ui.escBy = k;
+    const h = tabs.render('escalados', m.rows()), t = table(h);
+    assert.deepEqual(picks(h).find((x) => x[2])[0], k);
+    assert.match(t, new RegExp(`<th rowspan="2" class="mt-sc-title">${title}</th>`));
+    assert.ok(t.includes(`data-f="${f}"><th class="mt-r" title="${label}">${label}</th>`), `${k}: ${label}`);
+    assert.match(t, /Todo lo escalado</);
+    assert.deepEqual(cols(h), cols(jira));   // las mismas columnas
+    assert.doesNotMatch(t, /undefined|NaN/);
+  }
+});
+
+test('Análisis tiempos, el desglose con su selector: por módulo (de partida) o por centro, con las mismas columnas; clic, filtrar', () => {
+  const m = createModel(data()); m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  const cardOf = (h, t) => { const a = h.indexOf(`<h3>${t}</h3>`); return a < 0 ? '' : h.slice(a, h.indexOf('</section>', a)); };
+  const picks = (c) => [...c.matchAll(/<button class="mt-seg-b ([^"]*)" data-times-by="(\w+)"[^>]*>([^<]*)</g)].map((x) => [x[2], x[3], x[1].includes('mt-on')]);
+  const rows = (c, dim) => [...c.matchAll(new RegExp(String.raw`<tr class="mt-clk [^"]*" data-f="${dim}:(\d+)"><th class="mt-r" title="([^"]*)">[^<]*</th>\s*<td class="mt-num">(\d+)</td><td class="mt-num"><b>([^<]*)</b>`, 'g'))].map((x) => [x[2], +x[3], x[4]]);
+  const heads = (c) => [...c.slice(c.indexOf('<thead>'), c.indexOf('</thead>')).matchAll(/<th[^>]*>(?:<i[^>]*><\/i>)?([^<]*)<\/th>/g)].map((x) => x[1]);
+  const mo = cardOf(tabs.render('tiempos', m.rows()), 'Por módulo');
+  assert.deepEqual(picks(mo), [['mo', 'Módulo', true], ['ce', 'Centro', false]]);
+  ui.timesBy = 'ce';
+  let html = tabs.render('tiempos', m.rows()), ce = cardOf(html, 'Por centro');
+  assert.equal(cardOf(html, 'Por módulo'), '');
+  assert.deepEqual(picks(ce), [['mo', 'Módulo', false], ['ce', 'Centro', true]]);
+  // Indra, lo resuelto del periodo, por su centro
+  const want = new Map();
+  for (const i of m.rows().filter((x) => m.SIDE[x] === 0 && m.C.res[x] >= 0 && !m.OPEN[x])) {
+    const l = m.DIMS.ce.label(m.C.ce[i]), w = want.get(l) || [l, 0, 0]; w[1]++; w[2] += m.C.res[i] - m.C.rep[i]; want.set(l, w);
+  }
+  const exp = [...want.values()].sort((a, b) => b[2] - a[2]).map(([l, n, t]) => [l, n, t]);
+  assert.deepEqual(rows(ce, 'ce').map(([l, n]) => [l, n]), exp.map(([l, n]) => [l, n]));
+  assert.deepEqual(heads(ce).slice(1), heads(mo).slice(1));   // las mismas columnas
+  assert.equal(heads(ce)[0], 'Centro');
+  assert.match(ce, /<tr class="mt-tot"><th class="mt-r">Total<\/th><td class="mt-num">2<\/td><td class="mt-num"><b>2,7 h<\/b>/);
+  // filtrando un centro: marcado y los demás, apagados pero a la vista
+  const k = m.C.ce[0]; m.toggle('ce', k); m.refilter();
+  ce = cardOf(tabs.render('tiempos', m.rows()), 'Por centro');
+  assert.match(ce, new RegExp(`<tr class="mt-clk mt-sel" data-f="ce:${k}">`));
+  assert.equal(rows(ce, 'ce').length, exp.length);
+  assert.doesNotMatch(ce, /undefined|NaN/);
 });

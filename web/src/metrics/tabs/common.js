@@ -7,6 +7,7 @@ import { num, dec, pct, dur, nice } from '../format.js';
 import { COMPANIES, CARDS, ACTIVE_DAYS, share, slaText } from '../model.js';
 import { SHIFTS, SHIFT_HOURS } from '../shifts.js';
 import { pairTable as pairTableOf } from '../pair-table.js';
+import { isPicked } from '../view.js';
 import { MIN_ISSUES, WORSE, clearlyWorse, shade, HOT } from '../rules.js';
 import { monthsIn as monthsOf, resolvedAt, startedAt } from '../flow.js';
 import { late as lateOf, isOld, escalated as escalatedOf } from '../backlog.js';
@@ -16,20 +17,19 @@ import { perHead as perHeadOf, solved as solvedOf } from '../resolution.js';
 // el orden: primero las que se miran a diario (de Resumen a Histórico); el resto, de momento, en el de antes
 export const TABS = [['resumen', 'Resumen'], ['hoy', 'Foto de hoy'], ['escalados', 'Escalados'], ['cliente', 'Pendiente de cliente'],
   ['entrada', 'Entrantes'], ['tiempos', 'Análisis tiempos'], ['calidad', 'Calidad'], ['ia', 'Uso de la IA'], ['historico', 'Histórico'],
-  ['backlog', 'Backlog'], ['modulos', 'Módulos y focos'], ['resolucion', 'Resolución'], ['sla', 'SLA y calidad'], ['turnos', 'Turnos']];
+  ['sla', 'SLAs'], ['modulos', 'Módulos y focos'], ['resolucion', 'Resolución'], ['turnos', 'Turnos']];
 export const QUESTIONS = {
   resumen: ['¿Cómo vamos?', 'De un vistazo: en qué estado está lo abierto ahora y, de lo recibido en el periodo, el MTTR, el %IQA y el uso de la IA. El detalle, en cada pestaña.'],
-  hoy: ['¿Cómo está hoy?', 'Cómo está el backlog ahora: en qué estado, desde cuándo, y de qué. Lo recibido en el periodo y cómo ha ido el backlog día a día, en el Histórico.'],
+  hoy: ['¿Cómo está hoy?', 'Cómo está el backlog ahora: en qué estado, desde cuándo, de qué y qué conviene vigilar. Lo recibido en el periodo y cómo ha ido el backlog día a día, en el Histórico.'],
   historico: ['¿Cómo ha ido en el periodo?', 'Lo recibido en las fechas elegidas: cada bloque responde a una pregunta con sus cifras clave (el detalle, en su pestaña), y cómo ha ido el backlog día a día.'],
   entrada: ['¿Qué nos entra?', 'Cuánto entra, cuánto se cierra y de qué tipo, mes a mes. Cada tabla lleva su total y los totales cuadran con las cifras de arriba.'],
-  backlog: ['¿Qué tenemos pendiente?', 'Lo recibido en el periodo que sigue sin resolver: en qué punto está, desde cuándo y qué conviene vigilar.'],
   modulos: ['¿De dónde viene?', 'Los módulos, centros y problemas que concentran el trabajo, y lo que se repite.'],
   resolucion: ['¿Cómo lo resolvemos?', 'Cuánto tardamos, en qué se va el tiempo, y qué módulos tardan más. Tiempos de lo resuelto, en tiempo natural.'],
   cliente: ['¿Qué esperamos del cliente?', 'Lo que está ahora en Pendiente del centro o del cliente, a fecha de la última carga y sea cual sea el periodo: cuánto, desde cuándo, si lo estamos reclamando y por qué esperamos.'],
   tiempos: ['¿En qué se nos va el tiempo?', 'Lo que pasa de media cada fase, sin escalar y escalado, según el historial de cambios: en Actual, lo que llevan hasta hoy las que siguen abiertas; en Histórico, lo resuelto del periodo.'],
   calidad: ['¿Cómo de bien queda el trabajo?', 'La calidad del trabajo, empezando por el %IQA (la nota del agente de calidad, tarea #55). En construcción.'],
   escalados: ['¿Qué escalamos y a quién?', 'En Activas, lo escalado que sigue abierto (a fecha de la última carga, sea cual sea el periodo); en Histórico, lo escalado y resuelto del periodo. Cuánto tarda, a qué proyectos Jira se escala y los malos escalados: tickets que se descartan o pasan de un equipo a otro.'],
-  sla: ['¿Cómo de bien lo hacemos?', `Si empezamos a tiempo (SLA de inicio: de la apertura al primer paso a En curso, en tiempo natural; ${slaText()}), si el trabajo queda bien hecho y si queda bien registrado.`],
+  sla: ['¿Empezamos a tiempo?', `En Actual, lo abierto ahora: qué se empezó en plazo y lo que sigue sin empezar, con lo que le queda. En Histórico, lo del periodo: si empezamos a tiempo (SLA de inicio: de la apertura al primer paso a En curso, en tiempo natural; ${slaText()}), si el trabajo queda bien hecho y si queda bien registrado.`],
   ia: ['¿Cuánto usamos la IA y cómo sale?', 'Por las marcas de IA de Remedy: en TAGS (IA_SOLVED…, IA_FAIL) y en las notas ([ACT IA], [INFORME IA], notas del agente de IA, [HITL_REVIEW_OK], [HITL_REVIEW_NOT_OK], [IA_FAIL]…). Una incidencia con IA puede estar revisada OK, con fallo o sin revisar.'],
   turnos: ['¿Cuándo entra y cuándo lo trabajamos?', `Por turnos: ${SHIFTS.map((s, k) => `${s.toLowerCase()} de ${SHIFT_HOURS[k]}`).join(', ')}. El turno se cuenta por la hora en que empieza: la noche del domingo es de fin de semana.`],
 };
@@ -62,7 +62,8 @@ export const createCommon = (m, ch, ui) => {
   const prioRows = () => PRIOS.map((p) => [nice(DI.prio[p]), (i) => C.pr[i] === p, `pr:${p}`]);
   const asRows = (rows) => rows.map(([label, test, f]) => ({ label, test, f }));
   // una fila por mes con sus celdas (cells: de las issues del mes); el nombre del mes en `tag`
-  const monthBody = (A, cells, tag = 'td') => monthRows().map(([label, t, f]) => `<tr class="mt-clk ${selRow(f) ? 'mt-sel' : ''}" data-f="${f}"><${tag}${tag === 'th' ? ' class="mt-r"' : ''}>${label}</${tag}>${cells(A.filter(t))}</tr>`).join('');
+  // skipEmpty: sin los meses en que no hay ninguna de A
+  const monthBody = (A, cells, tag = 'td', skipEmpty = false) => monthRows().filter(([, t]) => !skipEmpty || A.some(t)).map(([label, t, f]) => `<tr class="mt-clk ${selRow(f) ? 'mt-sel' : ''}" data-f="${f}"><${tag}${tag === 'th' ? ' class="mt-r"' : ''}>${label}</${tag}>${cells(A.filter(t))}</tr>`).join('');
   // filas de una tabla por lado (pair: lo de cada lado de una lista): una por corte y, al final, el total
   const sideRows = (A, defs, pair, total) => {
     const T = bySide(A);
@@ -175,7 +176,16 @@ export const createCommon = (m, ch, ui) => {
       <tbody>${body}<tr class="mt-lead mt-lead-end"><th class="mt-r" colspan="2">Todas</th>${cells(tot, null, true)}</tr></tbody></table></div>`;
   };
 
-  return { m, ch, ui, name, noK, noTheme, REQ, slaPct, monthsIn, heads, sideLabel, selRow, monthRows, prioRows, asRows, monthBody, sideRows,
+  // El selector de criticidad (Foto de hoy, Módulos y focos): un filtro de pr, una sola o todas (data-only, como el de
+  // SISU o SGA: sale con los demás filtros y vale para todas las pestañas). Cada una, con cuántas hay en list, que debe
+  // venir sin el propio filtro de prioridad, para que se vean todas aunque se esté mirando una.
+  const prioPicker = (list) => {
+    const opt1 = (label, k, n) => { const on = isPicked(m.S.f, 'pr', k);
+      return `<button class="mt-seg-b ${on ? 'mt-on' : ''}" data-only="pr:${k ?? ''}" aria-pressed="${on}"${k == null ? '' : ' data-tip="Clic: solo esta. Ctrl+clic: sumarla o, si ya está, quitarla."'}>${esc(label)}${n == null ? '' : `<small>${num(n)}</small>`}</button>`; };
+    return `<div class="mt-seg" role="group" aria-label="Prioridad">${opt1('Todas', null)}${m.PRIOS.map((p) => opt1(m.DIMS.pr.label(p), p, list.filter((i) => m.C.pr[i] === p).length)).join('')}</div>`;
+  };
+
+  return { m, ch, ui, name, noK, prioPicker, noTheme, REQ, slaPct, monthsIn, heads, sideLabel, selRow, monthRows, prioRows, asRows, monthBody, sideRows,
     late, old, escd, solved, resAt, startAt, shareOf, grid, ask, section, SLICE, cell, table, slices, cardsOf, CARD_ROWS, days, topRows,
     volume, teamNames, headsNote, sideTable, mixCmp, pairTable, spreadHead, spreadRow, spreadWho, spreadCell, qualityPivot };
 };

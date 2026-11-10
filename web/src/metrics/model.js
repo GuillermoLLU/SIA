@@ -8,6 +8,9 @@ import { IA_MARKS, IA_NAMES, iaKind } from './ia.js';
 export const COMPANIES = ['Indra', 'T-Systems', 'Sin asignar / fuera'];
 // ámbitos (server/metrics/remedy.js, SCOPE): los filtros de Remedy con los que el equipo de Indra ve su backlog
 export const SCOPE = { OUT: 0, SGA: 1, SISU: 2, REQUEST: 3 };
+// de quién son esas búsquedas: lo que cae en ellas (SGA, SISU o PRIO) y no tiene técnico es de Indra (TEAM): cuenta
+// en su lado en todas las pestañas, como en Equipo soporte
+export const SEARCH_OWNER = 0;
 // Marcas de una issue: los bits de server/metrics/remedy.js (FLAG). Las de IA, en ia.js.
 export const MAJOR = 256;
 const PRIO = 2, NO_RESOLUTION = 32768;
@@ -108,7 +111,8 @@ export const createModel = (data) => {
     TTR[i] = C.res[i] >= 0 ? Math.max(C.res[i] - C.rep[i], 0) : -1;
     TB[i] = TTR[i] < 0 ? 8 : TTR_LIMITS.findIndex((l) => TTR[i] < l);
     OPEN[i] = OPEN_ST.has(C.st[i]) ? 1 : 0;
-    TEAM[i] = data.company[C.as[i]];
+    // la empresa de su técnico; sin técnico, la de las búsquedas si cae en ellas (SEARCH_OWNER) y, si no, ninguna
+    TEAM[i] = C.as[i] || !(C.sc[i] === SCOPE.SGA || C.sc[i] === SCOPE.SISU || C.fl[i] & PRIO) ? data.company[C.as[i]] : SEARCH_OWNER;
   }
 
   // --- dimensiones: por las que se agrupa y se filtra

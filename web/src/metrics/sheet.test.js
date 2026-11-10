@@ -37,3 +37,32 @@ test('el Vendor Ticket Number, tal cual viene de Remedy (con su prefijo y todas 
   assert.deepEqual(sheetOf(m).map((i) => col[1](m, i)), ['TEC: SGA-1 / SGA-2', '']);
   assert.match(sheetCsv(m, sheetOf(m)), /"TEC: SGA-1 \/ SGA-2";"https:/);
 });
+
+test('La sábana se ordena entera (no solo lo que se ve) por la columna pinchada: la fecha de apertura, por fecha; otra vez, al revés', async () => {
+  const { createModel } = await import('./model.js');
+  const { data } = await import('./fixture.js');
+  const { sheetBody, SHEET_COLS } = await import('./sheet.js');
+  const m = createModel(data()); m.refilter();
+  const all = m.today(true), byRep = [...all].sort((a, b) => m.C.rep[a] - m.C.rep[b]);
+  const col = SHEET_COLS.findIndex(([l]) => l === 'Abierta');
+  const ids = (h) => [...h.matchAll(/<tr><td><a [^>]*>([^<]*)<\/a>/g)].map((x) => x[1]);
+  const idOf = (i) => SHEET_COLS[0][1](m, i);
+  const more = () => '';
+  // sin orden: como venga, con las cabeceras para pinchar
+  const ui = { sort: {} }, list = [...all].reverse();
+  let h = sheetBody(m, list, { ui, id: 's', expanded: true, more, empty: '' });
+  assert.match(h, new RegExp(`<th data-sort="s:${col}">Abierta</th>`));
+  // de la más reciente a la más antigua y al revés; la lista misma, en ese orden (lo que exporta el botón)
+  ui.sort.s = [String(col), -1];
+  const l1 = [...all]; h = sheetBody(m, l1, { ui, id: 's', expanded: true, more, empty: '' });
+  assert.deepEqual(ids(h), [...byRep].reverse().map(idOf));
+  assert.deepEqual(l1, [...byRep].reverse());
+  assert.match(h, /<th class="mt-srt" data-sort="s:\d+">Abierta ↓<\/th>/);
+  ui.sort.s = [String(col), 1];
+  h = sheetBody(m, [...all], { ui, id: 's', expanded: true, more, empty: '' });
+  assert.deepEqual(ids(h), byRep.map(idOf));
+  // sin desplegar, las primeras de la lista entera ya ordenada
+  h = sheetBody(m, [...all], { ui, id: 's', expanded: false, more, empty: '' });
+  assert.deepEqual(ids(h), byRep.slice(0, ids(h).length).map(idOf));
+  assert.ok(!h.includes('mt-colsort'));   // no la toca el orden genérico (table-sort.js): la tabla tiene th[data-sort]
+});

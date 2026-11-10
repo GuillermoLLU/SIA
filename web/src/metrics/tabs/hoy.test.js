@@ -28,11 +28,11 @@ test('arriba del todo, lo abierto ahora en una corona, por estado (Asignada, Pen
   assert.ok(all.indexOf('En qué estado está') < all.indexOf('Antigüedad media'), 'la corona, antes que las cifras');
   // Indra: abierta ahora, solo la media, sin tocar (en Asignada); la crítica y la baja, cerradas
   assert.equal((html.match(/<svg class="mt-donut"/g) || []).length, 1);
-  assert.match(html, /<text[^>]*class="mt-dn-n">1<\/text><text[^>]*class="mt-dn-l">pendientes<\/text>/);
+  assert.match(html, /<text[^>]*class="mt-dn-n">1<\/text><text[^>]*class="mt-dn-l">incidencias<\/text>/);
   // los cuatro estados, aunque estén a cero; lo que espera por otro motivo, solo si lo hay
   assert.deepEqual([...html.matchAll(/<th><i class="mt-dn-sw mt-dn-(\w+)"><\/i>([^<]*)<\/th><td class="mt-num"><b>(\d+)<\/b>/g)].map((x) => [x[2], +x[3]]),
     [['Asignada', 1], ['Pendiente (proveedor)', 0], ['Pendiente (cliente)', 0], ['En curso', 0]]);
-  assert.match(html, /<th>Pendientes<\/th><td class="mt-num"><b>1<\/b><small>ahora<\/small>/);
+  assert.match(html, /<th>Incidencias<\/th><td class="mt-num"><b>1<\/b><small>ahora<\/small>/);
   // un solo tramo, el de Asignada, que filtra a la vez sin tocar y devuelta a la cola
   const arcs = [...html.matchAll(/<circle class="mt-dn-(\w+)[^"]*"[^>]*>/g)].filter((x) => x[1] !== 'track');
   assert.deepEqual(arcs.map((x) => [x[1], /data-f2="([^"]+)"/.exec(x[0])?.[1]]), [['asig', 'sit:1|sit:2']]);
@@ -47,19 +47,22 @@ test('comparando: una corona por lado, con su nombre, y en la leyenda las cifras
   // con el nombre de su lado, sin su color (el ocre del segundo lado se confundiría con el de fuera de plazo)
   assert.deepEqual([...html.matchAll(/<figcaption>([^<]*)<\/figcaption>/g)].map((x) => x[1]), ['Indra', 'T-Systems']);
   assert.match(html, /<tr class="mt-dn-head"><th><\/th><th class="mt-num">Indra<\/th><th class="mt-num">T-Systems<\/th><\/tr>/);
-  assert.match(html, /<th>Pendientes<\/th>(<td class="mt-num"><b>\d+<\/b><small>[^<]*<\/small><\/td>){2}/);
+  assert.match(html, /<th>Incidencias<\/th>(<td class="mt-num"><b>\d+<\/b><small>[^<]*<\/small><\/td>){2}/);
 });
 
-test('el backlog ahora, arriba del todo: la corona, la antigüedad y los repartos (la evolución, en el Histórico)', () => {
+test('el backlog ahora, arriba del todo: la corona con en qué punto está a su lado, la antigüedad y la prioridad (la evolución, en el Histórico)', () => {
   const html = render([{ company: 0 }, null]), now = html.slice(html.indexOf('¿Cómo está el backlog ahora?'));
   assert.ok(html.indexOf('¿Cómo está el backlog ahora?') > 0);
-  // en la fila de la corona, la antigüedad en una baldosa cuadrada y la prioridad; sin pendientes (el total ya está en
-  // la corona), ni SLA, ni SISU o SGA (es el selector de arriba)
-  const row = [...now.matchAll(/<section class="mt-card mt-(s\d+)[^"]*">(?:<h3[^>]*>([^<]*)<\/h3>)?/g)].slice(0, 3).map((x) => [x[1], x[2]]);
-  assert.deepEqual(row, [['s4', 'En qué estado está'], ['s2', 'Antigüedad media'], ['s6', 'Prioridad']]);
+  // la corona y, a su lado, en qué punto está, con la antigüedad media al final (en el sitio de «Aparte»); sin pendientes
+  // (el total ya está en la corona), ni SLA, ni SISU o SGA ni prioridad (son los selectores de arriba)
+  const row = [...now.matchAll(/<section class="mt-card mt-(s\d+)[^"]*">(?:<h3[^>]*>([^<]*)<\/h3>)?/g)].slice(0, 2).map((x) => [x[1], x[2]]);
+  assert.deepEqual(row, [['s4', 'En qué estado está'], ['s6', 'En qué situación está y desde cuándo']]);
+  const panel = now.slice(now.indexOf('mt-stock mt-st-side'), now.indexOf('Lo pendiente en detalle'));
+  assert.deepEqual([...panel.matchAll(/<h4>([^<]*)/g)].map((x) => x[1]), ['¿En qué punto están?', 'A vigilar', 'Antigüedad media']);
+  assert.match(panel, /<section class="mt-st mt-st-age"><h4>Antigüedad media<\/h4><div class="mt-st-big"><b>3,3 h<\/b>/);
+  assert.doesNotMatch(now, /<h4>Aparte|mt-st-apart|<h3>Antigüedad media|<h3>Prioridad<\/h3>/);
   assert.doesNotMatch(now, /class="mt-kpi|SLA de inicio|dentro del SLA|<h3>SISU o SGA<\/h3>/);
   assert.doesNotMatch(now, />Pendientes<\/h3>/);
-  for (const h of ['Antigüedad', 'Prioridad', 'Centro', 'Módulo']) assert.match(now, new RegExp(`<h3>${h}</h3>`));
   assert.doesNotMatch(now, /Evolución del backlog|data-evo=/);
   // la evolución, en el Histórico, sin comparar: barras apiladas por prioridad (la media, la única abierta: tercer tramo) y la tendencia
   const evo = cut(render([{ company: 0 }, null], 'historico'), '<h3>Evolución del backlog</h3>');
@@ -71,24 +74,34 @@ test('el backlog ahora, arriba del todo: la corona, la antigüedad y los reparto
   assert.match(evo, /<i class="mt-trend-key"><\/i>Tendencia \([^)]* al día\)/);
 });
 
-test('SISU o SGA, un selector arriba del todo: Todo, SISU o SGA; marca lo que está filtrado', () => {
+test('SISU o SGA y la prioridad, dos selectores en una fila arriba del todo; marcan lo que está filtrado', () => {
   const html = render([{ company: 0 }, null]);
-  assert.ok(html.indexOf('class="mt-seg"') < html.indexOf('¿Cómo está hoy?'));
-  assert.deepEqual([...html.matchAll(/<button class="mt-seg-b ([^"]*)" data-only="([^"]*)"[^>]*>([^<]*)<\/button>/g)].map((x) => [x[3], x[2], x[1].includes('mt-on')]),
-    [['Todo', 'ss:', true], ['SISU', 'ss:0', false], ['SGA', 'ss:1', false]]);
+  assert.ok(html.indexOf('<div class="mt-hoy-picks"><div class="mt-seg" role="group" aria-label="SISU o SGA">') >= 0);
+  assert.ok(html.indexOf('aria-label="Prioridad"') < html.indexOf('¿Cómo está hoy?'));
+  const picks = (h) => [...h.matchAll(/<button class="mt-seg-b ([^"]*)" data-only="([^"]*)"[^>]*>([^<]*)(?:<small>(\d+)<\/small>)?<\/button>/g)].map((x) => [x[3], x[2], x[1].includes('mt-on'), x[4] ?? null]);
+  const m0 = createModel(data()), pr = (p) => `pr:${m0.DI.prio.indexOf(p)}`;
+  // de cada prioridad, lo abierto ahora (Indra: solo la media)
+  assert.deepEqual(picks(html), [['Todo', 'ss:', true, null], ['SISU', 'ss:0', false, null], ['SGA', 'ss:1', false, null],
+    ['Todas', 'pr:', true, null], ['Crítica', pr('CRITICAL'), false, '0'], ['Alta', pr('HIGH'), false, '0'], ['Media', pr('MEDIUM'), false, '1'], ['Baja', pr('LOW'), false, '0']]);
+  // con una prioridad elegida: marcada, y las cifras de las demás, como estaban
+  const m1 = createModel(data()); m1.S.sides = [{ company: 0 }, null]; m1.S.f.pr = new Set([m1.DI.prio.indexOf('HIGH')]); m1.refilter();
+  const ui1 = { exp: {}, sort: {} }, p1 = picks(createTabs(m1, createCharts(m1, ui1), ui1).render('hoy', m1.rows())).slice(3);
+  assert.deepEqual(p1.map((x) => [x[0], x[2], x[3]]), [['Todas', false, null], ['Crítica', false, '0'], ['Alta', true, '0'], ['Media', false, '1'], ['Baja', false, '0']]);
   // con SISU elegido (el filtro que pone el selector): marcado, y solo lo de SISU (de Indra, la de PACKING)
   const m = createModel(data()); m.S.f.ss = new Set([0]); m.refilter();
   const ui = { exp: {}, sort: {} }, out = createTabs(m, createCharts(m, ui), ui).render('hoy', m.rows());
-  assert.match(out, /<button class="mt-seg-b mt-on" data-only="ss:0" aria-pressed="true">SISU<\/button>/);
+  assert.match(out, /<button class="mt-seg-b mt-on" data-only="ss:0" aria-pressed="true"[^>]*>SISU<\/button>/);
   assert.deepEqual(m.rows().map((i) => m.DIMS.mo.label(m.C.mo[i])), ['PACKING']);
 });
 
-test('el backlog ahora, comparando: las cifras de cada lado y una tabla de dos lados con los repartos', () => {
+test('el backlog ahora, comparando: las cifras de cada lado, una tabla de dos lados con los repartos y cómo está lo pendiente (lo de la antigua pestaña Backlog)', () => {
   const html = render([{ company: 0 }, { company: 1 }]), now = html.slice(html.indexOf('¿Cómo está el backlog ahora?'));
   assert.match(now, /<h3>Cómo se reparte<\/h3>/);
-  // de cifras, solo la antigüedad con la diferencia (sin pendientes ni SLA)
-  assert.equal((now.match(/<div class="mt-kpi mt-kpi-co">/g) || []).length, 1);
-  assert.match(now, /<div class="mt-kpi-l"[^>]*>Antigüedad media<\/div>/);
+  assert.ok(now.indexOf('<h3>Cómo se reparte</h3>') < now.indexOf('<h3>Cómo está lo pendiente</h3>'));
+  assert.doesNotMatch(now, /Qué tiene pendiente cada uno/);   // es el «Cómo se reparte»
+  // de cifras, la antigüedad y las de la antigua pestaña Backlog, con la diferencia (sin pendientes ni SLA)
+  assert.deepEqual([...now.matchAll(/<div class="mt-kpi mt-kpi-co"><div class="mt-kpi-l"[^>]*>([^<]*)</g)].map((x) => x[1]),
+    ['Antigüedad media', 'Días de entrada acumulados', '% sin tocar', '% fuera de plazo', '% con más de 15 días', '% escaladas']);
   assert.doesNotMatch(now, /SLA de inicio|>Pendientes<\/div>/);
   assert.equal((cut(render([{ company: 0 }, { company: 1 }], 'historico'), '<h3>Evolución del backlog</h3>').match(/<polyline class="mt-line mt-s\d"/g) || []).length, 2);
 });
@@ -211,3 +224,33 @@ test('Entrantes: de cada prioridad, el % empezado dentro de su SLA de inicio (no
   assert.doesNotMatch(html, /<div class="mt-kpi-l">% Críticas<\/div>/);   // el reparto, ya no
 });
 
+
+test('Foto de hoy, de un lado: debajo de los repartos, lo de la antigua pestaña Backlog (sin el recuadro de Pendientes, que es la corona), de lo abierto ahora', () => {
+  const html = render([{ company: 0 }, null]), at = (s) => html.indexOf(s);
+  const titles = ['En qué situación está y desde cuándo', 'Por prioridad y tarjeta', 'Por módulo: en qué situación', 'Por módulo: desde cuándo', 'Escaladas: a quién y desde cuándo', 'Por centro: desde cuándo'];
+  for (const x of titles) assert.ok(html.includes(`<h3>${x}</h3>`), x);
+  // a la derecha de la corona, el panel; sin las tarjetas de antigüedad, centro y módulo (están en las tablas)
+  assert.ok(at('<h3>En qué estado está</h3>') < at('mt-stock mt-st-side') && at('mt-stock mt-st-side') < at('Lo pendiente en detalle'));
+  for (const x of ['Antigüedad', 'Centro', 'Módulo', 'Prioridad']) assert.ok(!html.includes(`<h3>${x}</h3>`), x);
+  assert.ok(at('<h2 class="mt-sec">Lo pendiente en detalle') < at('<h3>En qué situación está y desde cuándo</h3>'));
+  assert.ok(at('<h3>En qué situación está y desde cuándo</h3>') < at('<h3>Quién tiene qué</h3>'));
+  assert.match(html, /mt-stock mt-st-side mt-st-nototal/);
+  assert.doesNotMatch(html, /mt-st-total|recibidas en el periodo<\/p>/);
+  assert.match(html, /¿En qué punto están\?/);
+  assert.doesNotMatch(html, /undefined|NaN/);
+});
+
+test('la pestaña Backlog ya no existe: lo suyo está en Foto de hoy', async () => {
+  const { TABS, QUESTIONS } = await import('./common.js');
+  assert.ok(!TABS.some(([k]) => k === 'backlog')); assert.equal(QUESTIONS.backlog, undefined);
+});
+
+test('Foto de hoy, «Escaladas: a quién y desde cuándo»: por el proyecto Jira, no por el prefijo del ticket', () => {
+  const d = data(); d.cols.vt[2] = 1; d.cols.vp[2] = 1;   // la abierta de Indra, escalada con «TEC: SGA-1»: prefijo TEC, proyecto SGA
+  const m = createModel(d); m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const ui = { exp: {}, sort: {} }, html = createTabs(m, createCharts(m, ui), ui).render('hoy', m.rows());
+  const card = html.slice(html.indexOf('<h3>Escaladas: a quién y desde cuándo</h3>'), html.indexOf('</section>', html.indexOf('<h3>Escaladas: a quién y desde cuándo</h3>')));
+  assert.match(card, /Proyecto Jira · antigüedad →/);
+  assert.match(card, /<th class="mt-r"[^>]*data-f="vp:1">SGA<\/th>/);
+  assert.doesNotMatch(card, /TEC|vt:/);
+});

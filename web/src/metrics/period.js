@@ -21,6 +21,13 @@ export const periodSummary = (m) => `${periodLabel(m)} · ${daysLabel(m)}`;
 const monthEnd = (m, k) => Math.min(m.minuteOf(k + 1), m.END_D);
 // los últimos n días de lo cargado, con el de la foto (para m.setPeriod, que no pasa del primer día con issues)
 export const lastDays = (m, n) => [m.END_D - n * DAY, m.END_D];
+// Desde el día en que se abrió la incidencia más antigua que sigue abierta de una empresa (model.js, TEAM: con lo sin
+// técnico de sus búsquedas) hasta la foto; sin ninguna abierta, null.
+export const sinceOldestOpen = (m, company) => {
+  let min = Infinity;
+  for (let i = 0; i < m.N; i++) if (m.OPEN[i] && m.TEAM[i] === company && m.C.rep[i] < min) min = m.C.rep[i];
+  return min === Infinity ? null : [Math.floor(min / DAY) * DAY, m.END_D];
+};
 // Las fechas rápidas: [clave, nombre, rango [d0, d1)]. Este mes y el pasado, enteros (el de la foto, hasta ella); los
 // últimos 3 meses, del día 1 del antepasado a la foto; el año fiscal, del 1 de febrero (model.js, START_D); y todo lo
 // cargado. setPeriod los limita a lo cargado.

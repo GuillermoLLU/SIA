@@ -64,3 +64,36 @@ test('cobertura con más de un año', () => {
   m.setPeriod(0, year);
   assert.equal(coverage(m), 'Datos desde 01/01/2025 hasta 31/12/2025');
 });
+
+test('Quitar filtros: si hay alguno (de la barra, la búsqueda o de una pestaña) y quitarlos todos, sin tocar el periodo ni lo que se compara', async () => {
+  const { anyFilter, clearFilters } = await import('./view.js');
+  const m = createModel(data()), ui = {};
+  assert.equal(anyFilter(m.S, ui), false);
+  for (const set of [(S) => { S.f.pr = new Set([1]); }, (S) => { S.q = 'etiqueta'; }, (S, u) => { u.cliFilter = 'quiet'; }, (S, u) => { u.jiraPick = [2]; }, (S, u) => { u.escNoJira = true; }]) {
+    const u = {}; set(m.S, u); assert.equal(anyFilter(m.S, u), true);
+    clearFilters(m.S, u); assert.equal(anyFilter(m.S, u), false);
+  }
+  m.S.f.ss = new Set(); assert.equal(anyFilter(m.S, ui), false);   // uno vacío no cuenta
+  const period = [m.S.d0, m.S.d1], sides = m.S.sides;
+  m.S.f.mo = new Set([1]); m.S.q = 'x'; clearFilters(m.S, ui);
+  assert.deepEqual(m.S.f, {}); assert.equal(m.S.q, ''); assert.deepEqual([m.S.d0, m.S.d1], period); assert.equal(m.S.sides, sides);
+});
+
+test('Filtros con Ctrl: en un selector, clic deja solo esa y Ctrl+clic la suma o, si ya estaba, la quita (sin ninguna, todas); en una celda de dos, Ctrl+clic sobre lo marcado lo quita', async () => {
+  const { pickOnly, pickBoth, isPicked } = await import('./view.js');
+  const f = {};
+  pickOnly(f, 'pr', 1); assert.deepEqual([...f.pr], [1]);
+  pickOnly(f, 'pr', 2, true); assert.deepEqual([...f.pr], [1, 2]);       // sumar
+  assert.ok(isPicked(f, 'pr', 1) && isPicked(f, 'pr', 2) && !isPicked(f, 'pr', null));
+  pickOnly(f, 'pr', 1, true); assert.deepEqual([...f.pr], [2]);          // quitar la ya marcada
+  pickOnly(f, 'pr', 2, true); assert.equal(f.pr, undefined);             // sin ninguna: todas
+  assert.ok(isPicked(f, 'pr', null));
+  pickOnly(f, 'pr', 3); pickOnly(f, 'pr', 4); assert.deepEqual([...f.pr], [4]);   // sin Ctrl, solo esa
+  pickOnly(f, 'pr', null); assert.equal(f.pr, undefined);
+  // celdas de dos
+  const g = {};
+  pickBoth(g, [['sit', 1], ['age', 0]]); assert.deepEqual([[...g.sit], [...g.age]], [[1], [0]]);
+  pickBoth(g, [['sit', 1], ['age', 0]]); assert.deepEqual([[...g.sit], [...g.age]], [[1], [0]]);   // sin Ctrl, se quedan
+  pickBoth(g, [['sit', 1], ['age', 0]], true); assert.deepEqual(g, {});                           // con Ctrl, fuera
+  pickBoth(g, [['sit', 1], ['age', 0]], true); assert.deepEqual([[...g.sit], [...g.age]], [[1], [0]]);   // no estaban: se suman
+});

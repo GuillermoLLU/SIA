@@ -11,7 +11,7 @@ import './work.css';
 import { esc } from '../ui/html.js';
 import { createModel } from '../metrics/model.js';
 import { createCharts } from '../metrics/charts.js';
-import { periodLabel, lastDays } from '../metrics/period.js';
+import { periodLabel, lastDays, sinceOldestOpen } from '../metrics/period.js';
 import { mountPeriodPanel } from '../metrics/period-panel.js';
 import { attachTip } from '../metrics/tip.js';
 import { coverage } from '../metrics/view.js';
@@ -24,7 +24,9 @@ import { pickDays } from './activity.js';
 
 const CALENDAR_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>';
 
-const DEFAULT_DAYS = 15;   // el periodo con el que abre la vista
+// el periodo con el que abre la vista: desde la incidencia más antigua del equipo que sigue abierta; sin ninguna, los
+// últimos DEFAULT_DAYS días
+const DEFAULT_DAYS = 15;
 
 export const mountWorkView = (root, { api, onManage, toast }) => {
   let m = null, ch = null, generated = null, calendar = false, panel = null, onPage = 'team', drag = null;
@@ -140,7 +142,7 @@ export const mountWorkView = (root, { api, onManage, toast }) => {
           ui.person = null;   // los índices de las personas cambian con los datos
           ui.range = null;
           m = createModel(data);
-          m.setPeriod(...lastDays(m, DEFAULT_DAYS));
+          m.setPeriod(...(sinceOldestOpen(m, 0) || lastDays(m, DEFAULT_DAYS)));   // el equipo de Indra
           ch = createCharts(m, ui);
           renderFrame();
           // el panel del periodo (period-panel.js): elegir en la rejilla lo aplica y lo cierra; una fecha, lo deja abierto

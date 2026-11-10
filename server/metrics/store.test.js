@@ -135,9 +135,10 @@ test('Jira: pide las claves de las incidencias y calcula los tiempos de escalado
   assert.deepEqual(jira.asked[0].sort(), ['FINISHED-1', 'SGA-1', 'SGA-2']);
   assert.deepEqual(meta, { at: now().toISOString(), tickets: 2, message: '' });
   const { cols } = await store.load();
-  // abierta el 1/2 a las 10:00: el primer Jira, a la hora; la solución final (SGA-1), al día siguiente; sigue abierta
-  // en Remedy hasta la foto (el último cambio, el 3/2 a las 10:00)
-  assert.deepEqual([cols.the[0], cols.tes[0], cols.tcr[0], cols.tsr[0]], [60, 1440, -1, 23 * 60]);
+  // abierta el 1/2 a las 10:00: el primer Jira, a la hora; SGA-1 se resolvió al día siguiente, pero SGA-2, suyo también,
+  // sigue abierto: aún no hay solución final, así que Tesc hasta la foto y sin Tesc-r (escalation.js)
+  // en Remedy hasta la foto (el último cambio, el 3/2 a las 10:00)   // Tesc: del primero (1/2 11:00) a la foto (3/2 10:00), 47 h
+  assert.deepEqual([cols.the[0], cols.tes[0], cols.tcr[0], cols.tsr[0]], [60, 47 * 60, -1, -1]);
   // su THesc por estados: sin cambios de estado antes del Jira, todo en cola
   assert.deepEqual([cols.hQ[0], cols.hI[0], cols.hPc[0], cols.hPo[0]], [60, 0, 0, 0]);
   await store.update();

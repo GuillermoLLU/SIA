@@ -9,7 +9,6 @@ import { resumenTab } from './tabs/resumen.js';
 import { hoyTab } from './tabs/hoy.js';
 import { historicoTab } from './tabs/historico.js';
 import { entradaTab } from './tabs/entrada.js';
-import { backlogTab } from './tabs/backlog.js';
 import { modulosTab } from './tabs/modulos.js';
 import { resolucionTab } from './tabs/resolucion.js';
 import { escaladosTab } from './tabs/escalados.js';
@@ -24,7 +23,7 @@ export { TABS } from './tabs/common.js';
 
 export const createTabs = (m, ch, ui) => {
   const t = createCommon(m, ch, ui);
-  const VIEWS = { resumen: resumenTab(t), hoy: hoyTab(t), historico: historicoTab(t), entrada: entradaTab(t), backlog: backlogTab(t), modulos: modulosTab(t),
+  const VIEWS = { resumen: resumenTab(t), hoy: hoyTab(t), historico: historicoTab(t), entrada: entradaTab(t), modulos: modulosTab(t),
     resolucion: resolucionTab(t), tiempos: tiemposTab(t), cliente: clienteTab(t), escalados: escaladosTab(t), sla: slaTab(t), calidad: pendingTab(t, 'calidad'),
     ia: iaTab(t), turnos: turnosTab(t) };
   return { render: (tab, A) => VIEWS[tab](A) };

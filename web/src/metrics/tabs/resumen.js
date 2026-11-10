@@ -35,7 +35,9 @@ export const resumenTab = (t) => {
   // los KPIs de unas incidencias: { n, v } de cada uno
   const figures = (l) => {
     const b = mttrOf(m, l), s = iaStats(l, C), r = l.filter(solved).length;
-    return { inc: { n: l.length, r, v: l.length ? r / l.length : null }, mttr: { n: b.n, v: b.mttr }, ia: { n: s.n, v: s.share }, iqa: { n: l.length, v: null } };
+    // en SLA: las empezadas (paso a En curso) dentro del plazo de su prioridad, de las que cuentan (model.js, stats sla)
+    const st = m.stats(l);
+    return { inc: { n: l.length, r, v: l.length ? r / l.length : null }, mttr: { n: b.n, v: b.mttr }, sla: { n: l.length, v: st.sla }, ia: { n: s.n, v: s.share }, iqa: { n: l.length, v: null } };
   };
   // comparando periodos, los dos: [{ key, label, range }]
   const periods = () => (cmpMode() === 'periods' ? [ui.resCmp.a, ui.resCmp.b].map((key) => ({ key, label: cmpName(m, key), range: cmpRange(m, key) })) : null);
@@ -69,6 +71,7 @@ export const resumenTab = (t) => {
     })(of('inc'));
     return card('Del periodo', kpis(incKpi,
       kpiCo('MTTR', of('mttr'), opt(dur), o({ better: 'low', go: ['tiempos', 'Análisis tiempos'], note: 'De lo recibido en el periodo: (TTR de las resueltas + lo que llevan abiertas las que siguen abiertas) / cuántas son. Una cancelada sin resolver no cuenta.' })),
+      kpiCo('% dentro de SLA', of('sla'), opt(pct), o({ better: 'high', go: ['sla', 'SLAs'], note: 'De lo recibido en el periodo, lo que se empezó (paso a En curso) dentro del plazo de su prioridad; las abiertas sin empezar y ya fuera de plazo cuentan como fuera. El detalle, en la pestaña SLAs.' })),
       kpiCo('%IQA', of('iqa'), () => '—', o({ better: 'high', go: ['calidad', 'Calidad'], note: IQA_NOTE })),
       kpiCo('Uso de la IA', of('ia'), opt((v) => pct(v, 1)), o({ better: 'high', go: ['ia', 'Uso de la IA'], note: 'De lo recibido en el periodo, lo que tiene alguna marca de IA (en TAGS o en las notas). El detalle, en la pestaña Uso de la IA.' }))),
       { span: CMP() ? 's12' : 's8', sub });
