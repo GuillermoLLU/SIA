@@ -1,5 +1,7 @@
 // /api/metrics (vista Métricas; leer, también con la del Panel de trabajo; lo exige el bridge).
 //   GET  /               → { data }  (null: aún no hay incidencias guardadas)
+//   GET  /ready          → { ok: true } si se puede actualizar desde Snowflake; si no, 503 con
+//                          code 'vpn' (shared/client-network.js), antes de tocar nada
 //   GET  /progress       → { progress }: por dónde va la actualización en curso (null: ninguna)
 //   POST /update         → { meta, counts }: pide a Snowflake lo nuevo y lo cambiado y lo suma al
 //                          repositorio local; counts: { inserted, updated, unchanged, kept }.
@@ -18,6 +20,7 @@ import { periodSql } from './query.js';
 export const metricsRoutes = (store, { json, readBody }) => {
   const table = {
     'GET ': async (req, res) => json(res, 200, { data: await store.load() }),
+    'GET ready': async (req, res) => { await store.ready(); return json(res, 200, { ok: true }); },
     'GET progress': (req, res) => json(res, 200, { progress: store.progress() }),
     // { from, to } (AAAA-MM-DD) solo para la primera carga con la base vacía; sin cuerpo, la actualización de siempre
     'POST update': async (req, res) => json(res, 200, await store.update(await readBody(req))),

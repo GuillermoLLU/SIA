@@ -170,5 +170,6 @@ export const createMetricsStore = (dir, { repo, source, fs, now = () => new Date
     }
   };
 
-  return { load, update, importCsv, cancel, clear, progress: () => progress };
+  // ¿Se puede actualizar desde Snowflake? Antes de enseñar el avance (la VPN): si no, el error que lo explica.
+  return { load, update, importCsv, cancel, clear, ready: () => source.ready(), progress: () => progress };
 };

@@ -6,7 +6,10 @@ ve cada una) y su base de conocimiento. Ver [arquitectura.md](arquitectura.md).
 ## Montar la base de la instancia (una vez)
 
 Un proyecto Supabase propio; `sia-instance.json` lleva su URL y su clave
-publishable.
+publishable. Si el cliente trabaja con VPN, lleva también `certificates` (la
+guía oficial y los nombres que deben estar instalados) y `vpn.probeHost` (un
+nombre interno que solo resuelve dentro de su red): ver «Detrás de la VPN» en
+el [README](../README.md).
 
 1. SQL Editor del proyecto: ejecutar **`supabase-platform.sql`** entero
    (re-ejecutable, no borra datos).

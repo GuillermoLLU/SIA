@@ -2,19 +2,19 @@
   "name": "sia",
   "productName": "SIA",
   "version": "1.1.0",
-  "description": "SIA: sistema de uso de IA para equipos — terminal de IA + conocimiento + skills",
+  "description": "Sistema de IA para equipos: terminal, conocimiento y skills",
+  "author": "SIA",
   "type": "module",
   "main": "electron/main.js",
   "scripts": {
     "dev": "node dev.mjs",
-    "dev:vpn": "cross-env NODE_USE_SYSTEM_CA=1 node dev.mjs",
     "test": "node --test 'server/**/*.test.js' 'web/src/**/*.test.js'",
     "test:rls": "scripts/rls-tests/run.sh",
     "test:platform": "scripts/platform-tests/run.sh",
     "app": "electron .",
     "build:web": "cd web && npm run build",
     "dist": "npm run build:web && electron-builder --mac",
-    "dist:win": "npm run build:web && electron-builder --win"
+    "dist:win": "npm run build:web && node scripts/installer-config.mjs && electron-builder --win"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
@@ -27,14 +27,16 @@
     "zod": "^3.23.0"
   },
   "devDependencies": {
-    "cross-env": "^10.1.0",
     "electron": "^37.10.3",
     "electron-builder": "^25.0.0"
   },
   "build": {
     "appId": "com.itx.sia",
     "productName": "SIA",
-    "asar": false,
+    "extraMetadata": {
+      "description": "SIA"
+    },
+    "asar": true,
     "publish": null,
     "npmRebuild": false,
     "directories": {
@@ -56,7 +58,19 @@
       "workspace/modes/demand/AGENTS.md",
       "!**/.claude-mcp.json",
       "!**/.copilot-mcp.json",
-      "!mcp/seed-skills.mjs"
+      "!mcp/seed-skills.mjs",
+      "!**/node_modules/**/*.map",
+      "!**/node_modules/**/*.{ts,mts,cts}",
+      "!**/node_modules/@xenova/transformers/dist/**",
+      "!**/node_modules/onnxruntime-web/dist/*.wasm",
+      "!**/node_modules/onnxruntime-web/dist/*.min.js",
+      "!**/node_modules/onnxruntime-web/dist/ort.js",
+      "!**/node_modules/onnxruntime-web/dist/ort-web.js",
+      "!**/node_modules/onnxruntime-node/bin/napi-v3/!(${platform})/**",
+      "!**/node_modules/onnxruntime-node/bin/napi-v3/${platform}/!(${arch})/**",
+      "!**/node_modules/node-pty/prebuilds/!(${platform}-${arch})/**",
+      "!**/node_modules/{node-pty,sharp}/{src,deps}/**",
+      "!**/node_modules/@azure/msal-browser/**"
     ],
     "mac": {
       "target": [
@@ -81,6 +95,12 @@
         }
       ],
       "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "include": "build/installer.nsh"
     }
   }
 }

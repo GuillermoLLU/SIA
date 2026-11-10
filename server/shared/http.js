@@ -28,7 +28,7 @@ export const failed = (json, res, e) => {
     console.error(`[sia] error interno en la API: ${e.stack || e}`);
     return json(res, 500, { error: 'Error interno.' });
   }
-  return json(res, e.status >= 500 ? 503 : e.status, { error: e.message });
+  return json(res, e.status >= 500 ? 503 : e.status, { error: e.message, ...(e.code ? { code: e.code } : {}), ...(e.help ? { help: e.help } : {}) });
 };
 
 // Tipos de los ficheros que se sirven (la web compilada y los adjuntos).

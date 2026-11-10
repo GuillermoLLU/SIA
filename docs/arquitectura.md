@@ -33,7 +33,7 @@ API y su vista:
 | `knowledge/`, `projects/` | Conocimiento asignado y la sección Administración de Configuración |
 | `lab/`, `links/`, `skills/` | Laboratorio de skills, Enlaces (la columna de Configuración y su formulario) y la paleta ⌘K |
 | `settings/`, `lock/`, `theme/` | Configuración (sus cajas por sección y su cabecera, `head.js`), candado y temas |
-| `ui/` | Lo común: `api.js` (el único cliente HTTP), diálogos, toast, html, tiempo, el selector (`picker.js`) y la entrada en cascada de una vista (`enter.js`) |
+| `ui/` | Lo común: `api.js` (el único cliente HTTP), diálogos, toast, html, tiempo, el selector (`picker.js`), la entrada en cascada de una vista (`enter.js`) y el aviso de lo que falta para la red del cliente (`net-warning.js`, `net-warning-view.js`: certificados y VPN; lo usan el inicio de sesión y Métricas) |
 
 ### `server/` — el bridge local
 
@@ -46,7 +46,7 @@ las rutas de cada slice.
 | Carpeta | Qué es |
 |---|---|
 | `platform/` | Cliente de la base de la instancia y `sia-instance.json` |
-| `auth/` | Sesiones (en memoria), inicio de sesión, contraseña y qué vista exige cada ruta |
+| `auth/` | Sesiones (en memoria), inicio de sesión, contraseña y qué vista exige cada ruta; la comprobación al pulsar la S (`preflight.js`: certificados del cliente y VPN) |
 | `users/`, `knowledge/` | Equipo: personas, roles y reglas; conocimiento asignado, la base en uso en este bridge (`assigned-base.js`) y claves de poder de cada persona |
 | `base/` | Cliente de la base de conocimiento, permisos y el esquema SQL |
 | `projects/` | Administración: crear y eliminar proyectos |
@@ -55,7 +55,7 @@ las rutas de cada slice.
 | `config/`, `lock/` | Configuración personal (`~/.sia/config.json`: Jira, GitHub) y candado |
 | `launchers/`, `workspace/` | Los CLIs (Claude, Copilot, Codex), sus argumentos y su MCP por sesión; los directorios de modo y skills por base |
 | `terminal/` | Las sesiones de chat, el protocolo WebSocket y quién entra por él (`ws-auth.js`: desde esta máquina, con sesión y con la vista Chat o, el de una issue, Issues) |
-| `updates/`, `shared/` | `/api/version`; lo común (HTTP, CSV, ids, puertos, cabeceras, permisos, el troceo de entradas de Remedy) |
+| `updates/`, `shared/` | `/api/version`; lo común (HTTP, CSV, ids, puertos, cabeceras, permisos, el troceo de entradas de Remedy, los certificados del sistema, la VPN del cliente y el error de lo que falta para su red, `client-network.js`) |
 
 Cosas que conviene saber:
 

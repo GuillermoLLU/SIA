@@ -22,6 +22,12 @@ test('GET /progress: por dónde va la actualización, o null', async () => {
   assert.deepEqual((await setup({ progress: () => p })('GET', ['progress'])).body, { progress: p });
 });
 
+test('GET /ready: si se puede actualizar, ok; si falta la VPN, 503 con su code para que la web lo explique', async () => {
+  assert.deepEqual((await setup({ ready: async () => {} })('GET', ['ready'])).body, { ok: true });
+  const res = await setup({ ready: async () => { throw Object.assign(new Error('Sin VPN.'), { status: 503, code: 'vpn' }); } })('GET', ['ready']);
+  assert.deepEqual([res.status, res.body], [503, { error: 'Sin VPN.', code: 'vpn' }]);
+});
+
 test('POST /update: actualiza desde Snowflake y devuelve meta y cuentas', async () => {
   const res = await setup({ update: async () => ({ meta: { rows: 1 }, counts: { inserted: 1 } }) })('POST', ['update']);
   assert.deepEqual([res.status, res.body], [200, { meta: { rows: 1 }, counts: { inserted: 1 } }]);

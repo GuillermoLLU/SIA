@@ -2,5 +2,14 @@
   "platform": {
     "url": "https://jehlwrrdmtjzgvqrwtig.supabase.co",
     "publishableKey": "sb_publishable_b-ho2zVN1sLrJg53q4_9lg_Nq08RHoi"
+  },
+  "certificates": {
+    "helpUrl": "https://lde.docs.inditex.dev/lde/latest/tooling/security/import-certificates.html#2-import-the-certificates",
+    "required": [
+      "ITX Root CA"
+    ]
+  },
+  "vpn": {
+    "probeHost": "jira.inditex.com"
   }
 }
