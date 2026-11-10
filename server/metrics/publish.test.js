@@ -4,15 +4,17 @@ import { createPublisher } from './publish.js';
 import { FORMAT, REQUIRED } from './dataset.js';
 
 // Un repositorio y un disco de mentira: el cálculo recorre lo que le dan y la copia va donde se le dice.
+// Las rutas, siempre con «/»: path.join usa «\» en Windows y la prueba no debe depender del sistema.
 const fakeFs = () => {
   const files = new Map(), ops = [];
+  const p = (f) => f.replaceAll('\\', '/');
   return {
     files, ops,
-    mkdirSync: (d) => ops.push(['mkdir', d]),
-    writeFileSync: (f, data) => { ops.push(['write', f]); files.set(f, data); },
-    renameSync: (a, b) => { ops.push(['rename', a, b]); files.set(b, files.get(a)); files.delete(a); },
-    readFileSync: (f) => { if (!files.has(f)) throw new Error('ENOENT'); return files.get(f); },
-    rmSync: (f) => files.delete(f),
+    mkdirSync: (d) => ops.push(['mkdir', p(d)]),
+    writeFileSync: (f, data) => { ops.push(['write', p(f)]); files.set(p(f), data); },
+    renameSync: (a, b) => { ops.push(['rename', p(a), p(b)]); files.set(p(b), files.get(p(a))); files.delete(p(a)); },
+    readFileSync: (f) => { if (!files.has(p(f))) throw new Error('ENOENT'); return files.get(p(f)); },
+    rmSync: (f) => files.delete(p(f)),
   };
 };
 const now = () => new Date('2026-11-06T10:00:00Z');
