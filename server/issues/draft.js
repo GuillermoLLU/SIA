@@ -1,5 +1,5 @@
 // El borrador de Resolver (dominio, sin E/S): lo que el técnico lleva escrito y
-// el adjunto del mensaje al centro, mientras no se envía. Aquí, cómo se valida
+// las imágenes que acompañan a la resolución, mientras no se envía. Aquí, cómo se valida
 // lo que llega de la web: no se fía del navegador (se puede tocar en devtools),
 // así que lo que no cuadra se rechaza en vez de arreglarlo. Se guarda en la BBDD
 // local (drafts.js).
@@ -7,8 +7,9 @@
 export const FIELDS = ['note', 'what', 'how', 'prevent'];
 export const MAX_TEXT = 20_000;               // el mismo maxlength que tiene la web
 export const MAX_FILE = 15 * 1024 * 1024;     // el mismo límite que enseña la web (en base64 cabe en BODY_MAX)
+export const MAX_IMAGES = 10;                 // por borrador
 const LANGS = ['es', 'en'];                   // el idioma de la nota externa
-const STEPS = [1, 2, 3];                      // los pasos de Resolver (resolve-form.js)
+const STEPS = [1, 2, 3, 4, 5];                // los pasos de Resolver (resolve-form.js)
 // Lo que se puede ejecutar no va como adjunto al centro.
 const RUNNABLE = /\.(exe|com|bat|cmd|msi|scr|pif|ps1|vbs|vbe|js|jse|wsf|wsh|hta|jar|sh|lnk|reg|cpl|dll)$/i;
 const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/;
@@ -36,7 +37,7 @@ export const cleanFields = (body) => {
   return { ...out, lang, step };
 };
 
-// { name, type, data (base64) } → { name, type, data: Buffer }; un solo adjunto, de hasta MAX_FILE
+// { name, type, data (base64) } → { name, type, data: Buffer }; una imagen, de hasta MAX_FILE
 export const cleanFile = (body) => {
   if (!isObject(body)) throw fail('Falta el archivo.');
   // sin rutas; con caracteres de control o invisibles (como el que da la vuelta
@@ -51,5 +52,6 @@ export const cleanFile = (body) => {
   if (!data.length) throw fail('El archivo está vacío.');
   if (data.length > MAX_FILE) throw fail('El adjunto pasa de 15 MB: elige otro más pequeño.');
   const type = typeof body.type === 'string' && MIME.test(body.type) ? body.type.slice(0, 100) : '';
+  if (!type.startsWith('image/')) throw fail('Solo se adjuntan imágenes.');
   return { name, type, data };
 };

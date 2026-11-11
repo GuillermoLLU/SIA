@@ -7,7 +7,7 @@
 
 // Códigos de cierre con significado para el cliente: 4409 («otro dispositivo
 // tomó los chats») se distingue de una caída de red y pasa a modo pasivo.
-export const CLOSE = { UNAUTHORIZED: 4403, HANDOFF: 4409, LOCKED: 4423 };
+export const CLOSE = { HANDOFF: 4409, LOCKED: 4423 };
 
 export const BUFFER_CAP = 400_000; // ~400 KB de scrollback por sesión
 export const MAX_ASSETS = 100;

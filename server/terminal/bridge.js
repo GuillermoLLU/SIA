@@ -2,14 +2,14 @@
 // el CLI elegido, y las sesiones sobreviven a las conexiones (sessions.js).
 // Todo lo demás llega inyectado: pty, los CLIs (launchers/), el workspace,
 // el entorno personal, las issues (para el chat de una issue), el acceso a
-// la base, el acceso remoto y el candado.
+// la base y el candado.
 //   deps: pty, launchers, workspace, env() → entorno de los chats,
 //         issues.find(id), accessibleProjects(base), currentBase(), skillsOf(base),
-//         skillSync, remote, lock, theme() → el tema del escritorio, isLoopback(req)
+//         skillSync, lock, allowed(req, { issue }) → si quien conecta puede abrir ese chat
 import { CLOSE, MAX_ASSETS, appendBuffer, sessionList, pickMode, pickProjects, isIssueId, assetFrom, firstPrompt } from './sessions.js';
 import { issueContext } from '../issues/context.js';
 
-export const createTerminalBridge = ({ pty, launchers, workspace, env, issues, accessibleProjects, currentBase, skillsOf, skillSync, remote, lock, theme, isLoopback }) => {
+export const createTerminalBridge = ({ pty, launchers, workspace, env, issues, accessibleProjects, currentBase, skillsOf, skillSync, lock, allowed }) => {
   const sessions = new Map(); // id → { id, term, buffer, meta, assets, ws }
   const servers = [];         // los WebSocketServer que entran por aquí
   let seq = 0;
@@ -52,19 +52,10 @@ export const createTerminalBridge = ({ pty, launchers, workspace, env, issues, a
   };
 
   const handleConnection = (ws, req) => {
-    // ── Cortafuegos: un socket remoto exige llave de sesión válida ──
-    if (!isLoopback(req)) {
-      const t = new URL(req.url, 'http://localhost').searchParams.get('t');
-      const s = remote.session(t);
-      if (!s) return closeQuietly(ws, CLOSE.UNAUTHORIZED, 'no autorizado');
-      if (s.locked) return closeQuietly(ws, CLOSE.LOCKED, 'bloqueado');
-      ws._siaLan = true;   // marcado para poder revocarlo al apagar el acceso
-      ws._siaToken = t;    // y para tirar sus sockets al echar el candado
-      remote.touch(t);
-    } else if (lock.locked()) {
-      // pantalla bloqueada: nada de sockets NUEVOS desde esta máquina (una ventana
-      // recargada no puede engancharse a los chats hasta dar la clave); los que ya
-      // estaban abiertos siguen, que es lo que mantiene los chats a la vista
+    // pantalla bloqueada: nada de sockets NUEVOS (una ventana recargada no puede
+    // engancharse a los chats hasta dar la clave); los que ya estaban abiertos
+    // siguen, que es lo que mantiene los chats a la vista
+    if (lock.locked()) {
       return closeQuietly(ws, CLOSE.LOCKED, 'bloqueado');
     }
     let sess = null; // la sesión enganchada a ESTE socket
@@ -87,8 +78,10 @@ export const createTerminalBridge = ({ pty, launchers, workspace, env, issues, a
       if (sess || starting) return;
       starting = true;
       try {
+        const forIssue = msg.issue !== undefined && msg.issue !== null;
+        if (!(await allowed(req, { issue: forIssue }))) return send(ws, { type: 'error', message: forIssue ? 'Sin la vista Issues no se abre el chat de una issue.' : 'No tienes el Chat.' });
         let issue = null;
-        if (msg.issue !== undefined && msg.issue !== null) {
+        if (forIssue) {
           issue = isIssueId(msg.issue) ? issues.find(msg.issue) : null;
           if (!issue) return send(ws, { type: 'error', message: 'Esa issue ya no está en la foto.' });
           const open = [...sessions.values()].find((x) => x.meta.issue === issue.id);
@@ -103,21 +96,30 @@ export const createTerminalBridge = ({ pty, launchers, workspace, env, issues, a
       }
     };
 
+    // Reengancharse a un chat vivo (otra pestaña, una recarga): con permiso y solo si, mientras se
+    // comprobaba, ni este socket se cerró ni el chat terminó.
+    const reattach = async (id) => {
+      const s = sessions.get(id);
+      if (!s) return send(ws, { type: 'gone' });
+      if (!(await allowed(req, { issue: !!s.meta.issue }))) return send(ws, { type: 'error', message: 'No tienes acceso a este chat.' });
+      if (ws.readyState !== ws.OPEN || sessions.get(id) !== s) return;
+      bind(s);
+      send(ws, { type: 'history', data: s.buffer });
+    };
+    // un fallo al abrir o reenganchar (p. ej. no se puede escribir la configuración del chat) se cuenta
+    // en este socket; sin recogerlo, la promesa rechazada tumbaría el bridge
+    const failed = (e) => send(ws, { type: 'error', message: `No se pudo abrir el chat: ${e.message}` });
+
     ws.on('message', (raw) => {
       let msg;
       try { msg = JSON.parse(raw.toString()); } catch { return; }
-      if (ws._siaToken) remote.touch(ws._siaToken); // actividad real del móvil: pospone el candado por inactividad
-      if (msg.type === 'start') start(msg);
-      else if (msg.type === 'attach') {
-        const s = sessions.get(msg.sessionId);
-        if (!s) return send(ws, { type: 'gone' });
-        bind(s);
-        send(ws, { type: 'history', data: s.buffer });
-      } else if (msg.type === 'input' && sess) sess.term.write(msg.data);
+      if (msg.type === 'start') start(msg).catch(failed);
+      else if (msg.type === 'attach') reattach(msg.sessionId).catch(failed);
+      else if (msg.type === 'input' && sess) sess.term.write(msg.data);
       else if (msg.type === 'resize' && sess && msg.cols > 0 && msg.rows > 0) { try { sess.term.resize(msg.cols, msg.rows); } catch { /* cambio de tamaño a destiempo */ } }
       else if (msg.type === 'asset' && sess) {
         const asset = assetFrom(msg.asset);
-        if (asset && sess.assets.length < MAX_ASSETS) { sess.assets.push(asset); broadcastSessions(); } // p. ej. una foto subida desde el móvil
+        if (asset && sess.assets.length < MAX_ASSETS) { sess.assets.push(asset); broadcastSessions(); }
       } else if (msg.type === 'kill') {
         // con sessionId se puede matar un chat aunque lo tenga otro dispositivo
         // («Cerrar chat» sobre una sesión pasiva); sin él, el enganchado a este socket
@@ -135,8 +137,6 @@ export const createTerminalBridge = ({ pty, launchers, workspace, env, issues, a
 
   return {
     handleConnection,
-    broadcastTheme: () => broadcast({ type: 'theme', theme: theme() }),
-    clients,
     // un WebSocketServer más por el que entran clientes
     attach(server) { servers.push(server); server.on('connection', handleConnection); },
   };

@@ -14,10 +14,8 @@ test('pinProblem: forma y coincidencia, con la longitud del bridge', () => {
   assert.equal(pinProblem('123456', '123456', 6), '');
 });
 
-test('unlockOutcome: acierto, revocado solo en el móvil, freno con segundos, fallo', () => {
-  assert.deepEqual(unlockOutcome({ ok: true, status: 200 }, false), { do: 'ok' });
-  assert.deepEqual(unlockOutcome({ ok: false, status: 410 }, true), { do: 'revoked' });
-  assert.deepEqual(unlockOutcome({ ok: false, status: 410 }, false), { do: 'fail' });
-  assert.deepEqual(unlockOutcome({ ok: false, status: 429, data: { wait: 30 } }, false), { do: 'wait', secs: 30 });
-  assert.deepEqual(unlockOutcome({ ok: false, status: 401 }, false), { do: 'fail' });
+test('unlockOutcome: acierto, freno con segundos, fallo', () => {
+  assert.deepEqual(unlockOutcome({ ok: true, status: 200 }), { do: 'ok' });
+  assert.deepEqual(unlockOutcome({ ok: false, status: 429, data: { wait: 30 } }), { do: 'wait', secs: 30 });
+  assert.deepEqual(unlockOutcome({ ok: false, status: 401 }), { do: 'fail' });
 });

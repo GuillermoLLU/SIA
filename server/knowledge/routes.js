@@ -4,8 +4,8 @@
 //   GET  /base                      → { base }  (con sus proyectos: { id, name })
 //   PUT  /people/:userId/projects   { projects: [ids] } → { ok }   (vacío: ninguno)
 //   POST /people/:userId/copy       { from } → { ok }
-// Tras cada cambio, sus claves de poder al día (syncKeys) y onChange(): lo
-// asignado a uno mismo puede haber cambiado.
+// Tras cada cambio, sus claves de poder al día (syncKeys) y onChange(who): lo
+// asignado a quien llama puede haber cambiado.
 
 import { isUuid } from '../shared/ids.js';
 import { failed } from '../shared/http.js';
@@ -17,7 +17,7 @@ export const knowledgeRoutes = (knowledge, { json, readBody, onChange, syncKeys 
     if (id && !isUuid(id)) return json(res, 404, { error: 'No existe.' });
     const changed = async (userId) => {
       const problems = await syncKeys(jwt, userId);
-      await onChange();
+      await onChange(who);
       return json(res, 200, { ok: true, ...keysWarning(problems) });
     };
 

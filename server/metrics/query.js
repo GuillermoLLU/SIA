@@ -107,9 +107,11 @@ const nextDay = (d) => { const t = new Date(`${d}T00:00:00Z`); t.setUTCDate(t.ge
 
 // El SQL para copiar a Snowflake de un periodo: las incidencias abiertas entre `from` y `to` (los dos días incluidos).
 // Solo es texto: SIA no lo ejecuta. Las fechas van escritas en el texto, así que se validan antes.
-// Un periodo de días (desde y hasta incluidos) válido; si no, RangeError.
+// Un periodo de días (desde y hasta incluidos) válido; si no, un error con status 400 (es de quien llama, como el resto del slice).
 const checkPeriod = (from, to) => {
-  if (!validDay(from) || !validDay(to) || from > to) throw new RangeError('Periodo no válido: desde y hasta, con fecha AAAA-MM-DD, y desde no posterior a hasta.');
+  if (!validDay(from) || !validDay(to) || from > to) {
+    throw Object.assign(new Error('Periodo no válido: desde y hasta, con fecha AAAA-MM-DD, y desde no posterior a hasta.'), { status: 400 });
+  }
 };
 
 // La primera carga con un periodo elegido (solo con la base vacía): desde `from` y hasta `to`, incluidos.

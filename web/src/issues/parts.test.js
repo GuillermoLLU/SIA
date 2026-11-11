@@ -20,3 +20,11 @@ test('traspasada: la marca y, en el icono, quién, cuándo y por qué, escapado'
   assert.equal(handed(null), '');
   assert.doesNotMatch(handed({ from: 'Ana', at: '2026-10-29T10:30:00+00:00', reason: null }), /<i>/);
 });
+
+test('Seguimiento: los días sin moverse, en su color y con la fecha al pasar por encima; sin «hace…»', () => {
+  const html = item(issue({ status: 'PENDING', reason: 'THIRD_PARTY_VENDOR_ACTION_REQD', modified: '2026-10-22 09:00' }), 'waiting', now);
+  assert.match(html, /<span class="iss-still late" title="Sin moverse desde el 22\/10 09:00"><b>7 días<\/b> sin moverse<\/span>/);
+  assert.match(html, /<span class="iss-reason">Proveedor<\/span>/);
+  assert.doesNotMatch(html, /iss-when/);
+  assert.match(item(issue({ status: 'PENDING', modified: '2026-10-28 11:00' }), 'waiting', now), /iss-still ok"[^>]*><b>1 día<\/b>/);
+});

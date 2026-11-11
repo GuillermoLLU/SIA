@@ -6,27 +6,27 @@
 // acota por código, centro o texto (filter.js); filtrar no cambia el puesto.
 // Debajo, la lista con su propio scroll; al pulsar una issue se abre su
 // detalle a la derecha (side-panel.js), desde donde se asigna a alguien del
-// equipo. Se recarga al abrir la vista y con «Actualizar backlog». Es una
+// equipo. Se recarga al abrir la vista y al pulsar la fecha de la foto. Es una
 // vista sobre el dominio de Issues (sus piezas y estilos).
 import '../issues/issues.css';
 import './backlog.css';
 import { esc } from '../ui/html.js';
 import { snapshotInfo, age } from '../issues/format.js';
-import { sev, origin } from '../issues/parts.js';
+import { sev, origin, REFRESH_ICON } from '../issues/parts.js';
 import { EMPTY_FILTER, SEVERITIES, filterIssues, toggle, tileCounts, isFiltering } from './filter.js';
-import { openRulesModal } from './rules-modal.js';
 import { sidePanel } from './side-panel.js';
-import { pickClick } from '../ui/picker.js';
+import { pickerHtml, pickClick } from '../ui/picker.js';
 
 const PLURAL = { CRITICAL: 'Críticas', HIGH: 'Altas', MEDIUM: 'Medias', LOW: 'Bajas' };
 
-// dialogs y toast: los de la app. «Reglas de priorización» abre el modal (rules-modal.js).
-export const mountBacklogView = (root, { api, dialogs, toast }) => {
+// toast: el de la app. Las reglas de priorización se editan en Configuración → Priorización (rules-view.js).
+export const mountBacklogView = (root, { api, toast }) => {
   let data = null, filter = { ...EMPTY_FILTER }, now = new Date(), loading = false, rule = 'basic';
   // el panel lateral: la issue abierta, su detalle, el equipo y qué está en marcha
   let opened = null, detail = null, people = [], side = { busy: false, error: null };
 
-  const page = (body) => `<div class="bl-page"><h2 class="iss-title">Backlog</h2>${body}</div>`;
+  // en la línea del título: el buscador (search) a la izquierda y el resto (tools) a la derecha
+  const page = (body, { search = '', tools = '' } = {}) => `<div class="bl-page"><header class="bl-head">${search}${tools ? `<div class="bl-bar">${tools}</div>` : ''}</header>${body}</div>`;
 
   // una tarjeta del panel: qué se mide y el número; pulsada, filtra la lista
   const tile = (label, value, { key, value: v, on, kind = '' }) =>
@@ -56,25 +56,44 @@ export const mountBacklogView = (root, { api, dialogs, toast }) => {
         ${tile('Priorizadas', c.prio, { key: 'prio', value: '', on: filter.prio, kind: 'prio' })}
         ${SEVERITIES.map((s) => tile(PLURAL[s], c.severity[s], { key: 'severity', value: s, on: filter.severity.includes(s), kind: s })).join('')}
       </div>
-      <div class="bl-bar">
-        <button class="bl-btn" data-reload${loading ? ' disabled' : ''}>${loading ? 'Actualizando…' : 'Actualizar backlog'}</button>
-        <span class="iss-snap${snap.stale ? ' stale' : ''}">${snap.text}</span>
-        ${filtering ? `<p class="bl-shown"><b>${shown.length}</b> de ${c.total} · <button class="bl-clear" data-key="all">Ver todas</button></p>` : ''}
-        <label class="bl-order">Orden <select data-rule>${data.rules.map((r) => `<option value="${esc(r.id)}"${r.id === data.rule ? ' selected' : ''}>${esc(r.label)}</option>`).join('')}</select></label>
-        <label class="bl-search"><input type="search" data-q placeholder="Buscar una issue, un centro o un texto" value="${esc(filter.q)}" aria-label="Buscar en el backlog"></label>
-        <button class="bl-btn" data-rules>Reglas de priorización</button>
-      </div>
       <div class="bl-main">
         ${shown.length ? `<div class="bl-list">${shown.map(row).join('')}</div>` : `<p class="bl-empty">${c.total ? 'Ninguna issue cumple lo marcado.' : 'La cola está vacía: no queda nada sin coger.'}</p>`}
         ${opened ? `<aside class="bl-side" data-side aria-label="Detalle de la issue">${sideHtml()}</aside>` : ''}
-      </div>`);
+      </div>`, {
+      search: `<label class="bl-search"><input type="search" data-q placeholder="Buscar una issue, un centro o un texto" value="${esc(filter.q)}" aria-label="Buscar en el backlog"></label>`,
+      tools: `
+        ${filtering ? `<p class="bl-shown"><b>${shown.length}</b> de ${c.total} · <button class="bl-clear" data-key="all">Ver todas</button></p>` : ''}
+        <div class="bl-order" title="Orden de la cola"><span>Ordenar por</span>${pickerHtml({ id: 'bl-rule', name: 'rule', value: data.rule, inline: true, groups: [{ options: data.rules.map((r) => ({ value: r.id, label: r.label })) }] })}</div>
+        <button type="button" class="iss-date bl-reload${snap.stale ? ' stale' : ''}" data-reload title="Datos de Remedy: pulsa para actualizar el backlog"${loading ? ' disabled' : ''}>${reloadInner(snap)}</button>`,
+    });
   };
 
+  // la fecha de la foto, que recarga (en rojo si no es de hoy); mientras va, ocupada
+  const reloadInner = (snap) => `${loading ? 'Actualizando…' : snap.date}${REFRESH_ICON}`;
+
+  // Si lo que llega es lo mismo que ya se ve, no se repinta (repintar a media entrada parpadea):
+  // solo vuelve el botón de actualizar. La hora se toma antes de pintar: las edades y el aviso de
+  // la foto, al día aunque no lleguen datos nuevos.
   const load = async () => {
     loading = true;
+    const before = data && JSON.stringify(data);
+    now = new Date();
     if (data) render(); // el botón de actualizar, ocupado
     try { data = await api.list(rule); rule = data.rule; now = new Date(); } // la regla pedida puede ya no existir: la que el bridge aplicó
-    finally { loading = false; if (data) render(); }
+    finally {
+      loading = false;
+      const same = before && data && JSON.stringify(data) === before;
+      if (same) settleReload(); else if (data) render();
+    }
+  };
+  // el botón de actualizar, otra vez libre y con la fecha de la foto, sin repintar nada más
+  const settleReload = () => {
+    const b = root.querySelector('[data-reload]');
+    if (!b) return render();
+    const snap = snapshotInfo(data.taken, now);
+    b.disabled = false;
+    b.classList.toggle('stale', snap.stale);
+    b.innerHTML = reloadInner(snap);
   };
 
   // el buscador repinta la lista sin perder el foco ni el cursor
@@ -87,8 +106,8 @@ export const mountBacklogView = (root, { api, dialogs, toast }) => {
     q.focus();
     q.setSelectionRange(pos, pos);
   });
-  root.addEventListener('change', (e) => {
-    if (!e.target.matches('[data-rule]')) return;
+  root.addEventListener('input', (e) => {
+    if (e.target.name !== 'rule') return;
     rule = e.target.value;
     load().catch((err) => toast?.(`No se pudo ordenar el backlog: ${err.message}`));
   });
@@ -130,7 +149,6 @@ export const mountBacklogView = (root, { api, dialogs, toast }) => {
     if (rowEl) return rowEl.dataset.id === opened ? closeSide() : openIssue(rowEl.dataset.id);
     if (e.target.closest('[data-side-close]')) return closeSide();
     if (e.target.closest('[data-prioritize]')) return toast?.('Pendiente: priorizar es poner la etiqueta PRIO en Remedy, y SIA aún no puede escribirla. De momento, en Remedy.');
-    if (e.target.closest('[data-rules]')) return openRulesModal({ api, dialogs, toast, onChange: () => load().catch(() => {}) }).catch((err) => toast?.(`No se pudieron cargar las reglas: ${err.message}`));
     if (e.target.closest('[data-reload]')) return load().catch((err) => toast?.(`No se pudo actualizar el backlog: ${err.message}`));
     const b = e.target.closest('[data-key]');
     if (!b) return;

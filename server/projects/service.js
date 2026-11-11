@@ -1,4 +1,4 @@
-// Proyectos de la base de conocimiento (vista Administración). Es lo único que
+// Proyectos de la base de conocimiento (Configuración → Administración). Es lo único que
 // se gestiona: no hay grupos a la vista. Por dentro, cada proyecto lleva su
 // propio token de acceso (un access_group con su nombre y un único grant),
 // porque la base solo abre conocimiento por token: así cada persona se
@@ -64,22 +64,5 @@ export const createProjects = ({ newId, fetchAll }) => ({
     }
     const { error: e2 } = await db.from('projects').delete().eq('id', id);
     if (e2) throw fail(500, e2.message);
-  },
-
-  // Las entradas de un proyecto (las de todos sus contextos), por id.
-  async entries(db, projectId) {
-    const { data: ctxs } = await db.from('contexts').select('id').eq('project_id', projectId);
-    const ids = (ctxs || []).map((c) => c.id);
-    if (!ids.length) return [];
-    const { data, error } = await fetchAll(() => db.from('context_entries').select('id, content, source_type, created_at').in('context_id', ids).order('id'));
-    if (error) throw fail(500, error.message);
-    return data || [];
-  },
-
-  // Fuera una entrada con sus trozos vectorizados.
-  async removeEntry(db, id) {
-    await db.from('context_chunks').delete().eq('entry_id', id);
-    const { error } = await db.from('context_entries').delete().eq('id', id);
-    if (error) throw fail(500, error.message);
   },
 });

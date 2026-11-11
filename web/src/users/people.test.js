@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { viewsText, initials, knOf, filterChips, matchesFilter, validFilter, listRows, roleName, toggled } from './people.js';
+import { viewsText, initials, knOf, filterChips, matchesFilter, validFilter, listRows, roleName, toggled, ruleOf, basicRule, personDraft, draftWithRole, draftWithView, draftWithRule, personPatch, hasChanges } from './people.js';
 
 const person = (o) => ({ id: 'u1', name: 'Ana López', email: 'ana@x.com', active: true, role_id: 'r1', knowledge: [{ groups: [{ id: 'g1' }] }], ...o });
 
-test('viewsText: el Chat siempre, el resto en una frase', () => {
-  assert.equal(viewsText([]), 'Solo el Chat');
-  assert.equal(viewsText(['lab']), 'Chat y Laboratorio');
-  assert.equal(viewsText(['links', 'lab']), 'Chat, Enlaces rápidos y Laboratorio');
+test('viewsText: las vistas en una frase, el Chat como una más', () => {
+  assert.equal(viewsText([]), 'Ninguna vista');
+  assert.equal(viewsText(['lab']), 'Laboratorio');
+  assert.equal(viewsText(['chat', 'links', 'lab']), 'Chat, Enlaces rápidos y Laboratorio');
 });
 
 test('initials y knOf', () => {
@@ -47,4 +47,37 @@ test('roleName y toggled', () => {
   assert.equal(roleName(roles, person({ role_id: null })), 'Personalizado');
   assert.deepEqual(toggled(['a', 'b'], 'a'), ['b']);
   assert.deepEqual(toggled(['a'], 'b'), ['a', 'b']);
+});
+
+test('ruleOf: la regla de cada cual o, sin ella (o borrada), la básica', () => {
+  const rules = [{ id: 'r-b', label: 'Regla básica', builtin: true }, { id: 'r-u', label: 'Urgencias', builtin: false }];
+  assert.equal(ruleOf(rules, person({ rule_id: 'r-u' })).label, 'Urgencias');
+  assert.equal(ruleOf(rules, person({ rule_id: null })).label, 'Regla básica');
+  assert.equal(ruleOf(rules, person({ rule_id: 'r-borrada' })).label, 'Regla básica');
+  assert.equal(basicRule([{ id: 'x', label: 'Única', builtin: false }]).id, 'x');   // sin básica en la base: la primera
+  assert.equal(basicRule([]), null);
+});
+
+test('la ficha en borrador: elegir rol trae sus vistas y su regla; tocar una vista o la regla lo deja personalizado', () => {
+  const p = person({ role_id: 'r1', views: ['issues'], rule_id: null });
+  const d = personDraft(p);
+  assert.deepEqual(d, { role_id: 'r1', views: ['issues'], rule_id: null, active: true, kn: ['g1'] });
+  assert.deepEqual(draftWithRole(d, { id: 'r2', views: ['lab'], rule_id: 'x' }), { ...d, role_id: 'r2', views: ['lab'], rule_id: 'x' });
+  assert.deepEqual(draftWithView(d, 'lab'), { ...d, role_id: null, views: ['issues', 'lab'] });
+  assert.deepEqual(draftWithRule(d, 'r-u'), { ...d, role_id: null, rule_id: 'r-u' });
+});
+
+test('personPatch: solo lo que cambia, de una vez', () => {
+  const rules = [{ id: 'r-b', label: 'Regla básica', builtin: true }, { id: 'r-u', label: 'Urgencias', builtin: false }];
+  const p = person({ role_id: 'r1', views: ['issues'], rule_id: null });
+  const d = personDraft(p);
+  assert.equal(hasChanges(personPatch(p, d, rules)), false);
+  assert.deepEqual(personPatch(p, draftWithRole(d, { id: 'r2', views: ['lab'], rule_id: null }), rules), { user: { role: 'r2' }, projects: null });
+  // de un rol a personalizado: sus vistas y su regla
+  assert.deepEqual(personPatch(p, draftWithView(d, 'lab'), rules), { user: { views: ['issues', 'lab'], rule: 'r-b' }, projects: null });
+  assert.deepEqual(personPatch(p, { ...d, active: false, kn: [] }, rules), { user: { active: false }, projects: [] });
+  // ya personalizada: solo lo que cambia
+  const c = person({ role_id: null, views: ['issues'], rule_id: 'r-b' });
+  assert.deepEqual(personPatch(c, draftWithRule(personDraft(c), 'r-u'), rules), { user: { rule: 'r-u' }, projects: null });
+  assert.deepEqual(personPatch(c, draftWithView(personDraft(c), 'issues'), rules), { user: { views: [] }, projects: null });
 });

@@ -2,8 +2,7 @@
 // cada persona (team.js). Con los datos de las Métricas, que se cargan desde
 // allí; se vuelven a leer al abrir la vista, por si se han actualizado desde
 // Snowflake. Es el equipo de Indra. Clic en una persona: se abre en Métricas frente
-// al resto de su equipo (openPerson). Si la persona también gestiona el equipo,
-// «Gestionar equipo» lleva a la gestión de personas (onManage).
+// al resto de su equipo (openPerson).
 // Es una vista sobre el dominio de las Métricas: su modelo, sus piezas de pantalla (charts.js, period.js, tip.js) y
 // los estilos de esas piezas (metrics.css); lo suyo, en team.js y work.css.
 import '../metrics/metrics.css';
@@ -16,18 +15,19 @@ import { mountPeriodPanel } from '../metrics/period-panel.js';
 import { attachTip } from '../metrics/tip.js';
 import { coverage } from '../metrics/view.js';
 import { teamPanel } from './team.js';
+import { pressStartedIn } from '../ui/dom.js';
 
 const CALENDAR_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>';
 
-export const mountWorkView = (root, { api, openPerson, onManage }) => {
+export const mountWorkView = (root, { api, openPerson }) => {
   let m = null, ch = null, generated = null, calendar = false, panel = null;
   root.classList.add('wk-view');
   const ui = { exp: {}, sort: {}, charts: new Set() };   // charts: los bloques con su gráfica desplegada
   const $ = (s) => root.querySelector(s);
 
-  const manage = onManage ? '<button class="wk-switch-view" data-manage>Gestionar equipo</button>' : '';
-  // cabecera: título, fecha de los datos y, a la derecha, el periodo (si hay datos) y «Gestionar equipo»
-  const page = (body, tools = '') => `<div class="mt-page"><header class="mt-top wk-top"><h2 class="mt-title">Equipo soporte</h2>${body}<span class="wk-tools">${tools}${manage}</span></header>`;
+  // cabecera: la fecha de los datos y, a la derecha, el periodo (si hay datos); el nombre de la
+  // sección va en la barra de arriba
+  const page = (body, tools = '') => `<div class="mt-page"><header class="mt-top wk-top">${body}<span class="wk-tools">${tools}</span></header>`;
 
   const renderFrame = () => {
     const period = '<div class="mt-period"><button class="mt-btn mt-icon-btn" data-calendar aria-haspopup="true">' + CALENDAR_ICON + '<span data-period></span></button><div class="mt-pop mt-cal" data-cal hidden></div></div>';
@@ -47,11 +47,11 @@ export const mountWorkView = (root, { api, openPerson, onManage }) => {
   };
 
 
+  const pressedInPop = pressStartedIn(root, (t) => !!t.closest('.mt-pop'));
   root.addEventListener('click', (e) => {
-    if (e.target.closest('[data-manage]')) return onManage();
     if (!m) return;
     if (e.target.closest('[data-calendar]')) { calendar = !calendar; if (calendar) panel.open(); return render(); }
-    if (calendar && !e.target.closest('.mt-pop')) { calendar = false; render(); }
+    if (calendar && !pressedInPop() && !e.target.closest('.mt-pop')) { calendar = false; render(); }
     const chart = e.target.closest('[data-chart]');
     if (chart) {
       const id = chart.dataset.chart;

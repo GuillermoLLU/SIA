@@ -2,74 +2,28 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SIA</title>
-    <!-- PWA: añadir a pantalla de inicio en el móvil → pantalla completa -->
-    <link rel="manifest" href="/manifest.webmanifest" />
-    <meta name="theme-color" content="#f5f6f8" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="SIA" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <!-- Nada se ve hasta que main.js ha cargado los estilos (si no, un instante
          de botones sin estilo al recargar); main.js marca <html class="styled">.
          Mientras tanto, el fondo del último tema (la copia que guarda theme/apply.js) -->
-    <style>html { background: #f5f6f8; } html:not(.styled) body { visibility: hidden; }</style>
+    <style>html { background: #f7f7f7; } html:not(.styled) body { visibility: hidden; }</style>
     <script>try { var ui = JSON.parse(localStorage.getItem('sia-theme-ui')); if (ui && ui.bg) document.documentElement.style.background = ui.bg; } catch (e) { /* sin copia: el fondo claro */ }</script>
   </head>
   <body>
     <div class="app">
-      <!-- Botón flotante de skills (solo en móvil; en escritorio se usa ⌘K) -->
-      <button class="skills-fab" id="skills-fab" title="Skills" aria-label="Skills">⚡</button>
-      <!-- móvil: adjuntar fotos del carrete/cámara al chat activo -->
-      <button class="attach-fab" id="attach-fab" title="Adjuntar imagen" aria-label="Adjuntar imagen">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-      </button>
-      <!-- móvil: bloquear esta sesión del teléfono (mismo PIN que el candado del escritorio) -->
-      <button class="lock-fab" id="lock-fab" title="Bloquear" aria-label="Bloquear">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="10.5" width="17" height="11" rx="2.5"/><path d="M7.5 10.5V7a4.5 4.5 0 0 1 9 0v3.5"/><circle cx="12" cy="15.2" r="1.3"/><path d="M12 16.5v1.9"/></svg>
-      </button>
-      <input type="file" id="attach-input" accept="image/*" multiple hidden />
-      <!-- capture abre la cámara directamente: el selector del sistema no siempre ofrece hacer una foto -->
-      <input type="file" id="camera-input" accept="image/*" capture="environment" hidden />
-      <!-- móvil: de dónde sale la imagen que se adjunta -->
-      <div class="attach-sheet" id="attach-sheet" hidden>
-        <div class="attach-sheet-panel" role="menu" aria-label="Adjuntar imagen">
-          <button class="attach-opt" id="attach-camera" role="menuitem">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7.5h3.2l1.6-2.5h6.4l1.6 2.5H20a1.5 1.5 0 0 1 1.5 1.5v9A1.5 1.5 0 0 1 20 19.5H4A1.5 1.5 0 0 1 2.5 18V9A1.5 1.5 0 0 1 4 7.5z"/><circle cx="12" cy="13.2" r="3.6"/></svg>
-            <span>Cámara</span>
-          </button>
-          <button class="attach-opt" id="attach-gallery" role="menuitem">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="1.5"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="m3.5 17 5-5 4 4 3-3 5 5"/></svg>
-            <span>Galería</span>
-          </button>
-        </div>
-      </div>
+      <!-- El dock (app/dock.js): los iconos de los paneles. El Chat, el bloqueo y la Configuración
+           están en la barra de arriba, que pulsa estos botones (ocultos). -->
       <nav class="sidebar">
         <!-- Chat -->
-        <button class="nav-btn active" id="nav-chat" title="Chat" aria-label="Chat">
+        <button class="nav-btn" id="nav-chat" title="Chat" aria-label="Chat">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.6-.8L3 21l1.9-5.4A8.38 8.38 0 0 1 4 11.5 8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z"/></svg>
         </button>
-        <!-- Paneles (su icono lo pone web/src/users/views.js) -->
+        <!-- Paneles (su icono lo pone web/src/users/views.js): la mesa, el Backlog y Métricas (Equipo y
+             Servicio, a elegir en su pantalla si tiene las dos: app/hub.js) -->
         <button class="nav-btn" id="nav-issues" title="Issues" aria-label="Issues" hidden></button>
         <button class="nav-btn" id="nav-backlog" title="Backlog" aria-label="Backlog" hidden></button>
-        <button class="nav-btn" id="nav-work" title="Equipo soporte" aria-label="Equipo soporte" hidden></button>
         <button class="nav-btn" id="nav-metrics" title="Métricas" aria-label="Métricas" hidden></button>
-        <!-- Laboratorio (con la vista y el permiso lab de la base) -->
-        <button class="nav-btn" id="nav-lab" title="Laboratorio de skills" aria-label="Laboratorio" hidden>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v6.5L4.8 17a3 3 0 0 0 2.6 4.5h9.2a3 3 0 0 0 2.6-4.5L14 8.5V2"/><path d="M8.5 2h7"/><path d="M7 15h10"/></svg>
-        </button>
-        <!-- Enlaces rápidos (con la vista; editar exige el permiso links) -->
-        <button class="nav-btn" id="nav-links" title="Enlaces rápidos" aria-label="Enlaces rápidos" hidden>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-        </button>
-        <!-- Administración (con la vista y el permiso admin de la base) -->
-        <button class="nav-btn" id="nav-admin" title="Administración" aria-label="Administración" hidden>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9v.01M9 12v.01M9 15v.01M9 18v.01"/></svg>
-        </button>
-
-        <span class="nav-spacer"></span>
 
         <!-- Bloquear la pantalla: tapa la ventana hasta dar el PIN; los chats siguen trabajando -->
         <button class="nav-btn" id="lock-btn" title="Bloquear pantalla" aria-label="Bloquear pantalla">
@@ -111,23 +65,8 @@
         </div>
       </div>
 
-      <!-- ── Vista LABORATORIO ── -->
+      <!-- ── Vista LABORATORIO: el editor de una skill, a pantalla completa (el catálogo vive en Configuración → Skills) ── -->
       <div class="window view" id="view-lab" hidden>
-        <!-- Catálogo (cards) -->
-        <div class="lab-catalog" id="lab-catalog">
-          <header class="lab-catalog-head">
-            <div class="lab-head-row">
-              <h2>Laboratorio de skills</h2>
-              <span class="lab-status" id="lab-status"></span>
-              <button class="lab-btn lab-refresh" id="lab-refresh" title="Traer las últimas skills publicadas por el equipo">
-                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36L21 8"/><path d="M21 3v5h-5"/></svg>
-                <span>Actualizar</span>
-              </button>
-            </div>
-          </header>
-          <div class="lab-cards" id="lab-cards"></div>
-        </div>
-
         <!-- Editor -->
         <div class="lab-work" id="lab-work" hidden>
           <header class="lab-head">
@@ -137,9 +76,7 @@
             <span class="lab-skill-id" id="lab-skill-id"></span>
             <span class="lab-state" id="lab-state"></span>
             <span class="lab-head-spacer"></span>
-            <label class="lab-scope-label">Visibilidad
-              <select class="lab-scope" id="lab-scope"></select>
-            </label>
+            <div class="lab-scope-label"><span>Visibilidad</span><div id="lab-scope"></div></div>
             <button class="lab-btn danger" id="lab-delete" title="Eliminar skill">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
             </button>
@@ -149,21 +86,6 @@
           <div class="lab-file-tabs" id="lab-file-tabs"></div>
           <textarea class="lab-textarea" id="lab-textarea" spellcheck="false"></textarea>
         </div>
-      </div>
-
-      <!-- ── Vista ENLACES RÁPIDOS ── -->
-      <div class="window view" id="view-links" hidden>
-        <header class="links-head">
-          <div class="links-title">
-            <h2>Enlaces rápidos</h2>
-          </div>
-          <button class="lab-btn lab-refresh" id="links-refresh" title="Volver a cargar los enlaces">
-            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36L21 8"/><path d="M21 3v5h-5"/></svg>
-            <span>Actualizar</span>
-          </button>
-        </header>
-        <div class="links-filters" id="links-filters"></div>
-        <div class="links-grid" id="links-grid"></div>
       </div>
 
       <!-- Notas de un enlace -->
@@ -177,222 +99,162 @@
         </div>
       </div>
 
-      <!-- Alta / edición de un enlace -->
-      <div class="modal-overlay" id="link-edit-modal" hidden>
-        <div class="modal link-modal">
-          <header class="modal-head">
-            <span class="modal-title" id="link-edit-title">Nuevo enlace</span>
-            <button class="modal-close" id="link-edit-close" aria-label="Cerrar">×</button>
-          </header>
-          <div class="link-form">
-            <label>Conocimiento
-              <select id="link-f-project"></select>
-            </label>
-            <label>Título
-              <input id="link-f-title" type="text" maxlength="120" placeholder="Jira del proyecto" />
-            </label>
-            <label>URL
-              <input id="link-f-url" type="text" placeholder="https://…" />
-            </label>
-            <!-- ojo: este campo es un div a propósito. Si fuera una etiqueta de
-                 formulario, pulsar cualquier punto de la fila abriría el selector
-                 de ficheros; solo debe abrirlo el botón. -->
-            <div class="link-field">
-              <span class="link-field-cap">Imagen <span class="link-hint">opcional — cualquier tamaño, se ajusta sola</span></span>
-              <div class="link-image-row">
-                <div class="link-image-prev" id="link-f-image-prev"></div>
-                <input id="link-f-image" type="file" accept="image/*" hidden />
-                <button class="lab-btn" id="link-f-image-pick">Elegir imagen…</button>
-                <button class="lab-btn" id="link-f-image-clear" hidden>Quitar</button>
-                <span class="link-image-info" id="link-f-image-info"></span>
-              </div>
-            </div>
-            <label>Notas <span class="link-hint">opcional — Markdown, para dejar la forma de trabajar</span>
-              <textarea id="link-f-notes" rows="7" spellcheck="false" placeholder="Cómo se usa esto, pasos, avisos…"></textarea>
-            </label>
-            <div class="link-form-err" id="link-f-err" hidden></div>
-          </div>
-          <footer class="modal-foot">
-            <button class="lab-btn danger" id="link-f-delete" hidden>Eliminar</button>
-            <span class="modal-foot-spacer"></span>
-            <button class="lab-btn" id="link-f-cancel">Cancelar</button>
-            <button class="lab-btn primary" id="link-f-save">Guardar</button>
-          </footer>
-        </div>
-      </div>
-
-      <!-- ── Vista PERSONAS (web/src/users/) ── -->
-      <div class="window view" id="view-users" hidden></div>
+      <div class="window view hub-view" id="view-hub" hidden></div>
       <div class="window view iss-view" id="view-issues" hidden></div>
       <div class="window view iss-view bl-view" id="view-backlog" hidden></div>
       <div class="window view mt-view" id="view-work" hidden></div>
       <div class="window view mt-view" id="view-metrics" hidden></div>
 
-      <div class="window view admin-view" id="view-admin" hidden>
-        <aside class="admin-rail">
-          <div class="admin-rail-head">Administración</div>
-          <input class="admin-search" id="admin-search" type="text" placeholder="Buscar proyecto…" autocomplete="off" />
-          <div class="admin-rail-label">Proyectos</div>
-          <ul class="admin-rail-list" id="admin-rail-list"></ul>
-          <div class="admin-rail-spacer"></div>
-        </aside>
-        <main class="admin-main" id="admin-main"></main>
-      </div>
-
       <!-- Configuración (modal) -->
       <div class="modal-overlay" id="settings-modal" hidden>
         <div class="modal settings-modal">
           <header class="modal-head">
-            <span class="modal-title">Configuración</span>
+            <button type="button" class="modal-close settings-back" id="settings-back" title="Volver" aria-label="Volver" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+            <span class="modal-title" id="settings-title">Configuración</span>
+            <!-- Claro / Oscuro: enseña el modo al que se pasa -->
+            <button type="button" class="modal-close theme-toggle" id="theme-toggle">
+              <svg class="theme-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+              <svg class="theme-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            </button>
             <button class="modal-close" id="settings-close" aria-label="Cerrar">×</button>
           </header>
-          <nav class="settings-tabs" id="settings-tabs" role="tablist">
-            <button class="settings-tab active" data-pane="credenciales" role="tab">Credenciales</button>
-            <!-- Acceso desde el móvil: QR + PIN, en red local o por túnel público -->
-            <button class="settings-tab" data-pane="movil" role="tab">Móvil</button>
-            <!-- Todos los temas, claros y oscuros -->
-            <button class="settings-tab" data-pane="apariencia" role="tab">Apariencia</button>
-            <!-- Claro / Oscuro: el interruptor de la app; los iconos también lo cambian -->
-            <div class="theme-toggle" id="theme-toggle" title="Claro / Oscuro">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
-              <button type="button" class="sw" role="switch" aria-checked="false" aria-label="Modo oscuro"><span class="knob"></span></button>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-            </div>
-          </nav>
           <div class="settings-layout">
             <div class="settings-main">
-              <div class="settings-pane" data-pane="apariencia" hidden>
-                <div id="theme-picker"></div>
+              <!-- Lo primero que se ve: una caja por sección -->
+              <div class="settings-boxes" id="settings-home">
+                <button type="button" class="settings-box" data-pane="conexiones"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22v-5M9 8V2M15 8V2M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/></svg><span>Conexiones</span></button>
+                <button type="button" class="settings-box" data-pane="seguridad"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg><span>Seguridad</span></button>
+                <!-- solo con la vista people (main.js): la gestión del equipo -->
+                <button type="button" class="settings-box" data-pane="equipo" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8"/><path d="M18.5 14.2a6.5 6.5 0 0 1 3 5.8"/></svg><span>Equipo</span></button>
+                <!-- solo con la vista Backlog (main.js): las reglas de priorización -->
+                <button type="button" class="settings-box" data-pane="priorizacion" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 6h11"/><path d="M10 12h11"/><path d="M10 18h11"/><path d="M4 6h1v4"/><path d="M4 10h2"/><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/></svg><span>Priorización</span></button>
+                <!-- solo con la vista y el permiso de Laboratorio (main.js) -->
+                <button type="button" class="settings-box" data-pane="skills" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2v6.5L4.8 17a3 3 0 0 0 2.6 4.5h9.2a3 3 0 0 0 2.6-4.5L14 8.5V2"/><path d="M8.5 2h7"/><path d="M7 15h10"/></svg><span>Skills</span></button>
+                <!-- solo con la Administración abierta (main.js) -->
+                <button type="button" class="settings-box" data-pane="administracion" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg><span>Administración</span></button>
               </div>
-              <div class="settings-pane" data-pane="movil" hidden>
-                <!-- Acceso desde el móvil: una sola vista que cambia de estado, siempre
-                     centrada. inicio → elegir modo → (cargando el túnel) → QR y PIN → conectado -->
-                <div class="mob" id="mob">
-                  <!-- inicio -->
-                  <div class="mob-view" data-view="idle">
-                    <div class="mob-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg></div>
-                    <div class="mob-title">SIA en tu teléfono</div>
-                    <button class="lab-btn primary mob-btn" id="mob-start">Generar QR</button>
-                    <div class="mob-note" id="mob-idle-note"></div>
-                  </div>
-                  <!-- elegir cómo abrir el acceso -->
-                  <div class="mob-view" data-view="choose" hidden>
-                    <div class="mob-title">¿Desde dónde te vas a conectar?</div>
-                    <div class="mob-cards">
-                      <button class="mob-card" id="mob-opt-local">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 9a15 15 0 0 1 19 0"/><path d="M5.5 12.5a10.5 10.5 0 0 1 13 0"/><path d="M8.7 16a6 6 0 0 1 6.6 0"/><circle cx="12" cy="19.5" r="0.9" fill="currentColor"/></svg>
-                        <strong>Red local</strong>
-                        <span>La misma WiFi que este equipo. No sale de tu red.</span>
-                      </button>
-                      <button class="mob-card" id="mob-opt-public">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5"/><path d="M2.5 12h19"/><path d="M12 2.5c2.6 2.8 4 6 4 9.5s-1.4 6.7-4 9.5c-2.6-2.8-4-6-4-9.5s1.4-6.7 4-9.5z"/></svg>
-                        <strong>Público</strong>
-                        <span>Desde cualquier red, por un túnel temporal. Se bloquea solo y pide tu PIN.</span>
+              <!-- Priorización: las reglas (backlog/rules-view.js) -->
+              <div class="settings-pane pr-pane" data-pane="priorizacion" id="settings-rules" hidden></div>
+              <!-- Equipo: la gestión de personas (users/people-view.js) -->
+              <div class="settings-pane pp-pane" data-pane="equipo" id="settings-people" hidden></div>
+              <!-- Skills: el catálogo (crear o abrir una pasa al editor, a pantalla completa) -->
+              <div class="settings-pane" data-pane="skills" hidden>
+                <div class="lab-catalog" id="lab-catalog">
+                  <header class="lab-catalog-head">
+                    <div class="lab-head-row">
+                      <span class="lab-status" id="lab-status"></span>
+                      <button class="lab-btn lab-refresh" id="lab-refresh" title="Traer las últimas skills publicadas por el equipo">
+                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36L21 8"/><path d="M21 3v5h-5"/></svg>
+                        <span>Actualizar</span>
                       </button>
                     </div>
-                    <div class="mob-note" id="mob-cf-note" hidden>La primera vez se descarga cloudflared (~40 MB).</div>
-                    <button class="mob-link" id="mob-back">Volver</button>
-                  </div>
-                  <!-- abriendo el túnel público -->
-                  <div class="mob-view" data-view="loading" hidden>
-                    <div class="mob-spinner" aria-hidden="true"></div>
-                    <div class="mob-title" id="mob-load-title">Preparando el acceso público</div>
-                    <ol class="mob-steps" id="mob-steps">
-                      <li data-step="preparing">Preparar</li>
-                      <li data-step="download">Descargar</li>
-                      <li data-step="starting">Abrir túnel</li>
-                    </ol>
-                    <button class="mob-link" id="mob-cancel">Cancelar</button>
-                  </div>
-                  <!-- QR + PIN para emparejar -->
-                  <div class="mob-view" data-view="qr" hidden>
-                    <div class="mob-qr"><canvas id="mob-canvas" width="220" height="220"></canvas></div>
-                    <div class="mob-pin" id="mob-pin" aria-label="PIN de emparejamiento"></div>
-                    <div class="mob-note" id="mob-qr-note"></div>
-                    <ul class="mob-devices" id="mob-devices-qr" hidden></ul>
-                    <button class="lab-btn mob-btn danger" id="mob-off-qr">Apagar acceso</button>
-                  </div>
-                  <!-- acceso abierto, con dispositivos -->
-                  <div class="mob-view" data-view="on" hidden>
-                    <div class="mob-badge ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="m9.3 12 2 2 3.6-3.8"/></svg></div>
-                    <div class="mob-title" id="mob-on-title"></div>
-                    <ul class="mob-devices" id="mob-devices" hidden></ul>
-                    <div class="mob-actions">
-                      <button class="lab-btn primary mob-btn" id="mob-more">Nuevo QR</button>
-                      <button class="lab-btn mob-btn danger" id="mob-off">Apagar acceso</button>
-                    </div>
-                  </div>
-                  <!-- no se pudo abrir -->
-                  <div class="mob-view" data-view="error" hidden>
-                    <div class="mob-badge bad"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5"/><path d="M12 7.5v5.5"/><circle cx="12" cy="16.5" r="0.9" fill="currentColor"/></svg></div>
-                    <div class="mob-title">No se pudo abrir el acceso</div>
-                    <div class="mob-note" id="mob-error-text"></div>
-                    <button class="lab-btn primary mob-btn" id="mob-retry">Volver a intentar</button>
-                  </div>
+                  </header>
+                  <div class="lab-cards" id="lab-cards"></div>
                 </div>
               </div>
-              <div class="settings-pane" data-pane="credenciales">
-              <section class="settings-section">
-                <h3>Jira</h3>
-                <p class="settings-hint">
-                  Tu acceso personal a Jira. Se guarda solo en esta máquina y se
-                  inyecta a los chats nuevos para que la skill de Jira lo use.
-                </p>
-                <input class="settings-input" id="jira-url-input" type="text" placeholder="URL base (p. ej. https://jira.miempresa.com/jira)" autocomplete="off" spellcheck="false" />
-                <div class="settings-row" style="margin-top: 8px;">
-                  <input class="settings-input" id="jira-token-input" type="password" placeholder="API token personal…" autocomplete="off" />
-                  <button class="lab-btn primary" id="jira-save">Guardar</button>
-                </div>
-                <div class="settings-status" id="jira-status"></div>
-              </section>
-              <section class="settings-section">
-                <h3>Snowflake</h3>
-                <p class="settings-hint">
-                  Tu usuario de Snowflake para traer las incidencias de Remedy a
-                  Métricas. Se entra con la cuenta de Inditex en el navegador (SSO):
-                  no hace falta contraseña. Necesita la VPN.
-                </p>
-                <input class="settings-input" id="sf-user-input" type="text" placeholder="Usuario (p. ej. NOMBRE@EXT.INDITEX.COM)" autocomplete="off" spellcheck="false" />
-                <div class="settings-row" style="margin-top: 8px;">
-                  <button class="lab-btn primary" id="sf-save">Guardar</button>
-                </div>
-                <div class="settings-status" id="sf-status"></div>
-              </section>
-              <section class="settings-section">
-                <h3>GitHub</h3>
-                <p class="settings-hint">
-                  Tokens personales para que la skill de GitHub opere en tu nombre
-                  (push, PRs…). Guarda los que uses (trabajo, personal…) y marca
-                  cuál está activo: es el que llevan los chats que abras a partir
-                  de ese momento. Se guardan solo en esta máquina.
-                </p>
-                <ul class="token-list" id="gh-list"></ul>
-                <div class="settings-row" style="margin-top: 10px;">
-                  <input class="settings-input narrow" id="gh-name-input" type="text" maxlength="24" placeholder="nombre (Trabajo…)" autocomplete="off" />
-                  <input class="settings-input" id="gh-token-input" type="password" placeholder="ghp_… token personal" autocomplete="off" />
-                  <button class="lab-btn primary" id="gh-save">Añadir</button>
-                </div>
-                <div class="settings-status" id="gh-status"></div>
-              </section>
-              <section class="settings-section">
-                <h3>Bloqueo de pantalla</h3>
-                <p class="settings-hint">
-                  El PIN de 4 dígitos del candado de la barra lateral. Se guarda solo en esta máquina.
-                </p>
-                <div class="settings-row">
-                  <input class="settings-input" id="lock-current" type="password" inputmode="numeric" maxlength="4" placeholder="PIN actual" autocomplete="off" hidden />
-                  <input class="settings-input" id="lock-new" type="password" inputmode="numeric" maxlength="4" placeholder="PIN (4 dígitos)" autocomplete="new-password" />
-                  <input class="settings-input" id="lock-new2" type="password" inputmode="numeric" maxlength="4" placeholder="repite el PIN" autocomplete="new-password" />
-                  <button class="lab-btn primary" id="lock-save">Guardar</button>
-                </div>
-                <div class="settings-status" id="lock-status"></div>
-              </section>
+              <div class="settings-pane" data-pane="administracion" hidden>
+                <section class="settings-section">
+                  <h3>Proyectos</h3>
+                  <p class="settings-hint">
+                    Los proyectos de la base de conocimiento. A quién se habilita cada uno
+                    se decide en Equipo; su contenido se consulta y se nutre desde el Chat.
+                  </p>
+                  <div class="settings-row">
+                    <input class="settings-input" id="project-name" type="text" maxlength="80" placeholder="Nombre del nuevo proyecto" autocomplete="off" />
+                    <button class="lab-btn primary" id="project-add">Crear proyecto</button>
+                  </div>
+                  <div class="settings-status" id="project-status"></div>
+                  <ul class="token-list" id="project-list"></ul>
+                </section>
+              </div>
+              <div class="settings-pane conn-pane" data-pane="conexiones" hidden>
+                <section class="conn-card">
+                  <header class="conn-head"><span class="conn-icon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11.571 11.513H0a5.218 5.218 0 0 0 5.232 5.215h2.13v2.057A5.215 5.215 0 0 0 12.575 24V12.518a1.005 1.005 0 0 0-1.005-1.005zm5.723-5.756H5.736a5.215 5.215 0 0 0 5.215 5.214h2.129v2.058a5.218 5.218 0 0 0 5.215 5.214V6.758a1.001 1.001 0 0 0-1.001-1.001zM23.013 0H11.455a5.215 5.215 0 0 0 5.215 5.215h2.129v2.057A5.215 5.215 0 0 0 24 12.483V1.005A1.001 1.001 0 0 0 23.013 0Z"/></svg></span><div><h3>Jira</h3><p>Para la skill de Jira. Se guarda solo en esta máquina.</p></div></header>
+                  <label class="conn-field"><span>URL base</span><input class="settings-input" id="jira-url-input" type="text" placeholder="https://jira.miempresa.com/jira" autocomplete="off" spellcheck="false" /></label>
+                  <div class="conn-row">
+                    <label class="conn-field"><span>API token personal</span><input class="settings-input" id="jira-token-input" type="password" placeholder="Tu token de Jira…" autocomplete="off" /></label>
+                    <button class="lab-btn primary" id="jira-save">Guardar</button>
+                  </div>
+                  <div class="settings-status" id="jira-status"></div>
+                </section>
+                <section class="conn-card">
+                  <header class="conn-head"><span class="conn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12h20M12 2v20m8-6-4-4 4-4M4 8l4 4-4 4M16 4l-4 4-4-4M8 20l4-4 4 4"/></svg></span><div><h3>Snowflake</h3><p>Para traer las incidencias de Remedy a Métricas. Necesita la VPN.</p></div></header>
+                  <div class="conn-row">
+                    <label class="conn-field"><span>Usuario</span><input class="settings-input" id="sf-user-input" type="text" placeholder="NOMBRE@EXT.INDITEX.COM" autocomplete="off" spellcheck="false" /></label>
+                    <button class="lab-btn primary" id="sf-save">Guardar</button>
+                  </div>
+                  <div class="settings-status" id="sf-status"></div>
+                </section>
+                <section class="conn-card">
+                  <header class="conn-head"><span class="conn-icon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg></span><div><h3>GitHub</h3><p>Tokens para la skill de GitHub. El activo es el que usan los chats nuevos.</p></div></header>
+                  <ul class="token-list" id="gh-list"></ul>
+                  <div class="conn-row">
+                    <label class="conn-field conn-narrow"><span>Nombre</span><input class="settings-input" id="gh-name-input" type="text" maxlength="24" placeholder="Trabajo…" autocomplete="off" /></label>
+                    <label class="conn-field"><span>Añadir un token</span><input class="settings-input" id="gh-token-input" type="password" placeholder="ghp_… token personal" autocomplete="off" /></label>
+                    <button class="lab-btn primary" id="gh-save">Añadir</button>
+                  </div>
+                  <div class="settings-status" id="gh-status"></div>
+                </section>
+              </div>
+              <div class="settings-pane conn-pane" data-pane="seguridad" hidden>
+                <section class="conn-card">
+                  <header class="conn-head"><span class="conn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg></span><div><h3>Bloqueo de pantalla</h3><p>El PIN de 4 dígitos con el que se bloquea. Se guarda solo en esta máquina.</p></div></header>
+                  <div class="conn-row">
+                    <input class="settings-input" id="lock-current" type="password" inputmode="numeric" maxlength="4" placeholder="PIN actual" autocomplete="off" hidden />
+                    <input class="settings-input" id="lock-new" type="password" inputmode="numeric" maxlength="4" placeholder="PIN (4 dígitos)" autocomplete="new-password" />
+                    <input class="settings-input" id="lock-new2" type="password" inputmode="numeric" maxlength="4" placeholder="repite el PIN" autocomplete="new-password" />
+                    <button class="lab-btn primary" id="lock-save">Guardar</button>
+                  </div>
+                  <div class="settings-status" id="lock-status"></div>
+                </section>
               </div>
             </div>
+            <!-- Los enlaces, para quien tenga su vista (links/links-directory.js) -->
+            <aside class="settings-links" id="settings-links" hidden>
+              <header class="dir-head"><h3>Enlaces</h3><button type="button" class="modal-close dir-refresh" title="Actualizar" aria-label="Actualizar enlaces"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36L21 8"/><path d="M21 3v5h-5"/></svg></button></header>
+              <ul class="dir-list"></ul>
+              <!-- Con el lápiz o «Añadir enlace», la columna ocupa todo el ancho y enseña solo esto -->
+              <div class="dir-body">
+                <div class="link-edit" id="link-edit">
+                  <div class="link-form">
+                    <div class="link-field"><span class="link-field-cap">Conocimiento</span><div id="link-f-project"></div></div>
+                    <label>Título
+                      <input id="link-f-title" type="text" maxlength="120" placeholder="Jira del proyecto" />
+                    </label>
+                    <label>URL
+                      <input id="link-f-url" type="text" placeholder="https://…" />
+                    </label>
+                    <!-- ojo: este campo es un div a propósito. Si fuera una etiqueta de
+                         formulario, pulsar cualquier punto de la fila abriría el selector
+                         de ficheros; solo debe abrirlo el botón. -->
+                    <div class="link-field">
+                      <span class="link-field-cap">Imagen <span class="link-hint">opcional — cualquier tamaño, se ajusta sola</span></span>
+                      <div class="link-image-row">
+                        <div class="link-image-prev" id="link-f-image-prev"></div>
+                        <input id="link-f-image" type="file" accept="image/*" hidden />
+                        <button class="lab-btn" id="link-f-image-pick">Elegir imagen…</button>
+                        <button class="lab-btn" id="link-f-image-clear" hidden>Quitar</button>
+                        <span class="link-image-info" id="link-f-image-info"></span>
+                      </div>
+                    </div>
+                    <label>Notas <span class="link-hint">opcional — Markdown, para dejar la forma de trabajar</span>
+                      <textarea id="link-f-notes" rows="7" spellcheck="false" placeholder="Cómo se usa esto, pasos, avisos…"></textarea>
+                    </label>
+                    <div class="link-form-err" id="link-f-err" hidden></div>
+                  </div>
+                  <footer class="modal-foot">
+                    <button class="lab-btn danger" id="link-f-delete" hidden>Eliminar</button>
+                    <span class="modal-foot-spacer"></span>
+                    <button class="lab-btn" id="link-f-cancel">Cancelar</button>
+                    <button class="lab-btn primary" id="link-f-save">Guardar</button>
+                  </footer>
+                </div>
+              </div>
+            </aside>
           </div>
           <footer class="settings-foot">
-            <!-- quién ha iniciado sesión y salir (el móvil emparejado no tiene sesión) -->
-            <span class="settings-session" id="settings-session" hidden><span id="session-who"></span><button class="lab-btn" id="logout-btn">Cerrar sesión</button></span>
+            <!-- salir -->
+            <span class="settings-session" id="settings-session"><button class="lab-btn" id="logout-btn">Cerrar sesión</button></span>
             <span class="settings-version" id="settings-version">SIA</span>
           </footer>
         </div>

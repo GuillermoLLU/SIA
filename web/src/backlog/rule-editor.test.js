@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { NEW_RULE, addCriterion, removeCriterion, placeCriterion, available, labelOf, draftOf } from './rule-editor.js';
+import { NEW_RULE, addCriterion, removeCriterion, placeCriterion, available, labelOf, draftOf, isDirty } from './rule-editor.js';
 
 const CATALOG = [{ id: 'a', label: 'A primero' }, { id: 'b', label: 'B primero' }, { id: 'c', label: 'C primero' }];
 const rule = { id: null, name: 'R', criteria: ['a', 'b'] };
@@ -33,4 +33,15 @@ test('el borrador de una regla de la base, listo para editar y aparte del origin
   assert.deepEqual(d, { id: 'r-1', name: 'Urgencias', criteria: ['a'] });
   d.criteria.push('b');
   assert.deepEqual(r.criteria, ['a']);
+});
+
+test('isDirty: cambios sin guardar en una regla guardada (nombre, criterios u orden) o una nueva con algo', () => {
+  const saved = { id: 'r1', label: 'Urgencias', criteria: ['severity', 'age'], builtin: false };
+  assert.equal(isDirty(saved, draftOf(saved)), false);
+  assert.equal(isDirty(saved, { ...draftOf(saved), name: 'Urgencias SISU' }), true);
+  assert.equal(isDirty(saved, { ...draftOf(saved), criteria: ['age', 'severity'] }), true, 'el mismo criterio en otro orden es otra regla');
+  assert.equal(isDirty(saved, addCriterion(draftOf(saved), 'sisu')), true);
+  assert.equal(isDirty(null, { ...NEW_RULE }), false);
+  assert.equal(isDirty(null, { ...NEW_RULE, name: '  ' }), false);
+  assert.equal(isDirty(null, addCriterion({ ...NEW_RULE }, 'age')), true);
 });

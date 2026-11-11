@@ -23,12 +23,13 @@ const fakeWs = (url = '/', remote = '127.0.0.1') => {
   return ws;
 };
 
-const setup = ({ locked = false, remoteSession = null } = {}) => {
+const setup = ({ locked = false, allowed = async () => true } = {}) => {
   const pty = fakePty();
   const cleaned = [];
+  let diskFull = false;
   const bridge = createTerminalBridge({
     pty,
-    launchers: { byId: (id) => ({ id: id || 'claude', label: 'Claude', cmd: 'claude' }), installed: (d) => d.id !== 'codex', list: () => [], prepare: (def, id, picked, base, prompt) => ({ cmd: def.cmd, args: [id, picked.join(','), prompt || ''] }), cleanup: (id) => cleaned.push(id) },
+    launchers: { byId: (id) => ({ id: id || 'claude', label: 'Claude', cmd: 'claude' }), installed: (d) => d.id !== 'codex', list: () => [], prepare: (def, id, picked, base, prompt) => { if (diskFull) throw new Error('ENOSPC: no queda espacio'); return { cmd: def.cmd, args: [id, picked.join(','), prompt || ''] }; }, cleanup: (id) => cleaned.push(id) },
     workspace: { modeDirFor: (mode) => `/ws/${mode}` },
     env: () => ({ A: '1' }),
     issues: { find: (id) => (id === 'INC1' ? { id: 'INC1', text: 'PDA', notes: '' } : null) },
@@ -36,16 +37,14 @@ const setup = ({ locked = false, remoteSession = null } = {}) => {
     currentBase: () => ({ id: 'p-1', name: 'Base' }),
     skillsOf: () => [],
     skillSync: { maybe() {} },
-    remote: { session: () => remoteSession, touch() {} },
     lock: { locked: () => locked },
-    theme: () => ({ id: 'light' }),
-    isLoopback: (req) => req.socket.remoteAddress === '127.0.0.1',
+    allowed,
   });
   const server = new EventEmitter(); server.clients = new Set();
   bridge.attach(server);
   const connect = (ws) => { server.clients.add(ws); server.emit('connection', ws, ws.req); return ws; };
   const quiet = console.log; console.log = () => {};
-  return { bridge, pty, cleaned, connect, done: () => { console.log = quiet; } };
+  return { bridge, pty, cleaned, connect, fillDisk: () => { diskFull = true; }, done: () => { console.log = quiet; } };
 };
 const tick = () => new Promise((r) => setImmediate(r));
 
@@ -68,6 +67,7 @@ test('start: lanza el CLI con sus argumentos, engancha y avisa; data y history',
   // otro socket se engancha: el primero recibe 4409 y el nuevo, el scrollback
   const ws2 = x.connect(fakeWs());
   ws2.say({ type: 'attach', sessionId: 's1' });
+  await tick();   // engancharse espera a comprobar que puede abrir ese chat
   assert.deepEqual(ws.closed, [4409, 'handoff']);
   assert.deepEqual(ws2.sent.find((m) => m.type === 'history'), { type: 'history', data: 'hola mundo' });
   ws2.say({ type: 'attach', sessionId: 'nope' });
@@ -126,7 +126,7 @@ test('el chat de una issue: uno por issue, con su contexto como primer mensaje; 
   x.done();
 });
 
-test('CLI no instalado: error; candado y remoto sin llave: se cierra el socket', async () => {
+test('CLI no instalado: error; con el candado echado se cierra el socket', async () => {
   const x = setup();
   const ws = x.connect(fakeWs());
   ws.say({ type: 'start', launcher: 'codex' });
@@ -135,13 +135,70 @@ test('CLI no instalado: error; candado y remoto sin llave: se cierra el socket',
   x.done();
   const y = setup({ locked: true });
   assert.deepEqual(y.connect(fakeWs()).closed, [4423, 'bloqueado']);
-  assert.deepEqual(y.connect(fakeWs('/ws?t=x', '10.0.0.5')).closed, [4403, 'no autorizado']);
   y.done();
-  const z = setup({ remoteSession: { locked: false } });
-  const r = z.connect(fakeWs('/ws?t=ok', '10.0.0.5'));
-  assert.equal(r.closed, null);
-  assert.equal(r._siaToken, 'ok');
-  z.bridge.broadcastTheme();
-  assert.deepEqual(r.sent.at(-1), { type: 'theme', theme: { id: 'light' } });
-  z.done();
+});
+
+test('sin la vista Chat no se abre ni se reengancha un chat; el de una issue va con Issues', async () => {
+  const x = setup({ allowed: async (req, { issue }) => issue });   // tiene Issues, no el Chat
+  const ws = x.connect(fakeWs());
+  await tick();
+  ws.say({ type: 'start', launcher: 'claude', knowledge: 'demand', projects: [], cols: 80, rows: 24 });
+  await tick(); await tick();
+  assert.equal(x.pty.spawned.length, 0);
+  assert.equal(ws.sent.find((m) => m.type === 'error').message, 'No tienes el Chat.');
+  ws.say({ type: 'start', launcher: 'claude', knowledge: 'demand', projects: [], cols: 80, rows: 24, issue: 'INC1' });
+  await tick(); await tick(); await tick();
+  assert.equal(x.pty.spawned.length, 1);   // el de la issue, sí
+  x.done();
+});
+
+test('reenganchar un chat del Chat sin su vista: error, no se engancha y quien lo tenía lo conserva', async () => {
+  let ok = true;
+  const x = setup({ allowed: async () => ok });
+  const a = x.connect(fakeWs());
+  await tick();
+  a.say({ type: 'start', launcher: 'claude', knowledge: 'demand', projects: [], cols: 80, rows: 24 });
+  await tick(); await tick();
+  const sid = a.sent.find((m) => m.type === 'started').sessionId;
+  ok = false;   // desde otro dispositivo, alguien sin el Chat
+  const b = x.connect(fakeWs());
+  await tick();
+  b.say({ type: 'attach', sessionId: sid });
+  await tick(); await tick();
+  assert.equal(b.sent.find((m) => m.type === 'error').message, 'No tienes acceso a este chat.');
+  assert.ok(!b.sent.some((m) => m.type === 'history'));
+  assert.equal(a.closed, null, 'el primero no pasa a pasivo');
+  x.done();
+});
+
+test('reenganchar: si el socket se cierra mientras se comprueba el permiso, no le quita el chat a nadie', async () => {
+  let open;
+  const gate = new Promise((r) => { open = r; });
+  let slow = false;
+  const x = setup({ allowed: async () => { if (slow) await gate; return true; } });
+  const a = x.connect(fakeWs());
+  await tick();
+  a.say({ type: 'start', launcher: 'claude', knowledge: 'demand', projects: [], cols: 80, rows: 24 });
+  await tick(); await tick();
+  const sid = a.sent.find((m) => m.type === 'started').sessionId;
+  slow = true;
+  const b = x.connect(fakeWs());
+  b.say({ type: 'attach', sessionId: sid });
+  b.readyState = 3;   // se recarga la pestaña antes de que llegue la respuesta
+  open();
+  await tick(); await tick();
+  assert.equal(a.closed, null);
+  assert.ok(!b.sent.some((m) => m.type === 'history'));
+  x.done();
+});
+
+test('un fallo al abrir el chat (no se puede escribir su configuración) se cuenta en el socket y no tumba el bridge', async () => {
+  const x = setup();
+  const ws = x.connect(fakeWs());
+  await tick();
+  x.fillDisk();
+  ws.say({ type: 'start', launcher: 'claude', knowledge: 'demand', projects: [], cols: 80, rows: 24 });
+  await tick(); await tick();
+  assert.equal(ws.sent.find((m) => m.type === 'error').message, 'No se pudo abrir el chat: ENOSPC: no queda espacio');
+  x.done();
 });

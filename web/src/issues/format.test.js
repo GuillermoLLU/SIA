@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LISTS, when, whenIso, whenLabel, newestFirst, snapshotInfo, age, stamp, duration, since, weekBars } from './format.js';
+import { LISTS, when, whenIso, whenLabel, newestFirst, snapshotInfo, age, stamp, duration, since, weekBars, stillDays, stillLevel, stillInfo, pendingSince, thirdOf, escalatedLabel } from './format.js';
 
 const NOW = new Date('2026-10-04T11:44:00');
 
@@ -31,7 +31,6 @@ test('seguimiento: lo que más tiempo lleva sin moverse, arriba', () => {
 test('since: el tiempo que toca a cada lista', () => {
   const i = { reported: '2026-10-04 11:14', modified: '2026-10-04 08:44', resolved: '2026-10-04 11:00' };
   assert.equal(since(i, 'doing', NOW), 'hace 30 min');
-  assert.equal(since(i, 'waiting', NOW), 'sin moverse 3 h');
   assert.equal(since(i, 'resolved', NOW), '04/10 11:00');
 });
 
@@ -49,7 +48,8 @@ test('una fecha ISO de la base sale en hora local con el formato de la mesa', ()
 
 test('la foto de Remedy: al día si es de hoy; si no, avisa', () => {
   const now = new Date('2026-10-29T12:00:00');
-  assert.deepEqual(snapshotInfo('2026-10-29T09:30:00', now), { text: `Datos de Remedy del ${when(stamp(new Date('2026-10-29T09:30:00')))}`, stale: false });
+  const date = when(stamp(new Date('2026-10-29T09:30:00')));
+  assert.deepEqual(snapshotInfo('2026-10-29T09:30:00', now), { date, stale: false });
   assert.equal(snapshotInfo('2026-10-21T10:09:00', now).stale, true);
   assert.equal(snapshotInfo('2026-10-28T23:59:00', now).stale, true);
 });
@@ -66,4 +66,41 @@ test('cuándo, frente a hoy: HOY con la hora; otro día, la fecha; otro año, co
   const l = [1, 2, 3];
   assert.deepEqual(newestFirst(l), [3, 2, 1]);
   assert.deepEqual(l, [1, 2, 3]);
+});
+
+test('stillDays y stillLevel: los días sin moverse de una pendiente, y si hay que mirarla', () => {
+  const at = (d) => ({ modified: d });
+  assert.equal(stillDays(at('2026-10-04 09:00'), NOW), 0);
+  assert.equal(stillDays(at('2026-10-01 11:00'), NOW), 3);
+  assert.equal(stillDays(at('2026-09-20 11:00'), NOW), 14);
+  assert.deepEqual([0, 2, 3, 6, 7, 30].map(stillLevel), ['ok', 'ok', 'slow', 'slow', 'late', 'late']);
+});
+
+test('pendingSince: el último paso a Pendiente del historial; sin él, su último cambio', () => {
+  const changes = [['2026-10-06 14:40', '', 'Assigned'], ['2026-10-06 20:55', 'Assigned', 'Pending'], ['2026-10-07 08:53', 'Pending', 'Assigned'], ['2026-10-21 14:38', 'In Progress', 'Pending']];
+  assert.equal(pendingSince({ changes, modified: '2026-10-21 14:40' }), '2026-10-21 14:38');
+  assert.equal(pendingSince({ changes: [], modified: '2026-10-21 14:40' }), '2026-10-21 14:40');
+});
+
+test('thirdOf: a quién espera una pendiente, por el código de su motivo; si no lo dice, null', () => {
+  assert.equal(thirdOf({ reason: 'THIRD_PARTY_VENDOR_ACTION_REQD' }), 'Proveedor');
+  assert.equal(thirdOf({ reason: 'SUPPLIER_DELIVERY' }), 'Proveedor');
+  assert.equal(thirdOf({ reason: 'CUSTOMER_FOLLOW_UP_REQUIRED' }), 'Cliente');
+  assert.equal(thirdOf({ reason: 'LOCAL_SITE_ACTION_REQUIRED' }), 'Centro');
+  assert.equal(thirdOf({ reason: 'ESCALATED_ACCORDING_TO_PROCEDURE' }), null);
+  assert.equal(thirdOf({ reason: '' }), null);
+});
+
+test('escalatedLabel: a quién está escalada; si no se sabe, su motivo; sin motivo, solo «Escalada»', () => {
+  assert.equal(escalatedLabel({ reason: 'THIRD_PARTY_VENDOR_ACTION_REQD' }), 'Escalada a Proveedor');
+  assert.equal(escalatedLabel({ reason: 'PURCHASE_ORDER_APPROVAL' }), 'Escalada · Aprobación de pedido');
+  assert.equal(escalatedLabel({ reason: 'ESCALATED_ACCORDING_TO_PROCEDURE' }), 'Escalada', 'sin repetir «Escalada · Escalada»');
+  assert.equal(escalatedLabel({ reason: '' }), 'Escalada');
+});
+
+test('stillInfo: los días sin moverse, con su nivel y en singular o plural', () => {
+  const now = new Date('2026-10-29T12:00:00');
+  assert.deepEqual(stillInfo({ modified: '2026-10-28 11:00' }, now), { days: 1, level: 'ok', label: '1 día' });
+  assert.deepEqual(stillInfo({ modified: '2026-10-26 12:00' }, now), { days: 3, level: 'slow', label: '3 días' });
+  assert.deepEqual(stillInfo({ modified: '2026-10-22 09:00' }, now), { days: 7, level: 'late', label: '7 días' });
 });
