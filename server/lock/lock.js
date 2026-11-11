@@ -1,6 +1,5 @@
 // El candado de SIA (dominio, sin E/S): un PIN de 4 dígitos para dejar el
-// escritorio abierto y trabajando sin que nadie curiosee, y con el que se
-// desbloquea también el móvil emparejado. El PIN se guarda derivado (scrypt +
+// escritorio abierto y trabajando sin que nadie curiosee. El PIN se guarda derivado (scrypt +
 // sal) en la config personal, nunca en claro, y se comprueba aquí: la web no
 // lo tiene. No es una barrera frente a quien tenga tu sesión del sistema
 // (puede leer ~/.sia o matar la app): es una cortina.

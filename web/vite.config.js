@@ -6,6 +6,5 @@ export default defineConfig({
   server: {
     port: 5220,
     strictPort: true, // no derivar a otro puerto si está ocupado: fallar claro
-    host: true,
   },
 });

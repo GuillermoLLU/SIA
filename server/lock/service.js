@@ -1,8 +1,7 @@
 // El candado del escritorio: el PIN (en la config personal) y el estado
 // «bloqueado», que también se guarda para que recargar la ventana o cerrar y
-// reabrir la app no lo salte. Mientras está echado, la API local solo responde
-// al ping y a lo del propio candado (index.js) y no se aceptan sockets nuevos
-// desde esta máquina; los que ya estaban abiertos siguen, que son los chats.
+// reabrir la app no lo salte. Mientras está echado, la API solo responde al
+// ping y a lo del propio candado (router.js) y no se aceptan sockets nuevos; los que ya estaban abiertos siguen, que son los chats.
 // `config`: el store de la config personal; `random`: bytes para la sal.
 import { randomBytes } from 'node:crypto';
 import { hashPin, hasPin, pinMatches, createBrake } from './lock.js';

@@ -14,6 +14,20 @@ export const REASON_ES = {
   LOCAL_SITE_ACTION_REQUIRED: 'Centro',
 };
 
+// A quién espera una pendiente (el tercero al que se escaló), por el código de su motivo en Remedy;
+// null si el motivo no lo dice (escalada según el procedimiento, aprobación de pedido…).
+const THIRD = {
+  THIRD_PARTY_VENDOR_ACTION_REQD: 'Proveedor', SUPPLIER_DELIVERY: 'Proveedor',
+  CLIENT_ACTION_REQUIRED: 'Cliente', CUSTOMER_FOLLOW_UP_REQUIRED: 'Cliente',
+  REQUEST_SSGG: 'SSGG', LOCAL_SITE_ACTION_REQUIRED: 'Centro',
+};
+export const thirdOf = (issue) => THIRD[issue.reason] || null;
+// Cómo se dice en la cabecera de la issue: a quién está escalada o, si no se sabe, su motivo
+export const escalatedLabel = (issue) => {
+  const third = thirdOf(issue), reason = REASON_ES[issue.reason];
+  return third ? `Escalada a ${third}` : reason && reason !== 'Escalada' ? `Escalada · ${reason}` : 'Escalada';
+};
+
 // La mesa: en qué estoy, qué espera a otros (lo que más tiempo lleva sin
 // moverse, arriba) y lo último que he resuelto.
 export const LISTS = [
@@ -50,7 +64,7 @@ export const whenLabel = (s, now) => {
 export const snapshotInfo = (taken, now) => {
   const t = new Date(taken);
   const stale = t.toDateString() !== now.toDateString();
-  return { text: `Datos de Remedy del ${when(stamp(t))}`, stale };
+  return { date: when(stamp(t)), stale };
 };
 
 // Minutos legibles: «30 min», «3 h», «3 d».
@@ -59,9 +73,23 @@ export const duration = (m) => (m < 60 ? `${Math.max(0, Math.round(m))} min` : m
 // Tiempo entre una fecha («YYYY-MM-DD HH:MM», hora local) y ahora, legible.
 export const age = (s, now) => duration((now - new Date(s.replace(' ', 'T'))) / 60000);
 
-// Qué tiempo enseña una issue en cada lista: sin moverse (esperando), cuándo
-// se resolvió, o cuánto hace que entró.
-export const since = (i, key, now) => (key === 'waiting' ? `sin moverse ${age(i.modified, now)}` : key === 'resolved' ? when(i.resolved) : `hace ${age(i.reported, now)}`);
+// Qué tiempo enseña una issue en En curso y Resueltas: cuánto hace que entró, o cuándo se resolvió
+// (Seguimiento enseña sus días sin moverse, stillInfo).
+export const since = (i, key, now) => (key === 'resolved' ? when(i.resolved) : `hace ${age(i.reported, now)}`);
+
+// Desde cuándo espera a un tercero: el último paso a Pendiente del historial de Remedy
+// (changes: [[fecha, de, a]]); sin él, su último cambio.
+export const pendingSince = (i) => {
+  const last = [...(i.changes || [])].reverse().find(([, , to]) => /^pending$/i.test(String(to)));
+  return last ? last[0] : i.modified;
+};
+
+// Lo que lleva una pendiente de terceros sin moverse, en días, y cómo de mal: hasta 2 días va bien;
+// de 3 a 6, se va alargando; 7 o más, hay que mirarla.
+export const stillDays = (i, now) => Math.max(0, Math.floor((now - new Date(String(i.modified).replace(' ', 'T'))) / 86400000));
+export const stillLevel = (days) => (days >= 7 ? 'late' : days >= 3 ? 'slow' : 'ok');
+// listos para enseñar: { days, level, label: «1 día» | «N días» }
+export const stillInfo = (i, now) => { const days = stillDays(i, now); return { days, level: stillLevel(days), label: `${days} ${days === 1 ? 'día' : 'días'}` }; };
 
 // Las barras de cogidas por semana: a qué altura (%) va cada parte, con un
 // techo mínimo de 5 para que una semana floja no llene la gráfica.

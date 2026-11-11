@@ -26,7 +26,6 @@
 }
 .mt-page { padding: 0 28px 48px; }
 .mt-top { display: flex; align-items: center; gap: 14px; padding: 22px 0 14px; }
-.mt-title { margin: 0; font-size: 22px; font-weight: 680; }
 .mt-date { font-size: 13px; color: var(--mt-low); }
 .mt-top .mt-load { margin-left: auto; }
 .mt-load { display: inline-flex; align-items: center; height: 32px; padding: 0 14px; border: 0; font-family: inherit; font-size: 13px; font-weight: 600; color: var(--surface); background: var(--accent); cursor: pointer; white-space: nowrap; }
@@ -575,8 +574,7 @@
 .mt-modal-wide .mt-modal-body { display: flex; flex-direction: column; gap: 14px; overflow: hidden; }
 .mt-modal-wide .mt-modal-body > * { flex: none; }
 .mt-sql-cal { position: relative; z-index: 1; }
-.mt-modal-wide .mt-sql { flex: 1 1 180px; min-height: 120px; max-height: none; }
-.mt-sql { margin: 0; max-height: min(44vh, 360px); overflow: auto; padding: 12px 14px; font: 12px/1.5 ui-monospace, Consolas, monospace; color: var(--text); background: var(--mt-soft); border: 1px solid var(--mt-line); white-space: pre; tab-size: 2; }
+.mt-sql { margin: 0; flex: 1 1 180px; min-height: 120px; overflow: auto; padding: 12px 14px; font: 12px/1.5 ui-monospace, Consolas, monospace; color: var(--text); background: var(--mt-soft); border: 1px solid var(--mt-line); white-space: pre; tab-size: 2; }
 
 /* Cancelar, dentro de la tarjeta de avance. */
 .mt-load-cancel { margin-top: 14px; height: 30px; padding: 0 14px; font-size: 13px; }
@@ -590,7 +588,7 @@
 .mt-switch i::after { content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 2px rgba(0, 0, 0, .2); transition: transform .15s; }
 .mt-switch input:checked + i { background: var(--mt-bad); }
 .mt-switch input:checked + i::after { transform: translateX(20px); }
-.mt-switch input:focus-visible + i { outline: 2px solid var(--accent); outline-offset: 2px; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); }
+.mt-switch input:focus-visible + i { outline: 2px solid var(--focus); outline-offset: 2px; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); }
 .mt-switch > span { display: grid; gap: 3px; }
 .mt-switch > span b { font-size: 14px; font-weight: 600; color: var(--text); }
 .mt-switch > span small { font-size: 12.5px; color: var(--mt-low); }

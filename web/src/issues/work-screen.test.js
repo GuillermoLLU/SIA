@@ -10,7 +10,7 @@ const now = new Date('2026-10-01T12:00:00');
 test('la pantalla: cuatro pestañas, Detalle por defecto, sin análisis de la IA y el texto escapado', () => {
   const html = workScreen({ issue: issue(), sameCenter: [], now, mine: false });
   assert.equal((html.match(/data-wtab="/g) || []).length, 4);
-  assert.match(html, /data-wtab="remedy" aria-selected="false">Notas Remedy</);
+  assert.match(html, /data-wtab="remedy" aria-selected="false">Seguimiento</);
   assert.deepEqual([...html.matchAll(/data-wtab="([a-z]+)"/g)].map((m) => m[1]), ['detail', 'remedy', 'trail', 'related'], 'Detalle, Notas Remedy, Notas internas, Relacionadas');
   assert.match(html, /data-wtab="detail" aria-selected="true"/);
   assert.doesNotMatch(html, /Análisis de la IA|data-wpanel="ai"/);
@@ -114,8 +114,8 @@ test('las notas de Remedy: lista con quién y cuándo, escapada; vacía o sin co
   assert.match(worklogHtml([]), /Sin notas de trabajo en Remedy/);
   assert.match(worklogHtml(undefined), /carga un CSV nuevo/);
   const screen = workScreen({ issue: issue({ worklog: wl }), sameCenter: [], now, mine: false, tab: 'remedy' });
-  assert.match(screen, /data-wtab="remedy" aria-selected="true">Notas Remedy<span>2<\/span>/);
-  assert.doesNotMatch(workScreen({ issue: issue(), sameCenter: [], now, mine: false }), /Notas Remedy<span>/);
+  assert.match(screen, /data-wtab="remedy" aria-selected="true">Seguimiento<span>2<\/span>/);
+  assert.doesNotMatch(workScreen({ issue: issue(), sameCenter: [], now, mine: false }), /Seguimiento<span>/);
 });
 
 test('la primera línea de una nota, recortada a 90; el arranque de la resolución asistida', () => {
@@ -125,4 +125,32 @@ test('la primera línea de una nota, recortada a 90; el arranque de la resoluci�
   assert.match(assistHtml(), /<button class="lab-btn primary ai-start-go" data-assist >Iniciar resolución asistida por IA<\/button>/);
   assert.doesNotMatch(assistHtml(), /ai-start-hint/);
   assert.match(assistHtml('Claude <no> está'), /data-assist disabled>[^]*<p class="ai-start-hint">Claude &lt;no&gt; está<\/p>/);
+});
+
+test('la cabecera de la issue: volver al panel, el título en una línea con su title, y las acciones', () => {
+  const html = workScreen({ issue: issue({ text: 'Cola <llena>' }), sameCenter: [], now, mine: true });
+  assert.match(html, /<header class="iss-work-h">\s*<button class="lab-btn primary" data-back>Volver al panel<\/button>\s*<h2 title="Cola &lt;llena&gt;">Cola &lt;llena&gt;<\/h2>/);
+  assert.match(html, /data-act="resolve">Resolver<[\s\S]*data-act="escalate">Escalar<[\s\S]*data-act="transfer">Traspasar<[\s\S]*data-release>Devolver a la cola</);
+  assert.doesNotMatch(html, /Mi mesa|iss-state/);
+  const notMine = workScreen({ issue: issue(), sameCenter: [], now, mine: false });
+  assert.doesNotMatch(notMine, /data-act="transfer"|data-release/, 'sin cogerla en SIA no se traspasa ni se devuelve');
+});
+
+test('una issue pendiente de un tercero: en lugar del chat, reclamarle y traspasar, grandes', () => {
+  const html = workScreen({ issue: issue({ status: 'PENDING' }), sameCenter: [], now, mine: true });
+  assert.match(html, /iss-pending-acts[\s\S]*data-act="chase">[\s\S]*Reclamar respuesta<\/span><em class="iss-big-still \w+">\d+ días? sin moverse<\/em>[\s\S]*data-act="transfer">[\s\S]*Traspasar/);
+  assert.doesNotMatch(html, /data-act="resolve"|data-act="escalate"|data-release|iss-chat-body/);
+  assert.match(html, /<div class="iss-actions"><span class="iss-escalated"[\s\S]*Escalada[\s\S]*desde el/, 'en la cabecera, que ya está escalada y desde cuándo');
+  const notMine = workScreen({ issue: issue({ status: 'PENDING' }), sameCenter: [], now, mine: false });
+  assert.match(notMine, /data-act="chase"/);
+  assert.doesNotMatch(notMine, /data-act="transfer"/, 'sin cogerla en SIA, solo reclamar');
+});
+
+test('la cabecera de una pendiente: a quién está escalada, desde que pasó a Pendiente, y los días en su color', () => {
+  const pending = issue({ status: 'PENDING', reason: 'THIRD_PARTY_VENDOR_ACTION_REQD', modified: '2026-09-20 09:00',
+    changes: [['2026-09-01 10:00', '', 'ASSIGNED'], ['2026-09-15 08:30', 'ASSIGNED', 'PENDING']] });
+  const html = workScreen({ issue: pending, sameCenter: [], now, mine: true });
+  assert.match(html, /<b>Escalada a Proveedor<\/b><span>desde el 15\/09 08:30<\/span>/);
+  assert.match(html, /<em class="iss-big-still late">11 días sin moverse<\/em>/, 'siete días o más: hay que mirarla');
+  assert.match(workScreen({ issue: { ...pending, reason: 'ESCALATED_ACCORDING_TO_PROCEDURE' }, sameCenter: [], now, mine: true }), /<b>Escalada<\/b>/);
 });

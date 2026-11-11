@@ -5,12 +5,13 @@
 // asistida por IA (issue-chat.js), que vive mientras la issue esté abierta.
 // Las parecidas, por conectar: solo su hueco.
 import { esc } from '../ui/html.js';
-import { STATUS_ES, REASON_ES, SEVERITY_ES, when, whenIso, whenLabel, newestFirst, age } from './format.js';
+import { STATUS_ES, SEVERITY_ES, when, whenIso, whenLabel, newestFirst, age, pendingSince, stillInfo, escalatedLabel } from './format.js';
 import { item } from './parts.js';
+import { actionsFor } from './actions.js';
 
 const WORK_TABS = [
   { key: 'detail', label: 'Detalle' },
-  { key: 'remedy', label: 'Notas Remedy' },
+  { key: 'remedy', label: 'Seguimiento' },
   { key: 'trail', label: 'Notas internas' },
   { key: 'related', label: 'Relacionadas' },
 ];
@@ -89,21 +90,35 @@ export const noteFormHtml = () => `<form class="iss-note-form" data-note-form no
 export const releaseDialogHtml = (id, text) => `<div class="iss-dlg-issue"><span class="iss-dlg-code">${esc(id)}</span><span class="iss-dlg-text">${esc(text || '')}</span></div>
   <p class="iss-dlg-p">Volverá a la cola y podrá cogerla cualquier compañero.</p>`;
 
+// Los botones de las acciones (actions.js actionsFor): la primera, la principal
+const ACTION_BUTTON = {
+  resolve: '<button class="lab-btn primary" data-act="resolve">Resolver</button>',
+  escalate: '<button class="lab-btn" data-act="escalate">Escalar</button>',
+  transfer: '<button class="lab-btn" data-act="transfer">Traspasar</button>',
+  release: '<button class="lab-btn" data-release>Devolver a la cola</button>',
+};
+
+// Pendiente de un tercero no hay nada que resolver con la IA: en lugar del chat, sus dos acciones,
+// grandes (y fuera de la cabecera, para no repetirlas)
+const BELL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>';
+const HANDOFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3l4 4-4 4"/><path d="M3 7h18"/><path d="M7 21l-4-4 4-4"/><path d="M21 17H3"/></svg>';
+// En la cabecera, donde irían Resolver y compañía: que ya está escalada, a quién y desde cuándo
+const escalatedTag = (i) => `<span class="iss-escalated" title="Pendiente de un tercero: resolver, escalar o devolverla no tiene sentido hasta que responda">${BELL}<b>${esc(escalatedLabel(i))}</b><span>desde el ${when(pendingSince(i))}</span></span>`;
+// Sus acciones (actionsFor), grandes. En «Reclamar», a modo de aviso, los días que lleva parada
+// (con el color de la mesa, stillLevel).
+const BIG_ACTION = {
+  chase: (i, now) => { const s = stillInfo(i, now); return `<button class="iss-big-act primary" data-act="chase">${BELL}<span>Reclamar respuesta</span><em class="iss-big-still ${s.level}">${s.label} sin moverse</em></button>`; },
+  transfer: () => `<button class="iss-big-act" data-act="transfer">${HANDOFF}<span>Traspasar</span></button>`,
+};
+const pendingActs = (i, now, mine) => `<aside class="iss-card iss-pending-acts" aria-label="Qué hacer con ella">
+      ${actionsFor(i, mine).map((key) => BIG_ACTION[key](i, now)).join('')}
+    </aside>`;
+
 export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, meId = null, tab = 'detail' }) => `<div class="iss-page iss-work-page">
   <header class="iss-work-h">
-    <button class="iss-back" data-back>← Mi mesa</button>
-    <div class="iss-title-row">
-      <div>
-        <h2>${esc(i.text)}</h2>
-        <p class="iss-state">${esc(STATUS_ES[i.status] || i.status)}${i.reason ? ` · ${esc(REASON_ES[i.reason] || i.reason)}` : ''}</p>
-      </div>
-      <div class="iss-actions">
-        <button class="lab-btn primary" data-act="resolve">Resolver</button>
-        <button class="lab-btn" data-act="escalate">Escalar</button>
-        <button class="lab-btn" data-act="transfer">Traspasar</button>
-        ${mine ? '<button class="lab-btn" data-release>Devolver a la cola</button>' : ''}
-      </div>
-    </div>
+    <button class="lab-btn primary" data-back>Volver al panel</button>
+    <h2 title="${esc(i.text)}">${esc(i.text)}</h2>
+    <div class="iss-actions">${i.status === 'PENDING' ? escalatedTag(i) : actionsFor(i, mine).map((key) => ACTION_BUTTON[key]).join('')}</div>
   </header>
 
   <div class="iss-work">
@@ -164,9 +179,9 @@ export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, meI
       <div class="k-open"><span>Abierta</span><b>${age(i.reported, now)}</b><small>desde que se creó</small></div>
       <div class="k-moved"><span>Último movimiento</span><b>${i.modified ? `hace ${age(i.modified, now)}` : '—'}</b><small>${when(i.modified)}</small></div>
     </section>
-    <aside class="iss-card iss-chat" aria-label="Resolución asistida por IA">
+    ${i.status === 'PENDING' ? pendingActs(i, now, mine) : `<aside class="iss-card iss-chat" aria-label="Resolución asistida por IA">
       <div class="iss-chat-body"></div>
-    </aside>
+    </aside>`}
     </div>
   </div>
 </div>`;

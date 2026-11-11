@@ -1,9 +1,10 @@
-// Laboratorio de skills: el catálogo (publicadas y borradores) y el editor
-// multifichero de una skill, con su visibilidad (común o de un proyecto). Los
+// Laboratorio de skills: el catálogo (publicadas y borradores, en Configuración → Skills) y el
+// editor multifichero de una skill, a pantalla completa, con su visibilidad (común o de un proyecto). Los
 // borradores son locales; publicar la deja en la base para todo el equipo.
 // Las reglas, en lab.js.
 import { esc, svg } from '../ui/html.js';
 import { emptyState } from '../ui/dom.js';
+import { pickerHtml, pickClick } from '../ui/picker.js';
 import { SKILL_TEMPLATE, cleanSkillId, groupName, scopeOptions, isReadOnly, scopeLabel, cleanPath, filesList } from './lab.js';
 
 const SKILLS_ICON = svg('<path d="M10 2v6.5L4.8 17a3 3 0 0 0 2.6 4.5h9.2a3 3 0 0 0 2.6-4.5L14 8.5V2"/><path d="M8.5 2h7"/><path d="M7 15h10"/>', { width: 1.5, size: 38 });
@@ -12,19 +13,22 @@ const CACHE_KEY = 'sia-lab-cache';
 
 // perms(): lo que abre la clave de poder en la base (owner decide las comunes)
 // · onSkills(list): el bridge ha resincronizado las skills (la paleta, al día)
-export const mountLabView = ({ api, dialogs, perms, onSkills }) => {
+// · onEditor(): se abre una skill, el editor a pantalla completa · onCatalog(): se vuelve al catálogo
+export const mountLabView = ({ api, dialogs, perms, onSkills, onEditor, onCatalog }) => {
   const $ = (id) => document.getElementById(id);
-  const catalog = $('lab-catalog'), cards = $('lab-cards'), work = $('lab-work');
+  const cards = $('lab-cards'), work = $('lab-work');
   const skillId = $('lab-skill-id'), state = $('lab-state'), statusEl = $('lab-status');
   const saveBtn = $('lab-save'), publishBtn = $('lab-publish'), deleteBtn = $('lab-delete'), refreshBtn = $('lab-refresh');
   const fileTabs = $('lab-file-tabs'), textarea = $('lab-textarea'), scopeSel = $('lab-scope');
   let cur = null;   // la skill abierta en el editor: { id, files: Map(path → content), active, dirty, isDraft, scope, readOnly }
   let groups = [];  // proyectos para la visibilidad: [{ token, name }]
 
+  work.addEventListener('click', (e) => pickClick(work, e.target));
+
   const setState = (text, dirty = false) => { state.textContent = text; state.className = `lab-state ${dirty ? 'dirty' : ''}`; };
   const status = (text) => { statusEl.textContent = text; };
-  const showCatalog = () => { work.hidden = true; catalog.hidden = false; refresh(); };
-  const showEditor = () => { catalog.hidden = true; work.hidden = false; };
+  const showCatalog = () => { work.hidden = true; onCatalog(); };   // onCatalog abre Configuración → Skills, que lo refresca
+  const showEditor = () => { work.hidden = false; onEditor(); };
 
   // tags: [{ text, cls }] — van en su propia fila, alineados a la derecha; una
   // etiqueta larga se recorta con «…» dentro de la card y se lee entera al pasar el ratón
@@ -120,24 +124,17 @@ export const mountLabView = ({ api, dialogs, perms, onSkills }) => {
     }
   });
 
-  const fillScope = (scope) => {
+  const fillScope = (scope, readOnly) => {
     const { options, value } = scopeOptions(groups, scope, !!perms()?.owner);
-    scopeSel.innerHTML = '';
-    for (const o of options) {
-      const el = document.createElement('option');
-      el.value = o.value; el.textContent = o.label; el.disabled = !!o.disabled;
-      scopeSel.appendChild(el);
-    }
-    scopeSel.value = value;
+    scopeSel.innerHTML = pickerHtml({ id: 'lab-scope-btn', name: 'scope', value, inline: true, disabled: readOnly, groups: [{ options }] });
   };
 
   const openFiles = (id, files, { isDraft, scope = null }) => {
     cur = { id, files: new Map(files.map((f) => [f.path, f.content])), active: 'SKILL.md', dirty: false, isDraft, scope };
     if (!cur.files.has('SKILL.md')) cur.active = files[0]?.path;
     skillId.textContent = id;
-    fillScope(scope);
     cur.readOnly = isReadOnly({ isDraft, scope, isOwner: !!perms()?.owner });
-    scopeSel.disabled = cur.readOnly;
+    fillScope(scope, cur.readOnly);
     publishBtn.disabled = cur.readOnly;
     deleteBtn.disabled = cur.readOnly;
     textarea.readOnly = cur.readOnly;
@@ -245,7 +242,7 @@ export const mountLabView = ({ api, dialogs, perms, onSkills }) => {
 
   publishBtn.addEventListener('click', async () => {
     if (!cur || cur.readOnly) return;
-    const scope = scopeSel.value || null;
+    const scope = scopeSel.querySelector('[name="scope"]').value || null;
     const files = curFiles();
     const resume = files.map((f) => ` • ${f.path} (${f.content.length} chars)`).join('\n');
     const visib = scope ? `proyecto «${groupName(groups, scope)}»` : 'COMÚN (todo el equipo)';

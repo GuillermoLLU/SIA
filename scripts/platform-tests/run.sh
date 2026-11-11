@@ -7,7 +7,9 @@
 # Qué prueba (20-access.sql): anon no ve ni ejecuta nada; el agente solo usa
 # su conocimiento y cambia su nombre; cada vista abre lo suyo (Personas,
 # Conocimiento) y el rol pone las de partida; la cola de Issues da una issue
-# a una sola persona, se traspasa solo a alguien de Issues y deja histórico, y
+# a una sola persona, se traspasa solo a alguien de Issues y deja histórico, se
+# asigna y traspasa solo a quien tiene el conocimiento del origen (SGA, SISU), la
+# regla de cada rol y persona queda puesta y auditada, y
 # las notas internas las edita solo su autor; nadie cambia su propio rol ni
 # sus vistas ni se desactiva; claves secret y
 # URLs ajenas rechazadas; tokens enmascarados para los admins; usuarios

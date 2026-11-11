@@ -37,3 +37,12 @@ test('allowed: basta con una de las vistas', () => {
   assert.equal(allowed({ views: [] }, p('links'), 'GET'), false);
   assert.equal(allowed({ views: [] }, p('skills'), 'GET'), true);
 });
+
+test('canChat: el Chat con su vista; el chat de una issue, con Issues', async () => {
+  const { canChat } = await import('./views.js');
+  assert.equal(canChat({ views: ['chat'] }), true);
+  assert.equal(canChat({ views: ['issues'] }), false);
+  assert.equal(canChat({ views: ['issues'] }, { issue: true }), true);
+  assert.equal(canChat({ views: ['chat'] }, { issue: true }), false);
+  assert.equal(canChat(null), false);
+});

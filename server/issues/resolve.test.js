@@ -23,7 +23,7 @@ test('qué ocurrió sale del último diagnóstico, con o sin tilde; [RESOLUTION]
   assert.deepEqual(r.missing, []);
 });
 
-test('con la nota de resolución escrita, no se vuelve a pedir y empieza «Cómo se resolvió»', () => {
+test('con la nota de resolución escrita, no se vuelve a pedir y empieza «Cómo se ha resuelto»', () => {
   const r = resolveDraft(issue({ worklog: [...worklog, n('2026-10-28 11:40', '[RESOLUCION] Se libera el bulto')] }));
   assert.equal(r.resolution.text, 'Se libera el bulto');
   assert.equal(r.draft.how.value, 'Se libera el bulto');
@@ -65,11 +65,12 @@ test('confirmar: sin las notas o sin la categoría no se resuelve, aunque se sal
 });
 
 test('confirmar: un campo vacío o solo con espacios, no', () => {
-  rejects(() => checkResolve(issue({ worklog: ALL }), { ...OK, prevent: '   ' }), 400, /Falta: ¿Qué se hará para evitarlo\?/);
+  rejects(() => checkResolve(issue({ worklog: ALL }), { ...OK, prevent: '   ' }), 400, /Falta: ¿Qué se hará para que no se repita\?/);
   rejects(() => checkResolve(issue({ worklog: ALL }), { ...OK, note: '' }), 400, /Nota interna/);
 });
 
-test('confirmar: con la nota de resolución ya en Remedy vale esa, no la que llegue', () => {
-  const r = checkResolve(issue({ worklog: [...ALL, n('2026-10-28 11:40', '[RESOLUCION] Se libera el bulto')] }), { ...OK, note: 'cambiada en devtools' });
-  assert.equal(r.note, 'Se libera el bulto');
+test('confirmar: la nota de resolución ya en Remedy es el punto de partida; si se cambia, vale la nueva', () => {
+  const was = issue({ worklog: [...ALL, n('2026-10-28 11:40', '[RESOLUCION] Se libera el bulto')] });
+  assert.equal(checkResolve(was, { ...OK, note: '' }).note, 'Se libera el bulto');
+  assert.equal(checkResolve(was, { ...OK, note: 'Se libera el bulto y [imagen1]' }).note, 'Se libera el bulto y [imagen1]');
 });

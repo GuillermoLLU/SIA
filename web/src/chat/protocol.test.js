@@ -17,10 +17,8 @@ test('parse: JSON o nada', () => {
   assert.equal(parse('no'), null);
 });
 
-test('closeReason: candado, revocado solo en el móvil, handoff y el resto perdido', () => {
+test('closeReason: candado, handoff y el resto perdido', () => {
   assert.equal(closeReason(4423), 'locked');
-  assert.equal(closeReason(4403, { remote: true }), 'revoked');
-  assert.equal(closeReason(4403), 'lost');
   assert.equal(closeReason(4409), 'handoff');
   assert.equal(closeReason(1006), 'lost');
 });

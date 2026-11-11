@@ -8,7 +8,7 @@
   "main": "electron/main.js",
   "scripts": {
     "dev": "node dev.mjs",
-    "test": "node --test 'server/**/*.test.js' 'web/src/**/*.test.js'",
+    "test": "node --test \"server/**/*.test.js\" \"web/src/**/*.test.js\"",
     "test:rls": "scripts/rls-tests/run.sh",
     "test:platform": "scripts/platform-tests/run.sh",
     "app": "electron .",

@@ -83,4 +83,5 @@ test('sin cifras aún, el detalle dice que se prepara; nunca NaN', () => {
   const v = progressOf(null, { elapsed: 0, phaseMs: 0 }, CLEAR_PHASES);
   assert.equal(v.detail, '', 'al borrar no hay detalle');
   assert.doesNotMatch(progressOf({ phase: 'clear', done: 10, total: 100 }, { elapsed: 5000, phaseMs: 5000 }, CLEAR_PHASES).detail, /NaN/);
+  assert.equal(progressOf({ phase: 'compute' }, { elapsed: 0, phaseMs: 0 }, PHASES).detail, 'Preparando…');   // aún sin cifras del servidor
 });

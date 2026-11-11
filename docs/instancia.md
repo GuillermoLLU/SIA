@@ -32,44 +32,63 @@ desactivadas. Las pruebas del SQL: `npm run test:platform` (Docker).
 Una base de conocimiento con un esquema anterior no deja ver nada hasta que
 se vuelve a ejecutar su SQL (`node server/base/schema-sql.js`).
 
-## Personas, roles y vistas
+## Equipo, roles, vistas y reglas
 
-Cada persona ve las **vistas** que se le den: el Chat siempre y, además,
-Issues, Backlog, Equipo soporte, Métricas, Enlaces rápidos, Laboratorio, Administración
-y Personas (`platform.users.views`; la lista, en `platform.known_views()`).
+Cada persona ve las **vistas** que se le den: Chat, Issues, Backlog, Equipo soporte,
+Métricas, Enlaces rápidos, Laboratorio, Administración y Equipo
+(`platform.users.views`; la lista, en `platform.known_views()`). El Chat también se
+puede quitar; sin él no se abren chats, salvo el de una issue, que va con Issues. La app
+se abre en la primera que tenga de Issues, Backlog y Métricas (el Chat es auxiliar: va
+arriba a la derecha y solo se abre de entrada si no tiene ninguna de esas); con una sola de
+ellas no hay dock abajo. Y coge
+las issues en el orden de su **regla de priorización** (`platform.users.rule_id`;
+sin ella, la básica).
 
-Lo cómodo es darlas con un **rol** (un nombre y unas vistas,
-`platform.roles`): asignar un rol pone sus vistas y editarlo las cambia a
-todos los que lo tienen. Vienen **Administrador** (todas, fijo) y **Agente**
-(Chat y Enlaces, el de toda alta), y en Personas → **Roles** se crean los que
-hagan falta. Tocar una vista suelta de alguien lo deja con vistas
-**personalizadas**, que ya no siguen a ningún rol.
+Lo cómodo es darlas con un **rol** (un nombre, unas vistas y una regla,
+`platform.roles`): asignar un rol pone sus vistas y su regla y editarlo las
+cambia a todos los que lo tienen. Vienen **Administrador** (todas las vistas,
+fijo) y **Agente** (Chat y Enlaces, el de toda alta), y en Equipo → **Roles** se
+crean los que hagan falta. Tocar una vista suelta de alguien, o cambiarle la
+regla, lo deja **personalizado**: ya no sigue a ningún rol.
 
-En **Personas** se da de alta a la gente (con su rol y lo que verá, en un
-solo paso) y, en la ficha de cada uno, se cambia su rol, se encienden o
-apagan sus vistas, se le genera una contraseña nueva (la cambia al entrar),
-se le corta el acceso o se decide qué proyectos ve (o se le copian los de
-otra persona). Nadie edita el rol que tiene, cambia sus propias vistas ni se
-desactiva, así que siempre queda alguien con Personas. Todo pasa por
-funciones de la base que comprueban quién llama y sus vistas; las tablas no
-se pueden leer ni con la publishable.
+**Equipo** está en Configuración, para quien tiene esa vista. Es una lista donde
+todo se cambia en la propia fila: el rol y la regla (selectores), qué proyectos
+de la base ve (a pulsar) y su acceso (un interruptor que, apagado, le corta la
+entrada sin borrar nada). Al lado de la lista se abre un panel para sus vistas
+(cajas que se encienden y apagan), para generarle una contraseña nueva (la
+cambia al entrar) o para dar de alta a alguien con su rol, su contraseña inicial
+y sus proyectos en un solo paso. Borrar pide escribir su email. Nadie edita el
+rol que tiene, cambia sus propias vistas o su regla ni se desactiva, así que
+siempre queda alguien con Equipo. Todo pasa por funciones de la base que
+comprueban quién llama y sus vistas; las tablas no se pueden leer ni con la
+publishable.
 
-En **Administración** se gestionan los proyectos de la base de conocimiento
-(crear, ver sus entradas y borrarlos). Sin conocimiento asignado los chats
+En **Configuración → Administración**, solo para quien tiene ese poder, se crean
+y eliminan los proyectos de la base de conocimiento. Sus entradas se consultan y
+se nutren desde el Chat. Sin conocimiento asignado los chats
 funcionan igual, pero sin la base del equipo ni sus skills.
 
 ## Backlog y reglas de priorización
 
-Quien tiene la vista **Backlog** ve la cola entera del equipo: las issues de
-la foto que nadie tiene (sin responsable en Remedy ni cogidas en SIA), en el
+Quien tiene la vista **Backlog** ve la cola del equipo de sus orígenes (SGA,
+SISU, según su conocimiento): las issues de la foto que nadie tiene (sin responsable en Remedy ni cogidas en SIA), en el
 orden de una **regla de priorización**. Una regla es un nombre y una lista
 ordenada de criterios de un catálogo cerrado (`platform.known_criteria()`; qué
 hace cada uno, en `server/issues/queue.js`): el primero manda y los demás
 desempatan; a igualdad, la más antigua primero. La **Regla básica**, la del
 equipo, viene de serie en `platform.priority_rules` (`builtin`): se ajusta
-desde el Backlog, no se borra. Las demás las crea el equipo desde «Reglas de
-priorización». Las reglas las ven Issues (al coger la siguiente) y Backlog;
-crearlas, cambiarlas y borrarlas exige Backlog.
+en Priorización, no se borra. Las demás las crea el equipo en Configuración →
+**Priorización**. Las reglas las ven Issues (al coger la siguiente, cada persona
+con la suya), Backlog y Equipo (que elige la de cada rol y cada persona);
+crearlas, cambiarlas y borrarlas exige Backlog. Si se borra una, quien la
+tenía pasa a la básica.
+
+Cada issue tiene un **origen**, SGA o SISU, y solo la lleva quien tiene el
+conocimiento de ese origen, es decir, un proyecto de la base con su nombre: al
+coger la siguiente, la cola de cada persona solo trae issues de sus orígenes; al
+asignar o traspasar, solo se puede elegir a quien lo tiene, y la base lo vuelve a
+comprobar (`platform.require_origin`, que rechaza con «Esa persona no tiene el
+conocimiento de SGA.»).
 
 Desde el Backlog se **asigna** una issue a alguien del equipo de Issues: pasa a
 su mesa como cogida y en el histórico queda «asignada» por quien lo hizo

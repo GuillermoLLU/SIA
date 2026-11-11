@@ -1,14 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assistedPlan, originOf } from './assisted.js';
+import { assistedPlan } from './assisted.js';
 
 const LAUNCHERS = [{ id: 'claude', label: 'Claude', available: true }, { id: 'copilot', label: 'Copilot', available: false }];
 const PROJECTS = [{ id: 5, name: 'SISU' }, { id: 6, name: 'SGA' }];
-
-test('el origen de la issue decide el conocimiento', () => {
-  assert.equal(originOf({ sisu: true }), 'SISU');
-  assert.equal(originOf({ sisu: false }), 'SGA');
-});
 
 test('el plan: Claude, conocimiento autónomo y solo el proyecto del origen', () => {
   const p = assistedPlan({ launchers: LAUNCHERS, projects: PROJECTS, origin: 'SISU' });

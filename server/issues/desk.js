@@ -21,3 +21,9 @@ export const deskOf = (issues, { id, name }, claims, transfers = []) => {
 // Lo que va en una fila (el detalle completo se pide aparte).
 export const brief = ({ id, center, text, priority, status, reason, prio, sisu, reported, modified, resolved, claimed, transferred }) =>
   ({ id, center, text, priority, status, reason, prio, sisu, reported, modified, resolved, ...(claimed !== undefined ? { claimed } : {}), ...(transferred ? { transferred } : {}) });
+
+// Para centrarse en lo que se tiene entre manos: con MAX_DOING en curso no se coge otra.
+// Lo que te traspasen no cuenta como coger: puede sumar por encima del tope.
+export const MAX_DOING = 5;
+export const doingCount = (desk) => desk.filter((i) => i.status === 'ASSIGNED' || i.status === 'IN_PROGRESS').length;
+export const canTake = (desk) => doingCount(desk) < MAX_DOING;

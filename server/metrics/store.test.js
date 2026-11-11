@@ -202,12 +202,17 @@ test('solo se guarda el grupo: lo que sale del grupo se quita de lo guardado', a
 
 test('cancelar una actualización a mitad de la descarga: no entra nada; ya guardada, no se cancela', async () => {
   const dir = tmp();
-  const stalled = { asked: [], rows: async function* () { yield ISSUE; await new Promise(() => {}); } };
-  const { store, repo } = open(dir, stalled);
+  // Un iterador a mano (no un generador): apunta si le llega return(), que es lo que suelta la conexión de Snowflake.
+  const closed = [];
+  const stalled = { rows: () => ({ [Symbol.asyncIterator]() { return this; }, next: async () => (closed.length ? { done: true } : { value: ISSUE, done: false }), return: async () => { closed.push(true); return { done: true }; } }) };
+  let first = true;
+  const once = { rows: (...a) => { const it = stalled.rows(...a); const next = it.next; it.next = () => { if (first) { first = false; return next(); } return new Promise(() => {}); }; return it; } };
+  const { store, repo } = open(dir, once);
   const running = store.update();
   await new Promise((r) => setTimeout(r, 20));
   assert.deepEqual(store.cancel(), { cancelled: true });
   await assert.rejects(running, (e) => e.cancelled === true);
+  assert.deepEqual(closed, [true], 'al cancelar se cierra el iterador de la fuente');
   assert.equal(repo.count(), 0, 'lo que llegó antes de cancelar se deshace');
   assert.deepEqual(store.cancel(), { cancelled: false }, 'sin nada en marcha, no hace nada');
   clean(dir);

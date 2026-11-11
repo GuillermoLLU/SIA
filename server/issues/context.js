@@ -2,6 +2,8 @@
 // de qué se habla desde el principio. (El análisis automático se sumará aquí
 // cuando esté conectado.)
 
+import { originOf } from './origin.js';
+
 const SEVERITY = { CRITICAL: 'crítica', HIGH: 'alta', MEDIUM: 'media', LOW: 'baja' };
 const MAX_NOTES = 6000; // la descripción del centro, recortada si es enorme
 
@@ -11,7 +13,7 @@ export const issueContext = (i) => [
   `- Título: ${i.text}`,
   `- Centro: ${i.center || 'sin código'}`,
   `- Criticidad: ${SEVERITY[i.priority] || i.priority || '—'}${i.prio ? ' (priorizada por negocio)' : ''}`,
-  `- Origen: ${i.sisu ? 'SISU' : 'SGA'}`,
+  `- Origen: ${originOf(i)}`,
   `- Estado: ${i.status}${i.reason ? ` (${i.reason})` : ''}`,
   `- Categoría: ${i.category || '—'}`,
   `- Reportada: ${i.reported}`,
