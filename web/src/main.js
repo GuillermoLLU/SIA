@@ -7,7 +7,7 @@ import { createApi } from './ui/api.js';
 import { createDialogs } from './ui/dialog.js';
 import { createToast } from './ui/dom.js';
 import { bridgeFromQuery, discoverBridge } from './app/discover.js';
-import { canView, baseNav, firstView, showsDock, usesTopbar, hubBoxes, dockItems } from './app/nav.js';
+import { canView, baseNav, firstView, showsDock, usesTopbar, dockItems } from './app/nav.js';
 import { createViews } from './app/views.js';
 import { mountTopbar } from './app/topbar.js';
 import { mountDock } from './app/dock.js';
