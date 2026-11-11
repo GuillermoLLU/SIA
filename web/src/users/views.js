@@ -11,7 +11,6 @@ export const VIEWS = [
   { id: 'chat', label: 'Chat', icon: CHAT_ICON },
   { id: 'issues', label: 'Incidencias', icon: svg('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.2"/>') },
   { id: 'backlog', label: 'Backlog', icon: svg('<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/>') },
-  { id: 'work', label: 'Equipo soporte · métricas', icon: TEAM_ICON },
   { id: 'metrics', label: 'Métricas', icon: svg('<path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/>') },
   { id: 'links', label: 'Enlaces rápidos', icon: svg('<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>') },
   { id: 'lab', label: 'Laboratorio', icon: svg('<path d="M10 2v6.5L4.8 17a3 3 0 0 0 2.6 4.5h9.2a3 3 0 0 0 2.6-4.5L14 8.5V2"/><path d="M8.5 2h7"/><path d="M7 15h10"/>') },
