@@ -14,7 +14,10 @@ import { num } from './format.js';
 import { createModel, COMPANIES } from './model.js';
 import { createCharts } from './charts.js';
 import { createTabs, TABS } from './tabs.js';
-import { periodLabel, presetRange } from './period.js';
+import { periodLabel, periodSummary, presetRange } from './period.js';
+import { DAY } from './rules.js';
+import { reportBounds, reportHead, reportName } from './report.js';
+import { printReport, previewReport } from './print.js';
 import { companyPick, presetPick, comparePop, pickCompany, pickPreset } from './quick-bar.js';
 import { mountPeriodPanel } from './period-panel.js';
 import { attachTip } from './tip.js';
@@ -63,10 +66,10 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
   });
 
   const loadButton = () => `<button class="mt-load ${loading ? 'mt-busy' : ''}" data-update ${loading ? 'disabled' : ''}>${loading ? 'Actualizando…' : m ? LOAD : FIRST_LOAD}</button>`;
-  // Los tres puntos: lo que se hace pocas veces (cargar un CSV, construir la consulta). Sin nada encima de la vista.
-  // Sin datos (withClear: false), no hay histórico que borrar.
+  // Los tres puntos: lo que se hace pocas veces (exportar un informe, cargar un CSV, construir la consulta). Sin nada
+  // encima de la vista. Sin datos (withClear: false), no hay informe que exportar ni histórico que borrar.
   const moreMenu = (withClear = true) => `<div class="mt-menu"><button class="mt-btn mt-icon-btn mt-more" data-more aria-haspopup="menu" aria-expanded="false" aria-label="Más opciones" title="Más opciones"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
-    <div class="mt-pop mt-menu-pop" data-more-pop role="menu" hidden><button role="menuitem" data-open-csv>Cargar CSV…</button><button role="menuitem" data-open-sql>Construir SQL…</button>${withClear ? '<button role="menuitem" class="mt-danger-item" data-clear>Eliminar histórico…</button>' : ''}</div></div>`;
+    <div class="mt-pop mt-menu-pop" data-more-pop role="menu" hidden>${withClear ? '<button role="menuitem" data-open-report>Exportar informe…</button>' : ''}<button role="menuitem" data-open-csv>Cargar CSV…</button><button role="menuitem" data-open-sql>Construir SQL…</button>${withClear ? '<button role="menuitem" class="mt-danger-item" data-clear>Eliminar histórico…</button>' : ''}</div></div>`;
   const setMenu = (on) => {
     const pop = $('[data-more-pop]');
     if (!pop) return;
@@ -337,14 +340,51 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     toast?.(`Exportadas ${num(list.length)} incidencias a ${file}.`);
   };
 
+  // Exportar informe (#15): la ventana para elegir el informe y los datos (metrics-modals.js, report) y, al aceptar, el
+  // Resumen pintado como ahora (actuales) o con el periodo elegido (históricos), impreso a PDF (print.js). Con los
+  // históricos, el periodo de arriba se cambia solo para pintarlo y vuelve a ser el de antes; la comparación de periodos
+  // del Resumen («Comparar») no va: es relativa al periodo de arriba.
+  // Con la vista previa, «Cambiar opciones» vuelve a abrir la ventana con lo que se había elegido (initial).
+  const exportReport = (initial) => {
+    if (!m) return;
+    const { S, BASE, DIMS } = m, iso = (min) => new Date(BASE + min * 6e4).toISOString().slice(0, 10);
+    modals.report({
+      current: { range: [S.d0, S.d1], text: periodSummary(m), from: iso(S.d0), to: iso(S.d1 - DAY) },
+      bounds: reportBounds(m), base: BASE, initial,
+      onExport: ({ key, source, range, preview, choice }) => {
+        const keep = [S.d0, S.d1], cmp = ui.resCmp, history = source === 'history';
+        let body, cover;
+        try {
+          if (history) { m.setPeriod(range[0], range[1]); ui.resCmp = null; }
+          m.refilter();
+          body = tabs.render('resumen', m.rows(), { state: !history });
+          cover = coverage(m);
+        } finally {
+          if (history) { m.setPeriod(...keep); ui.resCmp = cmp; }
+          m.refilter();
+        }
+        const names = m.NAMES();
+        const filters = [...Object.keys(S.f).flatMap((dim) => [...S.f[dim]].map((k) => `${DIMS[dim].name}: ${DIMS[dim].label(k)}`)), ...(S.q ? [`Búsqueda: ${S.q}`] : [])];
+        const parts = {
+          title: reportName(key, range, BASE),
+          head: reportHead({ key, source, range, base: BASE, sides: m.CO().map((k) => names[k]), filters, coverage: cover, generatedAt: new Date() }),
+          body, sideStyle: root.getAttribute('style') || '',
+        };
+        if (preview) previewReport(parts, { onBack: () => exportReport(choice) });
+        else printReport(parts);
+      },
+    });
+  };
+
   const pressedInPop = pressStartedIn(root, (t) => !!t.closest('.mt-pop'));
   root.addEventListener('click', (e) => {
     // con datos, actualizar; sin datos, la primera carga con el periodo que se elige
     if (e.target.closest('[data-update]')) return m ? update() : modals.firstLoad();
     if (e.target.closest('[data-more]')) return setMenu($('[data-more-pop]')?.hidden === true);
-    const item = e.target.closest('[data-open-csv],[data-open-sql],[data-clear]');
+    const item = e.target.closest('[data-open-report],[data-open-csv],[data-open-sql],[data-clear]');
     if (item) {
       setMenu(false);
+      if (item.hasAttribute('data-open-report')) return exportReport();
       if (item.hasAttribute('data-open-csv')) return modals.csv();
       if (item.hasAttribute('data-clear')) return modals.clear();
       return modals.sql();

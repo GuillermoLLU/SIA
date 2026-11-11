@@ -26,5 +26,5 @@ export const createTabs = (m, ch, ui) => {
   const VIEWS = { resumen: resumenTab(t), hoy: hoyTab(t), historico: historicoTab(t), entrada: entradaTab(t), modulos: modulosTab(t),
     resolucion: resolucionTab(t), tiempos: tiemposTab(t), cliente: clienteTab(t), escalados: escaladosTab(t), sla: slaTab(t), calidad: pendingTab(t, 'calidad'),
     ia: iaTab(t), turnos: turnosTab(t) };
-  return { render: (tab, A) => VIEWS[tab](A) };
+  return { render: (tab, A, opts) => VIEWS[tab](A, opts) };
 };

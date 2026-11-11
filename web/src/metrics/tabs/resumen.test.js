@@ -140,3 +140,12 @@ test('Análisis tiempos y Calidad: pestañas nuevas, vacías por ahora; IA pasa 
     assert.doesNotMatch(html, /undefined|NaN/);
   }
 });
+
+test('Resumen sin la corona (el informe con datos históricos): los KPIs a todo el ancho y la evolución del backlog', () => {
+  const { m, tabs } = setup([{ company: 0 }, null]);
+  const html = tabs.render('resumen', m.rows(), { state: false });
+  assert.doesNotMatch(html, /En qué estado está/);
+  assert.match(html, /<section class="mt-card mt-s12[^"]*"><h3>Del periodo/);
+  assert.match(tabs.render('resumen', m.rows()), /<section class="mt-card mt-s8[^"]*"><h3>Del periodo/);
+  assert.match(html, />MTTR</);
+});

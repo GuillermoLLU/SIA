@@ -42,7 +42,7 @@ export const resumenTab = (t) => {
   // comparando periodos, los dos: [{ key, label, range }]
   const periods = () => (cmpMode() === 'periods' ? [ui.resCmp.a, ui.resCmp.b].map((key) => ({ key, label: cmpName(m, key), range: cmpRange(m, key) })) : null);
   // Del periodo: de cada lado o, comparando periodos, lo del primer lado abierto en cada uno (con los mismos filtros)
-  const periodKpis = (A) => {
+  const periodKpis = (A, wide = false) => {
     const mode = cmpMode();
     let F, names = null, sub = 'Lo recibido en el periodo elegido arriba.';
     if (mode === 'periods') {
@@ -74,11 +74,12 @@ export const resumenTab = (t) => {
       kpiCo('% dentro de SLA', of('sla'), opt(pct), o({ better: 'high', go: ['sla', 'SLAs'], note: 'De lo recibido en el periodo, lo que se empezó (paso a En curso) dentro del plazo de su prioridad; las abiertas sin empezar y ya fuera de plazo cuentan como fuera. El detalle, en la pestaña SLAs.' })),
       kpiCo('%IQA', of('iqa'), () => '—', o({ better: 'high', go: ['calidad', 'Calidad'], note: IQA_NOTE })),
       kpiCo('Uso de la IA', of('ia'), opt((v) => pct(v, 1)), o({ better: 'high', go: ['ia', 'Uso de la IA'], note: 'De lo recibido en el periodo, lo que tiene alguna marca de IA (en TAGS o en las notas). El detalle, en la pestaña Uso de la IA.' }))),
-      { span: CMP() ? 's12' : 's8', sub });
+      { span: CMP() || wide ? 's12' : 's8', sub });
   };
 
-  return (A) => {
+  // state: false, sin la corona (el informe con datos históricos: report.js); los KPIs, entonces, a todo el ancho
+  return (A, { state = true } = {}) => {
     const P = bySide(m.today()).map((l) => l.filter((i) => OPEN[i]));
-    return grid(ask('resumen'), stateOf(P, { link: true }), periodKpis(A), evolution({ only: 'backlog', periods: periods(), link: true }));
+    return grid(ask('resumen'), state ? stateOf(P, { link: true }) : '', periodKpis(A, !state), evolution({ only: 'backlog', periods: periods(), link: true }));
   };
 };
