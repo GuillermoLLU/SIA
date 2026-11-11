@@ -22,6 +22,39 @@ Var SiaRetry
 Var SiaFont
 Var SiaPage
 
+; Actualizar sin esperas: el desinstalador de la versión anterior borra sus
+; ficheros uno a uno y, en las versiones sin asar, son unos 14.000. Justo antes
+; de lanzarlo se aparta resources\app renombrándolo (instantáneo) y, al acabar
+; la instalación, se borra en segundo plano. Si no se puede renombrar, el
+; desinstalador lo borra como siempre. Al definir customCheckAppRunning,
+; electron-builder ya no incluye lo que necesita _CHECK_APP_RUNNING.
+!include "getProcessInfo.nsh"
+Var pid
+Var SiaOldDir
+
+!macro customCheckAppRunning
+  !insertmacro _CHECK_APP_RUNNING
+  ReadRegStr $SiaOldDir SHELL_CONTEXT "${INSTALL_REGISTRY_KEY}" InstallLocation
+  ${If} $SiaOldDir != ""
+  ${AndIf} ${FileExists} "$SiaOldDir\resources\app\*.*"
+    System::Call 'kernel32::GetTickCount()i.R9'
+    Rename "$SiaOldDir\resources\app" "$SiaOldDir.sia-old-$R9"
+    ClearErrors
+  ${EndIf}
+!macroend
+
+; Se busca junto a la carpeta de instalación, y no solo junto a la del registro:
+; una actualización interrumpida deja la carpeta apartada sin registro (el
+; desinstalador viejo ya lo borró) y se vuelve a instalar en la misma carpeta.
+!macro customInstall
+  StrCpy $R8 `"$INSTDIR.sia-old-*"`
+  ${If} $SiaOldDir != ""
+  ${AndIf} $SiaOldDir != $INSTDIR
+    StrCpy $R8 `$R8 "$SiaOldDir.sia-old-*"`
+  ${EndIf}
+  ExecShell "" "$SYSDIR\cmd.exe" `/c for /d %d in ($R8) do rmdir /s /q "%d"` SW_HIDE
+!macroend
+
 !macro customWelcomePage
   !insertmacro MUI_PAGE_WELCOME
   Page custom SiaChecksShow SiaChecksLeave
