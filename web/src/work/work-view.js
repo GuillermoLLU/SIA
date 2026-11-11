@@ -21,6 +21,7 @@ import { downloadText } from '../metrics/download.js';
 import { teamPanel, conclusionsPanel, teamIssues } from './team.js';
 import { TEAM_SHEET_COLS } from './team-sheet.js';
 import { pickDays } from './activity.js';
+import { pressStartedIn } from '../ui/dom.js';
 
 const CALENDAR_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>';
 
@@ -34,9 +35,9 @@ export const mountWorkView = (root, { api, onManage, toast }) => {
   const ui = { exp: {}, sort: {}, charts: new Set(), range: null, actSeries: null };   // charts: los bloques con su gráfica desplegada
   const $ = (s) => root.querySelector(s);
 
-  const manage = onManage ? '<button class="wk-switch-view" data-manage>Gestionar equipo</button>' : '';
-  // cabecera: título, fecha de los datos y, a la derecha, el periodo (si hay datos) y «Gestionar equipo»
-  const page = (body, tools = '') => `<div class="mt-page"><header class="mt-top wk-top"><h2 class="mt-title">Equipo soporte</h2>${body}<span class="wk-tools">${tools}${manage}</span></header>`;
+  // cabecera: la fecha de los datos y, a la derecha, el periodo (si hay datos); el nombre de la
+  // sección va en la barra de arriba
+  const page = (body, tools = '') => `<div class="mt-page"><header class="mt-top wk-top">${body}<span class="wk-tools">${tools}</span></header>`;
 
   const renderFrame = () => {
     const period = '<div class="mt-period"><button class="mt-btn mt-icon-btn" data-calendar aria-haspopup="true">' + CALENDAR_ICON + '<span data-period></span></button><div class="mt-pop mt-cal" data-cal hidden></div></div>';
@@ -94,12 +95,13 @@ export const mountWorkView = (root, { api, onManage, toast }) => {
     applyRange(pickDays(ui.range, [S.d0, S.d1], from, to, multi));
   });
 
+  const pressedInPop = pressStartedIn(root, (t) => !!t.closest('.mt-pop'));
   root.addEventListener('click', (e) => {
     if (e.target.closest('[data-manage]')) return onManage();
     if (!m || e.target.closest('a')) return;
     if (e.target.closest('[data-export]')) return exportSheet();
     if (e.target.closest('[data-calendar]')) { calendar = !calendar; if (calendar) panel.open(); return render(); }
-    if (calendar && !e.target.closest('.mt-pop')) { calendar = false; render(); }
+    if (calendar && !pressedInPop() && !e.target.closest('.mt-pop')) { calendar = false; render(); }
     if (e.target.closest('[data-person-clear]')) { ui.person = null; return render(); }
     if (e.target.closest('[data-range-clear]')) return applyRange({ period: ui.range.base, range: null });
     const series = e.target.closest('[data-act-series]');

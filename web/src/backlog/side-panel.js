@@ -8,15 +8,16 @@ import { SEVERITY_ES, STATUS_ES, REASON_ES, when, whenIso, age } from '../issues
 import { sev, origin } from '../issues/parts.js';
 import { worklogHtml } from '../issues/work-screen.js';
 import { peoplePicker } from '../ui/picker.js';
+import { knowsOrigin, originOf } from '../issues/origin.js';
 
 // Priorizar: la prioridad es la etiqueta PRIO de Remedy, que pone negocio.
 const pinHtml = ({ prio }) => `<div class="bl-act"><h5>Priorizar</h5>
     <button class="lab-btn primary" data-prioritize ${prio ? 'disabled' : ''}>${prio ? 'Ya priorizada' : 'Priorizar'}</button>
     <small class="bl-act-note">Pendiente: es la etiqueta PRIO de Remedy y SIA aún no puede escribirla.</small></div>`;
 
-// Asignarla a alguien del equipo (people: [{ id, name }]), con el selector propio de la app.
-const assignHtml = ({ people, busy }) => `<form class="bl-act bl-act-form" data-assign-form><h5>Asignar</h5>
-    <div class="bl-act-row">${peoplePicker({ name: 'to', id: 'bl-assign-to', people, empty: 'Nadie en Incidencias' })}<button type="submit" class="lab-btn primary" ${busy ? 'disabled' : ''}>${busy ? 'Asignando…' : 'Asignar'}</button></div>
+// Asignarla a alguien del equipo (people: [{ id, name, groups }]) que tenga el conocimiento de su origen.
+const assignHtml = ({ people, busy, issue }) => `<form class="bl-act bl-act-form" data-assign-form><h5>Asignar</h5>
+    <div class="bl-act-row">${peoplePicker({ name: 'to', id: 'bl-assign-to', people: people.filter((p) => knowsOrigin(p.groups, issue)), empty: `Nadie con el conocimiento de ${originOf(issue)}` })}<button type="submit" class="lab-btn primary" ${busy ? 'disabled' : ''}>${busy ? 'Asignando…' : 'Asignar'}</button></div>
     <small class="bl-act-note">Pasará a su mesa como cogida.</small></form>`;
 
 // detail: lo que da GET /backlog/:id
@@ -31,7 +32,7 @@ export const sidePanel = ({ detail, people, busy, error, now }) => {
       <p class="iss-line">${sev(i.priority)}<span class="iss-code">${esc(i.center || '—')}</span>${origin(i)}${i.prio ? '<span class="iss-prio">Priorizada por negocio</span>' : ''}<span class="iss-when">hace ${age(i.reported, now)}</span></p>
       ${claimedBy ? `<p class="bl-side-warn">Ya la tiene ${esc(claimedBy.name)} desde el ${whenIso(claimedBy.at)}: ha salido de la cola.</p>` : ''}
       ${error ? `<p class="bl-err">${esc(error)}</p>` : ''}
-      <div class="bl-acts">${claimedBy ? '' : pinHtml({ prio: i.prio }) + assignHtml({ people, busy })}</div>
+      <div class="bl-acts">${claimedBy ? '' : pinHtml({ prio: i.prio }) + assignHtml({ people, busy, issue: i })}</div>
       <h4 class="iss-sub">Lo que dice el centro <span class="iss-low">· ${when(i.reported)}</span></h4>
       <div class="iss-notes">${esc(i.notes || 'Sin descripción.')}</div>
       <h4 class="iss-sub">Ficha</h4>

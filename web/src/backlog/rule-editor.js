@@ -19,3 +19,10 @@ export const available = (catalog, rule) => catalog.filter((c) => !rule.criteria
 export const labelOf = (catalog, id) => catalog.find((c) => c.id === id)?.label || id;
 // una regla de la base, lista para editarla
 export const draftOf = (rule) => ({ id: rule.id, name: rule.label, criteria: [...rule.criteria] });
+// ¿Hay cambios sin guardar? En una regla guardada (current), si el nombre o los criterios (también su
+// orden) ya no son los suyos; en una nueva (current null), en cuanto lleva nombre o algún criterio.
+export const isDirty = (current, draft) => {
+  if (!current) return !!(draft.name.trim() || draft.criteria.length);
+  const saved = draftOf(current);
+  return draft.name !== saved.name || draft.criteria.join() !== saved.criteria.join();
+};

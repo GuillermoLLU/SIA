@@ -4,8 +4,6 @@
 // SGA si no.
 import { pickLauncher, CHAT_KNOWLEDGE } from '../chat/start.js';
 
-export const originOf = (issue) => (issue.sisu ? 'SISU' : 'SGA');
-
 // launchers: los del bridge [{ id, label, available }]; projects: los visibles [{ id, name }].
 // → { launcher, knowledge, projects: [id], project } | { error }
 export const assistedPlan = ({ launchers = [], projects = [], origin }) => {

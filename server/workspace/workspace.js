@@ -67,7 +67,6 @@ export const createWorkspace = ({ root, dir }) => {
     draftsDir: path.join(dir, 'lab-drafts'),
     issuesDir: path.join(dir, 'issues'),
     metricsDir: path.join(dir, 'metrics'),
-    binDir: path.join(dir, 'bin'),
     skillsDirFor,
     // el cwd de un chat: el directorio de ese modo, en la base si la hay
     modeDirFor(mode, base) {

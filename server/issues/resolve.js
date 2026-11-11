@@ -75,7 +75,7 @@ export const resolveDraft = (issue) => {
 // Se resuelve lo que aún está abierto en Remedy.
 export const OPEN = new Set(['ASSIGNED', 'IN_PROGRESS', 'PENDING']);
 // Los campos del envío, con la etiqueta que ve el técnico (la de actions.js).
-const REQUIRED = [['note', 'Nota interna de resolución'], ['what', '¿Qué ocurrió?'], ['how', '¿Cómo se resolvió?'], ['prevent', '¿Qué se hará para evitarlo?']];
+const REQUIRED = [['note', 'Nota interna de resolución'], ['what', '¿Qué ha ocurrido?'], ['how', '¿Cómo se ha resuelto?'], ['prevent', '¿Qué se hará para que no se repita?']];
 
 // issue + fields (cleanFields) → lo que se envía. Si la nota de resolución ya
 // está en Remedy, vale esa y no la que llegue. Lanza 409 si no se puede resolver
@@ -84,7 +84,8 @@ export const checkResolve = (issue, fields) => {
   if (!OPEN.has(issue.status)) throw fail('Esta incidencia ya está resuelta o cerrada.', 409);
   const r = resolveDraft(issue);
   if (r.missing.length) throw fail(`Para escribir la nota de cierre faltan en Remedy: ${r.missing.join(', ')}.`, 409);
-  const out = { ...fields, note: r.resolution ? r.resolution.text : fields.note };
+  // La nota de resolución que ya estaba en Remedy es el punto de partida: si el técnico la cambia, vale la suya
+  const out = { ...fields, note: fields.note.trim() ? fields.note : (r.resolution?.text ?? '') };
   const empty = REQUIRED.find(([k]) => !out[k].trim());
   if (empty) throw fail(`Falta: ${empty[1]}`);
   return out;

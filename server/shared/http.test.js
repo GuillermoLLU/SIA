@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { json, readBody, failed, mimeOf, sendFile } from './http.js';
+import { json, readBody, failed, mimeOf, sendFile, isLoopback } from './http.js';
 
 const capture = () => {
   const res = {};
@@ -52,4 +52,14 @@ test('un fallo sin estado: 500 genérico al cliente, y el log dice qué pasó', 
   } finally {
     console.error = original;
   }
+});
+
+test('isLoopback: solo esta máquina de verdad; lo que llega por un proxy no lo es', () => {
+  const req = (headers = {}, remoteAddress = '127.0.0.1') => ({ headers, socket: { remoteAddress } });
+  assert.equal(isLoopback(req()), true);
+  assert.equal(isLoopback(req({}, '::1')), true);
+  assert.equal(isLoopback(req({}, '::ffff:127.0.0.1')), true);
+  assert.equal(isLoopback(req({}, '192.168.1.5')), false);
+  assert.equal(isLoopback(req({ 'cf-connecting-ip': '1.2.3.4' })), false);
+  assert.equal(isLoopback(req({ 'x-forwarded-for': '1.2.3.4' })), false);
 });

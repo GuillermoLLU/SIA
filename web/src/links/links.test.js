@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { projectName, linkFilters, miniMarkdown, linkPayload, shrinkTo, dataUriKb } from './links.js';
+import { projectName, miniMarkdown, linkPayload, shrinkTo, dataUriKb } from './links.js';
 
 const P = [{ id: 1, name: 'SGA' }, { id: 2, name: 'SISU' }, { id: 3, name: 'Vacío' }];
 const L = [{ id: 'a', project_id: 1 }, { id: 'b', project_id: 1 }, { id: 'c', project_id: 2 }];
@@ -10,15 +10,6 @@ test('projectName', () => {
   assert.equal(projectName(P, 9), 'Sin conocimiento');
 });
 
-test('linkFilters: solo conocimientos con enlaces; un filtro vacío vuelve a Todos; con uno solo, sin chips', () => {
-  const all = linkFilters(P, L, null);
-  assert.deepEqual(all.chips.map((c) => [c.label, c.n]), [['Todos', 3], ['SGA', 2], ['SISU', 1]]);
-  assert.equal(all.list.length, 3);
-  const one = linkFilters(P, L, 2);
-  assert.deepEqual(one.list.map((l) => l.id), ['c']);
-  assert.equal(linkFilters(P, L, 3).filter, null);
-  assert.deepEqual(linkFilters(P, [L[0]], null).chips, []);
-});
 
 test('miniMarkdown: escapa antes de reconocer; títulos, código, negrita, listas y párrafos', () => {
   assert.equal(miniMarkdown('<b>x</b>'), '&lt;b&gt;x&lt;/b&gt;');

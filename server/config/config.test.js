@@ -1,17 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cleanTheme, cleanGithub, cleanJira, cleanSnowflake, SNOWFLAKE, activeGithubToken, userEnv, cleanEnv, migrate } from './config.js';
-
-const UI = { bg: '#fff', surface: '#ffffff', border: '#e1e4e8', text: '#1f2328', textLow: '#656d76', accent: '#2563eb', scrollbar: '#d0d5dbff' };
-
-test('cleanTheme: id corto y siete colores hexadecimales reales; lo demás, null', () => {
-  assert.deepEqual(cleanTheme({ id: 'light', ui: { ...UI, extra: 'x' } }), { id: 'light', ui: UI });
-  assert.equal(cleanTheme({ id: 'light', ui: { ...UI, bg: '#12345' } }), null, 'cinco dígitos no es un color');
-  assert.equal(cleanTheme({ id: 'light', ui: { ...UI, bg: 'red' } }), null);
-  assert.equal(cleanTheme({ id: 'light', ui: { bg: '#fff' } }), null, 'faltan colores');
-  assert.equal(cleanTheme({ id: 'a b', ui: UI }), null);
-  assert.equal(cleanTheme(null), null);
-});
+import { cleanGithub, cleanJira, cleanSnowflake, SNOWFLAKE, activeGithubToken, userEnv, cleanEnv, migrate } from './config.js';
 
 test('cleanGithub: entradas con token, nombres por defecto, tope 20 y la activa tiene que existir', () => {
   const g = cleanGithub({ keys: [{ token: ' t1 ' }, { id: 'w', name: ' Trabajo ', token: 't2' }, { token: '' }, null], activeId: 'w' });

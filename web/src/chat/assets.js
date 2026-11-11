@@ -1,5 +1,4 @@
-// Adjuntos de un chat: cualquier fichero pegado o arrastrado (o, en el móvil,
-// una foto) se sube al bridge, se registra en la sesión (persiste con ella,
+// Adjuntos de un chat: cualquier fichero pegado o arrastrado se sube al bridge, se registra en la sesión (persiste con ella,
 // recargas incluidas) y su ruta va al prompt del CLI sin Enter, para que el
 // usuario escriba su pregunta alrededor. El panel de la derecha los lista.
 import { esc } from '../ui/html.js';
@@ -7,7 +6,7 @@ import { msg, sendOn, isOpen } from './protocol.js';
 import { toAsset, fileExt } from './sessions.js';
 
 // active(): la sesión activa · onLayout(): el panel cambió de tamaño (refit)
-export const createAssets = ({ api, apiBase, dialogs, phone, active, onLayout }) => {
+export const createAssets = ({ api, apiBase, dialogs, active, onLayout }) => {
   const $ = (id) => document.getElementById(id);
   const btn = $('assets-btn'), panel = $('assets-panel'), list = $('assets-list');
 
@@ -73,9 +72,8 @@ export const createAssets = ({ api, apiBase, dialogs, phone, active, onLayout })
       const out = await api('/upload', { method: 'POST', body: { name: file.name || 'adjunto', data } });
       const asset = toAsset({ name: out.name, absPath: out.absPath }, apiBase);
       s.assets.push(asset);
-      if (!phone) s.assetsOpen = true; // en el móvil no hay panel de adjuntos: se comería media pantalla
-      // la subida es asíncrona: el socket puede haberse caído por el camino (en
-      // el móvil, la cámara lo tumba a veces). Si no está, el adjunto espera en
+      s.assetsOpen = true;
+      // la subida es asíncrona: el socket puede haberse caído por el camino. Si no está, el adjunto espera en
       // cola y entra en cuanto el socket vuelva (flushPending).
       if (isOpen(s.ws)) announce(s, asset);
       else s.pendingAssets.push(asset);

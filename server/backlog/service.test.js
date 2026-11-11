@@ -56,3 +56,28 @@ test('sin foto, nada que repartir', async () => {
   const r = await s.list({ accessToken: 'jwt' });
   assert.deepEqual([r.taken, r.issues], [null, []]);
 });
+
+test('asignar: a la base con el origen de la issue, que solo deja dársela a quien tiene ese conocimiento', async () => {
+  const calls = [];
+  const backlog = createBacklogService({
+    source: { load: () => ({ taken: 't', issues: [issue('INC1', { sisu: true }), issue('INC2')] }) },
+    platform: { rpc: async (jwt, fn, args) => { calls.push([fn, args]); return null; } },
+    now: NOW,
+  });
+  await backlog.assign({ accessToken: 'jwt' }, 'INC1', 'u-ana');
+  await backlog.assign({ accessToken: 'jwt' }, 'INC2', 'u-ana');
+  assert.deepEqual(calls, [
+    ['platform_assign_issue', { p_issue: 'INC1', p_to: 'u-ana', p_origin: 'SISU' }],
+    ['platform_assign_issue', { p_issue: 'INC2', p_to: 'u-ana', p_origin: 'SGA' }],
+  ]);
+});
+
+test('el backlog de cada uno: solo lo de sus orígenes; el detalle de otro origen, como si no existiera', async () => {
+  const issues = [issue('INC1', { sisu: true }), issue('INC2'), issue('INC3', { sisu: true })];
+  const sisu = { user: { groups: ['SISU'] }, accessToken: 'jwt' };
+  assert.deepEqual((await service(issues).list(sisu)).issues.map((i) => i.id).sort(), ['INC1', 'INC3']);
+  assert.equal(await service(issues).get(sisu, 'INC2'), null);
+  assert.equal((await service(issues).get(sisu, 'INC1')).issue.id, 'INC1');
+  assert.equal((await service(issues).list({ user: { groups: [] }, accessToken: 'jwt' })).issues.length, 0);
+  assert.equal((await service(issues).list({ accessToken: 'jwt' })).issues.length, 3);   // sin la lista de proyectos, no se filtra
+});

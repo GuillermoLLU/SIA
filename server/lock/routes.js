@@ -1,4 +1,4 @@
-// /api/lock: el candado del escritorio (solo desde esta máquina; lo exige index.js).
+// /api/lock: el candado del escritorio (solo desde esta máquina, como toda la API).
 //   GET      → { hasKey, locked, len }
 //   PUT key  { key, current? } → { ok, hasKey, len }   poner o cambiar el PIN (con el actual si ya hay)
 //   POST on  → { locked: true }                        exige PIN elegido

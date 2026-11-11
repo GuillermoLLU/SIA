@@ -96,7 +96,7 @@
 /* cambiar de cara del equipo: métricas o gestión de personas (también en la cabecera de Personas) */
 .wk-switch-view { height: 32px; padding: 0 14px; font: inherit; font-size: 12px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text); background: var(--surface); border: 1px solid var(--mt-line, var(--border)); cursor: pointer; }
 .wk-switch-view:hover { border-color: var(--accent); color: var(--accent); }
-/* a la derecha de la cabecera: el periodo y «Gestionar equipo»; el calendario se abre hacia la izquierda */
+/* a la derecha de la cabecera, el periodo; el calendario se abre hacia la izquierda */
 .wk-tools { display: flex; align-items: center; gap: 10px; margin-left: auto; }
 .wk-top .mt-pop { left: auto; right: 0; }
 .wk-top { border-bottom: 1px solid var(--border); }

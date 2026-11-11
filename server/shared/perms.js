@@ -4,7 +4,7 @@
 // comprueba: viajan en la cabecera x-sia-power y sia_status() dice qué
 // abre la que viaja (`me`). Aquí solo se normaliza esa respuesta.
 //   lab    = Laboratorio (skills de proyecto)
-//   admin  = Administración (proyectos y su conocimiento)
+//   admin  = Administración (proyectos)
 //   links  = editar enlaces rápidos
 // Las skills comunes son cosa del dueño, no un permiso. La fila owner=true
 // lo abre todo y no se edita ni se revoca desde la app.

@@ -4,12 +4,14 @@
 //   GET    /      → { users }
 //   POST   /      { email, name, password, role, projects? } → { user, warning? }
 //                 projects = [ids]: los proyectos que verá desde el alta
-//   PUT    /:id   { name?, role?, views?, active?, password? } → { ok }
-//                 role: id de rol (pone sus vistas); views sueltas: personalizado
+//   PUT    /:id   { name?, role?, views?, rule?, active?, password? } → { ok }
+//                 role: id de rol (pone sus vistas y su regla); views o rule sueltas: personalizado
 //   DELETE /:id   → { ok }
-//   GET    /roles → { roles }      POST /roles { name, views } → { id }
-//   PUT    /roles/:id { name, views } → { ok }   (cambia a quien lo tiene)
-//   DELETE /roles/:id → { ok }      (quien lo tenía se queda con sus vistas)
+//   GET    /roles → { roles }      POST /roles { name, views, rule } → { id }
+//   PUT    /roles/:id { name, views, rule } → { ok }   (cambia a quien lo tiene)
+//                 rule: id de la regla de priorización, o null para la básica
+//   DELETE /roles/:id → { ok }      (quien lo tenía se queda con sus vistas y su regla)
+//   GET    /rules → { rules: [{ id, label, builtin }] }  (las de priorización, para elegir)
 // Los errores de la base o de la función llegan con su estado y su texto.
 // syncKeys(jwt, id | null, { drop }) pone al día las claves de poder en la
 // base (las vistas) tras cambiar el rol, las vistas o el acceso de alguien, o
@@ -26,15 +28,16 @@ export const usersRoutes = (users, { json, readBody, assignKnowledge, syncKeys, 
     if (id === 'roles') {
       if (sub && !isUuid(sub)) return json(res, 404, { error: 'Ese rol no existe.' });
       if (!sub && req.method === 'GET') return json(res, 200, { roles: await users.roles(jwt) });
-      if (!sub && req.method === 'POST') { const { name, views } = await readBody(req); return json(res, 200, { id: await users.saveRole(jwt, null, { name, views }) }); }
+      if (!sub && req.method === 'POST') { const { name, views, rule } = await readBody(req); return json(res, 200, { id: await users.saveRole(jwt, null, { name, views, rule }) }); }
       if (sub && req.method === 'PUT') {
-        const { name, views } = await readBody(req);
-        await users.saveRole(jwt, sub, { name, views });
+        const { name, views, rule } = await readBody(req);
+        await users.saveRole(jwt, sub, { name, views, rule });
         return json(res, 200, { ok: true, ...keysWarning(await syncKeys(jwt, null)) });
       }
       if (sub && req.method === 'DELETE') { await users.removeRole(jwt, sub); return json(res, 200, { ok: true }); }
       return json(res, 404, { error: 'no encontrado' });
     }
+    if (id === 'rules' && !sub && req.method === 'GET') return json(res, 200, { rules: await users.rules(jwt) });
     if (id && !isUuid(id)) return json(res, 404, { error: 'Ese usuario no existe.' });
 
     if (!id && req.method === 'GET') return json(res, 200, { users: await users.list(jwt) });
@@ -51,8 +54,8 @@ export const usersRoutes = (users, { json, readBody, assignKnowledge, syncKeys, 
       return json(res, 200, { user, ...(assignError ? { warning: `Creada, pero no se pudo asignar su conocimiento: ${assignError}` } : keys) });
     }
     if (id && req.method === 'PUT') {
-      const { name, role, views, active, password } = await readBody(req);
-      await users.update(jwt, id, { name, role, views, active, password });
+      const { name, role, views, rule, active, password } = await readBody(req);
+      await users.update(jwt, id, { name, role, views, rule, active, password });
       if (id === who.user.id) refreshProfile(who.token); // su propio nombre: que se vea ya
       const access = role !== undefined || views !== undefined || active !== undefined;
       return json(res, 200, { ok: true, ...(access ? keysWarning(await syncKeys(jwt, id)) : {}) });

@@ -79,10 +79,10 @@ test('POST /update: con { from, to } es la primera carga del periodo; un periodo
   await route({ method: 'POST' }, ok, ['update']);
   assert.equal(ok.status, 200);
   assert.deepEqual(got, [{ from: '2026-03-01', to: '2026-03-31' }]);
-  const bad = metricsRoutes({ update: async () => { throw new RangeError('Periodo no válido'); } }, { json: (res, status, body) => Object.assign(res, { status, body }), readBody: async () => ({}) });
+  const bad = metricsRoutes({ update: async () => { throw Object.assign(new Error('Periodo no válido'), { status: 400 }); } }, { json: (res, status, body) => Object.assign(res, { status, body }), readBody: async () => ({}) });
   const res = {};
   await bad({ method: 'POST' }, res, ['update']);
-  assert.equal(res.status, 400);
+  assert.deepEqual([res.status, res.body], [400, { error: 'Periodo no válido' }]);
 });
 
 test('POST /clear: borra lo guardado en este ordenador', async () => {

@@ -15,6 +15,7 @@ const setup = ({ keyProblems = [], assignFails = false } = {}) => {
     roles: async () => [{ id: R1 }],
     saveRole: async (jwt, id, role) => { log.push(['saveRole', id, role]); return id || 'r-new'; },
     removeRole: async (jwt, id) => log.push(['removeRole', id]),
+    rules: async () => [{ id: 'r-b', label: 'Regla básica', builtin: true }],
   };
   const deps = {
     json: (res, status, body) => Object.assign(res, { status, body }),
@@ -41,10 +42,13 @@ test('alta: crea, asigna sus proyectos y pone sus claves al día; si asignar fal
 test('editar: solo cambios de acceso sincronizan claves; el propio perfil se refresca; ids raros, 404', async () => {
   const s = setup();
   assert.deepEqual((await s.call('PUT', [U1], { name: 'Ana B' })).body, { ok: true });
-  assert.deepEqual(s.log, [['update', U1, { name: 'Ana B', role: undefined, views: undefined, active: undefined, password: undefined }], ['refreshProfile', 'local']]);
+  assert.deepEqual(s.log, [['update', U1, { name: 'Ana B', role: undefined, views: undefined, rule: undefined, active: undefined, password: undefined }], ['refreshProfile', 'local']]);
   s.log.length = 0;
   await s.call('PUT', ['33333333-3333-3333-3333-333333333333'], { views: ['links'] });
   assert.deepEqual(s.log.map((l) => l[0]), ['update', 'syncKeys']);
+  s.log.length = 0;
+  await s.call('PUT', ['33333333-3333-3333-3333-333333333333'], { rule: 'r-b' });   // la regla no toca las claves de poder
+  assert.deepEqual(s.log.map((l) => l[0]), ['update']);
   assert.equal((await s.call('PUT', ['nope'], {})).status, 404);
   assert.equal((await s.call('GET', [])).body.users.length, 1);
 });
@@ -55,12 +59,14 @@ test('borrar: primero sus claves fuera de la base, luego la persona', async () =
   assert.deepEqual(s.log, [['syncKeys', U1, { drop: true }], ['remove', U1]]);
 });
 
-test('roles: listar, crear, guardar (claves de todos al día) y borrar', async () => {
+test('roles: listar, crear, guardar (claves de todos al día) y borrar; las reglas, para elegir', async () => {
   const s = setup();
   assert.deepEqual((await s.call('GET', ['roles'])).body, { roles: [{ id: R1 }] });
-  assert.deepEqual((await s.call('POST', ['roles'], { name: 'Agente', views: ['issues'] })).body, { id: 'r-new' });
+  assert.deepEqual((await s.call('POST', ['roles'], { name: 'Agente', views: ['issues'], rule: 'r-b' })).body, { id: 'r-new' });
+  assert.deepEqual(s.log.at(-1), ['saveRole', null, { name: 'Agente', views: ['issues'], rule: 'r-b' }]);
   assert.deepEqual((await s.call('PUT', ['roles', R1], { name: 'Agente', views: [] })).body, { ok: true });
   assert.deepEqual(s.log.at(-1), ['syncKeys', null, undefined]);
+  assert.deepEqual((await s.call('GET', ['rules'])).body, { rules: [{ id: 'r-b', label: 'Regla básica', builtin: true }] });
   assert.equal((await s.call('PUT', ['roles', 'x'], {})).status, 404);
   assert.deepEqual((await s.call('DELETE', ['roles', R1])).body, { ok: true });
 });
