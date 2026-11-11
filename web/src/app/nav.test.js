@@ -19,8 +19,7 @@ test('baseNav: la vista de la persona y lo que abre la base', () => {
   assert.deepEqual(baseNav(u([]), { perms: { lab: true, admin: true } }), { lab: false, admin: false, links: false });
 });
 
-test('cada panel, con su vista; Métricas del servicio, aunque se tenga Métricas, no (TC-12 de la #81)', () => {
+test('cada panel, con su vista', () => {
   assert.equal(canView(u(['metrics']), 'metrics'), true);
-  assert.equal(canView(u(['service']), 'service'), true);
-  assert.equal(canView(u(['metrics']), 'service'), false);
+  assert.equal(canView(u(['backlog']), 'metrics'), false);
 });

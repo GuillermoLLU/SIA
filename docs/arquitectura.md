@@ -29,7 +29,6 @@ API y su vista:
 | `backlog/` | Backlog: la cola del equipo entera para quien reparte (tarjetas que filtran, orden por regla, buscador, panel lateral con asignar), el editor de reglas de priorización (`rule-editor.js`, chips) y su modal; una vista sobre el dominio de Issues |
 | `metrics/` | Métricas: reglas (`rules.js`) y cálculo por pestaña en módulos puros; el HTML de cada pestaña en `metrics/tabs/` |
 | `work/` | Equipo soporte: una pestaña de Métricas, sobre su dominio |
-| `service/` | Métricas del servicio: el servicio frente a los SLA, día a día, solo para quien coordina; una vista sobre el dominio de Métricas |
 | `users/` | Personas y roles |
 | `knowledge/`, `projects/` | Conocimiento asignado y Administración de proyectos |
 | `lab/`, `links/`, `skills/` | Laboratorio de skills, Enlaces rápidos y la paleta ⌘K |
