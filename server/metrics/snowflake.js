@@ -39,7 +39,7 @@ export const explain = (e, helpUrl = '') => {
 };
 
 // Si el conector no carga (falta el paquete en esta copia de SIA), un mensaje que dice qué hacer, no un error genérico.
-export const connectorError = (e) => {
+const connectorError = (e) => {
   if (e?.code === 'ERR_MODULE_NOT_FOUND' || /snowflake-sdk/.test(e?.message ?? '')) {
     return fail('Falta el conector de Snowflake en esta copia de SIA: en server/ ejecuta npm install y vuelve a arrancar SIA.');
   }

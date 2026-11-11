@@ -17,7 +17,7 @@ del equipo**, trabaja las **issues** del servicio desde su mesa y sigue las
 
 1. **Node 22.19+** (trae el SQLite de las Métricas y los certificados del sistema, para la VPN) y los CLIs que vayas a usar, con sesión iniciada: `claude`,
    `copilot` o `codex`. Los que no estén instalados salen apagados.
-2. Una **cuenta de la instancia** (te la da un administrador en Personas).
+2. Una **cuenta de la instancia** (te la da un administrador en Configuración → Equipo).
 3. Arrancar:
 
    ```bash
@@ -55,12 +55,13 @@ queda como «Modo Dev activo»; en la app instalada no existe. Para ver el
 aviso, desconecta la VPN o quita los certificados del sistema.
 
 Métricas trae las incidencias de Remedy de Snowflake: pon tu usuario en
-Configuración → Credenciales → Snowflake. La primera vez se abre el navegador
+Configuración → Conexiones → Snowflake. La primera vez se abre el navegador
 para entrar con la cuenta de Inditex (SSO); necesita la VPN.
 
 Cada persona ve las vistas que le dé su rol: el Chat siempre y, además,
-Issues, Métricas (con Equipo soporte como pestaña), Enlaces, Laboratorio, Administración y
-Personas.
+Issues, Backlog, Equipo soporte, Métricas (con Equipo soporte también como pestaña),
+Métricas del servicio, Enlaces, Laboratorio y Personas. Quien
+tiene Administración la encuentra en Configuración.
 
 ## Cómo trabajamos
 

@@ -1,24 +1,24 @@
-// Bloqueo de pantalla del escritorio: el candado de la barra lateral tapa la
-// ventana hasta dar el PIN; la primera vez, antes de bloquear, pide elegirlo.
-// El PIN se cambia en Configuración → Credenciales. Lo guarda y lo comprueba
-// el bridge.
+// Bloqueo de pantalla del escritorio: arrastrar la inicial de la barra de arriba (que pulsa
+// el botón del candado, oculto en la .sidebar) tapa la ventana hasta dar el PIN; la primera vez, antes de
+// bloquear, pide elegirlo. El PIN se cambia en Configuración → Seguridad. Lo guarda y
+// lo comprueba el bridge.
 import { esc } from '../ui/html.js';
 import { setStatus } from '../ui/dom.js';
 import { digitsOnly } from './pin-pad.js';
 import { LOCK_PIN_LEN, pinProblem } from './pin.js';
 
 // Diálogo de la primera vez: elegir el PIN (dos veces) y saber dónde se cambia.
-export const askNewLockPin = async (dialogs, { remote = false, len = LOCK_PIN_LEN, okLabel = 'Guardar y bloquear', why = 'Es el que pedirá SIA para volver a mostrar la pantalla.' } = {}) => {
+const askNewLockPin = async (dialogs, len) => {
   let error = '';
   for (;;) {
     const done = dialogs.open({
       title: 'Elige tu PIN de bloqueo',
-      okLabel,
+      okLabel: 'Guardar y bloquear',
       centered: true,
-      bodyHTML: `<p>Aún no tienes PIN. ${esc(why)}</p>
+      bodyHTML: `<p>Aún no tienes PIN. Es el que pedirá SIA para volver a mostrar la pantalla.</p>
         <input class="settings-input" id="lock-dlg-1" type="password" inputmode="numeric" maxlength="${len}" placeholder="PIN (${len} dígitos)" autocomplete="new-password" />
         <input class="settings-input" id="lock-dlg-2" type="password" inputmode="numeric" maxlength="${len}" placeholder="repite el PIN" autocomplete="new-password" />
-        <p class="dialog-note">Podrás cambiarlo ${remote ? 'en el ordenador: ' : 'en '}Configuración → Credenciales → Bloqueo de pantalla.</p>
+        <p class="dialog-note">Podrás cambiarlo en Configuración → Seguridad.</p>
         ${error ? `<div class="link-form-err">${esc(error)}</div>` : ''}`,
     });
     const a = document.getElementById('lock-dlg-1'), b = document.getElementById('lock-dlg-2');
@@ -30,8 +30,8 @@ export const askNewLockPin = async (dialogs, { remote = false, len = LOCK_PIN_LE
   }
 };
 
-// El candado de la barra y la sección de Configuración → Credenciales →
-// Bloqueo de pantalla (poner o cambiar el PIN). settings.onOpen: para releer
+// El candado de la barra y la sección de Configuración → Seguridad (poner o
+// cambiar el PIN). settings.onOpen: para releer
 // el estado al abrir Configuración · onUnlocked(): qué hacer al volver.
 export const mountLockControls = ({ api, dialogs, toast, gate, settings, onUnlocked }) => {
   const $ = (id) => document.getElementById(id);
@@ -52,7 +52,7 @@ export const mountLockControls = ({ api, dialogs, toast, gate, settings, onUnloc
     len = st.len || LOCK_PIN_LEN;
     try {
       if (!st.hasKey) {
-        const pin = await askNewLockPin(dialogs, { len });
+        const pin = await askNewLockPin(dialogs, len);
         if (!pin) return;
         await api('/lock/key', { method: 'PUT', body: { key: pin } });
       }

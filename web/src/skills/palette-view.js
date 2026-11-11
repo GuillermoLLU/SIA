@@ -4,9 +4,8 @@
 import { esc } from '../ui/html.js';
 import { filterSkills, clampIndex, skillOrder, finderOrder } from './palette.js';
 
-// chat: la vista del Chat (active(), sendOrder(text)) · phone: en el móvil no
-// se enfoca el buscador (abriría el teclado; solo sale si se toca)
-export const mountPalette = ({ chat, phone }) => {
+// chat: la vista del Chat (active(), sendOrder(text))
+export const mountPalette = ({ chat }) => {
   const $ = (id) => document.getElementById(id);
   const palette = $('skills-palette'), input = $('palette-input'), list = $('palette-list'), finder = $('palette-finder');
   let skills = [];   // las de la base de conocimiento, las que enseña la paleta
@@ -46,7 +45,7 @@ export const mountPalette = ({ chat, phone }) => {
     finder.value = '';
     render();
     palette.hidden = false;
-    if (!phone) input.focus();
+    input.focus();
   };
   const toggle = () => (palette.hidden ? open() : close());
 

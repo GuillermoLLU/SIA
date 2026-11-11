@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { revealPlan, HERO_STEPS, wantsSidebar, hurry, startIntro, EDGE_PX } from './intro.js';
+import { revealPlan, revealDesk, HERO_STEPS, wantsSidebar, hurry, startIntro, EDGE_PX } from './intro.js';
 
 test('con la portada: el campo y luego la barra; con un chat vivo, la barra al momento', () => {
   assert.deepEqual(revealPlan('hero'), HERO_STEPS);
@@ -8,10 +8,22 @@ test('con la portada: el campo y luego la barra; con un chat vivo, la barra al m
   assert.deepEqual(revealPlan('chat'), [[0, 'ready']]);
 });
 
-test('el ratón en la zona de la barra la adelanta', () => {
-  assert.equal(wantsSidebar(10), true);
-  assert.equal(wantsSidebar(EDGE_PX), false);
-  assert.equal(wantsSidebar(-1), false);
+test('la mesa: la barra entra ya y retiene la cascada; aunque el ratón la adelantara, retiene igual', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  for (const start of [['booting'], ['asking', 'ready']]) {
+    const classes = new Set(start);
+    const body = { classList: { contains: (c) => classes.has(c), add: (...cs) => cs.forEach((c) => classes.add(c)), remove: (c) => classes.delete(c) } };
+    revealDesk(body);
+    assert.deepEqual([...classes].sort(), ['asking', 'nav-first', 'ready']);
+    t.mock.timers.runAll();
+    assert.deepEqual([...classes].sort(), ['asking', 'ready']);
+  }
+});
+
+test('el ratón en la franja de abajo, donde va el dock, lo adelanta', () => {
+  assert.equal(wantsSidebar(790, 800), true);
+  assert.equal(wantsSidebar(800 - EDGE_PX, 800), false);
+  assert.equal(wantsSidebar(801, 800), false);
 });
 
 test('adelantar: todas las fases a la vez, y solo una vez', () => {
@@ -28,7 +40,7 @@ const fakeBody = (...initial) => {
 };
 const fakeDoc = () => {
   const listeners = new Set();
-  return { listeners, addEventListener: (_, fn) => listeners.add(fn), removeEventListener: (_, fn) => listeners.delete(fn), move: (x) => [...listeners].forEach((fn) => fn({ clientX: x })) };
+  return { listeners, addEventListener: (_, fn) => listeners.add(fn), removeEventListener: (_, fn) => listeners.delete(fn), documentElement: { clientHeight: 800 }, move: (y) => [...listeners].forEach((fn) => fn({ clientY: y })) };
 };
 
 test('arrancar: el ratón en la zona de la barra lo adelanta y deja de escucharse', () => {
@@ -37,7 +49,7 @@ test('arrancar: el ratón en la zona de la barra lo adelanta y deja de escuchars
   assert.equal(body.classes.has('booting'), true);
   doc.move(300);
   assert.equal(body.classes.has('booting'), true);
-  doc.move(20);
+  doc.move(780);
   assert.deepEqual([...body.classes].sort(), ['asking', 'ready']);
   assert.equal(doc.listeners.size, 0);
 });

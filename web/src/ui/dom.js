@@ -16,8 +16,18 @@ export const createToast = (el) => {
   return toast;
 };
 
+// Quien pide menos movimiento en el sistema: las animaciones de adorno se saltan.
+export const prefersReducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 // Línea de estado bajo un formulario de Configuración: texto y, si lo hay, su color (ok / bad).
 export const setStatus = (el, text, cls = '') => { el.textContent = text; el.className = `settings-status${cls ? ` ${cls}` : ''}`; };
+
+// Si la última pulsación empezó dentro: soltar fuera tras arrastrar desde dentro no es un clic fuera.
+export const pressStartedIn = (root, isInside) => {
+  let inside = false;
+  root.addEventListener('mousedown', (e) => { inside = isInside(e.target); });
+  return () => inside;
+};
 
 /* Estado vacío de una vista (sin skills, sin enlaces): icono, una frase y,
    debajo, la card de crear — la misma «+» que después encabeza la rejilla, para

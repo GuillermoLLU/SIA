@@ -1,17 +1,21 @@
-// Vista «Issues»: la mesa de cada persona. Arriba, lo inmediato: la
-// siguiente que le toca (la elige la regla; la cola de la base evita que dos
-// cojan la misma) y su día. En medio, su histórico medido en SIA (se llena
-// con el uso). Abajo, el seguimiento de lo suyo. Al abrir una, la pantalla de
-// trabajo (work-screen.js). La mesa se refresca sola.
+// Vista «Issues»: la mesa de cada persona. Arriba, cómo trabaja en general y la cola; debajo, lo
+// suyo: En curso y Resueltas a la izquierda, Seguimiento a la derecha. A la derecha del todo, su
+// día, con el botón de asignar la siguiente (la cola de la base evita que dos cojan la misma), y
+// su histórico medido en SIA (se llena con el uso). Al abrir una, la pantalla de trabajo
+// (work-screen.js). La mesa se refresca sola.
 import './issues.css';
 import { esc } from '../ui/html.js';
-import { LISTS, snapshotInfo, age, weekBars } from './format.js';
-import { sev, origin, item } from './parts.js';
+import { LISTS, snapshotInfo, duration, weekBars } from './format.js';
+import { item, REFRESH_ICON } from './parts.js';
 import { onEscape } from '../ui/dialog.js';
+import { pressStartedIn } from '../ui/dom.js';
 import { pickClick, openPicker, closePickers } from '../ui/picker.js';
 import { workScreen, trailHtml, trailTab, releaseDialogHtml, sendsNote, noteEditorHtml } from './work-screen.js';
-import { ACTIONS, actionForm, readAction, isComplete } from './actions.js';
-import { resolveForm, resolveReview, resumeStep, stepMissing, STEPS, MAX_FILE, fileBox, localShort } from './resolve-form.js';
+import { ACTIONS, actionForm, readAction, isComplete, chaseNote, chaseTarget } from './actions.js';
+import { createResolver } from './resolve-view.js';
+import { knowsOrigin, originOf } from './origin.js';
+import { crossfade } from '../ui/crossfade.js';
+import { mountTips } from './tip.js';
 import { readEscalate, createEscalateDrafts } from './escalate.js';
 import { escalateForm, escalateLive } from './escalate-form.js';
 import { DESTINATIONS, OPEN_TICKETS } from './escalate-mock.js';
@@ -19,31 +23,40 @@ import { DESTINATIONS, OPEN_TICKETS } from './escalate-mock.js';
 const GOAL = { min: 15, max: 20 }; // resueltas por turno, lo que dice el equipo
 const REFRESH_MS = 15000;
 
+const DESK_ENTER_MS = 1800; // lo que dura la cascada de entrada, con la espera a la barra (issues.css, app/intro.js)
+const ISSUE_ENTER_MS = 1000; // lo que dura la entrada de una issue (issues.css)
+
 // openChat(host, issue) → { dispose }: el chat de la issue (lo pone main.js).
 // dialogs: los diálogos de la app (ui/dialog.js), para confirmar antes de devolver.
+
 export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => {
   const failed = (text) => (toast?.error || toast)?.(text);   // lo que falla, en rojo
-  let data = null, rule = 'basic', now = new Date(), opened = null, onDesk = false, workTab = 'detail', chat = null, loading = false, picking = false;
-  let attached = null; // Resolver: el adjunto guardado en el borrador abierto ({ name, type, size })
+  let data = null, now = new Date(), opened = null, onDesk = false, workTab = 'detail', chat = null, loading = false, picking = false;
   let issue = null; // la issue abierta: Escalar mira su criticidad, su estado y su ticket
   const closeChat = () => { chat?.dispose(); chat = null; };
+  // el tooltip de «Traspasada» se saca al body: al repintar, fuera, o se quedaría flotando
+  const hideTip = mountTips(root);
 
   // Cargar la foto (el CSV de la consulta de Remedy, hasta leer de Remedy).
-  const loadButton = (label) => `<label class="iss-load ${loading ? 'iss-busy' : ''}">${loading ? 'Cargando…' : label}<input type="file" accept=".csv,text/csv" data-csv hidden ${loading ? 'disabled' : ''}></label>`;
+  const fileLabel = (cls, label, title = '') => `<label class="${cls} ${loading ? 'iss-busy' : ''}" title="${title}">${loading ? 'Cargando…' : label}<input type="file" accept=".csv,text/csv" data-csv hidden ${loading ? 'disabled' : ''}></label>`;
+  const loadButton = (label) => fileLabel('iss-load', label);
+  // La fecha de los datos es también el botón de cargar otra foto.
+  const snapButton = ({ date, stale }) => fileLabel(`iss-date${stale ? ' stale' : ''}`, `${date}${stale ? REFRESH_ICON : ''}`, stale ? 'Datos de Remedy sin actualizar: pulsa para cargar un CSV nuevo. Lo medido en SIA sí es de hoy.' : 'Datos de Remedy: pulsa para cargar otro CSV');
 
-  const kpi = (label, value, hint) => `<div class="iss-kpi"><span>${label}</span><b>${value}</b><small>${hint}</small></div>`;
+  const kpi = (label, value, hint) => `<div class="iss-kpi" title="${hint}"><span>${label}</span><b>${value}</b><small>${hint}</small></div>`;
 
-  // Cogidas por semana (SGA / SISU), lo medido en SIA.
-  const weeksChart = (weeks) => `<div class="iss-bars" role="img" aria-label="Incidencias cogidas por semana, últimas ${weeks.length} semanas">
-      ${weekBars(weeks).map(({ week, sga, sisu, total, sgaPct, sisuPct }) => `<div class="iss-bar" title="Semana del ${week.slice(8)}/${week.slice(5, 7)}: ${total} (SGA ${sga}, SISU ${sisu})">
-          <small>${total || ''}</small><i class="sisu" style="height:${sisuPct}%"></i><i style="height:${sgaPct}%"></i><span>${+week.slice(8)}/${+week.slice(5, 7)}</span></div>`).join('')}
+  // Cogidas por semana (SGA / SISU), lo medido en SIA: una fila por semana, la última arriba.
+  const weeksChart = (weeks) => `<div class="iss-weeks" role="img" aria-label="Incidencias cogidas por semana, últimas ${weeks.length} semanas">
+      ${weekBars(weeks).map(({ week, sga, sisu, total, sgaPct, sisuPct }) => `<div class="iss-week" title="Semana del ${week.slice(8)}/${week.slice(5, 7)}: ${total} (SGA ${sga}, SISU ${sisu})">
+          <span>${+week.slice(8)}/${+week.slice(5, 7)}</span><div class="iss-week-bar"><i style="width:${sgaPct}%"></i><i class="sisu" style="width:${sisuPct}%"></i></div><small>${total || ''}</small></div>`).join('')}
     </div>`;
 
   const renderDesk = () => {
     closeChat();
+    hideTip();
     onDesk = true;
     if (!data.taken) {
-      root.innerHTML = `<div class="iss-page"><h2 class="iss-title">Incidencias</h2>
+      root.innerHTML = `<div class="iss-page">
         <div class="iss-none"><b>Aún no hay incidencias</b><span>De momento se cargan con el CSV de la consulta de Remedy (vale el mismo que el de Métricas); cuando SIA lea de Remedy, saldrán de ahí.</span>${loadButton('Cargar CSV')}</div></div>`;
       return;
     }
@@ -51,50 +64,46 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     const lists = LISTS.map((l) => ({ ...l, items: data.desk.filter(l.test).sort(l.sort) }));
     const count = (key) => lists.find((l) => l.key === key).items.length;
     const used = history.weeks.some((w) => w.sga + w.sisu);
-    root.innerHTML = `<div class="iss-page">
-      <header class="iss-top"><h2 class="iss-title">Hola, ${esc((me?.name || '').split(' ')[0] || 'equipo')}</h2>${(({ text, stale }) => `<span class="iss-snap${stale ? ' stale' : ''}" ${stale ? 'title="La foto de Remedy no es de hoy: carga un CSV nuevo para ponerla al día. Lo medido en SIA sí es de hoy."' : ''}>${text}${stale ? ' · sin actualizar' : ''}</span>`)(snapshotInfo(data.taken, now))}${loadButton('Cargar otro CSV')}</header>
-
-      <div class="iss-row1">
-        <section class="iss-card iss-next">
-          <h3>La siguiente que te toca</h3>
-          ${next ? `<div class="iss-preview">
-              <span class="iss-line">${sev(next.priority)}<span class="iss-code">${esc(next.center || '—')}</span>${origin(next)}${next.prio ? '<span class="iss-prio">Priorizada por negocio</span>' : ''}<span class="iss-when">hace ${age(next.reported, now)}</span></span>
-              <p>${esc(next.text)}</p>
-            </div>` : '<p class="iss-empty">No queda ninguna sin coger.</p>'}
-          <div class="iss-go">
-            <button class="iss-take" data-take ${next ? '' : 'disabled'}>Coger la siguiente</button>
-            <label class="iss-rule">Regla <select data-rule>${data.rules.map((r) => `<option value="${esc(r.id)}"${r.id === rule ? ' selected' : ''}>${esc(r.label)}</option>`).join('')}</select></label>
-            <span class="iss-queue">${data.free} sin coger en la cola</span>
+    root.innerHTML = `<div class="iss-page iss-desk-page">
+      <div class="iss-desk">
+        <div class="iss-main">
+          <div class="iss-kpis">
+            ${kpi('Cogidas por semana', history.perWeek, `media de las últimas ${history.weeks.length} semanas`)}
+            ${kpi('Cogidas a tiempo', history.onTimePct == null ? '—' : `${history.onTimePct} %`, 'críticas en 15 min, altas en 2 h')}
+            ${kpi('Tiempo medio en coger', history.avgPickMin == null ? '—' : duration(history.avgPickMin), 'desde que entra la issue')}
+            ${kpi('Tiempo típico de resolución', '—', 'cuando se resuelva desde SIA')}
+            ${kpi('Cola', data.free, 'sin coger, de lo que puedes llevar')}
           </div>
-        </section>
+        <div class="iss-cols">
+          ${lists.map((l) => `<section class="iss-card iss-col" data-list="${l.key}">
+            <div class="iss-card-h"><h3>${l.label}</h3><span>${l.items.length}</span>${l.key === 'waiting' ? `<button type="button" class="iss-refresh" data-refresh title="Volver a leer la mesa">${REFRESH_ICON}Refrescar</button>` : ''}</div>
+            <div class="iss-items">${l.items.slice(0, 12).map((i) => item(i, l.key, now)).join('') || `<p class="iss-empty">${l.empty}</p>`}</div>
+          </section>`).join('')}
+        </div>
+        </div>
+        <aside class="iss-rail">
         <section class="iss-card iss-today">
-          <h3>Hoy</h3>
+          <div class="iss-card-h"><h3>Hoy</h3>${snapButton(snapshotInfo(data.taken, now))}</div>
           <div class="iss-big"><b>${today.resolved}</b><span>resueltas · objetivo ${GOAL.min}–${GOAL.max}<br>${today.sga} de SGA · ${today.sisu} de SISU</span></div>
           <div class="iss-progress" role="img" aria-label="${today.resolved} de ${GOAL.max}"><i style="width:${Math.min(100, today.resolved / GOAL.max * 100)}%"></i><em style="left:${GOAL.min / GOAL.max * 100}%"></em></div>
-          <dl><dt>Cogidas en SIA</dt><dd>${history.claimedToday}</dd><dt>En curso</dt><dd>${count('doing')}</dd><dt>Pendientes de terceros</dt><dd>${count('waiting')}</dd></dl>
+          <dl><dt>Cogidas en SIA</dt><dd>${history.claimedToday}</dd><dt>En curso</dt><dd>${count('doing')} <small>/ ${data.maxDoing}</small></dd><dt>Pendientes de terceros</dt><dd>${count('waiting')}</dd></dl>
+          <button class="iss-take" data-take ${next && data.canTake ? '' : 'disabled'}>Asignar siguiente issue</button>
+          ${data.canTake ? '' : '<p class="iss-foot iss-full"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 2.4 17.5A2 2 0 0 0 4.1 20.5h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>No puedes tener más en curso</p>'}
         </section>
-      </div>
-
-      <div class="iss-row2">
-        <section class="iss-card">
-          <div class="iss-card-h"><h3>Mi histórico en SIA · cogidas por semana</h3><span class="iss-legend"><i></i>SGA <i class="sisu"></i>SISU</span></div>
+        <section class="iss-card iss-hist">
+          <div class="iss-card-h"><h3>Histórico semanal</h3><span class="iss-legend"><i></i>SGA <i class="sisu"></i>SISU</span></div>
           ${weeksChart(history.weeks)}
           <p class="iss-foot">${used ? 'Medido con el uso de SIA.' : 'Se irá llenando con el uso de SIA: cada incidencia que cojas cuenta.'} Las resueltas se sumarán cuando se resuelva desde SIA.</p>
         </section>
-        <div class="iss-kpis">
-          ${kpi('Cogidas por semana', history.perWeek, `media de las últimas ${history.weeks.length} semanas`)}
-          ${kpi('Cogidas a tiempo', history.onTimePct == null ? '—' : `${history.onTimePct} %`, 'críticas en 15 min, altas en 2 h')}
-          ${kpi('Tiempo típico de resolución', '—', 'cuando se resuelva desde SIA')}
-        </div>
-      </div>
-
-      <div class="iss-cols">
-        ${lists.map((l) => `<section class="iss-card iss-col">
-          <div class="iss-card-h"><h3>${l.label}</h3><span>${l.items.length}</span></div>
-          <div class="iss-items">${l.items.slice(0, 12).map((i) => item(i, l.key, now)).join('') || `<p class="iss-empty">${l.empty}</p>`}</div>
-        </section>`).join('')}
+        </aside>
       </div>
     </div>`;
+  };
+
+  // La cascada de entrada, solo mientras dura: una animación activa encerraría los desplegables.
+  const animateEnter = (el, cls, ms) => {
+    el.classList.add(cls);
+    setTimeout(() => el.classList.remove(cls), ms);
   };
 
   const renderIssue = ({ issue: i, sameCenter, timeline }) => {
@@ -105,10 +114,13 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     issue = i;
     closeChat();
     closeAction();
+    hideTip();
     now = new Date(); // el histórico y las edades, a la hora de abrirla
     root.innerHTML = workScreen({ issue: i, sameCenter, timeline, now, mine, meId: me?.id, tab: workTab });
+    animateEnter(root.querySelector('.iss-work-page'), 'iss-opening', ISSUE_ENTER_MS);
     if (workTab === 'trail') scrollTrailToStart();
-    chat = openChat?.(root.querySelector('.iss-chat-body'), i) || null;
+    const chatHost = root.querySelector('.iss-chat-body');   // pendiente de un tercero no hay chat
+    chat = chatHost ? openChat?.(chatHost, i) || null : null;
     root.scrollTop = 0;
   };
 
@@ -116,6 +128,36 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     data = await api.desk();
     now = new Date();
     renderDesk();
+  };
+  // La mesa al día sin que se note: solo si se está viendo y sin un selector abierto.
+  const refreshQuietly = () => {
+    if (!onDesk || picking || openPicker(root)) return;
+    api.desk().then((d) => {
+      if (!onDesk || picking || openPicker(root)) return;
+      const before = now;
+      const changed = JSON.stringify(d) !== JSON.stringify(data); // igual y en el mismo minuto, no se toca: nada que parpadee
+      data = d; now = new Date();
+      if (!changed && now.getMinutes() === before.getMinutes()) return; // el minuto: las edades («hace 5 min»)
+      const scrolled = () => [root, ...root.querySelectorAll('.iss-items')]; // repintar no mueve lo que se estaba leyendo
+      const tops = scrolled().map((el) => el.scrollTop);
+      renderDesk();
+      scrolled().forEach((el, i) => { el.scrollTop = tops[i] ?? 0; });
+    }).catch(() => {});
+  };
+  // Al entrar en la vista, la mesa llega en cascada: la primera vez cuando llegan los datos; al
+  // volver, al momento con lo que ya había, y se pone al día por detrás. Si se dejó una issue
+  // abierta (p. ej. para ir al Chat), se vuelve a esa issue, que entra como al abrirla.
+  const showDesk = async () => {
+    if (!data) {
+      await loadDesk();
+      animateEnter(root, 'iss-enter', DESK_ENTER_MS);
+      return;
+    }
+    if (!onDesk && opened) { const page = root.querySelector('.iss-work-page'); if (page) animateEnter(page, 'iss-opening', ISSUE_ENTER_MS); return; }
+    now = new Date();
+    renderDesk();
+    animateEnter(root, 'iss-enter', DESK_ENTER_MS);
+    refreshQuietly();
   };
   const openIssue = async (id) => renderIssue(await api.get(id));
 
@@ -128,21 +170,29 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     root.querySelectorAll('[data-wpanel]').forEach((p) => { p.hidden = p.dataset.wpanel !== key; });
     if (key === 'trail') scrollTrailToStart();
   };
+  // Pulsar el fondo cierra la ventana de una acción; soltar fuera tras seleccionar texto dentro, no.
+  const pressedInModal = pressStartedIn(root, (t) => !!t.closest('.iss-modal > *'));
   root.addEventListener('click', async (e) => {
     const t = e.target;
-    if (pickClick(root, t, (pick) => syncSubmit(pick.closest('[data-act-form]')))) return;
+    if (pickClick(root, t)) return;
     // con el diálogo de elegir fichero abierto no se repinta la mesa: el
     // cambio llegaría a un input que ya no está en la página
     if (t.matches('[data-csv]')) { picking = true; return; }
     try {
+      // refrescar la mesa (Seguimiento): volver a leerla, con el botón ocupado mientras tanto
+      const refresh = t.closest('[data-refresh]');
+      if (refresh) {
+        refresh.disabled = true;
+        refresh.classList.add('busy');
+        try { await loadDesk(); } finally { refresh.disabled = false; refresh.classList.remove('busy'); }   // si falla, se puede volver a intentar
+        return toast?.('Mesa al día');
+      }
       const take = t.closest('[data-take]');
       if (take) {
         take.disabled = true;
-        const seen = data.next?.id;
-        const { id } = await api.next(rule);
+        const { id } = await api.next();
         await loadDesk();
         if (!id) return toast?.('No queda ninguna sin coger.');
-        if (seen && id !== seen) toast?.('La que veías ya la había cogido otra persona: te toca la siguiente.');
         return openIssue(id);
       }
       const wt = t.closest('[data-wtab]');
@@ -153,10 +203,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
         act.disabled = true;
         try { return await openAction(act.dataset.act); } finally { act.disabled = false; }
       }
-      if (t.closest('[data-act-cancel]') || t.classList.contains('iss-modal')) return closeAction();
-      if (t.closest('[data-step-next]')) return stepNext(t.closest('form'));
-      if (t.closest('[data-step-back]')) { const form = t.closest('form'); return moveTo(form, Number(form.dataset.step) - 1); }
-      if (t.closest('[data-file-clear]')) return setFile(t.closest('form'), null);
+      if (t.closest('[data-act-cancel]') || (t.classList.contains('iss-modal') && !pressedInModal())) return closeAction();
       const ed = t.closest('[data-edit-note]');
       if (ed) return openNoteEditor(ed.dataset.editNote);
       if (t.closest('[data-edit-cancel]')) return refreshTrail();
@@ -178,102 +225,15 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   // Acciones: su formulario encima de la pantalla de trabajo. De momento se
   // valida y se avisa: nada sale hacia Remedy hasta conectar SIGLO.
   let people = [], offEscape = null;
-  const closeAction = () => { flushSave(); root.querySelector('.iss-modal')?.remove(); offEscape?.(); offEscape = null; };
+  const closeAction = () => { resolver.close(); root.querySelector('.iss-modal')?.remove(); offEscape?.(); offEscape = null; };
+  // Resolver vive en su módulo (resolve-view.js); al resolver, la ventana ya se ha ido y la mesa se pone al día con un cruce.
+  const resolver = createResolver(root, { api, dialogs, toast, onResolved: async () => {
+    const fresh = await api.desk().catch(() => null);
+    closeAction();
+    crossfade(() => { if (fresh) { data = fresh; now = new Date(); } renderDesk(); root.scrollTop = 0; });
+    toast?.('Informe enviado e incidencia resuelta. De momento no sale hacia Remedy (falta conectar SIGLO).');
+  } });
 
-  // Resolver: los tres pasos. No se sale de uno sin lo obligatorio; el 3 se
-  // pinta con lo escrito, como se va a enviar.
-  const showErr = (form, text) => { const err = form.querySelector('.iss-act-err'); err.textContent = text || ''; err.hidden = !text; };
-  const goStep = (form, n) => {
-    form.dataset.step = String(n);
-    form.elements.step.value = String(n);   // va en el borrador: al volver se retoma aquí
-    showErr(form, null);
-    form.querySelectorAll('[data-rstep]').forEach((p) => { p.hidden = p.dataset.rstep !== String(n); });
-    form.querySelectorAll('[data-step-mark]').forEach((m) => {
-      const k = Number(m.dataset.stepMark);
-      m.classList.toggle('done', k < n);
-      if (k === n) m.setAttribute('aria-current', 'step'); else m.removeAttribute('aria-current');
-    });
-    const last = n === STEPS.length;
-    // «¿Cómo se resolvió?» empieza con la nota interna recién escrita, si aún está vacío
-    const how = form.elements.how;
-    if (n === 2 && !how.value.trim()) how.value = form.elements.note?.value || '';
-    if (last) {
-      const { values } = readAction('resolve', Object.fromEntries(new FormData(form)));
-      form.querySelector('[data-rstep="3"]').innerHTML = resolveReview(values, attached, { lang: form.elements.lang.value, hour: new Date().getHours() });
-    }
-    form.querySelector('[data-act-cancel]').hidden = n !== 1;
-    form.querySelector('[data-step-back]').hidden = n === 1;
-    const next = form.querySelector('[data-step-next]');
-    next.hidden = last;
-    next.textContent = `Siguiente: ${STEPS[n]?.title.toLowerCase() ?? ''}`;
-    form.querySelector('[data-confirm-send]').hidden = !last;
-    (last ? form.querySelector('[data-confirm-send]') : form.querySelector(`[data-rstep="${n}"] textarea`))?.focus();
-  };
-  const stepNext = async (form) => {
-    const n = Number(form.dataset.step);
-    const missing = stepMissing(n, Object.fromEntries(new FormData(form)));
-    if (missing) {
-      showErr(form, `Falta: ${missing}`);
-      return [...form.querySelectorAll(`[data-rstep="${n}"] textarea`)].find((a) => !a.value.trim())?.focus();
-    }
-    if (n + 1 === STEPS.length) await saving;   // la revisión enseña el adjunto aunque aún se estuviera guardando
-    if (form.isConnected) moveTo(form, n + 1);
-  };
-  // Cambiar de paso guarda el borrador, aunque no se haya escrito nada más.
-  const moveTo = (form, n) => { goStep(form, n); saveNow(form); };
-  // El adjunto (uno): se guarda en el borrador en cuanto se elige o se suelta.
-  const base64 = (file) => new Promise((ok, ko) => {
-    const r = new FileReader();
-    r.onload = () => ok(String(r.result).split(',')[1] || '');
-    r.onerror = () => ko(r.error);
-    r.readAsDataURL(file);
-  });
-  // Todo lo que escribe en el borrador (el texto y el adjunto) va en una sola
-  // cola, `saving`. Lo que lo lee o lo borra (abrir, revisar, confirmar,
-  // descartar) espera a que acabe: si no, un guardado tardío traería un estado
-  // viejo o volvería a crear el borrador ya borrado. Cada trabajo guarda el id
-  // de su issue, por si mientras tanto se abre otra.
-  let autosave = null, saving = Promise.resolve();
-  const enqueue = (job) => (saving = saving.then(job).catch(() => {}));
-  const setFile = (form, file) => {
-    if (file && file.size > MAX_FILE) return showErr(form, 'El adjunto pasa de 15 MB: elige otro más pequeño.');   // el mismo texto que el bridge
-    if (file && !file.size) return showErr(form, 'El archivo está vacío (o es una carpeta): elige otro.');
-    showErr(form, null);
-    const id = opened, box = form.querySelector('[data-file-box]');
-    box.innerHTML = '<p class="iss-file-on">Guardando…</p>';
-    return enqueue(async () => {
-      let got = null;
-      try { got = file ? await api.saveDraftFile(id, { name: file.name, type: file.type, data: await base64(file) }) : await api.dropDraftFile(id); }
-      catch (e) { showErr(form, `No se ha podido guardar el adjunto: ${e.message}`); }
-      if (!form.isConnected) return;   // el modal ya se cerró: no se toca el de otra issue
-      if (got) {
-        attached = got.file || null;
-        form.querySelector('[data-autosave]').textContent = `Borrador guardado ${localShort(got.at)}`;
-      }
-      box.innerHTML = fileBox(attached);
-    });
-  };
-  // Lo escrito se guarda solo, un momento después de dejar de teclear, y al cerrar.
-  const saveNow = (form) => {
-    const label = form.querySelector('[data-autosave]');
-    const id = opened, fields = Object.fromEntries(new FormData(form));
-    return enqueue(() => api.saveDraft(id, fields)
-      .then(({ at }) => { label.textContent = `Borrador guardado ${localShort(at)}`; })
-      .catch((e) => { label.textContent = `No se ha podido guardar el borrador: ${e.message}`; }));
-  };
-  const flushSave = () => {
-    if (!autosave) return;
-    clearTimeout(autosave); autosave = null;
-    const form = root.querySelector('[data-act-form="resolve"]');
-    if (form) saveNow(form);
-  };
-  root.addEventListener('input', (e) => {
-    const form = e.target.closest('[data-act-form="resolve"]');
-    if (!form || e.target.matches('[data-file]')) return;   // el adjunto se guarda aparte (setFile)
-    showErr(form, null);   // lo que faltaba ya se está escribiendo
-    clearTimeout(autosave);
-    autosave = setTimeout(() => { autosave = null; saveNow(form); }, 800);
-  });
   // Escalar: el catálogo y los tickets abiertos son de prueba (escalate-mock.js).
   // Lo escrito se guarda por issue hasta escalar o unir (escDrafts).
   const escDrafts = createEscalateDrafts();
@@ -303,21 +263,12 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
 
   const openAction = async (key) => {
     closeAction();
-    if (key === 'transfer') people = await api.teammates();
-    // Resolver: lo que hay en Remedy, lo que falta y mi borrador los da el
-    // bridge, que también dice si se puede (mía, en la foto y aún abierta)
-    let start = null;
-    if (key === 'resolve') {
-      await saving;   // lo que se guardaba al cerrar, antes de leer el borrador
-      start = await api.startResolve(opened);
-      attached = start.draft?.file || null;
-    }
-    const form = key === 'resolve' ? resolveForm(opened, start.check, start.draft) : key === 'escalate' ? escalateModal() : actionForm(key, opened, people);
-    root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${form}</div>`);
+    if (key === 'resolve') return resolver.open(opened, issue?.link || null, closeAction);
+    // traspasar: solo a quien tiene el conocimiento de su origen (SGA, SISU)
+    if (key === 'transfer') people = (await api.teammates()).filter((p) => knowsOrigin(p.groups, issue));
+    const empty = key === 'transfer' ? `Nadie más tiene el conocimiento de ${originOf(issue)}` : '';
+    root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${key === 'escalate' ? escalateModal() : actionForm(key, opened, people, empty)}</div>`);
     root.querySelector(key === 'escalate' ? '#iss-f-dest' : '.iss-act-form textarea, .iss-act-form input:not([type=hidden]), .iss-act-form select')?.focus();
-    // Resolver se retoma en el paso en el que se quedó (también enfoca lo suyo)
-    const resume = key === 'resolve' ? resumeStep(start.check, start.draft) : 1;
-    if (resume > 1) goStep(root.querySelector('[data-act-form="resolve"]'), resume);
     // Escape: con la lista del selector abierta la cierra; si no, cierra el modal
     offEscape = onEscape(() => (openPicker(root) ? closePickers(root) : closeAction()));
   };
@@ -390,29 +341,12 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     if (!form) return;
     e.preventDefault();
     const key = form.dataset.actForm;
-    if (key === 'resolve' && Number(form.dataset.step) < STEPS.length) return stepNext(form);
+    if (key === 'resolve') return;   // lo atiende resolve-view.js
     const raw = Object.fromEntries(new FormData(form));
     const { missing, values } = key === 'escalate' ? readEscalate(raw, DESTINATIONS) : readAction(key, raw);
     const err = form.querySelector('.iss-act-err');
     const fail = (text) => { err.textContent = text; err.hidden = false; form.querySelector('[type=submit]').disabled = false; };
     if (missing) return fail(`Falta: ${missing}.`);
-    // Resolver solo se envía desde el último paso, ya revisado. El bridge lo
-    // vuelve a comprobar todo y, si cumple, borra el borrador.
-    if (key === 'resolve') {
-      const send = form.querySelector('[data-confirm-send]');
-      if (send.disabled) return;   // un segundo clic mientras se envía
-      send.disabled = true;
-      // la issue y lo escrito de ESTE formulario, aunque mientras se abra otra
-      const id = opened, fields = Object.fromEntries(new FormData(form));
-      // lo último escrito, guardado antes: si el bridge lo rechaza, no se pierde
-      if (autosave) { clearTimeout(autosave); autosave = null; saveNow(form); }
-      try {
-        await saving;
-        await api.resolve(id, fields);
-      } catch (err) { send.disabled = false; return showErr(form, err.message); }
-      if (form.isConnected) closeAction();   // si ya se cerró, no se cierra el de otra issue
-      return toast?.('Resolver: comprobado, pero aún no se envía a Remedy (falta conectar SIGLO).');
-    }
     if (key === 'escalate') {
       const rootCause = issue.status === 'RESOLVED';
       escDrafts.drop(opened);   // escalada o unida: ya no hay nada pendiente
@@ -430,35 +364,16 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
         await loadDesk();
         return toast?.(`Traspasada a ${who}.`);
       }
+      if (key === 'chase') {
+        await api.addNote(opened, chaseNote(issue, values.message));
+        closeAction();
+        await refreshTrail();
+        return toast?.(`Reclamación ${chaseTarget(issue)} anotada en el histórico. Aún no le llega: irá por SIGLO cuando lo conectemos.`);
+      }
       closeAction();
       toast?.(`${ACTIONS[key].label}: preparado, pero aún no se envía a Remedy (falta conectar SIGLO).`);
     } catch (e2) { fail(e2.message); }
   });
-  // Soltar el adjunto en cualquier parte del modal de Resolver, en el paso del
-  // mensaje al centro, que es el que lo lleva. Fuera de ahí no pasa nada: el
-  // navegador no abre ni descarga el archivo (en toda la página, no solo aquí).
-  const dropZone = (e) => e.target.closest?.('[data-act-form="resolve"][data-step="2"]');
-  const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
-  const ignoreDrop = (e) => {
-    if (!hasFiles(e) || (root.contains(e.target) && dropZone(e))) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'none';
-  };
-  document.addEventListener('dragover', ignoreDrop);
-  document.addEventListener('drop', ignoreDrop);
-  root.addEventListener('dragover', (e) => { const z = dropZone(e); if (z) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; z.classList.add('over'); } });
-  root.addEventListener('dragleave', (e) => { const z = dropZone(e); if (z && !z.contains(e.relatedTarget)) z.classList.remove('over'); });
-  root.addEventListener('drop', (e) => {
-    const z = dropZone(e);
-    if (!z) return;
-    e.preventDefault();
-    z.classList.remove('over');
-    const files = e.dataTransfer.files;
-    if (!files.length) return;
-    setFile(z, files[0]);
-    if (files.length > 1) toast?.('Solo se adjunta uno: el primero.');
-  });
-
   const upload = async (file) => {
     if (!file) return;
     loading = true;
@@ -474,10 +389,8 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   };
 
   root.addEventListener('change', (e) => {
-    if (e.target.matches('[data-file]') && e.target.files[0]) return setFile(e.target.closest('form'), e.target.files[0]);
     const form = e.target.closest('[data-act-form]');
     if (form) return syncSubmit(form);
-    if (e.target.matches('[data-rule]')) rule = e.target.value;
     if (e.target.matches('[data-csv]')) { picking = false; upload(e.target.files[0]); }
   });
   const picked = () => { picking = false; };
@@ -485,13 +398,12 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
 
   // Refresco: solo con la mesa a la vista (no mientras se trabaja una issue).
   const refresher = setInterval(() => {
-    if (!onDesk || picking || root.hidden || document.visibilityState !== 'visible') return;
-    const y = root.scrollTop;
-    api.desk().then((d) => { data = d; now = new Date(); if (onDesk) { renderDesk(); root.scrollTop = y; } }).catch(() => {});
+    if (root.hidden || document.visibilityState !== 'visible') return;
+    refreshQuietly();
   }, REFRESH_MS);
 
   return {
-    show: () => loadDesk().catch((err) => { root.innerHTML = `<div class="iss-page"><p class="iss-empty">No se pudieron cargar las incidencias: ${esc(err.message)}</p></div>`; }),
-    dispose: () => { clearInterval(refresher); window.removeEventListener('focus', picked); document.removeEventListener('dragover', ignoreDrop); document.removeEventListener('drop', ignoreDrop); closeChat(); },
+    show: () => showDesk().catch((err) => { root.innerHTML = `<div class="iss-page"><p class="iss-empty">No se pudieron cargar las incidencias: ${esc(err.message)}</p></div>`; }),
+    dispose: () => { resolver.dispose(); clearInterval(refresher); window.removeEventListener('focus', picked); closeChat(); },
   };
 };

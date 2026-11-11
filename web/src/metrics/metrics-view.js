@@ -28,6 +28,7 @@ import { netWarningHtml, shake } from '../ui/net-warning-view.js';
 import { COLORS, defaultColors, freeColor, dayOf, coverage, freeCompany, withoutSide, togglePerson, filterKey, anyFilter, clearFilters, pickOnly, pickBoth } from './view.js';
 import { sheetOf, sheetCsv, sheetFile } from './sheet.js';
 import { downloadText } from './download.js';
+import { pressStartedIn } from '../ui/dom.js';
 
 const SEARCH_MS = 250;
 const LOAD = 'Actualizar y generar informe';
@@ -74,7 +75,7 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
   };
 
   const renderEmpty = () => {
-    root.innerHTML = `<div class="mt-page mt-empty-page"><header class="mt-top"><h2 class="mt-title">Métricas</h2></header>
+    root.innerHTML = `<div class="mt-page mt-empty-page">
       <div class="mt-empty"><b>Aún no hay datos</b>
         <span>Trae de Snowflake las incidencias de Remedy (con notas e historial) desde 2025, para comparar con el año anterior, o carga un CSV de esa misma consulta. Se guardan en el repositorio local de este ordenador y de él salen las métricas; cada vez que actualices, solo llega lo nuevo y lo cambiado.</span>
         <div class="mt-empty-actions">${loadButton()}${moreMenu(false)}</div></div></div>`;
@@ -87,7 +88,7 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
   const renderFrame = () => {
     const { meta } = m.data;
     root.innerHTML = `<div class="mt-page">
-      <header class="mt-top"><h2 class="mt-title">Métricas</h2>
+      <header class="mt-top">
         <span class="mt-date" data-coverage title="${esc(`${meta.file}, actualizado el ${dayOf(meta.generated)}`)}"></span>
         ${loadButton()}${moreMenu()}</header>
       <div class="mt-fbar">
@@ -336,6 +337,7 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     toast?.(`Exportadas ${num(list.length)} incidencias a ${file}.`);
   };
 
+  const pressedInPop = pressStartedIn(root, (t) => !!t.closest('.mt-pop'));
   root.addEventListener('click', (e) => {
     // con datos, actualizar; sin datos, la primera carga con el periodo que se elige
     if (e.target.closest('[data-update]')) return m ? update() : modals.firstLoad();
@@ -377,7 +379,7 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
       S.sides[k] = togglePerson(S.sides, k, p);
       return render();
     }
-    if (open && !e.target.closest('.mt-pop')) { closePops(); renderPeriod(); renderSides(); }
+    if (open && !pressedInPop() && !e.target.closest('.mt-pop')) { closePops(); renderPeriod(); renderSides(); }
     if (e.target.closest('[data-search]')) {
       searching = !searching || !!S.q;
       $('[data-q]').hidden = !searching;

@@ -6,7 +6,8 @@
 // cierra: solo suelta el socket (dispose); el chat sigue vivo en el bridge.
 import { msg, parse, sendOn } from '../chat/protocol.js';
 import { esc } from '../ui/html.js';
-import { assistedPlan, originOf } from './assisted.js';
+import { assistedPlan } from './assisted.js';
+import { originOf } from './origin.js';
 import { assistHtml } from './work-screen.js';
 
 // host: el hueco del chat · issue: la issue abierta (su id y su origen)

@@ -43,9 +43,28 @@ test('histórico en SIA: cogidas por semana y origen, sin las devueltas ni las t
   assert.equal(h.onTimePct, 50);
 });
 
+test('tiempo medio en coger: solo las que cogió uno mismo y sigue teniendo', () => {
+  const issues = new Map([
+    ['A', { sisu: false, priority: 'LOW', reported: '2026-10-06 09:00' }],
+    ['B', { sisu: false, priority: 'HIGH', reported: '2026-10-06 09:00' }],
+    ['C', { sisu: false, priority: 'HIGH', reported: '2026-10-06 09:00' }],
+    ['D', { sisu: false, priority: 'HIGH', reported: '2026-10-06 09:00' }],
+  ]);
+  const ev = (issue_id, action, at) => ({ issue_id, action, happened_at: new Date(at).toISOString() });
+  const h = history([
+    ev('A', 'claimed', '2026-10-06T09:30:00'),
+    ev('B', 'claimed', '2026-10-06T10:30:00'),
+    ev('C', 'received', '2026-10-06T11:00:00'),
+    ev('D', 'claimed', '2026-10-06T11:00:00'),
+    ev('D', 'released', '2026-10-06T11:05:00'),
+  ], issues, new Date('2026-10-06T12:00:00'), 3);
+  assert.equal(h.avgPickMin, 60);
+});
+
 test('sin uso aún: vacío', () => {
   const h = history([], new Map(), new Date('2026-10-06T12:00:00'));
   assert.equal(h.weeks.length, 12);
   assert.equal(h.perWeek, 0);
   assert.equal(h.onTimePct, null);
+  assert.equal(h.avgPickMin, null);
 });

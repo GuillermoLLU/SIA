@@ -1,14 +1,27 @@
 /* Los colores del tema los pone el JS (web/src/theme/themes.js). Estos de
-   :root son solo los del primer pintado, antes de que corra: los de SIA Claro. */
+   :root son solo los del primer pintado, antes de que corra: los del tema claro. */
 :root {
-  --bg: #f5f6f8;
+  --bg: #f7f7f7;
   --surface: #ffffff;
-  --border: #e1e4e8;
-  --text: #1f2328;
-  --text-low: #656d76;
-  --accent: #2563eb;
-  --scrollbar: #d0d5db;
-  --font-ui: -apple-system, "SF Pro Text", system-ui, sans-serif;
+  --border: #e3e3e3;
+  --text: #000000;
+  --text-low: #757575;
+  --accent: #000000;
+  --scrollbar: #b3b3b3;
+  --focus: #0170e9;
+  --danger: #c93b3a;
+  --warning: #b65321;
+  --success: #178329;
+  --series2: #1b5ea7;
+  /* Medidas que comparten varias reglas */
+  --topbar-h: 64px;
+  --links-w: 260px;
+  --settings-w: min(1200px, calc(100vw - 48px));
+  /* Sewing IOP DS: Helvetica Now Text y, si no se puede cargar, las Helvetica del sistema */
+  --font-ui: "Helvetica Now Text SW10", "Helvetica Neue", Helvetica, Arial, "Noto Sans", sans-serif;
+  --font-mono: NotoSansMono, ui-monospace, "SF Mono", Menlo, monospace;
+  --shadow-float: 0 0 10px rgba(0, 0, 0, .05);
+  --motion-state: .2s linear;
 }
 
 * { box-sizing: border-box; }
@@ -30,44 +43,137 @@ html, body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-ui);
+  font-size: 14px; line-height: 22px; /* body-m */
+  font-variant-numeric: tabular-nums lining-nums;
 }
 body { display: flex; flex-direction: column; }
 
 .app { display: flex; flex: 1; min-height: 0; }
 
-/* ── Left vertical nav ─────────────────────────────────────── */
+/* ── El dock (app/dock.js): la .sidebar, flotando abajo en el centro, de cristal, con los iconos de
+   la mesa, el Backlog y Métricas. Solo con más de un destino (app/nav.js showsDock; si no,
+   body.no-dock). Mientras se hace scroll (.dim) se atenúa para leer lo que tapa; el ratón encima lo
+   recupera. El Chat, el bloqueo y la Configuración están en la barra de arriba, que pulsa sus
+   botones de aquí (ocultos). ── */
 .sidebar {
-  width: 56px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 12px 0;
-  background: var(--surface);
-  border-right: 1px solid var(--border);
+  display: flex; position: fixed; inset: auto auto 16px 50%; z-index: 18; transform: translateX(-50%);
+  padding: 6px; flex-direction: row; gap: 2px;
+  /* cristal en blancos y grises (lo corporativo): un reflejo blanco arriba a la izquierda y el fondo que se va a gris */
+  background:
+    radial-gradient(120% 160% at 18% 0%, color-mix(in srgb, var(--surface) 85%, transparent), transparent 62%),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 58%, transparent), color-mix(in srgb, var(--text-low) 22%, transparent));
+  border-radius: 16px;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 75%, transparent), 0 0 0 1px color-mix(in srgb, var(--text) 9%, transparent), 0 12px 32px color-mix(in srgb, var(--text) 14%, transparent);
+  -webkit-backdrop-filter: blur(22px) saturate(190%); backdrop-filter: blur(22px) saturate(190%);
+  transition: opacity .35s ease, transform 0.65s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
-.nav-spacer { flex: 1; }
+body.no-dock .sidebar { display: none; }
+/* en el Chat, que va por encima de todo, el dock se esconde hacia abajo */
+body.in-chat .sidebar { transform: translate(-50%, calc(100% + 40px)); opacity: 0; pointer-events: none; }
+.sidebar.dim { opacity: .22; }
+.sidebar.dim:hover { opacity: 1; }
+.sidebar :is(#nav-chat, #lock-btn, #settings-btn) { display: none; }
 .nav-btn {
-  width: 38px; height: 38px;
+  width: 38px; height: 38px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  border: 0; border-radius: 0;
-  background: transparent; color: var(--text-low);
+  border: 0; border-radius: 12px;
+  background: transparent; color: color-mix(in srgb, var(--text) 62%, transparent);
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease;
 }
-.nav-btn:hover { background: var(--border); color: var(--text); }
-.nav-btn.active { color: var(--accent); background: color-mix(in srgb, var(--accent) 15%, transparent); }
-.nav-btn svg { width: 20px; height: 20px; }
+.nav-btn:hover { color: var(--text); background: color-mix(in srgb, var(--text) 8%, transparent); }
+.nav-btn:active { transform: scale(0.94); }
+.nav-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.nav-btn.active { color: var(--surface); background: var(--accent); box-shadow: 0 4px 12px color-mix(in srgb, var(--text) 28%, transparent); }   /* el negro de la marca */
+.nav-btn svg { width: 19px; height: 19px; stroke-width: 1.7; }
+
+/* ── La barra de arriba (app/topbar.js, body.top-nav), para todo el mundo. Dos maquetas
+   (app/nav.js usesTopbar): con body.brand-nav, la app (vistas y dock) empieza debajo de la barra;
+   sin ella (quien solo tiene la mesa, con el Chat y los enlaces), la barra flota sobre la vista y
+   cada vista deja su hueco. ── */
+body.brand-nav .app { padding-top: var(--topbar-h); }
+body.top-nav:not(.brand-nav) #view-chat { padding-top: var(--topbar-h); } /* el fondo del chat llega al borde; su contenido, no */
+body.top-nav:not(.brand-nav) .ai-hero { top: calc(-1 * var(--topbar-h)); padding: calc(var(--topbar-h) + 24px) 16px 24px; }
+/* Blanca y de cristal: lo que sube al hacer scroll pasa por debajo */
+.top-brand {
+  position: fixed; inset: 0 0 auto; z-index: 18; height: var(--topbar-h); padding: 0 32px 0 80px; /* a la izquierda, la inicial (.top-user) */
+  display: flex; align-items: center; gap: 16px; color: var(--text); white-space: nowrap;
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  box-shadow: var(--shadow-float);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  backdrop-filter: blur(16px) saturate(180%);
+}
+.top-brand-itx { display: flex; }
+.top-brand i { width: 1px; height: 24px; background: var(--border); }
+.top-brand-name { font-size: 16px; line-height: 20px; }
+/* la sección en la que se está, en el centro de la barra */
+.top-title { position: absolute; left: 50%; transform: translateX(-50%); font-size: 13px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--text); pointer-events: none; }
+.topbar { position: fixed; top: 12px; right: 30px; z-index: 20; display: flex; align-items: center; gap: 8px; }
+.top-btn {
+  width: 40px; height: 40px; display: grid; place-items: center; padding: 0;
+  color: var(--text); background: none; border: 0; border-radius: 144px; cursor: pointer;
+}
+.top-btn:focus-visible, .top-ini:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.top-btn svg { width: 20px; height: 20px; stroke-width: 1.5; transition: fill var(--motion-state); }
+.top-chat:hover > svg { fill: currentColor; }
+/* La inicial: el mismo cuadrado que el avatar de Equipo. Su recorrido al arrastrar cubre la marca, que se aparta */
+.top-user { position: fixed; top: 16px; left: 32px; z-index: 20; width: 186px; height: 32px; pointer-events: none; }
+.top-ini { position: relative; z-index: 1; width: 32px; height: 32px; display: grid; place-items: center; padding: 0; color: var(--bg); background: var(--accent); border: 0; font: inherit; font-size: 13px; font-weight: 650; cursor: pointer; pointer-events: auto; touch-action: none; user-select: none; transition: transform var(--motion-state); }
+.top-user.sliding .top-ini { cursor: grabbing; transition: none; }
+.top-brand > * { transition: opacity var(--motion-state); }
+.top-user.sliding ~ .top-brand > * { opacity: 0; }
+.top-arrows, .top-lockmark { position: absolute; top: 0; height: 32px; display: none; align-items: center; color: var(--text); }
+.top-user.sliding :is(.top-arrows, .top-lockmark) { display: flex; }
+.top-arrows { left: 44px; right: 32px; justify-content: center; opacity: calc(1 - var(--slide, 0) * 1.5); }
+.top-arrows svg { width: 14px; height: 14px; margin: 0 -2px; animation: top-arrow 1.2s linear infinite; }
+.top-arrows svg:nth-child(2) { animation-delay: .15s; }
+.top-arrows svg:nth-child(3) { animation-delay: .3s; }
+@keyframes top-arrow { 0%, 100% { opacity: .2; } 40% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .top-arrows svg { animation: none; } }
+.top-lockmark { right: 6px; opacity: calc(.6 + var(--veil, 0) * .4); } /* la meta: hasta aquí hay que llevar la inicial */
+.top-lockmark svg { width: 20px; height: 20px; stroke-width: 1.5; }
+/* Al arrastrar, la pantalla se va difuminando: del todo cuando soltar ya bloquea. Se quedan fuera la inicial y su recorrido */
+.lock-veil {
+  position: fixed; inset: 0; z-index: 19; pointer-events: none;
+  background: color-mix(in srgb, var(--bg) calc(var(--veil, 0) * 55%), transparent);
+  -webkit-backdrop-filter: blur(calc(var(--veil, 0) * 14px));
+  backdrop-filter: blur(calc(var(--veil, 0) * 14px));
+  transition: background var(--motion-state), backdrop-filter var(--motion-state), -webkit-backdrop-filter var(--motion-state);
+}
+.top-chat { opacity: calc(1 - var(--veil, 0)); }
+/* El icono de la IA, en el color del texto: un cerebro y tres contornos que cambian de forma y se cruzan al girar */
+.ia-icon { position: relative; width: 36px; height: 36px; transition: transform var(--motion-state); }
+.top-chat:hover .ia-icon { transform: scale(1.12); }
+.ia-icon i { position: absolute; inset: 1px; border: 1.25px solid var(--text); scale: 1 .68; border-radius: 42% 58% 55% 45% / 48% 42% 58% 52%; animation: ia-morph 6s ease-in-out infinite, ia-turn 9s linear infinite; }
+.ia-icon i:nth-child(2) { opacity: .7; animation-delay: -2s, -3s; }
+.ia-icon i:nth-child(3) { opacity: .4; animation-delay: -4s, -6s; }
+.ia-icon svg { position: absolute; inset: 0; margin: auto; width: 16px; height: 16px; }
+@keyframes ia-morph {
+  0%, 100% { border-radius: 42% 58% 55% 45% / 48% 42% 58% 52%; }
+  33% { border-radius: 58% 42% 40% 60% / 60% 55% 45% 40%; }
+  66% { border-radius: 48% 52% 62% 38% / 40% 60% 40% 60%; }
+}
+@keyframes ia-turn { to { rotate: 360deg; } }
+@media (prefers-reduced-motion: reduce) { .ia-icon i { animation: none; } }
+
+/* El cruce (ui/crossfade.js), donde se usa (refrescar la mesa al resolver) */
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 0.32s; animation-timing-function: ease-in-out; }
+/* Entrar en una vista (main.js go): sus bloques suben un poco y aparecen en cascada, como al abrir
+   una issue desde la mesa. La mesa lleva la suya propia (issues.css .iss-enter). */
+@media (prefers-reduced-motion: no-preference) {
+  .view-enter:not(#view-issues) > * > * { animation: ai-in 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .view-enter:not(#view-issues) > * > :nth-child(2) { animation-delay: 70ms; }
+  .view-enter:not(#view-issues) > * > :nth-child(3) { animation-delay: 140ms; }
+  .view-enter:not(#view-issues) > * > :nth-child(4) { animation-delay: 210ms; }
+  .view-enter:not(#view-issues) > * > :nth-child(n+5) { animation-delay: 280ms; }
+}
 
 /* ── Views (chat / lab) ────────────────────────────────────── */
-.view[hidden] { display: none; }
 
 /* ── Laboratorio: catálogo de cards ────────────────────────── */
-.lab-catalog { flex: 1; min-height: 0; overflow-y: auto; padding: 28px 32px; }
-.lab-catalog[hidden] { display: none; }
+.lab-catalog { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 0 0; }   /* dentro de Configuración → Skills */
 .lab-head-row { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
-.lab-head-row h2 { margin: 0; }
 .lab-status { margin-left: auto; font-size: 12px; color: var(--text-low); }
 
 .lab-refresh { display: inline-flex; align-items: center; gap: 7px; }
@@ -88,7 +194,6 @@ body { display: flex; flex-direction: column; }
 .lab-locked h3 { margin: 0; font-size: 16px; font-weight: 650; color: var(--text); }
 .lab-locked p { margin: 0 0 8px; font-size: 13px; color: var(--text-low); line-height: 1.6; }
 .lab-catalog-head { margin-bottom: 22px; }
-.lab-catalog-head h2 { margin: 0 0 6px; font-size: 19px; font-weight: 650; color: var(--text); }
 
 /* Estado vacío de una vista (sin skills, sin enlaces): icono, una frase y,
    debajo, la card de crear. Ocupa la rejilla entera y se centra en el alto
@@ -101,7 +206,7 @@ body { display: flex; flex-direction: column; }
 }
 .empty-state svg { color: var(--text-low); opacity: 0.75; }
 .empty-state p { margin: 0 0 10px; max-width: 420px; font-size: 15px; color: var(--text-low); line-height: 1.5; }
-.empty-state .lab-card.new, .empty-state .link-card.new { width: 240px; height: 156px; }
+.empty-state .lab-card.new { width: 240px; height: 156px; }
 .lab-cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -145,7 +250,7 @@ body { display: flex; flex-direction: column; }
   flex: 1; font-size: 12px; color: var(--text-low); line-height: 1.45;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
-.lab-card-meta { font-size: 11px; color: var(--text-low); font-family: ui-monospace, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lab-card-meta { font-size: 11px; color: var(--text-low); font-family: var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lab-card.new {
   height: 156px;
   align-items: center; justify-content: center;
@@ -182,13 +287,7 @@ body { display: flex; flex-direction: column; }
   color: var(--bg); font-weight: 600;
 }
 .lab-btn.primary:hover { opacity: 0.9; }
-.lab-scope-label { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-low); }
-.lab-scope {
-  height: 30px; padding: 0 8px;
-  border: 1px solid var(--border); border-radius: 0;
-  background: var(--bg); color: var(--text); font-size: 12.5px; cursor: pointer;
-}
-.lab-scope:focus { outline: none; border-color: var(--accent); }
+.lab-scope-label { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-low); --pick-h: 30px; }
 
 .lab-btn.danger { color: #f25f5c; display: inline-flex; align-items: center; }
 .lab-btn.danger:hover { background: color-mix(in srgb, #f25f5c 14%, transparent); border-color: #f25f5c; }
@@ -201,7 +300,7 @@ body { display: flex; flex-direction: column; }
   padding: 4px 10px; border-radius: 0;
   border: 1px solid transparent;
   font-size: 12px; color: var(--text-low);
-  background: transparent; cursor: pointer; font-family: ui-monospace, monospace;
+  background: transparent; cursor: pointer; font-family: var(--font-mono);
 }
 .lab-file-tab:hover { color: var(--text); }
 .lab-file-tab.active {
@@ -220,109 +319,6 @@ body { display: flex; flex-direction: column; }
 }
 .lab-textarea:focus { border-color: var(--accent); }
 
-/* ── Panel de administración (full-width tipo SaaS) ───────────── */
-/* .view.admin-view (especificidad 0,2,0) gana a .window (0,1,0) aunque .window
-   esté definido más abajo: fuerza fila (rail + main lado a lado). */
-.view.admin-view { flex-direction: row; height: 100%; align-items: stretch; }
-.tnum { font-variant-numeric: tabular-nums; }
-
-/* Barra lateral de Administración (proyectos) — a todo el alto */
-.admin-rail {
-  width: 270px; flex-shrink: 0; height: 100%;
-  display: flex; flex-direction: column;
-  border-right: 1px solid var(--border); background: var(--surface); padding: 16px 12px;
-}
-.admin-rail-head { font-size: 15px; font-weight: 650; color: var(--text); padding: 4px 8px 12px; }
-.admin-rail .admin-search {
-  height: 34px; padding: 0 11px; margin: 0 4px 14px;
-  border: 1px solid var(--border); border-radius: 0;
-  background: var(--bg); color: var(--text); font-size: 13px; outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-.admin-rail .admin-search::placeholder { color: var(--text-low); }
-.admin-rail .admin-search:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
-.admin-rail-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-low); font-weight: 600; padding: 0 8px 8px; }
-.admin-rail-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
-.admin-rail-list li {
-  display: flex; align-items: center; gap: 8px;
-  padding: 9px 10px; border-radius: 0; cursor: pointer;
-  font-size: 13.5px; color: var(--text); border: 0; background: transparent; width: 100%; text-align: left;
-  transition: background 0.13s ease, color 0.13s ease;
-}
-.admin-rail-list li:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
-.admin-rail-list li.active { background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--text); font-weight: 550; }
-.admin-rail-list li .rl-meta { margin-left: auto; font-size: 11.5px; color: var(--text-low); }
-.admin-rail-spacer { flex: 1; }
-/* Área principal */
-.admin-main { flex: 1; min-width: 0; overflow-y: auto; padding: 28px 36px 60px; }
-.admin-main-head { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
-.admin-main-head h1 { margin: 0; font-size: 24px; font-weight: 680; color: var(--text); }
-.admin-main-head .spacer { flex: 1; }
-.admin-main-head .lab-back { margin: 0 -6px 0 -8px; }
-.admin-main-sub { font-size: 13px; color: var(--text-low); margin-bottom: 24px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-
-.admin-primary {
-  height: 36px; padding: 0 16px; flex-shrink: 0;
-  border: 0; border-radius: 0; background: var(--accent); color: var(--bg);
-  font-size: 13px; font-weight: 600; cursor: pointer;
-  transition: opacity 0.15s ease, transform 0.08s ease;
-}
-.admin-primary:hover { opacity: 0.9; }
-.admin-primary:active { transform: scale(0.98); }
-.admin-ghost { height: 34px; padding: 0 14px; border: 1px solid var(--border); border-radius: 0; background: transparent; color: var(--text); font-size: 13px; cursor: pointer; transition: border-color 0.15s ease, background 0.15s ease; }
-.admin-ghost:hover { border-color: var(--accent); }
-.admin-ghost.danger { color: #f25f5c; }
-.admin-ghost.danger:hover { border-color: #f25f5c; background: color-mix(in srgb, #f25f5c 10%, transparent); }
-
-.admin-icon-btn {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 28px; height: 28px; border: 0; border-radius: 0;
-  background: transparent; color: var(--text-low); cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
-}
-.admin-icon-btn:hover { background: var(--border); color: var(--text); }
-
-/* Rejilla de tarjetas (proyectos / contextos) que LLENA el ancho */
-.admin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
-.admin-card {
-  position: relative;
-  border: 1px solid var(--border); border-radius: 0; background: var(--surface);
-  padding: 16px 18px; cursor: pointer; display: flex; flex-direction: column; gap: 10px; min-height: 120px;
-  transition: border-color 0.15s ease, transform 0.08s ease, background 0.15s ease;
-}
-.admin-card:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); background: color-mix(in srgb, var(--accent) 5%, var(--surface)); }
-.admin-card:active { transform: scale(0.99); }
-.admin-card .ac-title { font-size: 15px; font-weight: 600; color: var(--text); }
-.admin-card .ac-meta { font-size: 12px; color: var(--text-low); margin-top: auto; }
-.admin-card.new { align-items: center; justify-content: center; border-style: dashed; background: transparent; color: var(--text-low); font-size: 14px; gap: 8px; }
-.admin-card.new:hover { border-color: var(--accent); color: var(--accent); background: transparent; }
-.admin-card.new .plus { font-size: 24px; }
-/* acciones de la card al pasar el ratón (papelera) */
-.admin-card .ac-actions { position: absolute; top: 6px; right: 6px; display: flex; gap: 2px; opacity: 0; transition: opacity .12s ease; }
-.admin-card:hover .ac-actions, .admin-card:focus-within .ac-actions { opacity: 1; }
-
-/* bloques en la vista de proyecto */
-.admin-block { margin-top: 30px; }
-.admin-block h3 { margin: 0 0 12px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-low); font-weight: 600; }
-
-/* entradas del RAG dentro de un proyecto */
-.entry-list { display: flex; flex-direction: column; gap: 8px; }
-.entry-item {
-  border: 1px solid var(--border); border-radius: 0; background: var(--surface);
-  transition: border-color 0.15s ease;
-}
-.entry-item:hover { border-color: color-mix(in srgb, var(--text-low) 40%, var(--border)); }
-.entry-item:hover .entry-del { opacity: 1; }
-.entry-head { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; cursor: pointer; }
-.entry-text { flex: 1; min-width: 0; font-size: 13px; color: var(--text); line-height: 1.5; }
-.entry-text.clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.entry-num { font-size: 11px; color: var(--text-low); font-family: ui-monospace, monospace; flex-shrink: 0; padding-top: 2px; }
-.entry-del { opacity: 0; flex-shrink: 0; }
-.entry-empty { font-size: 13px; color: var(--text-low); padding: 8px 2px; }
-
-.admin-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; height: 60%; color: var(--text-low); }
-.admin-empty .big { font-size: 15px; }
-
 /* ── Modales (configuración, diálogos) ─────────────────────── */
 .modal-overlay {
   position: fixed; inset: 0; z-index: 40;
@@ -338,11 +334,22 @@ body { display: flex; flex-direction: column; }
   border-radius: 0; box-shadow: 0 28px 80px rgba(0, 0, 0, 0.5);
   overflow: hidden;
 }
-/* alto fijo, el de la pestaña más alta (Credenciales), para que no cambie de
-   tamaño al pasar de una a otra; si la ventana no da, el panel hace scroll */
-.settings-modal { width: min(1240px, calc(100vw - 48px)); height: min(720px, calc(100vh - 80px)); }
+/* tamaño fijo, el de la sección más alta (Conexiones), para que no cambie al pasar de una a otra;
+   si la ventana o el contenido no dan, el panel hace scroll */
+/* el mismo ancho con y sin la columna de enlaces: sin ella, lo demás ocupa su sitio */
+.settings-modal { width: var(--settings-w); height: min(750px, calc(100vh - 40px)); }
 /* Configuración va centrada en vertical (el resto de modales cuelgan arriba) */
 #settings-modal { align-items: center; padding-top: 0; }
+/* Abierta desde la inicial de la barra de arriba: se enfoca en el centro de la pantalla mientras aparece */
+body.top-nav #settings-modal { transition: opacity .35s ease, display .35s allow-discrete; }
+body.top-nav #settings-modal[hidden] { opacity: 0; }
+body.top-nav .settings-modal { transition: transform .35s ease, opacity .35s ease, filter .35s ease; }
+body.top-nav #settings-modal[hidden] .settings-modal { transform: scale(.98); opacity: 0; filter: blur(8px); }
+@starting-style {
+  body.top-nav #settings-modal:not([hidden]) { opacity: 0; }
+  body.top-nav #settings-modal:not([hidden]) .settings-modal { transform: scale(.98); opacity: 0; filter: blur(8px); }
+}
+@media (prefers-reduced-motion: reduce) { body.top-nav #settings-modal, body.top-nav .settings-modal { transition: none; } }
 .dialog { width: min(460px, calc(100vw - 48px)); }
 .modal-head {
   display: flex; align-items: center; gap: 10px;
@@ -393,9 +400,11 @@ body { display: flex; flex-direction: column; }
   padding: 7px 10px; border: 1px solid var(--border); border-radius: 0;
   font-size: 12px; color: var(--text);
 }
-.token-list li .tok { flex: 1; font-family: ui-monospace, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.token-list li .tok { flex: 1; font-family: var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .token-list li .rm { border: 0; background: transparent; color: var(--text-low); cursor: pointer; font-size: 15px; }
 .token-list li .rm:hover { color: #f25f5c; }
+.project-name { flex: 1; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-count { flex: none; color: var(--text-low); font-variant-numeric: tabular-nums; }
 .token-empty { font-size: 12px; color: var(--text-low); margin-top: 10px; }
 /* Filas seleccionables (claves de GitHub): la marcada es la que se usa. */
 .token-list li.active { border-color: var(--accent); }
@@ -408,7 +417,6 @@ body { display: flex; flex-direction: column; }
 .token-list li.active .pick .dot { border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--accent); }
 .token-list li .pick .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .token-list li .gh-tok { flex: none; color: var(--text-low); }
-.settings-input.narrow { flex: 0 0 132px; }
 
 .settings-status { font-size: 12px; color: var(--text-low); margin-top: 10px; min-height: 14px; }
 
@@ -435,31 +443,104 @@ body { display: flex; flex-direction: column; }
 .settings-status.ok { color: #40c463; }
 .settings-status.bad { color: #f25f5c; }
 
-/* ── Configuración: pestañas internas ──────────────────────── */
-.settings-tabs {
-  flex-shrink: 0; display: flex; gap: 2px;
-  padding: 0 20px; border-bottom: 1px solid var(--border);
+/* ── Configuración: una caja por servicio, una debajo de otra ── */
+.conn-pane { display: flex; flex-direction: column; gap: 16px; }
+.conn-card { display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid var(--border); background: var(--bg); }
+.conn-head { display: flex; align-items: center; gap: 12px; }
+.conn-icon { flex: none; width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+.conn-icon svg { width: 18px; height: 18px; }
+.conn-head h3 { margin: 0; font-size: 14px; font-weight: 600; color: var(--text); }
+.conn-head p { margin: 2px 0 0; font-size: 12.5px; color: var(--text-low); }
+.conn-row { display: flex; align-items: flex-end; gap: 8px; }
+.conn-row > :not(.lab-btn):not(.conn-narrow) { flex: 1; min-width: 0; }
+.conn-narrow { flex: 0 0 150px; }
+.conn-field { display: flex; flex-direction: column; gap: 6px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-low); }
+.conn-card .settings-input { background: var(--surface); text-transform: none; letter-spacing: 0; font-weight: 400; }
+.conn-card .lab-btn { flex: none; height: 34px; }
+.conn-card .settings-status { min-height: 0; margin: 0; }
+.conn-card .settings-status:empty { display: none; }
+.conn-card .token-list { margin: 0; }
+.conn-card .token-list li { background: var(--surface); }
+.conn-card .token-list .token-empty { padding: 0; border: 0; margin: 0; background: transparent; color: var(--text-low); }
+
+/* ── Configuración: la columna de enlaces, a modo de guía telefónica ── */
+/* Va sobre lo demás, pegada a la derecha: al crecer, lo de debajo se difumina sin moverse */
+.settings-links {
+  position: absolute; top: 0; right: 0; bottom: 0; z-index: 1; width: var(--links-w); overflow: hidden;
+  display: flex; flex-direction: column; border-left: 1px solid var(--border); background: var(--bg);
+  transition: width .45s cubic-bezier(.22, 1, .36, 1), background .45s ease;
 }
-.settings-tab {
-  padding: 11px 14px 10px; border: 0; border-bottom: 2px solid transparent;
-  margin-bottom: -1px; border-radius: 0;
-  background: transparent; color: var(--text-low);
-  font-size: 13px; font-weight: 600; cursor: pointer;
+.settings-layout:not(.full):has(.settings-links:not([hidden])) .settings-main { margin-right: var(--links-w); }
+.settings-main, .dir-head, .dir-list, .dir-body { transition: opacity .3s ease, filter .3s ease, visibility .3s; }
+.side-open .settings-links { width: 100%; background: var(--surface); }
+/* una sección a todo el ancho (settings.setFull): la columna de enlaces se aparta */
+.settings-layout.full .settings-links { display: none; }
+.side-open .settings-main, .side-open .dir-head, .side-open .dir-list { opacity: 0; filter: blur(6px); visibility: hidden; }
+/* El formulario de un enlace, en el centro */
+.link-edit { width: min(640px, 100%); margin: 0 auto; }
+.link-edit .link-form { padding: 0; overflow: visible; }
+.link-edit .modal-foot { padding: 16px 0 0; border-top: 0; }
+/* Ya tiene su ancho final, para que no se recoloque mientras la columna crece */
+.dir-body {
+  position: absolute; top: 0; right: 0; bottom: 0; width: var(--settings-w); padding: 24px 20px; overflow-y: auto;
+  opacity: 0; filter: blur(6px); visibility: hidden;
 }
-.settings-tab:hover { color: var(--text); }
-.settings-tab.active { color: var(--text); border-bottom-color: var(--accent); }
-.settings-tab[hidden] { display: none; }
-/* Claro / Oscuro, al final de la fila de pestañas: sol, interruptor (.sw) y luna */
-.theme-toggle { margin-left: auto; display: flex; align-items: center; gap: 8px; color: var(--text-low); cursor: pointer; }
-.theme-toggle:hover { color: var(--text); }
-.theme-toggle svg { width: 15px; height: 15px; }
+.side-open .dir-body { opacity: 1; filter: none; visibility: visible; transition-delay: .15s; }
+@media (prefers-reduced-motion: reduce) { .settings-links, .settings-main, .dir-head, .dir-list, .dir-body { transition: none; } }
+.settings-links[hidden] { display: none; }
+.dir-head { flex: none; display: flex; align-items: center; justify-content: space-between; min-height: 28px; padding: 16px 12px 8px 16px; }
+.dir-refresh { display: flex; align-items: center; justify-content: center; padding: 0; }
+.dir-refresh svg { width: 15px; height: 15px; }
+.dir-refresh.loading svg { animation: spin .8s linear infinite; }
+.settings-links h3 { margin: 0; font-size: 13px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--text); }
+.dir-list { flex: 1; min-height: 0; overflow-y: auto; list-style: none; margin: 0; padding: 0 8px 8px; }
+.dir-item { display: flex; align-items: center; }
+.dir-act { flex: none; display: grid; place-items: center; padding: 0; }
+.dir-add { width: 100%; margin-bottom: 8px; padding: 14px 8px; border: 1px dashed var(--border); border-radius: 0; background: transparent; color: var(--text-low); font-size: 13px; cursor: pointer; }
+.dir-add span { font-size: 16px; line-height: 1; }
+.dir-add:hover { border-color: var(--accent); color: var(--text); }
+.dir-row { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 8px; border: 0; border-radius: 0; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.dir-row:hover { background: var(--border); }
+.dir-img { flex: none; width: 36px; height: 36px; display: grid; place-items: center; object-fit: cover; border: 1px solid var(--border); background: var(--surface); font-size: 14px; font-weight: 600; color: var(--text); }
+.dir-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.dir-title, .dir-project { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dir-title { font-size: 13px; font-weight: 600; }
+.dir-project { font-size: 11.5px; color: var(--text-low); }
+.dir-empty { padding: 8px; font-size: 12.5px; color: var(--text-low); }
+
+/* ── Configuración: una caja por sección, en el centro ─────── */
+.settings-boxes { flex: 1; display: flex; flex-wrap: wrap; align-items: center; align-content: center; justify-content: center; gap: 24px; }
+.settings-boxes[hidden] { display: none; }
+.settings-box {
+  width: 200px; height: 160px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+  border: 1px solid var(--border); border-radius: 0; background: transparent; color: var(--text);
+  font-size: 13px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; cursor: pointer;
+  transition: border-color .15s ease;
+}
+.settings-box:hover { border-color: var(--accent); }
+/* Métricas (app/hub.js): una caja por cara (Equipo y Servicio), centradas en la pantalla */
+.hub-view { display: flex; align-items: center; justify-content: center; }
+.hub-none { margin: 0; font-size: 14px; color: var(--text-low); }
+.hub-boxes { display: flex; flex-wrap: wrap; justify-content: center; gap: 24px; animation: settings-in .25s ease; }
+.settings-box[hidden] { display: none; }
+.settings-box svg { width: 32px; height: 32px; }
+.settings-boxes, .settings-pane { animation: settings-in .25s ease; }
+@keyframes settings-in { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .settings-boxes, .settings-pane { animation: none; } }
+.settings-back { display: flex; align-items: center; justify-content: center; padding: 0; }
+.settings-back[hidden] { display: none; }
+.settings-back svg { width: 16px; height: 16px; }
+/* Claro / Oscuro, junto a la X: sol o luna */
+.theme-toggle { display: flex; align-items: center; justify-content: center; padding: 0; }
+.theme-toggle svg { width: 16px; height: 16px; }
+.theme-toggle[data-dark="true"] .theme-moon, .theme-toggle:not([data-dark="true"]) .theme-sun { display: none; }
 .settings-pane[hidden] { display: none; }
-/* cada pestaña de Configuración llena el alto del modal */
+/* cada sección de Configuración llena el alto del modal */
 .settings-pane { flex: 1; }
 
 
-/* ── Configuración: el cuerpo, con scroll, bajo las pestañas ─────── */
-.settings-layout { flex: 1; display: flex; min-height: 0; }
+/* ── Configuración: el cuerpo, con scroll ─────── */
+.settings-layout { position: relative; flex: 1; display: flex; min-height: 0; }
 .settings-main { flex: 1; min-width: 0; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; }
 .settings-foot {
   flex-shrink: 0; padding: 9px 20px;
@@ -467,9 +548,8 @@ body { display: flex; flex-direction: column; }
   display: flex; align-items: center; justify-content: flex-end; gap: 12px;
 }
 .settings-session { margin-right: auto; display: flex; align-items: center; gap: 12px; font-size: 12.5px; color: var(--text-low); }
-.settings-session #session-who b { color: var(--text); font-weight: 600; }
 .settings-session .lab-btn { height: 28px; padding: 0 12px; font-size: 12.5px; }
-.settings-version { font-size: 11px; color: var(--text-low); font-family: ui-monospace, monospace; }
+.settings-version { font-size: 11px; color: var(--text-low); font-family: var(--font-mono); }
 
 /* ── Skills command palette ────────────────────────────────── */
 .palette-overlay {
@@ -623,7 +703,7 @@ body { display: flex; flex-direction: column; }
   padding: 3px 10px;
   border: 1px solid var(--border); border-radius: 0;
   font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
-  color: var(--text-low); font-family: ui-monospace, monospace;
+  color: var(--text-low); font-family: var(--font-mono);
 }
 .asset-file:hover .ext { color: var(--accent); border-color: var(--accent); }
 .asset-meta {
@@ -640,7 +720,7 @@ body { display: flex; flex-direction: column; }
 
 /* ── Terminal stack (one pane per session) ─────────────────── */
 /* overscroll-behavior: al llegar al final del historial, el gesto no se
-   propaga a la página (rebote en el móvil) */
+   propaga a la página */
 .term-stack { flex: 1; min-height: 0; position: relative; overscroll-behavior: contain; }
 .term-pane {
   position: absolute; inset: 0;
@@ -686,8 +766,9 @@ body { display: flex; flex-direction: column; }
 .ai-hero-box {
   position: relative; width: min(680px, 100%);
   display: flex; flex-direction: column; align-items: center; gap: 26px;
-  animation: ai-in 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
+/* El saludo entra una sola vez, al arrancar: al volver al Chat ya está en su sitio, y lo que se mueve es el cruce entre vistas */
+body:not(.ready) .ai-hero-box { animation: ai-in 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
 @keyframes ai-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 .ai-hero-hi { margin: 0; font: 600 34px/1.15 var(--font-ui); letter-spacing: -0.02em; color: var(--text); text-align: center; }
 /* El campo, sin caja: texto grande centrado sobre una línea fina que se
@@ -705,18 +786,25 @@ body { display: flex; flex-direction: column; }
 .ai-ask textarea:focus::placeholder { opacity: 0.6; }
 .ai-ask textarea:disabled { opacity: 0.5; }
 .ai-hero-err { margin: 0; font-size: 12.5px; line-height: 1.5; color: #f25f5c; text-align: center; }
-body.phone .ai-hero-hi { font-size: 26px; }
 
-/* El arranque (app/intro.js), por fases: mientras `booting`, la barra lateral
-   espera fuera de pantalla y el campo no se ve; con `asking` aparece el campo;
-   con `ready` la barra entra desde la izquierda. El hueco de la barra ya está
-   reservado, así que el saludo no se mueve. */
-body.booting .sidebar { transform: translateX(calc(-100% - 1px)); } /* el píxel extra esconde su borde */
-body.ready .sidebar { transition: transform 0.65s cubic-bezier(0.2, 0.7, 0.2, 1); }
+/* El arranque (app/intro.js), por fases: mientras `booting`, el dock espera abajo, fuera de la
+   pantalla, y el campo de la portada no se ve; con `asking` aparece el campo; con `ready` el dock
+   sube (con su transición). La barra de arriba baja y después aparece lo que lleva; una sola vez,
+   porque sigue en pantalla al cambiar de vista. */
+body.booting .sidebar { transform: translate(-50%, calc(100% + 48px)); }
+body.booting :is(.topbar, .top-brand, .top-user) { opacity: 0; }
+body.ready .top-brand { animation: top-drop 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) backwards; }
+body.ready :is(.topbar, .top-user, .top-brand > :not(.top-title)) { animation: top-in 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) 0.15s backwards; }
+/* el título, al cambiar de sección: sube un poco y aparece, como los bloques de la vista (con su translateX, que lo centra) */
+.top-title.in { animation: top-title-in 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+@keyframes top-title-in { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@media (prefers-reduced-motion: reduce) { .top-title.in { animation: none; } }
+@keyframes top-drop { from { opacity: 0; transform: translateY(-100%); } }
+@keyframes top-in { from { opacity: 0; transform: translateY(-8px); } }
 body.booting .ai-ask { opacity: 0; transition: opacity 0.6s ease; }
 body.booting.asking .ai-ask { opacity: 1; }
 body.ready .ai-ask { transition: opacity 0.6s ease; } /* si la barra se adelanta, el campo aparece con ella, no de golpe */
-@media (prefers-reduced-motion: reduce) { .ai-hero-bg i, .ai-hero-box { animation: none; } body.ready .sidebar, body.ready .ai-ask { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .ai-hero-bg i, .ai-hero-box { animation: none; } body.ready .sidebar, body.ready .ai-ask { transition: none; } body.ready :is(.top-brand, .topbar, .top-user, .top-brand > *) { animation: none; } }
 
 /* xterm fills its pane */
 .xterm { height: 100%; }
@@ -726,12 +814,13 @@ body.ready .ai-ask { transition: opacity 0.6s ease; } /* si la barra se adelanta
 
 /* ── Aviso de actualización (banner superior) ── */
 
-/* ── Pantalla de bloqueo del móvil (emparejamiento por PIN) ── */
 
 /* ── Bloqueo de pantalla del escritorio ── */
 /* La app de debajo no solo queda tapada: se oculta, para que ni un tema con
    transparencias ni un repintado dejen ver nada. */
 body.locked .app { visibility: hidden; }
+/* Desde el arrastre, la app no se esconde hasta que la puerta ha terminado de entrar: sin un fogonazo de fondo vacío */
+body.locked.slide-lock .app { transition: visibility 0s linear .22s; }
 .lock-gate {
   position: fixed; inset: 0; z-index: 9999;
   display: flex; align-items: center; justify-content: center; padding: 24px;
@@ -746,6 +835,12 @@ body.locked .app { visibility: hidden; }
 .lock-gate.leaving { opacity: 0; }
 @keyframes lock-in { from { opacity: 0; } to { opacity: 1; } }
 .lock-card { display: flex; flex-direction: column; align-items: center; text-align: center; }
+/* La firma de Inditex, abajo y centrada en todas las puertas (app/corp.js): el logotipo en el
+   color de texto del tema, que aparece un poco después que la tarjeta */
+.lock-corp { position: absolute; left: 50%; bottom: 48px; transform: translateX(-50%); display: flex; color: var(--text); animation: lock-corp-in .6s ease .15s both; pointer-events: none; }
+.lock-corp svg { width: 112px; height: auto; }
+@keyframes lock-corp-in { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@media (prefers-reduced-motion: reduce) { .lock-corp { animation: none; } }
 /* Solo la S y las casillas, sin textos ni pistas. El logo es un PNG negro, que
    en un tema oscuro no se vería: se usa como máscara y se pinta con el color
    de texto del tema, así sale limpia y sin fondo en cualquiera. */
@@ -769,11 +864,6 @@ body.locked .app { visibility: hidden; }
 .lock-pin .cell.filled::after { content: ""; width: 11px; height: 11px; border-radius: 50%; background: var(--text); animation: lock-dot 0.12s ease; }
 .lock-pin.ok .cell { border-color: #40c463; }
 .lock-pin.ok .cell.filled::after { background: #40c463; }
-/* seis casillas (emparejar) tienen que caber en un teléfono */
-.lock-pin.long { gap: 8px; }
-.lock-pin.long .cell { width: 42px; height: 52px; }
-/* emparejar: qué PIN se pide y, si falla, por qué */
-.lock-caption { max-width: 300px; margin: 6px 0 8px; font-size: 14px; line-height: 1.5; color: var(--text-low); }
 .lock-msg { min-height: 18px; margin-top: 16px; font-size: 12.5px; color: #f25f5c; }
 @keyframes lock-dot { from { transform: scale(0.3); } to { transform: scale(1); } }
 .lock-pin.bad { animation: lock-shake 0.36s ease; }
@@ -781,199 +871,17 @@ body.locked .app { visibility: hidden; }
 @keyframes lock-shake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-9px); } 40% { transform: translateX(8px); } 60% { transform: translateX(-6px); } 80% { transform: translateX(4px); } }
 /* durante el freno por intentos: solo los segundos que faltan */
 .lock-wait { min-height: 18px; margin-top: 16px; font-size: 13px; color: var(--text-low); font-variant-numeric: tabular-nums; }
-/* Móvil: el PIN se marca en un teclado numérico propio, no en el del sistema
-   (que al abrirse empuja la pantalla). Mismo trazo que las casillas. Todo se
-   mide contra el alto de la pantalla para que logo, casillas y teclado quepan
-   sin scroll también en un teléfono bajo. */
-.lock-pin.touch input { pointer-events: none; }
-.lock-keys {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
-  width: min(264px, 100%); margin-top: 6px;
-  transition: opacity 0.15s ease;
-}
-.lock-keys.off { opacity: 0.45; pointer-events: none; }
-.lock-keys button {
-  height: min(56px, 8.2vh); height: min(56px, 8.2dvh);
-  display: grid; place-items: center; padding: 0;
-  border: 1px solid var(--border); border-radius: 0; background: var(--surface);
-  color: var(--text); font: 500 22px/1 var(--font-ui); font-variant-numeric: tabular-nums;
-  touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; outline: none;
-  transition: background 0.1s ease, border-color 0.1s ease;
-}
-.lock-keys button.pressed { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--surface)); }
-.lock-keys button.del { border-color: transparent; background: transparent; color: var(--text-low); }
-.lock-keys button.del.pressed { color: var(--text); background: color-mix(in srgb, var(--accent) 10%, transparent); }
-.lock-keys button svg { width: 26px; height: 26px; }
-body.phone .lock-logo { width: min(200px, 24vh); height: min(200px, 24vh); width: min(200px, 24dvh); height: min(200px, 24dvh); }
-body.phone .lock-msg, body.phone .lock-wait { margin-top: 10px; }
 /* un diálogo genérico centrado en vertical (por defecto cuelga de arriba) */
 .modal-overlay.centered { align-items: center; padding-top: 0; }
 /* nota bajo los campos de un diálogo (p. ej. dónde se cambia el PIN) */
 .dialog .modal-body .dialog-note { margin: 12px 0 0; font-size: 12px; color: var(--text-low); }
 .dialog .modal-body .link-form-err { margin-top: 12px; }
 
-/* Modal de elección de modo de acceso (red local / público). Se abre DESDE el
-   modal de configuración, que también es un .modal-overlay (z-index 40) y va
-   después en el DOM: sin un plano propio quedaba pintado por debajo y las dos
-   opciones eran inalcanzables. */
-
-/* ── Caja del QR en ajustes (acceso móvil) ── */
-
-/* ── Modo teléfono (acceso desde el móvil): solo pestañas + terminal ── */
-.skills-fab { display: none; }
-.attach-fab { display: none; }
-.lock-fab { display: none; }
-/* La app ocupa EXACTAMENTE el viewport visible y la página no se desplaza
-   nunca: lo único que hace scroll es la terminal. --vv-h la fija main.js desde
-   visualViewport: iOS no encoge el layout al abrir el teclado (solo cambia lo
-   visible y Safari desplaza la página para enseñar el foco), así que sin esto
-   las últimas filas —donde está el prompt— quedaban debajo del teclado.
-   Los env() respetan notch y barra de gestos en la PWA a pantalla completa. */
-html.phone { height: 100%; overflow: hidden; overscroll-behavior: none; }
-body.phone {
-  position: fixed; inset: 0; width: 100%;
-  height: var(--vv-h, 100dvh);
-  overflow: hidden; overscroll-behavior: none;
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
-}
-body.phone .sidebar { display: none; }              /* fuera la barra izquierda (nav + ajustes) */
-body.phone #skills-btn { display: none; }            /* el botón de skills se sustituye por el de la barra */
-body.phone .chat-bar-btn .kbd { display: none; }     /* el atajo ⌘K no aplica en táctil */
-body.phone .term-pane { padding: 6px 8px; }          /* cada columna cuenta en una pantalla estrecha */
-/* Scroll NATIVO en el móvil: el viewport de xterm (un elemento con scroll de
-   verdad, que en escritorio queda debajo de la pantalla y solo aporta la
-   barra) pasa a estar ENCIMA y transparente. Así el dedo mueve un scroll del
-   sistema, con inercia, y xterm se limita a pintar las filas que tocan
-   (main.js le impide reajustar el scrollTop mientras dura el gesto, que es
-   lo que corta la inercia en iOS). El !important gana al color de fondo que
-   xterm pone en línea. Los toques llegan igual a xterm (burbujean).
-   z-index 3 y no 1: el renderizador WebGL añade sobre el texto una capa propia
-   (canvas.xterm-link-layer, z-index 2) que, con el viewport por debajo, se
-   quedaba con el dedo: el scroll solo respondía en la franja libre del borde
-   derecho (~20 px). */
-body.phone .xterm .xterm-viewport {
-  z-index: 3; background: transparent !important;
-  touch-action: pan-y; -webkit-overflow-scrolling: touch;
-}
-body.phone .xterm .xterm-viewport::-webkit-scrollbar { display: none; }
-/* Barra del chat: objetivos táctiles más generosos */
-body.phone .chat-bar { height: 48px; }
-body.phone .chat-bar-btn { height: 36px; }
-/* Skills y adjuntar viven en la barra del chat (phone-view.js los mueve ahí):
-   como botones flotantes tapaban la esquina donde va la entrada del chat */
-body.phone .skills-fab, body.phone .attach-fab, body.phone .lock-fab {
-  display: flex; align-items: center; justify-content: center;
-  width: 40px; height: 36px; flex-shrink: 0;
-  border: 1px solid var(--border); border-radius: 0;
-  background: transparent; color: var(--text-low); font-size: 18px; cursor: pointer;
-}
-body.phone .skills-fab { color: var(--accent); border-color: var(--accent); }
-/* En el móvil no hay panel de adjuntos ni su contador en la barra: el panel se
-   come media pantalla y la imagen ya queda en el chat (su ruta entra en el prompt). */
-body.phone #assets-btn, body.phone #assets-panel { display: none !important; }
-/* Adjuntar en el móvil: dos opciones que suben desde abajo (cámara o galería).
-   Va dentro del body, que mide lo visible (--vv-h), así no queda bajo el teclado. */
-.attach-sheet {
-  position: absolute; inset: 0; z-index: 900;
-  display: flex; align-items: flex-end;
-  background: color-mix(in srgb, #000 45%, transparent);
-  animation: lock-in 0.15s ease;
-}
-.attach-sheet[hidden] { display: none; }
-.attach-sheet-panel {
-  width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
-  padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
-  background: var(--bg); border-top: 1px solid var(--border);
-  animation: sheet-up 0.18s ease;
-}
-@keyframes sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
-.attach-opt {
-  display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 22px 8px;
-  border: 1px solid var(--border); border-radius: 0; background: var(--surface); color: var(--text);
-  font: 600 12.5px/1 var(--font-ui); letter-spacing: 0.08em; text-transform: uppercase;
-  touch-action: manipulation; -webkit-tap-highlight-color: transparent;
-}
-.attach-opt svg { width: 30px; height: 30px; }
-.attach-opt:active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
-body.phone .skills-fab:active, body.phone .attach-fab:active, body.phone .lock-fab:active { background: var(--border); }
-
-/* ── Enlaces rápidos ─────────────────────────────────────────────── */
-#view-links { padding: 26px 30px; overflow-y: auto; }
-.links-head { display: flex; align-items: center; gap: 16px; }
-.links-title { flex: 1; }
-.links-head h2 { margin: 0; font-size: 19px; font-weight: 650; color: var(--text); }
-
-.links-filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0 18px; }
-.links-chip {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 5px 12px; border-radius: 0;
-  border: 1px solid var(--border); background: transparent;
-  color: var(--text-low); font-size: 12.5px; font-family: var(--font-ui);
-  cursor: pointer; transition: border-color 0.15s ease, color 0.15s ease;
-}
-.links-chip:hover { border-color: var(--accent); color: var(--text); }
-.links-chip.active { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
-.links-chip-n { font-size: 10.5px; opacity: 0.7; }
-
-.links-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
-.links-empty { grid-column: 1 / -1; margin: 30px 0; font-size: 13px; color: var(--text-low); text-align: center; }
-
-/* Card vertical: el título manda, la imagen es la protagonista. */
-.link-card {
-  position: relative; display: flex; flex-direction: column; gap: 10px;
-  padding: 14px; text-align: left;
-  border: 1px solid var(--border); border-radius: 0;
-  background: var(--surface); cursor: pointer; font-family: var(--font-ui);
-  transition: border-color 0.15s ease, transform 0.1s ease, background 0.15s ease;
-}
-.link-card:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
-.link-card:active { transform: scale(0.99); }
-/* card de crear: la misma «+» punteada que en las skills */
-.link-card.new {
-  min-height: 156px;
-  align-items: center; justify-content: center;
-  border-style: dashed; background: transparent;
-  color: var(--text-low); font-size: 14px; gap: 8px;
-}
-.link-card.new:hover { color: var(--accent); border-color: var(--accent); background: transparent; }
-.link-card.new .plus { font-size: 26px; line-height: 1; }
-
-.link-card-title {
-  font-size: 14px; font-weight: 600; color: var(--text);
-  padding-right: 52px; /* hueco para los iconos de acción */
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.link-card-img {
-  display: block; width: 100%; height: 132px;
-  object-fit: cover; background: var(--bg); border-radius: 0;
-}
-.link-card-img.placeholder {
-  display: flex; align-items: center; justify-content: center;
-  font-size: 40px; font-weight: 650; color: var(--accent);
-  border: 1px solid var(--border);
-}
-.link-card-tag {
-  font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.05em;
-  color: var(--text-low); opacity: 0.65;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.link-card-actions {
-  position: absolute; top: 10px; right: 10px;
-  display: flex; gap: 2px; opacity: 0; transition: opacity 0.15s ease;
-}
-.link-card:hover .link-card-actions { opacity: 1; }
-.link-card-act {
-  display: flex; align-items: center; justify-content: center;
-  width: 24px; height: 24px; border-radius: 0;
-  background: var(--surface);
-  color: var(--text-low); transition: background 0.15s ease, color 0.15s ease;
-}
-.link-card-act:hover { background: var(--border); color: var(--text); }
-
-/* Modales: mismo patrón que el resto de la app (.modal-overlay > .modal). */
+/* ── Enlaces: las notas y el formulario ── */
+/* Las notas salen sobre Configuración, desde donde se abren, y los diálogos sobre cualquiera */
+#link-notes-modal { z-index: 45; align-items: center; padding-top: 0; }
 .link-modal { width: min(720px, calc(100vw - 48px)); max-height: calc(100vh - 120px); }
-/* las notas son de lectura: se centran en la pantalla en vez de colgar de arriba */
-#link-notes-modal { align-items: center; padding-top: 0; }
+#dialog-overlay { z-index: 50; }
 .link-notes-body {
   padding: 20px 24px 26px; overflow-y: auto;
   font-size: 13.5px; line-height: 1.65; color: var(--text);
@@ -984,20 +892,20 @@ body.phone .skills-fab:active, body.phone .attach-fab:active, body.phone .lock-f
 .link-notes-body ul { margin: 0 0 10px; padding-left: 20px; }
 .link-notes-body li { margin: 3px 0; }
 .link-notes-body code {
-  font-family: var(--font-mono, monospace); font-size: 12px;
+  font-family: var(--font-mono); font-size: 12px;
   padding: 1px 5px; border-radius: 0; background: var(--bg); border: 1px solid var(--border);
 }
 
 .link-form { display: flex; flex-direction: column; gap: 15px; padding: 20px 24px; overflow-y: auto; }
 .link-form label, .link-form .link-field { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--text-low); }
 .link-field-cap { font-size: 12px; color: var(--text-low); }
-.link-form input[type="text"], .link-form select, .link-form textarea {
+.link-form input[type="text"], .link-form textarea {
   padding: 9px 11px; border-radius: 0;
   border: 1px solid var(--border); background: var(--bg); color: var(--text);
   font-size: 13px; font-family: var(--font-ui);
 }
-.link-form textarea { font-family: var(--font-mono, monospace); font-size: 12.5px; line-height: 1.55; resize: vertical; }
-.link-form input:focus, .link-form select:focus, .link-form textarea:focus { outline: none; border-color: var(--accent); }
+.link-form textarea { font-family: var(--font-mono); font-size: 12.5px; line-height: 1.55; resize: vertical; }
+.link-form input:focus, .link-form textarea:focus { outline: none; border-color: var(--accent); }
 .link-hint { font-size: 11px; opacity: 0.7; font-weight: 400; }
 .link-image-row { display: flex; align-items: center; gap: 10px; }
 .link-image-prev { width: 72px; height: 52px; overflow: hidden; flex-shrink: 0; background: var(--bg); }
@@ -1011,96 +919,9 @@ body.phone .skills-fab:active, body.phone .attach-fab:active, body.phone .lock-f
 .modal-foot { display: flex; align-items: center; gap: 8px; padding: 14px 24px; border-top: 1px solid var(--border); }
 .modal-foot-spacer { flex: 1; }
 
-/* en el móvil la vista reducida no lleva panel de enlaces */
-body.phone #nav-links, body.phone #view-links { display: none; }
 
-/* ── Pestaña Móvil: una vista que cambia de estado, siempre centrada ── */
-.settings-pane[data-pane="movil"]:not([hidden]) { display: flex; }
-.mob { flex: 1; min-height: 440px; display: flex; align-items: center; justify-content: center; }
-.mob-view { display: flex; flex-direction: column; align-items: center; gap: 18px; text-align: center; animation: mob-in 0.18s ease; }
-.mob-view[hidden] { display: none; }
-@keyframes mob-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-/* placa del icono: mismo lenguaje que el resto (cuadrada, acento, halo suave) */
-.mob-badge {
-  width: 78px; height: 78px; display: grid; place-items: center; margin-bottom: 4px;
-  color: var(--accent);
-  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
-  box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 6%, transparent);
-}
-.mob-badge svg { width: 34px; height: 34px; display: block; }
-.mob-badge.ok { color: #40c463; border-color: color-mix(in srgb, #40c463 55%, var(--border)); background: color-mix(in srgb, #40c463 10%, var(--surface)); box-shadow: 0 0 0 8px color-mix(in srgb, #40c463 6%, transparent); }
-.mob-badge.bad { color: #f25f5c; border-color: color-mix(in srgb, #f25f5c 55%, var(--border)); background: color-mix(in srgb, #f25f5c 9%, var(--surface)); box-shadow: 0 0 0 8px color-mix(in srgb, #f25f5c 5%, transparent); }
-.mob-title { font-size: 17px; font-weight: 650; color: var(--text); }
-.mob-note { max-width: 440px; font-size: 12.5px; line-height: 1.5; color: var(--text-low); font-variant-numeric: tabular-nums; }
-.mob-note:empty { display: none; }
-/* botones de la pestaña: en mayúsculas y con aire */
-.mob-btn { padding: 11px 28px; font-size: 12.5px; font-weight: 650; text-transform: uppercase; letter-spacing: 0.1em; }
-.mob-btn.danger { border-color: color-mix(in srgb, #f25f5c 40%, var(--border)); }
-.mob-actions { display: flex; gap: 10px; }
-.mob-link {
-  border: 0; background: transparent; padding: 6px 10px; cursor: pointer;
-  font: 600 11.5px var(--font-ui); text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-low);
-}
-.mob-link:hover { color: var(--text); }
-.mob-link.danger:hover { color: #f25f5c; }
-.mob-link:disabled { opacity: 0.5; cursor: default; }
-/* dispositivos conectados */
-.mob-devices { list-style: none; margin: 0; padding: 0; width: min(460px, 100%); text-align: left; border: 1px solid var(--border); background: var(--bg); }
-.mob-devices[hidden] { display: none; }
-.mob-devices li { display: flex; align-items: center; gap: 12px; padding: 10px 8px 10px 14px; }
-.mob-devices li + li { border-top: 1px solid var(--border); }
-.mob-devices .d-ico { flex: none; color: var(--text-low); line-height: 0; }
-.mob-devices .d-ico.on { color: #40c463; }
-.mob-devices .d-ico svg { width: 20px; height: 20px; }
-.mob-devices .d-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.mob-devices .d-name { font-size: 13px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mob-devices .d-sub { font-size: 11.5px; color: var(--text-low); }
-/* elegir modo: dos tarjetas */
-.mob-cards { display: flex; gap: 16px; }
-.mob-card {
-  width: 260px; min-height: 176px; padding: 30px 22px 24px;
-  /* arriba, no centrado: así los iconos y los títulos de las dos tarjetas
-     quedan a la misma altura aunque una descripción ocupe una línea más */
-  display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 11px;
-  border: 1px solid var(--border); background: var(--surface); color: var(--text);
-  font-family: var(--font-ui); cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
-}
-.mob-card:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
-.mob-card:active { transform: scale(0.985); }
-.mob-card svg { width: 30px; height: 30px; color: var(--accent); }
-.mob-card strong { font-size: 13px; font-weight: 650; text-transform: uppercase; letter-spacing: 0.1em; }
-.mob-card span { font-size: 12.5px; line-height: 1.5; color: var(--text-low); }
-/* QR y PIN de emparejamiento */
-.mob-qr { padding: 12px; background: #fff; line-height: 0; box-shadow: 0 18px 50px rgba(0, 0, 0, 0.3); }
-.mob-qr canvas { display: block; }
-.mob-pin { display: flex; gap: 8px; }
-.mob-pin span {
-  width: 40px; height: 48px; display: grid; place-items: center;
-  font: 650 21px ui-monospace, "SF Mono", Menlo, monospace; color: var(--text);
-  border: 1px solid var(--border); background: var(--surface);
-}
-/* abriendo el túnel: aro giratorio y los pasos */
-.mob-spinner {
-  width: 56px; height: 56px; margin-bottom: 4px; border-radius: 50%;
-  border: 2px solid color-mix(in srgb, var(--accent) 20%, transparent); border-top-color: var(--accent);
-  animation: spin 0.9s linear infinite;
-}
-.mob-steps { list-style: none; margin: 0; padding: 0; display: flex; align-items: center; gap: 12px; }
-.mob-steps li {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-low); opacity: 0.55;
-}
-.mob-steps li::before { content: ""; width: 8px; height: 8px; border: 1px solid var(--text-low); }
-.mob-steps li + li { padding-left: 12px; border-left: 1px solid var(--border); }
-.mob-steps li.active { opacity: 1; color: var(--text); }
-.mob-steps li.active::before { background: var(--accent); border-color: var(--accent); animation: mob-pulse 1s ease-in-out infinite; }
-.mob-steps li.done { opacity: 0.9; }
-.mob-steps li.done::before { background: #40c463; border-color: #40c463; }
-@keyframes mob-pulse { 50% { opacity: 0.35; } }
 
-/* interruptor de la app (tema, vistas…) */
+/* interruptor (Mantener la sesión, al entrar) */
 .sw { flex: none; position: relative; width: 30px; height: 16px; padding: 0; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); cursor: pointer; transition: background .12s ease, border-color .12s ease; }
 .sw .knob { position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%; background: var(--text-low); transition: left .12s ease, background .12s ease; }
 .sw[aria-checked="true"] { background: var(--accent); border-color: var(--accent); }
@@ -1113,30 +934,22 @@ body.phone #nav-links, body.phone #view-links { display: none; }
 .dlg-lead { margin: 0 0 12px; font-size: 13px; color: var(--text-low); line-height: 1.5; }
 .dlg-lead strong { color: var(--text); }
 
-/* ⚙️ → Apariencia: una tarjeta por tema con la app en miniatura */
-.theme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
-.theme-card { display: flex; flex-direction: column; gap: 8px; padding: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: 12.5px var(--font-ui); text-align: left; cursor: pointer; transition: border-color .12s; }
-.theme-card:hover { border-color: var(--text-low); }
-.theme-card[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
-.theme-card[aria-pressed="true"] .tc-name::after { content: ' ✓'; color: var(--accent); }
-.tp { display: flex; gap: 6px; height: 70px; padding: 6px; border: 1px solid; }
-.tp-side { width: 18%; border: 1px solid; }
-.tp-card { flex: 1; display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid; }
-.tp-line { height: 5px; width: 80%; border-radius: 3px; opacity: .85; }
-.tp-line.short { width: 50%; opacity: .6; }
-.tp-btn { margin-top: auto; width: 34%; height: 10px; border-radius: 2px; }
 
 /* ── El selector propio (ui/picker.js): un botón con lo elegido y la lista debajo ── */
 .pick { position: relative; }
-.pick-btn { display: flex; align-items: center; width: 100%; height: 36px; padding: 0 36px 0 10px; font: inherit; font-size: 13px; color: var(--text); text-align: left; background: var(--bg); border: 1px solid var(--border); cursor: pointer; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>"); background-repeat: no-repeat; background-position: right 12px center; }
+.pick-btn { display: flex; align-items: center; width: 100%; height: var(--pick-h, 36px); padding: 0 36px 0 10px; font: inherit; font-size: 13px; color: var(--text); text-align: left; background: var(--bg); border: 1px solid var(--border); cursor: pointer; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>"); background-repeat: no-repeat; background-position: right 12px center; }
 .pick-btn:focus-visible, .pick-btn[aria-expanded="true"] { outline: none; border-color: var(--accent); }
 .pick-btn:disabled { color: var(--text-low); cursor: default; }
 .pick-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pick-ph { color: var(--text-low); }
-.pick-list { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 2; max-height: 220px; margin: 0; padding: 4px 0; overflow-y: auto; list-style: none; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0, 0, 0, .18); }
+.pick-list { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 2; max-height: 220px; margin: 0; padding: 4px 0; overflow-y: auto; list-style: none; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-float); }
 .pick-list li { padding: 8px 12px; font-size: 13px; color: var(--text); cursor: pointer; }
-.pick-list li:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.pick-list li:hover { background: var(--bg); }
 .pick-list li[aria-selected="true"] { font-weight: 600; color: var(--accent); }
+.pick-list li[aria-disabled="true"], .pick-list li[aria-disabled="true"]:hover { color: var(--text-low); cursor: default; background: none; }
+/* en una barra: del ancho de lo elegido, y la lista del de sus opciones */
+.pick.inline { min-width: 150px; max-width: 280px; }
+.pick.inline .pick-list { right: auto; min-width: 100%; width: max-content; max-width: 320px; }
 /* los títulos de grupo de la lista: no se eligen */
 .pick-list .pick-group { position: sticky; top: -4px; z-index: 1; padding: 7px 12px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-low); cursor: default; background: color-mix(in srgb, var(--text-low) 9%, var(--surface)); border-block: 1px solid var(--border); }
 .pick-list .pick-group:first-child { border-top: 0; }

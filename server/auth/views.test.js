@@ -17,7 +17,7 @@ test('cada ruta de gestión pide su vista', () => {
   assert.deepEqual(viewsForRoute(p('issues'), 'GET'), ['issues']);
   assert.deepEqual(viewsForRoute(p('backlog'), 'GET'), ['backlog']);
   assert.deepEqual(viewsForRoute(p('metrics/update'), 'POST'), ['metrics']);
-  assert.deepEqual(viewsForRoute(['api', 'metrics'], 'GET'), ['metrics', 'service']);
+  assert.deepEqual(viewsForRoute(['api', 'metrics'], 'GET'), ['metrics', 'work', 'service']);
   assert.deepEqual(viewsForRoute(p('drafts'), 'GET'), ['lab']);
   assert.deepEqual(viewsForRoute(p('skills/x'), 'DELETE'), ['lab']);
   assert.deepEqual(viewsForRoute(p('users'), 'GET'), ['people']);
@@ -36,4 +36,13 @@ test('allowed: basta con una de las vistas', () => {
   assert.equal(allowed({ views: ['admin'] }, p('links'), 'GET'), false);
   assert.equal(allowed({ views: [] }, p('links'), 'GET'), false);
   assert.equal(allowed({ views: [] }, p('skills'), 'GET'), true);
+});
+
+test('canChat: el Chat con su vista; el chat de una issue, con Issues', async () => {
+  const { canChat } = await import('./views.js');
+  assert.equal(canChat({ views: ['chat'] }), true);
+  assert.equal(canChat({ views: ['issues'] }), false);
+  assert.equal(canChat({ views: ['issues'] }, { issue: true }), true);
+  assert.equal(canChat({ views: ['chat'] }, { issue: true }), false);
+  assert.equal(canChat(null), false);
 });

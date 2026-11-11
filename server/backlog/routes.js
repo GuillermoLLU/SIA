@@ -1,8 +1,8 @@
 // /api/backlog (vista Backlog; la exige el bridge, que ya ha resuelto la
 // sesión: `who` = { user, accessToken }).
-//   GET    /?rule=<id>       → { taken, rule, rules, issues }  (la cola del equipo en el orden de esa regla, en breve)
-//   GET    /people           → { people: [{ id, name }] }  (el equipo de Issues, a quién asignar)
-//   GET    /:id              → { issue, claimedBy }  (una issue entera; 404 si no está en la foto)
+//   GET    /?rule=<id>       → { taken, rule, rules, issues }  (la cola del equipo de sus orígenes, en el orden de esa regla, en breve)
+//   GET    /people           → { people: [{ id, name, groups }] }  (el equipo de Issues, a quién asignar; groups: sus proyectos)
+//   GET    /:id              → { issue, claimedBy }  (una issue entera; 404 si no está en la foto o no es de sus orígenes)
 //   POST   /:id/assign       { to } → { ok }  (a la mesa de esa persona)
 //   GET    /rules            → { criteria, rules }  (el catálogo de criterios y las reglas, con los suyos)
 //   POST   /rules            { name, criteria } → { id }  (crear; 400 si no vale)

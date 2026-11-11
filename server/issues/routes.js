@@ -1,21 +1,25 @@
 // /api/issues (vista Issues; la exige el bridge, que ya ha resuelto la sesión:
 // `who` = { user, accessToken }).
-//   GET  /              → { taken, rules, free, next, desk, today, history }
+//   GET  /              → { taken, free, next, maxDoing, canTake, desk, today, history }
+//                         (free: lo que queda sin coger que puede llevar, de sus orígenes)
 //                         (next: la que tocaría ahora; desk: mis issues, en breve;
 //                          history: lo medido en SIA, 12 semanas)
 //   GET  /:id           → { issue, sameCenter, timeline }
 //                         (timeline: su histórico en SIA, movimientos y notas por orden)
 //   GET  /:id/timeline  → { timeline }
-//   GET  /teammates     → { teammates: [{ id, name }] }  (el equipo de Issues, sin mí)
-//   POST /next          { rule } → { id }  (null: no queda ninguna libre)
+//   GET  /teammates     → { teammates: [{ id, name, groups }] }  (el equipo de Issues, sin mí; groups: sus proyectos)
+//   POST /next          → { id }  (en el orden de la regla de la persona; null: no queda ninguna libre;
+//                                409 con el tope de en curso)
 //   POST /:id/release   → { ok }  (devolverla a la cola)
 //   GET  /:id/resolve   → { check, draft }  (abrir Resolver: lo que hay en Remedy y lo
 //                         que falta, resolve.js, y mi borrador, drafts.js, o null)
 //   POST /:id/resolve   { note, what, how, prevent, lang } → { ok, sent: false }
 //                         (lo comprueba todo otra vez y borra el borrador)
 //   PUT  /:id/draft     { note, what, how, prevent, lang } → { at }
-//   PUT  /:id/draft/file { name, type, data (base64) } → { at, file: { name, type, size } }
-//   DELETE /:id/draft/file → { at }
+//   PUT  /:id/draft/file { name, type, data (base64) } → { at, image: { n, name, type, size } }
+//                         (una imagen más; en el texto va como [imagenN])
+//   GET  /:id/draft/file/:n → { name, type, data (base64) }
+//   DELETE /:id/draft/file/:n → { at }
 //   POST /:id/transfer  { to, comment } → { ok }  (a un compañero; el motivo, obligatorio, queda como nota)
 //   POST /:id/notes     { body } → { id }  (una nota interna del equipo)
 //   PUT  /:id/notes/:nota { body } → { ok }  (editar la propia, hasta 24 h después; si no, 403)
@@ -27,7 +31,7 @@ import { isUuid } from '../shared/ids.js';
 
 const ISSUE_ID = /^INC\d+$/;
 
-export const issuesRoutes = (issues, { json, readBody }) => async (req, res, [id, action, part], who, query) => {
+export const issuesRoutes = (issues, { json, readBody }) => async (req, res, [id, action, part, sub], who, query) => {
   try {
     if (id === 'csv' && !action && req.method === 'POST') {
       const name = query.get('name') || '';
@@ -37,7 +41,7 @@ export const issuesRoutes = (issues, { json, readBody }) => async (req, res, [id
     }
     if (!id && req.method === 'GET') return json(res, 200, await issues.desk(who));
     if (id === 'teammates' && !action && req.method === 'GET') return json(res, 200, { teammates: await issues.teammates(who) });
-    if (id === 'next' && !action && req.method === 'POST') return json(res, 200, { id: await issues.next(who, (await readBody(req)).rule) });
+    if (id === 'next' && !action && req.method === 'POST') return json(res, 200, { id: await issues.next(who) });
     if (!ISSUE_ID.test(id || '')) return json(res, 404, { error: 'No existe.' });
     if (action === 'release' && req.method === 'POST') { await issues.release(who, id); return json(res, 200, { ok: true }); }
     if (action === 'resolve' && !part) {
@@ -48,8 +52,12 @@ export const issuesRoutes = (issues, { json, readBody }) => async (req, res, [id
       if (req.method === 'PUT') return json(res, 200, await issues.saveDraft(who, id, await readBody(req)));
     }
     if (action === 'draft' && part === 'file') {
-      if (req.method === 'PUT') return json(res, 200, await issues.saveDraftFile(who, id, await readBody(req)));
-      if (req.method === 'DELETE') return json(res, 200, await issues.dropDraftFile(who, id));
+      if (!sub && req.method === 'PUT') return json(res, 200, await issues.saveDraftFile(who, id, await readBody(req)));
+      const n = Number(sub);
+      if (Number.isInteger(n) && n > 0) {
+        if (req.method === 'GET') return json(res, 200, await issues.draftFile(who, id, n));
+        if (req.method === 'DELETE') return json(res, 200, await issues.dropDraftFile(who, id, n));
+      }
     }
     if (action === 'transfer' && req.method === 'POST') {
       const { to, comment } = await readBody(req);

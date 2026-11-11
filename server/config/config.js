@@ -1,24 +1,9 @@
 // La config personal (dominio, sin E/S): lo que guarda ~/.sia/config.json por
 // máquina y fuera del proyecto. Credenciales de Jira y de GitHub (varias
 // claves, solo una activa, que viaja a los chats que se abran a partir de
-// entonces), el usuario de Snowflake de las Métricas, el tema de la interfaz, las sesiones guardadas (auth/) y el
+// entonces), el usuario de Snowflake de las Métricas, las sesiones guardadas (auth/) y el
 // candado (lock/). Aquí, cómo se sanea lo que llega de la web y qué entorno
 // reciben los CLIs.
-
-// El tema del escritorio se lo da el bridge a los móviles emparejados y acaba
-// en variables CSS de otro dispositivo: solo un id corto y colores hexadecimales
-// reales (#rgb, #rgba, #rrggbb o #rrggbbaa).
-const UI_COLORS = ['bg', 'surface', 'border', 'text', 'textLow', 'accent', 'scrollbar'];
-const HEX_COLOR = /^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
-export const cleanTheme = (t) => {
-  if (!t || typeof t.id !== 'string' || !/^[a-z0-9-]{1,40}$/i.test(t.id) || typeof t.ui !== 'object' || !t.ui) return null;
-  const ui = {};
-  for (const k of UI_COLORS) {
-    if (typeof t.ui[k] !== 'string' || !HEX_COLOR.test(t.ui[k])) return null;
-    ui[k] = t.ui[k];
-  }
-  return { id: t.id, ui };
-};
 
 // Claves de GitHub: entradas completas y acotadas, y la activa tiene que
 // existir de verdad (si no, ninguna).

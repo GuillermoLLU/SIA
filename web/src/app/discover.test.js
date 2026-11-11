@@ -1,17 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bridgeFromQuery, isPhoneLocation, pickBridge } from './discover.js';
+import { bridgeFromQuery, pickBridge } from './discover.js';
 
 test('bridgeFromQuery: los puertos que pasa Electron', () => {
   assert.deepEqual(bridgeFromQuery(new URLSearchParams('ws=1&api=2')), { wsUrl: 'ws://localhost:1', apiBase: 'http://localhost:2/api' });
   assert.equal(bridgeFromQuery(new URLSearchParams('ws=1')), null);
-});
-
-test('isPhoneLocation: http fuera de localhost', () => {
-  assert.equal(isPhoneLocation({ protocol: 'http:', hostname: '192.168.1.5' }), true);
-  assert.equal(isPhoneLocation({ protocol: 'https:', hostname: 'x.trycloudflare.com' }), true);
-  assert.equal(isPhoneLocation({ protocol: 'http:', hostname: 'localhost' }), false);
-  assert.equal(isPhoneLocation({ protocol: 'file:', hostname: '' }), false);
 });
 
 test('pickBridge: el de desarrollo antes que el primero; sin ninguno, el primer par', () => {

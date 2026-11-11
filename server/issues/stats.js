@@ -1,8 +1,9 @@
 // Métricas de la mesa de una persona.
 // - today: lo resuelto hoy según Remedy (día de la foto), por origen.
 // - history: lo medido en SIA (se llena con el uso, no hacia atrás): lo
-//   cogido por semana, por origen, y si se cogió a tiempo (primera gestión:
-//   crítica 15 min, alta 2 h, lo que ha explicado el equipo).
+//   cogido por semana, por origen, cuánto se tarda de media en coger y si se
+//   cogió a tiempo (primera gestión: crítica 15 min, alta 2 h, lo que ha
+//   explicado el equipo).
 
 const pad = (n) => String(n).padStart(2, '0');
 export const dayKey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -38,20 +39,24 @@ export const history = (events, issuesById, now, weeks = 12) => {
     return { week: weekOf(d), sga: 0, sisu: 0 };
   });
   const byWeek = new Map(series.map((w) => [w.week, w]));
-  let timed = 0, onTime = 0;
+  let timed = 0, onTime = 0, picked = 0, pickMin = 0;
   const claims = kept(events);
   for (const e of claims) {
     const at = new Date(e.happened_at), issue = issuesById.get(e.issue_id);
     const w = byWeek.get(weekOf(at));
     if (w) w[issue?.sisu ? 'sisu' : 'sga'] += 1;
-    // a tiempo solo se mide en las que cogió uno mismo: una traspasada ya venía empezada
-    const limit = e.action === 'claimed' && issue && FIRST_TOUCH_MIN[issue.priority];
-    if (limit) { timed += 1; if ((at - new Date(issue.reported.replace(' ', 'T'))) / 60000 <= limit) onTime += 1; }
+    // lo que se tarda en coger solo se mide en las que cogió uno mismo: una traspasada ya venía empezada
+    if (e.action !== 'claimed' || !issue) continue;
+    const waited = (at - new Date(issue.reported.replace(' ', 'T'))) / 60000;
+    picked += 1; pickMin += waited;
+    const limit = FIRST_TOUCH_MIN[issue.priority];
+    if (limit) { timed += 1; if (waited <= limit) onTime += 1; }
   }
   return {
     weeks: series,
     claimedToday: claims.filter((e) => dayKey(new Date(e.happened_at)) === dayKey(now)).length,
     perWeek: claims.length ? Math.round(claims.length / weeks * 10) / 10 : 0,
     onTimePct: timed ? Math.round(onTime / timed * 100) : null,
+    avgPickMin: picked ? Math.round(pickMin / picked) : null,
   };
 };

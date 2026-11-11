@@ -1,4 +1,4 @@
-// Adjuntos: subir (desde el ordenador o el móvil emparejado) y servir.
+// Adjuntos: subir y servir.
 //   POST /upload { name, data (base64) } → { ok, name, absPath }
 //   GET  /uploads/:name → el fichero
 import fs from 'node:fs';

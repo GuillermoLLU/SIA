@@ -6,7 +6,9 @@
 // Solo DOM; la sesión la lleva session.js.
 import './login.css';
 import { esc } from '../ui/html.js';
+import { pressStartedIn, prefersReducedMotion } from '../ui/dom.js';
 import { netWarningHtml, shake } from '../ui/net-warning-view.js';
+import { CORP_HTML } from '../app/corp.js';
 
 // En desarrollo, con el aviso aparece «Modo Dev» en la esquina: pasar al
 // formulario aunque falte algo, sin tocar la vista que ve el usuario final.
@@ -15,6 +17,7 @@ const DEV = Boolean(import.meta.env?.DEV);
 const markup = (logoHtml, lastEmail) => `<div class="login-stage">
 <button class="login-open" type="button" aria-label="Iniciar sesión">${logoHtml}</button>
 <form class="lock-card login-card" novalidate inert>
+  <h1 class="login-title">SIA</h1>
   <input class="settings-input login-input" name="email" type="email" placeholder="Email" autocomplete="username" autocapitalize="off" spellcheck="false" value="${esc(lastEmail)}" />
   <input class="settings-input login-input" name="password" type="password" placeholder="Contraseña" autocomplete="current-password" />
   <button class="lab-btn primary login-go" type="submit">Iniciar sesión</button>
@@ -25,10 +28,35 @@ const markup = (logoHtml, lastEmail) => `<div class="login-stage">
   <div class="lock-msg" role="alert"></div>
 </form>
 <div class="lock-card login-card login-warn net-warn" role="alert" inert></div>
-</div>
+</div>${CORP_HTML}
 ${DEV ? `<span class="login-tip login-dev-tip" inert><button type="button" class="login-dev">Modo Dev</button><span role="tooltip">${DEV_TIP}</span></span>` : ''}`;
 
 const DEV_TIP = 'Solo en desarrollo: pasa al inicio de sesión y al resto de SIA aunque falte esto, para seguir trabajando. Lo que dependa de la red del cliente no responderá.';
+
+// Al entrar: el formulario se desvanece, el logotipo de Inditex sube de abajo al centro y, debajo,
+// la bienvenida con el nombre. → promesa que se cumple cuando ya se ha leído, para dar paso a la app.
+const WELCOME_MS = { out: 380, rise: 950, text: 450, hold: 900 };
+const welcome = (el, user) => new Promise((resolve) => {
+  const corp = el.querySelector('.lock-corp');
+  if (!corp || prefersReducedMotion()) return resolve();
+  el.classList.add('welcome');
+  const r = corp.getBoundingClientRect();
+  const dy = Math.round(innerHeight / 2 - 22 - (r.top + r.height / 2));
+  corp.getAnimations().forEach((a) => a.finish());   // su entrada, si aún no había acabado
+  corp.animate(
+    [{ transform: 'translate(-50%, 0) scale(1)' }, { transform: `translate(-50%, ${dy}px) scale(1.7)` }],
+    { duration: WELCOME_MS.rise, delay: WELCOME_MS.out / 2, easing: 'cubic-bezier(.65, 0, .25, 1)', fill: 'forwards' },
+  );
+  const text = document.createElement('p');
+  text.className = 'lock-welcome';
+  text.innerHTML = `Te damos la bienvenida, <b>${esc(user.name || '')}</b>`;
+  el.append(text);
+  text.animate(
+    [{ opacity: 0, transform: 'translate(-50%, 8px)', filter: 'blur(4px)' }, { opacity: 1, transform: 'translate(-50%, 0)', filter: 'blur(0)' }],
+    { duration: WELCOME_MS.text, delay: WELCOME_MS.out / 2 + WELCOME_MS.rise - 150, easing: 'ease-out', fill: 'both' },
+  );
+  setTimeout(resolve, WELCOME_MS.out / 2 + WELCOME_MS.rise + WELCOME_MS.hold);
+});
 
 // Tapa la app hasta que el usuario entra. → promesa con el usuario.
 const loginGate = (session, logoHtml) => new Promise((resolve) => {
@@ -51,7 +79,9 @@ const loginGate = (session, logoHtml) => new Promise((resolve) => {
   const dev = el.querySelector('.login-dev-tip');
   let devMode = false; // «Modo Dev»: ya no se comprueba el equipo
   const fail = (text) => { msg.textContent = text; shake(form); };
-  const leave = (user) => {
+  const leave = async (user) => {
+    form.inert = true;   // ya dentro: ni un segundo Enter ni otro clic mientras da la bienvenida
+    if (!user.must_change_password) await welcome(el, user);   // con contraseña que cambiar, antes su puerta
     el.classList.add('leaving');
     setTimeout(() => {
       el.remove();
@@ -111,12 +141,14 @@ const loginGate = (session, logoHtml) => new Promise((resolve) => {
     retry.disabled = true; retry.textContent = 'Comprobando…';
     await check();
   });
-  // La S comprueba el equipo y abre el formulario o el aviso; un clic fuera vuelve a la S.
+  // La S comprueba el equipo y abre el formulario o el aviso; un clic fuera vuelve a la S,
+  // salvo si se empezó a pulsar dentro (seleccionar texto y soltar fuera no lo cierra).
   opener.addEventListener('click', async () => {
     if (stage.classList.contains('checking')) return;
     stage.classList.add('checking');
     try { await check(); } finally { stage.classList.remove('checking'); }
   });
+  const pressedInside = pressStartedIn(el, (t) => form.contains(t) || warn.contains(t));
   el.addEventListener('click', (e) => {
     if (e.target.closest('.login-dev')) {
       devMode = true;
@@ -125,7 +157,7 @@ const loginGate = (session, logoHtml) => new Promise((resolve) => {
       return show('form');
     }
     const open = stage.classList.contains('open') || stage.classList.contains('warn');
-    if (open && !form.contains(e.target) && !warn.contains(e.target) && !opener.contains(e.target)) show('closed');
+    if (open && !pressedInside() && !form.contains(e.target) && !warn.contains(e.target) && !opener.contains(e.target)) show('closed');
   });
   opener.focus();
 });
@@ -146,13 +178,13 @@ const passwordGate = (session, logoHtml) => new Promise((resolve) => {
     <p class="login-hint">Mínimo 6 caracteres.</p>
     <button class="lab-btn primary login-go" type="submit">Guardar y entrar</button>
     <div class="lock-msg" role="alert"></div>
-  </form>`;
+  </form>${CORP_HTML}`;
   document.body.appendChild(el);
   const form = el.querySelector('form');
   const { password, repeat } = form.elements;
   const go = form.querySelector('.login-go');
   const msg = form.querySelector('.lock-msg');
-  const fail = (text) => { msg.textContent = text; form.classList.remove('bad'); void form.offsetWidth; form.classList.add('bad'); };
+  const fail = (text) => { msg.textContent = text; shake(form); };
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (password.value !== repeat.value) return fail('Las dos contraseñas no coinciden.');

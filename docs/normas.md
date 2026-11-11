@@ -93,7 +93,7 @@ sus reglas, sus pruebas y su pantalla, sin tener que entender el resto.
 ## Entrar nuevo en el equipo
 
 1. Acceso al repositorio y una cuenta de la instancia (la crea un
-   administrador en Personas, con su rol y los proyectos que verá).
+   administrador en Configuración → Equipo, con su rol y los proyectos que verá).
 2. Node 22.19 o superior (trae el SQLite de las Métricas y los certificados del sistema, para la VPN) y los CLIs que vaya a usar con sesión iniciada: `claude`,
    `copilot` o `codex`.
 3. `git clone`, `node dev.mjs`, <http://localhost:5220>, iniciar sesión.

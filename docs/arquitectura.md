@@ -22,19 +22,19 @@ API y su vista:
 
 | Carpeta | Qué es |
 |---|---|
-| `app/` | Descubrir el bridge, la barra lateral (qué icono ve cada persona) y la relectura de permisos |
+| `app/` | Descubrir el bridge, la navegación (`nav.js`, puro: qué iconos lleva el dock de cada persona, cómo va la barra de arriba, con qué vista se abre y a cuál se vuelve desde el Chat), qué vista se ve (`views.js`), la barra de arriba, el dock, el selector de Métricas y la relectura de permisos (`perms.js`) |
 | `auth/` | Inicio de sesión y la sesión en el navegador |
 | `chat/` | El chat: su arranque (`start.js`: Claude, conocimiento autónomo y todo lo accesible), protocolo con el bridge, reconciliación entre dispositivos, terminal y adjuntos |
-| `issues/` | La mesa de issues de cada persona y la pantalla de trabajo de una issue (con su chat) |
-| `backlog/` | Backlog: la cola del equipo entera para quien reparte (tarjetas que filtran, orden por regla, buscador, panel lateral con asignar), el editor de reglas de priorización (`rule-editor.js`, chips) y su modal; una vista sobre el dominio de Issues |
+| `issues/` | La mesa de issues de cada persona, la pantalla de trabajo de una issue (con su chat, o Reclamar respuesta y Traspasar si espera a un tercero), Resolver (`resolve-view.js`, con el editor de fichas de imagen `tag-editor.js`) y el origen SGA/SISU de cada issue (`origin.js`, el espejo del del bridge) |
+| `backlog/` | Backlog: la cola del equipo entera para quien reparte (tarjetas que filtran, orden por regla, buscador, panel lateral con asignar), el editor de reglas de priorización (`rule-editor.js`, chips) en Configuración → Priorización (`rules-view.js`); una vista sobre el dominio de Issues |
 | `metrics/` | Métricas: reglas (`rules.js`) y cálculo por pestaña en módulos puros; el HTML de cada pestaña en `metrics/tabs/` |
-| `work/` | Equipo soporte: una pestaña de Métricas, sobre su dominio |
+| `work/` | Equipo soporte: una vista sobre el dominio de Métricas; también es una pestaña de Métricas |
 | `service/` | Métricas del servicio: el servicio frente a los SLA, día a día, solo para quien coordina; una vista sobre el dominio de Métricas |
-| `users/` | Personas y roles |
-| `knowledge/`, `projects/` | Conocimiento asignado y Administración de proyectos |
-| `lab/`, `links/`, `skills/` | Laboratorio de skills, Enlaces rápidos y la paleta ⌘K |
-| `settings/`, `lock/`, `mobile/`, `theme/` | Configuración, candado, acceso desde el móvil y temas |
-| `ui/` | Lo común: `api.js` (el único cliente HTTP), diálogos, toast, html, tiempo, el selector de persona (`picker.js`) y el aviso de lo que falta para la red del cliente (`net-warning.js`, `net-warning-view.js`: certificados y VPN; lo usan el inicio de sesión y Métricas) |
+| `users/` | Equipo (en Configuración): la lista, la ficha y el alta (`people-view.js`), los roles (`roles-view.js`) y la regla de priorización de cada cual; las reglas, en `people.js` |
+| `knowledge/`, `projects/` | Conocimiento asignado y la sección Administración de Configuración |
+| `lab/`, `links/`, `skills/` | Laboratorio de skills, Enlaces (la columna de Configuración y su formulario) y la paleta ⌘K |
+| `settings/`, `lock/`, `theme/` | Configuración (sus cajas por sección y su cabecera, `head.js`), candado y temas |
+| `ui/` | Lo común: `api.js` (el único cliente HTTP), diálogos, toast, html, tiempo, el selector (`picker.js`), la entrada en cascada de una vista (`enter.js`) y el aviso de lo que falta para la red del cliente (`net-warning.js`, `net-warning-view.js`: certificados y VPN; lo usan el inicio de sesión y Métricas) |
 
 ### `server/` — el bridge local
 
@@ -48,15 +48,14 @@ las rutas de cada slice.
 |---|---|
 | `platform/` | Cliente de la base de la instancia y `sia-instance.json` |
 | `auth/` | Sesiones (en memoria), inicio de sesión, contraseña y qué vista exige cada ruta; la comprobación al pulsar la S (`preflight.js`: certificados del cliente y VPN) |
-| `users/`, `knowledge/` | Personas y roles; conocimiento asignado y claves de poder de cada persona |
+| `users/`, `knowledge/` | Equipo: personas, roles y reglas; conocimiento asignado, la base en uso en este bridge (`assigned-base.js`) y claves de poder de cada persona |
 | `base/` | Cliente de la base de conocimiento, permisos y el esquema SQL |
-| `projects/` | Administración: proyectos y sus entradas |
+| `projects/` | Administración: crear y eliminar proyectos |
 | `issues/`, `backlog/`, `metrics/` | Issues (cola por criterios `queue.js`, reglas `rules.js`, mesa, estadísticas), Backlog (la cola entera, asignar y las reglas de priorización, sobre el dominio de Issues) y Métricas (cada actualización pide a Snowflake, con `snowflake-sdk` y el SSO de cada persona, solo las incidencias de Remedy nuevas o cambiadas desde la última, y las suma a un repositorio SQLite local con `node:sqlite`, `incidencias.sqlite`, que no sale del equipo; de él salen los datos por columnas; el periodo se elige por fechas) |
 | `skills/`, `links/`, `uploads/` | Laboratorio y sincronización de skills, enlaces rápidos, adjuntos |
-| `config/`, `lock/` | Configuración personal (`~/.sia/config.json`: tema, Jira, GitHub) y candado |
+| `config/`, `lock/` | Configuración personal (`~/.sia/config.json`: Jira, GitHub) y candado |
 | `launchers/`, `workspace/` | Los CLIs (Claude, Copilot, Codex), sus argumentos y su MCP por sesión; los directorios de modo y skills por base |
-| `remote/` | Acceso desde el móvil: emparejar por QR + PIN, candado, túnel de Cloudflare |
-| `terminal/` | Las sesiones de chat y el protocolo WebSocket |
+| `terminal/` | Las sesiones de chat, el protocolo WebSocket y quién entra por él (`ws-auth.js`: desde esta máquina, con sesión y con la vista Chat o, el de una issue, Issues) |
 | `updates/`, `shared/` | `/api/version`; lo común (HTTP, CSV, ids, puertos, cabeceras, permisos, el troceo de entradas de Remedy, los certificados del sistema, la VPN del cliente y el error de lo que falta para su red, `client-network.js`) |
 
 Cosas que conviene saber:
@@ -67,8 +66,8 @@ Cosas que conviene saber:
 - Los puertos se eligen solos (pares 57413/57414 → 58527/58528 →
   59641/59642; `SIA_PORT` fuerza uno). Si en un par ya hay un SIA de la misma
   versión, se adopta.
-- Acceso desde el móvil por QR + PIN, en red local o en público (quick tunnel
-  de Cloudflare con URL temporal y candado por inactividad).
+- El bridge solo escucha en esta máquina (`127.0.0.1`) y rechaza lo que llega
+  con cabeceras de proxy. No sirve la web: llega por `file://` o por Vite.
 - Variable de entorno solo para desarrollo: `SIA_WORKSPACE`.
 
 ### `mcp/` — el servidor MCP `knowledge`
@@ -118,8 +117,8 @@ Lo decide **la base**, no la aplicación.
   dentro cada proyecto lleva su propio token (`server/projects/`).
 - La **clave de poder** de cada persona («SIA · email», en
   `platform.person_keys` y Vault) la crea, ajusta y quita el bridge según sus
-  vistas: Laboratorio (crear y editar skills), Administración (proyectos y
-  entradas) y Enlaces (editar enlaces). Quien tiene Administración usa la del
+  vistas: Laboratorio (crear y editar skills), Administración (proyectos) y
+  Enlaces (editar enlaces). Quien tiene Administración usa la del
   dueño (skills comunes incluidas). Nadie reparte claves a mano.
 - La clave **secret** del proyecto no entra en SIA: solo la tiene quien
   administra el proyecto en Supabase. Los scripts de mantenimiento

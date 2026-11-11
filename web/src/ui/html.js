@@ -7,6 +7,9 @@ export const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '
 // Para buscar: sin acentos y en minúsculas («Logística» → «logistica»).
 export const fold = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
+// La inicial de un texto en mayúscula, para donde no hay imagen; sin texto, «?».
+export const firstLetter = (s) => String(s ?? '').trim().charAt(0).toUpperCase() || '?';
+
 // Un icono de trazo (los de la barra, los selectores, las vistas): solo sus trazos.
 export const svg = (paths, { width = 1.8, size = null } = {}) =>
   `<svg viewBox="0 0 24 24"${size ? ` width="${size}" height="${size}"` : ''} fill="none" stroke="currentColor" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;

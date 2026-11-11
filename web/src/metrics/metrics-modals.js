@@ -22,17 +22,18 @@ export const mountMetricsModals = ({ api, toast, onUpload, onFirstLoad, onClear 
   const open = ({ title, body, foot, setup, wide = false, closable = true }) => {
     const back = document.createElement('div');
     back.className = 'mt-modal-back';
-    back.innerHTML = `<div class="mt-modal ${wide ? 'mt-modal-wide' : ''}" role="dialog" aria-modal="true" aria-labelledby="mt-modal-title">
+    back.innerHTML = `<div class="mt-modal ${wide ? 'mt-modal-wide' : ''}" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="mt-modal-title">
       <header class="mt-modal-head"><h3 id="mt-modal-title">${esc(title)}</h3>${closable ? '<button class="mt-modal-x" data-close aria-label="Cerrar">×</button>' : ''}</header>
       <div class="mt-modal-body">${body}</div>
       <footer class="mt-modal-foot">${foot}</footer></div>`;
     document.body.append(back);
     const off = onEscape(() => close());
     const close = () => { off(); back.remove(); };
-    back.addEventListener('click', (e) => { if (e.target === back || e.target.closest('[data-close]')) close(); });
+    back.addEventListener('mousedown', (e) => { if (e.target === back) close(); });
+    back.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) close(); });
     // si algo falla al montarla, no se deja una ventana vacía abierta
     try { setup(back, close); } catch (e) { close(); throw e; }
-    back.querySelector('.mt-modal').focus?.();
+    back.querySelector('.mt-modal').focus();   // el modal recibe el foco (tabindex -1): Escape y el teclado, dentro
     return close;
   };
 
