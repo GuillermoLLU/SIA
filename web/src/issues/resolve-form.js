@@ -81,7 +81,7 @@ export const noteMeter = (text, name = 'note') => { const q = noteQuality(text, 
 // La marca de la nota que ya estaba en Remedy. Mientras no se toca, dice quién y cuándo;
 // en cuanto se cambia, pasa a ser el botón que la restaura (el mismo elemento, mismo tono).
 const UNDO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7v6h6"/><path d="M3 13a9 9 0 1 0 3-7.3L3 8"/></svg>';
-const doneMark = ({ at, who, text }, changed = false) => `<button type="button" class="rv-done${changed ? ' changed' : ''}" data-restore-note data-original="${esc(text)}"${changed ? '' : ' disabled'}><span data-done>${CHECK}Se completó el ${short(at)} por ${esc(who)}</span><span data-restore>${UNDO}Restaurar la nota de ${esc(who)}</span></button>`;
+export const doneMark = ({ at, who, text }, changed = false) => `<button type="button" class="rv-done${changed ? ' changed' : ''}" data-restore-note data-original="${esc(text)}"${changed ? '' : ' disabled'}><span data-done>${CHECK}Se completó el ${short(at)} por ${esc(who)}</span><span data-restore>${UNDO}Restaurar la nota de ${esc(who)}</span></button>`;
 
 // Un campo: el editor (tag-editor.js) y el campo oculto que lleva su texto al formulario.
 const area = (name, d, saved) => { const v = saved?.[name] ?? d?.value ?? ''; return `<div class="rv-ed" contenteditable="plaintext-only" id="iss-f-${name}" data-ed="${name}" role="textbox" aria-multiline="true">${toHtml(v)}</div><input type="hidden" name="${name}" value="${esc(v)}" />`; };
@@ -185,17 +185,18 @@ const MISSING = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stro
 const ALERT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>';
 // La Resolución no es un punto previo: se escribe en el asistente, así que aquí no sale.
 const point = (n) => `<li class="${n.note ? 'ok' : 'no'}"><i>${n.note ? CHECK : MISSING}</i><span>${n.label}</span><small>${n.note ? `${short(n.note.at)} · ${esc(n.note.who)}` : 'Falta'}</small></li>`;
-export const resolveBlocked = (issueId, r) => `<div class="rb" role="alertdialog" aria-labelledby="rb-title">
+// Escalar enseña el mismo aviso con su título y su botón (`chat`: el atributo que lo distingue).
+export const resolveBlocked = (issueId, r, { title = 'Aún no se puede resolver', chat = 'data-resolve-chat' } = {}) => `<div class="rb" role="alertdialog" aria-labelledby="rb-title">
     <div class="rb-head">
       <span class="rb-icon">${ALERT}</span>
       <div>
-        <h3 id="rb-title">Aún no se puede resolver</h3>
+        <h3 id="rb-title">${title}</h3>
         <p><b>${esc(issueId)}</b></p>
       </div>
     </div>
     <ul class="rb-list">${r.notes.filter((n) => n.key !== 'resolution').map(point).join('')}${r.missing.includes('Categoría') ? `<li class="no"><i>${MISSING}</i><span>Categoría de la issue</span><small>Falta</small></li>` : ''}</ul>
     <footer class="rb-foot">
-      <button type="button" class="lab-btn primary" data-resolve-chat>Completar con ayuda de la IA</button>
+      <button type="button" class="lab-btn primary" ${chat}>Completar con ayuda de la IA</button>
     </footer>
   </div>`;
 

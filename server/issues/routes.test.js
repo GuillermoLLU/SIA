@@ -44,6 +44,9 @@ const setup = (claims = [], { issues = ISSUES, broken, transfers = [], rules = [
     getImage: (u, i, n) => store.get(`${u}/${i}`)?.images.find((im) => im.n === n) ?? null,
     dropImage: (u, i, n) => { const d = store.get(`${u}/${i}`); if (d) d.images = d.images.filter((im) => im.n !== n); return 'at'; },
     drop: (u, i) => { store.delete(`${u}/${i}`); },
+    getEscalate: (u, i) => store.get(`esc:${u}/${i}`) ?? null,
+    setEscalate: (u, i, f) => { store.set(`esc:${u}/${i}`, f); return 'at'; },
+    dropEscalate: (u, i) => { store.delete(`esc:${u}/${i}`); },
   };
   const route = issuesRoutes(createIssuesService({ source, platform, drafts: broken === undefined ? drafts : broken, now: () => new Date('2026-10-04T12:00:00Z') }), { json: (res, status, body) => Object.assign(res, { status, body }), readBody: async (req) => req.body || {} });
   const call = async (method, path, body, query = '') => {
@@ -266,6 +269,39 @@ test('confirmar Resolver: lo comprueba todo otra vez y, si cumple, borra el borr
   assert.notEqual((await call('GET', ['INC4', 'resolve'])).body.draft, null);   // nada de eso borra el borrador
   assert.deepEqual((await call('POST', ['INC4', 'resolve'], SEND)).body, { ok: true, sent: false });
   assert.equal((await call('GET', ['INC4', 'resolve'])).body.draft, null);
+});
+
+// Escalar: INC4 (alta) sin mayor incidente; INC7, alta y con él; INC5, Resuelta (por la causa raíz);
+// INC3, Pendiente; INC6 sin [DIAGNOSTICO], que no se pide.
+const MAJOR = { at: '2026-10-28 10:40', who: 'ANA', text: '[MAJOR INCIDENT] No' };
+const ESC_ISSUES = [...RES, issue('INC7', { ...ANA, worklog: [...NOTES, MAJOR] }), issue('INC8', { ...ANA, priority: 'LOW', worklog: NOTES.slice(0, 3) }), issue('INC9', { ...ANA, status: 'RESOLVED', worklog: [...NOTES, MAJOR] })];
+const ESC = { mode: 'escalate', dest: 'sisupac', reason: 'Timeouts', step: '4' };
+
+test('abrir Escalar: las notas que pide y las que faltan; el borrador va y vuelve, y se borra al escalar', async () => {
+  const { call } = setup([], { issues: ESC_ISSUES });
+  assert.deepEqual((await call('GET', ['INC4', 'escalate'])).body.check.missing, ['¿Es mayor incidente?']);
+  assert.deepEqual((await call('GET', ['INC8', 'escalate'])).body.check.missing, []);   // baja y sin diagnóstico: vale
+  assert.equal((await call('GET', ['INC8', 'escalate'])).body.check.analysis.text, 'hecho');
+  assert.equal((await call('POST', ['INC4', 'escalate'], ESC)).status, 409);
+  assert.deepEqual((await call('PUT', ['INC7', 'escalate', 'draft'], ESC)).body, { at: 'at' });
+  assert.deepEqual((await call('GET', ['INC7', 'escalate'])).body.draft, { mode: 'escalate', dest: 'sisupac', destOther: '', linked: '', linkedOther: '', reason: 'Timeouts', jiraPriority: '', sent: '', step: 4 });
+  assert.equal((await call('GET', ['INC7', 'resolve'])).body.draft, null);   // el de Resolver es otro
+  assert.equal((await call('PUT', ['INC7', 'escalate', 'draft'], { step: '9' })).status, 400);
+  assert.equal((await call('POST', ['INC7', 'escalate'], { ...ESC, reason: ' ' })).status, 400);
+  assert.deepEqual((await call('POST', ['INC7', 'escalate'], ESC)).body, { ok: true, sent: false });
+  assert.equal((await call('GET', ['INC7', 'escalate'])).body.draft, null);
+  assert.deepEqual((await call('POST', ['INC9', 'escalate'], ESC)).body, { ok: true, sent: false });   // Resuelta: por la causa raíz
+});
+
+test('Escalar y su borrador, solo en una issue mía que no espere ya a un tercero', async () => {
+  const { call } = setup([], { issues: ESC_ISSUES });
+  for (const [method, path] of [['GET', ['IDX', 'escalate']], ['POST', ['IDX', 'escalate']], ['PUT', ['IDX', 'escalate', 'draft']]]) {
+    for (const [id, status] of [['INC999', 404], ['INC1', 403]]) {
+      assert.equal((await call(method, path.map((x) => (x === 'IDX' ? id : x)), ESC)).status, status);
+    }
+  }
+  const pending = setup([], { issues: [...ESC_ISSUES.filter((i) => i.id !== 'INC3'), issue('INC3', { ...ANA, status: 'PENDING' })] });
+  assert.deepEqual([(await pending.call('GET', ['INC3', 'escalate'])).status, (await pending.call('GET', ['INC3', 'escalate'])).body.error], [409, 'Esta issue ya espera a un tercero o está cerrada.']);
 });
 
 

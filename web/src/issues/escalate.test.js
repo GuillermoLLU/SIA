@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseTickets, ticketCheck, jiraPriority, n3Subject, escalateTodo, readEscalate, createEscalateDrafts } from './escalate.js';
+import { parseTickets, ticketCheck, jiraPriority, n3Subject, stepMissing, resumeStep, channelOf, targetOf } from './escalate.js';
 import { DESTINATIONS } from './escalate-mock.js';
 
 const dest = (id) => DESTINATIONS.find((d) => d.id === id);
@@ -26,45 +26,43 @@ test('la prioridad del Jira y el asunto del chat de N3', () => {
   assert.equal(n3Subject({ id: 'INC000027698079', center: '100497' }, dest('sisupac')), 'N3 - "SISUPAC" - INC000027698079 - 100497');
 });
 
-test('escalar: solo bloquea no saber a quién', () => {
-  const r = (v) => readEscalate({ mode: 'escalate', ...v }, DESTINATIONS);
-  assert.deepEqual(r({}), { missing: 'a qué equipo se escala' });
-  assert.deepEqual(r({ dest: 'other' }), { missing: 'el nombre del equipo o proveedor' });
-  assert.ok(r({ dest: 'sisupac' }).values);
-  assert.ok(r({ dest: 'operaciones' }).values);
+const missing = (n, v) => stepMissing(n, { mode: 'escalate', ...v }, DESTINATIONS);
+
+test('paso 1: sin destino no se sigue (TC-09); fuera del mapa, con su nombre', () => {
+  assert.deepEqual(missing(1, {}), { field: 'dest', text: 'Elige el equipo para seguir' });
+  assert.deepEqual(missing(1, { dest: 'other' }), { field: 'destOther', text: 'Escribe el equipo para seguir' });
+  assert.equal(missing(1, { dest: 'other', destOther: 'Equipo X' }), null);
+  assert.equal(missing(1, { dest: 'sisupac' }), null);
 });
 
-test('escalar: lo que se registra, sin ticket de proveedor, y la prioridad del Jira solo si abre un Jira', () => {
-  const r = (v) => readEscalate({ mode: 'escalate', ...v }, DESTINATIONS);
-  assert.deepEqual(r({ dest: 'sisupac', reason: 'Timeouts', jiraPriority: 'CRITICAL', ticket: 'SISUPAC-1' }).values,
-    { mode: 'escalate', dest: 'sisupac', destName: 'SISUPAC · N3 SISU', reason: 'Timeouts', sent: '', todo: [], jiraPriority: 'CRITICAL' });
-  assert.equal('jiraPriority' in r({ dest: 'as400', reason: 'x', sent: 'Correo de las 10:12', jiraPriority: 'HIGH' }).values, false);
-  assert.equal(r({ dest: 'other', destOther: 'Equipo X', reason: 'x', sent: 'Teams' }).values.destName, 'Equipo X');
+test('paso 1 al unir: a uno de la lista o a otro, siempre un ticket válido (TC-02)', () => {
+  assert.deepEqual(missing(1, { mode: 'link' }), { field: 'linked', text: 'Elige el ticket para seguir' });
+  assert.equal(missing(1, { mode: 'link', linked: 'SISUPAC-9211' }), null);
+  assert.deepEqual(missing(1, { mode: 'link', linked: 'other', linkedOther: 'MOCA' }), { field: 'linkedOther', text: 'Escribe un ticket válido para seguir' });
+  assert.equal(missing(1, { mode: 'link', linked: 'other', linkedOther: 'ITD: ERA-4170' }), null);
+  assert.equal(targetOf({ mode: 'link', linked: 'other', linkedOther: 'ITD: ERA-4170' }, DESTINATIONS), 'ERA-4170');
 });
 
-test('lo recomendable que falta: el análisis siempre; la evidencia, solo si no queda rastro en una herramienta', () => {
-  assert.deepEqual(escalateTodo({}, dest('sisupac')), ['el análisis previo']);
-  assert.deepEqual(escalateTodo({}, dest('operaciones')), ['el análisis previo', 'la evidencia del escalado']);
-  assert.deepEqual(escalateTodo({ reason: 'x' }, null), ['la evidencia del escalado']);
-  assert.deepEqual(escalateTodo({ reason: 'x', sent: 'Correo' }, dest('as400')), []);
+test('pasos 2 y 3: qué pasa siempre; la evidencia, solo si el destino no deja rastro en una herramienta (TC-10)', () => {
+  assert.equal(missing(2, {}).field, 'reason');
+  assert.equal(missing(2, { reason: 'Timeouts' }), null);
+  assert.equal(missing(3, { dest: 'sisupac' }), null);
+  assert.equal(missing(3, { dest: 'maestros' }), null);   // IOP abre su incidencia de Remedy
+  for (const d of ['operaciones', 'as400', 'other']) assert.equal(missing(3, { dest: d }).field, 'sent');
+  assert.equal(missing(3, { dest: 'operaciones', sent: 'Correo de las 10:12' }), null);
+  assert.equal(missing(4, {}), null);
 });
 
-test('unir: a uno de la lista o a otro, siempre con un ticket válido', () => {
-  const r = (v) => readEscalate({ mode: 'link', ...v }, DESTINATIONS);
-  assert.deepEqual(r({}), { missing: 'el ticket al que vincular' });
-  assert.deepEqual(r({ linked: 'SISUPAC-9211' }).values, { mode: 'link', ticket: 'SISUPAC-9211', why: '' });
-  assert.match(r({ linked: 'other', linkedOther: 'MOCA' }).missing, /ticket válido/);
-  assert.equal(r({ linked: 'other', linkedOther: 'ITD: ERA-4170' }).values.ticket, 'ERA-4170');
+test('el borrador se retoma en su paso si los de antes siguen completos (TC-04); al unir, en el 1', () => {
+  assert.equal(resumeStep(null, DESTINATIONS), 1);
+  assert.equal(resumeStep({ mode: 'escalate', dest: 'sisupac', reason: 'x', step: '3' }, DESTINATIONS), 3);
+  assert.equal(resumeStep({ mode: 'escalate', dest: 'sisupac', reason: '', step: 4 }, DESTINATIONS), 2);
+  assert.equal(resumeStep({ mode: 'link', linked: 'SISUPAC-9211', step: 3 }, DESTINATIONS), 1);
 });
 
-test('el borrador de Escalar: por issue, hasta que se escala o se une', () => {
-  const d = createEscalateDrafts();
-  assert.equal(d.get('INC1'), null);
-  d.save('INC1', { dest: 'sisupac' });
-  assert.deepEqual(d.get('INC1'), { dest: 'sisupac' });
-  assert.equal(d.get('INC2'), null);
-  d.save('INC1', { dest: 'returns' });
-  assert.equal(d.get('INC1').dest, 'returns');
-  d.drop('INC1');
-  assert.equal(d.get('INC1'), null);
+test('por dónde va cada destino, en una línea', () => {
+  assert.equal(channelOf(dest('sisupac')), 'Por SIGLO · abre un Jira de SISUPAC');
+  assert.equal(channelOf(dest('maestros')), 'Por IOP · abre una incidencia de Remedy');
+  assert.equal(channelOf(dest('operaciones')), 'Por correo · sin ticket');
+  assert.equal(channelOf(null), 'Fuera del mapa · sin ticket');
 });

@@ -1,6 +1,6 @@
-// Escalar (#9), sin DOM: el ticket de proveedor (formato y prefijos de hoy),
-// la prioridad del Jira y qué hace falta para escalar o vincular. Los destinos
-// llegan de fuera (el catálogo).
+// Escalar (#9, #117), sin DOM: el ticket de proveedor (formato y prefijos de hoy),
+// la prioridad del Jira, los pasos y qué hace falta en cada uno. Los destinos
+// llegan de fuera (el catálogo). Las notas del método las comprueba el bridge.
 
 // Una clave de Jira (PROYECTO-número) o una incidencia de Remedy (INC y 12 dígitos).
 const JIRA = /^[A-Z][A-Z0-9]*-\d+$/;
@@ -40,40 +40,48 @@ export const isDev = (dest) => dest?.level === 'N3' && dest.via === 'SIGLO';
 // no (correo, fuera del mapa), conviene dejar la evidencia de cómo se escaló.
 export const opensTicket = (dest) => !!dest && dest.opens !== 'none' && dest.via !== 'Correo';
 
-// Lo recomendable que falta: no bloquea, se recuerda al escalar.
-export const escalateTodo = (v, dest) => [
-  ...(String(v.reason ?? '').trim() ? [] : ['el análisis previo']),
-  ...(opensTicket(dest) || String(v.sent ?? '').trim() ? [] : ['la evidencia del escalado']),
+// Por dónde va y lo que abre, en una línea: «Por SIGLO · abre un Jira de SISUPAC».
+export const channelOf = (dest) => {
+  if (!dest) return 'Fuera del mapa · sin ticket';
+  const opens = dest.opens === 'jira' ? `abre un Jira de ${dest.project}` : dest.opens === 'remedy' ? 'abre una incidencia de Remedy' : 'sin ticket';
+  return `${dest.via === 'Correo' ? 'Por correo' : `Por ${dest.via}`} · ${opens}`;
+};
+
+// Los pasos del asistente, como los de Resolver. Al unir a un ticket, todo va en el 1.
+export const STEPS = [
+  { n: 1, title: 'A quién' },
+  { n: 2, title: 'Qué pasa' },
+  { n: 3, title: 'Cómo se envía' },
+  { n: 4, title: 'Revisar' },
 ];
+export const LAST = STEPS.length;
 
-// Lo que se envía al escalar o al vincular, o lo único sin lo que no se puede:
-// a quién se escala o a qué ticket se vincula. → { missing } | { values }
-export const readEscalate = (v, dests) => {
-  const s = (k) => String(v[k] ?? '').trim();
-  if (s('mode') === 'link') {
-    const raw = s('linked') === 'other' ? s('linkedOther') : s('linked');
-    if (!raw) return { missing: 'el ticket al que vincular' };
-    const t = ticketCheck(raw);
-    if (t.state !== 'ok') return { missing: 'un ticket válido (PROYECTO-número o INC y 12 dígitos)' };
-    return { values: { mode: 'link', ticket: t.value, why: s('why') } };
+const text = (v, k) => String(v[k] ?? '').trim();
+const linkedRaw = (v) => text(v, v.linked === 'other' ? 'linkedOther' : 'linked');
+export const destOf = (v, dests) => dests.find((d) => d.id === v.dest) || null;
+
+// Lo que falta para salir del paso n → { field: el campo que se señala, text } | null.
+// Sin destino o ticket no se sigue; sin herramienta que deje rastro, hace falta la evidencia.
+export const stepMissing = (n, v, dests) => {
+  if (n === 1 && v.mode === 'link') {
+    const field = v.linked === 'other' ? 'linkedOther' : 'linked';
+    if (!linkedRaw(v)) return { field, text: 'Elige el ticket para seguir' };
+    return ticketCheck(linkedRaw(v)).state === 'ok' ? null : { field, text: 'Escribe un ticket válido para seguir' };
   }
-  if (!s('dest')) return { missing: 'a qué equipo se escala' };
-  const dest = dests.find((d) => d.id === s('dest')) || null;
-  if (!dest && !s('destOther')) return { missing: 'el nombre del equipo o proveedor' };
-  return { values: {
-    mode: 'escalate', dest: dest?.id || null, destName: dest?.name || s('destOther'), reason: s('reason'), sent: s('sent'), todo: escalateTodo(v, dest),
-    ...(dest?.opens === 'jira' ? { jiraPriority: s('jiraPriority') } : {}),
-  } };
+  if (n === 1 && !text(v, 'dest')) return { field: 'dest', text: 'Elige el equipo para seguir' };
+  if (n === 1 && v.dest === 'other' && !text(v, 'destOther')) return { field: 'destOther', text: 'Escribe el equipo para seguir' };
+  if (n === 2 && !text(v, 'reason')) return { field: 'reason', text: 'Cuenta qué pasa para seguir' };
+  if (n === 3 && !opensTicket(destOf(v, dests)) && !text(v, 'sent')) return { field: 'sent', text: 'Cuenta qué has enviado para seguir' };
+  return null;
 };
 
-// Lo escrito en Escalar, por issue, hasta que se escala o se une: cerrar el
-// modal no lo pierde. → { get(id) → values | null, save(id, values), drop(id) }
-// shortcut: en memoria de esta ventana, se pierde al recargar; con la integración irá al bridge, como el borrador de Resolver.
-export const createEscalateDrafts = () => {
-  const drafts = new Map();
-  return {
-    get: (id) => drafts.get(id) ?? null,
-    save: (id, values) => { drafts.set(id, values); },
-    drop: (id) => { drafts.delete(id); },
-  };
+// El paso en el que se retoma un borrador: en el que se quedó, si los de antes siguen completos.
+export const resumeStep = (saved, dests) => {
+  if (!saved || saved.mode === 'link') return 1;
+  const step = Math.min(Number(saved.step) || 1, LAST);
+  for (let n = 1; n < step; n++) if (stepMissing(n, saved, dests)) return n;
+  return step;
 };
+
+// A quién va, para el aviso del final: el equipo o el ticket (ya limpio).
+export const targetOf = (v, dests) => (v.mode === 'link' ? ticketCheck(linkedRaw(v)).value : destOf(v, dests)?.name || text(v, 'destOther'));

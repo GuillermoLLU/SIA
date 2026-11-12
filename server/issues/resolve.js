@@ -13,7 +13,7 @@ import { fail } from './draft.js';
 
 // Las notas internas que pide la auditoría, por orden. La etiqueta, con o sin
 // tilde (en el CSV a veces llega rota).
-const NOTES = [
+export const NOTES = [
   { key: 'initial', label: 'Situación inicial', tag: /^SITUACI.?N INICIAL$/ },
   { key: 'background', label: 'Antecedentes', tag: /^ANTECEDENTES$/ },
   { key: 'analysis', label: 'Análisis', tag: /^AN.?LISIS$/ },
@@ -21,7 +21,7 @@ const NOTES = [
   { key: 'resolution', label: 'Resolución', tag: /^RESOLUCI.?N$/ },
 ];
 // Las de una crítica.
-const CRITICAL = [
+export const CRITICAL = [
   { key: 'major', label: '¿Es mayor incidente?', tag: /^MAJOR INCIDENT$/ },
   { key: 'restored', label: 'Servicio restablecido', tag: /^SERVREST$/ },
 ];
@@ -35,7 +35,7 @@ const keyOf = (text) => {
 };
 
 // La última nota de cada etiqueta: { diagnosis: { at, who, text }, … }
-const lastByKey = (worklog = []) => {
+export const lastByKey = (worklog = []) => {
   const out = {};
   for (const n of worklog) {
     const k = keyOf(n.text);

@@ -16,8 +16,7 @@ import { createResolver } from './resolve-view.js';
 import { knowsOrigin, originOf } from './origin.js';
 import { crossfade } from '../ui/crossfade.js';
 import { mountTips } from './tip.js';
-import { readEscalate, createEscalateDrafts } from './escalate.js';
-import { escalateForm, escalateLive } from './escalate-form.js';
+import { createEscalator } from './escalate-view.js';
 import { DESTINATIONS, OPEN_TICKETS } from './escalate-mock.js';
 
 const GOAL = { min: 15, max: 20 }; // resueltas por turno, lo que dice el equipo
@@ -225,7 +224,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   // Acciones: su formulario encima de la pantalla de trabajo. De momento se
   // valida y se avisa: nada sale hacia Remedy hasta conectar SIGLO.
   let people = [], offEscape = null;
-  const closeAction = () => { resolver.close(); root.querySelector('.iss-modal')?.remove(); offEscape?.(); offEscape = null; };
+  const closeAction = () => { resolver.close(); escalator.close(); root.querySelector('.iss-modal')?.remove(); offEscape?.(); offEscape = null; };
   // Resolver vive en su módulo (resolve-view.js); al resolver, la ventana ya se ha ido y la mesa se pone al día con un cruce.
   const resolver = createResolver(root, { api, dialogs, toast, onResolved: async () => {
     const fresh = await api.desk().catch(() => null);
@@ -234,41 +233,24 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     toast?.('Informe enviado e incidencia resuelta. De momento no sale hacia Remedy (falta conectar SIGLO).');
   } });
 
-  // Escalar: el catálogo y los tickets abiertos son de prueba (escalate-mock.js).
-  // Lo escrito se guarda por issue hasta escalar o unir (escDrafts).
-  const escDrafts = createEscalateDrafts();
-  const escalateModal = () => escalateForm({ issue, dests: DESTINATIONS, open: OPEN_TICKETS, v: escDrafts.get(opened) || {} });
-  const refreshEscalate = (form) => {
-    const v = Object.fromEntries(new FormData(form));
-    escDrafts.save(opened, v);
-    const live = escalateLive(v, { issue, dests: DESTINATIONS });
-    for (const [k, html] of Object.entries(live.html)) form.querySelector(`[data-esc-live="${k}"]`).innerHTML = html;
-    for (const k of ['other', 'jira', 'dev']) form.querySelector(`[data-esc-when="${k}"]`).hidden = !live.show[k];
-    const link = v.mode === 'link';
-    form.querySelector('[data-esc-mode="escalate"]').hidden = link;
-    form.querySelector('[data-esc-mode="link"]').hidden = !link;
-    form.querySelector('.iss-esc-hint')?.toggleAttribute('hidden', link);
-    form.querySelector('[data-esc-ok]').textContent = link ? 'Unir al ticket' : 'Escalar';
-  };
-  root.addEventListener('input', (e) => { const form = e.target.closest('[data-act-form="escalate"]'); if (form) refreshEscalate(form); });
-  // Escribir en «Otro ticket» o pulsar «Unirla a…» elige esa opción sin buscar el radio.
-  root.addEventListener('focusin', (e) => { if (e.target.name === 'linkedOther') e.target.closest('label').querySelector('[name="linked"]').checked = true; });
-  root.addEventListener('click', (e) => {
-    const use = e.target.closest('[data-esc-use-link]');
-    if (!use) return;
-    const form = use.closest('form');
-    form.querySelector('[name="mode"][value="link"]').checked = true;
-    refreshEscalate(form);
-  });
+  // Escalar vive en su módulo (escalate-view.js), con el catálogo y los tickets abiertos de prueba
+  // (escalate-mock.js). Al acabar no cambia nada en la mesa: aún no sale hacia Remedy.
+  const escalator = createEscalator(root, { api, toast, dests: DESTINATIONS, tickets: OPEN_TICKETS, onEscalated: (target, mode) => {
+    const rootCause = issue?.status === 'RESOLVED';
+    closeAction();
+    toast?.(`${mode === 'link' ? `Unida a ${target}` : `Escalada a ${target}${rootCause ? ' por la causa raíz' : ''}`}. De momento no sale hacia Remedy (falta conectar SIGLO).`);
+  } });
 
   const openAction = async (key) => {
     closeAction();
     if (key === 'resolve') return resolver.open(opened, issue?.link || null, closeAction);
+    // Escape: con la lista del selector abierta la cierra; si no, cierra la ventana
+    if (key === 'escalate') return escalator.open(issue, issue?.link || null, () => (openPicker(root) ? closePickers(root) : closeAction()));
     // traspasar: solo a quien tiene el conocimiento de su origen (SGA, SISU)
     if (key === 'transfer') people = (await api.teammates()).filter((p) => knowsOrigin(p.groups, issue));
     const empty = key === 'transfer' ? `Nadie más tiene el conocimiento de ${originOf(issue)}` : '';
-    root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${key === 'escalate' ? escalateModal() : actionForm(key, opened, people, empty)}</div>`);
-    root.querySelector(key === 'escalate' ? '#iss-f-dest' : '.iss-act-form textarea, .iss-act-form input:not([type=hidden]), .iss-act-form select')?.focus();
+    root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${actionForm(key, opened, people, empty)}</div>`);
+    root.querySelector('.iss-act-form textarea, .iss-act-form input:not([type=hidden]), .iss-act-form select')?.focus();
     // Escape: con la lista del selector abierta la cierra; si no, cierra el modal
     offEscape = onEscape(() => (openPicker(root) ? closePickers(root) : closeAction()));
   };
@@ -282,7 +264,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     if (tab) tab.innerHTML = trailTab(items.length);
   };
   // El botón de enviar, apagado hasta que estén todos los campos obligatorios.
-  // Resolver (por pasos) y Escalar (no bloquea) llevan su propia validación: aquí, los demás.
+  // Resolver y Escalar (por pasos) llevan su propia validación: aquí, los demás.
   const syncSubmit = (form) => { if (['resolve', 'escalate'].includes(form.dataset.actForm)) return; form.querySelector('[type=submit]').disabled = !isComplete(form.dataset.actForm, Object.fromEntries(new FormData(form))); };
   root.addEventListener('input', (e) => {
     const form = e.target.closest('[data-act-form]');
@@ -341,20 +323,12 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     if (!form) return;
     e.preventDefault();
     const key = form.dataset.actForm;
-    if (key === 'resolve') return;   // lo atiende resolve-view.js
+    if (key === 'resolve' || key === 'escalate') return;   // lo atienden resolve-view.js y escalate-view.js
     const raw = Object.fromEntries(new FormData(form));
-    const { missing, values } = key === 'escalate' ? readEscalate(raw, DESTINATIONS) : readAction(key, raw);
+    const { missing, values } = readAction(key, raw);
     const err = form.querySelector('.iss-act-err');
     const fail = (text) => { err.textContent = text; err.hidden = false; form.querySelector('[type=submit]').disabled = false; };
     if (missing) return fail(`Falta: ${missing}.`);
-    if (key === 'escalate') {
-      const rootCause = issue.status === 'RESOLVED';
-      escDrafts.drop(opened);   // escalada o unida: ya no hay nada pendiente
-      closeAction();
-      return toast?.(values.mode === 'link'
-        ? `Unida a ${values.ticket}: pasa a Pendiente (proveedor), sin otro escalado. Aún no se envía a Remedy.`
-        : `Escalada a ${values.destName}: ${rootCause ? 'queda registrada la causa raíz y sigue Resuelta' : 'pasa a Pendiente (proveedor) y se avisa al centro'}.${values.todo.length ? ` Añádele ${values.todo.join(' y ')} en «Notas internas».` : ''} Aún no se envía a Remedy.`);
-    }
     form.querySelector('[type=submit]').disabled = true;
     try {
       if (key === 'transfer') {
@@ -404,6 +378,6 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
 
   return {
     show: () => showDesk().catch((err) => { root.innerHTML = `<div class="iss-page"><p class="iss-empty">No se pudieron cargar las issues: ${esc(err.message)}</p></div>`; }),
-    dispose: () => { resolver.dispose(); clearInterval(refresher); window.removeEventListener('focus', picked); closeChat(); },
+    dispose: () => { resolver.dispose(); escalator.close(); clearInterval(refresher); window.removeEventListener('focus', picked); closeChat(); },
   };
 };

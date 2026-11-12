@@ -20,6 +20,11 @@
 //                         (una imagen más; en el texto va como [imagenN])
 //   GET  /:id/draft/file/:n → { name, type, data (base64) }
 //   DELETE /:id/draft/file/:n → { at }
+//   GET  /:id/escalate  → { check, draft }  (abrir Escalar: las notas que pide y las que
+//                         faltan, escalate.js, y mi borrador, o null)
+//   POST /:id/escalate  { mode, dest, …, step } → { ok, sent: false }
+//                         (lo comprueba otra vez y borra el borrador)
+//   PUT  /:id/escalate/draft { mode, dest, …, step } → { at }
 //   POST /:id/transfer  { to, comment } → { ok }  (a un compañero; el motivo, obligatorio, queda como nota)
 //   POST /:id/notes     { body } → { id }  (una nota interna del equipo)
 //   PUT  /:id/notes/:nota { body } → { ok }  (editar la propia, hasta 24 h después; si no, 403)
@@ -51,6 +56,11 @@ export const issuesRoutes = (issues, { json, readBody }) => async (req, res, [id
     if (action === 'draft' && !part) {
       if (req.method === 'PUT') return json(res, 200, await issues.saveDraft(who, id, await readBody(req)));
     }
+    if (action === 'escalate' && !part) {
+      if (req.method === 'GET') return json(res, 200, await issues.startEscalate(who, id));
+      if (req.method === 'POST') return json(res, 200, await issues.escalate(who, id, await readBody(req)));
+    }
+    if (action === 'escalate' && part === 'draft' && !sub && req.method === 'PUT') return json(res, 200, await issues.saveEscalateDraft(who, id, await readBody(req)));
     if (action === 'draft' && part === 'file') {
       if (!sub && req.method === 'PUT') return json(res, 200, await issues.saveDraftFile(who, id, await readBody(req)));
       const n = Number(sub);

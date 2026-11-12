@@ -533,9 +533,6 @@ a.rv-id:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .iss-autosave { margin-right: auto; font-size: 12px; color: var(--text-low); }
 /* resolver, confirmación: lo que se envía, limpio y como se va a leer */
 /* «?»: la ayuda sale al pasar el ratón o al llegar con el teclado */
-/* Escalar: más alto que las demás acciones, con su propio scroll */
-.iss-esc { width: min(640px, 100%); max-height: 84vh; overflow-y: auto; }
-.iss-modal:has(.iss-esc) { padding-top: 6vh; }
 /* Resolver con puntos sin cubrir: el aviso, con aire. Cabecera con icono, la lista de puntos
    (una fila por punto, lo que falta en rojo) y los dos botones. Entra como las demás cajas. */
 .rb { width: min(520px, 100%); display: flex; flex-direction: column; gap: 28px; padding: 32px; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 24px 64px rgba(0, 0, 0, .18); animation: ai-in .4s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
@@ -567,33 +564,34 @@ a.rv-id:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .iss-esc small.bad { color: var(--iss-crit); }
 .iss-esc small b { font-family: var(--font-mono); font-weight: 600; }
 .iss-esc textarea::placeholder, .iss-esc input::placeholder { color: var(--text-low); opacity: .7; }
-.iss-esc-hint { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: 0; padding: 8px 10px; font-size: 12.5px; border: 1px solid color-mix(in srgb, var(--iss-high) 40%, var(--border)); }
-.iss-esc-hint .lab-btn { margin-left: auto; }
+/* Escalar, el asistente con el aspecto de Resolver (.rv): sus campos de texto son los del editor,
+   todo lo que falta parpadea como en Resolver y, al unir a un ticket, los otros pasos se apagan */
+.iss-esc textarea.rv-ed { flex: 1; min-height: 56px; resize: none; background: var(--surface); }
+.iss-esc .blink:not(.rv-ed) { animation: rv-blink 1.8s ease both; }
+.rv-steps li.off { opacity: .35; pointer-events: none; }
+.iss-esc .rv-steps { margin-top: 20px; }   /* sin grupo de pasos: nada que subir junto al título */
+.iss-esc .rv-gen-sum { flex: 1; min-height: 0; padding-right: 0; }
+.iss-esc :is(.rv-gen-sum, .rv-step).leaving { opacity: 0; filter: blur(6px); transition: opacity .3s ease, filter .3s ease; }
 /* Opciones que se eligen pulsando la tarjeta: el radio no se ve, la tarjeta marca la elegida */
 .iss-sr { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .iss-esc-card { position: relative; display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; font-size: 13px; line-height: 1.4; cursor: pointer; border: 1px solid var(--border); background: var(--surface); }
 .iss-esc-card:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
 .iss-esc-card:has(:checked) { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
 .iss-esc-card:has(:checked) > b { color: var(--accent); }
-.iss-esc-card:has(:checked)::after { content: "✓"; position: absolute; top: 9px; right: 12px; font-weight: 700; color: var(--accent); }
+/* la elegida, con el check verde de los pasos hechos: un círculo relleno que entra con un rebote */
+.iss-esc-card:has(:checked)::after { content: "✓"; position: absolute; top: 9px; right: 12px; display: grid; place-items: center; width: 22px; height: 22px; font-size: 13px; font-weight: 700; color: var(--surface); background: var(--iss-ok); border-radius: 50%; animation: iss-esc-check .3s cubic-bezier(.34, 1.56, .64, 1) both; }
+@keyframes iss-esc-check { from { opacity: 0; transform: scale(.3); } }
+@media (prefers-reduced-motion: reduce) { .iss-esc-card:has(:checked)::after { animation: none; } }
 .iss-esc-card:has(.iss-sr:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
-.iss-esc-card > b { padding-right: 18px; font-weight: 600; }
+.iss-esc-card > b { padding-right: 32px; font-weight: 600; }
+.iss-esc-card > span:first-of-type { padding-right: 32px; }
 .iss-esc-card small { font-size: 12px; color: var(--text-low); }
 .iss-esc-mode { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.iss-esc-open { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; border: 0; }
-.iss-esc-open legend { padding: 0 0 6px; font-size: 13px; font-weight: 600; }
+.iss-esc-open { position: relative; display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; border: 0; }
 .iss-esc-open input[name=linkedOther] { margin-top: 4px; padding: 6px 8px; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border); }
 .iss-esc-dev { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; font-size: 12.5px; line-height: 1.45; border: 1px solid var(--border); background: color-mix(in srgb, var(--bg) 60%, var(--surface)); }
-.iss-esc-dev h4, .iss-esc-before h4 { margin: 0; font-size: 13px; font-weight: 600; }
-.iss-esc-before h4 i { font-weight: 400; font-style: normal; color: var(--text-low); }
+.iss-esc-dev h4 { margin: 0; font-size: 13px; font-weight: 600; }
 .iss-esc-dev ul { display: flex; flex-direction: column; gap: 4px; margin: 0; padding-left: 18px; }
-.iss-esc-before { display: flex; flex-direction: column; gap: 8px; }
-.iss-esc-check { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 13px; }
-.iss-esc-check li { display: flex; gap: 8px; }
-.iss-esc-check li > span { width: 14px; font-weight: 700; }
-.iss-esc-check li.ok > span { color: var(--iss-ok); }
-.iss-esc-check li.todo > span { color: var(--text-low); }
-.iss-esc-check i { font-style: normal; color: var(--text-low); }
 @media (max-width: 560px) { .iss-esc-mode { grid-template-columns: 1fr; } }
 .iss-take:focus-visible, .iss-item:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 /* la issue en el diálogo de confirmación (devolver a la cola) */
