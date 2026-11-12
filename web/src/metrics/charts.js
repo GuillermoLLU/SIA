@@ -13,6 +13,10 @@ import { MIN_ISSUES, DAY, clearlyWorse, trendDelta, shadeSoft, HOT } from './rul
 import { blockHead, blocksOf } from './pieces.js';
 import { periodSeries, monthTicks, dayTicks, lineScale, dayScale, scorecardOrder, shownRows, heatCounts, matrixCounts, groupMax, LINE_MIN } from './plot.js';
 
+// La rejilla de una gráfica de W de ancho con márgenes L y R: tres líneas (0, la mitad y el máximo, en y) con su cifra
+// a la izquierda, en fmt.
+export const yGrid = ({ W, L, R }, y, max, fmt = num) => [0, 0.5, 1].map((p) => `<line x1="${L}" x2="${W - R}" y1="${y(max * p)}" y2="${y(max * p)}" class="mt-gridline"/><text x="${L - 6}" y="${y(max * p) + 4}" text-anchor="end" class="mt-axis">${fmt(max * p)}</text>`).join('');
+
 // ui: { exp: {id: true}, sort: {id: [columna, ±1]} }, lo que la persona ha desplegado y ordenado.
 export const createCharts = (m, ui) => {
   const { DIMS, LASTM, monthName, CO, CMP, NAMES, isSel, anySel, rows, group, stats, bySide, trend, SIDE } = m;
@@ -67,7 +71,7 @@ export const createCharts = (m, ui) => {
     const subs = ticks.some((t) => t.sub);
     const W = 620, H = o.height || 190, L = o.left || 74, R = 12, T = 12, B = subs ? 38 : 26;
     const { max, x, y } = lineScale(per.flat(), n - 1, { W, H, L, R, T, B });
-    const grid = [0, 0.5, 1].map((p) => `<line x1="${L}" x2="${W - R}" y1="${y(max * p)}" y2="${y(max * p)}" class="mt-gridline"/><text x="${L - 6}" y="${y(max * p) + 4}" text-anchor="end" class="mt-axis">${fmt(max * p)}</text>`).join('');
+    const grid = yGrid({ W, L, R }, y, max, fmt);
     // el tramo bajo su punto y, debajo, el año (meses) o el mes (días) donde cambia (monthTicks, dayTicks)
     const xs = ticks.map(({ k, label, sub }) => `<text x="${x(k)}" y="${H - (subs ? 19 : 6)}" text-anchor="middle" class="mt-axis">${label}${last(k) ? '*' : ''}</text>`
       + (sub ? `<text x="${x(k)}" y="${H - 4}" text-anchor="middle" class="mt-axis">${sub}</text>` : '')).join('');
@@ -260,7 +264,7 @@ export const createCharts = (m, ui) => {
     const band = (from, to, k) => { const b = bandOf(from, to); return `<rect x="${b.x.toFixed(1)}" y="${T}" width="${b.width.toFixed(1)}" height="${H - T - B}" class="mt-band${k}"/>`; };
     const bands = band(0, 7, 2) + band(7, 15, 0) + band(15, 23, 1) + band(23, 24, 2)
       + [[3.5, 2], [11, 0], [19, 1]].map(([h, k]) => `<text x="${edge(h).toFixed(1)}" y="${T - 8}" text-anchor="middle" class="mt-axis">${SHIFTS[k]}</text>`).join('');
-    const grid = [0, 0.5, 1].map((p) => `<line x1="${L}" x2="${W - R}" y1="${y(max * p)}" y2="${y(max * p)}" class="mt-gridline"/><text x="${L - 6}" y="${y(max * p) + 4}" text-anchor="end" class="mt-axis">${fmt(max * p)}</text>`).join('');
+    const grid = yGrid({ W, L, R }, y, max, fmt);
     const xs = [0, 3, 6, 9, 12, 15, 18, 21].map((h) => `<text x="${x(h)}" y="${H - 6}" text-anchor="middle" class="mt-axis">${h} h</text>`).join('');
     const ser = series.map((s) => `<polyline class="mt-line ${s.cls}" points="${s.v.map((v, h) => `${x(h).toFixed(1)},${y(v).toFixed(1)}`).join(' ')}"/>`
       + s.v.map((v, h) => `<circle cx="${x(h).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3" class="mt-dot ${s.cls}" data-tip="${esc(`${s.label} · de ${h} a ${h + 1} h\n${fmt(v)}`)}"/>`).join('')).join('');

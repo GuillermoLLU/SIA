@@ -24,7 +24,7 @@ export const isEscalated = (C, i) => (C.fl[i] & THIRD_PARTY) !== 0;
 export const MISROUTED = 2097152, JIRA_DISCARDED = 4194304, JIRA_MOVED = 8388608;
 // SISU o SGA, por el módulo (como lo reparte el equipo): estos módulos son de SISU; el resto, de SGA. Es otra cosa que
 // las tarjetas (CARDS), que salen de los filtros de Remedy.
-export const SISU_MODULES = new Set(['PACKING', 'ORDERS', 'DEVOLUCION PRODUCTO', 'SORTING', 'INBOUND', 'STOCK', 'WAVES', 'PERFORMANCE', 'PICKING', 'SISU']);
+const SISU_MODULES = new Set(['PACKING', 'ORDERS', 'DEVOLUCION PRODUCTO', 'SORTING', 'INBOUND', 'STOCK', 'WAVES', 'PERFORMANCE', 'PICKING', 'SISU']);
 const SYSTEMS = ['SISU', 'SGA'];
 // Tarjetas: como reconoce el equipo su trabajo. SGA y SISU, por los filtros de Remedy (ámbito); PRIO, por la
 // etiqueta de priorizada por negocio, que va además de su SGA o SISU. 3: sin tarjeta.

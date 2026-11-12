@@ -7,6 +7,7 @@ import { num, dec, pct, nice } from '../format.js';
 import { backlogByDay, trendOf, flowByDay, flowByShift } from '../backlog.js';
 import { SHIFTS, SHIFT_HOURS } from '../shifts.js';
 import { lineScale, dayTicks, dayBuckets, bucketTicks } from '../plot.js';
+import { yGrid } from '../charts.js';
 import { DAY } from '../rules.js';
 
 export const evolutionOf = (t) => {
@@ -36,7 +37,7 @@ export const evolutionOf = (t) => {
     const subs = ticks.some((t) => t.sub);
     const W = 1240, H = 250, L = 52, R = 12, T = 12, B = subs ? 38 : 26, slot = (W - L - R) / n;
     const max = Math.max(1, top) * 1.1, y = (v) => T + (H - T - B) * (1 - v / max), xc = (i) => L + slot * (i + 0.5);
-    const grid0 = [0, 0.5, 1].map((p) => `<line x1="${L}" x2="${W - R}" y1="${y(max * p)}" y2="${y(max * p)}" class="mt-gridline"/><text x="${L - 6}" y="${y(max * p) + 4}" text-anchor="end" class="mt-axis">${num(max * p)}</text>`).join('');
+    const grid0 = yGrid({ W, L, R }, y, max);
     const xs = ticks.map(({ k, label, sub }) => `<text x="${xc(k)}" y="${H - (subs ? 19 : 6)}" text-anchor="middle" class="mt-axis">${label}</text>`
       + (sub ? `<text x="${xc(k)}" y="${H - 4}" text-anchor="middle" class="mt-axis">${sub}</text>` : '')).join('');
     const hits = Array.from({ length: n }, (_, i) => `<rect class="mt-hit" x="${(L + slot * i).toFixed(1)}" y="${T}" width="${slot.toFixed(1)}" height="${H - T - B}" data-tip="${esc(tip(i))}"/>`).join('');
@@ -113,7 +114,7 @@ export const evolutionOf = (t) => {
     const ticks = s.ticks, subs = ticks.some((x) => x.sub);
     const W = 1240, H = 230, L = 52, R = 12, T = 12, B = subs ? 38 : 26;   // ocupa la fila entera: a su ancho, la letra sale a su tamaño
     const { max, x, y } = lineScale(per.flat(), n - 1, { W, H, L, R, T, B });
-    const grid0 = [0, 0.5, 1].map((p) => `<line x1="${L}" x2="${W - R}" y1="${y(max * p)}" y2="${y(max * p)}" class="mt-gridline"/><text x="${L - 6}" y="${y(max * p) + 4}" text-anchor="end" class="mt-axis">${num(max * p)}</text>`).join('');
+    const grid0 = yGrid({ W, L, R }, y, max);
     const xs = ticks.map(({ k, label, sub }) => `<text x="${x(k)}" y="${H - (subs ? 19 : 6)}" text-anchor="middle" class="mt-axis">${label}</text>`
       + (sub ? `<text x="${x(k)}" y="${H - 4}" text-anchor="middle" class="mt-axis">${sub}</text>` : '')).join('');
     const ser = per.map((v, s) => `<polyline class="mt-line mt-s${cos[s]}" points="${v.map((p, i) => `${x(i).toFixed(1)},${y(p).toFixed(1)}`).join(' ')}"/>`
@@ -139,7 +140,7 @@ export const evolutionOf = (t) => {
     for (let k = 0; k < n; k += every) ticks.push({ k, label: String(k + 1), sub: k ? null : unit.toLowerCase() });
     const W = 1240, H = 230, L = 52, R = 12, T = 12, B = 38;
     const { max, x, y } = lineScale([0, ...ser.flatMap((s) => s.v)], n - 1, { W, H, L, R, T, B });
-    const grid0 = [0, 0.5, 1].map((p) => `<line x1="${L}" x2="${W - R}" y1="${y(max * p)}" y2="${y(max * p)}" class="mt-gridline"/><text x="${L - 6}" y="${y(max * p) + 4}" text-anchor="end" class="mt-axis">${num(max * p)}</text>`).join('');
+    const grid0 = yGrid({ W, L, R }, y, max);
     const xs = ticks.map(({ k, label, sub }) => `<text x="${x(k)}" y="${H - 19}" text-anchor="middle" class="mt-axis">${label}</text>`
       + (sub ? `<text x="${x(k)}" y="${H - 4}" text-anchor="middle" class="mt-axis">${sub}</text>` : '')).join('');
     const lines = ser.map((s, j) => (s.v.length ? `<polyline class="mt-line mt-s${j}" points="${s.v.map((p, i) => `${x(i).toFixed(1)},${y(p).toFixed(1)}`).join(' ')}"/>`
