@@ -1,8 +1,9 @@
 // «Equipo soporte», una pestaña de Métricas: un control rápido de la calidad del equipo y de
 // cada persona (team.js). Con los datos de las Métricas, que se cargan desde
 // allí; se vuelven a leer al abrir la vista, por si se han actualizado desde
-// Snowflake. Es el equipo de Indra. Clic en una persona: el panel se filtra a sus
-// datos; otro clic, o «Quitar filtro», vuelve al equipo. Si la persona también gestiona el equipo,
+// Snowflake. Es el equipo de Indra. Clic en una persona: queda marcada y el panel pasa a sus
+// datos; clic en otra: la tabla las compara (team.js, compareTech); otro clic en una marcada, o «Quitar filtro»,
+// la desmarca. Si la persona también gestiona el equipo,
 // «Gestionar equipo» lleva a la gestión de personas (onManage).
 // Es una vista sobre el dominio de las Métricas: su modelo, sus piezas de pantalla (charts.js, period.js, tip.js) y
 // los estilos de esas piezas (metrics.css); lo suyo, en team.js y work.css.
@@ -18,7 +19,7 @@ import { coverage } from '../metrics/view.js';
 import { num } from '../metrics/format.js';
 import { sheetCsv, sheetFile } from '../metrics/sheet.js';
 import { downloadText } from '../metrics/download.js';
-import { teamPanel, conclusionsPanel, teamIssues } from './team.js';
+import { teamPanel, conclusionsPanel, teamIssues, compareTech } from './team.js';
 import { TEAM_SHEET_COLS } from './team-sheet.js';
 import { pickDays } from './activity.js';
 import { pressStartedIn } from '../ui/dom.js';
@@ -102,7 +103,7 @@ export const mountWorkView = (root, { api, onManage, toast }) => {
     if (e.target.closest('[data-export]')) return exportSheet();
     if (e.target.closest('[data-calendar]')) { calendar = !calendar; if (calendar) panel.open(); return render(); }
     if (calendar && !pressedInPop() && !e.target.closest('.mt-pop')) { calendar = false; render(); }
-    if (e.target.closest('[data-person-clear]')) { ui.person = null; return render(); }
+    if (e.target.closest('[data-person-clear], [data-cmp-clear]')) { ui.cmp = []; ui.person = null; return render(); }
     if (e.target.closest('[data-range-clear]')) return applyRange({ period: ui.range.base, range: null });
     const series = e.target.closest('[data-act-series]');
     if (series) { const k = series.dataset.actSeries; ui.actSeries = ui.actSeries === k ? null : k; return render(); }
@@ -123,7 +124,12 @@ export const mountWorkView = (root, { api, onManage, toast }) => {
       return render();
     }
     const person = e.target.closest('[data-person]');
-    if (person) { const k = Number(person.dataset.person); ui.person = ui.person === k ? null : k; render(); }
+    if (!person) return;
+    const k = Number(person.dataset.person);
+    // marca o desmarca; el panel, con los datos del primero marcado (A)
+    ui.cmp = compareTech(ui.cmp, k);
+    ui.person = ui.cmp[0] ?? null;
+    render();
   });
 
   // Escape cierra el panel del periodo. En el documento, no en la vista: al elegir una fecha se repinta y el foco se
@@ -142,6 +148,7 @@ export const mountWorkView = (root, { api, onManage, toast }) => {
         if (data.meta.generated !== generated) {
           generated = data.meta.generated;
           ui.person = null;   // los índices de las personas cambian con los datos
+          ui.cmp = [];
           ui.range = null;
           m = createModel(data);
           m.setPeriod(...(sinceOldestOpen(m, 0) || lastDays(m, DEFAULT_DAYS)));   // el equipo de Indra

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createModel } from '../metrics/model.js';
 import { createCharts } from '../metrics/charts.js';
 import { dur } from '../metrics/format.js';
-import { teamPanel, conclusionsPanel, teamIssues } from './team.js';
+import { teamPanel, conclusionsPanel, teamIssues, compareTech } from './team.js';
 
 // 2 personas de Indra (ANA, rápida; PEPE, lenta) con MIN (10) issues cada una y 1 de T-Systems (LUIS, con 1 issue), que no sale.
 const MIN = 10;   // team.js: con menos issues, los % de una persona dicen poco
@@ -134,13 +134,13 @@ test('Volumen: la media por día de la semana, de todos los de ese tipo del peri
   assert.match(months, /data-chart="volumeMonths" title="Ver por día de la semana"/);
 });
 
-test('filtrar a una persona: los bloques y la tabla, solo sus datos; sin la fila del equipo', () => {
+test('filtrar a una persona: los bloques, solo sus datos; la tabla, entera, para poder elegir otra', () => {
   const d = data(); d.dict.status = ['', 'CLOSED', 'ASSIGNED']; d.cols.st[MIN] = 2;   // una de PEPE, abierta
   const m = createModel(d), ui = { exp: {}, sort: {}, charts: new Set(), person: 1 };
   m.S.sides = [{ company: 0 }, null]; m.refilter();
   const h = teamPanel(m, createCharts(m, ui), ui);
-  assert.ok(rowOf(h, 'ANA') && !rowOf(h, 'PEPE'));
-  assert.doesNotMatch(h, /Equipo Indra/);
+  assert.ok(rowOf(h, 'ANA') && rowOf(h, 'PEPE'));
+  assert.match(h, /Equipo Indra/);
   assert.match(h, /Solo los datos de <b>ANA<\/b><button[^>]*data-person-clear/);
   assert.match(h, /<div class="wk-key"><b>10<\/b><span>incidencias en el periodo/);
   assert.match(h, /<h3>Pendientes<\/h3>[\s\S]*?<div class="wk-hero"><b>0<\/b>/);   // la abierta de PEPE no cuenta
@@ -287,4 +287,44 @@ test('al ordenar por una media o un %, quien tiene menos de MIN incidencias va a
   m.S.sides = [{ company: 0 }, null]; m.refilter();
   const names = [...teamPanel(m, createCharts(m, ui), ui).matchAll(/data-person="(\d)"/g)].map((x) => x[1]);
   assert.deepEqual(names, ['1', '2', '3']);   // LUIS tiene la media más baja, pero va al final
+});
+
+test('comparar técnicos: un clic marca o desmarca; con dos, el tercero entra como B y el B anterior pasa a A', () => {
+  assert.deepEqual(compareTech(undefined, 1), [1]);
+  assert.deepEqual(compareTech([1], 2), [1, 2]);
+  assert.deepEqual(compareTech([1, 2], 3), [2, 3]);
+  assert.deepEqual(compareTech([1, 2], 1), [2]);
+});
+
+test('comparar técnicos: con dos, solo sus filas y la diferencia de A frente a B, en verde o rojo según qué es mejor', () => {
+  const m = createModel(data()), ui = { exp: {}, sort: {}, charts: new Set(), cmp: [1, 2] };
+  m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const h = teamPanel(m, createCharts(m, ui), ui);
+  const table = h.slice(h.indexOf('<table class="wk-team"'), h.indexOf('</table>'));
+  assert.deepEqual([...table.matchAll(/data-person="(\d)"/g)].map((x) => x[1]), ['1', '2']);
+  assert.match(rowOf(table, 'ANA'), /mt-sw mt-c0/);
+  assert.match(rowOf(table, 'PEPE'), /mt-sw mt-c1/);
+  assert.doesNotMatch(table, /Equipo Indra/);   // sin la fila del equipo: la diferencia, al pie
+  const heads = [...table.matchAll(/data-sort="team:([^"]+)"/g)].map((x) => x[1]);
+  const diff = [...rowOf(table, 'Diferencia').matchAll(/<td class="mt-num([^"]*)"[^>]*>([^<]*)</g)].map((x) => [x[1].trim(), x[2]]);
+  assert.deepEqual(diff[heads.indexOf('n')], ['mt-diff', '=']);   // 10 y 10
+  assert.equal(diff[heads.indexOf('avg')][0], 'mt-diff good');      // ANA resuelve antes
+  assert.equal(diff[heads.indexOf('tatt')][0], 'mt-diff good');
+  assert.match(h, /Comparando <b>ANA<\/b> con <b>PEPE<\/b>[\s\S]*data-cmp-clear/);
+  assert.doesNotMatch(h, /undefined|NaN/);
+});
+
+test('comparar técnicos: con uno, toda la tabla, el elegido marcado y cómo elegir el otro; quien no tiene fila no cuenta', () => {
+  const m = createModel(data()), ui = { exp: {}, sort: {}, charts: new Set(), cmp: [1] };
+  m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const h = teamPanel(m, createCharts(m, ui), ui), table = h.slice(h.indexOf('<table class="wk-team'));
+  assert.match(table, /^<table class="wk-team wk-picking">/);   // el resto, en segundo plano
+  assert.match(rowOf(table, 'ANA'), /wk-cmp/);
+  assert.doesNotMatch(rowOf(table, 'PEPE'), /wk-cmp/);
+  assert.match(h, /Equipo Indra/);
+  assert.match(h, /Pincha otro técnico para compararlo con <b>ANA<\/b>/);
+  ui.cmp = [1, 3];   // LUIS es de T-Systems: no tiene fila, así que no se compara
+  const h2 = teamPanel(m, createCharts(m, ui), ui);
+  assert.doesNotMatch(h2, /Diferencia/);
+  assert.match(h2, /compararlo con <b>ANA<\/b>/);
 });

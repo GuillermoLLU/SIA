@@ -6,6 +6,14 @@
 .wk-team td:first-child .mt-sw { margin-right: 8px; }
 .wk-team tr.mt-grp td { text-transform: none; letter-spacing: 0; font-size: 12.5px; }
 .mt-view .wk-team th.mt-num, .mt-view .wk-team td.mt-num { text-align: center; }
+/* comparar técnicos: sus filas, marcadas; la diferencia, al pie, en verde o rojo (metrics.css: mt-diff) */
+.mt-view .wk-team tr.wk-cmp td { background: color-mix(in srgb, var(--mt-c0) 7%, var(--mt-card)); }
+.mt-view .wk-team tr.wk-cmp td:first-child { font-weight: 600; }
+.mt-view .wk-team tr.wk-diff td { font-weight: 650; }
+/* con uno marcado, los demás técnicos, en segundo plano; al pasar por encima vuelven, para elegir con quién comparar */
+.mt-view .wk-team.wk-picking tr[data-person]:not(.wk-cmp) td { opacity: .4; transition: opacity .15s; }
+.mt-view .wk-team.wk-picking tr[data-person]:not(.wk-cmp):hover td { opacity: 1; }
+.mt-sub .wk-filter { margin-top: 4px; }
 
 /* bloques de arriba: dos filas de tres, una cifra grande por tema y sus apoyos */
 .wk-panel { display: flex; flex-direction: column; gap: 12px; }

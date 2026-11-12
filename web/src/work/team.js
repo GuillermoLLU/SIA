@@ -3,12 +3,15 @@
 // inicio, los tiempos, la calidad del trabajo, las tareas y la cola. Con los
 // datos de las Métricas (web/src/metrics/model.js); el detalle, en Métricas.
 //
-// Las cifras de cada persona son sus datos, sin colores: aquí no se compara.
+// Las cifras de cada persona son sus datos, sin colores. En la tabla se marca un técnico (el panel pasa a sus datos,
+// ui.person) y, al marcar otro, se comparan (ui.cmp, compareTech): sus dos filas y la diferencia, en verde o rojo según
+// qué es mejor (compare.js).
 // Con menos de MIN issues en el periodo, sus porcentajes y medias dicen poco:
 // al ordenar por ellos, esas personas van al final.
 import { esc } from '../ui/html.js';
 import { SCOPE, slaText } from '../metrics/model.js';
 import { num, dec, pct, dur, DOWS } from '../metrics/format.js';
+import { compareFigure } from '../metrics/compare.js';
 import { monthTicks } from '../metrics/plot.js';
 import { shiftCounts, perTurn, teamPerTurn } from './per-shift.js';
 import { sheetBody } from '../metrics/sheet.js';
@@ -83,6 +86,10 @@ const scope = (m, ui) => {
   }
   return { ...sc, doers, done: who == null ? all : doers.get(who) || blank() };
 };
+
+// Los técnicos marcados en la tabla, tras un clic en k: si ya estaba, sale; si no, entra como B y, con dos ya
+// marcados, el B anterior pasa a A (se compara siempre con el último elegido).
+export const compareTech = (cmp = [], k) => (cmp.includes(k) ? cmp.filter((x) => x !== k) : [...cmp, k].slice(-2));
 
 // Las issues del panel, con sus filtros.
 const panelRows = (m, sc) => (sc.chosen ? [...sc.done.worked] : m.rows().filter(sc.assigned));
@@ -227,10 +234,25 @@ export const teamPanel = (m, ch, ui) => {
   people.sort((a, b) => few(a) - few(b) || (key(a) - key(b)) * dir || b.n - a.n);
   const cell = (s, c) => `<td class="mt-num">${cols[c][1](s)}</td>`;
   const th = (c) => `<th class="mt-num ${sortCol === c ? 'mt-srt' : ''}" data-sort="team:${c}" data-tip="${esc(cols[c][4])}">${cols[c][0]}${sortCol === c ? (dir < 0 ? ' ↓' : ' ↑') : ''}</th>`;
-  const row = (s) => `<tr class="mt-clk" data-person="${s.k}" title="${who == null ? 'Ver solo sus datos' : 'Quitar el filtro'}"><td title="${esc(m.DIMS.as.label(s.k))}"><i class="mt-sw mt-c${k0}"></i>${esc(m.DIMS.as.label(s.k))}</td>${order.map((c) => cell(s, c)).join('')}</tr>`;
+  // comparar técnicos: los marcados que tienen fila en el periodo; con uno, toda la tabla y él marcado; con dos, solo
+  // sus filas (A y B) y la diferencia
+  const cmp = (ui.cmp || []).map((k) => people.find((p) => p.k === k)).filter(Boolean);
+  const pair = cmp.length === 2 ? cmp : null, label = (s) => esc(m.DIMS.as.label(s.k));
+  const sw = (s) => (pair ? pair.indexOf(s) : cmp.includes(s) ? 0 : -1);
+  const rowTitle = (s) => (sw(s) >= 0 ? 'Desmarcar' : cmp.length ? `Comparar con ${label(cmp[cmp.length - 1])}` : 'Marcar: ver sus datos y elegir otro para compararlos');
+  const row = (s) => `<tr class="mt-clk${sw(s) >= 0 ? ' wk-cmp' : ''}" data-person="${s.k}" title="${rowTitle(s)}"><td title="${label(s)}"><i class="mt-sw mt-c${Math.max(0, sw(s))}"></i>${label(s)}</td>${order.map((c) => cell(s, c)).join('')}</tr>`;
+  const diffCell = (c) => {
+    const f = compareFigure(pair[0], pair[1], cols[c][1], cols[c][2], cols[c][3]);
+    return f ? `<td class="mt-num mt-diff ${f.cls}" data-tip="${esc(`${f.a} frente a ${f.b} (${f.pts ? f.main : f.other})`)}">${f.pts || f.main}</td>` : '<td class="mt-num mt-mut">—</td>';
+  };
+  const diffRow = () => `<tr class="mt-grp wk-diff"><td>Diferencia</td>${order.map(diffCell).join('')}</tr>`;
   const teamRow = `<tr class="mt-grp"><td>Equipo ${esc(name)}</td>${order.map((c) => `<td class="mt-num">${cols[c][1](ST[k0])}</td>`).join('')}</tr>`;
-  const table = `<div class="mt-tablewrap"><table class="wk-team"><thead><tr><th>Persona</th>${order.map(th).join('')}</tr></thead>
-    <tbody>${people.filter((p) => who == null || p.k === who).map(row).join('') || `<tr><td colspan="${order.length + 1}" class="mt-mut">Nadie con incidencias en este periodo.</td></tr>`}${who == null ? teamRow : ''}</tbody></table></div>`;
+  const shown = pair || people;
+  // con uno marcado, el resto de técnicos pasa a segundo plano (work.css: wk-picking)
+  const table = `<div class="mt-tablewrap"><table class="wk-team${cmp.length === 1 ? ' wk-picking' : ''}"><thead><tr><th>Persona</th>${order.map(th).join('')}</tr></thead>
+    <tbody>${shown.map(row).join('') || `<tr><td colspan="${order.length + 1}" class="mt-mut">Nadie con incidencias en este periodo.</td></tr>`}${pair ? diffRow() : teamRow}</tbody></table></div>`;
+  const tableSub = pair ? `<span class="wk-filter">Comparando <b>${label(pair[0])}</b> con <b>${label(pair[1])}</b><button class="wk-block-link" data-cmp-clear>Quitar comparación</button></span>`
+    : cmp.length ? `<span class="wk-filter">Pincha otro técnico para compararlo con <b>${label(cmp[0])}</b><button class="wk-block-link" data-cmp-clear>Desmarcar</button></span>` : '';
 
   // la actividad se pinta sobre el periodo de partida, aunque haya días elegidos (activity.js)
   const activityRange = ui.range?.base || [S.d0, S.d1], picked = ui.actSeries ?? null;
@@ -247,7 +269,7 @@ export const teamPanel = (m, ch, ui) => {
   return `<div class="wk-panel">
     ${filter}<div class="wk-blocks">${activity}${volume}${backlog}${sla}${times}${quality}${ia}</div>
     <div class="mt-grid">
-    ${card('El equipo, persona a persona', table, { span: 's12', sub: counts ? '' : 'Faltan los turnos de lo resuelto, escalado y pendiente de cliente (RPT, EPPT, PCPT): reinicia SIA para que el bridge los calcule.' })}
+    ${card('El equipo, persona a persona', table, { span: 's12', sub: `${counts ? '' : 'Faltan los turnos de lo resuelto, escalado y pendiente de cliente (RPT, EPPT, PCPT): reinicia SIA para que el bridge los calcule.'}${tableSub}` })}
     </div>
     <div class="wk-sheet">${card('Sábana de incidencias', sheetBody(m, teamIssues(m, ui), { ui, id: 'team-sheet', expanded: ui.exp['team-sheet'], more: ch.more, empty: 'Ninguna incidencia con estos filtros.', cols: TEAM_SHEET_COLS }), { span: 's12', sub: `Las incidencias del panel, abiertas o cerradas: ${chosen ? 'con algún paso en los días elegidos' : 'creadas en el periodo'}${who == null ? '' : ', del técnico elegido'}. Exportar a CSV las descarga todas, con su enlace a Remedy, para abrirlas en Excel.` })}</div>
   </div>`;
