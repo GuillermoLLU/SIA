@@ -28,7 +28,7 @@ API y su vista:
 | `issues/` | La mesa de issues de cada persona, la pantalla de trabajo de una issue (con su chat, o Reclamar respuesta y Traspasar si espera a un tercero), Resolver (`resolve-view.js`, con el editor de fichas de imagen `tag-editor.js`) y el origen SGA/SISU de cada issue (`origin.js`, el espejo del del bridge) |
 | `backlog/` | Backlog: la cola del equipo entera para quien reparte (tarjetas que filtran, orden por regla, buscador, panel lateral con asignar), el editor de reglas de priorización (`rule-editor.js`, chips) en Configuración → Priorización (`rules-view.js`); una vista sobre el dominio de Issues |
 | `metrics/` | Métricas: reglas (`rules.js`) y cálculo por pestaña en módulos puros; el HTML de cada pestaña en `metrics/tabs/` |
-| `work/` | Equipo soporte: una vista sobre el dominio de Métricas; también es una pestaña de Métricas |
+| `work/` | Equipo soporte: una pestaña de Métricas, sobre su dominio |
 | `users/` | Equipo (en Configuración): la lista, la ficha y el alta (`people-view.js`), los roles (`roles-view.js`) y la regla de priorización de cada cual; las reglas, en `people.js` |
 | `knowledge/`, `projects/` | Conocimiento asignado y la sección Administración de Configuración |
 | `lab/`, `links/`, `skills/` | Laboratorio de skills, Enlaces (la columna de Configuración y su formulario) y la paleta ⌘K |

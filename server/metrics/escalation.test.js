@@ -19,14 +19,14 @@ test('Tesc empieza en el más antiguo de sus tickets aunque sea Discarded, y Tcr
 });
 
 test('los tickets de otras incidencias que citan las notas no cuentan: solo los creados entre la apertura y el cierre', () => {
-  // como INC000027617700: abierta y resuelta en el día, con tickets de agosto citados en las notas
+  // una incidencia abierta y resuelta en el día, con tickets de meses antes citados en las notas
   const e = escalationOf(issue({ open: false, resolved: 1600 }),
     [{ created: 200, resolved: 400, status: 'Cerrada' }, { created: 500, resolved: 900, status: 'Cerrada' }, { created: 1150, resolved: 1500, status: 'Cerrada' }, { created: 1700, resolved: 1800, status: 'Cerrada' }], NOW);
   assert.deepEqual(e, { ...NONE, thesc: 150, tesc: 350, tcr: 100 });
 });
 
 test('ligada a un ticket previo: ni se mide ni es mal escalada', () => {
-  // como INC000027141021: se abrió ligada a un Jira que ya existía
+  // una incidencia que se abrió ligada a un Jira que ya existía
   assert.deepEqual(escalationOf(issue({ open: false, resolved: 1500 }), [{ created: 700, resolved: 3000, status: 'Cerrado' }], NOW), { ...NONE, thesc: PREVIOUS });
 });
 

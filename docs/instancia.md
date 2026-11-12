@@ -34,8 +34,8 @@ se vuelve a ejecutar su SQL (`node server/base/schema-sql.js`).
 
 ## Equipo, roles, vistas y reglas
 
-Cada persona ve las **vistas** que se le den: Chat, Issues, Backlog, Equipo soporte,
-Métricas (con Equipo soporte también como pestaña), Métricas del servicio, Enlaces rápidos, Laboratorio, Administración y Equipo
+Cada persona ve las **vistas** que se le den: Chat, Issues, Backlog,
+Métricas (con Equipo soporte como pestaña), Enlaces rápidos, Laboratorio, Administración y Equipo
 (`platform.users.views`; la lista, en `platform.known_views()`). El Chat también se
 puede quitar; sin él no se abren chats, salvo el de una issue, que va con Issues. La app
 se abre en la primera que tenga de Issues, Backlog y Métricas (el Chat es auxiliar: va
