@@ -14,9 +14,9 @@ import { num } from './format.js';
 import { createModel, COMPANIES } from './model.js';
 import { createCharts } from './charts.js';
 import { createTabs, TABS } from './tabs.js';
-import { periodLabel, periodSummary, presetRange } from './period.js';
+import { periodLabel, presetRange } from './period.js';
 import { DAY } from './rules.js';
-import { reportBounds, reportHead, reportName } from './report.js';
+import { reportBounds, reportHead, reportName, withDates } from './report.js';
 import { printReport, previewReport } from './print.js';
 import { companyPick, presetPick, comparePop, pickCompany, pickPreset } from './quick-bar.js';
 import { mountPeriodPanel } from './period-panel.js';
@@ -340,34 +340,37 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     toast?.(`Exportadas ${num(list.length)} incidencias a ${file}.`);
   };
 
-  // Exportar informe (#15): la ventana para elegir el informe y los datos (metrics-modals.js, report) y, al aceptar, el
-  // Resumen pintado como ahora (actuales) o con el periodo elegido (históricos), impreso a PDF (print.js). Con los
-  // históricos, el periodo de arriba se cambia solo para pintarlo y vuelve a ser el de antes; la comparación de periodos
-  // del Resumen («Comparar») no va: es relativa al periodo de arriba.
-  // Con la vista previa, «Cambiar opciones» vuelve a abrir la ventana con lo que se había elegido (initial).
+  // Exportar informe (#15): la ventana para elegir el informe (metrics-modals.js, report) y, al aceptar, el informe
+  // impreso a PDF (print.js) o en la vista previa. Backlog actual, solo lo abierto ahora: Foto de hoy, que ya lleva la
+  // corona del Resumen, con la sábana entera (report.js). Histórico, el Resumen sin la corona con el periodo elegido: el de arriba se cambia solo para pintarlo y vuelve a ser el de antes; la comparación de
+  // periodos del Resumen («Comparar») no va, es relativa al periodo de arriba. Lo que se compara y los filtros, en los
+  // dos. Con la vista previa, «Cambiar opciones» vuelve a abrir la ventana con lo que se había elegido (initial).
   const exportReport = (initial) => {
     if (!m) return;
-    const { S, BASE, DIMS } = m, iso = (min) => new Date(BASE + min * 6e4).toISOString().slice(0, 10);
+    const { S, BASE, DIMS, data: { meta } } = m, iso = (min) => new Date(BASE + min * 6e4).toISOString().slice(0, 10);
+    // la última carga, en el reloj de quien mira: «12/11/2026 09:30»
+    const two = (n) => String(n).padStart(2, '0'), at = new Date(meta.generated);
+    const asOf = `${two(at.getDate())}/${two(at.getMonth() + 1)}/${at.getFullYear()} ${two(at.getHours())}:${two(at.getMinutes())}`;
     modals.report({
-      current: { range: [S.d0, S.d1], text: periodSummary(m), from: iso(S.d0), to: iso(S.d1 - DAY) },
+      current: { range: [S.d0, S.d1], from: iso(S.d0), to: iso(S.d1 - DAY), asOf },
       bounds: reportBounds(m), base: BASE, initial,
-      onExport: ({ key, source, range, preview, choice }) => {
-        const keep = [S.d0, S.d1], cmp = ui.resCmp, history = source === 'history';
+      onExport: ({ key, range, preview, choice }) => {
+        const keep = [S.d0, S.d1], cmp = ui.resCmp, sheet = ui.exp['res-sheet'], history = withDates(key);
         let body, cover;
         try {
-          if (history) { m.setPeriod(range[0], range[1]); ui.resCmp = null; }
+          if (history) { m.setPeriod(range[0], range[1]); ui.resCmp = null; } else ui.exp['res-sheet'] = true;
           m.refilter();
-          body = tabs.render('resumen', m.rows(), { state: !history });
+          body = history ? tabs.render('resumen', m.rows(), { state: false }) : tabs.render('hoy', m.rows());
           cover = coverage(m);
         } finally {
-          if (history) { m.setPeriod(...keep); ui.resCmp = cmp; }
+          if (history) { m.setPeriod(...keep); ui.resCmp = cmp; } else ui.exp['res-sheet'] = sheet;
           m.refilter();
         }
         const names = m.NAMES();
         const filters = [...Object.keys(S.f).flatMap((dim) => [...S.f[dim]].map((k) => `${DIMS[dim].name}: ${DIMS[dim].label(k)}`)), ...(S.q ? [`Búsqueda: ${S.q}`] : [])];
         const parts = {
-          title: reportName(key, range, BASE),
-          head: reportHead({ key, source, range, base: BASE, sides: m.CO().map((k) => names[k]), filters, coverage: cover, generatedAt: new Date() }),
+          title: reportName(key, range, BASE, history ? null : at.getTime()),
+          head: reportHead({ key, range, base: BASE, asOf, sides: m.CO().map((k) => names[k]), filters, coverage: cover, generatedAt: new Date() }),
           body, sideStyle: root.getAttribute('style') || '',
         };
         if (preview) previewReport(parts, { onBack: () => exportReport(choice) });

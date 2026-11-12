@@ -8,7 +8,7 @@ import { onEscape } from '../ui/dialog.js';
 import { mountPeriodPanel } from './period-panel.js';
 import { calendarModel } from './calendar-model.js';
 import { DAY } from './rules.js';
-import { REPORTS, SOURCES, reportRange } from './report.js';
+import { REPORTS, withDates, reportRange } from './report.js';
 
 const svg = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const UPLOAD = svg('<path d="M12 16V4m0 0-4 4m4-4 4 4"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>');
@@ -169,52 +169,51 @@ export const mountMetricsModals = ({ api, toast, onUpload, onFirstLoad, onClear 
     },
   });
 
-  // Exportar informe (#15): qué informe (de momento, el básico) y con qué datos: los actuales (lo de arriba ahora) o
-  // los históricos (un rango a mano dentro de lo cargado). current: { range, text } del periodo de arriba; bounds:
-  // { min, max } de lo cargado (report.js, reportBounds); base: m.BASE; onExport({ key, source, range, preview, choice }):
-  // preview, si se pidió la vista previa en lugar del PDF; choice, lo elegido, para volver a abrirla igual (initial).
+  // Exportar informe (#15): qué informe, en un desplegable, con lo que contiene debajo; las fechas, solo con los que
+  // las piden (report.js, withDates). current: { range, from, to } del periodo de arriba y asOf, la última carga
+  // (texto); bounds: { min, max } de lo cargado (report.js, reportBounds); base: m.BASE; onExport({ key, range, preview,
+  // choice }): preview, si se pidió la vista previa en lugar del PDF; choice, lo elegido, para volver a abrirla igual
+  // (initial).
   const report = ({ current, bounds, base, initial = {}, onExport }) => {
-    const pick = { key: REPORTS[0][0], source: 'now', from: bounds.min > current.from ? bounds.min : current.from, to: current.to, ...initial };
+    const pick = { key: REPORTS[0][0], from: bounds.min > current.from ? bounds.min : current.from, to: current.to, ...initial };
+    // lo que contiene: el texto del informe; sin fechas, además, de cuándo es lo abierto
+    const about = (key) => esc(REPORTS.find(([k]) => k === key)[3]) + (withDates(key) ? '' : ` <span class="mt-rep-when">Última carga: ${esc(current.asOf)}.</span>`);
     return open({
-    title: 'Exportar informe',
-    body: `<fieldset class="mt-rep-set"><legend>Informe</legend>
-        ${REPORTS.map(([k, l, d], i) => `<label class="mt-rep-opt"><input type="radio" name="report" value="${k}" ${k === pick.key ? 'checked' : ''}><span><b>${esc(l)}</b><small>${esc(d)}</small></span></label>`).join('')}
-      </fieldset>
-      <fieldset class="mt-rep-set"><legend>Datos</legend>
-        ${SOURCES.map(([k, l]) => `<label class="mt-rep-opt"><input type="radio" name="source" value="${k}" ${k === pick.source ? 'checked' : ''}><span><b>${esc(l)}</b><small>${k === 'now'
-          ? esc(`Lo que ves ahora arriba: ${current.text}, con lo que se compara y los filtros.`)
-          : esc('Elige las fechas, dentro de lo cargado. Con lo que se compara y los filtros de arriba.')}</small></span></label>`).join('')}
+      title: 'Exportar informe',
+      body: `<label class="mt-rep-field"><span>Informe</span>
+          <select name="report" data-report>${REPORTS.map(([k, l]) => `<option value="${k}" ${k === pick.key ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
+        <p class="mt-rep-about" data-about>${about(pick.key)}</p>
         <div class="mt-rep-dates" data-dates>
-          <label>Desde <input type="date" name="from" value="${pick.from}" min="${bounds.min}" max="${bounds.max}" disabled></label>
-          <label>Hasta <input type="date" name="to" value="${pick.to}" min="${bounds.min}" max="${bounds.max}" disabled></label>
+          <label>Desde <input type="date" name="from" value="${pick.from}" min="${bounds.min}" max="${bounds.max}"></label>
+          <label>Hasta <input type="date" name="to" value="${pick.to}" min="${bounds.min}" max="${bounds.max}"></label>
         </div>
-      </fieldset>
-      <p class="mt-modal-hint">«Vista previa» lo enseña aquí tal y como saldrá. «Exportar PDF» abre el diálogo de impresión: elige «Guardar como PDF» (o «Microsoft Print to PDF»).</p>
-      <p class="mt-modal-err" data-err hidden></p>`,
-    foot: '<button class="mt-btn" data-close>Cancelar</button><button class="mt-btn" data-preview>Vista previa</button><button class="mt-btn mt-primary" data-go>Exportar PDF</button>',
-    setup: (back, close) => {
-      const q = (s) => back.querySelector(s), err = q('[data-err]'), from = q('[name="from"]'), to = q('[name="to"]');
-      const source = () => q('[name="source"]:checked').value;
-      // las fechas, solo con los históricos; la de fin no antes de la de inicio
-      const sync = () => {
-        from.disabled = to.disabled = source() !== 'history';
-        from.max = to.value || bounds.max;
-        to.min = from.value || bounds.min;
-        err.hidden = true;
-      };
-      back.addEventListener('change', sync);
-      back.addEventListener('input', sync);
-      const go = (preview) => {
-        const key = q('[name="report"]:checked').value, src = source();
-        const { range, error } = reportRange({ source: src, current: current.range, from: from.value, to: to.value, bounds, base });
-        if (error) { err.textContent = error; err.hidden = false; return; }
-        close();
-        onExport({ key, source: src, range, preview, choice: { key, source: src, from: from.value, to: to.value } });
-      };
-      q('[data-go]').addEventListener('click', () => go(false));
-      q('[data-preview]').addEventListener('click', () => go(true));
-      sync();
-    },
+        <p class="mt-modal-hint">Con lo que se compara y los filtros de arriba. «Vista previa» lo enseña aquí tal y como saldrá; «Exportar PDF» abre el diálogo de impresión: elige «Guardar como PDF» (o «Microsoft Print to PDF»).</p>
+        <p class="mt-modal-err" data-err hidden></p>`,
+      foot: '<button class="mt-btn" data-close>Cancelar</button><button class="mt-btn" data-preview>Vista previa</button><button class="mt-btn mt-primary" data-go>Exportar PDF</button>',
+      setup: (back, close) => {
+        const q = (s) => back.querySelector(s), err = q('[data-err]'), sel = q('[data-report]'), from = q('[name="from"]'), to = q('[name="to"]');
+        // al cambiar de informe, su texto y, si las pide, las fechas; la de fin no antes de la de inicio
+        const sync = () => {
+          q('[data-about]').innerHTML = about(sel.value);
+          q('[data-dates]').hidden = !withDates(sel.value);
+          from.max = to.value || bounds.max;
+          to.min = from.value || bounds.min;
+          err.hidden = true;
+        };
+        back.addEventListener('change', sync);
+        back.addEventListener('input', sync);
+        const go = (preview) => {
+          const key = sel.value;
+          const { range, error } = reportRange({ key, current: current.range, from: from.value, to: to.value, bounds, base });
+          if (error) { err.textContent = error; err.hidden = false; return; }
+          close();
+          onExport({ key, range, preview, choice: { key, from: from.value, to: to.value } });
+        };
+        q('[data-go]').addEventListener('click', () => go(false));
+        q('[data-preview]').addEventListener('click', () => go(true));
+        sync();
+        sel.focus();
+      },
     });
   };
 

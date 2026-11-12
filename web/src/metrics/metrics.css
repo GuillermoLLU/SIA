@@ -792,18 +792,15 @@ i.mt-pq0 { background: var(--mt-pq0); } i.mt-pq1 { background: var(--mt-pq1); } 
 /* Análisis tiempos, problemas comunes: la barra de cuántas, y los módulos, que no ensanchen la tabla */
 .mt-pc-times td.mt-blist-bar { width: 18%; min-width: 90px; }
 .mt-pc-times td:last-child { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* Exportar informe (#15, metrics-modals.js): cada opción con su explicación; las fechas, debajo de «Datos históricos» */
-.mt-rep-set { display: grid; gap: 8px; margin: 0; padding: 0; border: 0; }
-.mt-rep-set legend { margin-bottom: 6px; padding: 0; font-size: 12px; font-weight: 600; color: var(--mt-low); }
-.mt-rep-opt { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--text); cursor: pointer; }
-.mt-rep-opt input { margin-top: 3px; }
-.mt-rep-opt span { display: grid; gap: 2px; }
-.mt-rep-opt b { font-weight: 600; }
-.mt-rep-opt small { font-size: 12px; color: var(--mt-low); }
-.mt-rep-dates { display: flex; flex-wrap: wrap; gap: 8px 14px; padding-left: 24px; font-size: 13px; }
+/* Exportar informe (#15, metrics-modals.js): el desplegable, lo que contiene el informe elegido y, si las pide, las fechas */
+.mt-rep-field { display: grid; gap: 6px; font-size: 12px; font-weight: 600; color: var(--mt-low); }
+.mt-rep-field select { height: 32px; padding: 0 8px; font: inherit; font-size: 13px; font-weight: 400; color: var(--text); background: var(--mt-card); border: 1px solid var(--mt-line); }
+.mt-rep-about { margin: -4px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--text); }
+.mt-rep-when { color: var(--mt-low); }
+.mt-rep-dates { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 13px; }
+.mt-rep-dates[hidden] { display: none; }
 .mt-rep-dates label { display: inline-flex; align-items: center; gap: 6px; color: var(--mt-low); }
 .mt-rep-dates input { padding: 5px 6px; font: inherit; color: var(--text); background: var(--mt-card); border: 1px solid var(--mt-line); }
-.mt-rep-dates input:disabled { opacity: .5; }
 /* La vista previa del informe (print.js, previewReport): la hoja, blanca y del ancho de un A4 apaisado, sobre un fondo
    gris; se desplaza la ventana, no la hoja */
 .mt-modal.mt-modal-preview { width: min(1180px, 100%); max-height: 92vh; }

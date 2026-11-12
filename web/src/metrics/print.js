@@ -18,6 +18,13 @@ const PRINT_CSS = `
   @media screen { html { overflow: hidden; } }
   .mt-print button, .mt-print .mt-go, .mt-print .mt-kpi-go, .mt-print .mt-dn-go, .mt-print .mt-evo-picks, .mt-print .mt-ask { display: none !important; }
   .mt-print .mt-card { break-inside: avoid; }
+  /* la sábana, entera y sin su caja con barra: puede ocupar varias hojas, sin partir una fila y con la cabecera en cada una */
+  .mt-print .mt-card:has(.mt-list) { break-inside: auto; }
+  .mt-print .mt-tablewrap, .mt-print .mt-scroll { max-height: none !important; overflow: visible !important; }
+  .mt-print .mt-list tr { break-inside: avoid; }
+  .mt-print .mt-list thead { display: table-header-group; }
+  .mt-print .mt-hoy-picks { display: none !important; }
+  .mt-print .mt-sec { break-after: avoid; }   /* el título de una sección, con lo suyo: no suelto al pie de una hoja */
   .mt-rep-head { margin: 0 0 14px; padding-bottom: 10px; border-bottom: 1px solid var(--mt-line); color: var(--text); }
   .mt-rep-head h1 { margin: 0 0 8px; font-size: 20px; font-weight: 600; }
   .mt-rep-head dl { display: grid; grid-template-columns: max-content 1fr; gap: 3px 14px; margin: 0; font-size: 12px; }
