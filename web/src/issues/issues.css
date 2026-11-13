@@ -592,6 +592,9 @@ a.rv-id:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .iss-esc-dev { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; font-size: 12.5px; line-height: 1.45; border: 1px solid var(--border); background: color-mix(in srgb, var(--bg) 60%, var(--surface)); }
 .iss-esc-dev h4 { margin: 0; font-size: 13px; font-weight: 600; }
 .iss-esc-dev ul { display: flex; flex-direction: column; gap: 4px; margin: 0; padding-left: 18px; }
+.iss-esc-bg { margin-bottom: 6px; }
+.iss-esc-bg h4 small { margin-left: 6px; font-weight: 400; color: var(--text-low); }
+.iss-esc-bg p { margin: 0; white-space: pre-wrap; }
 @media (max-width: 560px) { .iss-esc-mode { grid-template-columns: 1fr; } }
 .iss-take:focus-visible, .iss-item:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 /* la issue en el diálogo de confirmación (devolver a la cola) */

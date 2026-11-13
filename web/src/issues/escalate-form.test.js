@@ -49,6 +49,9 @@ test('si la foto trae un ticket, se propone unirla a él, de la lista o como otr
   assert.match(html, /name="mode" value="link" checked/);
   assert.match(html, /name="linked" value="SISUPAC-9211" checked/);
   assert.match(html, /5 issues esperando/);
+  assert.doesNotMatch(html, /Antecedentes/);   // sin la nota en el check, no se pinta nada
+  const withBg = form({ vendorTicket: 'SISUPAC-9211' }, null, { ...CHECK, background: { at: '2026-10-28 10:20', who: 'ANA', text: 'Jira SISUPAC-9211 abierto' } });
+  assert.match(withBg, /<h4>Antecedentes <small>28\/10 10:20 · ANA<\/small><\/h4>\s*<p>Jira SISUPAC-9211 abierto<\/p>/);
   assert.match(linkedText('MOCA'), /no es un ticket/);
   assert.match(linkedText('itd: era-4170'), /se guardará como <b>ERA-4170/);
 });

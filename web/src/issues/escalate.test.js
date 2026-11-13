@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseTickets, ticketCheck, jiraPriority, n3Subject, stepMissing, resumeStep, channelOf, targetOf } from './escalate.js';
+import { parseTickets, ticketCheck, jiraPriority, n3Subject, stepMissing, stepWarning, resumeStep, channelOf, targetOf } from './escalate.js';
 import { DESTINATIONS } from './escalate-mock.js';
 
 const dest = (id) => DESTINATIONS.find((d) => d.id === id);
@@ -58,6 +58,25 @@ test('el borrador se retoma en su paso si los de antes siguen completos (TC-04);
   assert.equal(resumeStep({ mode: 'escalate', dest: 'sisupac', reason: 'x', step: '3' }, DESTINATIONS), 3);
   assert.equal(resumeStep({ mode: 'escalate', dest: 'sisupac', reason: '', step: 4 }, DESTINATIONS), 2);
   assert.equal(resumeStep({ mode: 'link', linked: 'SISUPAC-9211', step: 3 }, DESTINATIONS), 1);
+});
+
+test('avisos que se pueden pasar por alto: se sigue, pero avisando, como en Resolver', () => {
+  const warn = (n, v, o = {}) => stepWarning(n, { mode: 'escalate', ...v }, { dests: DESTINATIONS, issue: { priority: 'MEDIUM' }, background: { text: 'Hay un Jira abierto: sisupac-9211, mismo síntoma.' }, ...o });
+  // unir: los antecedentes tienen que nombrar el ticket (da igual mayúsculas o prefijos)
+  assert.equal(warn(1, { mode: 'link', linked: 'SISUPAC-9211' }), null);
+  assert.match(warn(1, { mode: 'link', linked: 'other', linkedOther: 'ITD: ERA-4170' }).text, /no aparece ERA-4170/);
+  assert.equal(warn(1, { mode: 'link', linked: 'SISUPAC-9211' }, { background: null }).ok, 'Unir igualmente');
+  assert.equal(warn(1, { dest: 'sisupac' }), null);   // escalar: el paso 1 no avisa
+  // qué pasa, muy breve
+  assert.equal(warn(2, { reason: 'Va lento' }).title, 'La descripción es muy breve');
+  assert.equal(warn(2, { reason: 'x'.repeat(80) }), null);
+  // la prioridad del Jira que no toca (la auditoría resta −1)
+  assert.match(warn(3, { dest: 'sisupac', jiraPriority: 'BLOCKER' }).text, /le toca «Importante» y has elegido «Bloqueo»/);
+  assert.equal(warn(3, { dest: 'sisupac', jiraPriority: 'MEDIUM' }), null);
+  assert.equal(warn(3, { dest: 'maestros', jiraPriority: 'BLOCKER' }), null);   // no abre Jira: no cuenta
+  // la evidencia, muy breve, cuando es la única prueba
+  assert.equal(warn(3, { dest: 'operaciones', sent: 'Correo' }).title, 'La evidencia es muy breve');
+  assert.equal(warn(3, { dest: 'operaciones', sent: 'Correo a operaciones@ a las 10:12 con los logs del proceso y la captura del error de la mesa 3.' }), null);
 });
 
 test('por dónde va cada destino, en una línea', () => {

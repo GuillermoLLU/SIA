@@ -1,22 +1,20 @@
 // Escalar una issue: el asistente de cuatro pasos encima de la pantalla de trabajo (escalate-form.js
-// pinta; aquí el cableado), con el comportamiento de Resolver (resolve-view.js): los pasos, cómo
-// entran y salen, el aviso del campo que falta, el borrador solo en la BBDD local y el cierre por
-// fases. De momento no sale nada hacia Remedy: al acabar, la vista avisa (onEscalated).
+// pinta; aquí el cableado), con el comportamiento de Resolver: las piezas comunes (ui/wizard.js),
+// el borrador solo en la BBDD local y el cierre por fases. De momento no sale nada hacia Remedy:
+// al acabar, la vista avisa (onEscalated).
 import { onEscape } from '../ui/dialog.js';
-import { prefersReducedMotion } from '../ui/dom.js';
+import { esc } from '../ui/html.js';
+import { BACK_ARROW, NEXT_ARROW, slideStep, flashEmpty, fadeOut as fade, runPhases } from '../ui/wizard.js';
 import { escalateForm, sendHtml, linkedText, summaryHtml, closePhases } from './escalate-form.js';
 import { resolveBlocked, noteMeter, localShort } from './resolve-form.js';
-import { stepMissing, resumeStep, channelOf, destOf, targetOf, STEPS, LAST } from './escalate.js';
+import { stepMissing, stepWarning, resumeStep, channelOf, destOf, targetOf, STEPS, LAST } from './escalate.js';
 
-const BACK_ARROW = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>';
-const NEXT_ARROW = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>';
-// los mismos tiempos que Resolver (issues.css)
-const FLASH_MS = 1800, PHASE_MS = 1000, FADE_MS = 300, AUTOSAVE_MS = 800;
+const AUTOSAVE_MS = 800;   // el mismo que Resolver
 
-// root: la vista de Issues; api: issues-api.js; dests y tickets: el catálogo y los tickets abiertos
+// root: la vista de Issues; api: issues-api.js; dialogs: ui/dialog.js (los avisos); dests y tickets: el catálogo y los tickets abiertos
 // (de prueba); onEscalated(target, mode): ya escalada o unida, y la ventana se ha ido.
-export const createEscalator = (root, { api, toast, dests, tickets, onEscalated }) => {
-  let opened = null, issue = null, offEscape = null, closeIt = null, timer = null;
+export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onEscalated }) => {
+  let opened = null, issue = null, check = null, offEscape = null, closeIt = null, timer = null;
   const form = () => root.querySelector('[data-act-form="escalate"]');
   const values = (f) => Object.fromEntries(new FormData(f));
   const showErr = (f, text) => { const err = f.querySelector('.iss-act-err'); err.textContent = text || ''; err.hidden = !text; };
@@ -56,7 +54,7 @@ export const createEscalator = (root, { api, toast, dests, tickets, onEscalated 
     f.elements.step.value = String(n);   // va en el borrador: al volver se retoma aquí
     showErr(f, null);
     f.querySelectorAll('[data-rstep]').forEach((p) => { p.hidden = p.dataset.rstep !== String(n); });
-    slide(f, prev, n);
+    slideStep(f, prev, n);
     f.querySelectorAll('[data-step-mark]').forEach((m) => {
       const k = Number(m.dataset.stepMark);
       m.classList.toggle('done', k < n);
@@ -72,38 +70,30 @@ export const createEscalator = (root, { api, toast, dests, tickets, onEscalated 
     (n === LAST ? f.querySelector('[data-confirm-send]') : f.querySelector(`[data-rstep="${n}"] :is(textarea, [data-pick-btn])`))?.focus({ preventScroll: true });
     f.querySelector('.rv-body').scrollLeft = 0;
   };
-  // el paso nuevo entra desde el lado del que viene mientras el anterior sale por el otro
-  const slide = (f, prev, n) => {
-    const sec = f.querySelector(`[data-rstep="${n}"]`), out = prev && prev !== n ? f.querySelector(`[data-rstep="${prev}"]`) : null;
-    for (const p of f.querySelectorAll('[data-rstep]')) p.classList.remove('in-fwd', 'in-back', 'out-fwd', 'out-back');
-    if (!out || prefersReducedMotion()) return;
-    const fwd = n > prev;
-    void sec.offsetWidth;
-    sec.classList.add(fwd ? 'in-fwd' : 'in-back');
-    out.hidden = false; out.classList.add(fwd ? 'out-fwd' : 'out-back');
-    out.addEventListener('animationend', () => { out.hidden = true; out.classList.remove('out-fwd', 'out-back'); }, { once: true });
-  };
   const moveTo = (f, n) => { goStep(f, n); saveNow(f); };
-  // el campo que falta parpadea en rojo con el aviso en su centro, y todo se va solo
-  const flashEmpty = (f, { field, text }) => {
+  // El campo que falta (stepMissing) parpadea con el aviso en su caja: el selector de equipo,
+  // la lista de tickets o el campo de texto.
+  const flashMissing = (f, { field, text }) => {
     const el = field === 'dest' ? f.querySelector('#iss-f-dest') : field === 'linked' ? f.querySelector('.iss-esc-open') : f.elements[field];
-    const box = el?.closest('.iss-field, .iss-esc-open');
-    if (!box) return showErr(f, text);
-    box.querySelector('.rv-ed-note')?.remove();
-    const note = document.createElement('span');
-    note.className = 'rv-ed-note'; note.textContent = text;
-    box.append(note);
-    el.classList.remove('blink'); void el.offsetWidth; el.classList.add('blink');
-    el.focus?.();
-    setTimeout(() => { note.remove(); el.classList.remove('blink'); }, FLASH_MS);
+    flashEmpty(el, el.closest('.iss-field, .iss-esc-open'), text);
   };
   // → true si el paso n está completo; si no, lo señala
   const complete = (f, n) => {
     const missing = stepMissing(n, values(f), dests);
-    if (missing) flashEmpty(f, missing);
+    if (missing) flashMissing(f, missing);
     return !missing;
   };
-  const stepNext = (f) => { const n = Number(f.dataset.step); if (complete(f, n)) moveTo(f, n + 1); };
+  // Lo que se le puede pasar al técnico (escalate.js): se puede seguir, pero avisando. → true si sigue
+  const confirmed = async (f, n) => {
+    const w = stepWarning(n, values(f), { dests, issue, background: check.background });
+    if (!w) return true;
+    const ok = await dialogs.open({ title: w.title, centered: true, okLabel: w.ok, bodyHTML: `<p class="iss-dlg-p">${esc(w.text)}</p>` });
+    return ok && f.isConnected;
+  };
+  const stepNext = async (f) => {
+    const n = Number(f.dataset.step);
+    if (complete(f, n) && await confirmed(f, n)) moveTo(f, n + 1);
+  };
   // Pulsar un paso de arriba (o una fila del resumen): hacia atrás, siempre; hacia delante, hasta
   // donde esté todo completo (si falta algo por el camino, se para ahí y lo señala).
   const jumpTo = (f, target) => {
@@ -114,7 +104,7 @@ export const createEscalator = (root, { api, toast, dests, tickets, onEscalated 
       const missing = stepMissing(k, values(f), dests);
       if (!missing) continue;
       if (k !== current) moveTo(f, k);
-      return flashEmpty(f, missing);
+      return flashMissing(f, missing);
     }
     moveTo(f, target);
   };
@@ -141,29 +131,16 @@ export const createEscalator = (root, { api, toast, dests, tickets, onEscalated 
   };
 
   /* ── Escalar: lo de antes se va, las fases en el centro y la ventana se funde ── */
-  const fadeOut = (el) => new Promise((done) => { el.classList.add('leaving'); timer = setTimeout(() => { el.hidden = true; el.classList.remove('leaving'); done(); }, FADE_MS); });
-  const runPhases = (f, title, html) => new Promise((done) => {
-    const loader = f.querySelector('[data-loader]');
-    loader.querySelector('[data-loader-title]').textContent = title;
-    const list = loader.querySelector('[data-phases]');
-    list.innerHTML = html;
-    const phases = [...list.children];
-    const run = (i) => {
-      if (!f.isConnected) return;
-      if (i > 0) phases[i - 1].classList.replace('doing', 'done');
-      if (i === phases.length) return done();
-      phases[i].classList.add('doing');
-      timer = setTimeout(() => run(i + 1), PHASE_MS);
-    };
-    run(0);
-  });
+  // las fases y los difuminados (ui/wizard.js), con su temporizador en `timer` para pararlos al cerrar
+  const track = (id) => { timer = id; };
+  const fadeOut = (el) => fade(el, track);
   const submit = async (f) => {
     const n = Number(f.dataset.step), link = isLink(f);
     if (!link && n < LAST) return stepNext(f);   // Intro en un paso: siguiente
-    if (link && !complete(f, 1)) return;
     const send = f.querySelector('[data-confirm-send]');
     if (send.disabled) return;   // un segundo clic mientras se envía
     send.disabled = true;
+    if (link && !(complete(f, 1) && await confirmed(f, 1))) { send.disabled = false; return; }
     const id = opened, fields = values(f);
     if (autosave) { clearTimeout(autosave); autosave = null; saveNow(f); }
     const work = (async () => { await saving; await api.escalate(id, fields); })();
@@ -178,7 +155,7 @@ export const createEscalator = (root, { api, toast, dests, tickets, onEscalated 
     const loader = f.querySelector('[data-loader]');
     loader.hidden = false;
     try {
-      await Promise.all([work, runPhases(f, link ? 'Uniendo la incidencia' : 'Escalando la incidencia', closePhases(fields, issue.status === 'RESOLVED'))]);
+      await Promise.all([work, runPhases(loader, link ? 'Uniendo la incidencia' : 'Escalando la incidencia', closePhases(fields, issue.status === 'RESOLVED'), { alive: () => f.isConnected, track })]);
     } catch (err) {
       if (!f.isConnected) return;
       clearTimeout(timer);
@@ -246,7 +223,7 @@ export const createEscalator = (root, { api, toast, dests, tickets, onEscalated 
     async open(theIssue, link, onClose) {
       await saving;   // lo que se guardaba al cerrar, antes de leer el borrador
       const start = await api.startEscalate(theIssue.id);
-      opened = theIssue.id; issue = theIssue; closeIt = onClose;
+      opened = theIssue.id; issue = theIssue; check = start.check; closeIt = onClose;
       const blocked = start.check.missing.length > 0;
       root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${blocked
         ? resolveBlocked(issue.id, start.check, { title: 'Aún no se puede escalar', chat: 'data-escalate-chat' })

@@ -16,6 +16,7 @@ test('las notas que pide: situación inicial, antecedentes y análisis; el diagn
   assert.deepEqual(r.notes.map((x) => [x.key, Boolean(x.note)]), [['initial', true], ['background', true], ['analysis', true]]);
   assert.deepEqual(r.missing, []);
   assert.deepEqual(r.analysis, { at: '2026-10-28 10:30', who: 'ANA', text: 'Timeouts de 8 a 12 s en el túnel RFID' });
+  assert.equal(r.background.text, 'Sin antecedentes ni Jira abierto');   // lo que se enseña al unir
   assert.deepEqual(escalateCheck(issue({ worklog: BASE.slice(0, 2) })).missing, ['Análisis']);
   assert.equal(escalateCheck(issue({ worklog: BASE.slice(0, 2) })).analysis, null);
 });

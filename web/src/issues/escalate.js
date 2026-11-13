@@ -2,6 +2,8 @@
 // la prioridad del Jira, los pasos y qué hace falta en cada uno. Los destinos
 // llegan de fuera (el catálogo). Las notas del método las comprueba el bridge.
 
+import { noteQuality } from './quality.js';
+
 // Una clave de Jira (PROYECTO-número) o una incidencia de Remedy (INC y 12 dígitos).
 const JIRA = /^[A-Z][A-Z0-9]*-\d+$/;
 const REMEDY = /^INC\d{12}$/;
@@ -72,6 +74,32 @@ export const stepMissing = (n, v, dests) => {
   if (n === 1 && v.dest === 'other' && !text(v, 'destOther')) return { field: 'destOther', text: 'Escribe el equipo para seguir' };
   if (n === 2 && !text(v, 'reason')) return { field: 'reason', text: 'Cuenta qué pasa para seguir' };
   if (n === 3 && !opensTicket(destOf(v, dests)) && !text(v, 'sent')) return { field: 'sent', text: 'Cuenta qué has enviado para seguir' };
+  return null;
+};
+
+// Lo que se le puede pasar al técnico al salir del paso n (o al unir, en el 1): se puede seguir,
+// pero avisando, como la nota breve de Resolver. → { title, text, ok } | null
+// background: la nota [ANTECEDENTES] de Remedy (la comprobación del bridge).
+const priorityLabel = (id) => JIRA_PRIORITIES.find((p) => p.id === id)?.label || id;
+export const stepWarning = (n, v, { dests, issue, background }) => {
+  if (n === 1 && v.mode === 'link') {
+    const ticket = ticketCheck(linkedRaw(v)).value;
+    const said = String(background?.text ?? '').toUpperCase().includes(ticket);
+    return said ? null : { title: 'Los antecedentes no mencionan el ticket', ok: 'Unir igualmente',
+      text: `En los antecedentes no aparece ${ticket}. ¿Seguro que es el mismo problema?` };
+  }
+  if (n === 2 && noteQuality(v.reason).level === 'low') {
+    return { title: 'La descripción es muy breve', ok: 'Continuar', text: '¿Seguro que quieres continuar? Lo que pasa es muy breve y el destino puede devolverla.' };
+  }
+  const dest = destOf(v, dests);
+  const due = jiraPriority(issue.priority);
+  if (n === 3 && dest?.opens === 'jira' && v.jiraPriority && v.jiraPriority !== due) {
+    return { title: 'La prioridad del Jira no es la que le toca', ok: 'Continuar',
+      text: `Por la criticidad de la issue le toca «${priorityLabel(due)}» y has elegido «${priorityLabel(v.jiraPriority)}». ¿Seguro que quieres seguir?` };
+  }
+  if (n === 3 && !opensTicket(dest) && noteQuality(v.sent).level === 'low') {
+    return { title: 'La evidencia es muy breve', ok: 'Continuar', text: '¿Seguro que quieres continuar? Sin herramienta, lo que has enviado es la única prueba del escalado.' };
+  }
   return null;
 };
 

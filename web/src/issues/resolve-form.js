@@ -10,6 +10,7 @@
 import { esc } from '../ui/html.js';
 import { ACTIONS } from './actions.js';
 import { toHtml, imageTag, TAG } from './tag-editor.js';
+import { FULL, noteQuality } from './quality.js';
 
 // Los idiomas del mensaje al centro
 const LANGS = [{ key: 'es', label: 'Español' }, { key: 'en', label: 'English' }];
@@ -40,7 +41,7 @@ export const resumeStep = (r, saved) => {
 };
 
 // «2026-10-27 09:12» → «27/10 09:12», como en el resto de SIA
-const short = (at) => `${at.slice(8, 10)}/${at.slice(5, 7)} ${at.slice(11, 16)}`;
+export const short = (at) => `${at.slice(8, 10)}/${at.slice(5, 7)} ${at.slice(11, 16)}`;
 
 // Las imágenes: hasta MAX_IMAGES por resolución, de hasta MAX_FILE cada una (de momento no salen de SIA).
 export const MAX_FILE = 15 * 1024 * 1024;
@@ -65,16 +66,6 @@ export const imagesDock = (images = [], name = null, total = images.length) => `
       ${total < MAX_IMAGES ? `<label class="rv-dock-add"><input type="file" accept="image/*" multiple data-file${name ? ` data-for="${name}"` : ''} />${ADD_ICON}<span>${images.length ? 'Otra imagen' : 'Imágenes'}</span><small>Pulsa, pega o arrastra</small></label>` : ''}
     </aside>`;
 
-// Cuánto cuenta un texto: se llena con lo escrito hasta lo que suele ocupar uno completo
-// (`full` caracteres: la nota interna, 400; cada pregunta al centro, 250). Las fichas de imagen no cuentan.
-export const FULL = { note: 400, what: 250, how: 250, prevent: 250 };
-export const noteQuality = (text, full = FULL.note) => {
-  const len = String(text ?? '').replace(TAG, '').trim().length;
-  const pct = Math.min(100, Math.round(len / full * 100));
-  const [low, mid] = [full * 0.15, full * 0.45];
-  // level: cómo se pinta (low en rojo, mid en naranja, good en amarillo, ok en verde)
-  return { pct, label: !len ? 'Sin escribir' : len < low ? 'Muy corta' : len < mid ? 'Corta' : len < full ? 'Bien' : 'Completa', level: len < low ? 'low' : len < mid ? 'mid' : len < full ? 'good' : 'ok' };
-};
 // La barra se llena en caliente con lo escrito, y debajo, a la derecha y en pequeño, la palabra; todo del color del estado.
 export const noteMeter = (text, name = 'note') => { const q = noteQuality(text, FULL[name]); return `<div class="rv-meter" data-meter="${name}" data-level="${q.level}" aria-hidden="true"><div class="rv-meter-bar"><i style="width:${q.pct}%"></i></div><span>${q.label}</span></div>`; };
 
@@ -219,7 +210,7 @@ const steps = () => {
 };
 
 // El identificador, bajo el título y en pequeño; si la issue tiene enlace, lleva a su ticket.
-const issueRef = (issueId, link) => (link
+export const issueRef = (issueId, link) => (link
   ? `<a class="rv-id" href="${esc(link)}" target="_blank" rel="noopener" title="Abrir el ticket">${esc(issueId)}</a>`
   : `<span class="rv-id">${esc(issueId)}</span>`);
 

@@ -235,7 +235,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
 
   // Escalar vive en su módulo (escalate-view.js), con el catálogo y los tickets abiertos de prueba
   // (escalate-mock.js). Al acabar no cambia nada en la mesa: aún no sale hacia Remedy.
-  const escalator = createEscalator(root, { api, toast, dests: DESTINATIONS, tickets: OPEN_TICKETS, onEscalated: (target, mode) => {
+  const escalator = createEscalator(root, { api, dialogs, toast, dests: DESTINATIONS, tickets: OPEN_TICKETS, onEscalated: (target, mode) => {
     const rootCause = issue?.status === 'RESOLVED';
     closeAction();
     toast?.(`${mode === 'link' ? `Unida a ${target}` : `Escalada a ${target}${rootCause ? ' por la causa raíz' : ''}`}. De momento no sale hacia Remedy (falta conectar SIGLO).`);

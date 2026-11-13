@@ -13,13 +13,14 @@ const ALWAYS = ['initial', 'background', 'analysis'];
 const SERIOUS = new Set(['HIGH', 'CRITICAL']);
 const byKey = new Map([...NOTES, ...CRITICAL].map((n) => [n.key, n]));
 
-// → { notes: [{ key, label, note }], missing: [label], analysis: { at, who, text } | null }
-// analysis: la nota [ANALISIS], con la que empieza «Qué pasa».
+// → { notes: [{ key, label, note }], missing: [label], analysis, background: { at, who, text } | null }
+// analysis: la nota [ANALISIS], con la que empieza «Qué pasa»; background: [ANTECEDENTES], lo
+// que dice por qué se une a un ticket ya abierto.
 export const escalateCheck = (issue) => {
   const last = lastByKey(issue.worklog);
   const keys = [...ALWAYS, ...(SERIOUS.has(issue.priority) ? ['major'] : [])];
   const notes = keys.map((k) => ({ key: k, label: byKey.get(k).label, note: last[k] || null }));
-  return { notes, missing: notes.filter((n) => !n.note).map((n) => n.label), analysis: last.analysis || null };
+  return { notes, missing: notes.filter((n) => !n.note).map((n) => n.label), analysis: last.analysis || null, background: last.background || null };
 };
 
 // Se escala lo que se está trabajando; una Resuelta, por la causa raíz. Una

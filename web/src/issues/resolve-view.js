@@ -5,15 +5,12 @@
 // sigue en issues-view.js.
 import { esc } from '../ui/html.js';
 import { onEscape } from '../ui/dialog.js';
-import { prefersReducedMotion } from '../ui/dom.js';
+import { BACK_ARROW, NEXT_ARROW, slideStep, flashEmpty, fadeOut as fade, runPhases as phasesIn } from '../ui/wizard.js';
 import { readAction } from './actions.js';
-import { resolveForm, resolveBlocked, resumeStep, stepMissing, STEPS, LAST, MAX_FILE, MAX_IMAGES, imagesDock, sectionImages, noteMeter, noteQuality, FULL, phasesHtml, closePhasesHtml, reportHtml, summaryHtml, localShort } from './resolve-form.js';
+import { resolveForm, resolveBlocked, resumeStep, stepMissing, STEPS, LAST, MAX_FILE, MAX_IMAGES, imagesDock, sectionImages, noteMeter, phasesHtml, closePhasesHtml, reportHtml, summaryHtml, localShort } from './resolve-form.js';
+import { noteQuality, FULL } from './quality.js';
 import { syncEditor, setEditorText, toText, insertChip, removeChips, rangeAtPoint, imageTag } from './tag-editor.js';
 
-const BACK_ARROW = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>';
-const NEXT_ARROW = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>';
-const FLASH_MS = 1800;   // lo que dura el parpadeo y el aviso de un campo vacío (issues.css)
-const PHASE_MS = 1000, FADE_MS = 300;   // cada fase del simulacro, y lo que tarda en irse lo de antes (issues.css)
 const AUTOSAVE_MS = 800;
 
 const base64 = (file) => new Promise((ok, ko) => {
@@ -63,7 +60,7 @@ export const createResolver = (root, { api, dialogs, toast, onResolved }) => {
     f.elements.step.value = String(n);   // va en el borrador: al volver se retoma aquí
     showErr(f, null);
     f.querySelectorAll('[data-rstep]').forEach((p) => { p.hidden = p.dataset.rstep !== String(n); });
-    slide(f, prev, n);
+    slideStep(f, prev, n);
     f.querySelectorAll('[data-step-mark]').forEach((m) => {
       const k = Number(m.dataset.stepMark);
       m.classList.toggle('done', k < n);
@@ -86,17 +83,6 @@ export const createResolver = (root, { api, dialogs, toast, onResolved }) => {
     (last ? f.querySelector('[data-confirm-send]') : f.querySelector(`[data-rstep="${n}"] .rv-ed`))?.focus({ preventScroll: true });
     f.querySelector('.rv-body').scrollLeft = 0;
   };
-  // el paso nuevo entra deslizándose desde el lado del que viene mientras el anterior sale por el otro
-  const slide = (f, prev, n) => {
-    const sec = f.querySelector(`[data-rstep="${n}"]`), out = prev && prev !== n ? f.querySelector(`[data-rstep="${prev}"]`) : null;
-    for (const p of f.querySelectorAll('[data-rstep]')) p.classList.remove('in-fwd', 'in-back', 'out-fwd', 'out-back');
-    if (!out || prefersReducedMotion()) return;
-    const fwd = n > prev;
-    void sec.offsetWidth;
-    sec.classList.add(fwd ? 'in-fwd' : 'in-back');
-    out.hidden = false; out.classList.add(fwd ? 'out-fwd' : 'out-back');
-    out.addEventListener('animationend', () => { out.hidden = true; out.classList.remove('out-fwd', 'out-back'); }, { once: true });
-  };
   // Cambiar de paso guarda el borrador, aunque no se haya escrito nada más.
   const moveTo = (f, n) => { goStep(f, n); saveNow(f); };
   const stepNext = async (f) => {
@@ -105,7 +91,7 @@ export const createResolver = (root, { api, dialogs, toast, onResolved }) => {
     if (missing) {
       // el campo vacío parpadea en rojo con el aviso en su centro, y todo se va solo
       const ed = [...f.querySelectorAll(`[data-rstep="${n}"] .rv-ed`)].find((a) => !toText(a).trim());
-      if (ed) flashEmpty(ed, n === 1 ? 'Completa la descripción para seguir' : 'Responde a la pregunta para seguir');
+      if (ed) flashEmpty(ed, ed.closest('.iss-field'), n === 1 ? 'Completa la descripción para seguir' : 'Responde a la pregunta para seguir');
       return;
     }
     // una nota muy breve: se puede seguir, pero avisando
@@ -132,16 +118,6 @@ export const createResolver = (root, { api, dialogs, toast, onResolved }) => {
     }
     if (target === LAST) await saving;
     if (f.isConnected) moveTo(f, target);
-  };
-  const flashEmpty = (ed, text) => {
-    const box = ed.closest('.iss-field');
-    box.querySelector('.rv-ed-note')?.remove();
-    const note = document.createElement('span');
-    note.className = 'rv-ed-note'; note.textContent = text;
-    box.append(note);
-    ed.classList.remove('blink'); void ed.offsetWidth; ed.classList.add('blink');   // reiniciar la animación si se repite
-    ed.focus();
-    setTimeout(() => { note.remove(); ed.classList.remove('blink'); }, FLASH_MS);
   };
   // La nota que ya estaba en Remedy: «Restaurar» asoma en cuanto se cambia y la deja como estaba.
   const syncRestore = (f) => {
@@ -272,24 +248,10 @@ export const createResolver = (root, { api, dialogs, toast, onResolved }) => {
   // o la pista, o el enlace para volver al texto de la IA: nunca los dos
   const syncRepTools = (f, changed) => { f.querySelector('[data-rep-hint]').hidden = changed; f.querySelector('[data-rep-restore]').hidden = !changed; };
   const restoreReport = (f) => { f.querySelector('[data-rep-text]').innerHTML = reportOriginal; syncRepTools(f, false); };
-  // Las fases de un proceso, una a una (un simulacro de momento) → promesa al acabar la última
-  const runPhases = (f, title, html) => new Promise((done) => {
-    const p = genParts(f);
-    p.loader.querySelector('[data-loader-title]').textContent = title;
-    const list = p.loader.querySelector('[data-phases]');
-    list.innerHTML = html;
-    const phases = [...list.children];
-    const run = (i) => {
-      if (!f.isConnected) return;
-      if (i > 0) phases[i - 1].classList.replace('doing', 'done');
-      if (i === phases.length) return done();
-      phases[i].classList.add('doing');
-      generating = setTimeout(() => run(i + 1), PHASE_MS);
-    };
-    run(0);
-  });
-  // algo se va con un difuminado y, cuando ya no está, sigue lo siguiente
-  const fadeOut = (el) => new Promise((done) => { el.classList.add('leaving'); generating = setTimeout(() => { el.hidden = true; el.classList.remove('leaving'); done(); }, FADE_MS); });
+  // Las fases y los difuminados (ui/wizard.js), con su temporizador en `generating` para pararlos al cerrar
+  const track = (id) => { generating = id; };
+  const runPhases = (f, title, html) => phasesIn(genParts(f).loader, title, html, { alive: () => f.isConnected, track });
+  const fadeOut = (el) => fade(el, track);
   const generate = async (f) => {
     const p = genParts(f);
     p.btn.hidden = true;

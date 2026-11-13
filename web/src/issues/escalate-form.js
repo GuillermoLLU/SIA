@@ -8,7 +8,8 @@ import { esc } from '../ui/html.js';
 import { when } from './format.js';
 import { pickerHtml } from '../ui/picker.js';
 import { ticketCheck, JIRA_PRIORITIES, jiraPriority, n3Subject, isDev, opensTicket, channelOf, destOf, STEPS, LAST } from './escalate.js';
-import { doneMark, noteMeter, noteQuality, localShort } from './resolve-form.js';
+import { doneMark, noteMeter, localShort, short, issueRef } from './resolve-form.js';
+import { noteQuality } from './quality.js';
 
 const GROUPS = [
   ['N3 por SIGLO', (d) => d.level === 'N3' && d.via === 'SIGLO'],
@@ -49,6 +50,12 @@ const devBox = (issue, dest) => `<section class="iss-esc-dev">
           </ul>
         </section>`;
 
+// Al unir: la nota [ANTECEDENTES] de Remedy, que dice por qué es el mismo problema.
+const backgroundBox = (n) => (n ? `<section class="iss-esc-dev iss-esc-bg">
+              <h4>Antecedentes <small>${esc(short(n.at))} · ${esc(n.who)}</small></h4>
+              <p>${esc(n.text)}</p>
+            </section>` : '');
+
 // Paso 3: lo que pide el destino. Lo que no le toca va oculto, para no perderlo si se cambia de destino.
 export const sendHtml = (v, { issue, dests }) => {
   const dest = destOf(v, dests);
@@ -84,8 +91,6 @@ export const closePhases = (v, rootCause) => (v.mode === 'link'
 // Una opción que se elige pulsando la tarjeta entera; el radio no se ve.
 const card = (name, value, checked, body) => `<label class="iss-esc-card"><input type="radio" class="iss-sr" name="${name}" value="${esc(value)}"${checked ? ' checked' : ''} />${body}</label>`;
 const stepper = () => `<ol class="rv-steps">${STEPS.map((s) => `<li data-step-mark="${s.n}"${s.n === LAST ? ' class="last"' : ''}${s.n === 1 ? ' aria-current="step"' : ''}><i>${s.n}</i><span>${s.title}</span></li>`).join('')}</ol>`;
-const issueRef = (id, link) => (link ? `<a class="rv-id" href="${esc(link)}" target="_blank" rel="noopener" title="Abrir el ticket">${esc(id)}</a>` : `<span class="rv-id">${esc(id)}</span>`);
-
 // `issue`: la issue abierta; `dests` y `open`: el catálogo y los tickets abiertos; `check`: lo que
 // dice el bridge (las notas y la de análisis); `saved`: el borrador, si lo hay; `link`: su ticket en Remedy.
 export const escalateForm = ({ issue, dests, open, check, saved = null, link = null }) => {
@@ -109,6 +114,7 @@ export const escalateForm = ({ issue, dests, open, check, saved = null, link = n
             <label class="iss-field" for="iss-f-destOther" data-esc-other${v.dest === 'other' ? '' : ' hidden'}><span>Equipo o proveedor</span><input id="iss-f-destOther" name="destOther" value="${esc(v.destOther || '')}" /></label>
           </div>
           <fieldset class="iss-esc-open" data-esc-mode="link"${linkMode ? '' : ' hidden'}>
+            ${backgroundBox(check.background)}
             ${open.map((o) => card('linked', o.ticket, v.linked === o.ticket, `<span><b class="iss-mono">${esc(o.ticket)}</b> · ${esc(dests.find((d) => d.id === o.dest)?.name || '')}</span><small>${esc(o.title)} · ${o.issues} ${o.issues === 1 ? 'issue' : 'issues'} esperando · abierto el ${when(o.since)}</small>`)).join('')}
             ${card('linked', 'other', v.linked === 'other', `<b>Otro ticket</b><input name="linkedOther" class="iss-mono" value="${esc(v.linkedOther || '')}" placeholder="PROYECTO-número o INC…" aria-label="Otro ticket" /><span data-esc-linked>${linkedText(v.linkedOther)}</span>`)}
           </fieldset>
