@@ -2,12 +2,17 @@
 // SISU o SGA arriba del todo. Lo recibido en el periodo, por preguntas, está en el Histórico (historico.js); la corona
 // (stateCard) la comparte el Resumen (resumen.js).
 import { esc } from '../../ui/html.js';
-import { num, pct, dur } from '../format.js';
+import { num, pct, dur, nice } from '../format.js';
 import { ages, meanAge } from '../backlog.js';
 import { whoHas } from '../today.js';
-import { sheetOf, sheetBody } from '../sheet.js';
+import { sheetOf, sheetBody, SHEET_COLS } from '../sheet.js';
+import { afterDash } from './escalados.js';
 import { isPicked } from '../view.js';
 import { backlogParts } from './backlog.js';
+
+// Las columnas de la sábana de Foto de hoy: las de siempre, con el título del guion en adelante y el estado sin su motivo
+const HOY_COLS = SHEET_COLS.map((c) => (c[0] === 'Título' ? ['Título', (mm, i) => afterDash(mm.C.su[i])]
+  : c[0] === 'Estado' ? ['Estado', (mm, i) => nice(mm.DI.status[mm.C.st[i]])] : c));
 
 // En qué estado está: el backlog ahora, en una corona (lo primero de Foto de hoy y del Resumen): lo abierto (en el
 // centro), repartido por su estado, con las situaciones de la pestaña Backlog (model.js, SITUATIONS): Asignada (sin tocar
@@ -80,13 +85,14 @@ export const hoyTab = (t) => {
       <tr class="mt-grp"><td>Total</td>${tot.map((v) => `<td class="mt-num">${num(v)}</td>`).join('')}</tr></tbody></table></div>`;
   };
 
-  // La sábana: lo abierto ahora, con los filtros y los lados de arriba (sheet.js); el botón la exporta entera a CSV
-  // (metrics-view.js, data-export).
+  // La sábana: lo abierto ahora, con los filtros y los lados de arriba (sheet.js), de la más reciente a la más antigua
+  // (por apertura); el título, del guion en adelante, y el estado, solo el estado (sin su motivo: «Pendiente», no
+  // «Pendiente · Cliente»). El botón la exporta entera a CSV, igual (metrics-view.js, data-export).
   const sheetCard = () => {
-    const list = sheetOf(m);
-    ui.hoySheet = { list };   // lo que exporta el botón (metrics-view.js)
-    const body = sheetBody(m, list, { ui, id: 'res-sheet', expanded: ui.exp['res-sheet'], more: ch.more, empty: 'Nada abierto con estos filtros.' });
-    return card('Sábana de incidencias', body, { span: 's12', sub: 'Lo abierto ahora, con los filtros y los lados de arriba, de la más antigua a la más reciente. Exportar a CSV las descarga todas, con su enlace a Remedy, para abrirlas en Excel.' });
+    const list = sheetOf(m).reverse();
+    ui.hoySheet = { list, cols: HOY_COLS };   // lo que exporta el botón (metrics-view.js)
+    const body = sheetBody(m, list, { ui, id: 'res-sheet', expanded: ui.exp['res-sheet'], more: ch.more, empty: 'Nada abierto con estos filtros.', cols: HOY_COLS });
+    return card('Sábana de incidencias', body, { span: 's12', sub: 'Lo abierto ahora, con los filtros y los lados de arriba, de la más reciente a la más antigua. Exportar a CSV las descarga todas, con su enlace a Remedy, para abrirlas en Excel.' });
   };
 
   const backlogNow = (A) => {
@@ -115,8 +121,13 @@ export const hoyTab = (t) => {
       })();
     return [section('¿Cómo está el backlog ahora?', 'lo abierto a fecha de la última carga, se abriera cuando se abriera.'), ...top,
       card('Quién tiene qué', whoCard(), { span: 's12', sub: 'Lo abierto ahora de cada persona. Clic en una persona para ver todas las métricas solo de ella.' }),
-      sheetCard()];
+      inReport ? '' : sheetCard()];
   };
 
-  return (A) => grid(`<div class="mt-hoy-picks">${systemPicker()}${prioPicker()}</div>`, ask('hoy'), ...backlogNow(A));
+  // inReport: en un informe (Backlog actual, report.js), sin la sábana de incidencias
+  let inReport = false;
+  return (A, opts = {}) => {
+    inReport = !!opts.inReport;
+    return grid(`<div class="mt-hoy-picks">${systemPicker()}${prioPicker()}</div>`, ask('hoy'), ...backlogNow(A));
+  };
 };

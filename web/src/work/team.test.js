@@ -347,3 +347,11 @@ test('una persona frente a la media del equipo (vsTeam, el informe): su fila, la
   // sin persona, la tabla de siempre
   assert.match(vs(null), /El equipo, persona a persona/);
 });
+
+test('Equipo soporte en un informe (noSheet): sin la sábana de incidencias', () => {
+  const m = createModel(data()), ui = { exp: {}, sort: {}, charts: new Set(), noSheet: true };
+  m.S.sides = [{ company: 0 }, null]; m.refilter();
+  assert.doesNotMatch(teamPanel(m, createCharts(m, ui), ui), /Sábana de incidencias/);
+  ui.noSheet = false;
+  assert.match(teamPanel(m, createCharts(m, ui), ui), /Sábana de incidencias/);
+});

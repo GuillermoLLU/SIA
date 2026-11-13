@@ -158,7 +158,7 @@ export const escaladosTab = (t) => {
     return grid(...top,
       card('Malos escalados', sheetBody(m, bad, { ui, id: 'esc-bad', expanded: ui.exp['esc-bad'], more, empty: `Ningún mal escalado${now ? ' activo' : ''} con estos filtros.`, cols: badCols(base, now), exportable: false }),
         { span: 's12', sub: `${now ? 'Incidencias activas' : 'Incidencias del periodo, abiertas o cerradas,'} con algún ticket que se descartó en Jira o pasó de un equipo a otro: se escaló a quien no era. De la más antigua a la más reciente.` }),
-      card('Sábana de incidencias', sheetBody(m, list, { ui, id: 'esc-sheet', expanded: ui.exp['esc-sheet'], more, empty: `Ninguna incidencia escalada${now ? ' activa' : ''} con estos filtros.`, cols }),
+      inReport ? '' : card('Sábana de incidencias', sheetBody(m, list, { ui, id: 'esc-sheet', expanded: ui.exp['esc-sheet'], more, empty: `Ninguna incidencia escalada${now ? ' activa' : ''} con estos filtros.`, cols }),
         { span: 's12', sub: `Las incidencias escaladas y ${now ? 'activas' : 'resueltas'} de esta pestaña, con sus filtros, de la más antigua a la más reciente. Exportar a CSV las descarga todas, con su enlace a Remedy.` }));
   };
 

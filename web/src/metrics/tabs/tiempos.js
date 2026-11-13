@@ -9,8 +9,8 @@
 // dice el centro al abrir y el título, de más a menos incidencias, con su tiempo y sus módulos. Clic, filtrar por él.
 // Abajo del todo, la sábana de esas incidencias (las mismas que cuentan las tablas: lo abierto o lo resuelto, con los
 // filtros de arriba; pinchar un módulo o un problema la filtra), con su tiempo; se exporta (metrics-view.js).
-// En el informe Análisis de tiempos (metrics/report.js; { inReport: true }), sin la pregunta y con los dos desgloses, por
-// módulo y por centro, uno detrás de otro.
+// En el informe Análisis de tiempos (metrics/report.js; { inReport: true }), sin la pregunta ni la sábana y con los dos
+// desgloses, por módulo y por centro, uno detrás de otro.
 import { esc } from '../../ui/html.js';
 import { SHEET_COLS, sheetBody } from '../sheet.js';
 import { afterDash } from './escalados.js';
@@ -99,6 +99,6 @@ ${PARTS[j][0]}: ${dur(v * r.n)} en total, ${dur(v)} de media`)}"></i>`).join('')
   return (A, { inReport = false, parts = null } = {}) => (parts
     ? grid(...parts.map((p) => (p === 'times' ? timesCard(A) : modulesCard(A, p))))
     : inReport
-    ? grid(timesCard(A), ...BY.map(([k]) => modulesCard(A, k)), problemsCard(A), sheetCard(A))
+    ? grid(timesCard(A), ...BY.map(([k]) => modulesCard(A, k)), problemsCard(A))   // en el informe, sin la sábana
     : grid(ask('tiempos'), timesCard(A), modulesCard(A), problemsCard(A), sheetCard(A)));
 };

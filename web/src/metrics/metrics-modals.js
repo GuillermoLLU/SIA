@@ -240,7 +240,7 @@ export const mountMetricsModals = ({ api, toast, onUpload, onFirstLoad, onClear 
             <p class="mt-modal-hint">Sale arriba del informe: las cifras de los dos y la diferencia. Si uno dura más, sus incidencias, en su media para la duración del otro (este mes frente a la media del año).</p>
           </div>
         </div>
-        <p class="mt-modal-hint">Con los filtros de arriba; lo que se mira, el de la pestaña. «Vista previa» lo enseña aquí tal y como saldrá; «Exportar PDF» abre el diálogo de impresión: elige «Guardar como PDF» (o «Microsoft Print to PDF»).</p>
+        <p class="mt-modal-hint">Con los filtros de arriba; lo que se mira, el de la pestaña. «Vista previa» lo enseña aquí tal y como saldrá; «Exportar PDF» ${window.sia?.savePdf ? 'lo guarda directamente: eliges dónde (de partida, en Descargas)' : 'abre el diálogo de impresión: elige «Guardar como PDF» (o «Microsoft Print to PDF»)'}.</p>
         <p class="mt-modal-err" data-err hidden></p>`,
       foot: '<button class="mt-btn" data-close>Cancelar</button><button class="mt-btn" data-preview>Vista previa</button><button class="mt-btn mt-primary" data-go>Exportar PDF</button>',
       setup: (back, close) => {

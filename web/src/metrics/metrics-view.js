@@ -17,7 +17,7 @@ import { createTabs, TABS } from './tabs.js';
 import { periodLabel, presetRange, cmpOptions, rangeLabel } from './period.js';
 import { DAY } from './rules.js';
 import { reportBounds, reportHead, reportName, withDates, sidesOf, systemsFilter, PICKS, pickedFilter, pickedText, withShifts, shiftsFilter } from './report.js';
-import { printReport, previewReport } from './print.js';
+import { exportPdf, previewReport } from './print.js';
 import { companyPick, presetPick, comparePop, pickCompany, pickPreset } from './quick-bar.js';
 import { mountPeriodPanel } from './period-panel.js';
 import { attachTip } from './tip.js';
@@ -361,7 +361,8 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     const asOf = `${two(at.getDate())}/${two(at.getMonth() + 1)}/${at.getFullYear()} ${two(at.getHours())}:${two(at.getMinutes())}`;
     // el cuerpo de cada informe, con lo de arriba ya puesto para él (A: lo que se mira; now: lo abierto ahora)
     const BODY = {
-      backlog: (A) => tabs.render('hoy', A),
+      // en los informes, nunca la sábana de incidencias
+      backlog: (A) => tabs.render('hoy', A, { inReport: true }),
       history: (A) => tabs.render('resumen', A, { state: false }) + tabs.render('historico', A, { inReport: true }),
       tiempos: (A) => tabs.render('tiempos', A, { inReport: true }),
       modulos: (A) => tabs.render('modulos', A),   // solo de Indra (report.js, reportsOf)
@@ -377,7 +378,7 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
       // el panel de Equipo soporte (work/team.js), con su propio estado: de partida, sin días elegidos ni gráficas
       // desplegadas y con la sábana entera; person, el técnico (null, todo el equipo), frente a la media del equipo
       equipo: (A, audience, person) => {
-        const tui = { exp: { 'team-sheet': true }, sort: {}, charts: new Set(), range: null, actSeries: null, person, vsTeam: true };
+        const tui = { exp: { 'team-sheet': true }, sort: {}, charts: new Set(), range: null, actSeries: null, person, vsTeam: true, noSheet: true };
         return teamPanel(m, createCharts(m, tui), tui);
       },
     };
@@ -444,8 +445,8 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
             picks: PICKS.filter(([dim]) => dim in picks).map(([dim, label]) => [label, pickedText(lists[audience][dim].map(([k]) => k), picks[dim], DIMS[dim].label)]).filter(([, v]) => v), coverage: cover, generatedAt: new Date() }),
           body, sideStyle: root.getAttribute('style') || '',
         };
-        if (preview) previewReport(parts, { onBack: () => exportReport(choice) });
-        else printReport(parts);
+        if (preview) previewReport(parts, { onBack: () => exportReport(choice), toast });
+        else exportPdf(parts, { toast });
       },
     });
   };

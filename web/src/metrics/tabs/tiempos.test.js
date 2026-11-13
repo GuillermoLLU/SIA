@@ -13,6 +13,7 @@ test('en el informe Análisis de tiempos: sin la pregunta y con los dos desglose
   assert.ok(tab.includes('<h3>Por módulo') && !tab.includes('<h3>Por centro'), 'la pestaña, solo el desglose elegido');
   assert.doesNotMatch(rep, /class="mt-ask"/);
   assert.ok(rep.includes('<h3>Por módulo') && rep.includes('<h3>Por centro'), 'el informe, los dos');
-  for (const s of ['En qué se va el tiempo', 'Problemas comunes', 'Sábana de incidencias']) assert.ok(rep.includes(s), s);
+  for (const s of ['En qué se va el tiempo', 'Problemas comunes']) assert.ok(rep.includes(s), s);
+  assert.ok(!rep.includes('Sábana de incidencias') && tab.includes('Sábana de incidencias'), 'la sábana, en la pestaña y nunca en el informe');
   assert.equal(tabs.render('tiempos', m.rows()), tab, 'volver a la pestaña la deja como estaba');
 });

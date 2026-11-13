@@ -17,7 +17,8 @@ test('Escalados en el informe: sin la pregunta, el selector ni la comparativa; l
     assert.doesNotMatch(rep, /class="mt-ask"|data-esc-mode=|data-esc-by=|Proyectos Jira frente a la media/);
     for (const d of ['vp', 'mo', 'ce']) assert.match(rep, new RegExp(`rs-${d}`), d);
     assert.match(rep, /Malos escalados/);
-    assert.match(rep, /Sábana de incidencias/);
+    assert.doesNotMatch(rep, /Sábana de incidencias/);   // nunca en un informe
+    assert.match(app, /Sábana de incidencias/);
     assert.doesNotMatch(rep, /undefined|NaN/);
   }
 });

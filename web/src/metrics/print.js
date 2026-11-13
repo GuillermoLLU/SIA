@@ -88,10 +88,22 @@ export const printReport = (parts) => {
   document.body.append(frame);
 };
 
+// Exportar a PDF: en la app de escritorio, directamente (Electron lo genera y pregunta dónde guardarlo, de partida en
+// Descargas con su nombre: electron/main.js, por window.sia); en el navegador, con el diálogo de impresión (printReport).
+// toast: para decir dónde quedó o qué falló. Devuelve si se guardó.
+export const canSavePdf = () => typeof window !== 'undefined' && !!window.sia?.savePdf;
+export const exportPdf = async (parts, { toast } = {}) => {
+  if (!canSavePdf()) { printReport(parts); return false; }
+  const res = await window.sia.savePdf(documentOf(parts), parts.title);
+  if (res?.path) toast?.(`Informe guardado en ${res.path}.`);
+  else if (res?.error) toast?.(`No se pudo guardar el PDF: ${res.error}`);
+  return !!res?.path;
+};
+
 // La vista previa: el informe en pantalla, tal y como sale en el PDF (el marco, del ancho útil de un A4 apaisado, para
 // que se componga igual; los márgenes, alrededor, en la hoja), con «Exportar PDF», que imprime ese mismo marco, y
 // «Cambiar opciones» (onBack: vuelve a la ventana de exportar). Se cierra con la ×, con Escape o con un clic fuera.
-export const previewReport = (parts, { onBack } = {}) => {
+export const previewReport = (parts, { onBack, toast } = {}) => {
   const back = document.createElement('div');
   back.className = 'mt-modal-back';
   back.innerHTML = `<div class="mt-modal mt-modal-preview" role="dialog" aria-modal="true" aria-labelledby="mt-preview-title" tabindex="-1">
@@ -114,7 +126,11 @@ export const previewReport = (parts, { onBack } = {}) => {
   back.addEventListener('click', (e) => {
     if (e.target === back || e.target.closest('[data-close]')) return close();
     if (e.target.closest('[data-back]')) { close(); return onBack(); }
-    if (e.target.closest('[data-print]')) { frame.contentWindow.focus(); frame.contentWindow.print(); }
+    // en la app de escritorio, el PDF directamente (y se cierra al guardarlo); en el navegador, el diálogo de imprimir
+    if (e.target.closest('[data-print]')) {
+      if (canSavePdf()) exportPdf(parts, { toast }).then((saved) => { if (saved) close(); });
+      else { frame.contentWindow.focus(); frame.contentWindow.print(); }
+    }
   });
   back.querySelector('.mt-modal').focus();
   return close;
