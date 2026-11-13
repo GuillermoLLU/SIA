@@ -8,7 +8,7 @@ const DAY = 1440, BASE = Date.UTC(2026, 0, 1);
 const bounds = { min: '2026-01-01', max: '2026-03-10' };
 
 test('los informes del desplegable, cada uno con lo que contiene y con qué datos sale', () => {
-  assert.deepEqual(REPORTS.map(([k, l]) => [k, l]), [['backlog', 'Backlog actual'], ['history', 'Resumen básico'], ['tiempos', 'Análisis de tiempos'], ['modulos', 'Módulos y focos'], ['escalados', 'Escalados'], ['slas', 'Estado de SLAs'], ['equipo', 'Equipo soporte']]);
+  assert.deepEqual(REPORTS.map(([k, l]) => [k, l]), [['backlog', 'Backlog actual'], ['history', 'Resumen básico'], ['tiempos', 'Análisis de tiempos'], ['modulos', 'Módulos y focos'], ['escalados', 'Escalados'], ['slas', 'Estado de SLAs'], ['turnos', 'Gestión de turnos'], ['equipo', 'Equipo soporte']]);
   assert.deepEqual(MODES.map(([k, l]) => [k, l]), [['now', 'Actual'], ['dates', 'Histórico']]);
   // Backlog actual, solo lo de ahora; Resumen básico, solo con fechas; los otros dos, cualquiera (de partida, Actual)
   assert.deepEqual(modesOf('backlog'), ['now']);
@@ -87,7 +87,7 @@ test('la cabecera de Resumen básico: su periodo y hasta dónde llegan los datos
 test('las dos pestañas: solo de Indra o de Indra frente a T-Systems (sin Módulos y focos), con sus lados', async () => {
   assert.deepEqual(AUDIENCES.map(([k, l]) => [k, l]), [['indra', 'Indra'], ['ts', 'Indra frente a T-Systems']]);
   const { reportsOf } = await import('./report.js');
-  assert.deepEqual(reportsOf('indra').map(([k]) => k), ['backlog', 'history', 'tiempos', 'modulos', 'escalados', 'slas', 'equipo']);
+  assert.deepEqual(reportsOf('indra').map(([k]) => k), ['backlog', 'history', 'tiempos', 'modulos', 'escalados', 'slas', 'turnos', 'equipo']);
   assert.deepEqual(reportsOf('ts').map(([k]) => k), ['backlog', 'history', 'tiempos', 'slas']);
   assert.deepEqual(sidesOf('indra'), [{ company: 0 }, null]);
   assert.deepEqual(sidesOf('ts'), [{ company: 0 }, { company: 1 }]);
@@ -205,4 +205,44 @@ test('Estado de SLAs: una casilla por parámetro, todas de partida; sin ninguna,
   assert.doesNotMatch(h(undefined), /Parámetros/);
   assert.match(h(['mttr']), /<dt>Parámetros<\/dt><dd>MTTR<\/dd>/);
   assert.match(h(['mttr']), /<dt>Comparando<\/dt><dd>Indra frente a T-Systems<\/dd>/);
+});
+
+test('Gestión de turnos: solo de Indra, con fechas y una casilla por turno, todas de partida', async () => {
+  const { SHIFT_PICKS, withShifts, shiftsFilter, shiftsText, reportsOf } = await import('./report.js');
+  assert.deepEqual(modesOf('turnos'), ['dates']);
+  assert.ok(reportsOf('indra').some(([k]) => k === 'turnos'));
+  assert.ok(!reportsOf('ts').some(([k]) => k === 'turnos'));
+  assert.deepEqual(SHIFT_PICKS, [[0, 'Mañana (7 a 15 h)'], [1, 'Tarde (15 a 23 h)'], [2, 'Noche (23 a 7 h)']]);
+  assert.equal(withShifts('turnos'), true);
+  for (const k of ['backlog', 'history', 'tiempos', 'modulos', 'escalados', 'slas', 'equipo']) assert.equal(withShifts(k), false, k);
+  assert.equal(shiftsFilter([0, 1, 2]), null);
+  assert.deepEqual([...shiftsFilter([0, 2])], [0, 2]);
+  assert.equal(shiftsText([0, 1, 2]), '');
+  assert.equal(shiftsText([2, 0]), 'Mañana y Noche');
+  const r = (shifts) => reportRange({ key: 'turnos', mode: 'dates', current: [0, 1], from: '2026-01-01', to: '2026-01-31', bounds, base: BASE, shifts });
+  assert.match(r([]).error, /al menos un turno/);
+  assert.ok(r([1]).range);
+  assert.ok(r(undefined).range, 'de partida, todos');
+  const h = (shifts) => reportHead({ key: 'turnos', mode: 'dates', range: [0, DAY], base: BASE, sides: ['Indra'], shifts });
+  assert.doesNotMatch(h(undefined), /<dt>Turnos/);
+  assert.match(h([0]), /<dt>Turnos<\/dt><dd>Mañana<\/dd>/);
+});
+
+test('comparar un periodo con otro: en todos los informes menos el Backlog actual; de partida, este mes frente al año fiscal', async () => {
+  const { withPeriods, PERIODS_DEFAULT } = await import('./report.js');
+  for (const k of ['history', 'tiempos', 'modulos', 'escalados', 'slas', 'turnos', 'equipo']) assert.equal(withPeriods(k), true, k);
+  assert.equal(withPeriods('backlog'), false);
+  assert.deepEqual(PERIODS_DEFAULT, { a: 'p:month', b: 'p:fy' });
+  const h = (periods) => reportHead({ key: 'history', mode: 'dates', range: [0, DAY], base: BASE, sides: ['Indra'], periods });
+  assert.doesNotMatch(h(''), /Compara/);
+  assert.match(h('Este mes frente a Año fiscal'), /<dt>Compara<\/dt><dd>Este mes frente a Año fiscal<\/dd>/);
+});
+
+test('comparar periodos, «Personalizado»: unas fechas a mano, dentro de lo cargado', async () => {
+  const { datesRange, CUSTOM } = await import('./report.js');
+  assert.deepEqual(CUSTOM, ['custom', 'Personalizado']);
+  assert.deepEqual(datesRange({ from: '2026-01-01', to: '2026-01-03', bounds, base: BASE }), { range: [0, 3 * DAY] });
+  assert.match(datesRange({ from: '2026-01-05', to: '2026-01-03', bounds, base: BASE, what: 'del segundo periodo' }).error, /La fecha de fin del segundo periodo no puede ser anterior/);
+  assert.match(datesRange({ from: '', to: '2026-01-03', bounds, base: BASE, what: 'del primer periodo' }).error, /Elige la fecha de inicio y la de fin del primer periodo/);
+  assert.match(datesRange({ from: '2025-12-01', to: '2026-01-03', bounds, base: BASE }).error, /Solo hay datos del 01\/01\/2026/);
 });

@@ -804,10 +804,23 @@ i.mt-pq0 { background: var(--mt-pq0); } i.mt-pq1 { background: var(--mt-pq1); } 
 .mt-rep-field select { height: 32px; padding: 0 8px; font: inherit; font-size: 13px; font-weight: 400; color: var(--text); background: var(--mt-card); border: 1px solid var(--mt-line); }
 .mt-rep-about { margin: -4px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--text); }
 .mt-rep-when { color: var(--mt-low); }
-.mt-rep-dates { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 13px; }
-.mt-rep-dates[hidden] { display: none; }
 .mt-rep-systems[hidden], .mt-rep-field[hidden] { display: none; }
 .mt-rep-params { flex-wrap: wrap; row-gap: 8px; }
+/* comparar un periodo con otro: la casilla y, marcada, los dos periodos */
+.mt-rep-period { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--mt-low); }
+.mt-rep-period[hidden] { display: none; }
+.mt-rep-period select, .mt-rep-period input { font-weight: 400; font-size: 13px; }
+.mt-rep-period select { height: 32px; padding: 0 8px; font-family: inherit; color: var(--text); background: var(--mt-card); border: 1px solid var(--mt-line); }
+.mt-rep-cmp { display: grid; gap: 8px; font-size: 13px; color: var(--text); }
+.mt-rep-cmp[hidden], .mt-rep-cmp-pick[hidden] { display: none; }
+.mt-rep-check { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; cursor: pointer; }
+.mt-rep-cmp-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-left: 22px; }
+.mt-rep-cmp-side { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.mt-rep-cmp-dates { display: inline-flex; align-items: center; gap: 4px; }
+.mt-rep-cmp-dates[hidden] { display: none; }
+.mt-rep-cmp-dates input { height: 32px; padding: 0 6px; font: inherit; color: var(--text); background: var(--mt-card); border: 1px solid var(--mt-line); }
+.mt-rep-cmp-pick select { height: 32px; padding: 0 8px; font: inherit; color: var(--text); background: var(--mt-card); border: 1px solid var(--mt-line); }
+.mt-rep-cmp-pick .mt-modal-hint { flex-basis: 100%; margin: 0; }
 /* Estado de SLAs (informe): el detalle de cada parámetro, sus cortes de dos en dos */
 .mt-sla-dets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 22px; }
 .mt-sla-dets h4 { margin: 0 0 8px; font-size: 13px; }
@@ -843,8 +856,6 @@ i.mt-pq0 { background: var(--mt-pq0); } i.mt-pq1 { background: var(--mt-pq1); } 
 .mt-rep-pick-list label[hidden] { display: none; }
 .mt-rep-pick-list label span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mt-rep-pick-list label small { color: var(--mt-low); font-variant-numeric: tabular-nums; }
-.mt-rep-dates label { display: inline-flex; align-items: center; gap: 6px; color: var(--mt-low); }
-.mt-rep-dates input { padding: 5px 6px; font: inherit; color: var(--text); background: var(--mt-card); border: 1px solid var(--mt-line); }
 /* La vista previa del informe (print.js, previewReport): la hoja, blanca y del ancho de un A4 apaisado, sobre un fondo
    gris; se desplaza la ventana, no la hoja */
 .mt-modal.mt-modal-preview { width: min(1180px, 100%); max-height: 92vh; }

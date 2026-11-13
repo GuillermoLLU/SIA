@@ -14,9 +14,9 @@ import { num } from './format.js';
 import { createModel, COMPANIES } from './model.js';
 import { createCharts } from './charts.js';
 import { createTabs, TABS } from './tabs.js';
-import { periodLabel, presetRange } from './period.js';
+import { periodLabel, presetRange, cmpOptions, rangeLabel } from './period.js';
 import { DAY } from './rules.js';
-import { reportBounds, reportHead, reportName, withDates, sidesOf, systemsFilter, PICKS, pickedFilter, pickedText } from './report.js';
+import { reportBounds, reportHead, reportName, withDates, sidesOf, systemsFilter, PICKS, pickedFilter, pickedText, withShifts, shiftsFilter } from './report.js';
 import { printReport, previewReport } from './print.js';
 import { companyPick, presetPick, comparePop, pickCompany, pickPreset } from './quick-bar.js';
 import { mountPeriodPanel } from './period-panel.js';
@@ -366,10 +366,13 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
       tiempos: (A) => tabs.render('tiempos', A, { inReport: true }),
       modulos: (A) => tabs.render('modulos', A),   // solo de Indra (report.js, reportsOf)
       escalados: (A) => tabs.render('escalados', A, { inReport: true }),
-      // Estado de SLAs: Atendidas en SLA, lo del periodo y las incidencias; con el MTTR, lo de Análisis tiempos (en qué se
-      // va el tiempo y por módulo, de lo resuelto del periodo); y la calidad y el uso de la IA, por técnico
+      turnos: (A) => tabs.render('turnos', A),   // con el filtro de turno de sus casillas (S.f.tu)
+      // Estado de SLAs: lo del periodo y las incidencias; con el MTTR, lo de Análisis tiempos (en qué se va el tiempo y
+      // por módulo, de lo resuelto del periodo); Atendidas en SLA; y la calidad, por técnico, y el uso de la IA, por día
       slas: (A, audience, person, params) => tabs.render('resumen', A, { slas: params })
-        + (params.includes('mttr') ? tabs.render('tiempos', A, { parts: ['times', 'mo'] }) : '')
+        // frente a T-Systems, sin el desglose por módulo (no trabajamos con los mismos)
+        + (params.includes('mttr') ? tabs.render('tiempos', A, { parts: audience === 'ts' ? ['times'] : ['times', 'mo'] }) : '')
+        + tabs.render('resumen', A, { slas: params, part: 'sla' })
         + tabs.render('resumen', A, { slas: params, part: 'people' }),
       // el panel de Equipo soporte (work/team.js), con su propio estado: de partida, sin días elegidos ni gráficas
       // desplegadas y con la sábana entera; person, el técnico (null, todo el equipo), frente a la media del equipo
@@ -385,13 +388,16 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     const ofTeams = (teams) => { const out = []; for (let i = 0; i < m.N; i++) if (teams.includes(m.TEAM[i])) out.push(i); return out; };
     const listsOf = (rows) => Object.fromEntries(PICKS.map(([dim]) => [dim, m.group(dim, rows).filter((g) => g.k).map((g) => [g.k, DIMS[dim].label(g.k), g.n])]));
     const lists = { indra: listsOf(ofTeams([0])), ts: listsOf(ofTeams([0, 1])) };
+    // los periodos que se pueden comparar (los de «Comparar» del Resumen, con datos), con su rango de ahora: «Periodo
+    // actual» es el de arriba antes de cambiarlo para el informe
+    const periodsNow = cmpOptions(m).filter(([, , r]) => r);
     // los técnicos de Indra (Equipo soporte), por su nombre
     const people = m.group('as', ofTeams([0])).filter((g) => g.k).map((g) => [g.k, DIMS.as.label(g.k)])
       .sort((a, b) => a[1].localeCompare(b[1], 'es'));
     modals.report({
       current: { range: [S.d0, S.d1], from: iso(S.d0), to: iso(S.d1 - DAY), asOf },
-      bounds: reportBounds(m), base: BASE, lists, people, initial,
-      onExport: ({ key, mode, audience, systems, picks, person, params, range, preview, choice }) => {
+      bounds: reportBounds(m), base: BASE, lists, people, periods: periodsNow.map(([k, l, r]) => [k, l, iso(r[0]), iso(r[1] - DAY)]), initial,
+      onExport: ({ key, mode, audience, systems, picks, person, params, shifts, cmp, range, preview, choice }) => {
         // lo de arriba se cambia solo para pintar el informe y vuelve a ser lo de antes: los lados (los de la pestaña),
         // el filtro de SGA o SISU (el de las casillas), el periodo (con fechas), la comparación de periodos, las sábanas
         // enteras y lo que eligen las pestañas (Actual o Histórico, desglose; en Escalados, sin proyectos elegidos ni el
@@ -399,23 +405,29 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
         const dated = withDates(key, mode), now = !dated, team = key === 'equipo';
         const keep = { d: [S.d0, S.d1], sides: S.sides, f: { ...S.f }, q: S.q, exp: { ...ui.exp },
           ui: { resCmp: ui.resCmp, timesNow: ui.timesNow, timesBy: ui.timesBy, modNow: ui.modNow, escNow: ui.escNow, jiraPick: ui.jiraPick, escNoJira: ui.escNoJira } };
-        let body, cover, names, cos, filters;
+        let body, cover, names, cos, filters, cmpText = '';
         try {
           S.sides = sidesOf(audience);
           if (team) { S.f = {}; S.q = ''; }
           // los filtros que eligen las casillas: SGA o SISU y, con sus listas, módulos y centros (todo marcado, sin filtro)
           const set = (dim, f) => { if (f) S.f[dim] = f; else delete S.f[dim]; };
           set('ss', systemsFilter(systems));
+          if (withShifts(key)) set('tu', shiftsFilter(shifts));
           for (const [dim, keys] of Object.entries(picks)) set(dim, pickedFilter(lists[audience][dim].map(([k]) => k), keys));
           if (dated) { m.setPeriod(range[0], range[1]); ui.resCmp = null; }
           Object.assign(ui, { timesNow: now, timesBy: 'mo', modNow: now, escNow: now, jiraPick: [], escNoJira: false });
           ui.exp = { ...ui.exp, 'res-sheet': true, 'times-sheet': now, 'esc-sheet': true, 'esc-bad': true };
           m.refilter();
-          body = BODY[key](m.rows(), audience, person, params);
+          // comparando dos periodos, arriba del todo (con los filtros del informe; de un técnico, lo suyo)
+          // cada periodo, con su nombre o, personalizado, por sus fechas
+          const periodOf = (s) => ({ label: cmp[s].label ?? rangeLabel(m, cmp[s].range), range: cmp[s].range });
+          const top = cmp ? tabs.render('resumen', m.rows(), { vsPeriod: { a: periodOf('a'), b: periodOf('b'), person } }) : '';
+          body = top + BODY[key](m.rows(), audience, person, params);
+          cmpText = cmp ? `${periodOf('a').label} frente a ${periodOf('b').label}` : '';
           cover = coverage(m);
           names = m.NAMES(); cos = m.CO();
           // los filtros de arriba con que sale (los de las casillas van aparte, cada uno en su fila)
-          filters = [...Object.keys(S.f).filter((dim) => dim !== 'ss' && !(dim in picks)).flatMap((dim) => [...S.f[dim]].map((k) => `${DIMS[dim].name}: ${DIMS[dim].label(k)}`)), ...(S.q ? [`Búsqueda: ${S.q}`] : [])];
+          filters = [...Object.keys(S.f).filter((dim) => dim !== 'ss' && !(dim in picks) && !(dim === 'tu' && withShifts(key))).flatMap((dim) => [...S.f[dim]].map((k) => `${DIMS[dim].name}: ${DIMS[dim].label(k)}`)), ...(S.q ? [`Búsqueda: ${S.q}`] : [])];
         } finally {
           S.sides = keep.sides;
           S.f = keep.f;
@@ -428,7 +440,7 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
         const who = person == null ? '' : DIMS.as.label(person);
         const parts = {
           title: reportName(key, range, BASE, { mode, asOf: at.getTime(), audience, systems, person: who }),
-          head: reportHead({ key, mode, range, base: BASE, asOf, sides: cos.map((k) => names[k]), systems, filters, person: who, params,
+          head: reportHead({ key, mode, range, base: BASE, asOf, sides: cos.map((k) => names[k]), systems, filters, person: who, params, shifts, periods: cmpText,
             picks: PICKS.filter(([dim]) => dim in picks).map(([dim, label]) => [label, pickedText(lists[audience][dim].map(([k]) => k), picks[dim], DIMS[dim].label)]).filter(([, v]) => v), coverage: cover, generatedAt: new Date() }),
           body, sideStyle: root.getAttribute('style') || '',
         };

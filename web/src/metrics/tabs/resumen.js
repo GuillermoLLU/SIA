@@ -10,7 +10,7 @@
 // lado. Comparando periodos (ui.resCmp), los KPIs con los dos y el backlog, una línea por periodo, cada una desde su
 // primer día (evolucion.js, periods).
 import { esc } from '../../ui/html.js';
-import { num, pct, dur } from '../format.js';
+import { num, dec, pct, dur } from '../format.js';
 import { rangeLabel, cmpRange, cmpName } from '../period.js';
 import { mttrOf } from '../resolution.js';
 import { iaStats } from '../ia.js';
@@ -31,7 +31,8 @@ export const resumenTab = (t) => {
   // ui.resCmp) o nada
   const cmpMode = () => (CMP() ? 'side' : ui.resCmp?.a && ui.resCmp?.b ? 'periods' : null);
   // lo del primer lado abierto en un rango, con los filtros de arriba (sea cual sea el periodo de arriba)
-  const inRange = (r) => (r ? bySide(m.today())[CO()[0]].filter((i) => C.rep[i] >= r[0] && C.rep[i] < r[1]) : []);
+  // side: de qué lado (de partida, el primero)
+  const inRange = (r, side = CO()[0]) => (r ? bySide(m.today())[side].filter((i) => C.rep[i] >= r[0] && C.rep[i] < r[1]) : []);
 
   // los KPIs de unas incidencias: { n, v } de cada uno
   const figures = (l) => {
@@ -86,8 +87,8 @@ export const resumenTab = (t) => {
       inc: () => kpiCo('Incidencias', of('inc', (x) => ({ n: x.n, v: x.n })), opt(num), o({ note: 'Las que entraron en el periodo.' })),
       res: () => kpiCo('% de resueltas', of('inc'), opt(pct), o({ better: 'high', note: 'De las que entraron en el periodo, las que ya están resueltas (a fecha de la última carga).' })),
       mttr: () => kpiCo('MTTR', of('mttr'), opt(dur), o({ better: 'low', note: '(TTR de las resueltas + lo que llevan abiertas las que siguen abiertas) / cuántas son. Una cancelada sin resolver no cuenta.' })),
+      sla: () => kpiCo('% dentro de SLA', of('sla'), opt(pct), o({ better: 'high', note: 'Lo que se empezó (paso a En curso) dentro del plazo de su prioridad; las abiertas sin empezar y ya fuera de plazo cuentan como fuera.' })),
       iqa: () => kpiCo('Calidad (%IQA)', of('iqa'), () => '—', o({ better: 'high', note: IQA_NOTE })),
-      sla: () => kpiCo('Atendidas en SLA', of('sla'), opt(pct), o({ better: 'high', note: 'Lo que se empezó (paso a En curso) dentro del plazo de su prioridad; las abiertas sin empezar y ya fuera de plazo cuentan como fuera.' })),
       ia: () => kpiCo('Uso de la IA', of('ia'), opt((v) => pct(v, 1)), o({ better: 'high', note: 'Lo que tiene alguna marca de IA (en TAGS o en las notas).' })),
     };
     const keys = Object.keys(ALL).filter((k) => only.includes(k));
@@ -139,7 +140,7 @@ export const resumenTab = (t) => {
       const total = ks.map((s) => shownOf(k)(COLS[k][1](F[s]))).join(' · ');
       // wide: a todo el ancho (sin Por SLA, el mes queda solo en su fila)
       const panel = (title, body, wide = false) => `<div class="mt-sla-panel${wide ? ' mt-sla-wide' : ''}"><h4>${esc(title)}</h4>${body}</div>`;
-      return card(`${COLS[k][0]} <small class="mt-mut">· todas: ${total}</small>`, legend + `<div class="mt-sla-dets">${k === 'sla' ? panel('Por SLA', hbars(k, prios)) : ''}${panel(`Por módulo (los ${TOP} con más incidencias)`, hbars(k, top('mo')))}${panel(`Por centro (los ${TOP} con más incidencias)`, hbars(k, top('ce')))}${panel('Por mes', vbars(k, months), k !== 'sla')}</div>`, { span: 's12' });
+      return card(`${COLS[k][0]} <small class="mt-mut">· todas: ${total}</small>`, legend + `<div class="mt-sla-dets">${k === 'sla' ? panel('Por SLA', hbars(k, prios)) : ''}${two ? '' : panel(`Por módulo (los ${TOP} con más incidencias)`, hbars(k, top('mo'))) + panel(`Por centro (los ${TOP} con más incidencias)`, hbars(k, top('ce')))}${panel('Por mes', vbars(k, months), k !== 'sla')}</div>`, { span: 's12' });
     };
     // Por técnico (la calidad y el uso de la IA): una barra por persona, del color de su lado, de la mayor cifra a la
     // menor; quien tiene menos de MIN incidencias, apagado (su % dice poco). Arriba, la cifra de todo el equipo.
@@ -159,21 +160,81 @@ export const resumenTab = (t) => {
     const qualityCard = () => card('Calidad por técnico', `<p class="mt-note">%IQA: ${esc(IQA_NOTE)} Mientras, las reaperturas y las devueltas a la cola.</p>${whoLegend}<div class="mt-sla-dets">
       <div class="mt-sla-panel"><h4>Reabiertas <small class="mt-mut">· ${teamOf(reop, pc1)}</small></h4>${personBars(reop, pc1)}</div>
       <div class="mt-sla-panel"><h4>Devueltas a la cola <small class="mt-mut">· ${teamOf(bounce, pc1)}</small></h4>${personBars(bounce, pc1)}</div></div>`, { span: 's12', sub: `${PEOPLE_NOTE} Menos es mejor.` });
-    const iaCard = () => card(`Uso de la IA por técnico <small class="mt-mut">· ${teamOf(iaOf, pc1)}</small>`, whoLegend + personBars(iaOf, pc1), { span: 's12', sub: `Lo que tiene alguna marca de IA (en TAGS o en las notas). ${PEOPLE_NOTE}` });
+    // El uso de la IA a través de los días: de lo recibido cada día del periodo, el % con alguna marca de IA, una línea
+    // por lado (los días sin incidencias, sin punto). Debajo, unas fechas repartidas; arriba, la cifra del periodo.
+    const iaDaysCard = () => {
+      const D = 1440, n = Math.max(1, Math.round((S.d1 - S.d0) / D));
+      const per = ks.map((s) => {
+        const byDay = Array.from({ length: n }, () => []);
+        for (const i of sides[s]) { const d = Math.floor((C.rep[i] - S.d0) / D); if (d >= 0 && d < n) byDay[d].push(i); }
+        return byDay.map((l) => (l.length ? iaStats(l, C).share : null));
+      });
+      const W = 1000, H = 220, L = 52, R = 12, T = 12, B = 26;
+      const max = Math.max(0.01, ...per.flat().filter((v) => v != null));
+      const x = (d) => L + (n === 1 ? (W - L - R) / 2 : d * (W - L - R) / (n - 1)), y = (v) => T + (1 - v / max) * (H - T - B);
+      const ddmm = (d) => { const t = new Date(m.BASE + (S.d0 + d * D) * 6e4); return `${String(t.getUTCDate()).padStart(2, '0')}/${String(t.getUTCMonth() + 1).padStart(2, '0')}`; };
+      const grid = [0, 0.5, 1].map((p) => `<line x1="${L}" x2="${W - R}" y1="${y(max * p).toFixed(1)}" y2="${y(max * p).toFixed(1)}" class="mt-gridline"/><text x="${L - 6}" y="${(y(max * p) + 4).toFixed(1)}" text-anchor="end" class="mt-axis">${pct(max * p, 1)}</text>`).join('');
+      const step = Math.max(1, Math.ceil(n / 12));
+      const xs = Array.from({ length: n }, (_, d) => d).filter((d) => d % step === 0 || d === n - 1)
+        .map((d) => `<text x="${x(d).toFixed(1)}" y="${H - 6}" text-anchor="middle" class="mt-axis">${ddmm(d)}</text>`).join('');
+      const dots = n <= 62;
+      const ser = per.map((v, j) => {
+        const pts = v.map((p, d) => (p == null ? null : [x(d), y(p)])).filter(Boolean);
+        return `<polyline class="mt-line mt-s${ks[j]}" points="${pts.map((p) => p.map((c) => c.toFixed(1)).join(',')).join(' ')}"/>`
+          + (dots ? v.map((p, d) => (p == null ? '' : `<circle cx="${x(d).toFixed(1)}" cy="${y(p).toFixed(1)}" r="3" class="mt-f${ks[j]}"><title>${esc(`${t.name(ks[j])} · ${ddmm(d)}: ${pct(p, 1)}`)}</title></circle>`)).join('') : '');
+      }).join('');
+      return card(`Uso de la IA por día <small class="mt-mut">· ${teamOf(iaOf, pc1)}</small>`, `${whoLegend}<svg viewBox="0 0 ${W} ${H}" class="mt-svg">${grid}${xs}${ser}</svg>`,
+        { span: 's12', sub: 'De lo recibido cada día del periodo, el % con alguna marca de IA (en TAGS o en las notas). Los días sin incidencias no tienen punto.' });
+    };
 
-    // part 'top': Atendidas en SLA (arriba del todo, la única por SLA), las cifras del periodo y las incidencias (por
-    // módulo, centro y mes); part 'people': la calidad y el uso de la IA, por técnico. Entre las dos, el informe pone lo
-    // de Análisis tiempos (metrics-view.js): en qué se va el tiempo y por módulo.
-    const rest = keys.filter((k) => k !== 'sla');
-    if (part === 'people') return grid(keys.includes('iqa') ? qualityCard() : '', keys.includes('ia') ? iaCard() : '');
-    return grid(keys.includes('sla') ? paramCard('sla') : '',
-      rest.length ? card('Del periodo', kpis(...rest.map((k) => ALL[k]())), { span: 's12', sub: 'Lo recibido en el periodo del informe.' }) : '',
+    // Por partes, para que el informe meta entre ellas lo de Análisis tiempos (metrics-view.js: en qué se va el tiempo y
+    // por módulo): 'top', arriba del todo, las cifras del periodo (todas, el % dentro de SLA incluido) y las incidencias
+    // (por módulo, centro y mes); 'sla', detrás de los tiempos, Atendidas en SLA (la única por SLA); 'people', la
+    // calidad por técnico y el uso de la IA por día.
+    if (part === 'sla') return grid(keys.includes('sla') ? paramCard('sla') : '');
+    // frente a T-Systems no se miran módulos, centros ni técnicos: no trabajamos con los mismos
+    // el uso de la IA, a través de los días; la calidad, por técnico, solo de Indra (frente a T-Systems no se mira por
+    // técnico: no trabajamos con los mismos)
+    if (part === 'people') return grid(!two && keys.includes('iqa') ? qualityCard() : '', keys.includes('ia') ? iaDaysCard() : '');
+    return grid(card('Del periodo', kpis(...keys.map((k) => ALL[k]())), { span: 's12', sub: 'Lo recibido en el periodo del informe.' }),
       keys.includes('inc') ? paramCard('inc') : '');
+  };
+
+  // Un periodo frente a otro (los informes de Indra: report.js, withPeriods): de cada uno, lo recibido en él con los
+  // filtros de arriba (del primer lado y, con person, solo lo suyo), las cifras del Resumen (figures) y la diferencia.
+  // Si duran distinto, las incidencias del más largo, en su media para la duración del otro (este mes frente a la media
+  // del año). a, b: { label, range [d0, d1) o null }.
+  // Comparando lados (frente a T-Systems), una tarjeta por lado, con su nombre delante.
+  const periodsCard = ({ a, b, person = null }) => (CMP() ? grid(...CO().map((k) => sidePeriods({ a, b, person, side: k, who: `${t.name(k)}: ` })))
+    : grid(sidePeriods({ a, b, person, side: CO()[0], who: '' })));
+  const sidePeriods = ({ a, b, person, side, who }) => {
+    const rowsOf = (r) => inRange(r, side).filter((i) => person == null || C.as[i] === person);
+    const len = (r) => (r ? r[1] - r[0] : 0), La = len(a.range), Lb = len(b.range);
+    const F = [figures(rowsOf(a.range)), figures(rowsOf(b.range))];
+    const scale = [La > Lb && Lb ? Lb / La : 1, Lb > La && La ? La / Lb : 1];
+    const inc = F.map((f, j) => ({ n: f.inc.n, v: f.inc.n * scale[j] }));
+    const names = [a.label, b.label], of = (k) => F.map((f) => f[k]), o = (x) => ({ val, pair: true, names, ...x });
+    const avg = scale[0] !== 1 ? [a.label, b.label] : scale[1] !== 1 ? [b.label, a.label] : null;
+    // con media, las dos con un decimal (y su diferencia también: 1,0 frente a 0,3, +0,7)
+    const count = (s) => (s.v == null ? '—' : avg ? dec(s.v) : num(s.v));
+    const when = (r) => (r ? esc(rangeLabel(m, r)) : 'sin datos');
+    // un periodo con nombre, con sus fechas; uno personalizado ya se llama por ellas
+    const dated = (p) => (p.range && p.label === rangeLabel(m, p.range) ? esc(p.label) : `${esc(p.label)}: ${when(p.range)}`);
+    const sub = `${dated(a)}; ${dated(b)}. Lo recibido en cada uno.${avg ? ` Las incidencias de ${esc(avg[0])}, en su media para la duración de ${esc(avg[1])}.` : ''}`;
+    return card(`${esc(who)}${esc(a.label)} frente a ${esc(b.label)}`, kpis(
+      kpiCo(avg ? 'Incidencias (media)' : 'Incidencias', inc, count, o({ note: 'Las que entraron en el periodo.' })),
+      kpiCo('% de resueltas', of('inc'), opt(pct), o({ better: 'high', note: 'De las que entraron, las ya resueltas.' })),
+      kpiCo('MTTR', of('mttr'), opt(dur), o({ better: 'low' })),
+      kpiCo('% dentro de SLA', of('sla'), opt(pct), o({ better: 'high' })),
+      kpiCo('Calidad (%IQA)', of('iqa'), () => '—', o({ better: 'high', note: IQA_NOTE })),
+      kpiCo('Uso de la IA', of('ia'), opt((v) => pct(v, 1)), o({ better: 'high' }))), { span: 's12', sub });
   };
 
   // state: false, sin la corona (el informe con datos históricos: report.js); los KPIs, entonces, a todo el ancho.
   // slas: los parámetros del informe Estado de SLAs; con ellos, solo lo suyo (part: 'top' o 'people', slaState)
-  return (A, { state = true, slas = null, part = 'top' } = {}) => {
+  // vsPeriod: un periodo frente a otro (periodsCard); solo esa tarjeta
+  return (A, { state = true, slas = null, part = 'top', vsPeriod = null } = {}) => {
+    if (vsPeriod) return periodsCard(vsPeriod);
     if (slas) return slaState(A, slas, part);
     const P = bySide(m.today()).map((l) => l.filter((i) => OPEN[i]));
     return grid(ask('resumen'), state ? stateOf(P, { link: true }) : '', periodKpis(A, !state), evolution({ only: 'backlog', periods: periods(), link: true }));

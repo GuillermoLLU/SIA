@@ -8,7 +8,7 @@ import { onEscape } from '../ui/dialog.js';
 import { mountPeriodPanel } from './period-panel.js';
 import { calendarModel } from './calendar-model.js';
 import { DAY } from './rules.js';
-import { REPORTS, MODES, AUDIENCES, SYSTEMS, PICKS, picksOf, modesOf, modeOf, withDates, reportRange, reportsOf, withSystems, withPerson, PARAMS, withParams } from './report.js';
+import { REPORTS, MODES, AUDIENCES, SYSTEMS, PICKS, picksOf, modesOf, modeOf, withDates, reportRange, reportsOf, withSystems, withPerson, PARAMS, withParams, SHIFT_PICKS, withShifts, withPeriods, PERIODS_DEFAULT, CUSTOM, datesRange } from './report.js';
 
 const svg = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const UPLOAD = svg('<path d="M12 16V4m0 0-4 4m4-4 4 4"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>');
@@ -182,8 +182,11 @@ export const mountMetricsModals = ({ api, toast, onUpload, onFirstLoad, onClear 
   // (initial).
   // people: [[clave, nombre]] de los técnicos de Indra, para Equipo soporte (withPerson): un desplegable, de partida
   // «Todo el equipo»; onExport recibe person (la clave o null).
-  const report = ({ current, bounds, base, lists = {}, people = [], initial = {}, onExport }) => {
-    const pick = { key: REPORTS[0][0], mode: null, audience: AUDIENCES[0][0], systems: SYSTEMS.map(([k]) => k), off: {}, person: null, params: PARAMS.map(([k]) => k), from: bounds.min > current.from ? bounds.min : current.from, to: current.to, ...initial };
+  // periods: [[clave, nombre, desde, hasta]] (period.js, cmpOptions; «AAAA-MM-DD»): el periodo del informe se elige en un
+  // desplegable («Personalizado», arriba, con sus fechas; si no, no se ven); una casilla «Comparar con otro periodo»,
+  // marcada, despliega el otro, igual. onExport recibe cmp ({ a, b }: { label, range } de cada uno; o null).
+  const report = ({ current, bounds, base, lists = {}, people = [], periods = [], initial = {}, onExport }) => {
+    const pick = { cmp: false, period: PERIODS_DEFAULT.a, cmpB: PERIODS_DEFAULT.b, cmpDates: {}, key: REPORTS[0][0], mode: null, audience: AUDIENCES[0][0], systems: SYSTEMS.map(([k]) => k), off: {}, person: null, params: PARAMS.map(([k]) => k), shifts: SHIFT_PICKS.map(([k]) => k), from: bounds.min > current.from ? bounds.min : current.from, to: current.to, ...initial };
     // lo desmarcado de cada lista (claves): se guarda al cambiar de pestaña y al volver de la vista previa
     const off = Object.fromEntries(PICKS.map(([dim]) => [dim, new Set(pick.off[dim] || [])]));
     // una lista de casillas, la de una pestaña: todo marcado menos lo desmarcado
@@ -205,6 +208,17 @@ export const mountMetricsModals = ({ api, toast, onUpload, onFirstLoad, onClear 
     // las listas de un informe en una pestaña (picksOf: módulos y centros, o los equipos de Jira)
     const picksHtml = (audience, key) => picksOf(key).map(pickList(audience)).join('');
     const startMode = modeOf(pick.key, pick.mode);
+    // un periodo: su desplegable («Personalizado», arriba del todo, y los de «Comparar») y, con «Personalizado», sus
+    // fechas; si no, no se ven. s: 'a', el del informe (sus fechas, from y to); 'b', el otro de la comparación
+    const names = { a: ['period', 'from', 'to'], b: ['cmp-b', 'cmp-b-from', 'cmp-b-to'] };
+    const periodSide = (s, label) => {
+      const [nk, nf, nt] = names[s], key = s === 'a' ? pick.period : pick.cmpB, d = s === 'a' ? pick : pick.cmpDates.b || pick;
+      return `<span class="mt-rep-cmp-side"><select name="${nk}" aria-label="${label}">${[CUSTOM, ...periods].map(([k, l]) => `<option value="${k}" ${k === key ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>
+        <span class="mt-rep-cmp-dates" data-cmp-dates="${s}"><input type="date" name="${nf}" value="${d.from}" min="${bounds.min}" max="${bounds.max}" aria-label="Desde"> – <input type="date" name="${nt}" value="${d.to}" min="${bounds.min}" max="${bounds.max}" aria-label="Hasta"></span></span>`;
+    };
+    // las fechas de un periodo: las escritas con «Personalizado»; si no, las suyas
+    const datesOf = (key, f, t) => (key === CUSTOM[0] ? [f, t] : (periods.find(([k]) => k === key) || []).slice(2, 4));
+    const labelOf = (key) => (key === CUSTOM[0] ? null : periods.find(([k]) => k === key)?.[1] ?? null);
     return open({
       title: 'Exportar informe',
       body: `<div class="mt-rep-tabs" role="tablist" aria-label="Qué se mira">${AUDIENCES.map(([k, l]) => `<button type="button" role="tab" class="mt-rep-tab" data-audience="${k}" aria-selected="${k === pick.audience}">${esc(l)}</button>`).join('')}</div>
@@ -214,12 +228,17 @@ export const mountMetricsModals = ({ api, toast, onUpload, onFirstLoad, onClear 
         <p class="mt-rep-about" data-about>${about(pick.key, startMode)}</p>
         <fieldset class="mt-rep-systems" data-modes><legend>Datos</legend>${MODES.map(([k, l, tip]) => `<label title="${esc(tip)}"><input type="radio" name="mode" value="${k}" ${k === startMode ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</fieldset>
         <fieldset class="mt-rep-systems mt-rep-params" data-params><legend>Parámetros</legend>${PARAMS.map(([k, l]) => `<label><input type="checkbox" name="param" value="${k}" ${pick.params.includes(k) ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</fieldset>
+        <fieldset class="mt-rep-systems mt-rep-params" data-shifts><legend>Turnos</legend>${SHIFT_PICKS.map(([k, l]) => `<label><input type="checkbox" name="shift" value="${k}" ${pick.shifts.includes(k) ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</fieldset>
         <label class="mt-rep-field" data-person><span>Técnico</span>
           <select name="person"><option value="">Todo el equipo</option>${people.map(([k, l]) => `<option value="${k}" ${k === pick.person ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
         <div class="mt-rep-picks" data-picks>${picksHtml(pick.audience, pick.key)}</div>
-        <div class="mt-rep-dates" data-dates>
-          <label>Desde <input type="date" name="from" value="${pick.from}" min="${bounds.min}" max="${bounds.max}"></label>
-          <label>Hasta <input type="date" name="to" value="${pick.to}" min="${bounds.min}" max="${bounds.max}"></label>
+        <div class="mt-rep-period" data-dates><span>Periodo</span>${periodSide('a', 'Periodo')}</div>
+        <div class="mt-rep-cmp" data-cmp-box>
+          <label class="mt-rep-check"><input type="checkbox" name="cmp" ${pick.cmp ? 'checked' : ''}> Comparar con otro periodo</label>
+          <div class="mt-rep-cmp-pick" data-cmp-pick>
+            <span>Frente a</span>${periodSide('b', 'Frente a')}
+            <p class="mt-modal-hint">Sale arriba del informe: las cifras de los dos y la diferencia. Si uno dura más, sus incidencias, en su media para la duración del otro (este mes frente a la media del año).</p>
+          </div>
         </div>
         <p class="mt-modal-hint">Con los filtros de arriba; lo que se mira, el de la pestaña. «Vista previa» lo enseña aquí tal y como saldrá; «Exportar PDF» abre el diálogo de impresión: elige «Guardar como PDF» (o «Microsoft Print to PDF»).</p>
         <p class="mt-modal-err" data-err hidden></p>`,
@@ -249,11 +268,19 @@ export const mountMetricsModals = ({ api, toast, onUpload, onFirstLoad, onClear 
           if (want !== shownPicks) { q('[data-picks]').innerHTML = picksHtml(audience, sel.value); shownPicks = want; }
           q('[data-about]').innerHTML = about(sel.value, mode());
           q('[data-modes]').hidden = modesOf(sel.value).length < 2;
-          q('[data-dates]').hidden = !withDates(sel.value, mode());
+
           q('[data-picks]').hidden = !picksOf(sel.value).length;
           q('[data-systems]').hidden = !withSystems(sel.value);
           q('[data-person]').hidden = !withPerson(sel.value);
           q('[data-params]').hidden = !withParams(sel.value);
+          q('[data-shifts]').hidden = !withShifts(sel.value);
+          q('[data-cmp-box]').hidden = !withPeriods(sel.value);
+          const comparing = !q('[data-cmp-box]').hidden && q('[name="cmp"]').checked;
+          q('[data-cmp-pick]').hidden = !comparing;
+          // el periodo: con fechas o comparando (el primero de los dos)
+          q('[data-dates]').hidden = !withDates(sel.value, mode()) && !comparing;
+          q('[data-cmp-dates="a"]').hidden = q('[name="period"]').value !== CUSTOM[0];
+          q('[data-cmp-dates="b"]').hidden = q('[name="cmp-b"]').value !== CUSTOM[0];
           back.querySelectorAll('[data-pick]').forEach((box) => {
             const all = box.querySelectorAll('input[type="checkbox"]'), on = [...all].filter((c) => c.checked).length;
             box.querySelector('[data-pick-count]').textContent = on === all.length ? 'todos' : `${on} de ${all.length}`;
@@ -283,15 +310,27 @@ export const mountMetricsModals = ({ api, toast, onUpload, onFirstLoad, onClear 
         const go = (preview) => {
           const key = sel.value, m = mode(), systems = [...back.querySelectorAll('[name="system"]:checked')].map((c) => c.value);
           const params = [...back.querySelectorAll('[name="param"]:checked')].map((c) => c.value);
+          const shifts = [...back.querySelectorAll('[name="shift"]:checked')].map((c) => Number(c.value));
           const personValue = q('[name="person"]').value, person = withPerson(key) && personValue ? Number(personValue) : null;
           // lo marcado en cada lista del informe (las claves, números)
           const picks = Object.fromEntries(picksOf(key).map(([dim]) => [dim, [...back.querySelectorAll(`[name="pick-${dim}"]:checked`)].map((c) => Number(c.value))]));
           const picked = Object.fromEntries(Object.entries(picks).map(([dim, l]) => [dim, l.length]));
-          const { range, error } = reportRange({ key, mode: m, current: current.range, from: from.value, to: to.value, bounds, base, systems, picked, params });
-          if (error) { err.textContent = error; err.hidden = false; return; }
+          const period = q('[name="period"]').value, [fromA, toA] = datesOf(period, from.value, to.value);
+          const { range, error } = reportRange({ key, mode: m, current: current.range, from: fromA, to: toA, bounds, base, systems, picked, params, shifts });
+          // comparando: el periodo del informe frente al otro (cada uno, su nombre o, personalizado, null: sus fechas)
+          const cmpOn = q('[name="cmp"]').checked, cmpB = q('[name="cmp-b"]').value;
+          const cmpDates = { b: { from: q('[name="cmp-b-from"]').value, to: q('[name="cmp-b-to"]').value } };
+          const [fromB, toB] = datesOf(cmpB, cmpDates.b.from, cmpDates.b.to);
+          const comparing = withPeriods(key) && cmpOn;
+          const ra = comparing ? datesRange({ from: fromA, to: toA, bounds, base, what: 'del periodo' }) : {};
+          const rb = comparing ? datesRange({ from: fromB, to: toB, bounds, base, what: 'del otro periodo' }) : {};
+          const cmp = comparing ? { a: { label: labelOf(period), range: ra.range }, b: { label: labelOf(cmpB), range: rb.range } } : null;
+          const same = comparing && fromA === fromB && toA === toB;
+          const fail = error || ra.error || rb.error || (same ? 'Elige dos periodos distintos.' : null);
+          if (fail) { err.textContent = fail; err.hidden = false; return; }
           close();
           // sin sus casillas (Equipo soporte), de los dos sistemas: sin ese filtro
-          onExport({ key, mode: m, audience, systems: withSystems(key) ? systems : SYSTEMS.map(([k]) => k), picks, person, params, range, preview, choice: { key, params, mode: q('[name="mode"]:checked')?.value, audience, systems, person: personValue ? Number(personValue) : null, off: Object.fromEntries(Object.entries(off).map(([d, set]) => [d, [...set]])), from: from.value, to: to.value } });
+          onExport({ key, mode: m, audience, systems: withSystems(key) ? systems : SYSTEMS.map(([k]) => k), picks, person, params, shifts, cmp, range, preview, choice: { key, params, shifts, cmp: cmpOn, period, cmpB, cmpDates, mode: q('[name="mode"]:checked')?.value, audience, systems, person: personValue ? Number(personValue) : null, off: Object.fromEntries(Object.entries(off).map(([d, set]) => [d, [...set]])), from: from.value, to: to.value } });
         };
         q('[data-go]').addEventListener('click', () => go(false));
         q('[data-preview]').addEventListener('click', () => go(true));
