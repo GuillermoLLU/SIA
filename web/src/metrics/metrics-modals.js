@@ -8,7 +8,7 @@ import { onEscape } from '../ui/dialog.js';
 import { mountPeriodPanel } from './period-panel.js';
 import { calendarModel } from './calendar-model.js';
 import { DAY } from './rules.js';
-import { REPORTS, withDates, reportRange } from './report.js';
+import { REPORTS, MODES, AUDIENCES, SYSTEMS, PICKS, picksOf, modesOf, modeOf, withDates, reportRange, reportsOf, withSystems, withPerson, PARAMS, withParams } from './report.js';
 
 const svg = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const UPLOAD = svg('<path d="M12 16V4m0 0-4 4m4-4 4 4"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>');
@@ -169,45 +169,129 @@ export const mountMetricsModals = ({ api, toast, onUpload, onFirstLoad, onClear 
     },
   });
 
-  // Exportar informe (#15): qué informe, en un desplegable, con lo que contiene debajo; las fechas, solo con los que
-  // las piden (report.js, withDates). current: { range, from, to } del periodo de arriba y asOf, la última carga
-  // (texto); bounds: { min, max } de lo cargado (report.js, reportBounds); base: m.BASE; onExport({ key, range, preview,
-  // choice }): preview, si se pidió la vista previa en lugar del PDF; choice, lo elegido, para volver a abrirla igual
+  // Exportar informe (#15): dos pestañas arriba, los mismos informes solo de Indra o de Indra frente a T-Systems
+  // (report.js, AUDIENCES); en cada una, de qué sistemas (dos casillas, SGA y SISU, marcadas de partida: SYSTEMS), qué
+  // informe, en un desplegable, con lo que contiene debajo; con los que admiten los dos, Actual o Histórico (modesOf);
+  // y las fechas, solo si se hace con ellas (withDates); y, en los que las llevan, las listas de casillas (picksOf: módulos y centros, o equipos de Jira), con un
+  // buscador y «Todos» / «Ninguno» (sobre lo que se ve). current: { range, from, to } del periodo de arriba y asOf, la
+  // última carga (texto); bounds: { min, max } de lo cargado (reportBounds); base: m.BASE; lists: { pestaña → { dim →
+  // [[clave, nombre, incidencias]] } } de cada lista, de más a menos (cada pestaña, lo suyo: solo Indra, o Indra y
+  // T-Systems); al cambiar de pestaña se rehacen y lo desmarcado sigue desmarcado; onExport({ key, mode, audience, systems, picks, range,
+  // preview, choice }): mode, 'now' o 'dates'; audience, la pestaña; systems, las casillas marcadas; picks, { dim →
+  // claves marcadas } (sin listas, {}); preview, si se pidió la vista previa en lugar del PDF; choice, lo elegido, para volver a abrirla igual
   // (initial).
-  const report = ({ current, bounds, base, initial = {}, onExport }) => {
-    const pick = { key: REPORTS[0][0], from: bounds.min > current.from ? bounds.min : current.from, to: current.to, ...initial };
+  // people: [[clave, nombre]] de los técnicos de Indra, para Equipo soporte (withPerson): un desplegable, de partida
+  // «Todo el equipo»; onExport recibe person (la clave o null).
+  const report = ({ current, bounds, base, lists = {}, people = [], initial = {}, onExport }) => {
+    const pick = { key: REPORTS[0][0], mode: null, audience: AUDIENCES[0][0], systems: SYSTEMS.map(([k]) => k), off: {}, person: null, params: PARAMS.map(([k]) => k), from: bounds.min > current.from ? bounds.min : current.from, to: current.to, ...initial };
+    // lo desmarcado de cada lista (claves): se guarda al cambiar de pestaña y al volver de la vista previa
+    const off = Object.fromEntries(PICKS.map(([dim]) => [dim, new Set(pick.off[dim] || [])]));
+    // una lista de casillas, la de una pestaña: todo marcado menos lo desmarcado
+    const pickList = (audience) => ([dim, label]) => {
+      const items = lists[audience]?.[dim] || [];
+      return `<div class="mt-rep-pick" data-pick="${dim}"><div class="mt-rep-pick-head"><b>${esc(label)}</b><span class="mt-mut" data-pick-count></span>
+        <button type="button" class="mt-go" data-pick-all>Todos</button><button type="button" class="mt-go" data-pick-none>Ninguno</button></div>
+        <input type="search" class="mt-rep-pick-q" data-pick-q placeholder="Buscar…" aria-label="Buscar en ${esc(label.toLowerCase())}">
+        <div class="mt-rep-pick-list">${items.map(([k, l, n]) => `<label data-name="${esc(l.toLowerCase())}"><input type="checkbox" name="pick-${dim}" value="${k}" ${off[dim].has(k) ? '' : 'checked'}><span>${esc(l)}</span><small>${n}</small></label>`).join('') || '<p class="mt-mut mt-small">Nada cargado.</p>'}</div></div>`;
+    };
     // lo que contiene: el texto del informe; sin fechas, además, de cuándo es lo abierto
-    const about = (key) => esc(REPORTS.find(([k]) => k === key)[3]) + (withDates(key) ? '' : ` <span class="mt-rep-when">Última carga: ${esc(current.asOf)}.</span>`);
+    const about = (key, mode) => esc(REPORTS.find(([k]) => k === key)[3]) + (withDates(key, mode) ? '' : ` <span class="mt-rep-when">Última carga: ${esc(current.asOf)}.</span>`);
+    // los informes de una pestaña (reportsOf), con el elegido marcado; si no lo tiene, el primero
+    const options = (audience, key) => {
+      const list = reportsOf(audience), on = list.some(([k]) => k === key) ? key : list[0][0];
+      return list.map(([k, l]) => `<option value="${k}" ${k === on ? 'selected' : ''}>${esc(l)}</option>`).join('');
+    };
+    if (!reportsOf(pick.audience).some(([k]) => k === pick.key)) pick.key = reportsOf(pick.audience)[0][0];
+    // las listas de un informe en una pestaña (picksOf: módulos y centros, o los equipos de Jira)
+    const picksHtml = (audience, key) => picksOf(key).map(pickList(audience)).join('');
+    const startMode = modeOf(pick.key, pick.mode);
     return open({
       title: 'Exportar informe',
-      body: `<label class="mt-rep-field"><span>Informe</span>
-          <select name="report" data-report>${REPORTS.map(([k, l]) => `<option value="${k}" ${k === pick.key ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
-        <p class="mt-rep-about" data-about>${about(pick.key)}</p>
+      body: `<div class="mt-rep-tabs" role="tablist" aria-label="Qué se mira">${AUDIENCES.map(([k, l]) => `<button type="button" role="tab" class="mt-rep-tab" data-audience="${k}" aria-selected="${k === pick.audience}">${esc(l)}</button>`).join('')}</div>
+        <fieldset class="mt-rep-systems" data-systems><legend>Sistemas</legend>${SYSTEMS.map(([k, l]) => `<label><input type="checkbox" name="system" value="${k}" ${pick.systems.includes(k) ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</fieldset>
+        <label class="mt-rep-field"><span>Informe</span>
+          <select name="report" data-report>${options(pick.audience, pick.key)}</select></label>
+        <p class="mt-rep-about" data-about>${about(pick.key, startMode)}</p>
+        <fieldset class="mt-rep-systems" data-modes><legend>Datos</legend>${MODES.map(([k, l, tip]) => `<label title="${esc(tip)}"><input type="radio" name="mode" value="${k}" ${k === startMode ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</fieldset>
+        <fieldset class="mt-rep-systems mt-rep-params" data-params><legend>Parámetros</legend>${PARAMS.map(([k, l]) => `<label><input type="checkbox" name="param" value="${k}" ${pick.params.includes(k) ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</fieldset>
+        <label class="mt-rep-field" data-person><span>Técnico</span>
+          <select name="person"><option value="">Todo el equipo</option>${people.map(([k, l]) => `<option value="${k}" ${k === pick.person ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
+        <div class="mt-rep-picks" data-picks>${picksHtml(pick.audience, pick.key)}</div>
         <div class="mt-rep-dates" data-dates>
           <label>Desde <input type="date" name="from" value="${pick.from}" min="${bounds.min}" max="${bounds.max}"></label>
           <label>Hasta <input type="date" name="to" value="${pick.to}" min="${bounds.min}" max="${bounds.max}"></label>
         </div>
-        <p class="mt-modal-hint">Con lo que se compara y los filtros de arriba. «Vista previa» lo enseña aquí tal y como saldrá; «Exportar PDF» abre el diálogo de impresión: elige «Guardar como PDF» (o «Microsoft Print to PDF»).</p>
+        <p class="mt-modal-hint">Con los filtros de arriba; lo que se mira, el de la pestaña. «Vista previa» lo enseña aquí tal y como saldrá; «Exportar PDF» abre el diálogo de impresión: elige «Guardar como PDF» (o «Microsoft Print to PDF»).</p>
         <p class="mt-modal-err" data-err hidden></p>`,
       foot: '<button class="mt-btn" data-close>Cancelar</button><button class="mt-btn" data-preview>Vista previa</button><button class="mt-btn mt-primary" data-go>Exportar PDF</button>',
       setup: (back, close) => {
         const q = (s) => back.querySelector(s), err = q('[data-err]'), sel = q('[data-report]'), from = q('[name="from"]'), to = q('[name="to"]');
-        // al cambiar de informe, su texto y, si las pide, las fechas; la de fin no antes de la de inicio
+        q('.mt-modal').classList.add('mt-modal-report');   // algo más ancha: las dos listas, módulos y centros, lado a lado
+        let audience = pick.audience;
+        // el modo elegido en el selector; el que vale, el que admita el informe (modeOf)
+        const mode = () => modeOf(sel.value, q('[name="mode"]:checked')?.value);
+        // las pestañas: la elegida, marcada, con sus informes (si el elegido no está en ella, el primero); las fechas,
+        // las mismas en las dos
+        back.addEventListener('click', (e) => {
+          const tab = e.target.closest('[data-audience]');
+          if (!tab) return;
+          audience = tab.dataset.audience;
+          back.querySelectorAll('[data-audience]').forEach((b) => b.setAttribute('aria-selected', String(b === tab)));
+          sel.innerHTML = options(audience, sel.value);
+          sync();
+        });
+        // al cambiar de informe o de modo, su texto, el selector de modo (si admite los dos) y, si se hace con ellas,
+        // las fechas; la de fin no antes de la de inicio
+        // las listas se rehacen al cambiar de pestaña o de informe (lo desmarcado sigue desmarcado), no con cada casilla
+        let shownPicks = `${pick.audience}:${picksOf(pick.key).map(([d]) => d)}`;
         const sync = () => {
-          q('[data-about]').innerHTML = about(sel.value);
-          q('[data-dates]').hidden = !withDates(sel.value);
+          const want = `${audience}:${picksOf(sel.value).map(([d]) => d)}`;
+          if (want !== shownPicks) { q('[data-picks]').innerHTML = picksHtml(audience, sel.value); shownPicks = want; }
+          q('[data-about]').innerHTML = about(sel.value, mode());
+          q('[data-modes]').hidden = modesOf(sel.value).length < 2;
+          q('[data-dates]').hidden = !withDates(sel.value, mode());
+          q('[data-picks]').hidden = !picksOf(sel.value).length;
+          q('[data-systems]').hidden = !withSystems(sel.value);
+          q('[data-person]').hidden = !withPerson(sel.value);
+          q('[data-params]').hidden = !withParams(sel.value);
+          back.querySelectorAll('[data-pick]').forEach((box) => {
+            const all = box.querySelectorAll('input[type="checkbox"]'), on = [...all].filter((c) => c.checked).length;
+            box.querySelector('[data-pick-count]').textContent = on === all.length ? 'todos' : `${on} de ${all.length}`;
+          });
           from.max = to.value || bounds.max;
           to.min = from.value || bounds.min;
           err.hidden = true;
         };
+        // cada casilla de una lista que se marca o desmarca, en lo desmarcado (también con «Todos» y «Ninguno»)
+        const remember = (c) => { const dim = c.name.slice(5); if (c.checked) off[dim].delete(Number(c.value)); else off[dim].add(Number(c.value)); };
+        back.addEventListener('change', (e) => { if (e.target.name?.startsWith('pick-')) remember(e.target); });
         back.addEventListener('change', sync);
         back.addEventListener('input', sync);
+        // las listas: el buscador enseña solo lo que coincide; «Todos» y «Ninguno», sobre lo que se ve
+        back.addEventListener('input', (e) => {
+          const box = e.target.closest('[data-pick-q]') && e.target.closest('[data-pick]');
+          if (!box) return;
+          const text = e.target.value.trim().toLowerCase();
+          box.querySelectorAll('label[data-name]').forEach((l) => { l.hidden = !!text && !l.dataset.name.includes(text); });
+        });
+        back.addEventListener('click', (e) => {
+          const all = e.target.closest('[data-pick-all]'), none = e.target.closest('[data-pick-none]');
+          if (!all && !none) return;
+          e.target.closest('[data-pick]').querySelectorAll('label[data-name]:not([hidden]) input').forEach((c) => { c.checked = !!all; remember(c); });
+          sync();
+        });
         const go = (preview) => {
-          const key = sel.value;
-          const { range, error } = reportRange({ key, current: current.range, from: from.value, to: to.value, bounds, base });
+          const key = sel.value, m = mode(), systems = [...back.querySelectorAll('[name="system"]:checked')].map((c) => c.value);
+          const params = [...back.querySelectorAll('[name="param"]:checked')].map((c) => c.value);
+          const personValue = q('[name="person"]').value, person = withPerson(key) && personValue ? Number(personValue) : null;
+          // lo marcado en cada lista del informe (las claves, números)
+          const picks = Object.fromEntries(picksOf(key).map(([dim]) => [dim, [...back.querySelectorAll(`[name="pick-${dim}"]:checked`)].map((c) => Number(c.value))]));
+          const picked = Object.fromEntries(Object.entries(picks).map(([dim, l]) => [dim, l.length]));
+          const { range, error } = reportRange({ key, mode: m, current: current.range, from: from.value, to: to.value, bounds, base, systems, picked, params });
           if (error) { err.textContent = error; err.hidden = false; return; }
           close();
-          onExport({ key, range, preview, choice: { key, from: from.value, to: to.value } });
+          // sin sus casillas (Equipo soporte), de los dos sistemas: sin ese filtro
+          onExport({ key, mode: m, audience, systems: withSystems(key) ? systems : SYSTEMS.map(([k]) => k), picks, person, params, range, preview, choice: { key, params, mode: q('[name="mode"]:checked')?.value, audience, systems, person: personValue ? Number(personValue) : null, off: Object.fromEntries(Object.entries(off).map(([d, set]) => [d, [...set]])), from: from.value, to: to.value } });
         };
         q('[data-go]').addEventListener('click', () => go(false));
         q('[data-preview]').addEventListener('click', () => go(true));

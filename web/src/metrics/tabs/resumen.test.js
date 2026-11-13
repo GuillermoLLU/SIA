@@ -149,3 +149,55 @@ test('Resumen sin la corona (el informe con datos históricos): los KPIs a todo 
   assert.match(tabs.render('resumen', m.rows()), /<section class="mt-card mt-s8[^"]*"><h3>Del periodo/);
   assert.match(html, />MTTR</);
 });
+
+test('Estado de SLAs (el informe): Atendidas en SLA, lo del periodo, las incidencias y, por técnico, la calidad y la IA', () => {
+  const all = ['inc', 'res', 'mttr', 'iqa', 'sla', 'ia'];
+  const labels = (h) => [...h.matchAll(/<div class="mt-kpi-l"[^>]*>([^<]*)</g)].map((x) => x[1]);
+  const one = setup([{ company: 0 }, null]);
+  const h = one.tabs.render('resumen', one.m.rows(), { slas: all });
+  assert.deepEqual(labels(h), ['Incidencias', '% de resueltas', 'MTTR', 'Calidad (%IQA)', 'Uso de la IA']);   // Atendidas en SLA, en su tarjeta
+  // Atendidas en SLA, arriba del todo
+  assert.ok(h.indexOf('<h3>Atendidas en SLA <small') < h.indexOf('<h3>Del periodo</h3>'));
+  assert.equal(h.indexOf('<section'), h.indexOf('<section', h.indexOf('<h3>Atendidas en SLA') - 80));
+  const A = one.m.rows();
+  assert.equal(kpiOf(h, 'Incidencias'), String(A.length));
+  assert.equal(kpiOf(h, 'MTTR'), dur(mttrOf(one.m, A).mttr));
+  assert.match(h, new RegExp(`<h3>Atendidas en SLA <small class="mt-mut">· todas: ${pct(one.m.stats(A).sla)}</small>`));
+  assert.doesNotMatch(h, /En qué estado está|Evolución del backlog|undefined|NaN/);
+  // arriba: Atendidas en SLA (por SLA, módulo, centro y mes), las cifras del periodo y las incidencias (por módulo,
+  // centro y mes); ninguna tarjeta más de % de resueltas, MTTR ni IA por módulo o centro
+  assert.doesNotMatch(h, /Detalle por SLA|<table/);
+  const cardOf = (x, l) => { const a = x.indexOf(`<h3>${l}`); return a < 0 ? '' : x.slice(a, x.indexOf('</section>', a)); };
+  const h4 = (card) => [...card.matchAll(/<h4>([^<]*)</g)].map((x) => x[1].replace(/ \(.*/, '').trim());
+  assert.deepEqual(h4(cardOf(h, 'Atendidas en SLA <small')), ['Por SLA', 'Por módulo', 'Por centro', 'Por mes']);
+  assert.deepEqual(h4(cardOf(h, 'Incidencias <small')), ['Por módulo', 'Por centro', 'Por mes']);
+  assert.equal((cardOf(h, 'Incidencias <small').match(/class="mt-vb-col"/g) || []).length, new Set(A.map((i) => one.m.MONTH[i])).size);
+  for (const l of ['% de resueltas <small', 'MTTR <small', 'Uso de la IA <small', 'Calidad (%IQA)</h3>']) assert.equal(cardOf(h, l), '', l);
+  const sla = cardOf(h, 'Atendidas en SLA <small');
+  for (const p of one.m.PRIOS) assert.match(sla, new RegExp(`<span class="mt-hb-x" title="${one.m.slaLabel(p)}">`));
+  assert.ok(h.indexOf('<h3>Del periodo</h3>') < h.indexOf('<h3>Incidencias <small'));
+  // y, aparte (part 'people'), la calidad y el uso de la IA, por técnico y por nada más
+  const ppl = one.tabs.render('resumen', A, { slas: all, part: 'people' });
+  assert.deepEqual([...ppl.matchAll(/<h3>([^<]*)/g)].map((x) => x[1].trim()), ['Calidad por técnico', 'Uso de la IA por técnico']);
+  assert.deepEqual(h4(cardOf(ppl, 'Calidad por técnico')), ['Reabiertas', 'Devueltas a la cola']);
+  const techs = one.m.group('as', A).filter((g) => g.k).map((g) => one.m.DIMS.as.label(g.k));
+  for (const n of techs) assert.match(cardOf(ppl, 'Uso de la IA por técnico'), new RegExp(`title="${n}"`), n);
+  assert.doesNotMatch(ppl, /Por módulo|Por centro|Por mes|Por SLA|undefined|NaN/);
+  assert.equal(one.tabs.render('resumen', A, { slas: ['sla', 'mttr'], part: 'people' }).includes('<h3>'), false, 'sin calidad ni IA marcadas, nada');
+  const two2 = one.tabs.render('resumen', A, { slas: ['sla', 'mttr'] });
+  assert.deepEqual(labels(two2), ['MTTR']);
+  assert.equal((two2.match(/<h4>Por SLA<\/h4>/g) || []).length, 1, 'solo en Atendidas en SLA');
+  assert.equal((one.tabs.render('resumen', A, { slas: ['sla'] }).match(/<h3>Del periodo<\/h3>/g) || []).length, 0, 'solo SLA: sin la tarjeta de cifras');
+  const two = setup([{ company: 0 }, { company: 1 }]);
+  const c = two.tabs.render('resumen', two.m.rows(), { slas: all });
+  assert.equal((c.match(/class="mt-kpi mt-kpi-co[ "]/g) || []).length, 5);   // Atendidas en SLA, en su tarjeta
+  // comparando, en cada fila una barra de cada lado
+  const row = cardOf(c, 'Incidencias <small').match(/<span class="mt-hb-track">[\s\S]*?<\/span>\s*<span class="mt-hb-v">/)[0];
+  assert.match(row, /<i class="mt-c0"[\s\S]*<i class="mt-c1"/);
+  // por técnico, cada uno del color de su lado
+  const cp = two.tabs.render('resumen', two.m.rows(), { slas: all, part: 'people' });
+  assert.match(cp, /<i class="mt-c0"/);
+  assert.match(cp, /<i class="mt-c1"/);
+  assert.doesNotMatch(cp, /undefined|NaN/);
+  assert.doesNotMatch(c, /undefined|NaN/);
+});

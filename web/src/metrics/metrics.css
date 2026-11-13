@@ -793,12 +793,56 @@ i.mt-pq0 { background: var(--mt-pq0); } i.mt-pq1 { background: var(--mt-pq1); } 
 .mt-pc-times td.mt-blist-bar { width: 18%; min-width: 90px; }
 .mt-pc-times td:last-child { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Exportar informe (#15, metrics-modals.js): el desplegable, lo que contiene el informe elegido y, si las pide, las fechas */
+.mt-rep-tabs { display: flex; gap: 2px; margin: -6px 0 2px; border-bottom: 1px solid var(--mt-line); }
+.mt-rep-tab { margin-bottom: -1px; padding: 7px 12px; font: inherit; font-size: 13px; color: var(--mt-low); background: none; border: 0; border-bottom: 2px solid transparent; cursor: pointer; }
+.mt-rep-tab:hover { color: var(--text); }
+.mt-rep-tab[aria-selected="true"] { color: var(--text); font-weight: 600; border-bottom-color: var(--accent); }
+.mt-rep-systems { display: flex; align-items: center; gap: 16px; margin: 0; padding: 0; border: 0; font-size: 13px; color: var(--text); }
+.mt-rep-systems legend { float: left; margin-right: 4px; padding: 0; font-size: 12px; font-weight: 600; color: var(--mt-low); }
+.mt-rep-systems label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
 .mt-rep-field { display: grid; gap: 6px; font-size: 12px; font-weight: 600; color: var(--mt-low); }
 .mt-rep-field select { height: 32px; padding: 0 8px; font: inherit; font-size: 13px; font-weight: 400; color: var(--text); background: var(--mt-card); border: 1px solid var(--mt-line); }
 .mt-rep-about { margin: -4px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--text); }
 .mt-rep-when { color: var(--mt-low); }
 .mt-rep-dates { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 13px; }
 .mt-rep-dates[hidden] { display: none; }
+.mt-rep-systems[hidden], .mt-rep-field[hidden] { display: none; }
+.mt-rep-params { flex-wrap: wrap; row-gap: 8px; }
+/* Estado de SLAs (informe): el detalle de cada parámetro, sus cortes de dos en dos */
+.mt-sla-dets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 22px; }
+.mt-sla-dets h4 { margin: 0 0 8px; font-size: 13px; }
+.mt-sla-panel { min-width: 0; break-inside: avoid; }
+.mt-sla-wide { grid-column: 1 / -1; }
+/* barras horizontales: nombre, barra (una por lado) con la línea de lo de todas, y la cifra */
+.mt-hb { display: grid; gap: 5px; }
+.mt-hb-row { display: grid; grid-template-columns: minmax(80px, 30%) 1fr auto; align-items: center; gap: 8px; font-size: 12px; }
+.mt-hb-x { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mt-hb-track { position: relative; display: grid; gap: 2px; padding: 2px 0; background: color-mix(in srgb, var(--mt-line) 25%, transparent); }
+.mt-hb-track i { display: block; height: 10px; min-width: 1px; border-radius: 0 2px 2px 0; }
+.mt-hb-ref { position: absolute; top: -3px; bottom: -3px; border-left: 2px dashed var(--mt-low); z-index: 1; }
+.mt-hb-key { display: inline-block; width: 0; height: 12px; margin-right: 6px; vertical-align: middle; border-left: 2px dashed var(--mt-low); }
+.mt-hb-v { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+/* columnas por mes: una (o una por lado) con su cifra encima */
+.mt-vb { display: flex; align-items: stretch; gap: 8px; height: 160px; }
+.mt-vb-col { flex: 1; display: grid; grid-template-rows: 1fr auto; min-width: 0; max-width: 90px; text-align: center; }
+.mt-vb-bars { display: flex; align-items: flex-end; justify-content: center; gap: 3px; min-height: 0; border-bottom: 1px solid var(--mt-line); }
+.mt-vb-bars span { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; width: 42%; max-width: 30px; }
+.mt-vb-bars small { font-size: 10px; white-space: nowrap; }
+.mt-vb-bars i { display: block; width: 100%; min-height: 1px; border-radius: 2px 2px 0 0; }
+.mt-vb-x { padding-top: 4px; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* las listas de casillas de Módulos y focos: dos columnas, cada una con su cabecera, su buscador y su lista desplazable */
+.mt-modal.mt-modal-report { width: min(680px, 100%); }
+.mt-rep-picks { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.mt-rep-picks[hidden] { display: none; }
+.mt-rep-pick { display: grid; align-content: start; gap: 6px; min-width: 0; }
+.mt-rep-pick-head { display: flex; align-items: baseline; gap: 8px; font-size: 12.5px; color: var(--text); }
+.mt-rep-pick-head span { flex: 1; font-size: 12px; }
+.mt-rep-pick-q { padding: 5px 6px; font: inherit; font-size: 12.5px; color: var(--text); background: var(--mt-card); border: 1px solid var(--mt-line); }
+.mt-rep-pick-list { max-height: 170px; overflow: auto; padding: 4px 6px; border: 1px solid var(--mt-line); background: var(--mt-card); }
+.mt-rep-pick-list label { display: flex; align-items: center; gap: 6px; padding: 2px 0; font-size: 12.5px; color: var(--text); cursor: pointer; }
+.mt-rep-pick-list label[hidden] { display: none; }
+.mt-rep-pick-list label span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mt-rep-pick-list label small { color: var(--mt-low); font-variant-numeric: tabular-nums; }
 .mt-rep-dates label { display: inline-flex; align-items: center; gap: 6px; color: var(--mt-low); }
 .mt-rep-dates input { padding: 5px 6px; font: inherit; color: var(--text); background: var(--mt-card); border: 1px solid var(--mt-line); }
 /* La vista previa del informe (print.js, previewReport): la hoja, blanca y del ancho de un A4 apaisado, sobre un fondo

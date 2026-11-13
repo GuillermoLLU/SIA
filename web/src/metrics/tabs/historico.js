@@ -1,6 +1,9 @@
 // Histórico: lo recibido en el periodo elegido, un bloque por pregunta con sus cifras clave y el paso a su pestaña, y
 // arriba del todo, la evolución del backlog día a día (evolucion.js), y la de lo recibido mes a mes (o día a día). Cada cifra es la de lo que se mira y, al comparar, al lado, la diferencia con el
 // otro lado. (Lo de ahora, el backlog a fecha de la última carga, está en el Resumen.)
+//
+// Con { inReport: true }, lo que añade al informe Resumen básico (metrics/report.js), que ya lleva el Resumen: sin la
+// pregunta, sin la evolución del backlog y sin las cifras que ya están en sus KPIs (REPEATED: las mismas cuentas).
 import { esc } from '../../ui/html.js';
 import { num, dec, pct, dur } from '../format.js';
 import { slaText } from '../model.js';
@@ -11,12 +14,17 @@ import { TABS, QUESTIONS, MONTH_NOTE, DAY_NOTE, opt } from './common.js';
 import { evolutionOf } from './evolucion.js';
 import { DAY } from '../rules.js';
 
+// Las cifras de los bloques que el Resumen ya da en sus KPIs: Entrantes, % dentro de SLA y Uso de la IA.
+export const REPEATED = new Set(['Recibidas', 'Empezadas dentro del SLA', 'Con alguna marca de IA']);
+
 export const historicoTab = (t) => {
   const { m, ch, shareOf, grid, ask, slaPct, days } = t;
   const { C, STYPE, CMP, CO, stats, group, bySide } = m;
   const { card, legend, diff, lines } = ch;
   const evolution = evolutionOf(t);
+  let omit = new Set();   // las cifras que no van (inReport)
   const fig = (label, ST, fmt, val, better, tip) => {
+    if (omit.has(label)) return '';
     const a = ST[CO()[0]];
     return `<div class="mt-fig" ${tip ? `data-tip="${esc(tip)}"` : ''}><span>${esc(label)}</span><b>${a.n ? fmt(a) : '—'}</b>${CMP() ? diff(ST[0], ST[1], fmt, val, better) : ''}</div>`;
   };
@@ -28,7 +36,8 @@ export const historicoTab = (t) => {
   };
 
 
-  return (A) => {
+  return (A, { inReport = false } = {}) => {
+    omit = inReport ? REPEATED : new Set();
     const T = bySide(A), ST = T.map(stats), d = days() || 1, sv = (v) => (s) => s[v];
     const top = (dim, n) => group(dim, T[CO()[0]]).filter((x) => x.k).slice(0, n);
     const mods = top('mo', 3), ce = top('ce', 1);
@@ -42,7 +51,7 @@ export const historicoTab = (t) => {
     // eR, eV, eC, los días en que pasó), se abrieran cuando se abrieran: cada incidencia, una vez por día
     const NOW = bySide(m.today()), a0 = m.S.d0, a1 = Math.min(m.S.d1, m.END_D);
     const moves = (col) => NOW.map((l) => ({ n: l.length, v: l.reduce((s, i) => s + new Set((C[col]?.[i] || []).filter((e) => e * DAY >= a0 && e * DAY < a1)).size, 0) / d }));
-    return grid(ask('historico'), evolution({ only: 'backlog' }),
+    return grid(inReport ? '' : ask('historico'), inReport ? '' : evolution({ only: 'backlog' }),
       `<div class="mt-answers">${[
         answer(['entrada', 'hoy'], [
           fig('Recibidas', ST, (s) => num(s.n), sv('n')),

@@ -9,6 +9,8 @@
 // dice el centro al abrir y el título, de más a menos incidencias, con su tiempo y sus módulos. Clic, filtrar por él.
 // Abajo del todo, la sábana de esas incidencias (las mismas que cuentan las tablas: lo abierto o lo resuelto, con los
 // filtros de arriba; pinchar un módulo o un problema la filtra), con su tiempo; se exporta (metrics-view.js).
+// En el informe Análisis de tiempos (metrics/report.js; { inReport: true }), sin la pregunta y con los dos desgloses, por
+// módulo y por centro, uno detrás de otro.
 import { esc } from '../../ui/html.js';
 import { SHEET_COLS, sheetBody } from '../sheet.js';
 import { afterDash } from './escalados.js';
@@ -35,8 +37,8 @@ export const tiemposTab = (t) => {
   };
   // el desglose por módulo (o por centro), del primer lado: una fila por cada uno, con una barra de su tiempo total
   // partida por estados. Sin su propio filtro, para que al pinchar uno se vean los demás
-  const modulesCard = (A) => {
-    const [dim, , title, plural, what] = BY.find(([k]) => k === ui.timesBy) || BY[0];
+  const modulesCard = (A, by = ui.timesBy) => {
+    const [dim, , title, plural, what] = BY.find(([k]) => k === by) || BY[0];
     const pick = `<div class="mt-evo-picks"><div class="mt-seg mt-seg-sm" role="group" aria-label="Desglose por">${BY.map(([k, l]) => `<button class="mt-seg-b ${k === dim ? 'mt-on' : ''}" data-times-by="${k}" aria-pressed="${k === dim}">${l}</button>`).join('')}</div></div>`;
     // (en Histórico, lo de la pestaña, A; si hay un filtro de esa dimensión, lo mismo sin él)
     const on = !!ui.timesNow, list = bySide(on ? m.today(false, dim) : m.anySel(dim) ? m.rows(dim) : A)[CO()[0]];
@@ -93,5 +95,10 @@ ${PARTS[j][0]}: ${dur(v * r.n)} en total, ${dur(v)} de media`)}"></i>`).join('')
     return ch.card('Sábana de incidencias', sheetBody(m, list, { ui, id: 'times-sheet', expanded: ui.exp['times-sheet'], more: ch.more, empty: `${on ? 'Nada abierto' : 'Nada resuelto'} con estos filtros.`, cols }),
       { span: 's12', sub: `Las incidencias ${on ? 'abiertas ahora' : 'resueltas del periodo'} de las tablas de arriba, con los filtros de la barra, de la que más tiempo ${on ? 'lleva' : 'tardó'} a la que menos. Pincha un módulo o un problema para ver solo esas.${filtered} Exportar a CSV las descarga todas, con su enlace a Remedy.` });
   };
-  return (A) => grid(ask('tiempos'), timesCard(A), modulesCard(A), problemsCard(A), sheetCard(A));
+  // parts: solo esas tarjetas ('times', en qué se va el tiempo; 'mo' o 'ce', el desglose), para otro informe (Estado de SLAs)
+  return (A, { inReport = false, parts = null } = {}) => (parts
+    ? grid(...parts.map((p) => (p === 'times' ? timesCard(A) : modulesCard(A, p))))
+    : inReport
+    ? grid(timesCard(A), ...BY.map(([k]) => modulesCard(A, k)), problemsCard(A), sheetCard(A))
+    : grid(ask('tiempos'), timesCard(A), modulesCard(A), problemsCard(A), sheetCard(A)));
 };
