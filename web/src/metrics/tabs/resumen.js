@@ -1,73 +1,84 @@
-// Resumen: un bloque por pregunta, con sus cifras clave y el paso a su pestaña. Cada cifra es la de lo que
-// se mira y, al comparar, al lado, la diferencia con el otro lado.
+// Resumen: de un vistazo, en qué estado está lo abierto ahora (la corona de Foto de hoy: hoy.js, stateCard; a fecha de
+// la última carga, sea cual sea el periodo) y, del periodo elegido (A), los KPIs del servicio:
+//   MTTR          (TTR de las resueltas + lo que llevan las abiertas) / cuántas son (#48; resolution.js, mttrOf)
+//   %IQA          de las auditadas, el % con calidad 3 o 4. Aún sin datos: la nota del agente de calidad (#55) no llega
+//   Uso de la IA  de lo recibido, lo que tiene alguna marca de IA (ia.js, iaStats; como «Con IA» de la pestaña IA)
+// Las fechas, la empresa y «Comparar» van arriba del todo, en la barra de Métricas (quick-bar.js): valen para todas las
+// pestañas; de partida, el año fiscal en curso. Los KPIs, en una tarjeta a la derecha de la corona; abajo del todo, el
+// backlog al acabar cada día del periodo, en barras por prioridad (evolucion.js). Comparando lados, la corona ocupa la
+// fila y los KPIs van debajo, cada uno con los dos lados y su diferencia (charts.js, kpiCo); el backlog, una línea por
+// lado. Comparando periodos (ui.resCmp), los KPIs con los dos y el backlog, una línea por periodo, cada una desde su
+// primer día (evolucion.js, periods).
 import { esc } from '../../ui/html.js';
-import { num, dec, pct, dur } from '../format.js';
-import { slaText } from '../model.js';
-import { IA_MARKS } from '../ia.js';
-import { SHIFTS } from '../shifts.js';
-import { closedInPeriod as closedIn, monthVsPrev as monthVsPrevOf } from '../flow.js';
-import { TABS, QUESTIONS, MONTH_NOTE, DAY_NOTE, opt } from './common.js';
+import { num, pct, dur } from '../format.js';
+import { rangeLabel, cmpRange, cmpName } from '../period.js';
+import { mttrOf } from '../resolution.js';
+import { iaStats } from '../ia.js';
+import { stateCard } from './hoy.js';
+import { evolutionOf } from './evolucion.js';
+
+export const IQA_NOTE = 'De las auditadas, el % con calidad 3 o 4 (sobre 4: la nota mínima de técnica, proceso y comunicación). Aún sin datos: la nota del agente de calidad (tarea #55) no llega a SIA.';
 
 export const resumenTab = (t) => {
-  const { m, ch, shareOf, grid, ask, slaPct, days } = t;
-  const { C, STYPE, CMP, CO, stats, group, bySide } = m;
-  const { card, legend, diff, lines } = ch;
-  const fig = (label, ST, fmt, val, better, tip) => {
-    const a = ST[CO()[0]];
-    return `<div class="mt-fig" ${tip ? `data-tip="${esc(tip)}"` : ''}><span>${esc(label)}</span><b>${a.n ? fmt(a) : '—'}</b>${CMP() ? diff(ST[0], ST[1], fmt, val, better) : ''}</div>`;
+  const { m, ch, ui, grid, ask, solved } = t;
+  const { C, S, OPEN, CMP, CO, bySide } = m;
+  const { card, kpi, kpis, kpiCo } = ch;
+  const stateOf = stateCard(t), evolution = evolutionOf(t);
+  const opt = (f) => (s) => (s.v == null ? '—' : f(s.v));
+  const val = (s) => s.v;
+  // con qué se comparan los KPIs: 'side' (otro lado: T-Systems u otro, desde arriba), 'periods' (un periodo con otro:
+  // ui.resCmp) o nada
+  const cmpMode = () => (CMP() ? 'side' : ui.resCmp?.a && ui.resCmp?.b ? 'periods' : null);
+  // lo del primer lado abierto en un rango, con los filtros de arriba (sea cual sea el periodo de arriba)
+  const inRange = (r) => (r ? bySide(m.today())[CO()[0]].filter((i) => C.rep[i] >= r[0] && C.rep[i] < r[1]) : []);
+
+  // los KPIs de unas incidencias: { n, v } de cada uno
+  const figures = (l) => {
+    const b = mttrOf(m, l), s = iaStats(l, C), r = l.filter(solved).length;
+    // en SLA: las empezadas (paso a En curso) dentro del plazo de su prioridad, de las que cuentan (model.js, stats sla)
+    const st = m.stats(l);
+    return { inc: { n: l.length, r, v: l.length ? r / l.length : null }, mttr: { n: b.n, v: b.mttr }, sla: { n: l.length, v: st.sla }, ia: { n: s.n, v: s.share }, iqa: { n: l.length, v: null } };
   };
-  // tabs: su pestaña o varias (un botón a cada una); title: la pregunta, si no es la de la primera
-  const answer = (tabs, figs, title) => {
-    const list = [].concat(tabs);
-    return `<section class="mt-card mt-ans"><header><h3>${title || QUESTIONS[list[0]][0]}</h3><span class="mt-gos">${list.map((x) => `<button class="mt-go" data-go="${x}">${TABS.find(([k]) => k === x)[1]} →</button>`).join('')}</span></header><div class="mt-figs">${figs.join('')}</div></section>`;
+  // comparando periodos, los dos: [{ key, label, range }]
+  const periods = () => (cmpMode() === 'periods' ? [ui.resCmp.a, ui.resCmp.b].map((key) => ({ key, label: cmpName(m, key), range: cmpRange(m, key) })) : null);
+  // Del periodo: de cada lado o, comparando periodos, lo del primer lado abierto en cada uno (con los mismos filtros)
+  const periodKpis = (A) => {
+    const mode = cmpMode();
+    let F, names = null, sub = 'Lo recibido en el periodo elegido arriba.';
+    if (mode === 'periods') {
+      const [pa, pb] = periods(), ra = pa.range, rb = pb.range;
+      F = [figures(pa.key === 'cur' ? bySide(A)[CO()[0]] : inRange(ra)), figures(inRange(rb))];
+      names = [pa.label, pb.label];
+      const when = (r) => (r ? esc(rangeLabel(m, r)) : 'sin datos');
+      sub = `Lo recibido en ${esc(names[0])} (${when(ra)}) frente a ${esc(names[1])} (${when(rb)}).`;
+    } else F = bySide(A).map(figures);
+    const of = (k) => F.map((f) => f[k]), o = (x) => ({ val, pair: mode === 'periods', names, ...x });
+    // Entrantes: cuántas entraron en el periodo y cuántas de esas están ya resueltas, en totales. Sin comparar, las
+    // entrantes en grande y debajo las resueltas (y qué parte son); comparando, la diferencia de entrantes y de resueltas
+    // (en unidades, sin mejor ni peor: entrar más no es ir peor) y, de cada lado, sus entrantes y sus resueltas.
+    const INC_NOTE = 'Las incidencias que entraron en el periodo y, de esas, las que ya están resueltas (a fecha de la última carga).';
+    const signed = (v) => (v ? `${v > 0 ? '+' : '−'}${num(Math.abs(v))}` : '=');
+    const incKpi = ((I) => {
+      const k = CO()[0], x = I[k];
+      // con un enlace a la pestaña Entrantes debajo, como los demás KPIs
+      const go = '<p class="mt-kpi-go"><button class="mt-go" data-go="entrada">Ver Entrantes →</button></p>';
+      if (!mode) return kpi('Entrantes', x.n ? num(x.n) : '—', `${x.n ? `${num(x.r)} resueltas (${pct(x.v)})` : 'nada entró'}${go}`, `mt-t${k}`, `data-tip="${esc(INC_NOTE)}"`);
+      const nm = (j) => names?.[j] || t.name(j);
+      const side = (j) => `<div class="mt-kpi-s"><i class="mt-c${j}"></i><span title="${esc(nm(j))}">${esc(nm(j))}</span><b>${num(I[j].n)} <small class="mt-mut">· ${num(I[j].r)} res.</small></b></div>`;
+      const both = I[0].n || I[1].n;
+      return `<div class="mt-kpi mt-kpi-co"><div class="mt-kpi-l" data-tip="${esc(INC_NOTE)}">Entrantes</div>
+      <div class="mt-kpi-v ${both ? 'mt-diff' : 'mt-mut'}">${both ? `${signed(I[0].n - I[1].n)} <small class="mt-mut">· ${signed(I[0].r - I[1].r)} res.</small>` : '—'}</div>${side(0)}${side(1)}${go}</div>`;
+    })(of('inc'));
+    return card('Del periodo', kpis(incKpi,
+      kpiCo('MTTR', of('mttr'), opt(dur), o({ better: 'low', go: ['tiempos', 'Análisis tiempos'], note: 'De lo recibido en el periodo: (TTR de las resueltas + lo que llevan abiertas las que siguen abiertas) / cuántas son. Una cancelada sin resolver no cuenta.' })),
+      kpiCo('% dentro de SLA', of('sla'), opt(pct), o({ better: 'high', go: ['sla', 'SLAs'], note: 'De lo recibido en el periodo, lo que se empezó (paso a En curso) dentro del plazo de su prioridad; las abiertas sin empezar y ya fuera de plazo cuentan como fuera. El detalle, en la pestaña SLAs.' })),
+      kpiCo('%IQA', of('iqa'), () => '—', o({ better: 'high', go: ['calidad', 'Calidad'], note: IQA_NOTE })),
+      kpiCo('Uso de la IA', of('ia'), opt((v) => pct(v, 1)), o({ better: 'high', go: ['ia', 'Uso de la IA'], note: 'De lo recibido en el periodo, lo que tiene alguna marca de IA (en TAGS o en las notas). El detalle, en la pestaña Uso de la IA.' }))),
+      { span: CMP() ? 's12' : 's8', sub });
   };
 
   return (A) => {
-    const T = bySide(A), ST = T.map(stats), d = days() || 1, sv = (v) => (s) => s[v];
-    const top = (dim, n) => group(dim, T[CO()[0]]).filter((x) => x.k).slice(0, n);
-    const mods = top('mo', 3), ce = top('ce', 1);
-    const inSet = (dim, ks) => (i) => ks.includes(C[dim][i]);
-    const ia = shareOf(T, (i) => C.fl[i] & IA_MARKS), iaDone = ST.map((s) => ({ n: s.n, v: s.resolved ? s.ia / s.resolved : null }));
-    const count = (b) => T.map((l) => ({ n: l.length, v: l.filter((i) => C.fl[i] & b).length }));
-    const sharePct = (s) => opt(pct)(s.v);
-    // último mes completo del periodo frente al anterior (las del mes anterior pueden quedar fuera del periodo)
-    const vsPrev = monthVsPrevOf(m), closed = closedIn(m);
-    return grid(ask('resumen'),
-      `<div class="mt-answers">${[
-        answer(['entrada', 'backlog'], [
-          fig('Recibidas', ST, (s) => num(s.n), sv('n')),
-          fig('Entran al día', ST.map((s) => ({ n: s.n, v: s.n / d })), (s) => dec(s.v), sv('v'), null, 'Recibidas entre los días naturales del periodo.'),
-          fig('Cerramos al día', closed.map((l, k) => ({ n: l.length + ST[k].n, v: l.length / d })), (s) => dec(s.v), sv('v'), 'high', 'Todo lo cerrado en el periodo, entre sus días naturales.'),
-          ...(vsPrev ? [fig(`${m.monthName(vsPrev[0])} frente a ${m.monthName(vsPrev[0] - 1)}`, vsPrev[1], (s) => opt((v) => `${v > 0 ? '+' : ''}${pct(v)}`)(s.v), sv('v'), null, 'Variación de las recibidas en el último mes completo del periodo respecto al anterior.')] : []),
-          fig('Pendientes', ST, (s) => num(s.open), sv('open'), 'low', 'Lo recibido en el periodo que sigue sin resolver.'),
-          fig('Fuera de plazo', ST, (s) => num(s.waitKo), sv('waitKo'), 'low', 'Pendientes que nunca han pasado a En curso y ya superan el plazo de su prioridad.')], '¿Qué tenemos?'),
-        answer('modulos', [
-          ...mods.map((x) => fig(m.DIMS.mo.label(x.k), shareOf(T, (i) => C.mo[i] === x.k), sharePct, sv('v'), null, 'Su parte de lo recibido.')),
-          ...(mods.length > 1 ? [fig(`Los ${mods.length} primeros módulos`, shareOf(T, inSet('mo', mods.map((x) => x.k))), sharePct, sv('v'))] : []),
-          ...ce.map((x) => fig(`Centro con más: ${m.DIMS.ce.label(x.k)}`, shareOf(T, (i) => C.ce[i] === x.k), sharePct, sv('v')))]),
-        answer('resolucion', [
-          fig('Media de resolución', ST, (s) => dur(s.avg), sv('avg'), 'low'),
-          fig('Resueltas en menos de 24 h', ST, (s) => pct(s.d1), sv('d1'), 'high'),
-          fig('El 90 %, en menos de', ST, (s) => dur(s.p90), sv('p90'), 'low'),
-          fig('Escaladas a terceros', ST, (s) => pct(s.vend), sv('vend'), null, 'Con ticket de tercero (desarrollo, proveedor…).')]),
-        answer('sla', [
-          fig('Empezadas dentro del SLA', ST, slaPct, sv('sla'), 'high', `Pasan a En curso dentro del plazo de su prioridad: ${slaText()}.`),
-          fig('Primera actuación, de media', ST, (s) => dur(s.fr), sv('fr'), 'low'),
-          fig('Reabiertas', ST, (s) => pct(s.reop, 1), sv('reop'), 'low'),
-          fig('Cerradas sin explicar la solución', ST, (s) => pct(s.noRes, 1), sv('noRes'), 'low')]),
-        answer('ia', [
-          fig('Con alguna marca de IA', ia, (s) => pct(s.v, 1), sv('v'), 'high'),
-          fig('De las resueltas, con IA', iaDone, (s) => opt((v) => pct(v, 1))(s.v), sv('v'), 'high'),
-          fig('Revisión humana OK', count(4096), (s) => num(s.v), sv('v')),
-          fig('IA fallida o revisión no OK', count(8192 | 64), (s) => num(s.v), sv('v'))]),
-        answer('turnos', [
-          ...SHIFTS.map((sn, k) => fig(`Entran de ${sn.toLowerCase()}`, shareOf(T, (i) => STYPE[i] % 3 === k), sharePct, sv('v'))),
-          fig('En fin de semana', shareOf(T, (i) => STYPE[i] >= 3), sharePct, sv('v')),
-          fig('Empezadas en el turno en que entran', ST, (s) => opt(pct)(s.inShift), sv('inShift'), 'high')]),
-      ].join('')}</div>`,
-      card(m.daily() ? 'Evolución día a día' : 'Evolución mes a mes', `${CMP() ? legend() : ''}<div class="mt-trio">
-        <div><p class="mt-small"><b>Issues recibidas</b></p>${lines(A, (s) => s.n, num, { height: 170 })}</div>
-        <div><p class="mt-small"><b>Empezadas dentro del SLA</b></p>${lines(A, (s) => s.sla, (v) => pct(v), { height: 170 })}</div>
-        <div><p class="mt-small"><b>Media de resolución</b></p>${lines(A, (s) => s.avg, dur, { height: 170 })}</div></div>`, { span: 's12', sub: m.daily() ? DAY_NOTE : `${MONTH_NOTE} Un mes con menos de 10 issues no se pinta.` }));
+    const P = bySide(m.today()).map((l) => l.filter((i) => OPEN[i]));
+    return grid(ask('resumen'), stateOf(P, { link: true }), periodKpis(A), evolution({ only: 'backlog', periods: periods(), link: true }));
   };
 };

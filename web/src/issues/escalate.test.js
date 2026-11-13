@@ -57,7 +57,7 @@ test('unir: a uno de la lista o a otro, siempre con un ticket válido', () => {
   assert.equal(r({ linked: 'other', linkedOther: 'ITD: ERA-4170' }).values.ticket, 'ERA-4170');
 });
 
-test('el borrador de Escalar: por issue, hasta que se escala o se une', () => {
+test('el borrador de Escalar: por incidencia, hasta que se escala o se une', () => {
   const d = createEscalateDrafts();
   assert.equal(d.get('INC1'), null);
   d.save('INC1', { dest: 'sisupac' });

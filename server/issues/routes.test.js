@@ -162,7 +162,7 @@ test('ids raros: 404; devolver: a la base, sin leer la foto', async () => {
   assert.equal(loads.n, 0);
 });
 
-test('GET /teammates: el equipo de Issues sin mí, sin leer la foto; un fallo de la base, con su estado', async () => {
+test('GET /teammates: el equipo de Incidencias sin mí, sin leer la foto; un fallo de la base, con su estado', async () => {
   const { call, loads } = setup();
   assert.deepEqual((await call('GET', ['teammates'])).body, { teammates: [{ id: 'u-luis', name: 'Luis' }] });
   assert.equal(loads.n, 0);
@@ -239,10 +239,10 @@ test('abrir Resolver: lo que hay en Remedy y lo que falta lo calcula el bridge',
   assert.deepEqual((await call('GET', ['INC6', 'resolve'])).body.check.missing, ['Diagnóstico']);
 });
 
-test('Resolver y su borrador, solo en una issue de la foto, mía y abierta: lo forzado no entra', async () => {
+test('Resolver y su borrador, solo en una incidencia de la foto, mía y abierta: lo forzado no entra', async () => {
   const { call } = setup([], { issues: RES });
   for (const [method, path, body] of [['GET', ['IDX', 'resolve']], ['POST', ['IDX', 'resolve'], SEND], ['PUT', ['IDX', 'draft'], SEND], ['PUT', ['IDX', 'draft', 'file'], { name: 'a.png', type: 'image/png', data: b64 }]]) {
-    for (const [id, status, error] of [['INC999', 404, 'Esa issue ya no está en la foto.'], ['INC1', 403, 'Solo puedes resolver tus issues.'], ['INC5', 409, 'Esta issue ya está resuelta o cerrada.']]) {
+    for (const [id, status, error] of [['INC999', 404, 'Esa incidencia ya no está en la foto.'], ['INC1', 403, 'Solo puedes resolver tus incidencias.'], ['INC5', 409, 'Esta incidencia ya está resuelta o cerrada.']]) {
       const r = await call(method, path.map((x) => (x === 'IDX' ? id : x)), body);
       assert.deepEqual([method, path.at(-1), id, r.status, r.body.error], [method, path.at(-1), id, status, error]);
     }

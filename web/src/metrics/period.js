@@ -19,6 +19,61 @@ export const periodSummary = (m) => `${periodLabel(m)} · ${daysLabel(m)}`;
 
 // el fin de un mes, sin pasar de lo cargado (el mes en curso acaba el día de la foto)
 const monthEnd = (m, k) => Math.min(m.minuteOf(k + 1), m.END_D);
+// los últimos n días de lo cargado, con el de la foto (para m.setPeriod, que no pasa del primer día con issues)
+export const lastDays = (m, n) => [m.END_D - n * DAY, m.END_D];
+// Desde el día en que se abrió la incidencia más antigua que sigue abierta de una empresa (model.js, TEAM: con lo sin
+// técnico de sus búsquedas) hasta la foto; sin ninguna abierta, null.
+export const sinceOldestOpen = (m, company) => {
+  let min = Infinity;
+  for (let i = 0; i < m.N; i++) if (m.OPEN[i] && m.TEAM[i] === company && m.C.rep[i] < min) min = m.C.rep[i];
+  return min === Infinity ? null : [Math.floor(min / DAY) * DAY, m.END_D];
+};
+// Las fechas rápidas: [clave, nombre, rango [d0, d1)]. Este mes y el pasado, enteros (el de la foto, hasta ella); los
+// últimos 3 meses, del día 1 del antepasado a la foto; el año fiscal, del 1 de febrero (model.js, START_D); y todo lo
+// cargado. setPeriod los limita a lo cargado.
+export const PRESETS = [
+  ['month', 'Este mes', (m) => wholeMonth(m, m.LASTM)],
+  ['prev', 'Mes pasado', (m) => wholeMonth(m, m.LASTM - 1)],
+  ['3m', 'Últimos 3 meses', (m) => [m.minuteOf(m.LASTM - 2), m.END_D]],
+  ['fy', 'Año fiscal', (m) => [m.START_D, m.END_D]],
+  ['all', 'Todo', (m) => [m.MIN_D, m.END_D]],
+];
+export const presetRange = (m, key) => PRESETS.find(([k]) => k === key)?.[2](m) || null;
+// la fecha rápida que coincide con el periodo de ahora (la primera, si coinciden varias), o null
+export const presetOf = (m) => {
+  const clamp = ([a, b]) => [Math.max(m.MIN_D, a), Math.min(m.END_D, b)];
+  return PRESETS.find(([, , f]) => { const [a, b] = clamp(f(m)); return a === m.S.d0 && b === m.S.d1; })?.[0] ?? null;
+};
+// El periodo anterior, para comparar uno con otro (sin pasar de lo cargado). Si el periodo empieza un día 1, los mismos
+// meses de antes y los mismos días (del 1 al 8 de noviembre → del 1 al 8 de octubre; octubre entero → septiembre
+// entero; de agosto a octubre → de mayo a julio); si no, los mismos días justo antes. [d0, d1), o null si no hay datos.
+export const prevRange = (m) => {
+  const { d0, d1 } = m.S, k0 = m.monthAt(d0);
+  let a, b;
+  if (m.minuteOf(k0) === d0) {
+    const k1 = m.monthAt(d1 - 1), s = k1 - k0 + 1;
+    a = m.minuteOf(k0 - s);
+    b = d1 === m.minuteOf(k1 + 1) ? m.minuteOf(k0) : Math.min(m.minuteOf(k1 - s) + (d1 - m.minuteOf(k1)), m.minuteOf(k1 - s + 1));
+  } else { a = d0 - (d1 - d0); b = d0; }
+  a = Math.max(a, m.MIN_D);
+  return a < b ? [a, b] : null;
+};
+// «01/10/2026 – 08/10/2026» de un rango [d0, d1)
+export const rangeLabel = (m, [a, b]) => `${dmy(m.BASE + a * 6e4)} – ${dmy(m.BASE + (b - 1) * 6e4)}`;
+
+// Los periodos que se pueden comparar uno con otro (el Resumen, «Comparar»): [clave, nombre, rango [d0, d1) o null].
+// El actual (el de arriba) y el anterior (prevRange), las fechas rápidas y cada mes cargado, del más reciente al más
+// antiguo. Cada rango, limitado a lo cargado; sin datos, null.
+export const cmpOptions = (m) => {
+  const clamp = (r) => { if (!r) return null; const a = Math.max(m.MIN_D, r[0]), b = Math.min(m.END_D, r[1]); return a < b ? [a, b] : null; };
+  const months = [];
+  for (let k = m.LASTM; k >= m.monthAt(m.MIN_D); k--) months.push([`m:${k}`, m.monthName(k), wholeMonth(m, k)]);
+  return [['cur', 'Periodo actual', [m.S.d0, m.S.d1]], ['prev', 'Periodo anterior', prevRange(m)],
+    ...PRESETS.filter(([k]) => k !== 'all').map(([k, l, f]) => [`p:${k}`, l, f(m)]), ...months].map(([k, l, r]) => [k, l, clamp(r)]);
+};
+export const cmpRange = (m, key) => cmpOptions(m).find(([k]) => k === key)?.[2] ?? null;
+export const cmpName = (m, key) => cmpOptions(m).find(([k]) => k === key)?.[1] ?? key;
+
 // el día (sus 00:00) de cada extremo del periodo
 export const sideDay = (m, side) => (side === 'from' ? m.S.d0 : m.S.d1 - DAY);
 

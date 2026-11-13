@@ -15,8 +15,7 @@ export const viewsForRoute = ([, area, sub], method) => {
   if (area === 'links') return ['links'];
   if (area === 'issues') return ['issues'];
   if (area === 'backlog') return ['backlog'];
-  // los datos de las Métricas los lee también el Panel de trabajo; cargarlos, solo desde Métricas
-  if (area === 'metrics') return method === 'GET' && !sub ? ['metrics', 'work'] : ['metrics'];
+  if (area === 'metrics') return ['metrics'];
   if (['drafts', 'groups'].includes(area) || (area === 'skills' && (method === 'DELETE' || sub === 'publish'))) return ['lab'];
   if (area === 'users' || area === 'knowledge') return ['people'];
   return null;

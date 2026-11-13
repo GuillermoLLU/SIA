@@ -18,7 +18,8 @@ const fakeFs = () => {
   };
 };
 const now = () => new Date('2026-11-06T10:00:00Z');
-const repo = (rows) => ({ firstYear: () => 2026, incidents: () => rows[Symbol.iterator]() });
+// sin tickets de Jira guardados (#85: el cálculo también lee los de Jira)
+const repo = (rows) => ({ firstYear: () => 2026, incidents: () => rows[Symbol.iterator](), jiraTickets: () => new Map(), jiraFetched: () => null });
 // una fila de Remedy, del grupo (entra en el informe) o de otro (solo cuenta)
 const row = (o = {}) => ({ ...Object.fromEntries(REQUIRED.map((c) => [c, ''])),
   INCIDENTNUMBER: 'INC000000000001', ASSIGNEDGROUP: 'AYS SOPORTE', ASSIGNEE: 'ANA LOPEZ', STATUS: 'CLOSED', PRIORITY: 'HIGH',

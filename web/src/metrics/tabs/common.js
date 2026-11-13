@@ -7,30 +7,37 @@ import { num, dec, pct, dur, nice } from '../format.js';
 import { COMPANIES, CARDS, ACTIVE_DAYS, share, slaText } from '../model.js';
 import { SHIFTS, SHIFT_HOURS } from '../shifts.js';
 import { pairTable as pairTableOf } from '../pair-table.js';
+import { isPicked } from '../view.js';
 import { MIN_ISSUES, WORSE, clearlyWorse, shade, HOT } from '../rules.js';
 import { monthsIn as monthsOf, resolvedAt, startedAt } from '../flow.js';
 import { late as lateOf, isOld, escalated as escalatedOf } from '../backlog.js';
 import { blockHead, blocksOf } from '../pieces.js';
 import { perHead as perHeadOf, solved as solvedOf } from '../resolution.js';
 
-export const TABS = [['resumen', 'Resumen'], ['hoy', 'Foto de hoy'], ['entrada', 'Entrada'], ['backlog', 'Backlog'], ['modulos', 'Módulos y focos'],
-  ['resolucion', 'Resolución y escalados'], ['sla', 'SLA y calidad'], ['ia', 'IA'], ['turnos', 'Turnos']];
+// el orden: primero las que se miran a diario (de Resumen a Histórico); el resto, de momento, en el de antes
+export const TABS = [['resumen', 'Resumen'], ['hoy', 'Foto de hoy'], ['escalados', 'Escalados'], ['cliente', 'Pendiente de cliente'],
+  ['entrada', 'Entrantes'], ['tiempos', 'Análisis tiempos'], ['calidad', 'Calidad'], ['ia', 'Uso de la IA'], ['historico', 'Histórico'],
+  ['sla', 'SLAs'], ['modulos', 'Módulos y focos'], ['resolucion', 'Resolución'], ['turnos', 'Turnos']];
 export const QUESTIONS = {
-  resumen: ['¿Cómo vamos?', 'Cada bloque responde a una pregunta con sus cifras clave; el detalle, en su pestaña.'],
-  hoy: ['¿Qué hay que mover hoy?', 'Lo abierto a fecha de la última carga, se abriera cuando se abriera (no depende del periodo), en listas para actuar: lo urgente, lo que espera y lo que está parado.'],
+  resumen: ['¿Cómo vamos?', 'De un vistazo: en qué estado está lo abierto ahora y, de lo recibido en el periodo, el MTTR, el %IQA y el uso de la IA. El detalle, en cada pestaña.'],
+  hoy: ['¿Cómo está hoy?', 'Cómo está el backlog ahora: en qué estado, desde cuándo, de qué y qué conviene vigilar. Lo recibido en el periodo y cómo ha ido el backlog día a día, en el Histórico.'],
+  historico: ['¿Cómo ha ido en el periodo?', 'Lo recibido en las fechas elegidas: cada bloque responde a una pregunta con sus cifras clave (el detalle, en su pestaña), y cómo ha ido el backlog día a día.'],
   entrada: ['¿Qué nos entra?', 'Cuánto entra, cuánto se cierra y de qué tipo, mes a mes. Cada tabla lleva su total y los totales cuadran con las cifras de arriba.'],
-  backlog: ['¿Qué tenemos pendiente?', 'Lo recibido en el periodo que sigue sin resolver: en qué punto está, desde cuándo y qué conviene vigilar.'],
   modulos: ['¿De dónde viene?', 'Los módulos, centros y problemas que concentran el trabajo, y lo que se repite.'],
-  resolucion: ['¿Cómo lo resolvemos?', 'Cuánto tardamos, en qué se va el tiempo, qué módulos tardan más y qué escalamos y a quién. Tiempos de lo resuelto, en tiempo natural.'],
-  sla: ['¿Cómo de bien lo hacemos?', `Si empezamos a tiempo (SLA de inicio: de la apertura al primer paso a En curso, en tiempo natural; ${slaText()}), si el trabajo queda bien hecho y si queda bien registrado.`],
-  ia: ['¿Cuánto usamos la IA y cómo sale?', 'Por las marcas de IA de Remedy: en TAGS (IA_SOLVED…, IA_FAIL) y en las notas ([ACT IA], [INFORME IA], notas del agente de IA, [HITL_REVIEW_OK], [HITL_REVIEW_NOT_OK], [IA_FAIL]…). Una issue con IA puede estar revisada OK, con fallo o sin revisar.'],
+  resolucion: ['¿Cómo lo resolvemos?', 'Cuánto tardamos, en qué se va el tiempo, y qué módulos tardan más. Tiempos de lo resuelto, en tiempo natural.'],
+  cliente: ['¿Qué esperamos del cliente?', 'Lo que está ahora en Pendiente del centro o del cliente, a fecha de la última carga y sea cual sea el periodo: cuánto, desde cuándo, si lo estamos reclamando y por qué esperamos.'],
+  tiempos: ['¿En qué se nos va el tiempo?', 'Lo que pasa de media cada fase, sin escalar y escalado, según el historial de cambios: en Actual, lo que llevan hasta hoy las que siguen abiertas; en Histórico, lo resuelto del periodo.'],
+  calidad: ['¿Cómo de bien queda el trabajo?', 'La calidad del trabajo, empezando por el %IQA (la nota del agente de calidad, tarea #55). En construcción.'],
+  escalados: ['¿Qué escalamos y a quién?', 'En Activas, lo escalado que sigue abierto (a fecha de la última carga, sea cual sea el periodo); en Histórico, lo escalado y resuelto del periodo. Cuánto tarda, a qué proyectos Jira se escala y los malos escalados: tickets que se descartan o pasan de un equipo a otro.'],
+  sla: ['¿Empezamos a tiempo?', `En Actual, lo abierto ahora: qué se empezó en plazo y lo que sigue sin empezar, con lo que le queda. En Histórico, lo del periodo: si empezamos a tiempo (SLA de inicio: de la apertura al primer paso a En curso, en tiempo natural; ${slaText()}), si el trabajo queda bien hecho y si queda bien registrado.`],
+  ia: ['¿Cuánto usamos la IA y cómo sale?', 'Por las marcas de IA de Remedy: en TAGS (IA_SOLVED…, IA_FAIL) y en las notas ([ACT IA], [INFORME IA], notas del agente de IA, [HITL_REVIEW_OK], [HITL_REVIEW_NOT_OK], [IA_FAIL]…). Una incidencia con IA puede estar revisada OK, con fallo o sin revisar.'],
   turnos: ['¿Cuándo entra y cuándo lo trabajamos?', `Por turnos: ${SHIFTS.map((s, k) => `${s.toLowerCase()} de ${SHIFT_HOURS[k]}`).join(', ')}. El turno se cuenta por la hora en que empieza: la noche del domingo es de fin de semana.`],
 };
 
-export const WORSE_NOTE = `En ocre, lo que va un ${Math.round(WORSE * 100)} % o más peor que el total (con al menos ${MIN_ISSUES} issues).`;
+export const WORSE_NOTE = `En ocre, lo que va un ${Math.round(WORSE * 100)} % o más peor que el total (con al menos ${MIN_ISSUES} incidencias).`;
 export const MONTH_NOTE = 'Por mes de apertura. * mes incompleto: los últimos meses salen mejor de lo que acabarán, porque lo lento aún no se ha resuelto.';
 // la evolución día a día (periodos de un mes o menos)
-export const DAY_NOTE = 'Por día de apertura. * día de la última carga, incompleto. Los últimos días salen mejor de lo que acabarán, porque lo lento aún no se ha resuelto. Un día con menos de 10 issues no se pinta.';
+export const DAY_NOTE = 'Por día de apertura. * día de la última carga, incompleto. Los últimos días salen mejor de lo que acabarán, porque lo lento aún no se ha resuelto. Un día con menos de 10 incidencias no se pinta.';
 export const opt = (f) => (v) => (v == null ? '—' : f(v));
 export const P1 = (v) => pct(v, 1);
 export const optDur = (v) => (v == null ? '—' : dur(v));
@@ -55,7 +62,8 @@ export const createCommon = (m, ch, ui) => {
   const prioRows = () => PRIOS.map((p) => [nice(DI.prio[p]), (i) => C.pr[i] === p, `pr:${p}`]);
   const asRows = (rows) => rows.map(([label, test, f]) => ({ label, test, f }));
   // una fila por mes con sus celdas (cells: de las issues del mes); el nombre del mes en `tag`
-  const monthBody = (A, cells, tag = 'td') => monthRows().map(([label, t, f]) => `<tr class="mt-clk ${selRow(f) ? 'mt-sel' : ''}" data-f="${f}"><${tag}${tag === 'th' ? ' class="mt-r"' : ''}>${label}</${tag}>${cells(A.filter(t))}</tr>`).join('');
+  // skipEmpty: sin los meses en que no hay ninguna de A
+  const monthBody = (A, cells, tag = 'td', skipEmpty = false) => monthRows().filter(([, t]) => !skipEmpty || A.some(t)).map(([label, t, f]) => `<tr class="mt-clk ${selRow(f) ? 'mt-sel' : ''}" data-f="${f}"><${tag}${tag === 'th' ? ' class="mt-r"' : ''}>${label}</${tag}>${cells(A.filter(t))}</tr>`).join('');
   // filas de una tabla por lado (pair: lo de cada lado de una lista): una por corte y, al final, el total
   const sideRows = (A, defs, pair, total) => {
     const T = bySide(A);
@@ -72,7 +80,7 @@ export const createCommon = (m, ch, ui) => {
 
   // Tabla de cortes fijos (prioridad, ámbito, turno, día…): una fila por corte; la diferencia entre los lados o el valor del único que se mira.
   const SLICE = {
-    n: ['Issues', (s) => num(s.n), (s) => s.n], avg: ['Media resol.', (s) => dur(s.avg), (s) => s.avg, 'low'],
+    n: ['Incidencias', (s) => num(s.n), (s) => s.n], avg: ['Media resol.', (s) => dur(s.avg), (s) => s.avg, 'low'],
     sla: ['Dentro de SLA', slaPct, (s) => s.sla, 'high'], ip: ['Media hasta En curso', (s) => dur(s.ip), (s) => s.ip, 'low'],
     inShift: ['Empezadas en su turno', (s) => opt(pct)(s.inShift), (s) => s.inShift, 'high'],
   };
@@ -130,7 +138,7 @@ export const createCommon = (m, ch, ui) => {
       return `<td class="mt-num ${k ? 'mt-msep' : 'mt-gsep'}">${H[k] > 1 ? dec(n) : num(n)}</td><td class="mt-num mt-mix-p">${pct(sh)}</td>
         <td class="mt-mix-bar" data-tip="${esc(`${label} · ${sideLabel(k)}\n${H[k] > 1 ? `${dec(n)} por persona (${num(c)} en total)` : `${num(c)} issues`} · ${pct(sh, 1)} de lo suyo`)}"><i class="mt-c${k}" style="width:${(sh * 100).toFixed(1)}%"></i></td>`;
     }).join('');
-    return sideTable({ cols: '<th class="mt-num">Issues</th><th class="mt-num">%</th><th></th>', blocks: blocksOf(rowsDef), cells: (r) => cells(r.test, r.label), lead: { label: lead, cells: cells(null, lead) }, labelTip: true });
+    return sideTable({ cols: '<th class="mt-num">Incidencias</th><th class="mt-num">%</th><th></th>', blocks: blocksOf(rowsDef), cells: (r) => cells(r.test, r.label), lead: { label: lead, cells: cells(null, lead) }, labelTip: true });
   };
   // La tabla de comparar de todas las pestañas (pair-table.js), con el nombre de cada lado. base: lo que cuenta para
   // marcar quién va mejor, si el dato no dice otra cosa (de serie, las resueltas).
@@ -168,7 +176,16 @@ export const createCommon = (m, ch, ui) => {
       <tbody>${body}<tr class="mt-lead mt-lead-end"><th class="mt-r" colspan="2">Todas</th>${cells(tot, null, true)}</tr></tbody></table></div>`;
   };
 
-  return { m, ch, ui, name, noK, noTheme, REQ, slaPct, monthsIn, heads, sideLabel, selRow, monthRows, prioRows, asRows, monthBody, sideRows,
+  // El selector de criticidad (Foto de hoy, Módulos y focos): un filtro de pr, una sola o todas (data-only, como el de
+  // SISU o SGA: sale con los demás filtros y vale para todas las pestañas). Cada una, con cuántas hay en list, que debe
+  // venir sin el propio filtro de prioridad, para que se vean todas aunque se esté mirando una.
+  const prioPicker = (list) => {
+    const opt1 = (label, k, n) => { const on = isPicked(m.S.f, 'pr', k);
+      return `<button class="mt-seg-b ${on ? 'mt-on' : ''}" data-only="pr:${k ?? ''}" aria-pressed="${on}"${k == null ? '' : ' data-tip="Clic: solo esta. Ctrl+clic: sumarla o, si ya está, quitarla."'}>${esc(label)}${n == null ? '' : `<small>${num(n)}</small>`}</button>`; };
+    return `<div class="mt-seg" role="group" aria-label="Prioridad">${opt1('Todas', null)}${m.PRIOS.map((p) => opt1(m.DIMS.pr.label(p), p, list.filter((i) => m.C.pr[i] === p).length)).join('')}</div>`;
+  };
+
+  return { m, ch, ui, name, noK, prioPicker, noTheme, REQ, slaPct, monthsIn, heads, sideLabel, selRow, monthRows, prioRows, asRows, monthBody, sideRows,
     late, old, escd, solved, resAt, startAt, shareOf, grid, ask, section, SLICE, cell, table, slices, cardsOf, CARD_ROWS, days, topRows,
     volume, teamNames, headsNote, sideTable, mixCmp, pairTable, spreadHead, spreadRow, spreadWho, spreadCell, qualityPivot };
 };

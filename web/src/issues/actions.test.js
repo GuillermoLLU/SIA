@@ -41,7 +41,7 @@ test('traspasar: el equipo en el selector propio, escapado; se queda en SIA, sin
   const html = actionForm('transfer', 'INC1', [{ id: 'u1', name: 'Ana <x>' }]);
   assert.match(html, /<input type="hidden" name="to" value="">/);
   assert.match(html, /<li role="option" data-pick-opt="u1" aria-selected="false">Ana &lt;x&gt;<\/li>/);
-  assert.match(actionForm('transfer', 'INC1', []), /data-pick-btn[^>]*disabled[^>]*>.*No hay más personas en Issues/);
+  assert.match(actionForm('transfer', 'INC1', []), /data-pick-btn[^>]*disabled[^>]*>.*No hay más personas en Incidencias/);
   assert.doesNotMatch(html, /Aún no se envía a Remedy/);
   assert.match(actionForm('resolve', 'INC1'), /Aún no se envía a Remedy/);
 });

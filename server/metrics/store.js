@@ -2,8 +2,11 @@
 // Snowflake las incidencias nuevas o cambiadas desde la última (query.js), las
 // suma al repositorio local de incidencias (repository.js, SQLite) y de él se
 // calculan las métricas (publish.js); el cálculo se guarda en <dir>/datos.json para
-// abrir la vista al instante. Nada de esto sale de aquí ni va a la base.
-import { checkColumns, DataError, GROUP } from './dataset.js';
+// abrir la vista al instante. Nada de esto sale de aquí ni va a la base. Antes de calcular,
+// se piden a Jira los tickets escalados que aún no se tienen o seguían sin resolver
+// (jira.js), para los tiempos de escalado; si Jira no responde o no está configurado,
+// el informe sale igual con lo que ya había y meta.jira dice por qué.
+import { checkColumns, DataError, GROUP, TEAM_PROJECT } from './dataset.js';
 import { rangeOf, buildQuery, firstLoadRange } from './query.js';
 import { createPublisher } from './publish.js';
 import { csvReader } from '../shared/csv.js';
@@ -12,14 +15,15 @@ const SOURCE = 'Snowflake';
 const secs = (from, to) => `${((to - from) / 1000).toFixed(1).replace('.', ',')} s`;
 const num = (n) => n.toLocaleString('es-ES');
 
-// source: { rows(sql, binds, { onConnect, onTotal }) } (snowflake.js), las filas de la consulta una a una. fs: el
-// sistema de ficheros (datos.json), now: el reloj, log: dónde se apunta cuánto tardó cada fase (el registro del bridge).
-export const createMetricsStore = (dir, { repo, source, fs, now = () => new Date(), log = () => {} }) => {
+// source: { rows(sql, binds, { onConnect, onTotal }) } (snowflake.js), las filas de la consulta una a una. jira:
+// { tickets(keys, { onBatch }) } (jira.js); sin él, no se pide nada a Jira. fs: el sistema de ficheros (datos.json),
+// now: el reloj, log: dónde se apunta cuánto tardó cada fase (el registro del bridge).
+export const createMetricsStore = (dir, { repo, source, jira = null, fs, now = () => new Date(), log = () => {} }) => {
   const publisher = createPublisher({ repo, dir, fs, now });
   const ms = () => now().getTime();
   let cache;            // undefined: sin leer aún; null: no hay datos
   let loading = false;
-  // Mientras se actualiza, por dónde va: { phase: 'prepare' (cargar el conector) | 'connect' | 'download' | 'compute', done, total }.
+  // Mientras se actualiza, por dónde va: { phase: 'prepare' (cargar el conector) | 'connect' | 'download' | 'compute' | 'jira', done, total }.
   let progress = null;
   // Lo que se puede cancelar: la descarga de Snowflake o la lectura de un CSV, hasta que lo nuevo entra en la base.
   // Después, ya no se deshace: lo guardado se queda y solo falta recalcular.
@@ -37,9 +41,25 @@ export const createMetricsStore = (dir, { repo, source, fs, now = () => new Date
   // El avance cuenta lo que entra en el informe.
   const counted = () => { if (progress) progress.done++; };
 
-  // Calcula desde el repositorio y guarda la copia: lo que ve la vista.
-  const publish = async (name) => {
-    const data = await publisher.publish(name, counted);
+  // Pide a Jira, siempre con su historial (si pasó de un equipo a otro: los malos escalados), las claves que no se tienen, las
+  // que seguían sin resolver y las que aún no se sabe si cambiaron de equipo (moves NULL) o de cuál a cuál (hops NULL). Las que
+  // Jira no conoce no se vuelven a pedir. Y las de ITSMECOM traídas antes de guardar su equipo (team NULL): a quién se escala
+  // es su equipo (dataset.js).
+  const syncJira = async (keys) => {
+    const saved = repo.jiraTickets();
+    const ask = keys.filter((k) => { const t = saved.get(k); return !t || (t.found && !t.resolved) || (t.found && t.moves == null) || (t.found && t.team == null && k.startsWith(TEAM_PROJECT)) || (t.found && t.moves > 0 && t.hops == null); });
+    progress = { phase: 'jira', done: 0, total: ask.length };
+    try {
+      if (ask.length) repo.saveJira(await jira.tickets(ask, { history: new Set(ask), onBatch: (n) => { progress.done = n; } }));
+      return publisher.jiraMeta();
+    } catch (e) {
+      return publisher.jiraMeta(e.message);
+    }
+  };
+
+  // Calcula desde el repositorio y guarda la copia: lo que ve la vista. sync: pedir antes a Jira lo que falte.
+  const publish = async (name, sync = null) => {
+    const data = await publisher.publish(name, counted, sync);
     cache = data;
     return data;
   };
@@ -98,15 +118,16 @@ export const createMetricsStore = (dir, { repo, source, fs, now = () => new Date
         throw e;
       }
       progress = { phase: 'compute', done: 0, total: repo.reportCount(GROUP) };
-      const data = await publish(SOURCE);
+      const data = await publish(SOURCE, jira ? syncJira : null);
       t.done = ms();
       t.query ??= t.saved;   // una fuente que no avisa: lo que no se sabe cuenta con la fase siguiente
       t.connect ??= t.start;
       const fetched = counts.inserted + counts.updated + counts.unchanged + counts.kept;
       log(`[sia] métricas actualizadas en ${secs(t.start, t.done)}: conector ${secs(t.start, t.connect)} · conexión y consulta ${secs(t.connect, t.query)}`
         + ` · ${num(fetched)} incidencias de Snowflake (${num(counts.inserted)} nuevas, ${num(counts.updated)} actualizadas, ${num(run.removed)} quitadas por salir del grupo) en ${secs(t.query, t.saved)}`
-        + ` · informe de ${num(progress.total)} incidencias en ${secs(t.saved, t.done)}`);
-      return { meta: data.meta, counts };
+        + ` · informe de ${num(repo.reportCount(GROUP))} incidencias y Jira en ${secs(t.saved, t.done)}`
+        + (data.meta.jira.message ? ` · Jira: ${data.meta.jira.message}` : ` · ${num(data.meta.jira.tickets)} tickets de Jira`));
+      return { meta: data.meta, counts, jira: data.meta.jira };
     } finally {
       loading = false;
       abort = null;

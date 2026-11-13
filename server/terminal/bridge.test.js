@@ -108,7 +108,7 @@ test('asset y kill: se difunden y al morir el PTY se limpia la sesión', async (
   x.done();
 });
 
-test('el chat de una issue: uno por issue, con su contexto como primer mensaje; sin issue, error', async () => {
+test('el chat de una incidencia: uno por incidencia, con su contexto como primer mensaje; sin incidencia, error', async () => {
   const x = setup();
   const ws = x.connect(fakeWs());
   ws.say({ type: 'start', launcher: 'claude', issue: 'INC1' });

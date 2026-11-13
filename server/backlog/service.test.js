@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createBacklogService } from './service.js';
 
-const issue = (id, over = {}) => ({ id, center: '000123', text: `Issue ${id}`, priority: 'MEDIUM', status: 'ASSIGNED', reason: '', prio: false, sisu: false,
+const issue = (id, over = {}) => ({ id, center: '000123', text: `Incidencia ${id}`, priority: 'MEDIUM', status: 'ASSIGNED', reason: '', prio: false, sisu: false,
   assignee: '', reported: '2026-10-20 09:00', modified: '2026-10-20 09:00', resolved: '', notes: 'x', ...over });
 const NOW = () => new Date('2026-10-29T10:00:00');
 const service = (issues, claims = []) => createBacklogService({
