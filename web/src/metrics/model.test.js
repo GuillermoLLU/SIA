@@ -35,6 +35,13 @@ test('el turno en que entra cada incidencia y si se empezó en ese mismo turno',
   assert.equal(m.stats([2]).inShift, null);   // sin empezar
 });
 
+test('SISU o SGA por el módulo: VIRTUALMG y ORDERTR son de SISU; un módulo fuera de la lista, de SGA', () => {
+  const m = createModel(data());   // módulos: EWMS (SGA) y PACKING (SISU)
+  assert.deepEqual([0, 1, 2, 3, 4].map(m.DIMS.ss.get), [1, 0, 1, 0, 1]);
+  const d = data(); d.dict.module = ['', 'VIRTUALMG', 'ORDERTR'];
+  assert.deepEqual([0, 1, 2, 3, 4].map(createModel(d).DIMS.ss.get), [0, 0, 0, 0, 0]);
+});
+
 test('tarjetas: SGA y SISU por el ámbito, PRIO por la etiqueta (además de su SGA o SISU); si no, sin tarjeta', () => {
   const d = data(); d.cols.fl[0] = 2;   // la 1, SGA y priorizada
   const m = createModel(d);
