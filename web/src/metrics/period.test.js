@@ -26,15 +26,21 @@ test('el texto del periodo: siempre de qué fecha a qué fecha, y cuántos días
   assert.equal(daysLabel(m), '1 día');
 });
 
-test('el periodo de partida: el año fiscal en curso, del 1 de febrero a la foto; en enero, desde el febrero anterior', () => {
+test('el periodo de partida: este mes, del día 1 del mes de la foto a la foto; con menos cargado, desde lo primero', () => {
   const m = twoYears();
   m.resetPeriod();
-  assert.equal(periodLabel(m), '01/02/2026 – 11/03/2026');
-  const d = data(), year = 365 * 1440;   // la foto, el 11 de enero de 2026: desde el 1 de febrero de 2025
+  assert.equal(periodLabel(m), '01/03/2026 – 11/03/2026');
+  const d = data(), year = 365 * 1440;   // la foto, el 11 de enero de 2026: desde el 1 de enero
   d.meta.start = 2025; d.meta.first = 0; d.meta.snapshot = year + 10 * 1440 + 600; d.meta.last = d.meta.snapshot;
   const jan = createModel(d);
   jan.resetPeriod();
-  assert.equal(periodLabel(jan), '01/02/2025 – 11/01/2026');
+  assert.equal(periodLabel(jan), '01/01/2026 – 11/01/2026');
+  // lo cargado empieza a mitad de mes: desde su primer día
+  const late = data();
+  late.meta.first = late.meta.snapshot - 3 * 1440;
+  const lm = createModel(late);
+  lm.resetPeriod();
+  assert.equal(lm.S.d0, lm.MIN_D);
 });
 
 test('los últimos días: contando el de la foto; con menos cargados, desde el primero', () => {

@@ -9,10 +9,12 @@ import { situations, ages, OLD_FILTER, watchList, pendingCells, backlogFigures, 
   misrouted, MISROUTED_FILTER, MISROUTED_TIP } from '../backlog.js';
 import { blocksOf } from '../pieces.js';
 
-export const backlogParts = (t) => {
+// card: cómo se pinta cada tarjeta (de partida, la de siempre; Foto de hoy, con las explicaciones en el tooltip)
+export const backlogParts = (t, { card: cardOf = null } = {}) => {
   const { m, ch, heads, prioRows, asRows, late, old, escd, cardsOf, CARD_ROWS, days, topRows, teamNames, headsNote, sideTable } = t;
   const { C, CRIT, OPEN, SIDE, bySide } = m;
-  const { card, kpis, kpiCo, matrix } = ch;
+  const { kpis, kpiCo, matrix } = ch;
+  const card = cardOf || ch.card;
   const SITUATION = situations(m), AGES = ages(m), reop = reopened(m), misr = misrouted(m);
   // Lo pendiente, de un vistazo y en orden (el total, en la corona de Foto de hoy): en qué punto está (en curso, sin tocar, devuelta y en espera de
   // un tercero, del cliente u otro motivo, que suman el total), en una barra; lo que conviene vigilar dentro

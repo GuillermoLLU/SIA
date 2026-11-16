@@ -79,6 +79,8 @@
 .mt-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 70px 20px; text-align: center; font-size: 13px; color: var(--mt-low); }
 .mt-empty b { font-size: 15px; color: var(--text); }
 .mt-empty span { max-width: 460px; }
+/* La corona del Resumen sin nada abierto en el periodo */
+.mt-none-open { margin: 0; padding: 48px 12px; text-align: center; font-size: 13px; color: var(--mt-low); }
 
 /* filtros: fijos arriba al hacer scroll */
 .mt-fbar { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 -28px; padding: 9px 28px; background: var(--bg); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
@@ -104,6 +106,8 @@
 .mt-cal { width: 820px; max-width: calc(100vw - 32px); padding: 16px; box-shadow: 0 12px 32px rgba(0, 0, 0, .14); }
 .mt-cal-head { display: flex; align-items: center; gap: 12px; padding-bottom: 12px; margin-bottom: 14px; border-bottom: 1px solid var(--mt-line); }
 .mt-cal-head b { font-size: 13px; color: var(--text); }
+/* Las fechas rápidas, arriba del panel del periodo (period-panel.js, head) */
+.mt-cal-presets { padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--mt-line); } .mt-cal-presets .mt-seg { flex-wrap: wrap; margin-bottom: 0; }
 .mt-pp-title { margin: 0; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--mt-low); }
 .mt-pp { display: grid; grid-template-columns: 1fr 1fr; }
 .mt-side { min-width: 0; }
@@ -616,6 +620,9 @@ i.mt-dn-curso { background: var(--mt-dn-curso); } i.mt-dn-otro { background: var
 .mt-svg .mt-hit { fill: transparent; }
 .mt-svg .mt-hit:hover { fill: color-mix(in srgb, var(--text) 6%, transparent); }
 .mt-kpi.mt-clk { cursor: pointer; } .mt-kpi.mt-clk:hover { border-color: var(--mt-line); background: var(--mt-soft); }
+/* Una tarjeta que lleva a su pestaña (el Resumen): entera, con el borde al pasar el ratón */
+.mt-go-card { cursor: pointer; transition: border-color .15s ease; } .mt-go-card:hover { border-color: var(--accent); }
+.mt-go-card:focus-visible, .mt-kpi.mt-clk:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .mt-kpi.mt-clk.mt-on, .mt-kpi.mt-clk.mt-on:hover { background: var(--mt-sel); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
 /* en las tablas de dos lados, un nombre largo (un centro) se corta con «…»: entero, al pasar el ratón */
 .mt-view table.mt-mix2 th.mt-r { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -780,13 +787,8 @@ i.mt-pq0 { background: var(--mt-pq0); } i.mt-pq1 { background: var(--mt-pq1); } 
 .mt-res-cmp { position: relative; display: flex; margin-left: 12px; }
 .mt-res-cmp > .mt-x { margin-left: -1px; padding: 5px 9px; }
 .mt-res-cmp > .mt-btn.mt-on { border-color: var(--mt-base0, var(--mt-line)); }
-.mt-res-pop { width: 380px; }
-.mt-res-opt { display: flex; align-items: center; gap: 8px; margin: 8px 0 4px; font-size: 13px; cursor: pointer; }
-.mt-res-sel { display: flex; align-items: center; gap: 6px; margin: 0 0 4px 24px; }
-.mt-res-sel select { flex: 1; min-width: 0; padding: 4px 6px; font: inherit; font-size: 12.5px; color: var(--text); background: var(--surface); border: 1px solid var(--mt-line); }
-.mt-res-hint { margin: 0 0 4px 24px; }
-.mt-res-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
-.mt-res-go { font-weight: 600; }
+/* En el modo comparar: eligiendo con qué (quick-bar.js, comparePop) */
+.mt-res-cmp > .mt-btn.mt-picking { border-style: dashed; color: var(--accent); } .mt-res-cmp > .mt-btn.mt-picking small { color: var(--text-low); font-weight: 400; }
 /* el enlace de un KPI a su pestaña (Resumen: MTTR, %IQA, Uso de la IA), debajo y a la derecha, como el de la corona */
 .mt-kpi-go { margin: 8px -8px 0 0; text-align: right; }
 /* la barra de arriba: lo comparado (Ctrl+clic en una segunda empresa o fecha rápida), con el color del otro lado */

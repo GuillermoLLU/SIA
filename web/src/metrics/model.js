@@ -38,7 +38,7 @@ export const CARDS = ['SGA', 'SISU', 'PRIO', 'Sin tarjeta'];
 export const SITUATIONS = ['En curso', 'Sin tocar', 'Devuelta a Asignada', 'Espera tercero', 'Espera cliente', 'Espera otro motivo', 'Cerrada'];
 
 // Tramos de tiempo de resolución y de antigüedad (minutos).
-const TTR_NAMES = ['< 1 h', '1–4 h', '4–8 h', '8–24 h', '1–3 días', '3–7 días', '7–30 días', '> 30 días', 'Sin resolver'];
+const TTR_NAMES = ['< 1 h', '1–4 h', '4–8 h', '8–24 h', '24–72 h', '72–168 h', '168–720 h', '> 720 h', 'Sin resolver'];
 const TTR_LIMITS = [60, 240, 480, 1440, 4320, 10080, 43200, Infinity];
 // la antigüedad, en los tramos con que la mira el equipo
 const AGE_NAMES = ['1–5 días', '6–10 días', '11–15 días', '16–30 días', '> 30 días'];
@@ -54,7 +54,7 @@ const SLA_NAMES = ['Dentro del SLA', 'Hasta el doble del SLA', 'Del doble a 5 ve
 
 // Cuándo pasa a En curso, en tramos que caen justo en los plazos del SLA (15 min, 45 min, 2 h y 8 h): lo dentro del
 // plazo de una prioridad son los tramos hasta el suyo. Sin pasar a En curso: abierta (sin empezar) o ya cerrada.
-const START_NAMES = ['≤ 15 min', '15–45 min', '45 min–2 h', '2–8 h', '8–24 h', '1–7 días', '> 7 días', 'Sin empezar', 'Cerrada sin En curso'];
+const START_NAMES = ['≤ 15 min', '15–45 min', '45 min–2 h', '2–8 h', '8–24 h', '24–168 h', '> 168 h', 'Sin empezar', 'Cerrada sin En curso'];
 export const START_LIMITS = [15, 45, 120, 480, 1440, 10080, Infinity];
 // Calidad del trabajo y del registro: lo que se marca de cada issue (puede tener varias o ninguna).
 const QUALITY_NAMES = ['Reabierta', 'Devuelta a cola', 'Cerrada sin pasar por En curso', 'Escalada sin pasar por Pendiente',
@@ -81,10 +81,12 @@ export const createModel = (data) => {
   const dayName = (min) => { const d = new Date(BASE + min * 6e4); return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}${LASTM >= 12 ? ` ${d.getUTCFullYear()}` : ''}`; };
   // Lo cargado, por días completos: del primer día con issues (MIN_D) al día de la foto, incluido (END_D, excluido).
   const MIN_D = Math.floor(meta.first / DAY) * DAY, END_D = (Math.floor(SNAP / DAY) + 1) * DAY;
-  // El periodo con el que abren las vistas (resetPeriod): el año fiscal en curso, del 1 de febrero (el último que no pase
-  // del mes de la foto), o del primer día con issues, hasta la foto. Los meses k cuentan desde enero de meta.start.
+  // El año fiscal en curso (la fecha rápida «Año fiscal»: period.js): del 1 de febrero (el último que no pase del mes de
+  // la foto), o del primer día con issues, hasta la foto. Los meses k cuentan desde enero de meta.start.
   const FISCAL_M = LASTM - (((LASTM - 1) % 12) + 12) % 12;
   const START_D = Math.max(MIN_D, minuteOf(FISCAL_M));
+  // El periodo con el que abren las vistas (resetPeriod): este mes, el de la foto, desde su día 1 (o lo primero cargado).
+  const MONTH_D = Math.max(MIN_D, minuteOf(LASTM));
   const CRIT = DI.prio.indexOf('CRITICAL');
   const SLA = DI.prio.map((p) => SLA_MINUTES[p] ?? -1);
   // las prioridades de más a menos urgente y su SLA de inicio («Crítica · 15 min»)
@@ -190,7 +192,7 @@ export const createModel = (data) => {
   };
   // un mes entero dentro del periodo y ya cerrado (el de la foto aún puede cambiar)
   const fullMonth = (k) => k < LASTM && minuteOf(k) >= S.d0 && minuteOf(k + 1) <= S.d1;
-  const resetPeriod = () => setPeriod(START_D, END_D);
+  const resetPeriod = () => setPeriod(MONTH_D, END_D);
   const daily = () => S.d1 - S.d0 <= 31 * DAY;   // hasta un mes se ve día a día; más, mes a mes
   const inPeriod = (i) => C.rep[i] >= S.d0 && C.rep[i] < S.d1;
   const SIDE = new Uint8Array(N);

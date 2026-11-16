@@ -58,7 +58,7 @@ test('cobertura con más de un año', () => {
   const m = createModel(d);
   assert.equal(coverage(m), 'Datos desde 01/01/2025 hasta 11/03/2026');   // sin elegir, todo lo cargado
   m.resetPeriod();
-  assert.equal(coverage(m), 'Datos desde 01/02/2026 hasta 11/03/2026');   // el de partida de las vistas: el año fiscal en curso
+  assert.equal(coverage(m), 'Datos desde 01/03/2026 hasta 11/03/2026');   // el de partida de las vistas: este mes
   m.setPeriod(m.MIN_D, m.END_D);
   assert.equal(coverage(m), 'Datos desde 01/01/2025 hasta 11/03/2026');
   m.setPeriod(0, year);

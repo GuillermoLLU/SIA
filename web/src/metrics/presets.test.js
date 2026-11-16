@@ -26,7 +26,7 @@ test('las fechas rápidas: este mes, el pasado, los últimos 3 meses, el año fi
   assert.equal(apply(m, 'fy'), '01/02/2026 – 11/03/2026');
   assert.equal(presetOf(m), 'fy');
   m.resetPeriod();
-  assert.equal(presetOf(m), 'fy');   // el de partida
+  assert.equal(presetOf(m), 'month');   // el de partida: este mes
   assert.equal(apply(m, 'all'), '01/01/2025 – 11/03/2026');
   m.setPeriod(m.minuteOf(14, 3), m.minuteOf(14, 6));
   assert.equal(presetOf(m), null);
@@ -58,49 +58,48 @@ test('los periodos que se comparan: el actual, el anterior, las fechas rápidas 
   assert.equal(cmpRange(m, 'prev'), null);   // nada antes de lo cargado
 });
 
-test('Resumen: fechas rápidas y «Comparar», con su pop-up: sin comparar, un periodo frente a otro o frente a T-Systems', () => {
+test('Resumen: fechas rápidas y «Comparar», en modo comparar: sin comparar, un periodo frente a otro o frente a T-Systems', () => {
   const m = twoYears(); m.S.sides = [{ company: 0 }, null]; m.resetPeriod(); m.refilter();
   const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
   let html = tabs.render('resumen', m.rows());
-  // la barra de arriba (quick-bar.js): la empresa, las fechas rápidas y «Comparar»; en la pestaña, ya no
+  // la barra de arriba (quick-bar.js): la empresa, las fechas rápidas (en el panel del periodo) y «Comparar»; en la
+  // pestaña, ya no
   const bar = () => companyPick(m) + presetPick(m, ui) + comparePop(m, ui);
-  const pop = () => { const h = bar(); return h.slice(h.indexOf('<div class="mt-pop mt-res-pop"')); };
   assert.doesNotMatch(html, /data-preset|data-res-pop/);
   for (const [k] of PRESETS) assert.match(bar(), new RegExp(`data-preset="${k}"`));
-  assert.match(bar(), /data-preset="fy" aria-pressed="true"/);
-  // el botón, sin comparar y sin ×; el pop-up, cerrado, sin «Sin comparar»: marcada la de periodos y, de partida, el
-  // actual frente al anterior
-  assert.match(bar(), /<button class="mt-btn " data-res-pop aria-haspopup="true" aria-expanded="false">Comparar<\/button>/);
-  assert.match(pop(), /data-res-popup hidden/);
-  assert.doesNotMatch(pop(), /value="none"|Sin comparar/);
-  assert.match(pop(), /value="periods" checked/);
-  assert.doesNotMatch(bar(), /data-res-clear/);
-  assert.match(pop(), /<select data-res-a[^>]*><option value="cur" selected/);
-  assert.doesNotMatch(pop().slice(0, pop().indexOf('data-res-b')), /value="prev"/);   // el primero, sin el anterior
-  assert.match(pop(), /<select data-res-b[^>]*><option value="prev" selected/);
-  assert.match(pop(), /value="tsys"/);
-  assert.match(pop(), /data-res-apply/);
+  assert.match(bar(), /data-preset="month" aria-pressed="true"/);   // de partida, este mes
+  // «Comparar», sin comparar: el botón solo, sin × ni ventana; su tooltip dice cómo se compara
+  assert.match(comparePop(m, ui), /^<div class="mt-res-cmp"><button class="mt-btn " data-res-pop aria-pressed="false" data-tip="Compara lo que tienes marcado con lo siguiente que elijas: otra fecha rápida o un mes del calendario, o la otra empresa\.[^"]*">Comparar<\/button><\/div>$/);
+  assert.doesNotMatch(bar(), /data-res-clear|data-res-popup|<select|data-res-apply/);
   assert.equal((html.match(/class="mt-kpi mt-kpi-co[ "]/g) || []).length, 0);
-  ui.resPop = true;
-  assert.doesNotMatch(pop(tabs.render('resumen', m.rows())), /data-res-popup hidden/);
+  // en el modo comparar (al pulsarlo): marcado, diciendo que se elija, con su × para cancelar
+  ui.cmpPick = true;
+  assert.match(comparePop(m, ui), /class="mt-btn mt-on mt-picking" data-res-pop aria-pressed="true" data-tip="Elige con qué comparar lo marcado: [^"]*">Comparar con… <small>elige<\/small><\/button><button class="mt-btn mt-x" data-res-clear title="Cancelar"/);
+  // sin T-Systems en la vista (Equipo, Técnicas), no la ofrece
+  assert.doesNotMatch(comparePop(m, ui, false), /otra empresa/);
+  // en el modo comparar, lo siguiente que se elige se compara con lo marcado, como con Ctrl: una fecha rápida
+  const ops = { off: () => { m.S.sides[1] = null; }, add: (c) => { m.S.sides[1] = { company: c }; } };
+  assert.equal(pickPreset(m, ui, 'prev', ui.cmpPick, presetRange(m, 'prev'), ops), true);
+  assert.deepEqual(ui.resCmp, { a: 'cur', b: 'p:prev' });
+  assert.equal(periodLabel(m), '01/03/2026 – 11/03/2026');   // lo marcado no cambia
+  ui.cmpPick = false;
   // un periodo frente a otro: cada KPI con los dos; solo los KPIs
-  ui.resPop = false; ui.resCmp = { a: 'm:13', b: 'm:12' };
+  ui.resCmp = { a: 'm:13', b: 'm:12' };
   html = tabs.render('resumen', m.rows());
   assert.match(bar(), /Comparar: <b>feb 2026 vs ene 2026<\/b><\/button><button class="mt-btn mt-x" data-res-clear title="Quitar la comparación"/);
-  assert.match(pop(), /value="periods" checked/);
-  assert.match(pop(), /<option value="m:13" selected/);
   assert.equal((html.match(/class="mt-kpi mt-kpi-co[ "]/g) || []).length, 5);
   assert.match(html, /<span title="feb 2026">feb 2026<\/span>/);
   assert.match(html, /<span title="ene 2026">ene 2026<\/span>/);
   assert.match(html, /feb 2026 \(01\/02\/2026 – 28\/02\/2026\) frente a ene 2026 \(01\/01\/2026 – 31\/01\/2026\)/);
-  assert.equal((html.match(/<svg class="mt-donut"/g) || []).length, 1);
+  // la corona: lo abierto ahora que se abrió hasta el final del periodo de arriba (si no hay nada, lo dice)
+  assert.match(html, m.today().some((i) => m.OPEN[i] && m.C.rep[i] < m.S.d1) ? /<svg class="mt-donut"/ : /Sin incidencias abiertas/);
   assert.doesNotMatch(html, /undefined|NaN/);
   // Entrantes, en totales: la diferencia de entrantes y de resueltas, en unidades
   const inc = html.slice(html.indexOf('>Entrantes<'), html.indexOf('>MTTR<'));
   assert.match(inc, /<span title="feb 2026">feb 2026<\/span><b>\d+ <small class="mt-mut">· \d+ res\.<\/small><\/b>/);
   assert.match(inc, /<div class="mt-kpi-v [^"]*">(=|[+−]\d+) <small class="mt-mut">· (=|[+−]\d+) res\.<\/small><\/div>|<div class="mt-kpi-v mt-mut">—<\/div>/);
   // el backlog, una línea por periodo, cada una desde su primer día; con el selector de días, semanas o meses
-  const evo = html.slice(html.indexOf('<h3>Evolución del backlog</h3>'));
+  const evo = html.slice(html.indexOf('>Evolución del backlog</h3>'));
   assert.match(evo, /<span><i class="mt-c0"><\/i>feb 2026<\/span><span><i class="mt-c1"><\/i>ene 2026<\/span>/);
   assert.match(evo, /<polyline class="mt-line mt-s0"[\s\S]*<polyline class="mt-line mt-s1"/);
   assert.equal((evo.match(/<rect class="mt-hit"/g) || []).length, 31);   // los días del más largo (enero)
@@ -109,21 +108,22 @@ test('Resumen: fechas rápidas y «Comparar», con su pop-up: sin comparar, un p
   assert.match(evo, /data-evo-step="day" aria-pressed="true"/);
   assert.doesNotMatch(evo, /mt-pq\d/);   // sin las barras por prioridad
   // el enlace al Histórico, con las fechas del primer periodo (feb 2026)
-  assert.match(evo, new RegExp(`data-go="historico" data-go-evo="backlog" data-period="${m.minuteOf(13)}:${m.minuteOf(14)}"`));
+  assert.match(html, new RegExp(`data-go="historico" data-go-evo="backlog" data-period="${m.minuteOf(13)}:${m.minuteOf(14)}"`));
   ui.evoStep = 'week';
   assert.match(tabs.render('resumen', m.rows()), /Semana 1\nfeb 2026: /);
   ui.evoStep = 'day';
-  // el actual frente al anterior: el actual, lo de arriba
+  // el actual frente al anterior: el actual, lo de arriba (de partida, este mes: del 1 al 11 de marzo, frente a los mismos
+  // días de febrero)
   ui.resCmp = { a: 'cur', b: 'prev' };
   html = tabs.render('resumen', m.rows());
-  assert.match(html, /frente a Periodo anterior \(01\/12\/2025 – 11\/01\/2026\)/);
+  assert.match(html, /frente a Periodo anterior \(01\/02\/2026 – 11\/02\/2026\)/);
   // el mismo periodo frente a T-Systems (el otro lado): manda sobre la de periodos
   m.S.sides[1] = { company: 1 }; m.refilter();
   html = tabs.render('resumen', m.rows());
   assert.match(bar(), /Comparar: <b>Indra vs T-Systems<\/b>/);
-  assert.match(pop(), /value="tsys" checked/);
   assert.match(bar(), /data-res-clear/);   // también se quita con la ×
-  assert.equal((html.match(/<svg class="mt-donut"/g) || []).length, 2);
+  // la corona, de cada lado (lo abierto ahora que se abrió hasta el final del periodo; sin nada abierto, lo dice)
+  assert.equal((html.match(/<svg class="mt-donut"/g) || []).length, m.today().some((i) => m.OPEN[i] && m.C.rep[i] < m.S.d1) ? 2 : 0);
   assert.match(html, /<span title="T-Systems">T-Systems<\/span>/);
 });
 
@@ -132,10 +132,10 @@ test('la barra de arriba: Indra | T-Systems y las fechas rápidas; Ctrl+clic en 
   const ui = {};
   const ops = { off: () => { m.S.sides[1] = null; }, add: (c) => { m.S.sides[1] = { company: c }; } };
   const btn = (h, attr) => h.match(new RegExp(`<button class="mt-seg-b ([^"]*)" ${attr} aria-pressed="(true|false)"`)).slice(1);
-  // de partida: Indra y el año fiscal, marcados
+  // de partida: Indra y este mes, marcados
   assert.deepEqual(btn(companyPick(m), 'data-qco="0"'), ['mt-on', 'true']);
   assert.deepEqual(btn(companyPick(m), 'data-qco="1"'), ['', 'false']);
-  assert.deepEqual(btn(presetPick(m, ui), 'data-preset="fy"'), ['mt-on', 'true']);
+  assert.deepEqual(btn(presetPick(m, ui), 'data-preset="month"'), ['mt-on', 'true']);
   // Ctrl+clic en T-Systems: Indra frente a T-Systems (T-Systems, con el color del otro lado); otra vez, deja de comparar
   assert.equal(pickCompany(m, ui, 1, true, ops), true);
   assert.deepEqual(m.S.sides, [{ company: 0 }, { company: 1 }]);
@@ -155,11 +155,11 @@ test('la barra de arriba: Indra | T-Systems y las fechas rápidas; Ctrl+clic en 
   assert.deepEqual(ui.resCmp, { a: 'cur', b: 'p:prev' });
   assert.equal(m.S.sides[1], null);
   assert.deepEqual(btn(presetPick(m, ui), 'data-preset="prev"'), ['mt-on mt-qb', 'true']);
-  assert.deepEqual(btn(presetPick(m, ui), 'data-preset="fy"'), ['mt-on', 'true']);
+  assert.deepEqual(btn(presetPick(m, ui), 'data-preset="month"'), ['mt-on', 'true']);
   assert.match(comparePop(m, ui), /Comparar: <b>Periodo actual vs Mes pasado<\/b>/);
   assert.equal(pickPreset(m, ui, 'prev', true, presetRange(m, 'prev'), ops), true);
   assert.equal(ui.resCmp, null);
-  assert.equal(pickPreset(m, ui, 'fy', true, presetRange(m, 'fy'), ops), false);   // Ctrl+clic en la de ahora: nada
+  assert.equal(pickPreset(m, ui, 'month', true, presetRange(m, 'month'), ops), false);   // Ctrl+clic en la de ahora: nada
   // clic en una fecha rápida: ese periodo, sin comparar periodos
   ui.resCmp = { a: 'cur', b: 'prev' };
   assert.equal(pickPreset(m, ui, 'month', false, presetRange(m, 'month'), ops), true);

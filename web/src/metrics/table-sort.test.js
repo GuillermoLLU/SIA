@@ -10,10 +10,7 @@ test('Ordenar tablas: las celdas se leen como se pintan (números, %, puntos, ho
   assert.equal(cellValue('45 min'), 45);
   assert.equal(cellValue('2 d'), 2880);
   assert.equal(cellValue('1,5 h'), 90);
-  assert.equal(cellValue('3 días 2 h'), 3 * 1440 + 120);
-  assert.equal(cellValue('1 día 30 min'), 1470);
-  assert.equal(cellValue('1 día'), 1440);
-  assert.equal(cellValue('−2 días 5 h'), -(2 * 1440 + 300));
+  assert.equal(cellValue('80 h'), 4800);
   assert.equal(cellValue('ene 2026') < cellValue('feb 2026'), true);
   assert.equal(cellValue('dic 2025') < cellValue('ene 2026'), true);
   assert.equal(cellValue('Indra'), 'Indra');

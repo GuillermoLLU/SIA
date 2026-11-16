@@ -43,18 +43,21 @@ export const resumenTab = (t) => {
   };
   // comparando periodos, los dos: [{ key, label, range }]
   const periods = () => (cmpMode() === 'periods' ? [ui.resCmp.a, ui.resCmp.b].map((key) => ({ key, label: cmpName(m, key), range: cmpRange(m, key) })) : null);
-  // Del periodo: de cada lado o, comparando periodos, lo del primer lado abierto en cada uno (con los mismos filtros)
-  const periodKpis = (A, wide = false) => {
+  // Del periodo: de cada lado o, comparando periodos, lo del primer lado abierto en cada uno (con los mismos filtros).
+  // live (la pestaña): las explicaciones, de la tarjeta y de cada KPI, al pasar el ratón; un clic en un KPI abre su
+  // pestaña. En el informe (sin live), las explicaciones a la vista y sin clics.
+  const periodKpis = (A, wide = false, live = false) => {
     const mode = cmpMode();
     let F, names = null, sub = 'Lo recibido en el periodo elegido arriba.';
     if (mode === 'periods') {
       const [pa, pb] = periods(), ra = pa.range, rb = pb.range;
       F = [figures(pa.key === 'cur' ? bySide(A)[CO()[0]] : inRange(ra)), figures(inRange(rb))];
       names = [pa.label, pb.label];
-      const when = (r) => (r ? esc(rangeLabel(m, r)) : 'sin datos');
-      sub = `Lo recibido en ${esc(names[0])} (${when(ra)}) frente a ${esc(names[1])} (${when(rb)}).`;
+      const when = (r) => (r ? rangeLabel(m, r) : 'sin datos');
+      sub = `Lo recibido en ${names[0]} (${when(ra)}) frente a ${names[1]} (${when(rb)}).`;
     } else F = bySide(A).map(figures);
-    const of = (k) => F.map((f) => f[k]), o = (x) => ({ val, pair: mode === 'periods', names, ...x });
+    const of = (k) => F.map((f) => f[k]);
+    const o = ({ go, ...x }) => ({ val, pair: mode === 'periods', names, ...x, ...(live ? { tip: true, go } : {}) });
     // Entrantes: cuántas entraron en el periodo y cuántas de esas están ya resueltas, en totales. Sin comparar, las
     // entrantes en grande y debajo las resueltas (y qué parte son); comparando, la diferencia de entrantes y de resueltas
     // (en unidades, sin mejor ni peor: entrar más no es ir peor) y, de cada lado, sus entrantes y sus resueltas.
@@ -62,21 +65,22 @@ export const resumenTab = (t) => {
     const signed = (v) => (v ? `${v > 0 ? '+' : '−'}${num(Math.abs(v))}` : '=');
     const incKpi = ((I) => {
       const k = CO()[0], x = I[k];
-      // con un enlace a la pestaña Entrantes debajo, como los demás KPIs
-      const go = '<p class="mt-kpi-go"><button class="mt-go" data-go="entrada">Ver Entrantes →</button></p>';
-      if (!mode) return kpi('Entrantes', x.n ? num(x.n) : '—', `${x.n ? `${num(x.r)} resueltas (${pct(x.v)})` : 'nada entró'}${go}`, `mt-t${k}`, `data-tip="${esc(INC_NOTE)}"`);
+      // en la pestaña, el KPI entero lleva a Entrantes, como los demás
+      const tip = live ? `${INC_NOTE}\nClic para abrir Entrantes.` : INC_NOTE;
+      const go = live ? ' data-go="entrada" role="button" tabindex="0"' : '';
+      if (!mode) return kpi('Entrantes', x.n ? num(x.n) : '—', x.n ? `${num(x.r)} resueltas (${pct(x.v)})` : 'nada entró', `mt-t${k}${live ? ' mt-clk' : ''}`, `data-tip="${esc(tip)}"${go}`);
       const nm = (j) => names?.[j] || t.name(j);
       const side = (j) => `<div class="mt-kpi-s"><i class="mt-c${j}"></i><span title="${esc(nm(j))}">${esc(nm(j))}</span><b>${num(I[j].n)} <small class="mt-mut">· ${num(I[j].r)} res.</small></b></div>`;
       const both = I[0].n || I[1].n;
-      return `<div class="mt-kpi mt-kpi-co"><div class="mt-kpi-l" data-tip="${esc(INC_NOTE)}">Entrantes</div>
-      <div class="mt-kpi-v ${both ? 'mt-diff' : 'mt-mut'}">${both ? `${signed(I[0].n - I[1].n)} <small class="mt-mut">· ${signed(I[0].r - I[1].r)} res.</small>` : '—'}</div>${side(0)}${side(1)}${go}</div>`;
+      return `<div class="mt-kpi mt-kpi-co${live ? ' mt-clk' : ''}" data-tip="${esc(tip)}"${go}><div class="mt-kpi-l">Entrantes</div>
+      <div class="mt-kpi-v ${both ? 'mt-diff' : 'mt-mut'}">${both ? `${signed(I[0].n - I[1].n)} <small class="mt-mut">· ${signed(I[0].r - I[1].r)} res.</small>` : '—'}</div>${side(0)}${side(1)}</div>`;
     })(of('inc'));
     return card('Del periodo', kpis(incKpi,
       kpiCo('MTTR', of('mttr'), opt(dur), o({ better: 'low', go: ['tiempos', 'Análisis tiempos'], note: 'De lo recibido en el periodo: (TTR de las resueltas + lo que llevan abiertas las que siguen abiertas) / cuántas son. Una cancelada sin resolver no cuenta.' })),
       kpiCo('% dentro de SLA', of('sla'), opt(pct), o({ better: 'high', go: ['sla', 'SLAs'], note: 'De lo recibido en el periodo, lo que se empezó (paso a En curso) dentro del plazo de su prioridad; las abiertas sin empezar y ya fuera de plazo cuentan como fuera. El detalle, en la pestaña SLAs.' })),
       kpiCo('%IQA', of('iqa'), () => '—', o({ better: 'high', go: ['calidad', 'Calidad'], note: IQA_NOTE })),
       kpiCo('Uso de la IA', of('ia'), opt((v) => pct(v, 1)), o({ better: 'high', go: ['ia', 'Uso de la IA'], note: 'De lo recibido en el periodo, lo que tiene alguna marca de IA (en TAGS o en las notas). El detalle, en la pestaña Uso de la IA.' }))),
-      { span: CMP() || wide ? 's12' : 's8', sub });
+      { span: CMP() || wide ? 's12' : 's8', ...(live ? { tip: sub } : { sub: esc(sub) }) });
   };
 
   // El informe Estado de SLAs (report.js, PARAMS): los parámetros elegidos (only: sus claves), siempre en el mismo orden, de lo
@@ -236,7 +240,9 @@ export const resumenTab = (t) => {
   return (A, { state = true, slas = null, part = 'top', vsPeriod = null } = {}) => {
     if (vsPeriod) return periodsCard(vsPeriod);
     if (slas) return slaState(A, slas, part);
-    const P = bySide(m.today()).map((l) => l.filter((i) => OPEN[i]));
-    return grid(ask('resumen'), state ? stateOf(P, { link: true }) : '', periodKpis(A, !state), evolution({ only: 'backlog', periods: periods(), link: true }));
+    // la corona: lo abierto ahora (con su estado de ahora) que se abrió como mucho hasta el final del periodo elegido, se
+    // abriera cuando se abriera (con los filtros y los lados de arriba). Con un periodo que llega a hoy, todo lo abierto.
+    const P = bySide(m.today()).map((l) => l.filter((i) => OPEN[i] && C.rep[i] < m.S.d1));
+    return grid(ask('resumen'), state ? stateOf(P, { link: true }) : '', periodKpis(A, !state, state), evolution({ only: 'backlog', periods: periods(), link: state, compact: state }));
   };
 };

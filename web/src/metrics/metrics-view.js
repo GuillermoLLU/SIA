@@ -110,7 +110,7 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
         ${loadButton()}${moreMenu()}</header>
       <div class="mt-fbar">
         ${sideSlot(0)}<span class="mt-vs" data-vs>frente a</span>${sideSlot(1)}<div data-qco></div>
-        <div data-presets></div><div class="mt-period"><button class="mt-btn mt-icon-btn" data-calendar aria-haspopup="true">${CALENDAR_ICON}<span data-period></span></button><div class="mt-pop mt-cal" data-cal hidden></div></div>
+        <div class="mt-period"><button class="mt-btn mt-icon-btn" data-calendar aria-haspopup="true">${CALENDAR_ICON}<span data-period></span></button><div class="mt-pop mt-cal" data-cal hidden></div></div>
         <div data-cmp></div>
         <div class="mt-chips" data-chips></div>
         <div class="mt-find"><input type="search" data-q placeholder="Título o INC…" hidden><span class="mt-count" data-count></span>
@@ -149,7 +149,7 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
       if (pop.hidden) continue;
       const taken = (c) => !other?.people && other?.company === c;
       $(`[data-side-companies="${k}"]`).innerHTML = `<p class="mt-who-co">Color</p><div class="mt-colors">${COLORS.map(([c, n]) => `<button data-pick-color="${k}:${c}" class="${colors[k] === c ? 'mt-on' : ''}" style="--mt-swatch:${c}" title="${n}"></button>`).join('')}</div>
-        <p class="mt-who-co">Empresa</p><div class="mt-cos">${(tsys() ? [0, 1, 2] : [0]).map((c) => `<button data-pick-company="${k}:${c}" class="${!s.people && s.company === c ? 'mt-on' : ''}" ${taken(c) ? 'disabled title="Ya está en el otro lado"' : ''}>${COMPANIES[c]}</button>`).join('')}</div><p class="mt-who-co">Personas</p>`;
+        <p class="mt-who-co">Empresa</p><div class="mt-cos">${(tsys() ? [0, 1] : [0]).map((c) => `<button data-pick-company="${k}:${c}" class="${!s.people && s.company === c ? 'mt-on' : ''}" ${taken(c) ? 'disabled title="Ya está en el otro lado"' : ''}>${COMPANIES[c]}</button>`).join('')}</div><p class="mt-who-co">Personas</p>`;
       const q = fold(who.trim()), mine = s.people || new Set(), theirs = other?.people || new Set();
       const all = m.group('as', m.pool()).filter((x) => x.k && (!q || fold(DIMS.as.label(x.k)).includes(q)));
       const groups = (tsys() ? [0, 1, 2] : [0]).map((c) => [c, all.filter((x) => data.company[x.k] === c)]).filter(([, l]) => l.length);
@@ -186,7 +186,6 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     renderPeriod();
     renderSides();
     $('[data-qco]').innerHTML = tsys() ? companyPick(m) : '';
-    $('[data-presets]').innerHTML = presetPick(m, ui);
     $('[data-cmp]').innerHTML = comparePop(m, ui, tsys());
     $('[data-q]').hidden = !(searching || S.q);
     $('[data-count]').innerHTML = `<b>${num(A.length)}</b> incidencias`;
@@ -206,8 +205,8 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
 
   const start = (data) => {
     m = data ? createModel(data) : null;
-    m?.resetPeriod();   // de partida, el año fiscal en curso (desde el 1 de febrero)
-    ui.exp = {}; ui.sort = {}; ui.colSort = {}; ui.jiraPick = null; ui.resCmp = null; ui.resPop = false; ui.cliFilter = null; tab = firstTab(face, team) || 'resumen'; searching = false; closePops();
+    m?.resetPeriod();   // de partida, este mes
+    ui.exp = {}; ui.sort = {}; ui.colSort = {}; ui.jiraPick = null; ui.resCmp = null; ui.cmpPick = false; ui.cliFilter = null; tab = firstTab(face, team) || 'resumen'; searching = false; closePops();
     if (!m) return renderEmpty();
     tabs = createTabs(m, createCharts(m, ui), ui);
     if (face) openFrame(); else renderHub();
@@ -215,7 +214,12 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
   // Lo fijo de la vista elegida, su periodo y lo de dentro.
   const openFrame = () => {
     renderFrame();
-    panel = mountPeriodPanel($('[data-cal]'), { model: () => m, onPick: (close) => { if (close) closePops(); render(); } });
+    // arriba del panel, las fechas rápidas: una lo aplica y lo cierra; con Ctrl (o Cmd), compara con el periodo de ahora
+    panel = mountPeriodPanel($('[data-cal]'), { model: () => m, onPick: (close) => { if (close) closePops(); render(); },
+      head: () => presetPick(m, ui),
+      onPreset: (key, ctrl) => { const r = presetRange(m, key); if (r && pickPreset(m, ui, key, ctrl || ui.cmpPick, r, sideOps)) { ui.cmpPick = false; closePops(); render(); } },
+      // comparando (ui.cmpPick), un mes: el periodo de ahora frente a ese mes
+      onMonth: (k) => { if (!ui.cmpPick) return false; sideOps.off(); ui.resCmp = { a: 'cur', b: `m:${k}` }; ui.cmpPick = false; closePops(); render(); return true; } });
     render();
   };
   // En una vista sin T-Systems, lo que se mira es Indra o personas de Indra: si un lado no lo es, se quita (el
@@ -534,14 +538,11 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
       if (searching) $('[data-q]').focus();
       return;
     }
-    // Resumen: el pop-up de «Comparar» se cierra con un clic fuera de él (sin aplicar nada)
-    const outRes = ui.resPop && !e.target.closest('.mt-res-cmp');
-    if (outRes) ui.resPop = false;
-    const t = e.target.closest('[data-tab],[data-go],[data-rm],[data-exp],[data-sort],[data-evo],[data-evo-step],[data-qco],[data-preset],[data-cli-f],[data-times-mode],[data-times-by],[data-sla-mode],[data-mod-mode],[data-sla-side],[data-res-pop],[data-res-apply],[data-res-clear],[data-flk],[data-shk],[data-jc],[data-jc-clear],[data-esc-mode],[data-esc-nojira],[data-esc-by],[data-only],[data-reset-filters],[data-kf],[data-f2],[data-f]');
+    const t = e.target.closest('[data-tab],[data-go],[data-rm],[data-exp],[data-sort],[data-evo],[data-evo-step],[data-qco],[data-cli-f],[data-times-mode],[data-times-by],[data-sla-mode],[data-mod-mode],[data-sla-side],[data-res-pop],[data-res-clear],[data-flk],[data-shk],[data-jc],[data-jc-clear],[data-esc-mode],[data-esc-nojira],[data-esc-by],[data-only],[data-reset-filters],[data-kf],[data-f2],[data-f]');
     // la cabecera de una columna: ordenar la tabla por ella (table-sort.js; las que ya filtran u ordenan van por su lado)
     const colTh = !t && e.target.closest('th[data-colsort]');
     if (colTh) { toggleTableSort(colTh, ui.colSort); render(); return; }
-    if (!t) { if (outRes) render(); return; }
+    if (!t) return;
     const d = t.dataset;
     let reframe = false;   // un enlace a una pestaña de otra vista: se cambia a esa vista
     if (d.tab || d.go) {
@@ -569,18 +570,12 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     else if (d.slaSide) ui.slaOut = d.slaSide === 'out';   // y si sus KPIs dan el % dentro o fuera del SLA
     // Pendiente de cliente: filtrar su sábana por un KPI o un motivo (otra vez, o vacío, lo quita)
     else if (d.cliF != null) ui.cliFilter = !d.cliF || ui.cliFilter === d.cliF ? null : d.cliF;
-    else if (d.qco != null) { if (!pickCompany(m, ui, Number(d.qco), e.ctrlKey || e.metaKey, sideOps)) return; }
-    else if (d.preset) { const r = presetRange(m, d.preset); if (!r || !pickPreset(m, ui, d.preset, e.ctrlKey || e.metaKey, r, sideOps)) return; }
-    else if (d.resPop != null) ui.resPop = !ui.resPop;
-    else if (d.resApply != null) {
-      const pop = t.closest('[data-res-popup]'), mode = pop.querySelector('input[name="res-mode"]:checked')?.value;
-      const off = () => { if (S.sides[1]) ({ sides: S.sides, colors } = withoutSide(S.sides, colors, 1)); };
-      if (mode === 'tsys') { const had = !!S.sides[1]; ui.resCmp = null; S.sides[1] = { company: 1 }; if (!had) colors[1] = freeColor(colors[0]); }
-      else if (mode === 'periods') { off(); ui.resCmp = { a: pop.querySelector('[data-res-a]').value, b: pop.querySelector('[data-res-b]').value }; }
-      ui.resPop = false;
-    }
-    // y la × de «Comparar»: quita la comparación, sea de periodos o con T-Systems
-    else if (d.resClear != null) { if (S.sides[1]) ({ sides: S.sides, colors } = withoutSide(S.sides, colors, 1)); ui.resCmp = null; ui.resPop = false; }
+    // la empresa: clic, mirarla; con Ctrl (o Cmd) o en el modo comparar, compararla con la marcada
+    else if (d.qco != null) { if (!pickCompany(m, ui, Number(d.qco), e.ctrlKey || e.metaKey || ui.cmpPick, sideOps)) return; ui.cmpPick = false; }
+    // «Comparar»: entrar en el modo comparar (o salir), con el calendario abierto para elegir con qué
+    else if (d.resPop != null) { ui.cmpPick = !ui.cmpPick; if (ui.cmpPick) { render(); return togglePop('calendar'); } }
+    // y su ×: quita la comparación, sea de periodos o de empresas, o cancela la elección
+    else if (d.resClear != null) { if (!ui.cmpPick) { if (S.sides[1]) ({ sides: S.sides, colors } = withoutSide(S.sides, colors, 1)); ui.resCmp = null; } ui.cmpPick = false; }
     else if (d.flk) { ui.flowOff = { ...ui.flowOff, [d.flk]: !ui.flowOff?.[d.flk] }; }   // y en estas, encender o apagar una serie
     // Turnos: clic, solo ese turno; con Ctrl (o Cmd), sumarlo o quitarlo (sin quedarse sin ninguno)
     else if (d.shk != null) {
@@ -617,11 +612,17 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
   });
 
   attachTip(root, () => m.NAMES());
+  // Lo que se pincha sin ser un botón (un KPI o una tarjeta que lleva a su pestaña, un KPI que filtra): también con
+  // Intro o la barra espaciadora, como un botón.
+  root.addEventListener('keydown', (e) => {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches?.('[role="button"][tabindex]')) { e.preventDefault(); e.target.click(); }
+  });
   // Escape: cierra el desplegable abierto; en la búsqueda, la borra y la cierra. Se escucha en todo
   // el documento: al elegir un color el desplegable se repinta y el foco sale de la vista.
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && $('[data-more-pop]') && !$('[data-more-pop]').hidden) return setMenu(false);
     if (!m || root.hidden || e.key !== 'Escape') return;
+    if (ui.cmpPick) { ui.cmpPick = false; closePops(); render(); return; }   // el modo comparar: cancelarlo
     if (open) { closePops(); renderPeriod(); renderSides(); return; }
     if (e.target.matches('[data-q]')) { e.target.value = ''; searching = false; m.S.q = ''; render(); }
   });

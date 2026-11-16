@@ -24,7 +24,14 @@ export const createCharts = (m, ui) => {
 
   // sin título (t vacío), la tarjeta es solo su contenido, de borde a borde: p. ej. un mapa de calor que lleva el
   // título dentro y forma un bloque
-  const card = (t, body, o = {}) => `<section class="mt-card ${o.span ? `mt-${o.span}` : ''} ${t ? '' : 'mt-flush'}">${t ? `<h3>${t}</h3>` : ''}${o.sub ? `<p class="mt-sub">${o.sub}</p>` : ''}${body}</section>`;
+  // o.tip: la explicación, al pasar el ratón por el título en vez de debajo. o.go: { tab, label, attrs } la tarjeta entera
+  // lleva a esa pestaña (metrics-view.js, data-go; attrs, lo demás que se lleva: data-period…); lo de dentro que se
+  // pincha (filtros, selectores) sigue haciendo lo suyo.
+  const card = (t, body, o = {}) => {
+    const go = o.go ? ` data-go="${o.go.tab}"${o.go.attrs ? ` ${o.go.attrs}` : ''} role="button" tabindex="0" data-tip="${esc(`Clic para abrir ${o.go.label}.`)}"` : '';
+    const head = t ? `<h3${o.tip ? ` data-tip="${esc(o.tip)}"` : ''}>${t}</h3>` : '';
+    return `<section class="mt-card ${o.span ? `mt-${o.span}` : ''} ${t ? '' : 'mt-flush'}${o.go ? ' mt-go-card' : ''}"${go}>${head}${o.sub ? `<p class="mt-sub">${o.sub}</p>` : ''}${body}</section>`;
+  };
   const legend = () => `<div class="mt-legend">${CO().map((k) => `<span><i class="mt-c${k}"></i>${esc(name(k))}</span>`).join('')}</div>`;
   // attrs: atributos de más (p. ej., para pinchar la cifra: con cls mt-clk y un data-…)
   const kpi = (l, v, d = '', cls = '', attrs = '') => `<div class="mt-kpi ${cls}"${attrs ? ` ${attrs}` : ''}><div class="mt-kpi-l">${l}</div><div class="mt-kpi-v">${v}</div><div class="mt-kpi-d">${d}</div></div>`;
@@ -42,21 +49,22 @@ export const createCharts = (m, ui) => {
   // valores) y debajo el valor de cada uno. La nota, al pasar el ratón.
   const kpiCo = (label, ST, fmt, o = {}) => {
     // o.pair: comparar ST[0] con ST[1] aunque no se comparen lados (el Resumen: el periodo con el anterior). o.go:
-    // [pestaña, nombre], un enlace a esa pestaña debajo, como el de la corona («Ver … →»; metrics-view.js, data-go)
-    const go = o.go ? `<p class="mt-kpi-go"><button class="mt-go" data-go="${o.go[0]}">Ver ${esc(o.go[1])} →</button></p>` : '';
+    // [pestaña, nombre], el KPI entero lleva a esa pestaña (metrics-view.js, data-go), y su nota lo dice
     // o.pctSign: la diferencia de un porcentaje, con «%» en vez de «pts» (son puntos: 41 % frente a 53 %, «−12 %»).
     // o.tip: la definición (o.note), al pasar el ratón por el KPI en vez de debajo. o.pick: el KPI se pincha para
     // filtrar ({ attr: su data-…, on: si está filtrando }; quien lo pinta dice qué hace el clic)
-    const tip = o.tip && o.note ? o.note + (o.pick ? `\n${o.pick.on ? 'Clic para quitar el filtro.' : 'Clic para ver solo estas.'}` : '') : '';
-    const pickCls = o.pick ? ` mt-clk${o.pick.on ? ' mt-on' : ''}` : '';
-    const attrs = [tip ? `data-tip="${esc(tip)}"` : '', o.pick ? `${o.pick.attr} role="button" tabindex="0" aria-pressed="${!!o.pick.on}"` : ''].filter(Boolean).join(' ');
-    if (!CMP() && !o.pair) { const k = CO()[0]; return kpi(label, fmt(ST[k]), (o.tip ? '' : o.note || '') + go, `mt-t${k}${pickCls}`, attrs); }
+    const click = o.pick ? (o.pick.on ? 'Clic para quitar el filtro.' : 'Clic para ver solo estas.') : o.go ? `Clic para abrir ${o.go[1]}.` : '';
+    const tip = o.tip && o.note ? [o.note, click].filter(Boolean).join('\n') : o.go ? click : '';
+    const pickCls = o.pick || o.go ? ` mt-clk${o.pick?.on ? ' mt-on' : ''}` : '';
+    const attrs = [tip ? `data-tip="${esc(tip)}"` : '', o.pick ? `${o.pick.attr} role="button" tabindex="0" aria-pressed="${!!o.pick.on}"` : '',
+      o.go ? `data-go="${o.go[0]}" role="button" tabindex="0"` : ''].filter(Boolean).join(' ');
+    if (!CMP() && !o.pair) { const k = CO()[0]; return kpi(label, fmt(ST[k]), o.tip ? '' : o.note || '', `mt-t${k}${pickCls}`, attrs); }
     const f = compareFigure(ST[0], ST[1], fmt, o.val, o.better);
     const nm = (k) => o.names?.[k] || name(k);   // o.names: otro nombre para cada lado en esta cifra
     // o.side: cómo se ve la cifra de cada lado, si no como fmt (que es lo que se compara: solo el valor)
     const side = (k) => `<div class="mt-kpi-s"><i class="mt-c${k}"></i><span title="${esc(nm(k))}">${esc(nm(k))}</span><b>${ST[k].n ? (o.side || fmt)(ST[k]) : '—'}</b></div>`;
     return `<div class="mt-kpi mt-kpi-co${pickCls}"${attrs ? ` ${attrs}` : ''}><div class="mt-kpi-l" ${o.note && !o.tip ? `data-tip="${esc(o.note)}"` : ''}>${label}</div>
-      <div class="mt-kpi-v ${f ? `mt-diff ${f.cls}` : 'mt-mut'}">${f ? (o.pctSign && f.pts ? f.pts.replace(/ pts$/, ' %') : f.pts || f.main) : '—'}</div>${side(0)}${side(1)}${go}</div>`;
+      <div class="mt-kpi-v ${f ? `mt-diff ${f.cls}` : 'mt-mut'}">${f ? (o.pctSign && f.pts ? f.pts.replace(/ pts$/, ' %') : f.pts || f.main) : '—'}</div>${side(0)}${side(1)}</div>`;
   };
 
   // Líneas de evolución en el periodo que se mira, una por lado: por meses o, si es de un mes o menos, por días
@@ -113,10 +121,10 @@ export const createCharts = (m, ui) => {
     // con o.extra: nce, en cuántos centros pasa; same, de las resueltas, la parte cerrada con el texto más usado
     nce: ['Centros', null, (s) => s.nce, 'En cuántos centros distintos ha pasado. En uno, es algo local; en muchos, del sistema.'],
     // Resolución: lo resuelto, cuánto tarda y en qué se le va el tiempo (de media por resuelta: model.js, stats rt)
-    d7: ['1 a 7 días', null, (s) => (s.resolved ? s.d7 : null), 'De las resueltas, las que tardaron de 1 a 7 días.'],
-    d15: ['7 a 15 días', 'low', (s) => (s.resolved ? s.d15 : null), 'De las resueltas, las que tardaron de 7 a 15 días.'],
+    d7: ['24 a 168 h', null, (s) => (s.resolved ? s.d7 : null), 'De las resueltas, las que tardaron de 24 a 168 h.'],
+    d15: ['168 a 360 h', 'low', (s) => (s.resolved ? s.d15 : null), 'De las resueltas, las que tardaron de 168 a 360 h.'],
     mx: ['Máximo', null, (s) => (s.resolved ? s.mx : null), 'Lo que tardó la resuelta más lenta.'],
-    w7: ['> 7 días', 'low', (s) => (s.resolved ? s.w7 : null), 'De las resueltas, las que tardaron más de 7 días.'],
+    w7: ['> 168 h', 'low', (s) => (s.resolved ? s.w7 : null), 'De las resueltas, las que tardaron más de 168 h.'],
     tq: ['En cola', 'low', (s) => (s.resolved ? s.rt[0] / s.resolved : null), 'Tiempo medio en Asignada.'],
     tc: ['Espera cliente', null, (s) => (s.resolved ? s.rt[2] / s.resolved : null), 'Tiempo medio en Pendiente del centro o del cliente.'],
     tv: ['Espera tercero', null, (s) => (s.resolved ? s.rt[3] / s.resolved : null), 'Tiempo medio en Pendiente de un tercero.'],

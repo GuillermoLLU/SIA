@@ -9,6 +9,7 @@ import { iaStats } from '../ia.js';
 import { dur, pct } from '../format.js';
 import { periodLabel } from '../period.js';
 import { dayBuckets, bucketTicks } from '../plot.js';
+import { DAY } from '../rules.js';
 
 const setup = (sides) => {
   const m = createModel(data()); m.S.sides = sides; m.refilter();
@@ -17,29 +18,40 @@ const setup = (sides) => {
 };
 const kpiOf = (html, label) => html.match(new RegExp(`<div class="mt-kpi-l"[^>]*>${label}</div><div class="mt-kpi-v[^"]*">([^<]*)<`))?.[1];
 
-test('Resumen: la corona de Foto de hoy (lo abierto ahora) y, del periodo, MTTR, %IQA y uso de la IA', () => {
+test('Resumen: la corona (lo abierto ahora que se abrió hasta el final del periodo) y, del periodo, MTTR, %IQA y uso de la IA', () => {
   const { m, tabs } = setup([{ company: 0 }, null]);
   const html = tabs.render('resumen', m.rows()), hoy = tabs.render('hoy', m.rows());
-  const ring = (h) => { const a = h.indexOf('<h3>En qué estado está</h3>'); return h.slice(a, h.indexOf('</section>', a)); };
-  // la misma corona, con lo de ahora; en el Resumen, con un enlace a Foto de hoy (en la propia Foto de hoy, no)
-  const toHoy = /<p class="mt-dn-go"><button class="mt-go" data-go="hoy"[^>]*>Ver Foto de hoy →<\/button><\/p>/;
-  assert.match(ring(html), toHoy);
-  assert.doesNotMatch(ring(hoy), toHoy);
-  // sin incidencias sin asignar, la misma (con ellas, el Resumen las suma como Asignada: su propio test)
-  assert.equal(ring(html).replace(toHoy, ''), ring(hoy));
+  const ring = (h) => { const a = h.indexOf('>En qué estado está</h3>'); return h.slice(a, h.indexOf('</section>', a)); };
+  // la corona de Foto de hoy, con lo abierto ahora que se abrió hasta el final del periodo (aquí llega a hoy: lo mismo que
+  // Foto de hoy); en el Resumen, la tarjeta entera lleva a Foto de hoy (en la propia Foto de hoy, no)
+  const toHoy = /<section class="mt-card mt-s4 [^"]*mt-go-card" data-go="hoy" role="button" tabindex="0" data-tip="Clic para abrir Foto de hoy\."><h3 data-tip="Lo abierto ahora que se abrió hasta el final del periodo elegido \(también antes de él\), por su estado\.">En qué estado está<\/h3><div/;
+  assert.match(html, toHoy);
+  assert.doesNotMatch(hoy, /data-go="hoy"/);
+  // sin enlaces: ni «Ver … →» ni botones que lleven a otra pestaña en todo el Resumen
+  assert.doesNotMatch(html, /class="mt-go"|mt-kpi-go|mt-dn-go|→<\/button>/);
+  // sin incidencias sin asignar, la misma, sin la explicación a la vista y sin filtrar (con ellas, el Resumen las suma
+  // como Asignada: su propio test): en el Resumen, ni un estado ni un aro se pinchan, la tarjeta entera abre Foto de hoy;
+  // en Foto de hoy, sí filtran (la explicación, también en el tooltip, lo dice)
+  const plain = (h) => h.replace(/<p class="mt-sub">[^<]*<\/p>/, '').replace(/ class="mt-clk" data-f2?="[^"]*"/g, '')
+    .replace(/ mt-clk" cx/g, '" cx').replace(/ data-f2?="[^"]*" data-tip/g, '  data-tip');
+  assert.doesNotMatch(ring(html), /mt-sub|data-f2?=|mt-clk/);
+  assert.match(hoy, /<h3 data-tip="Lo abierto ahora que se abrió hasta el final del periodo elegido \(también antes de él\), por su estado\. Clic en uno para filtrar\.">En qué estado está<\/h3>/);
+  assert.match(ring(hoy), /<tr class="mt-clk" data-f2?="sit:/);
+  assert.equal(ring(html), plain(ring(hoy)));
   assert.ok(html.indexOf('En qué estado está') < html.indexOf('>MTTR<'));
-  // cada KPI, con un enlace a su pestaña debajo, como el de la corona: MTTR a Análisis tiempos, %IQA a Calidad y Uso de
-  // la IA a Uso de la IA y Entrantes a Entrantes
-  const kpiHtml = (label) => { const a = html.indexOf(`>${label}</div>`); return html.slice(a, html.indexOf('<div class="mt-kpi ', a)); };
-  assert.match(kpiHtml('MTTR'), /<p class="mt-kpi-go"><button class="mt-go" data-go="tiempos">Ver Análisis tiempos →<\/button><\/p>/);
-  // % dentro de SLA: lo del periodo empezado en plazo (como en SLAs), con su enlace a SLAs
+  // cada KPI, entero, lleva a su pestaña: MTTR a Análisis tiempos, % dentro de SLA a SLAs, %IQA a Calidad, Uso de la IA
+  // a Uso de la IA y Entrantes a Entrantes; su explicación, en el tooltip (con lo que hace el clic) y no debajo
+  const goKpi = (label, tab, name) => new RegExp(`<div class="mt-kpi mt-t0 mt-clk" data-tip="[^"]+&#10;Clic para abrir ${name}\\." data-go="${tab}" role="button" tabindex="0"><div class="mt-kpi-l">${label}</div>`);
+  const tipNl = (h) => h.replace(/\n/g, '&#10;');   // el salto de línea del tooltip, tal como lo escapa esc()
+  for (const [label, tab, name] of [['MTTR', 'tiempos', 'Análisis tiempos'], ['% dentro de SLA', 'sla', 'SLAs'], ['%IQA', 'calidad', 'Calidad'],
+    ['Uso de la IA', 'ia', 'Uso de la IA'], ['Entrantes', 'entrada', 'Entrantes']]) assert.match(tipNl(html), goKpi(label, tab, name), label);
+  assert.match(html, /<div class="mt-kpi-l">MTTR<\/div><div class="mt-kpi-v">[^<]*<\/div><div class="mt-kpi-d"><\/div>/);   // sin la nota a la vista
+  // % dentro de SLA: lo del periodo empezado en plazo (como en SLAs)
   assert.equal(kpiOf(html, '% dentro de SLA'), pct(m.stats(m.rows()).sla));
-  assert.match(kpiHtml('% dentro de SLA'), /<button class="mt-go" data-go="sla">Ver SLAs →<\/button>/);
   assert.ok(html.indexOf('>MTTR<') < html.indexOf('>% dentro de SLA<'));
-  assert.match(kpiHtml('%IQA'), /<button class="mt-go" data-go="calidad">Ver Calidad →<\/button>/);
-  assert.match(html, /<button class="mt-go" data-go="ia">Ver Uso de la IA →<\/button>/);
-  assert.match(kpiHtml('Entrantes'), /<p class="mt-kpi-go"><button class="mt-go" data-go="entrada">Ver Entrantes →<\/button><\/p>/);
-  assert.doesNotMatch(html, /mt-clk mt-kpi-go|role="link"/);   // el KPI ya no se pincha entero
+  assert.doesNotMatch(html, /role="link"/);
+  // la explicación de la tarjeta, en el tooltip de su título
+  assert.match(html, /<h3 data-tip="Lo recibido en el periodo elegido arriba\.">Del periodo<\/h3><div class="mt-kpis">/);
   const A = m.rows();
   assert.equal(kpiOf(html, 'MTTR'), dur(mttrOf(m, A).mttr));
   assert.equal(kpiOf(html, '%IQA'), '—');   // aún sin datos
@@ -48,36 +60,48 @@ test('Resumen: la corona de Foto de hoy (lo abierto ahora) y, del periodo, MTTR,
   // Entrantes (el primer KPI): las que entraron en el periodo y, debajo, cuántas de esas están resueltas
   const solvedN = A.filter((i) => m.DIMS.tb.get(i) < 8).length;
   assert.equal(kpiOf(html, 'Entrantes'), String(A.length));
-  assert.match(html, new RegExp(`<div class="mt-kpi-d">${solvedN} resueltas \\(${pct(solvedN / A.length)}\\)<p class="mt-kpi-go">`));
+  assert.match(html, new RegExp(`<div class="mt-kpi-d">${solvedN} resueltas \\(${pct(solvedN / A.length)}\\)</div>`));
   assert.ok(html.indexOf('>Entrantes<') < html.indexOf('>MTTR<'));
   // las fechas, arriba y fuera de las tarjetas (abren el calendario de arriba); en la misma fila, la corona (s4) y, a su
   // derecha, los KPIs (s8); abajo del todo, el backlog de cada día, en barras por prioridad y sin selector de vista
   // las fechas y «Comparar» ya no están en la pestaña: van arriba del todo, en la barra de Métricas (quick-bar.js)
   assert.doesNotMatch(html, /mt-res-bar|data-preset|data-calendar|data-res-pop/);
-  const cards = [...html.matchAll(/<section class="mt-card mt-(s\d+)[^"]*"><h3>([^<]*)<\/h3>/g)].map((x) => [x[1], x[2]]);
+  const cards = [...html.matchAll(/<section class="mt-card mt-(s\d+)[^"]*"[^>]*><h3[^>]*>([^<]*)<\/h3>/g)].map((x) => [x[1], x[2]]);
   assert.deepEqual(cards, [['s4', 'En qué estado está'], ['s8', 'Del periodo'], ['s12', 'Evolución del backlog']]);
-  const evo = html.slice(html.indexOf('<h3>Evolución del backlog</h3>'));
+  const evo = html.slice(html.indexOf('>Evolución del backlog</h3>'));
   assert.match(evo, /<rect class="mt-pq\d"/);   // barras apiladas por prioridad
   assert.match(evo, /Tendencia/);
   assert.doesNotMatch(evo, /data-evo=/);
-  // debajo, un enlace al Histórico con estas mismas fechas, en la vista del backlog
-  assert.match(evo, new RegExp(`<p class="mt-dn-go"><button class="mt-go" data-go="historico" data-go-evo="backlog" data-period="${m.S.d0}:${m.S.d1}"[^>]*>Ver en Histórico →</button></p>`));
-  assert.doesNotMatch(tabs.render('historico', m.rows()), /Ver en Histórico/);   // en el propio Histórico, no
-  // de partida, el año fiscal en curso: desde el 1 de febrero (o desde lo primero cargado)
+  // más baja que en el Histórico (un 65 % de su altura), para que el Resumen quepa en la pantalla
+  assert.match(evo, /<svg viewBox="0 0 1240 163" class="mt-svg">/);
+  assert.match(tabs.render('historico', m.rows()), /<svg viewBox="0 0 1240 250" class="mt-svg">/);
+  // la tarjeta entera lleva al Histórico con estas mismas fechas, en la vista del backlog
+  assert.match(html, new RegExp(`<section class="mt-card mt-s12 [^"]*mt-go-card" data-go="historico" data-go-evo="backlog" data-period="${m.S.d0}:${m.S.d1}" role="button" tabindex="0" data-tip="Clic para abrir el Histórico con estas mismas fechas\\."><h3 data-tip="Cuántas había abiertas[^"]*">Evolución del backlog</h3><div class="mt-evo-picks">`));
+  assert.doesNotMatch(tabs.render('historico', m.rows()), /data-go="historico"/);   // en el propio Histórico, no
   m.resetPeriod();
-  assert.equal(m.S.d0, Math.max(m.MIN_D, m.minuteOf(m.LASTM - (((m.LASTM - 1) % 12) + 12) % 12)));
+  assert.equal(m.S.d0, Math.max(m.MIN_D, m.minuteOf(m.LASTM)));   // de partida, este mes (o desde lo primero cargado)
   assert.doesNotMatch(html, /Quién tiene qué|Sábana de incidencias|undefined|NaN/);   // eso, en Foto de hoy
-  // los KPIs son del periodo; la corona, no
+  // los KPIs son del periodo; la corona, de lo abierto ahora que se abrió hasta su final (aunque fuera antes de él)
   const empty = tabs.render('resumen', []);
   assert.equal(kpiOf(empty, 'MTTR'), '—');
-  assert.equal(ring(empty), ring(html));
+  assert.equal(ring(empty), ring(html));   // aunque en el periodo no entrara nada, lo abierto de antes cuenta
+  const total = (h) => Number(ring(h).match(/<tr class="mt-dn-sum"[^>]*><th>Incidencias<\/th><td class="mt-num"><b>(\d+)<\/b>/)[1]);
+  assert.equal(total(html), m.today().filter((i) => m.OPEN[i]).length);
+  // el último día, solo: también la 3 (abierta, se abrió ese día); con el periodo empezando más tarde, igual
+  m.setPeriod(m.END_D - DAY, m.END_D); m.refilter();
+  assert.equal(total(tabs.render('resumen', m.rows())), total(html));
+  // un periodo que acaba antes de que se abriera la 3 (la única abierta): nada abierto hasta entonces
+  m.setPeriod(m.MIN_D, m.END_D - DAY); m.refilter();
+  assert.match(ring(tabs.render('resumen', m.rows())), /<p class="mt-none-open">Sin incidencias abiertas<\/p>/);
+  assert.doesNotMatch(ring(tabs.render('resumen', m.rows())), /mt-donut/);
+  m.setPeriod(m.MIN_D, m.END_D); m.refilter();
 });
 
 test('el backlog del Resumen, por días, semanas o meses: cada barra, lo abierto al acabar su tramo', () => {
   const { m, tabs } = setup([{ company: 0 }, null]);
   m.setPeriod(m.MIN_D, m.END_D);
   const ui = { exp: {}, sort: {} }, t = createTabs(m, createCharts(m, ui), ui);
-  const evo = () => { const h = t.render('resumen', m.rows()); return h.slice(h.indexOf('<h3>Evolución del backlog</h3>')); };
+  const evo = () => { const h = t.render('resumen', m.rows()); return h.slice(h.indexOf('>Evolución del backlog</h3>')); };
   const bars = (h) => (h.match(/<rect class="mt-hit"/g) || []).length;
   const days = Math.round((m.END_D - m.S.d0) / 1440);
   let h = evo();
@@ -120,9 +144,10 @@ test('Resumen, comparando: la corona de cada lado y cada KPI con los dos lados',
   assert.match(inc, /<span title="T-Systems">T-Systems<\/span><b>1 <small class="mt-mut">· 1 res\.<\/small><\/b>/);
   assert.match(inc, /<div class="mt-kpi-v mt-diff">\+2 <small class="mt-mut">· \+1 res\.<\/small><\/div>/);
   assert.doesNotMatch(inc, /%|pts|good|bad/);
-  assert.match(html, /<section class="mt-card mt-s12 [^"]*"><h3>Del periodo<\/h3>/);   // comparando, debajo de la corona
-  assert.equal((html.match(/<p class="mt-kpi-go">/g) || []).length, 5);   // los enlaces, también comparando (Entrantes y SLA incluidos)
-  assert.match(html.slice(html.indexOf('<h3>Evolución del backlog</h3>')), /<polyline class="mt-line mt-s0"[\s\S]*<polyline class="mt-line mt-s1"/);   // una línea por lado
+  assert.match(html, /<section class="mt-card mt-s12 [^"]*"><h3 data-tip="[^"]*">Del periodo<\/h3>/);   // comparando, debajo de la corona
+  assert.equal((html.match(/class="mt-kpi mt-kpi-co mt-clk"[^>]* data-go="[a-z]+" role="button"/g) || []).length, 5);   // también comparando, cada KPI lleva a su pestaña
+  assert.doesNotMatch(html, /mt-kpi-go/);
+  assert.match(html.slice(html.indexOf('>Evolución del backlog</h3>')), /<polyline class="mt-line mt-s0"[\s\S]*<polyline class="mt-line mt-s1"/);   // una línea por lado
   assert.doesNotMatch(html, /undefined|NaN/);
 });
 
@@ -146,7 +171,10 @@ test('Resumen sin la corona (el informe con datos históricos): los KPIs a todo 
   const html = tabs.render('resumen', m.rows(), { state: false });
   assert.doesNotMatch(html, /En qué estado está/);
   assert.match(html, /<section class="mt-card mt-s12[^"]*"><h3>Del periodo/);
-  assert.match(tabs.render('resumen', m.rows()), /<section class="mt-card mt-s8[^"]*"><h3>Del periodo/);
+  assert.match(tabs.render('resumen', m.rows()), /<section class="mt-card mt-s8[^"]*"><h3[^>]*>Del periodo/);
+  // en el informe, sin clics ni tooltips nuevos: la explicación de la tarjeta, debajo del título
+  assert.match(html, /<h3>Del periodo<\/h3><p class="mt-sub">Lo recibido en el periodo elegido arriba\.<\/p>/);
+  assert.doesNotMatch(html, /data-go=/);
   assert.match(html, />MTTR</);
 });
 

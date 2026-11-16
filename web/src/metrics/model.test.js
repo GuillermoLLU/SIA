@@ -207,8 +207,8 @@ test('Entrada y Foto de hoy comparando, sin tarjetas (cada empresa las usa a su 
   m.S.sides = [{ company: 0 }, { company: 1 }]; m.refilter();
   assert.doesNotMatch(tabs.render('entrada', m.rows()), />Tarjeta<|>PRIO<|undefined|NaN/);
   // en Foto de hoy, lo de la antigua pestaña Backlog (Quién tiene qué sí lleva su columna PRIO)
-  const hoy = tabs.render('hoy', m.rows()), back = hoy.slice(hoy.indexOf('¿En qué punto está lo pendiente?'), hoy.indexOf('<h3>Quién tiene qué</h3>'));
-  assert.ok(back.includes('<h3>Cómo está lo pendiente</h3>'));
+  const hoy = tabs.render('hoy', m.rows()), back = hoy.slice(hoy.indexOf('¿En qué punto está lo pendiente?'), hoy.indexOf('>Quién tiene qué</h3>'));
+  assert.ok(back.includes('>Cómo está lo pendiente</h3>'));
   assert.doesNotMatch(back, />Tarjeta<|>PRIO<|undefined|NaN/);
 });
 
@@ -247,7 +247,7 @@ test('Resolución no compara empresas; con personas, módulo a módulo y la medi
   assert.match(h, /Indra, en sus módulos/);
   assert.doesNotMatch(h, /Malos escalados|no compara/);
   assert.match(tabs.render('escalados', m.rows()), /no compara: se ve solo ANA/);
-  assert.doesNotMatch(h, /<h3>En qué se va el tiempo<\/h3>/);   // ahora en Análisis tiempos
+  assert.doesNotMatch(h, /<h3[^>]*>En qué se va el tiempo<\/h3>/);   // ahora en Análisis tiempos
   m.S.sides = [{ people: new Set([2]) }, { people: new Set([1]) }]; m.refilter();   // dos personas: sin la referencia del equipo
   h = tabs.render('resolucion', m.rows());
   assert.match(h, /Módulo a módulo/);
@@ -390,7 +390,7 @@ test('Módulos y focos: el selector de criticidad arriba, con lo recibido en el 
 test('Módulos y focos: Actual (lo abierto ahora, sea cual sea el periodo) o Histórico (de partida), con los mismos cuadros', () => {
   const m = createModel(data()); m.S.sides = [{ company: 0 }, null]; m.refilter();
   const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
-  const titles = (h) => [...h.matchAll(/<h3>([^<]*)<\/h3>|class="mt-sc-title">([^<]*)</g)].map((x) => x[1] || x[2]);
+  const titles = (h) => [...h.matchAll(/<h3[^>]*>([^<]*)<\/h3>|class="mt-sc-title">([^<]*)</g)].map((x) => x[1] || x[2]);
   const vol = (h, title) => { const a = h.indexOf(`class="mt-sc-title">${title}<`); const b = h.indexOf('class="mt-sc-ref"', a); return h.slice(b, h.indexOf('</tr>', b)).match(/<b>(\d+)<\/b>/)?.[1]; };
   const past = tabs.render('modulos', m.rows());
   assert.match(past, /data-mod-mode="past" aria-pressed="true"/);
@@ -418,7 +418,7 @@ test('Lo sin técnico que cae en las búsquedas del equipo (SGA, SISU o PRIO) es
   const m = createModel(d);
   assert.equal(SEARCH_OWNER, 0);
   const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
-  const ring = (h) => { const a = h.indexOf('<h3>En qué estado está</h3>'); return h.slice(a, h.indexOf('</section>', a)); };
+  const ring = (h) => { const a = h.indexOf('>En qué estado está</h3>'); return h.slice(a, h.indexOf('</section>', a)); };
   const total = (h, col = 0) => Number([...ring(h).match(/<tr class="mt-dn-sum"[^>]*><th>Incidencias<\/th>(.*?)<\/tr>/)[1].matchAll(/<b>(\d+)<\/b>/g)][col][1]);
   const inScope = m.C.sc[2] === 1 || m.C.sc[2] === 2;
   assert.ok(inScope, 'la 2 cae en las búsquedas');
