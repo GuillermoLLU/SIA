@@ -120,6 +120,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     animateEnter(root.querySelector('.iss-work-page'), 'iss-opening', ISSUE_ENTER_MS);
     if (workTab === 'trail') scrollTrailToStart();
     const chatHost = root.querySelector('.iss-chat-body');   // pendiente de un tercero no hay chat
+    chatHost?.addEventListener('chat-open', () => foldKeys(true)); // con el chat en marcha, los datos se pliegan a su resumen
     chat = chatHost ? openChat?.(chatHost, i) || null : null;
     root.scrollTop = 0;
   };
@@ -172,9 +173,34 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   };
   // Pulsar el fondo cierra la ventana de una acción; soltar fuera tras seleccionar texto dentro, no.
   const pressedInModal = pressStartedIn(root, (t) => !!t.closest('.iss-modal > *'));
+  // los datos clave plegados a una línea (o desplegados); el chat ampliado a toda la pantalla de trabajo (o no)
+  const foldKeys = (fold) => {
+    const keys = root.querySelector('.iss-keys');
+    if (!keys) return;
+    keys.classList.toggle('folded', fold);
+    keys.querySelector('[data-keys-toggle]')?.setAttribute('aria-expanded', String(!fold));
+  };
+  // (el cuadro de datos se recoge animando su alto real, que el CSS no conoce: de lo que mide a 0, y vuelta)
+  const widenChat = (wide) => {
+    const page = root.querySelector('.iss-work-page');
+    if (!page) return;
+    const keys = page.querySelector('.iss-keys');
+    if (keys) {
+      keys.style.maxHeight = `${wide ? keys.offsetHeight : keys.scrollHeight}px`;
+      if (wide) requestAnimationFrame(() => { keys.style.maxHeight = '0px'; });
+      else keys.addEventListener('transitionend', () => { keys.style.maxHeight = ''; }, { once: true });
+    }
+    page.classList.toggle('chat-wide', wide);
+    const b = page.querySelector('[data-chat-expand]');
+    if (b) { b.title = wide ? 'Volver al tamaño normal' : 'Ampliar el chat'; b.setAttribute('aria-label', b.title); }
+  };
+
   root.addEventListener('click', async (e) => {
     const t = e.target;
     if (pickClick(root, t)) return;
+    const fold = t.closest('[data-keys-toggle]');
+    if (fold) return foldKeys(fold.getAttribute('aria-expanded') === 'true');
+    if (t.closest('[data-chat-expand]')) return widenChat(!root.querySelector('.iss-work-page')?.classList.contains('chat-wide'));
     // con el diálogo de elegir fichero abierto no se repinta la mesa: el
     // cambio llegaría a un input que ya no está en la página
     if (t.matches('[data-csv]')) { picking = true; return; }

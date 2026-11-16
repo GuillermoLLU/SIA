@@ -19,23 +19,23 @@ import { assistHtml } from './work-screen.js';
 // adjunto · onLogin(): a Configuración → Proveedores IA (Copilot sin sesión)
 export const mountIssueChat = (host, { issue, wsUrl, loadProjects, api, dialogs, fileUrl, onLogin }) => {
   const issueId = issue.id, origin = originOf(issue);
-  host.innerHTML = `<div class="iss-card-h" data-chat-head hidden><h3>Resolución asistida por IA</h3></div>
-    <div class="iss-chat-start"><p class="iss-empty">Conectando…</p></div><div class="iss-chat-conv" hidden></div>`;
-  const head = host.querySelector('[data-chat-head]');
+  host.innerHTML = `<div class="iss-chat-start"><p class="iss-empty">Conectando…</p></div><div class="iss-chat-conv" hidden></div>`;
   const chooser = host.querySelector('.iss-chat-start');
   const convHost = host.querySelector('.iss-chat-conv');
   let ws = null, view = null, disposed = false;
   const uploads = createUploads({ api, active: () => ({ launched: !!view, view }), dialogs });
   const unwire = uploads.wire(host);
 
-  // La cabecera del panel solo tiene sentido con el chat en marcha. Al
-  // lanzarlo (launching), el aviso de que Copilot arranca hasta que el bridge
-  // diga «started»; al reengancharse, la conversación llega al momento.
+  // Al lanzarlo (launching), el aviso de que Copilot arranca hasta que el
+  // bridge diga «started»; al reengancharse, la conversación llega al momento.
+  // Avisa a la pantalla (chat-open) para que deje sitio.
+  const CHOOSER_OUT_MS = 180; // lo que tarda el botón en irse (issues.css: .iss-chat-start.leaving)
   const showConversation = (launching = false) => {
     if (view) return;
-    chooser.hidden = true;
+    if (launching) { chooser.classList.add('leaving'); setTimeout(() => { chooser.hidden = true; }, CHOOSER_OUT_MS); } // la conversación entra mientras el botón se va
+    else chooser.hidden = true;
     convHost.hidden = false;
-    head.hidden = false;
+    host.dispatchEvent(new CustomEvent('chat-open', { bubbles: true }));
     view = createConversationView({
       host: convHost, fileUrl,
       onSend: (text) => sendOn(ws, msg.say(text)),
@@ -56,7 +56,7 @@ export const mountIssueChat = (host, { issue, wsUrl, loadProjects, api, dialogs,
   const ended = (text) => {
     unmount();
     chooser.hidden = false;
-    head.hidden = true;
+    chooser.classList.remove('leaving');
     chooser.innerHTML = `<p class="iss-empty">${esc(text)}</p><button class="lab-btn primary" data-chat-again>Iniciar otra resolución asistida</button>`;
     chooser.querySelector('[data-chat-again]').addEventListener('click', () => { dispose(); mountIssueChat(host, { issue, wsUrl, loadProjects, api, dialogs, fileUrl, onLogin }); });
   };
