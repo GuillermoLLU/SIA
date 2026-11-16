@@ -261,7 +261,6 @@
 .iss-big-still.slow { background: color-mix(in srgb, var(--iss-high) 80%, var(--accent)); }
 .iss-big-still.late { background: var(--iss-high); }
 .iss-chat-body { flex: 1; min-height: 0; display: flex; flex-direction: column; margin: 0 -8px -8px; }
-.iss-chat-body .term-host { flex: 1; min-height: 0; height: auto; padding: 6px; background: var(--bg); }
 .iss-chat-start { flex: 1; display: flex; flex-direction: column; gap: 14px; padding: 8px; overflow-y: auto; }
 .iss-chat-start[hidden] { display: none; }
 .iss-modal { position: fixed; inset: 0; z-index: 50; display: grid; place-items: safe center; padding: 16px; overflow-y: auto; background: rgba(0, 0, 0, .32); }

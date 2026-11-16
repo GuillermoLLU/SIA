@@ -682,7 +682,7 @@ body.top-nav #settings-modal[hidden] .settings-modal { transform: scale(.98); op
 }
 .handoff p { margin: 0; font: 14px var(--font-ui); color: var(--text-low); }
 
-/* ── Chat body: terminal + panel de assets ─────────────────── */
+/* ── Chat body: el chat + el panel de adjuntos ─────────────── */
 .chat-body { flex: 1; min-height: 0; display: flex; }
 
 .assets-panel {
@@ -740,21 +740,14 @@ body.top-nav #settings-modal[hidden] .settings-modal { transform: scale(.98); op
 }
 .asset-insert:hover { color: var(--accent); }
 
-/* ── Terminal stack (one pane per session) ─────────────────── */
-/* overscroll-behavior: al llegar al final del historial, el gesto no se
-   propaga a la página */
-.term-stack { flex: 1; min-height: 0; position: relative; overscroll-behavior: contain; }
-.term-pane {
-  position: absolute; inset: 0;
-  padding: 12px 18px;
-  background: var(--bg);
-}
-.term-pane[hidden] { display: none; }
-.term-host { height: 100%; }
-.term-host[hidden] { display: none; }
+/* ── Los chats (chat-view.js): un panel por sesión, con la portada o la conversación ── */
+/* overscroll-behavior: al llegar al final del hilo, el gesto no se propaga a la página */
+.chat-stack { flex: 1; min-height: 0; position: relative; overscroll-behavior: contain; }
+.chat-pane { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--bg); }
+.chat-pane[hidden] { display: none; }
 
 /* El hueco de la portada del Chat dentro del panel (la portada es absoluta) */
-.ai-hero-host { height: 100%; }
+.ai-hero-host { flex: 1; position: relative; }
 .ai-hero-host[hidden] { display: none; }
 
 /* ── Arranque del chat de una issue: un botón centrado y, debajo, por qué no
@@ -827,12 +820,6 @@ body.booting .ai-ask { opacity: 0; transition: opacity 0.6s ease; }
 body.booting.asking .ai-ask { opacity: 1; }
 body.ready .ai-ask { transition: opacity 0.6s ease; } /* si la barra se adelanta, el campo aparece con ella, no de golpe */
 @media (prefers-reduced-motion: reduce) { .ai-hero-bg i, .ai-hero-box { animation: none; } body.ready .sidebar, body.ready .ai-ask { transition: none; } body.ready :is(.top-brand, .topbar, .top-user, .top-brand > *) { animation: none; } }
-
-/* xterm fills its pane */
-.xterm { height: 100%; }
-.xterm-viewport { overscroll-behavior: contain; }
-.xterm-viewport::-webkit-scrollbar { width: 10px; }
-.xterm-viewport::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 0; }
 
 /* ── Aviso de actualización (banner superior) ── */
 

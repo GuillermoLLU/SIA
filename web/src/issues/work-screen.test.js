@@ -124,7 +124,7 @@ test('la primera línea de una nota, recortada a 90; el arranque de la resoluci�
   assert.equal(firstLine('x'.repeat(95)), 'x'.repeat(90) + '…');
   assert.match(assistHtml(), /<button class="lab-btn primary ai-start-go" data-assist >Iniciar resolución asistida por IA<\/button>/);
   assert.doesNotMatch(assistHtml(), /ai-start-hint/);
-  assert.match(assistHtml('Claude <no> está'), /data-assist disabled>[^]*<p class="ai-start-hint">Claude &lt;no&gt; está<\/p>/);
+  assert.match(assistHtml('Copilot <no> está'), /data-assist disabled>[^]*<p class="ai-start-hint">Copilot &lt;no&gt; está<\/p>/);
 });
 
 test('la cabecera de la issue: volver al panel, el título en una línea con su title, y las acciones', () => {

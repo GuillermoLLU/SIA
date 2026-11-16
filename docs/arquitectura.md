@@ -24,7 +24,7 @@ API y su vista:
 |---|---|
 | `app/` | Descubrir el bridge, la navegación (`nav.js`, puro: qué iconos lleva el dock de cada persona, cómo va la barra de arriba, con qué vista se abre y a cuál se vuelve desde el Chat), qué vista se ve (`views.js`), la barra de arriba, el dock, el selector de Métricas y la relectura de permisos (`perms.js`) |
 | `auth/` | Inicio de sesión y la sesión en el navegador |
-| `chat/` | El chat: su arranque (`start.js`: Copilot, conocimiento autónomo y todo lo accesible), protocolo con el bridge, reconciliación entre dispositivos y adjuntos; la conversación (`conversation/`: el hilo con burbujas y Markdown, las herramientas plegadas, las tarjetas de pregunta, plan y «sin sesión», la caja de escribir y la búsqueda) y el menú de modelo y esfuerzo; la terminal (xterm) de los CLIs que aún van en un PTY |
+| `chat/` | El chat: su arranque (`start.js`: Copilot, conocimiento autónomo y todo lo accesible), protocolo con el bridge, reconciliación entre dispositivos y adjuntos; la conversación (`conversation/`: el hilo con burbujas y Markdown, las herramientas plegadas, las tarjetas de pregunta, plan y «sin sesión», la caja de escribir y la búsqueda) y el menú de modelo y esfuerzo |
 | `issues/` | La mesa de issues de cada persona, la pantalla de trabajo de una issue (con su chat, o Reclamar respuesta y Traspasar si espera a un tercero), Resolver (`resolve-view.js`, con el editor de fichas de imagen `tag-editor.js`) y el origen SGA/SISU de cada issue (`origin.js`, el espejo del del bridge) |
 | `backlog/` | Backlog: la cola del equipo entera para quien reparte (tarjetas que filtran, orden por regla, buscador, panel lateral con asignar), el editor de reglas de priorización (`rule-editor.js`, chips) en Configuración → Priorización (`rules-view.js`); una vista sobre el dominio de Issues |
 | `metrics/` | Métricas: reglas (`rules.js`) y cálculo por pestaña en módulos puros; el HTML de cada pestaña en `metrics/tabs/` |
@@ -38,8 +38,7 @@ API y su vista:
 ### `server/` — el bridge local
 
 Un proceso Node por persona: sirve la API HTTP, abre los chats por WebSocket
-(Copilot sin terminal, por el protocolo de su SDK; Claude y Codex en un PTY) y
-habla con las dos bases. `index.js`
+(Copilot, por el protocolo de su SDK) y habla con las dos bases. `index.js`
 solo monta las piezas (`startBridge()`, nada ocurre al importar) y `router.js`
 las encamina por capas: cortafuegos, web y ping, sesión y vista exigida, y
 las rutas de cada slice.
@@ -54,22 +53,19 @@ las rutas de cada slice.
 | `issues/`, `backlog/`, `metrics/` | Issues (cola por criterios `queue.js`, reglas `rules.js`, mesa, estadísticas), Backlog (la cola entera, asignar y las reglas de priorización, sobre el dominio de Issues) y Métricas (cada actualización pide a Snowflake, con `snowflake-sdk` y el SSO de cada persona, solo las incidencias de Remedy nuevas o cambiadas desde la última, y las suma a un repositorio SQLite local con `node:sqlite`, `incidencias.sqlite`, que no sale del equipo; de él salen los datos por columnas; el periodo se elige por fechas) |
 | `skills/`, `links/`, `uploads/` | Laboratorio y sincronización de skills, enlaces rápidos, adjuntos |
 | `config/`, `lock/` | Configuración personal (`~/.sia/config.json`: Jira, GitHub) y candado |
-| `chats/` | El chat de Copilot sin terminal: el protocolo de su SDK (`copilot.js`: JSON-RPC por stdio y cada evento convertido en piezas de la conversación), su proceso (`copilot-session.js`), el cableado con quien lo mira (`session.js`: streaming por tandas, lo que lleva dicho, las preguntas) y la tarjeta de «sin sesión» (`auth.js`) |
+| `chats/` | Los chats: el protocolo del SDK de Copilot (`copilot.js`: JSON-RPC por stdio y cada evento convertido en piezas de la conversación), su proceso (`copilot-session.js`), el cableado con quien lo mira (`session.js`: streaming por tandas, lo que lleva dicho, las preguntas) y la tarjeta de «sin sesión» (`auth.js`); las sesiones y el protocolo WebSocket (`bridge.js`, `sessions.js`) y quién entra por él (`ws-auth.js`: desde esta máquina, con sesión y con la vista Chat o, el de una issue, Issues) |
 | `providers/` | La cuenta de Copilot (Configuración → Proveedores IA): estado y cupo, login por código de dispositivo y cierre de sesión, hablando con su CLI |
-| `launchers/`, `workspace/` | Los CLIs (Claude, Copilot, Codex), sus argumentos y su MCP por sesión; la clave de GitHub de los repos aparte de la cuenta de Copilot (`repo-key.js`); los directorios de modo y skills por base |
-| `terminal/` | Las sesiones de chat, el protocolo WebSocket y quién entra por él (`ws-auth.js`: desde esta máquina, con sesión y con la vista Chat o, el de una issue, Issues) |
+| `launchers/`, `workspace/` | El CLI de Copilot: dónde está y cómo se lanza (`resolve.js`), su MCP por sesión (`mcp.js`) y la clave de GitHub de los repos aparte de su cuenta (`repo-key.js`); los directorios de modo y skills por base |
 | `updates/`, `shared/` | `/api/version`; lo común (HTTP, CSV, ids, puertos, cabeceras, permisos, el troceo de entradas de Remedy, los certificados del sistema, la VPN del cliente y el error de lo que falta para su red, `client-network.js`) |
 
 Cosas que conviene saber:
 
-- A cada CLI se le pasa el MCP de la sesión a su manera: Copilot al crear la
-  sesión por su protocolo, Claude con `--mcp-config` y Codex con un perfil
-  temporal (`-p`) que se borra al cerrar la sesión.
 - Copilot corre en su modo programable (`copilot --headless --stdio`, el
-  protocolo de su SDK oficial) y la web pinta la conversación; su cuenta es la
-  de Proveedores IA y nunca ve la clave de GitHub de los repos (Copilot toma
-  como suya cualquier `GH_TOKEN` de su entorno): esa clave solo llega al shell
-  de los comandos que ejecuta, por `BASH_ENV` (en Windows no hay equivalente).
+  protocolo de su SDK oficial): el MCP de conocimiento se le pasa al crear la
+  sesión y la web pinta la conversación. Su cuenta es la de Proveedores IA y
+  nunca ve la clave de GitHub de los repos (Copilot toma como suya cualquier
+  `GH_TOKEN` de su entorno): esa clave solo llega al shell de los comandos que
+  ejecuta, por `BASH_ENV` (en Windows no hay equivalente).
 - Los puertos se eligen solos (pares 57413/57414 → 58527/58528 →
   59641/59642; `SIA_PORT` fuerza uno). Si en un par ya hay un SIA de la misma
   versión, se adopta.
@@ -89,8 +85,8 @@ primera búsqueda descarga el modelo (~120 MB) una única vez.
 
 El directorio de trabajo de las sesiones (en la app, dentro de su carpeta de
 datos; en dev, `~/.sia/workspace`). La base tiene su rincón en `bases/<id>/`
-(sus skills sincronizadas y los directorios de modo con `CLAUDE.md` /
-`AGENTS.md`, que instruyen consultar el conocimiento antes de responder). De
+(sus skills sincronizadas y los directorios de modo con su `AGENTS.md`, que
+instruye consultar el conocimiento antes de responder). De
 aquí solo va al repositorio `workspace/modes/{auto,demand}/`.
 
 ## Las dos bases

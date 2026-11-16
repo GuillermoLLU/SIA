@@ -45,14 +45,13 @@ export const userEnv = (cfg) => {
   return env;
 };
 
-// Limpia del entorno heredado las marcas de «estoy dentro de Claude Code», para
-// que el CLI lanzado por SIA no se niegue por sesión anidada, y los tokens de
-// GitHub: quién manda ahí es la clave activa (userEnv), no lo que llevara puesto
-// el proceso que arrancó el bridge; si no hay ninguna marcada, el chat va sin.
-// (COPILOT_GITHUB_TOKEN: Copilot lo tomaría como su cuenta; la suya es su login.)
+// Limpia del entorno heredado los tokens de GitHub: quién manda ahí es la clave
+// activa (userEnv), no lo que llevara puesto el proceso que arrancó el bridge;
+// si no hay ninguna marcada, el chat va sin. COPILOT_GITHUB_TOKEN, además,
+// Copilot lo tomaría como su cuenta, y la suya es su login (providers/).
 export const cleanEnv = (env) => {
   const e = { ...env };
-  for (const k of ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SSE_PORT', 'GH_TOKEN', 'GITHUB_TOKEN', 'COPILOT_GITHUB_TOKEN']) delete e[k];
+  for (const k of ['GH_TOKEN', 'GITHUB_TOKEN', 'COPILOT_GITHUB_TOKEN']) delete e[k];
   return e;
 };
 

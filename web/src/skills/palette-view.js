@@ -62,7 +62,7 @@ export const mountPalette = ({ chat }) => {
     else if (e.key === 'Enter') { e.preventDefault(); if (items[index]) apply(items[index]); }
     else if (e.key === 'Escape') { e.preventDefault(); close(); }
   });
-  // ⌘K / Ctrl+K desde cualquier sitio: en captura, para ganar a la terminal
+  // ⌘K / Ctrl+K desde cualquier sitio: en captura, antes que cualquier campo
   document.addEventListener('keydown', (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); e.stopPropagation(); toggle(); }
   }, true);

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { spawnCopilot, createLineInput, NOT_LOGGED } from './copilot-session.js';
+import { spawnCopilot, NOT_LOGGED } from './copilot-session.js';
 import { wireNative } from './session.js';
 import { frame, createFrameReader, DISMISSED } from './copilot.js';
 
@@ -55,7 +55,7 @@ const wire = (native, extra = {}) => {
 
 test('arranca: saludo, cuenta, modelos y una sesión nueva con su id, su carpeta y su MCP; sin confirmaciones', async () => {
   const f = fakeCopilot(base());
-  const { native, term } = start(f, { mcp: { knowledge: { command: 'k', args: ['a'], env: { X: '1' } } } });
+  const native = start(f, { mcp: { knowledge: { command: 'k', args: ['a'], env: { X: '1' } } } });
   assert.deepEqual(await native.ready, { model: 'auto' });
   assert.deepEqual(f.sent.filter((m) => m.method).map((m) => m.method), ['connect', 'auth.getStatus', 'models.list', 'session.create', 'session.permissions.setApproveAll']);
   const create = f.calls('session.create')[0].params;
@@ -63,21 +63,21 @@ test('arranca: saludo, cuenta, modelos y una sesión nueva con su id, su carpeta
   assert.deepEqual(create.mcpServers, { knowledge: { type: 'local', command: 'k', args: ['a'], env: { X: '1' }, tools: ['*'] } });
   assert.deepEqual(f.calls('session.permissions.setApproveAll')[0].params, { sessionId: 'S1', enabled: true });
   assert.deepEqual(native.models.map((m) => m.id), ['auto', 'sol']);
-  assert.equal(term.pid, 9);
+  assert.equal(native.pid, 9);
   const { metas } = wire(native);
   assert.deepEqual(metas, [{ model: 'auto' }]); // lo de antes de escuchar no se pierde
 });
 
 test('sin sesión de Copilot, lo dice y no abre nada', async () => {
   const f = fakeCopilot(base({ 'auth.getStatus': { isAuthenticated: false } }));
-  const { native } = start(f);
+  const native = start(f);
   await assert.rejects(native.ready, new RegExp(NOT_LOGGED));
   assert.equal(f.calls('session.create').length, 0);
 });
 
 test('el primer mensaje va nada más estar lista; lo escrito se manda en cola y, con un turno en marcha, entra en él', async () => {
   const f = fakeCopilot(base());
-  const { native } = start(f);
+  const native = start(f);
   wire(native, { firstSay: 'hola' });
   await native.ready;
   await tick();
@@ -94,7 +94,7 @@ test('el primer mensaje va nada más estar lista; lo escrito se manda en cola y,
 
 test('lo que hace, en piezas: texto en directo, «pensando», herramientas, el modelo que contesta y el fin', async () => {
   const f = fakeCopilot(base());
-  const { native } = start(f);
+  const native = start(f);
   await native.ready;
   const { out, metas } = wire(native);
   f.event('user.message', { content: 'haz ls' });
@@ -116,7 +116,7 @@ test('lo que hace, en piezas: texto en directo, «pensando», herramientas, el m
 
 test('un turno que falla deja su motivo en la conversación, una vez; el «listo» de detrás sobra', async () => {
   const f = fakeCopilot(base());
-  const { native } = start(f);
+  const native = start(f);
   await native.ready;
   const { out, rows } = wire(native, { authStatus: async () => ({ ok: true, loggedIn: true }) });
   f.event('user.message', { content: 'hola' });
@@ -130,7 +130,7 @@ test('un turno que falla deja su motivo en la conversación, una vez; el «listo
 
 test('su pregunta: la tarjeta, viva al unir la petición con su herramienta; elegir contesta a la petición', async () => {
   const f = fakeCopilot(base());
-  const { native } = start(f);
+  const native = start(f);
   await native.ready;
   const { out, rows } = wire(native);
   f.ask(70, 'userInput.request', { requestId: 'R1', question: '¿Color?', choices: ['Rojo', 'Verde'], allowFreeform: true });
@@ -152,7 +152,7 @@ test('su pregunta: la tarjeta, viva al unir la petición con su herramienta; ele
 
 test('escribir con su pregunta pendiente es la respuesta (sin mensaje nuevo); «Ninguna» la descarta y para', async () => {
   const f = fakeCopilot(base());
-  const { native } = start(f);
+  const native = start(f);
   await native.ready;
   const { out, rows } = wire(native);
   const askNow = async (rpc, req, tool) => {
@@ -183,7 +183,7 @@ test('escribir con su pregunta pendiente es la respuesta (sin mensaje nuevo); «
 
 test('un plan: su tarjeta; aprobar o rechazar contesta a la petición', async () => {
   const f = fakeCopilot(base());
-  const { native } = start(f);
+  const native = start(f);
   await native.ready;
   const { out, rows } = wire(native);
   f.ask(90, 'exitPlanMode.request', { summary: 'S', planContent: '# Plan', actions: ['interactive'], recommendedAction: 'interactive' });
@@ -202,7 +202,7 @@ test('un plan: su tarjeta; aprobar o rechazar contesta a la petición', async ()
 
 test('va sin confirmaciones: un permiso que llegue se aprueba; cambiar a Auto, sí; lo demás no se atiende', async () => {
   const f = fakeCopilot(base());
-  const { native } = start(f);
+  const native = start(f);
   await native.ready;
   wire(native);
   f.event('permission.requested', { requestId: 'P1', permissionRequest: { kind: 'shell' } });
@@ -216,7 +216,7 @@ test('va sin confirmaciones: un permiso que llegue se aprueba; cambiar a Auto, s
 
 test('los comandos del menú: modelo y esfuerzo válidos de la cuenta; lo que no vale se ignora', async () => {
   const f = fakeCopilot(base());
-  const { native } = start(f);
+  const native = start(f);
   await native.ready;
   const { metas } = wire(native);
   native.say('/effort high');      // «auto» no tiene esfuerzos
@@ -231,21 +231,12 @@ test('los comandos del menú: modelo y esfuerzo válidos de la cuenta; lo que no
   assert.equal(f.calls('session.send').length, 0); // ninguno llegó al modelo
 });
 
-test('la cara de terminal: lo tecleado se junta hasta el Enter y Esc para; matar cierra el proceso', async () => {
+test('matar cierra el proceso y avisa a quien escuche', async () => {
   const f = fakeCopilot(base());
-  const { native, term } = start(f);
+  const native = start(f);
   await native.ready;
-  const said = [];
-  let stops = 0;
-  const write = createLineInput({ say: (t) => said.push(t), interrupt: () => stops++ });
-  write('hola '); write('mundo'); write('\r');
-  write('  \r'); // vacío: nada
-  write('a medias\x1b'); // Esc tira lo escrito
-  write('otra\n');
-  assert.deepEqual(said, ['hola mundo', 'otra']);
-  assert.equal(stops, 1);
   let exited = null;
-  term.onExit((e) => { exited = e; });
-  term.kill();
+  native.onExit((e) => { exited = e; });
+  native.kill();
   assert.deepEqual(exited, { exitCode: 0 });
 });

@@ -1,5 +1,5 @@
 // sia-mcp — servidor MCP (stdio) con el conocimiento del proyecto.
-// Lo lanza el propio `claude` de cada sesión (ver server/index.js). Expone
+// Lo lanza el propio Copilot de cada sesión (ver server/launchers/). Expone
 // search_knowledge: embebe la consulta en local (Xenova multilingual-e5-small,
 // 384 dims, el mismo modelo con el que se ingesta) y busca por similitud
 // en Supabase vía la RPC match_chunks. Sin claves de terceros: el embedding

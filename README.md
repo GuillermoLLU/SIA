@@ -123,8 +123,8 @@ Todo esto, carpeta a carpeta y con cómo se comunican, en
 | `npm run test:platform` / `test:rls` | Pruebas de la base en Docker (cuando se toca SQL) |
 | `npm run dist` / `dist:win` | Empaquetar la app (macOS / Windows) |
 
-La app va empaquetada en `app.asar`, de solo lectura; las piezas nativas (terminal,
-motor de embeddings, imágenes) quedan fuera, en `app.asar.unpacked`. `build.files`
+La app va empaquetada en `app.asar`, de solo lectura; las piezas nativas (motor
+de embeddings, imágenes) quedan fuera, en `app.asar.unpacked`. `build.files`
 en `package.json` deja fuera de las dependencias los mapas de código, TypeScript,
 las versiones de navegador del motor de embeddings y de Azure y los binarios de otras
 plataformas. Si una dependencia nueva falla solo en la app instalada, mira primero

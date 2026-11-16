@@ -1,7 +1,6 @@
 /* La conversación de un chat (view.js): el hilo en una columna de lectura
    cómoda, con la caja de escribir (composer.js) debajo. Colores, letra y
    formas de SIA: las variables del tema, Helvetica Now y las esquinas rectas. */
-.term-pane.conversation { padding: 0; display: flex; flex-direction: column; }
 .conversation { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; }
 
 .cv {

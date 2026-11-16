@@ -1,14 +1,13 @@
-// Adjuntos de un chat: cualquier fichero pegado o arrastrado se sube al bridge, se registra en la sesión (persiste con ella,
-// recargas incluidas) y su ruta va a lo que se está escribiendo (en la
-// conversación, como una marca en la caja; en la terminal, al prompt sin
-// Enter), para que la persona escriba su pregunta alrededor. El panel de la
-// derecha los lista.
+// Adjuntos de un chat: cualquier fichero pegado o arrastrado se sube al
+// bridge, se registra en la sesión (persiste con ella, recargas incluidas) y
+// entra en lo que se está escribiendo como una marca en la caja, para que la
+// persona escriba su pregunta alrededor. El panel de la derecha los lista.
 import { esc } from '../ui/html.js';
 import { msg, sendOn, isOpen } from './protocol.js';
 import { toAsset, fileExt } from './sessions.js';
 
-// active(): la sesión activa · onLayout(): el panel cambió de tamaño (refit)
-export const createAssets = ({ api, apiBase, dialogs, active, onLayout }) => {
+// active(): la sesión activa
+export const createAssets = ({ api, apiBase, dialogs, active }) => {
   const $ = (id) => document.getElementById(id);
   const btn = $('assets-btn'), panel = $('assets-panel'), list = $('assets-list');
 
@@ -30,7 +29,7 @@ export const createAssets = ({ api, apiBase, dialogs, active, onLayout }) => {
           : `<div class="asset-file" title="Abrir"><span class="ext">${esc(fileExt(a.name))}</span></div>`}
         <div class="asset-meta">
           <span class="name" title="${esc(a.name)}">${esc(a.name)}</span>
-          <button class="asset-insert" title="Insertar la ruta de nuevo en el chat">↩</button>
+          <button class="asset-insert" title="Insertarlo de nuevo en el chat">↩</button>
         </div>`;
       item.querySelector('img, .asset-file').addEventListener('click', () => {
         if (a.isImage) dialogs.open({ title: a.name, bodyHTML: `<img src="${esc(a.url)}" style="max-width:100%" />`, alertOnly: true, okLabel: 'Cerrar' });
@@ -38,9 +37,7 @@ export const createAssets = ({ api, apiBase, dialogs, active, onLayout }) => {
       });
       item.querySelector('.asset-insert').addEventListener('click', () => {
         const sess = active();
-        if (!sess?.launched || !isOpen(sess.ws)) return;
-        if (sess.view) sess.view.attach(a.absPath);
-        else { sendOn(sess.ws, msg.input(`${a.absPath} `)); sess.term.focus(); }
+        if (sess?.launched) sess.view.attach(a.absPath);
       });
       list.appendChild(item);
     });
@@ -50,15 +47,13 @@ export const createAssets = ({ api, apiBase, dialogs, active, onLayout }) => {
     if (!s) return;
     s.assetsOpen = open ?? !s.assetsOpen;
     render();
-    onLayout();
   };
   btn.addEventListener('click', () => toggle());
   $('assets-close').addEventListener('click', () => toggle(false));
 
   const announce = (s, asset) => {
     sendOn(s.ws, msg.asset(asset));
-    if (s.view) s.view.attach(asset.absPath);
-    else sendOn(s.ws, msg.input(`${asset.absPath} `));
+    s.view.attach(asset.absPath);
   };
   // adjuntos subidos mientras el socket estaba caído: entran al volver
   const flushPending = (s) => {
@@ -83,33 +78,9 @@ export const createAssets = ({ api, apiBase, dialogs, active, onLayout }) => {
       if (isOpen(s.ws)) announce(s, asset);
       else s.pendingAssets.push(asset);
       render();
-      onLayout();
-      if (!s.view) s.term.focus(); // la caja de la conversación ya tiene el foco con la marca
     } catch (err) {
       dialogs.alert('No se pudo adjuntar el fichero', esc(err.message));
     }
-  };
-
-  // Pega en una sesión de terminal desde el portapapeles: imagen → se adjunta;
-  // texto → se escribe en la terminal. Lo usa el handler de teclado en
-  // Windows/Linux, donde xterm intercepta Ctrl+V como ^V y el evento de pegado
-  // nativo no llega (la caja de la conversación pega como cualquier campo).
-  const pasteFromClipboard = async (s) => {
-    if (!s || !s.launched || !s.term) return;
-    try {
-      if (navigator.clipboard?.read) {
-        for (const item of await navigator.clipboard.read()) {
-          const imgType = item.types.find((t) => t.startsWith('image/'));
-          if (imgType) {
-            const blob = await item.getType(imgType);
-            upload(s, new File([blob], `pegado.${imgType.split('/')[1] || 'png'}`, { type: imgType }));
-            return;
-          }
-        }
-      }
-      const text = await navigator.clipboard?.readText();
-      if (text) s.term.paste(text);
-    } catch { /* portapapeles vacío o sin permiso */ }
   };
 
   // pegar desde el portapapeles (⌘V: imágenes copiadas o ficheros del Finder)
@@ -118,7 +89,7 @@ export const createAssets = ({ api, apiBase, dialogs, active, onLayout }) => {
     document.addEventListener('paste', (e) => {
       if (viewEl.hidden) return;
       const files = [...(e.clipboardData?.files || [])];
-      if (!files.length) return; // texto: lo gestiona xterm con normalidad
+      if (!files.length) return; // texto: lo pega la caja como cualquier campo
       const s = active();
       if (!s || !s.launched) return;
       e.preventDefault();
@@ -132,10 +103,10 @@ export const createAssets = ({ api, apiBase, dialogs, active, onLayout }) => {
       if (!files.length) return;
       e.preventDefault();
       const s = active();
-      if (!s || !s.launched) { dialogs.alert('Sin chat activo', 'Lanza un chat antes de adjuntar ficheros.'); return; }
+      if (!s || !s.launched) { dialogs.alert('Sin chat activo', 'Abre un chat antes de adjuntar ficheros.'); return; }
       files.forEach((f) => upload(s, f));
     });
   };
 
-  return { render, upload, flushPending, pasteFromClipboard, wire };
+  return { render, upload, flushPending, wire };
 };

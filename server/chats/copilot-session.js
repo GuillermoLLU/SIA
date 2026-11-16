@@ -1,7 +1,5 @@
 // La sesión de Copilot en el bridge: `copilot --headless --stdio` (el protocolo
-// de su SDK: copilot.js) en vez de un PTY. spawnCopilot lo lanza y le da forma
-// de terminal (term: pid, write, resize, kill, onData, onExit) para que el
-// resto del bridge no distinga, más `native` con lo propio:
+// de su SDK: copilot.js). spawnCopilot lanza el proceso y devuelve el chat:
 //   ready                  promesa: la sesión lista → { model }; rechaza si no
 //                          hay sesión de Copilot (NOT_LOGGED) o no arranca
 //   sendText(text)         lo que escribe la persona (con un turno en marcha, entra en él)
@@ -9,6 +7,7 @@
 //   reply(ask, result)     contestar en la tarjeta: una opción, o aprobar/rechazar un plan
 //   replyText(ask, text)   contestar a su pregunta escribiendo en la caja
 //   command(text)          /model, /effort, /compact: los aplica SIA → { meta } o null
+//   kill() · onExit(cb) · pid
 //   models, model, effort, via · busy, items, asks, listeners (los cablea session.js)
 // La conversación es la sesión de Copilot y vive lo que el proceso: SIA no
 // guarda históricos.
@@ -23,21 +22,8 @@ export const COPILOT_READY_MS = 45_000; // lo que se espera a que la sesión est
 export const NOT_LOGGED = 'Copilot no tiene sesión iniciada';
 const REJECTED = 'The plan was rejected by the user.'; // la tarjeta lo enseña como «Descartada»
 
-// Lo que llega como teclas (la entrada `input` del bridge, como a un terminal)
-// se junta hasta el Enter, que lo envía; Esc para a Copilot.
-export const createLineInput = ({ say, interrupt }) => {
-  let line = '';
-  return (data) => {
-    for (const ch of String(data)) {
-      if (ch === '\x1b') { line = ''; interrupt(); }
-      else if (ch === '\r' || ch === '\n') { const text = line.trim(); line = ''; if (text) say(text); }
-      else line += ch;
-    }
-  };
-};
-
 export const spawnCopilot = ({
-  cmd, args = RUNTIME_ARGS, cwd, env, cols, rows, sessionId, mcp = null,
+  cmd, args = RUNTIME_ARGS, cwd, env, sessionId, mcp = null,
   spawnProcess = spawn, exists = (p) => fs.existsSync(p), read = (p) => { try { return fs.readFileSync(p); } catch { return null; } },
   log = (t) => console.warn(t), setTimer = setTimeout, clearTimer = clearTimeout,
 }) => {
@@ -50,16 +36,18 @@ export const spawnCopilot = ({
   const respond = (id, result) => write({ id, result });
   const refuse = (id, message) => write({ id, error: { code: -32000, message } });
 
-  const native = {
-    proc, busy: false, items: [], asks: new Map(), listeners: new Set(),
+  const chat = {
+    pid: proc.pid, busy: false, items: [], asks: new Map(), listeners: new Set(),
     say: null, answer: null, models: [], model: null, effort: null, via: null,
+    kill: () => { try { proc.stdin.end(); } catch {} try { proc.kill(); } catch {} },
+    onExit: (cb) => exitCbs.push(cb),
   };
   // lo que pasa antes de que alguien escuche (el arranque: el modelo) espera
   // y se entrega al primero que se engancha
   const early = [];
-  const emit = (m) => { if (!native.listeners.size) { early.push(m); return; } for (const cb of native.listeners) cb(m); };
-  const addListener = native.listeners.add.bind(native.listeners);
-  native.listeners.add = (cb) => { addListener(cb); for (const m of early.splice(0)) cb(m); return native.listeners; };
+  const emit = (m) => { if (!chat.listeners.size) { early.push(m); return; } for (const cb of chat.listeners) cb(m); };
+  const addListener = chat.listeners.add.bind(chat.listeners);
+  chat.listeners.add = (cb) => { addListener(cb); for (const m of early.splice(0)) cb(m); return chat.listeners; };
   const transcript = (items) => { if (items.length) emit({ type: 'transcript', items }); };
 
   const rowsOf = createTranslator();
@@ -95,8 +83,8 @@ export const spawnCopilot = ({
     if (sig.typing) emit({ type: 'typing', text: sig.typing });
     else if (sig.thinking) emit({ type: 'thinking' });
     else if (sig.busy) active = true;
-    else if (sig.via) { if (sig.via !== native.via) { native.via = sig.via; emit({ type: 'model-via', name: sig.via }); } }
-    else if (sig.model) { native.model = sig.model; if (sig.effort !== undefined) native.effort = sig.effort || null; emit({ type: 'model', model: sig.model }); }
+    else if (sig.via) { if (sig.via !== chat.via) { chat.via = sig.via; emit({ type: 'model-via', name: sig.via }); } }
+    else if (sig.model) { chat.model = sig.model; if (sig.effort !== undefined) chat.effort = sig.effort || null; emit({ type: 'model', model: sig.model }); }
     else if (sig.turn) {
       active = false;
       if (sig.turn.error) { failed = true; emit(sig.turn); } else if (failed) failed = false; else emit(sig.turn);
@@ -143,7 +131,7 @@ export const spawnCopilot = ({
   proc.on('exit', exited);
   proc.on('error', (err) => { log(`[sia] chat de Copilot: ${err.message}`); exited(-1); });
 
-  const modelInfo = (id) => native.models.find((m) => m.id === id) || null;
+  const modelInfo = (id) => chat.models.find((m) => m.id === id) || null;
   // el arranque: saludo, cuenta, modelos y la sesión nueva
   const start = async () => {
     let hello = null;
@@ -151,36 +139,36 @@ export const spawnCopilot = ({
     if (hello?.protocolVersion && hello.protocolVersion !== PROTOCOL_VERSION) log(`[sia] copilot: su protocolo es el ${hello.protocolVersion} y SIA habla el ${PROTOCOL_VERSION}; si algo falla, actualiza SIA`);
     const auth = await request('auth.getStatus', {});
     if (!auth?.isAuthenticated) throw new Error(NOT_LOGGED);
-    try { native.models = modelsOf((await request('models.list', {}))?.models); } catch { native.models = []; }
-    native.model = defaultModel(native.models);
-    await request('session.create', sessionCreateParams({ sessionId, cwd, model: native.model, mcp }));
+    try { chat.models = modelsOf((await request('models.list', {}))?.models); } catch { chat.models = []; }
+    chat.model = defaultModel(chat.models);
+    await request('session.create', sessionCreateParams({ sessionId, cwd, model: chat.model, mcp }));
     await request('session.permissions.setApproveAll', { sessionId, enabled: true }).catch(() => {});
-    if (native.model) emit({ type: 'model', model: native.model });
-    return { model: native.model };
+    if (chat.model) emit({ type: 'model', model: chat.model });
+    return { model: chat.model };
   };
-  native.ready = new Promise((resolve, reject) => {
+  chat.ready = new Promise((resolve, reject) => {
     const t = setTimer(() => reject(new Error('Copilot no ha respondido a tiempo')), COPILOT_READY_MS);
     start().then((r) => { clearTimer(t); resolve(r); }, (e) => { clearTimer(t); reject(e); });
   });
-  native.ready.catch(() => {}); // quien lanza la sesión decide; aquí no queda una promesa sin atender
+  chat.ready.catch(() => {}); // quien lanza la sesión decide; aquí no queda una promesa sin atender
 
   const failTurn = (e) => emit({ type: 'turn', error: true, text: `Copilot: ${e.message}` });
-  native.sendText = (text) => {
-    native.ready.then(() => request('session.send', sendParams({ sessionId, text, busy: active, exists, read }))).then(() => { active = true; }, failTurn);
+  chat.sendText = (text) => {
+    chat.ready.then(() => request('session.send', sendParams({ sessionId, text, busy: active, exists, read }))).then(() => { active = true; }, failTurn);
   };
 
   // parar (o «Ninguna» en una tarjeta): lo que preguntaba, descartado; el turno, abortado
-  native.interrupt = () => {
-    for (const a of [...native.asks.values()]) {
+  chat.interrupt = () => {
+    for (const a of [...chat.asks.values()]) {
       if (a.plan) { respond(a.rpcId, { approved: false }); transcript([{ kind: 'result', id: a.toolUseId, text: REJECTED, error: false }]); }
       else { refuse(a.rpcId, 'La persona ha descartado la pregunta.'); transcript([{ kind: 'result', id: a.toolUseId, text: DISMISSED, error: false }]); } // al abortar, su herramienta no siempre avisa
       emit({ type: 'ask-off', requestId: a.requestId });
     }
-    native.ready.then(() => request('session.abort', { sessionId })).catch(() => {});
+    chat.ready.then(() => request('session.abort', { sessionId })).catch(() => {});
   };
 
   // contestar en la tarjeta: la opción elegida, o el plan aprobado o no
-  native.reply = (ask, { answers, allow } = {}) => {
+  chat.reply = (ask, { answers, allow } = {}) => {
     if (ask.plan) {
       respond(ask.rpcId, allow ? { approved: true, ...(ask.action ? { selectedAction: ask.action } : {}) } : { approved: false });
       transcript([{ kind: 'result', id: ask.toolUseId, text: allow ? 'Aprobado.' : REJECTED, error: false }]);
@@ -190,38 +178,30 @@ export const spawnCopilot = ({
     respond(ask.rpcId, { answer: String(answers?.[q] ?? ''), wasFreeform: false }); // su resultado («contestado») lo trae el evento de la herramienta
   };
   // contestar escribiendo: lo escrito es la respuesta (y se ve como un mensaje de la persona)
-  native.replyText = (ask, text) => {
+  chat.replyText = (ask, text) => {
     respond(ask.rpcId, { answer: text, wasFreeform: true });
     transcript([{ kind: 'user', id: `ans-${ask.requestId}`, text, ts: new Date().toISOString() }]);
   };
 
   // /model, /effort, /compact → { meta } (lo que cambia del chat) o null (no es un comando)
-  native.command = (text) => {
+  chat.command = (text) => {
     const c = commandOf(text);
     if (!c) return null;
-    const call = (method, params) => native.ready.then(() => request(method, { sessionId, ...params })).catch((e) => log(`[sia] copilot: ${method}: ${e.message}`));
+    const call = (method, params) => chat.ready.then(() => request(method, { sessionId, ...params })).catch((e) => log(`[sia] copilot: ${method}: ${e.message}`));
     if (c.compact) { call('session.history.compact', {}); return { meta: null }; }
     if (c.model) {
       if (!modelInfo(c.model)) return { meta: null };
-      native.model = c.model;
-      native.via = null;
-      if (native.effort && !modelInfo(c.model).efforts.includes(native.effort)) native.effort = null;
-      call('session.model.switchTo', { modelId: c.model, ...(native.effort ? { reasoningEffort: native.effort } : {}) });
-      return { meta: { model: c.model, effort: native.effort, modelVia: null } };
+      chat.model = c.model;
+      chat.via = null;
+      if (chat.effort && !modelInfo(c.model).efforts.includes(chat.effort)) chat.effort = null;
+      call('session.model.switchTo', { modelId: c.model, ...(chat.effort ? { reasoningEffort: chat.effort } : {}) });
+      return { meta: { model: c.model, effort: chat.effort, modelVia: null } };
     }
-    if (!modelInfo(native.model)?.efforts.includes(c.effort)) return { meta: null };
-    native.effort = c.effort;
+    if (!modelInfo(chat.model)?.efforts.includes(c.effort)) return { meta: null };
+    chat.effort = c.effort;
     call('session.model.setReasoningEffort', { reasoningEffort: c.effort });
     return { meta: { effort: c.effort } };
   };
 
-  const term = {
-    pid: proc.pid, cols: cols > 0 ? cols : 120, rows: rows > 0 ? rows : 32,
-    write: createLineInput({ say: (t) => native.say?.(t), interrupt: () => native.interrupt() }),
-    resize: (c, r) => { term.cols = c; term.rows = r; },
-    kill: () => { try { proc.stdin.end(); } catch {} try { proc.kill(); } catch {} },
-    onData: () => {}, // no pinta nada: lo que dice va en JSON a la vista
-    onExit: (cb) => exitCbs.push(cb),
-  };
-  return { term, native };
+  return chat;
 };

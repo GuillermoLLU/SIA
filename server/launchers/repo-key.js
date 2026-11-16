@@ -1,14 +1,13 @@
 // La clave de GitHub de un chat es para los REPOS (git, gh, las skills): no es
-// la cuenta de quien usa la IA. Con Claude y Codex no hay cruce posible (sus
-// cuentas son de Anthropic y de OpenAI): la clave va en GH_TOKEN/GITHUB_TOKEN
-// (config/config.js: userEnv). Con Copilot sí: su CLI toma como cuenta SUYA
+// la cuenta de quien usa la IA. Llega al chat en GH_TOKEN/GITHUB_TOKEN
+// (config/config.js: userEnv), pero el CLI de Copilot toma como cuenta SUYA
 // cualquier GH_TOKEN, GITHUB_TOKEN o COPILOT_GITHUB_TOKEN que vea en su
 // entorno, por delante del login (lo dice su ayuda: «takes precedence over
-// previously stored credentials»). Así que un chat de Copilot con la clave de
-// repos de la persona gastaría, o fallaría, con esa clave en vez de con la
-// cuenta de Copilot (Configuración → Proveedores IA).
+// previously stored credentials»). Así que un chat con la clave de repos de la
+// persona gastaría, o fallaría, con esa clave en vez de con la cuenta de
+// Copilot (Configuración → Proveedores IA).
 //
-// Para Copilot, pues, su proceso nunca ve esas variables. La clave del chat le
+// Por eso su proceso nunca ve esas variables. La clave del chat le
 // llega con otro nombre (SIA_GH_TOKEN, que Copilot no mira) y solo el shell de
 // lo que ejecuta la convierte en GH_TOKEN: bash lee BASH_ENV antes de cada
 // comando (su CLI lo permite con --bash-env on) y ese guion, fijo y sin

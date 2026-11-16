@@ -1,35 +1,32 @@
 // La vista Chat: un chat, con su sesión del bridge y, ocupando toda la vista,
-// su conversación (conversation/view.js: Copilot, sin terminal) o su terminal
-// (los CLIs que aún van en un PTY). Se abre desde la portada escribiendo la
-// pregunta, sin elegir nada: Copilot, conocimiento autónomo y todo el
+// su conversación (conversation/view.js). Se abre desde la portada escribiendo
+// la pregunta, sin elegir nada: Copilot, conocimiento autónomo y todo el
 // conocimiento al que la persona tiene acceso (start.js). El chat vive en el
 // bridge, no aquí: se puede recargar la página o abrir el mismo chat desde
 // otro dispositivo (multidispositivo: una sesión pasiva es un chat que tiene
 // otro dispositivo; no se roba, se reclama con un botón). Las reglas, en
-// sessions.js y protocol.js; la terminal, en terminal.js.
+// sessions.js y protocol.js.
 import { esc } from '../ui/html.js';
 import { chatPlan } from './start.js';
 import { heroHtml } from './hero.js';
 import { msg, parse, closeReason, sendOn, isOpen } from './protocol.js';
 import { chatSessions, chromeVisible, nextActive, toAsset, uploadUrl, reconcile } from './sessions.js';
-import { makeTerminal, wireCopyPaste } from './terminal.js';
 import { createAssets } from './assets.js';
 import { createConversationView } from './conversation/view.js';
 
-// api/apiBase: el bridge · wsUrl(): el socket · theme(): el tema actual ·
-// mac: dónde corre · me: el nombre de quien entra (saluda la portada) ·
-// gate(): la puerta del candado · onSkills(list): las skills de la
-// paleta, cuando el bridge las manda · onFirstScreen('hero' | 'chat'): qué se
-// pinta primero al cargar (la portada o un chat vivo), para el arranque ·
-// onLogin(): llevar a Configuración → Proveedores IA (Copilot sin sesión)
-export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, mac, me = null, gate, onSkills, onFirstScreen = () => {}, onLogin = () => {} }) => {
+// api/apiBase: el bridge · wsUrl(): el socket · me: el nombre de quien entra
+// (saluda la portada) · gate(): la puerta del candado · onSkills(list): las
+// skills de la paleta, cuando el bridge las manda · onFirstScreen('hero' |
+// 'chat'): qué se pinta primero al cargar (la portada o un chat vivo), para el
+// arranque · onLogin(): llevar a Configuración → Proveedores IA (Copilot sin sesión)
+export const mountChatView = ({ api, apiBase, wsUrl, dialogs, me = null, gate, onSkills, onFirstScreen = () => {}, onLogin = () => {} }) => {
   const viewEl = document.getElementById('view-chat');
-  const stackEl = document.getElementById('term-stack');
+  const stackEl = document.getElementById('chat-stack');
   const barEl = document.getElementById('chat-bar');
   const sessions = new Map();
   let counter = 0;
   let activeId = null;
-  let bootstrapped = false; // tras el primer 'launchers' restauramos sesiones vivas
+  let bootstrapped = false; // tras el primer saludo del bridge restauramos sesiones vivas
   let lastSessionsList = null; // última lista del bridge (para re-reconciliar)
   let killed = new Set(); // chats cerrados aquí que el bridge aún puede listar
   let accessProjects = []; // proyectos que ves en la base de conocimiento (del bridge)
@@ -37,31 +34,26 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, mac, me = n
 
   const active = () => (activeId ? sessions.get(activeId) : null);
   const all = () => [...sessions.values()];
-
-  const sendResize = (s) => { if (s.launched) sendOn(s.ws, msg.resize(s.term.cols, s.term.rows)); };
-  const refit = (s, { toBottom = false } = {}) => { if (!s.term) return; try { s.fit.fit(); sendResize(s); if (toBottom) s.term.scrollToBottom(); } catch { /* aún sin tamaño */ } };
-  const refitActive = (opts) => { const s = active(); if (s?.launched && s.term) requestAnimationFrame(() => refit(s, opts)); };
   const updateChrome = () => { barEl.hidden = !chromeVisible(all()); };
 
-  // ¿Está el usuario escribiendo en un campo (ajustes, PIN…)? Entonces el chat
+  // ¿Está la persona escribiendo en un campo (ajustes, PIN…)? Entonces el chat
   // NO debe robarle el foco: cubre los setActive de fondo que dispara la
   // reconciliación multidispositivo.
   const typingElsewhere = () => {
     const el = document.activeElement;
-    return !!el && (el.tagName === 'INPUT' || (el.tagName === 'TEXTAREA' && !el.classList.contains('xterm-helper-textarea') && !el.closest('.composer')));
+    return !!el && (el.tagName === 'INPUT' || (el.tagName === 'TEXTAREA' && !el.closest('.composer')));
   };
-  const focus = (s) => { if (s.view) s.view.focus(); else s.term?.focus(); };
-  const focusActive = () => { const s = active(); if (s?.launched && !viewEl.hidden) focus(s); };
+  const focusActive = () => { const s = active(); if (s?.launched && !viewEl.hidden) s.view.focus(); };
 
   const setActive = (id) => {
     activeId = id;
     for (const s of sessions.values()) s.pane.hidden = s.id !== id;
     assets.render();
     const s = sessions.get(id);
-    if (s?.launched) requestAnimationFrame(() => { refit(s); if (!typingElsewhere()) focus(s); });
+    if (s?.launched) requestAnimationFrame(() => { if (!typingElsewhere()) s.view.focus(); });
   };
 
-  const assets = createAssets({ api, apiBase, dialogs, active, onLayout: refitActive });
+  const assets = createAssets({ api, apiBase, dialogs, active });
 
   /* La portada del chat (hero.js): un saludo y el campo de la pregunta. Al
      enviar, el chat arranca con esa pregunta como primer mensaje. Los
@@ -72,7 +64,7 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, mac, me = n
     try { accessProjects = await api('/access/projects'); } catch { /* deja lo último conocido */ }
     return accessProjects;
   };
-  const renderStart = (s, launchers) => {
+  const renderStart = (s, copilot) => {
     s.start.innerHTML = heroHtml({ me });
     const form = s.start.querySelector('[data-ask]');
     const field = form.elements.ask;
@@ -85,20 +77,21 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, mac, me = n
       if (!prompt || s.launched) return;
       field.disabled = true;
       const projects = await loadProjects();
-      const plan = chatPlan({ launchers, projects });
+      const plan = chatPlan({ copilot, projects });
       if (plan.error) { s.start.innerHTML = heroHtml({ me, error: plan.error }); return; }
       launchSession(s, plan, prompt);
     });
     if (!typingElsewhere()) field.focus();
   };
 
-  /* La conversación de un chat sin terminal (conversation/view.js), hablando
-     con el bridge por su socket. Se vuelve a montar al re-engancharse: lo que
-     se estaba escribiendo pasa a la caja nueva. */
-  const mountConversation = (s) => {
+  /* Montar la conversación de una sesión (común a lanzar nueva y re-enganchar).
+     Se vuelve a montar al re-engancharse: lo que se estaba escribiendo pasa a
+     la caja nueva. */
+  const materialize = (s) => {
+    s.launched = true;
+    s.start.hidden = true;
     const draft = s.view?.draft();
     s.view?.destroy();
-    s.pane.classList.add('conversation');
     s.view = createConversationView({
       host: s.pane, fileUrl,
       onSend: (text) => sendOn(s.ws, msg.say(text)),
@@ -109,56 +102,22 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, mac, me = n
       onLogin,
     });
     if (draft) s.view.restore(draft);
-  };
-
-  /* Montar la conversación o la terminal de una sesión (común a lanzar nueva y re-enganchar). */
-  const materialize = (s) => {
-    s.launched = true;
-    s.start.hidden = true;
-    if (s.native) { mountConversation(s); updateChrome(); requestAnimationFrame(() => { if (!typingElsewhere()) s.view.focus(); }); return; }
-    s.termHost.hidden = false;
-    ({ term: s.term, fit: s.fit } = makeTerminal(theme().term));
-    s.term.open(s.termHost);
-    if (!mac) wireCopyPaste(s.term, () => assets.pasteFromClipboard(s));
-    s.term.onData((data) => sendOn(s.ws, msg.input(data)));
     updateChrome();
-    // Reajuste robusto: en cuanto el panel tiene su tamaño real (el layout flex
-    // asienta, cambia la fuente del tema, o se muestra la vista), refit. Evita
-    // tener que redimensionar la ventana a mano para que ocupe todo.
-    const onSize = () => { if (!s.pane.hidden && s.term) refit(s); };
-    s.ro = new ResizeObserver(onSize);
-    s.ro.observe(s.termHost);
-    document.fonts?.ready.then(onSize); // la fuente del tema puede cambiar la métrica de celda
-    requestAnimationFrame(() => { onSize(); if (!typingElsewhere()) s.term.focus(); });
+    requestAnimationFrame(() => { if (!typingElsewhere()) s.view.focus(); });
   };
 
-  /* Desmontar la conversación o la terminal local sin tocar el chat del bridge. Al
+  /* Desmontar la conversación local sin tocar el chat del bridge. Al
      re-engancharse llega todo lo que lleva, así que no se pierde nada. */
-  const teardown = (s) => {
-    if (s.ro) { try { s.ro.disconnect(); } catch { /* ya desconectado */ } s.ro = null; }
-    if (s.term) { try { s.term.dispose(); } catch { /* ya liberada */ } s.term = null; }
-    if (s.view) { s.view.destroy(); s.view = null; }
-  };
+  const teardown = (s) => { if (s.view) { s.view.destroy(); s.view = null; } };
 
-  /* Abrir de verdad el chat: la conversación (o la terminal) y la sesión del
-     bridge, con el plan de start.js y la pregunta como primer mensaje. */
-  const launchSession = (s, { launcher, knowledge, projects }, prompt) => {
+  /* Abrir de verdad el chat: la conversación y la sesión del bridge, con el
+     plan de start.js y la pregunta como primer mensaje, que se ve ya mientras
+     Copilot arranca. */
+  const launchSession = (s, { knowledge, projects }, prompt) => {
     if (s.launched) return;
-    s.launcher = launcher.id;
-    s.native = !!launcher.native;
     materialize(s);
-    if (s.native) { // la pregunta se ve ya, mientras Copilot arranca
-      s.view.local(prompt);
-      sendOn(s.ws, msg.start(launcher.id, knowledge, projects, 0, 0, { prompt }));
-      return;
-    }
-    // medir el terminal ANTES de lanzar y mandar el tamaño en el start, para que
-    // el PTY nazca con el ancho real (si no, el CLI dibuja a 80 columnas y queda
-    // estrecho hasta el primer resize). Doble rAF: deja asentar el layout.
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      try { s.fit.fit(); } catch { /* aún sin tamaño */ }
-      sendOn(s.ws, msg.start(launcher.id, knowledge, projects, s.term.cols, s.term.rows, { prompt }));
-    }));
+    s.view.local(prompt);
+    sendOn(s.ws, msg.start(knowledge, projects, { prompt }));
   };
 
   // attach: sesión viva del bridge a re-enganchar · passive: el chat existe en
@@ -167,20 +126,17 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, mac, me = n
   const createSession = ({ attach = null, passive = false } = {}) => {
     const id = ++counter;
     const pane = document.createElement('div');
-    pane.className = 'term-pane';
+    pane.className = 'chat-pane';
     pane.hidden = true;
     const start = document.createElement('div');
     start.className = 'ai-hero-host';
-    const termHost = document.createElement('div');
-    termHost.className = 'term-host';
-    termHost.hidden = true;
-    pane.append(start, termHost);
+    pane.append(start);
     stackEl.appendChild(pane);
     const s = {
-      id, pane, start, termHost,
-      term: null, fit: null, ro: null, view: null, ws: null, passive,
-      launched: false, launcher: attach?.launcher || null, native: !!attach?.native, remoteId: attach?.id || null,
-      dead: false,      // el CLI murió de verdad: no hay nada que recuperar
+      id, pane, start,
+      view: null, ws: null, passive,
+      launched: false, remoteId: attach?.id || null,
+      dead: false,      // el chat murió de verdad: no hay nada que recuperar
       linkLost: false,  // el socket cayó con el chat vivo: la reconciliación decide
       handoffEl: null,  // el aviso «abierto en otro dispositivo»
       assets: (attach?.assets || []).map((a) => toAsset(a, apiBase)),
@@ -194,7 +150,7 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, mac, me = n
     updateChrome();
   };
 
-  // Copilot no tiene sesión iniciada: el aviso lleva a iniciarla; la pestaña, que se quedaba sin chat, vuelve a la portada
+  // Copilot no tiene sesión iniciada: el aviso lleva a iniciarla; el chat, que se quedaba sin sesión, vuelve a la portada
   const noSession = (s, message) => {
     dialogs.confirm('Copilot no tiene sesión iniciada', `<p class="dlg-lead">${esc(message)}</p>`, 'Ir a Proveedores IA').then((go) => { if (go) onLogin(); });
     if (s.launched && !s.remoteId) removeSession(s.id);
@@ -205,7 +161,7 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, mac, me = n
   const connectSession = (s, attach) => {
     const ws = new WebSocket(wsUrl());
     s.ws = ws;
-    // re-enganche: montar la conversación o la terminal en cuanto abra el socket y pedir attach
+    // re-enganche: montar la conversación en cuanto abra el socket y pedir attach
     ws.onopen = () => {
       if (!attach) return;
       materialize(s);
@@ -216,10 +172,10 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, mac, me = n
       const m = parse(e.data);
       if (!m) return;
       switch (m.type) {
-        case 'launchers':
+        case 'hello':
           onSkills(m.skills || []);
           accessProjects = m.accessProjects || [];
-          if (!s.launched && !attach) renderStart(s, m.list);
+          if (!s.launched && !attach) renderStart(s, m.copilot);
           if (!bootstrapped) {
             bootstrapped = true;
             const own = chatSessions(m.sessions);
@@ -234,11 +190,7 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, mac, me = n
           // pasivas legítimas que se hubieran pospuesto en esa ventana
           if (lastSessionsList) reconcileSessions(lastSessionsList);
           break;
-        case 'history':
-        case 'data':
-          if (s.term) s.term.write(m.data);
-          break;
-        // la conversación de un chat sin terminal (conversation/view.js)
+        // la conversación (conversation/view.js)
         case 'transcript': s.view?.feed(m); break;
         case 'typing': s.view?.typing(m.text); break;
         case 'thinking': s.view?.thinking(); break;
@@ -249,15 +201,14 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, mac, me = n
         case 'auth-check': // «Ya la he iniciado» en la tarjeta de «sin sesión», y su CLI dice que aún no
           if (!m.ok) dialogs.alert('Copilot sigue sin sesión iniciada', '<p class="dlg-lead">Inicia sesión en Configuración → Proveedores IA y vuelve a probar.</p>');
           break;
-        case 'exit': // el CLI terminó: se deja leer lo último; «Cerrar chat» vuelve a la portada
+        case 'exit': // el chat terminó: se deja leer lo último; «Cerrar chat» vuelve a la portada
           s.dead = true;
-          if (s.term) s.term.write('\r\n\x1b[2m[el chat ha terminado: pulsa «Cerrar chat» para empezar otro]\x1b[0m\r\n');
           s.view?.feed({ items: [{ kind: 'text', id: 'ended', text: 'El chat ha terminado: pulsa «Cerrar chat» para empezar otro.' }] });
           break;
         case 'gone': // la sesión ya no existe en el bridge
           closeSession(s.id);
           break;
-        case 'error': // solo llega con el chat lanzado (antes el bridge solo manda 'launchers')
+        case 'error': // solo llega con el chat lanzado (antes el bridge solo saluda)
           if (m.auth) noSession(s, m.message);
           else { dialogs.alert('Error de sesión', esc(m.message)); if (s.launched && !s.remoteId) removeSession(s.id); } // no llegó a abrirse: de vuelta a la portada
           break;
@@ -271,7 +222,7 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, mac, me = n
       if (why === 'handoff') { setPassive(s); return; }
       if (!sessions.has(s.id) || !s.launched) return; // sesión ya cerrada aquí
       s.ws = null;
-      if (s.dead) return; // el CLI ya había salido: es una muerte real
+      if (s.dead) return; // el chat ya había terminado: es una muerte real
       // Sin reconciliar aquí a propósito: la lista que tenemos es de ANTES del
       // cierre y aún nos da como enganchados. El bridge emite una nueva al
       // detectar el cierre (y al reconectar el socket de control), y es esa la
@@ -293,7 +244,6 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, mac, me = n
      trae a este dispositivo. */
   const showHandoff = (s) => {
     s.start.hidden = true;
-    s.termHost.hidden = true;
     if (!s.handoffEl) {
       s.handoffEl = document.createElement('div');
       s.handoffEl.className = 'handoff';
@@ -358,7 +308,7 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, mac, me = n
   const removeSession = (id) => dropSession(id, { kill: false });
 
   /* «Cerrar chat»: se confirma, porque el chat muere en el bridge para todos
-     los dispositivos; si el CLI ya había terminado, se cierra sin preguntar. */
+     los dispositivos; si ya había terminado, se cierra sin preguntar. */
   barEl.querySelector('#chat-close').addEventListener('click', async () => {
     const s = active();
     if (!s) return;
@@ -380,7 +330,7 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, mac, me = n
       // aquí al momento, en el clip de la barra y en el panel
       if (a.assets?.length) {
         s.assets.push(...a.assets.map((x) => toAsset(x, apiBase)));
-        if (s.id === activeId) { assets.render(); refitActive(); }
+        if (s.id === activeId) assets.render();
       }
       if (a.do === 'passive') setPassive(s);
       else if (a.do === 'reattach') reattach(s);
@@ -401,10 +351,10 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, mac, me = n
     controlWS.onmessage = (e) => {
       const m = parse(e.data);
       if (!m) return;
-      // 'launchers' es el saludo del bridge y trae la lista viva: reconciliar
-      // también con él es lo que recupera los chats al reconectar (tras dormir el
-      // Mac nadie más emite un broadcast, así que sin esto nada se cura).
-      if (m.type === 'sessions' || m.type === 'launchers') reconcileSessions(m.sessions || []);
+      // el saludo del bridge trae la lista viva: reconciliar también con él es
+      // lo que recupera los chats al reconectar (tras dormir el Mac nadie más
+      // emite un broadcast, así que sin esto nada se cura).
+      if (m.type === 'sessions' || m.type === 'hello') reconcileSessions(m.sessions || []);
     };
     controlWS.onclose = (e) => {
       if (e.target !== controlWS) return; // socket ya sustituido: no duplicar
@@ -430,7 +380,6 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, mac, me = n
   window.addEventListener('online', reviveControl);
   window.addEventListener('focus', reviveControl);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) reviveControl(); });
-  window.addEventListener('resize', () => { const s = active(); if (s?.launched) refit(s); });
 
   assets.wire(viewEl, stackEl);
   connectControl();
@@ -439,24 +388,15 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, theme, mac, me = n
   return {
     active,
     upload: assets.upload,
-    refitActive,
     focusActive,
     loadProjects,
     fileUrl,
-    makeTerminal: () => makeTerminal(theme().term),
-    // el tema cambió: todas las terminales con el nuevo
-    setTermTheme: (term) => { for (const s of sessions.values()) if (s.term) s.term.options.theme = term; },
-    // mandar una orden al chat activo (la paleta de skills): en la conversación,
-    // como si se escribiera en su caja; en la terminal, texto y Enter por
-    // separado (si van juntos, el TUI lo trata como «pegado» y el Enter
-    // cuenta como salto de línea en vez de enviar)
+    // mandar una orden al chat activo (la paleta de skills), como si se escribiera en su caja
     sendOrder: (text) => {
       const s = active();
       if (!s?.launched || !isOpen(s.ws)) return false;
-      if (s.view) { s.view.send(text); s.view.focus(); return true; }
-      sendOn(s.ws, msg.input(text));
-      setTimeout(() => sendOn(s.ws, msg.input('\r')), 120);
-      s.term.focus();
+      s.view.send(text);
+      s.view.focus();
       return true;
     },
   };

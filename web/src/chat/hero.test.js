@@ -14,8 +14,8 @@ test('la portada: saludo, campo encendido y sin aviso; con error, campo apagado 
   assert.match(ok, /<h1 class="ai-hero-hi">Hola, Ana\.<\/h1>/);
   assert.match(ok, /<textarea name="ask"[^>]*placeholder="¿En qué te puedo ayudar hoy\?"[^>]*><\/textarea>/);
   assert.doesNotMatch(ok, /disabled|ai-hero-err/);
-  const bad = heroHtml({ me: '<b>', error: 'Claude <no> está' });
+  const bad = heroHtml({ me: '<b>', error: 'Copilot <no> está' });
   assert.match(bad, /Hola, &lt;b&gt;\./);
   assert.match(bad, /<textarea[^>]* disabled>/);
-  assert.match(bad, /<p class="ai-hero-err">Claude &lt;no&gt; está<\/p>/);
+  assert.match(bad, /<p class="ai-hero-err">Copilot &lt;no&gt; está<\/p>/);
 });
