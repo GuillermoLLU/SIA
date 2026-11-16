@@ -140,3 +140,105 @@ test('Análisis tiempos y Calidad: pestañas nuevas, vacías por ahora; IA pasa 
     assert.doesNotMatch(html, /undefined|NaN/);
   }
 });
+
+test('Resumen sin la corona (el informe con datos históricos): los KPIs a todo el ancho y la evolución del backlog', () => {
+  const { m, tabs } = setup([{ company: 0 }, null]);
+  const html = tabs.render('resumen', m.rows(), { state: false });
+  assert.doesNotMatch(html, /En qué estado está/);
+  assert.match(html, /<section class="mt-card mt-s12[^"]*"><h3>Del periodo/);
+  assert.match(tabs.render('resumen', m.rows()), /<section class="mt-card mt-s8[^"]*"><h3>Del periodo/);
+  assert.match(html, />MTTR</);
+});
+
+test('Estado de SLAs (el informe): Atendidas en SLA, lo del periodo, las incidencias y, por técnico, la calidad y la IA', () => {
+  const all = ['inc', 'res', 'mttr', 'iqa', 'sla', 'ia'];
+  const labels = (h) => [...h.matchAll(/<div class="mt-kpi-l"[^>]*>([^<]*)</g)].map((x) => x[1]);
+  const one = setup([{ company: 0 }, null]);
+  const h = one.tabs.render('resumen', one.m.rows(), { slas: all });
+  assert.deepEqual(labels(h), ['Incidencias', '% de resueltas', 'MTTR', '% dentro de SLA', 'Calidad (%IQA)', 'Uso de la IA']);
+  // arriba del todo, Del periodo; Atendidas en SLA, aparte (part 'sla': el informe la pone tras los tiempos)
+  assert.ok(h.indexOf('<h3>Del periodo</h3>') < h.indexOf('<section', h.indexOf('<section') + 1));
+  assert.doesNotMatch(h, /<h3>Atendidas en SLA/);
+  const slaPart = one.tabs.render('resumen', one.m.rows(), { slas: all, part: 'sla' });
+  assert.deepEqual([...slaPart.matchAll(/<h3>([^<]*)/g)].map((x) => x[1].trim()), ['Atendidas en SLA']);
+  assert.equal(kpiOf(h, '% dentro de SLA'), pct(one.m.stats(one.m.rows()).sla));
+  const A = one.m.rows();
+  assert.equal(kpiOf(h, 'Incidencias'), String(A.length));
+  assert.equal(kpiOf(h, 'MTTR'), dur(mttrOf(one.m, A).mttr));
+  assert.match(slaPart, new RegExp(`<h3>Atendidas en SLA <small class="mt-mut">· todas: ${pct(one.m.stats(A).sla)}</small>`));
+  assert.doesNotMatch(h, /En qué estado está|Evolución del backlog|undefined|NaN/);
+  // arriba: Atendidas en SLA (por SLA, módulo, centro y mes), las cifras del periodo y las incidencias (por módulo,
+  // centro y mes); ninguna tarjeta más de % de resueltas, MTTR ni IA por módulo o centro
+  assert.doesNotMatch(h, /Detalle por SLA|<table/);
+  const cardOf = (x, l) => { const a = x.indexOf(`<h3>${l}`); return a < 0 ? '' : x.slice(a, x.indexOf('</section>', a)); };
+  const h4 = (card) => [...card.matchAll(/<h4>([^<]*)</g)].map((x) => x[1].replace(/ \(.*/, '').trim());
+  assert.deepEqual(h4(cardOf(slaPart, 'Atendidas en SLA <small')), ['Por SLA', 'Por módulo', 'Por centro', 'Por mes']);
+  assert.deepEqual(h4(cardOf(h, 'Incidencias <small')), ['Por módulo', 'Por centro', 'Por mes']);
+  assert.equal((cardOf(h, 'Incidencias <small').match(/class="mt-vb-col"/g) || []).length, new Set(A.map((i) => one.m.MONTH[i])).size);
+  for (const l of ['% de resueltas <small', 'MTTR <small', 'Uso de la IA <small', 'Calidad (%IQA)</h3>']) assert.equal(cardOf(h, l), '', l);
+  const sla = cardOf(slaPart, 'Atendidas en SLA <small');
+  for (const p of one.m.PRIOS) assert.match(sla, new RegExp(`<span class="mt-hb-x" title="${one.m.slaLabel(p)}">`));
+  assert.ok(h.indexOf('<h3>Del periodo</h3>') < h.indexOf('<h3>Incidencias <small'));
+  // y, aparte (part 'people'), la calidad y el uso de la IA, por técnico y por nada más
+  const ppl = one.tabs.render('resumen', A, { slas: all, part: 'people' });
+  assert.deepEqual([...ppl.matchAll(/<h3>([^<]*)/g)].map((x) => x[1].trim()), ['Calidad por técnico', 'Uso de la IA por día']);
+  assert.deepEqual(h4(cardOf(ppl, 'Calidad por técnico')), ['Reabiertas', 'Devueltas a la cola']);
+  const techs = one.m.group('as', A).filter((g) => g.k).map((g) => one.m.DIMS.as.label(g.k));
+  for (const n of techs) assert.match(cardOf(ppl, 'Calidad por técnico'), new RegExp(`title="${n}"`), n);
+  // el uso de la IA, una línea a través de los días del periodo, sin nada por técnico
+  const iaDay = cardOf(ppl, 'Uso de la IA por día');
+  assert.match(iaDay, /<polyline class="mt-line mt-s0"/);
+  for (const n of techs) assert.doesNotMatch(iaDay, new RegExp(`title="${n}"`), n);
+  assert.doesNotMatch(ppl, /Por módulo|Por centro|Por mes|Por SLA|undefined|NaN/);
+  assert.equal(one.tabs.render('resumen', A, { slas: ['sla', 'mttr'], part: 'people' }).includes('<h3>'), false, 'sin calidad ni IA marcadas, nada');
+  const two2 = one.tabs.render('resumen', A, { slas: ['sla', 'mttr'] });
+  assert.deepEqual(labels(two2), ['MTTR', '% dentro de SLA']);
+  assert.doesNotMatch(two2, /<h4>Por SLA<\/h4>/, 'Por SLA, solo en Atendidas en SLA (part sla)');
+  assert.equal(one.tabs.render('resumen', A, { slas: ['mttr'], part: 'sla' }).includes('<h3>'), false, 'sin SLA marcado, nada');
+  const two = setup([{ company: 0 }, { company: 1 }]);
+  const c = two.tabs.render('resumen', two.m.rows(), { slas: all });
+  assert.equal((c.match(/class="mt-kpi mt-kpi-co[ "]/g) || []).length, 6);
+  // comparando, sin módulos ni centros (no trabajamos con los mismos): las incidencias, por mes, con una columna de cada
+  // lado; Atendidas en SLA, por SLA (una barra de cada lado) y por mes
+  assert.deepEqual(h4(cardOf(c, 'Incidencias <small')), ['Por mes']);
+  assert.match(cardOf(c, 'Incidencias <small'), /<i class="mt-c0"[\s\S]*<i class="mt-c1"/);
+  const cs = two.tabs.render('resumen', two.m.rows(), { slas: all, part: 'sla' });
+  assert.deepEqual(h4(cardOf(cs, 'Atendidas en SLA <small')), ['Por SLA', 'Por mes']);
+  const row = cardOf(cs, 'Atendidas en SLA <small').match(/<span class="mt-hb-track">[\s\S]*?<\/span>\s*<span class="mt-hb-v">/)[0];
+  assert.match(row, /<i class="mt-c0"[\s\S]*<i class="mt-c1"/);
+  // y sin nada por técnico
+  // frente a T-Systems, nada por técnico: solo el uso de la IA por día, una línea por lado
+  const cp = two.tabs.render('resumen', two.m.rows(), { slas: all, part: 'people' });
+  assert.deepEqual([...cp.matchAll(/<h3>([^<]*)/g)].map((x) => x[1].trim()), ['Uso de la IA por día']);
+  assert.match(cp, /<polyline class="mt-line mt-s0"[\s\S]*<polyline class="mt-line mt-s1"/);
+  assert.doesNotMatch(cp, /undefined|NaN/);
+  assert.doesNotMatch(c, /undefined|NaN/);
+});
+
+test('un periodo frente a otro (los informes): las cifras de los dos y la diferencia; el más largo, en su media', () => {
+  const { m, tabs } = setup([{ company: 0 }, null]);
+  m.setPeriod(m.MIN_D, m.END_D); m.refilter();
+  const all = [m.MIN_D, m.END_D], half = [m.MIN_D, m.MIN_D + Math.round((m.END_D - m.MIN_D) / 2 / 1440) * 1440];
+  const html = tabs.render('resumen', m.rows(), { vsPeriod: { a: { label: 'Mitad', range: half }, b: { label: 'Todo', range: all } } });
+  assert.match(html, /<h3>Mitad frente a Todo<\/h3>/);
+  const labels = [...html.matchAll(/<div class="mt-kpi-l"[^>]*>([^<]*)</g)].map((x) => x[1]);
+  assert.deepEqual(labels, ['Incidencias (media)', '% de resueltas', 'MTTR', '% dentro de SLA', 'Calidad (%IQA)', 'Uso de la IA']);
+  // Todo dura el doble: sus incidencias, a la mitad (su media para la duración de Mitad)
+  const inAll = m.today().filter((i) => m.SIDE[i] === 0 && m.C.rep[i] >= all[0] && m.C.rep[i] < all[1]).length;
+  const side = (name) => html.match(new RegExp(`<span title="${name}">${name}</span><b>([^<]*)</b>`))[1];
+  const want = inAll * ((half[1] - half[0]) / (all[1] - all[0]));
+  assert.equal(Number(side('Todo').replace(',', '.')), Number.isInteger(want) ? want : Math.round(want * 10) / 10);
+  assert.match(html, /Las incidencias de Todo, en su media para la duración de Mitad/);
+  // de la misma duración, sin media
+  const same = tabs.render('resumen', m.rows(), { vsPeriod: { a: { label: 'A', range: half }, b: { label: 'B', range: half } } });
+  assert.match(same, />Incidencias</);
+  assert.doesNotMatch(same, /en su media|undefined|NaN/);
+});
+
+test('un periodo frente a otro, frente a T-Systems: una tarjeta por empresa, cada una con sus dos periodos', () => {
+  const { m, tabs } = setup([{ company: 0 }, { company: 1 }]);
+  const r = [m.MIN_D, m.END_D];
+  const html = tabs.render('resumen', m.rows(), { vsPeriod: { a: { label: 'A', range: r }, b: { label: 'B', range: r } } });
+  assert.deepEqual([...html.matchAll(/<h3>([^<]*)<\/h3>/g)].map((x) => x[1]), ['Indra: A frente a B', 'T-Systems: A frente a B']);
+  assert.doesNotMatch(html, /undefined|NaN/);
+});

@@ -5,13 +5,11 @@ import { SHIFTS, SHIFT_HOURS, DAYS, MIN_ACTIONS } from '../shifts.js';
 import { shade, HOT } from '../rules.js';
 import { perShiftType, byHour, carryRows as carryRowsOf, clockMatrix } from '../turns.js';
 import { opt } from './common.js';
-import { evolutionOf } from './evolucion.js';
 
 export const turnosTab = (t) => {
   const { m, ch, name, grid, ask, noK, slaPct, resAt, startAt, shareOf, cell, table, slices } = t;
   const { C, S, PRIOS, DOW, STYPE, CMP, CO, stats, bySide } = m;
   const { card, kpis, kpiCo, heat, day, split } = ch;
-  const evolution = evolutionOf(t);
 
   // Mapa de calor día de la semana × hora de un instante de cada issue (la apertura, la resolución…).
   const clockHeat = (list, at, clickable) => {
@@ -52,16 +50,17 @@ export const turnosTab = (t) => {
       { label: 'Se resuelven', cls: `mt-l-rs${k}`, v: hours(T[k], resAt) }])}`).join('');
     // qué se queda para el turno siguiente
     const carryRows = carryRowsOf(m, T, cos);
+    // arriba del todo, las cifras por turno; luego, el día en 24 horas, qué se queda para el turno siguiente y la
+    // prioridad por turno
     return grid(ask('turnos'),
       kpis(...SHIFTS.map((sn, k) => kpiCo(`Entran de ${sn.toLowerCase()}`, shareOf(T, (i) => STYPE[i] % 3 === k), (s) => pct(s.v), { val: (s) => s.v, note: SHIFT_HOURS[k] })),
         kpiCo('Entran en fin de semana', shareOf(T, (i) => STYPE[i] >= 3), (s) => pct(s.v), { val: (s) => s.v }),
         kpiCo('Empezadas en su turno', ST, (s) => opt(pct)(s.inShift), { val: (s) => s.inShift, better: 'high', note: 'en el turno en que entran' }),
         kpiCo('Resueltas en su turno', ST, (s) => opt(pct)(s.resInShift), { val: (s) => s.resInShift, better: 'high', note: 'en el turno en que entran' })),
-      evolution.byShift(A),
-      card('Turno a turno', table('Turno', TCOLS.map((d) => [d[0], d[4]]), rowsHtml), { span: 's12', sub: 'Por el turno en que entra cada incidencia; el trabajo (resueltas, personas, acciones), por el turno en que se hace. Clic en una fila para filtrar. Pasa el ratón por una cabecera para ver cómo se calcula.' }),
       card('El día en 24 horas', curves, { span: 's12', sub: 'Incidencias que entran, que se empiezan (pasan a En curso) y que se resuelven en cada hora, en todo el periodo. Si la línea de las que entran va por encima, en esas horas se acumula trabajo.' }),
       card('¿Qué se queda para el turno siguiente?', split(['En su turno', 'En el siguiente', 'Más tarde', 'Sin pasar por En curso'], carryRows), { span: 's12', sub: 'De lo que entra en cada turno, cuándo se empieza. «Sin pasar por En curso»: abiertas sin empezar o cerradas sin ese paso.' }),
-      card('Prioridad por turno', heat('pr', 'tu', 4, 3, { skipR: noK, orderR: PRIOS, orderC: [0, 1, 2] }), { sub: 'Incidencias que entran de cada prioridad en cada turno. Clic en una celda para filtrar.' }),
+      card('Prioridad por turno', heat('pr', 'tu', 4, 3, { skipR: noK, orderR: PRIOS, orderC: [0, 1, 2] }), { span: 's12', sub: 'Incidencias que entran de cada prioridad en cada turno. Clic en una celda para filtrar.' }),
+      card('Turno a turno', table('Turno', TCOLS.map((d) => [d[0], d[4]]), rowsHtml), { span: 's12', sub: 'Por el turno en que entra cada incidencia; el trabajo (resueltas, personas, acciones), por el turno en que se hace. Clic en una fila para filtrar. Pasa el ratón por una cabecera para ver cómo se calcula.' }),
       card('Por día de la semana', slices('Día', DOWS.map((dw, k) => [dw, (i) => DOW[i] === k, `dow:${k}`]), A, ['n', 'sla', 'inShift', 'ip', 'avg'])),
       card('Cuándo llegan las incidencias', clockHeat(A, (i) => C.rep[i], true), { span: 's12', sub: 'Incidencias recibidas por día de la semana y hora. Cuanto más oscuro, más incidencias; las líneas marcan los cambios de turno. Clic en una celda para filtrar.' }),
       card('Cuándo se resuelven', clockHeat(A, resAt, false), { span: 's12', sub: 'Las mismas incidencias, por el día y la hora en que se resolvieron.' }));

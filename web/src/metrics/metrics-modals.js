@@ -8,6 +8,7 @@ import { onEscape } from '../ui/dialog.js';
 import { mountPeriodPanel } from './period-panel.js';
 import { calendarModel } from './calendar-model.js';
 import { DAY } from './rules.js';
+import { REPORTS, MODES, AUDIENCES, SYSTEMS, PICKS, picksOf, modesOf, modeOf, withDates, reportRange, reportsOf, withSystems, withPerson, PARAMS, withParams, SHIFT_PICKS, withShifts, withPeriods, PERIODS_DEFAULT, CUSTOM, datesRange } from './report.js';
 
 const svg = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const UPLOAD = svg('<path d="M12 16V4m0 0-4 4m4-4 4 4"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>');
@@ -168,5 +169,176 @@ export const mountMetricsModals = ({ api, toast, onUpload, onFirstLoad, onClear 
     },
   });
 
-  return { csv, sql, firstLoad, clear };
+  // Exportar informe (#15): dos pestañas arriba, los mismos informes solo de Indra o de Indra frente a T-Systems
+  // (report.js, AUDIENCES); en cada una, de qué sistemas (dos casillas, SGA y SISU, marcadas de partida: SYSTEMS), qué
+  // informe, en un desplegable, con lo que contiene debajo; con los que admiten los dos, Actual o Histórico (modesOf);
+  // y las fechas, solo si se hace con ellas (withDates); y, en los que las llevan, las listas de casillas (picksOf: módulos y centros, o equipos de Jira), con un
+  // buscador y «Todos» / «Ninguno» (sobre lo que se ve). current: { range, from, to } del periodo de arriba y asOf, la
+  // última carga (texto); bounds: { min, max } de lo cargado (reportBounds); base: m.BASE; lists: { pestaña → { dim →
+  // [[clave, nombre, incidencias]] } } de cada lista, de más a menos (cada pestaña, lo suyo: solo Indra, o Indra y
+  // T-Systems); al cambiar de pestaña se rehacen y lo desmarcado sigue desmarcado; onExport({ key, mode, audience, systems, picks, range,
+  // preview, choice }): mode, 'now' o 'dates'; audience, la pestaña; systems, las casillas marcadas; picks, { dim →
+  // claves marcadas } (sin listas, {}); preview, si se pidió la vista previa en lugar del PDF; choice, lo elegido, para volver a abrirla igual
+  // (initial).
+  // people: [[clave, nombre]] de los técnicos de Indra, para Equipo soporte (withPerson): un desplegable, de partida
+  // «Todo el equipo»; onExport recibe person (la clave o null).
+  // periods: [[clave, nombre, desde, hasta]] (period.js, cmpOptions; «AAAA-MM-DD»): el periodo del informe se elige en un
+  // desplegable («Personalizado», arriba, con sus fechas; si no, no se ven); una casilla «Comparar con otro periodo»,
+  // marcada, despliega el otro, igual. onExport recibe cmp ({ a, b }: { label, range } de cada uno; o null).
+  const report = ({ current, bounds, base, lists = {}, people = [], periods = [], initial = {}, onExport }) => {
+    const pick = { cmp: false, period: PERIODS_DEFAULT.a, cmpB: PERIODS_DEFAULT.b, cmpDates: {}, key: REPORTS[0][0], mode: null, audience: AUDIENCES[0][0], systems: SYSTEMS.map(([k]) => k), off: {}, person: null, params: PARAMS.map(([k]) => k), shifts: SHIFT_PICKS.map(([k]) => k), from: bounds.min > current.from ? bounds.min : current.from, to: current.to, ...initial };
+    // lo desmarcado de cada lista (claves): se guarda al cambiar de pestaña y al volver de la vista previa
+    const off = Object.fromEntries(PICKS.map(([dim]) => [dim, new Set(pick.off[dim] || [])]));
+    // una lista de casillas, la de una pestaña: todo marcado menos lo desmarcado
+    const pickList = (audience) => ([dim, label]) => {
+      const items = lists[audience]?.[dim] || [];
+      return `<div class="mt-rep-pick" data-pick="${dim}"><div class="mt-rep-pick-head"><b>${esc(label)}</b><span class="mt-mut" data-pick-count></span>
+        <button type="button" class="mt-go" data-pick-all>Todos</button><button type="button" class="mt-go" data-pick-none>Ninguno</button></div>
+        <input type="search" class="mt-rep-pick-q" data-pick-q placeholder="Buscar…" aria-label="Buscar en ${esc(label.toLowerCase())}">
+        <div class="mt-rep-pick-list">${items.map(([k, l, n]) => `<label data-name="${esc(l.toLowerCase())}"><input type="checkbox" name="pick-${dim}" value="${k}" ${off[dim].has(k) ? '' : 'checked'}><span>${esc(l)}</span><small>${n}</small></label>`).join('') || '<p class="mt-mut mt-small">Nada cargado.</p>'}</div></div>`;
+    };
+    // lo que contiene: el texto del informe; sin fechas, además, de cuándo es lo abierto
+    const about = (key, mode) => esc(REPORTS.find(([k]) => k === key)[3]) + (withDates(key, mode) ? '' : ` <span class="mt-rep-when">Última carga: ${esc(current.asOf)}.</span>`);
+    // los informes de una pestaña (reportsOf), con el elegido marcado; si no lo tiene, el primero
+    const options = (audience, key) => {
+      const list = reportsOf(audience), on = list.some(([k]) => k === key) ? key : list[0][0];
+      return list.map(([k, l]) => `<option value="${k}" ${k === on ? 'selected' : ''}>${esc(l)}</option>`).join('');
+    };
+    if (!reportsOf(pick.audience).some(([k]) => k === pick.key)) pick.key = reportsOf(pick.audience)[0][0];
+    // las listas de un informe en una pestaña (picksOf: módulos y centros, o los equipos de Jira)
+    const picksHtml = (audience, key) => picksOf(key).map(pickList(audience)).join('');
+    const startMode = modeOf(pick.key, pick.mode);
+    // un periodo: su desplegable («Personalizado», arriba del todo, y los de «Comparar») y, con «Personalizado», sus
+    // fechas; si no, no se ven. s: 'a', el del informe (sus fechas, from y to); 'b', el otro de la comparación
+    const names = { a: ['period', 'from', 'to'], b: ['cmp-b', 'cmp-b-from', 'cmp-b-to'] };
+    const periodSide = (s, label) => {
+      const [nk, nf, nt] = names[s], key = s === 'a' ? pick.period : pick.cmpB, d = s === 'a' ? pick : pick.cmpDates.b || pick;
+      return `<span class="mt-rep-cmp-side"><select name="${nk}" aria-label="${label}">${[CUSTOM, ...periods].map(([k, l]) => `<option value="${k}" ${k === key ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>
+        <span class="mt-rep-cmp-dates" data-cmp-dates="${s}"><input type="date" name="${nf}" value="${d.from}" min="${bounds.min}" max="${bounds.max}" aria-label="Desde"> – <input type="date" name="${nt}" value="${d.to}" min="${bounds.min}" max="${bounds.max}" aria-label="Hasta"></span></span>`;
+    };
+    // las fechas de un periodo: las escritas con «Personalizado»; si no, las suyas
+    const datesOf = (key, f, t) => (key === CUSTOM[0] ? [f, t] : (periods.find(([k]) => k === key) || []).slice(2, 4));
+    const labelOf = (key) => (key === CUSTOM[0] ? null : periods.find(([k]) => k === key)?.[1] ?? null);
+    return open({
+      title: 'Exportar informe',
+      body: `<div class="mt-rep-tabs" role="tablist" aria-label="Qué se mira">${AUDIENCES.map(([k, l]) => `<button type="button" role="tab" class="mt-rep-tab" data-audience="${k}" aria-selected="${k === pick.audience}">${esc(l)}</button>`).join('')}</div>
+        <fieldset class="mt-rep-systems" data-systems><legend>Sistemas</legend>${SYSTEMS.map(([k, l]) => `<label><input type="checkbox" name="system" value="${k}" ${pick.systems.includes(k) ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</fieldset>
+        <label class="mt-rep-field"><span>Informe</span>
+          <select name="report" data-report>${options(pick.audience, pick.key)}</select></label>
+        <p class="mt-rep-about" data-about>${about(pick.key, startMode)}</p>
+        <fieldset class="mt-rep-systems" data-modes><legend>Datos</legend>${MODES.map(([k, l, tip]) => `<label title="${esc(tip)}"><input type="radio" name="mode" value="${k}" ${k === startMode ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</fieldset>
+        <fieldset class="mt-rep-systems mt-rep-params" data-params><legend>Parámetros</legend>${PARAMS.map(([k, l]) => `<label><input type="checkbox" name="param" value="${k}" ${pick.params.includes(k) ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</fieldset>
+        <fieldset class="mt-rep-systems mt-rep-params" data-shifts><legend>Turnos</legend>${SHIFT_PICKS.map(([k, l]) => `<label><input type="checkbox" name="shift" value="${k}" ${pick.shifts.includes(k) ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</fieldset>
+        <label class="mt-rep-field" data-person><span>Técnico</span>
+          <select name="person"><option value="">Todo el equipo</option>${people.map(([k, l]) => `<option value="${k}" ${k === pick.person ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
+        <div class="mt-rep-picks" data-picks>${picksHtml(pick.audience, pick.key)}</div>
+        <div class="mt-rep-period" data-dates><span>Periodo</span>${periodSide('a', 'Periodo')}</div>
+        <div class="mt-rep-cmp" data-cmp-box>
+          <label class="mt-rep-check"><input type="checkbox" name="cmp" ${pick.cmp ? 'checked' : ''}> Comparar con otro periodo</label>
+          <div class="mt-rep-cmp-pick" data-cmp-pick>
+            <span>Frente a</span>${periodSide('b', 'Frente a')}
+            <p class="mt-modal-hint">Sale arriba del informe: las cifras de los dos y la diferencia. Si uno dura más, sus incidencias, en su media para la duración del otro (este mes frente a la media del año).</p>
+          </div>
+        </div>
+        <p class="mt-modal-hint">Con los filtros de arriba; lo que se mira, el de la pestaña. «Vista previa» lo enseña aquí tal y como saldrá; «Exportar PDF» ${window.sia?.savePdf ? 'lo guarda directamente: eliges dónde (de partida, en Descargas)' : 'abre el diálogo de impresión: elige «Guardar como PDF» (o «Microsoft Print to PDF»)'}.</p>
+        <p class="mt-modal-err" data-err hidden></p>`,
+      foot: '<button class="mt-btn" data-close>Cancelar</button><button class="mt-btn" data-preview>Vista previa</button><button class="mt-btn mt-primary" data-go>Exportar PDF</button>',
+      setup: (back, close) => {
+        const q = (s) => back.querySelector(s), err = q('[data-err]'), sel = q('[data-report]'), from = q('[name="from"]'), to = q('[name="to"]');
+        q('.mt-modal').classList.add('mt-modal-report');   // algo más ancha: las dos listas, módulos y centros, lado a lado
+        let audience = pick.audience;
+        // el modo elegido en el selector; el que vale, el que admita el informe (modeOf)
+        const mode = () => modeOf(sel.value, q('[name="mode"]:checked')?.value);
+        // las pestañas: la elegida, marcada, con sus informes (si el elegido no está en ella, el primero); las fechas,
+        // las mismas en las dos
+        back.addEventListener('click', (e) => {
+          const tab = e.target.closest('[data-audience]');
+          if (!tab) return;
+          audience = tab.dataset.audience;
+          back.querySelectorAll('[data-audience]').forEach((b) => b.setAttribute('aria-selected', String(b === tab)));
+          sel.innerHTML = options(audience, sel.value);
+          sync();
+        });
+        // al cambiar de informe o de modo, su texto, el selector de modo (si admite los dos) y, si se hace con ellas,
+        // las fechas; la de fin no antes de la de inicio
+        // las listas se rehacen al cambiar de pestaña o de informe (lo desmarcado sigue desmarcado), no con cada casilla
+        let shownPicks = `${pick.audience}:${picksOf(pick.key).map(([d]) => d)}`;
+        const sync = () => {
+          const want = `${audience}:${picksOf(sel.value).map(([d]) => d)}`;
+          if (want !== shownPicks) { q('[data-picks]').innerHTML = picksHtml(audience, sel.value); shownPicks = want; }
+          q('[data-about]').innerHTML = about(sel.value, mode());
+          q('[data-modes]').hidden = modesOf(sel.value).length < 2;
+
+          q('[data-picks]').hidden = !picksOf(sel.value).length;
+          q('[data-systems]').hidden = !withSystems(sel.value);
+          q('[data-person]').hidden = !withPerson(sel.value);
+          q('[data-params]').hidden = !withParams(sel.value);
+          q('[data-shifts]').hidden = !withShifts(sel.value);
+          q('[data-cmp-box]').hidden = !withPeriods(sel.value);
+          const comparing = !q('[data-cmp-box]').hidden && q('[name="cmp"]').checked;
+          q('[data-cmp-pick]').hidden = !comparing;
+          // el periodo: con fechas o comparando (el primero de los dos)
+          q('[data-dates]').hidden = !withDates(sel.value, mode()) && !comparing;
+          q('[data-cmp-dates="a"]').hidden = q('[name="period"]').value !== CUSTOM[0];
+          q('[data-cmp-dates="b"]').hidden = q('[name="cmp-b"]').value !== CUSTOM[0];
+          back.querySelectorAll('[data-pick]').forEach((box) => {
+            const all = box.querySelectorAll('input[type="checkbox"]'), on = [...all].filter((c) => c.checked).length;
+            box.querySelector('[data-pick-count]').textContent = on === all.length ? 'todos' : `${on} de ${all.length}`;
+          });
+          from.max = to.value || bounds.max;
+          to.min = from.value || bounds.min;
+          err.hidden = true;
+        };
+        // cada casilla de una lista que se marca o desmarca, en lo desmarcado (también con «Todos» y «Ninguno»)
+        const remember = (c) => { const dim = c.name.slice(5); if (c.checked) off[dim].delete(Number(c.value)); else off[dim].add(Number(c.value)); };
+        back.addEventListener('change', (e) => { if (e.target.name?.startsWith('pick-')) remember(e.target); });
+        back.addEventListener('change', sync);
+        back.addEventListener('input', sync);
+        // las listas: el buscador enseña solo lo que coincide; «Todos» y «Ninguno», sobre lo que se ve
+        back.addEventListener('input', (e) => {
+          const box = e.target.closest('[data-pick-q]') && e.target.closest('[data-pick]');
+          if (!box) return;
+          const text = e.target.value.trim().toLowerCase();
+          box.querySelectorAll('label[data-name]').forEach((l) => { l.hidden = !!text && !l.dataset.name.includes(text); });
+        });
+        back.addEventListener('click', (e) => {
+          const all = e.target.closest('[data-pick-all]'), none = e.target.closest('[data-pick-none]');
+          if (!all && !none) return;
+          e.target.closest('[data-pick]').querySelectorAll('label[data-name]:not([hidden]) input').forEach((c) => { c.checked = !!all; remember(c); });
+          sync();
+        });
+        const go = (preview) => {
+          const key = sel.value, m = mode(), systems = [...back.querySelectorAll('[name="system"]:checked')].map((c) => c.value);
+          const params = [...back.querySelectorAll('[name="param"]:checked')].map((c) => c.value);
+          const shifts = [...back.querySelectorAll('[name="shift"]:checked')].map((c) => Number(c.value));
+          const personValue = q('[name="person"]').value, person = withPerson(key) && personValue ? Number(personValue) : null;
+          // lo marcado en cada lista del informe (las claves, números)
+          const picks = Object.fromEntries(picksOf(key).map(([dim]) => [dim, [...back.querySelectorAll(`[name="pick-${dim}"]:checked`)].map((c) => Number(c.value))]));
+          const picked = Object.fromEntries(Object.entries(picks).map(([dim, l]) => [dim, l.length]));
+          const period = q('[name="period"]').value, [fromA, toA] = datesOf(period, from.value, to.value);
+          const { range, error } = reportRange({ key, mode: m, current: current.range, from: fromA, to: toA, bounds, base, systems, picked, params, shifts });
+          // comparando: el periodo del informe frente al otro (cada uno, su nombre o, personalizado, null: sus fechas)
+          const cmpOn = q('[name="cmp"]').checked, cmpB = q('[name="cmp-b"]').value;
+          const cmpDates = { b: { from: q('[name="cmp-b-from"]').value, to: q('[name="cmp-b-to"]').value } };
+          const [fromB, toB] = datesOf(cmpB, cmpDates.b.from, cmpDates.b.to);
+          const comparing = withPeriods(key) && cmpOn;
+          const ra = comparing ? datesRange({ from: fromA, to: toA, bounds, base, what: 'del periodo' }) : {};
+          const rb = comparing ? datesRange({ from: fromB, to: toB, bounds, base, what: 'del otro periodo' }) : {};
+          const cmp = comparing ? { a: { label: labelOf(period), range: ra.range }, b: { label: labelOf(cmpB), range: rb.range } } : null;
+          const same = comparing && fromA === fromB && toA === toB;
+          const fail = error || ra.error || rb.error || (same ? 'Elige dos periodos distintos.' : null);
+          if (fail) { err.textContent = fail; err.hidden = false; return; }
+          close();
+          // sin sus casillas (Equipo soporte), de los dos sistemas: sin ese filtro
+          onExport({ key, mode: m, audience, systems: withSystems(key) ? systems : SYSTEMS.map(([k]) => k), picks, person, params, shifts, cmp, range, preview, choice: { key, params, shifts, cmp: cmpOn, period, cmpB, cmpDates, mode: q('[name="mode"]:checked')?.value, audience, systems, person: personValue ? Number(personValue) : null, off: Object.fromEntries(Object.entries(off).map(([d, set]) => [d, [...set]])), from: from.value, to: to.value } });
+        };
+        q('[data-go]').addEventListener('click', () => go(false));
+        q('[data-preview]').addEventListener('click', () => go(true));
+        sync();
+        sel.focus();
+      },
+    });
+  };
+
+  return { csv, sql, firstLoad, clear, report };
 };

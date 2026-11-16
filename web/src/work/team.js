@@ -10,7 +10,7 @@
 // al ordenar por ellos, esas personas van al final.
 import { esc } from '../ui/html.js';
 import { SCOPE, slaText } from '../metrics/model.js';
-import { num, dec, pct, dur, DOWS } from '../metrics/format.js';
+import { num, dec, pct, dur, signedDur, DOWS } from '../metrics/format.js';
 import { compareFigure } from '../metrics/compare.js';
 import { monthTicks } from '../metrics/plot.js';
 import { shiftCounts, perTurn, teamPerTurn } from './per-shift.js';
@@ -99,7 +99,8 @@ export const teamIssues = (m, ui) => panelRows(m, scope(m, ui)).sort((a, b) => m
 
 // m: el modelo de las Métricas; ch: sus piezas (charts.js); ui.sort.team: [columna, ±1];
 // ui.charts: los bloques que se ven como gráfica; ui.person: la persona a la que se filtra (sin ella, todo el equipo);
-// ui.range: los días elegidos en la actividad; ui.actSeries: la serie que se compara con la media del equipo.
+// ui.range: los días elegidos en la actividad; ui.actSeries: la serie que se compara con la media del equipo;
+// ui.vsTeam: con una persona, su tabla frente a la media del equipo (el informe Equipo soporte, metrics/report.js).
 export const teamPanel = (m, ch, ui) => {
   const { card, lines } = ch;
   const sc = scope(m, ui), { who, assigned, doing, inDays, chosen, done, doers } = sc;
@@ -253,6 +254,33 @@ export const teamPanel = (m, ch, ui) => {
     <tbody>${shown.map(row).join('') || `<tr><td colspan="${order.length + 1}" class="mt-mut">Nadie con incidencias en este periodo.</td></tr>`}${pair ? diffRow() : teamRow}</tbody></table></div>`;
   const tableSub = pair ? `<span class="wk-filter">Comparando <b>${label(pair[0])}</b> con <b>${label(pair[1])}</b><button class="wk-block-link" data-cmp-clear>Quitar comparación</button></span>`
     : cmp.length ? `<span class="wk-filter">Pincha otro técnico para compararlo con <b>${label(cmp[0])}</b><button class="wk-block-link" data-cmp-clear>Desmarcar</button></span>` : '';
+  // Una persona frente a la media del equipo (ui.vsTeam): su fila, la media por persona del equipo y la diferencia, en
+  // verde si es mejor y en rojo si es peor. La media, de todas las personas con incidencias; los % y las medias, solo de
+  // quien tiene al menos MIN (con menos dicen poco), salvo que no haya nadie así.
+  const me = who != null && ui.vsTeam ? people.find((p) => p.k === who) : null;
+  const vsTeam = () => {
+    const kind = (c) => (['sla', 'reop', 'ia'].includes(c) ? 'pct' : ['tatt', 'tan', 'avg'].includes(c) ? 'dur' : 'dec');
+    const show = (c, v) => (v == null ? '—' : kind(c) === 'pct' ? pct(v, c === 'sla' ? 0 : 1) : kind(c) === 'dur' ? dur(v) : dec(v));
+    const delta = (c, d) => (kind(c) === 'pct' ? `${d > 0 ? '+' : d < 0 ? '−' : ''}${c === 'sla' ? Math.round(Math.abs(d) * 100) : dec(Math.abs(d) * 100)} pts`
+      : kind(c) === 'dur' ? signedDur(d) : `${d > 0 ? '+' : d < 0 ? '−' : ''}${dec(Math.abs(d))}`);
+    const mean = (c) => {
+      const rated = !!cols[c][3], some = people.filter((p) => !rated || p.n >= MIN);
+      const vals = (some.length ? some : people).map((p) => cols[c][2](p)).filter((v) => v != null);
+      return vals.length ? vals.reduce((a, v) => a + v, 0) / vals.length : null;
+    };
+    const avg = Object.fromEntries(order.map((c) => [c, mean(c)]));
+    const diff = (c) => {
+      const v = cols[c][2](me), a = avg[c];
+      if (v == null || a == null) return '<td class="mt-num mt-mut">—</td>';
+      const d = v - a, better = cols[c][3] === 'high' ? d > 0 : cols[c][3] === 'low' ? d < 0 : null;
+      const cls = !d || better == null ? '' : better ? 'good' : 'bad';
+      return `<td class="mt-num"><b class="mt-diff ${cls}">${delta(c, d)}</b></td>`;
+    };
+    return `<div class="mt-tablewrap"><table class="wk-team"><thead><tr><th></th>${order.map((c) => `<th class="mt-num" data-tip="${esc(cols[c][4])}">${cols[c][0]}</th>`).join('')}</tr></thead>
+      <tbody><tr><td><i class="mt-sw mt-c${k0}"></i>${esc(m.DIMS.as.label(who))}</td>${order.map((c) => cell(me, c)).join('')}</tr>
+      <tr class="mt-grp"><td>Media del equipo</td>${order.map((c) => `<td class="mt-num">${show(c, avg[c])}</td>`).join('')}</tr>
+      <tr><td>Diferencia</td>${order.map(diff).join('')}</tr></tbody></table></div>`;
+  };
 
   // la actividad se pinta sobre el periodo de partida, aunque haya días elegidos (activity.js)
   const activityRange = ui.range?.base || [S.d0, S.d1], picked = ui.actSeries ?? null;
@@ -269,8 +297,9 @@ export const teamPanel = (m, ch, ui) => {
   return `<div class="wk-panel">
     ${filter}<div class="wk-blocks">${activity}${volume}${backlog}${sla}${times}${quality}${ia}</div>
     <div class="mt-grid">
-    ${card('El equipo, persona a persona', table, { span: 's12', sub: `${counts ? '' : 'Faltan los turnos de lo resuelto, escalado y pendiente de cliente (RPT, EPPT, PCPT): reinicia SIA para que el bridge los calcule.'}${tableSub}` })}
+    ${me ? card(`${esc(m.DIMS.as.label(who))} frente a la media del equipo`, vsTeam(), { span: 's12', sub: `La media por persona del equipo (${num(people.length)} ${people.length === 1 ? 'persona' : 'personas'} con incidencias en el periodo); los porcentajes y las medias, de quien tiene al menos ${MIN}. En verde, mejor que la media; en rojo, peor.` })
+      : card('El equipo, persona a persona', table, { span: 's12', sub: `${counts ? '' : 'Faltan los turnos de lo resuelto, escalado y pendiente de cliente (RPT, EPPT, PCPT): reinicia SIA para que el bridge los calcule.'}${tableSub}` })}
     </div>
-    <div class="wk-sheet">${card('Sábana de incidencias', sheetBody(m, teamIssues(m, ui), { ui, id: 'team-sheet', expanded: ui.exp['team-sheet'], more: ch.more, empty: 'Ninguna incidencia con estos filtros.', cols: TEAM_SHEET_COLS }), { span: 's12', sub: `Las incidencias del panel, abiertas o cerradas: ${chosen ? 'con algún paso en los días elegidos' : 'creadas en el periodo'}${who == null ? '' : ', del técnico elegido'}. Exportar a CSV las descarga todas, con su enlace a Remedy, para abrirlas en Excel.` })}</div>
+    ${ui.noSheet ? '' : `<div class="wk-sheet">${card('Sábana de incidencias', sheetBody(m, teamIssues(m, ui), { ui, id: 'team-sheet', expanded: ui.exp['team-sheet'], more: ch.more, empty: 'Ninguna incidencia con estos filtros.', cols: TEAM_SHEET_COLS }), { span: 's12', sub: `Las incidencias del panel, abiertas o cerradas: ${chosen ? 'con algún paso en los días elegidos' : 'creadas en el periodo'}${who == null ? '' : ', del técnico elegido'}. Exportar a CSV las descarga todas, con su enlace a Remedy, para abrirlas en Excel.` })}</div>`}
   </div>`;
 };

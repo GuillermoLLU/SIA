@@ -328,3 +328,30 @@ test('comparar técnicos: con uno, toda la tabla, el elegido marcado y cómo ele
   assert.doesNotMatch(h2, /Diferencia/);
   assert.match(h2, /compararlo con <b>ANA<\/b>/);
 });
+
+test('una persona frente a la media del equipo (vsTeam, el informe): su fila, la media por persona y la diferencia', () => {
+  const m = createModel(data());
+  m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const vs = (person) => { const ui = { exp: {}, sort: {}, charts: new Set(), person, vsTeam: true }; return teamPanel(m, createCharts(m, ui), ui); };
+  const ana = vs(1), card = ana.slice(ana.indexOf('<h3>ANA frente a la media del equipo</h3>'));
+  assert.ok(ana.includes('<h3>ANA frente a la media del equipo</h3>'));
+  assert.doesNotMatch(ana, /El equipo, persona a persona|undefined|NaN/);
+  const row = (name) => card.split('<tr').find((r) => r.includes(`>${name}<`));
+  assert.ok(row('ANA') && row('Media del equipo') && row('Diferencia'));
+  // la media de ANA (1 h) y PEPE (≈ 117 h): su TTR, mejor que la media (en verde); el de PEPE, peor (en rojo)
+  assert.match(row('Media del equipo'), new RegExp(`>${dur((60 + 7000) / 2)}<`));
+  assert.match(row('Diferencia'), /mt-diff good/);
+  assert.doesNotMatch(row('Diferencia'), /mt-diff bad/);
+  const pepe = vs(2);
+  assert.match(pepe.slice(pepe.indexOf('<h3>PEPE frente')).split('<tr').find((r) => r.includes('>Diferencia<')), /mt-diff bad/);
+  // sin persona, la tabla de siempre
+  assert.match(vs(null), /El equipo, persona a persona/);
+});
+
+test('Equipo soporte en un informe (noSheet): sin la sábana de incidencias', () => {
+  const m = createModel(data()), ui = { exp: {}, sort: {}, charts: new Set(), noSheet: true };
+  m.S.sides = [{ company: 0 }, null]; m.refilter();
+  assert.doesNotMatch(teamPanel(m, createCharts(m, ui), ui), /Sábana de incidencias/);
+  ui.noSheet = false;
+  assert.match(teamPanel(m, createCharts(m, ui), ui), /Sábana de incidencias/);
+});

@@ -109,7 +109,9 @@ export const escaladosTab = (t) => {
     .map(([k, l, tip]) => { const on = (k === 'now') === now; return `<button class="mt-seg-b ${on ? 'mt-on' : ''}" data-esc-mode="${k}" aria-pressed="${on}" data-tip="${esc(tip)}">${l}</button>`; }).join('')}</div>`;
 
   // A: lo del periodo (en Activas, solo para el MTTR del IDMTTR: lo de la pestaña es lo abierto, sea cual sea el periodo)
-  const view = (A, note = '') => {
+  // inReport: para el informe Escalados (report.js): sin la pregunta, el selector Activas / Histórico ni la comparativa de
+  // proyectos (se elige pinchando); la tabla de lo escalado, con sus tres desgloses uno tras otro
+  const view = (A, note = '', inReport = false) => {
     const now = !!ui.escNow;
     const keep = now ? (i) => OPEN[i] && escd(i) : (i) => solved(i) && escd(i);
     const pool = (skip) => (now ? m.today(false, skip) : skip ? m.rows(skip) : A);
@@ -144,21 +146,24 @@ export const escaladosTab = (t) => {
     // la tabla de lo escalado, por proyecto Jira (de partida), módulo o centro (ui.escBy; metrics-view.js, data-esc-by):
     // las mismas incidencias y columnas, agrupadas de otra forma. Cada agrupación, sin su propio filtro, para que al
     // pinchar una fila se vean las demás apagadas
-    const by = BY.find(([k]) => k === ui.escBy) || BY[0], [dim, , title, what1, of] = by;
+    const by = BY.find(([k]) => k === ui.escBy) || BY[0], [dim] = by;
     const byPick = `<div class="mt-esc-by"><span>Agrupar por</span><div class="mt-seg mt-seg-sm" role="group" aria-label="Agrupar lo escalado por">${BY.map(([k, l]) => `<button class="mt-seg-b ${k === dim ? 'mt-on' : ''}" data-esc-by="${k}" aria-pressed="${k === dim}">${l}</button>`).join('')}</div></div>`;
-    return grid(ask('escalados'), modes(now), note, bySit, timesKpis(list, A, base, now, noJira), byNoJira, jiraCompare(cmp, now),
-      card('', byPick + scorecard(dim, groups,
-        { id: `rs-${dim}`, rows: pool(dim).filter((i) => keep(i) && inPicked(i) && only(i)), skip: noK, extra: withTimes, refLabel: cmp.picked.length ? 'Lo elegido' : `Todo lo escalado${of}`, title,
-          n: now ? ['Activas', `Escaladas activas y su parte del total escalado${of}.`] : ['Resueltas', `Escaladas resueltas y su parte del total escalado${of}.`] }),
-        { span: 's12', sub: `Lo escalado y ${what}, ${what1} Clic en una fila para filtrar.` }),
+    const table = ([d, , title, what1, of], pick = '') => card('', pick + scorecard(d, groups,
+      // en el informe, cada tabla con todos sus filtros: solo los equipos de Jira marcados (report.js, PICKS)
+      { id: `rs-${d}`, rows: pool(inReport ? undefined : d).filter((i) => keep(i) && inPicked(i) && only(i)), skip: noK, extra: withTimes, refLabel: cmp.picked.length ? 'Lo elegido' : `Todo lo escalado${of}`, title,
+        n: now ? ['Activas', `Escaladas activas y su parte del total escalado${of}.`] : ['Resueltas', `Escaladas resueltas y su parte del total escalado${of}.`] }),
+      { span: 's12', sub: `Lo escalado y ${what}, ${what1}${inReport ? '' : ' Clic en una fila para filtrar.'}` });
+    const top = inReport ? [note, bySit, timesKpis(list, A, base, now, noJira), byNoJira, ...BY.map((b) => table(b))]
+      : [ask('escalados'), modes(now), note, bySit, timesKpis(list, A, base, now, noJira), byNoJira, jiraCompare(cmp, now), table(by, byPick)];
+    return grid(...top,
       card('Malos escalados', sheetBody(m, bad, { ui, id: 'esc-bad', expanded: ui.exp['esc-bad'], more, empty: `Ningún mal escalado${now ? ' activo' : ''} con estos filtros.`, cols: badCols(base, now), exportable: false }),
         { span: 's12', sub: `${now ? 'Incidencias activas' : 'Incidencias del periodo, abiertas o cerradas,'} con algún ticket que se descartó en Jira o pasó de un equipo a otro: se escaló a quien no era. De la más antigua a la más reciente.` }),
-      card('Sábana de incidencias', sheetBody(m, list, { ui, id: 'esc-sheet', expanded: ui.exp['esc-sheet'], more, empty: `Ninguna incidencia escalada${now ? ' activa' : ''} con estos filtros.`, cols }),
+      inReport ? '' : card('Sábana de incidencias', sheetBody(m, list, { ui, id: 'esc-sheet', expanded: ui.exp['esc-sheet'], more, empty: `Ninguna incidencia escalada${now ? ' activa' : ''} con estos filtros.`, cols }),
         { span: 's12', sub: `Las incidencias escaladas y ${now ? 'activas' : 'resueltas'} de esta pestaña, con sus filtros, de la más antigua a la más reciente. Exportar a CSV las descarga todas, con su enlace a Remedy.` }));
   };
 
-  return (A) => {
-    if (CMP()) return m.alone((A1) => view(A1, `<p class="mt-note">Esta pestaña no compara: se ve solo ${esc(name(0))}.</p>`));
-    return view(A);
+  return (A, { inReport = false } = {}) => {
+    if (CMP()) return m.alone((A1) => view(A1, `<p class="mt-note">Esta pestaña no compara: se ve solo ${esc(name(0))}.</p>`, inReport));
+    return view(A, '', inReport);
   };
 };

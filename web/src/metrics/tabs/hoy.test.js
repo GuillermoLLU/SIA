@@ -254,3 +254,33 @@ test('Foto de hoy, «Escaladas: a quién y desde cuándo»: por el proyecto Jira
   assert.match(card, /<th class="mt-r"[^>]*data-f="vp:1">SGA<\/th>/);
   assert.doesNotMatch(card, /TEC|vt:/);
 });
+
+test('Foto de hoy, la sábana: de la más reciente a la más antigua, el título del guion en adelante y el estado sin su motivo', async () => {
+  const { createModel } = await import('../model.js');
+  const { createCharts } = await import('../charts.js');
+  const { createTabs } = await import('../tabs.js');
+  const { data } = await import('../fixture.js');
+  const d = data(); d.cols.su = d.cols.su.map((x, i) => `TDA ${i} - Título ${i}`);
+  const m = createModel(d); m.S.sides = [{ company: 0 }, { company: 1 }]; m.refilter();
+  const ui = { exp: {}, sort: {} }, html = createTabs(m, createCharts(m, ui), ui).render('hoy', m.rows());
+  const open = m.today().filter((i) => m.OPEN[i]);
+  assert.deepEqual(ui.hoySheet.list, [...open].sort((a, b) => m.C.rep[b] - m.C.rep[a]));
+  const sheet = html.slice(html.indexOf('<h3>Sábana de incidencias</h3>'));
+  assert.match(sheet, /de la más reciente a la más antigua/);
+  assert.match(sheet, /<td class="mt-subj" data-tip="Título \d+">Título \d+<\/td>/);
+  assert.doesNotMatch(sheet, /TDA \d+ -/);
+  const head = [...sheet.matchAll(/<th[^>]*>([^<]*)</g)].map((x) => x[1]);
+  const states = [...sheet.matchAll(/<tr>(.*?)<\/tr>/gs)].map((r) => [...r[1].matchAll(/<td[^>]*>(.*?)<\/td>/gs)][head.indexOf('Estado')]?.[1]).filter(Boolean);
+  for (const s of states) assert.doesNotMatch(s, / · /, s);
+});
+
+test('Foto de hoy en un informe (Backlog actual): sin la sábana de incidencias', async () => {
+  const { createModel } = await import('../model.js');
+  const { createCharts } = await import('../charts.js');
+  const { createTabs } = await import('../tabs.js');
+  const { data } = await import('../fixture.js');
+  const m = createModel(data()); m.refilter();
+  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  assert.doesNotMatch(tabs.render('hoy', m.rows(), { inReport: true }), /Sábana de incidencias/);
+  assert.match(tabs.render('hoy', m.rows()), /Sábana de incidencias/);
+});
