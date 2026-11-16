@@ -30,7 +30,7 @@ test('la pantalla: cuatro pestañas, Detalle por defecto, sin análisis de la IA
 test('mía y cogida en SIA: se puede devolver y se ve quién la tiene', () => {
   const html = workScreen({ issue: issue({ claimedBy: { id: 'u', name: 'Ana', at: '2026-10-01T10:30:00Z' } }), sameCenter: [], now, mine: true, tab: 'detail' });
   assert.match(html, /data-release/);
-  assert.match(html, /Asignada<\/span><b>[^<]*<\/b><small>Ana<\/small>/);
+  assert.match(html, /<dt>Asignada<\/dt><dd>[^<]*<span class="iss-low">· en SIA, Ana<\/span><\/dd>/); // en la Ficha del detalle
   assert.match(html, /data-wtab="detail" aria-selected="true"/);
 });
 
@@ -129,7 +129,7 @@ test('la primera línea de una nota, recortada a 90; el arranque de la resoluci�
 
 test('la cabecera de la issue: volver al panel, el título en una línea con su title, y las acciones', () => {
   const html = workScreen({ issue: issue({ text: 'Cola <llena>' }), sameCenter: [], now, mine: true });
-  assert.match(html, /<header class="iss-work-h">\s*<button class="lab-btn primary" data-back>Volver al panel<\/button>\s*<h2 title="Cola &lt;llena&gt;">Cola &lt;llena&gt;<\/h2>/);
+  assert.match(html, /<header class="iss-work-h">\s*<button class="lab-btn primary" data-back>Volver al panel<\/button>\s*<div class="iss-work-title">\s*<h2 title="Cola &lt;llena&gt;">Cola &lt;llena&gt;<\/h2>/);
   assert.match(html, /data-act="resolve">Resolver<[\s\S]*data-act="escalate">Escalar<[\s\S]*data-act="transfer">Traspasar<[\s\S]*data-release>Devolver a la cola</);
   assert.doesNotMatch(html, /Mi mesa|iss-state/);
   const notMine = workScreen({ issue: issue(), sameCenter: [], now, mine: false });

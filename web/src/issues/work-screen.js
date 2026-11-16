@@ -1,8 +1,9 @@
 // La pantalla de trabajo de una issue. A la izquierda, en pestañas: el
 // detalle de la issue (por defecto), las notas de trabajo de Remedy, las
 // relacionadas y su histórico en SIA (por dónde ha pasado y las notas
-// internas del equipo), con sus datos clave en una tira encima de las
-// pestañas. A la derecha, a todo el alto, la resolución asistida por IA
+// internas del equipo). Bajo el título, lo imprescindible (el INC con su
+// enlace, origen, centro y criticidad); las fechas, en la Ficha del detalle.
+// A la derecha, a todo el alto, la resolución asistida por IA
 // (issue-chat.js), que vive mientras la issue esté abierta.
 // Las parecidas, por conectar: solo su hueco.
 import { esc } from '../ui/html.js';
@@ -118,21 +119,20 @@ const pendingActs = (i, now, mine) => `<aside class="iss-card iss-pending-acts" 
 export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, meId = null, tab = 'detail' }) => `<div class="iss-page iss-work-page">
   <header class="iss-work-h">
     <button class="lab-btn primary" data-back>Volver al panel</button>
-    <h2 title="${esc(i.text)}">${esc(i.text)}</h2>
+    <div class="iss-work-title">
+      <h2 title="${esc(i.text)}">${esc(i.text)}</h2>
+      <p class="iss-work-sub">
+        ${i.link ? `<a href="${esc(i.link)}" target="_blank" rel="noopener" title="Abrir en Remedy">${esc(i.id)} ↗</a>` : `<span>${esc(i.id)}</span>`}
+        <span class="k-origin${i.sisu ? ' sisu' : ''}">${i.sisu ? 'SISU' : 'SGA'}</span>
+        <span>Centro <b class="iss-code">${esc(i.center || '—')}</b></span>
+        <span class="k-sev ${esc(i.priority)}">Criticidad <b>${esc((SEVERITY_ES[i.priority] || i.priority || '').toLowerCase())}</b>${i.prio ? ' · priorizada por negocio' : ''}</span>
+      </p>
+    </div>
     <div class="iss-actions">${i.status === 'PENDING' ? escalatedTag(i) : actionsFor(i, mine).map((key) => ACTION_BUTTON[key]).join('')}</div>
   </header>
 
   <div class="iss-work">
     <section class="iss-card iss-work-main">
-      <div class="iss-keys" aria-label="Datos clave">
-        <div class="k-sev ${esc(i.priority)}"><span>Criticidad</span><b>${esc(SEVERITY_ES[i.priority] || i.priority)}</b>${i.prio ? '<small>priorizada por negocio</small>' : ''}</div>
-        <div class="k-origin${i.sisu ? ' sisu' : ''}"><span>Origen</span><b>${i.sisu ? 'SISU' : 'SGA'}</b></div>
-        <div class="k-center"><span>Centro</span><b class="iss-code">${esc(i.center || '—')}</b></div>
-        <div class="k-link"><span>Remedy</span><b>${i.link ? `<a href="${esc(i.link)}" target="_blank" rel="noopener" title="${esc(i.id)}">${esc(i.id)} ↗</a>` : esc(i.id)}</b></div>
-        <div class="k-created"><span>Creada</span><b>${when(i.reported)}</b><small>hace ${age(i.reported, now)}</small></div>
-        <div class="k-claimed"><span>Asignada</span>${i.claimedBy?.at ? `<b>${whenIso(i.claimedBy.at)}</b><small>${esc(i.claimedBy.name)}</small>` : '<b>—</b><small>nadie en SIA</small>'}</div>
-        <div class="k-moved"><span>Último movimiento</span><b>${i.modified ? `hace ${age(i.modified, now)}` : '—'}</b>${i.modified ? `<small>${when(i.modified)}</small>` : ''}</div>
-      </div>
       <div class="iss-wtabs" role="tablist">
         ${WORK_TABS.map((t) => `<button role="tab" data-wtab="${t.key}" aria-selected="${t.key === tab}">${t.key === 'trail' ? trailTab(timeline.length) : t.label}${t.key === 'related' && sameCenter.length ? `<span>${sameCenter.length}</span>` : ''}${t.key === 'remedy' && i.worklog?.length ? `<span>${i.worklog.length}</span>` : ''}</button>`).join('')}
       </div>
@@ -147,8 +147,9 @@ export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, meI
               <dt>Categoría</dt><dd>${esc(i.category || '—')}</dd>
               <dt>Grupo</dt><dd>${esc(i.group || '—')}</dd>
               <dt>Responsable</dt><dd>${esc(i.assignee || 'Nadie en Remedy')}</dd>
-              <dt>Reportada</dt><dd>${when(i.reported)}</dd>
-              <dt>Último cambio</dt><dd>${when(i.modified)}</dd>
+              <dt>Creada</dt><dd>${when(i.reported)} <span class="iss-low">· hace ${age(i.reported, now)}</span></dd>
+              <dt>Asignada</dt><dd>${i.claimedBy?.at ? `${whenIso(i.claimedBy.at)} <span class="iss-low">· en SIA, ${esc(i.claimedBy.name)}</span>` : 'Nadie la ha cogido en SIA'}</dd>
+              <dt>Último movimiento</dt><dd>${i.modified ? `hace ${age(i.modified, now)} <span class="iss-low">· ${when(i.modified)}</span>` : '—'}</dd>
               ${i.vendorTicket ? `<dt>Ticket proveedor</dt><dd>${esc(i.vendorTicket)}</dd>` : ''}
             </dl>
           </div>

@@ -153,7 +153,18 @@
 /* La pantalla de una issue llena la ventana: entre las cajas y al pie, el mismo margen */
 .iss-work-page { height: 100%; padding-top: 16px; padding-bottom: 16px; gap: 16px; }
 .iss-work-h { display: grid; grid-template-columns: minmax(max-content, 1fr) minmax(0, auto) minmax(max-content, 1fr); align-items: center; gap: 12px 16px; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); }
-.iss-work-h h2 { min-width: 0; margin: 0; font-size: 18px; font-weight: 650; line-height: 1.3; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.iss-work-title { min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.iss-work-h h2 { min-width: 0; max-width: 100%; margin: 0; font-size: 18px; font-weight: 650; line-height: 1.3; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* bajo el título, lo imprescindible, separado por puntos: el INC (enlace a Remedy), origen, centro y criticidad */
+.iss-work-sub { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 0; margin: 0; font-size: 12.5px; line-height: 18px; color: var(--text-low); }
+.iss-work-sub > * + *::before { content: '·'; margin: 0 9px; color: var(--border); font-weight: 700; }
+.iss-work-sub b { font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+.iss-work-sub a { color: var(--text); font-weight: 600; text-decoration: none; }
+.iss-work-sub a:hover { text-decoration: underline; }
+.iss-work-sub .k-origin { font-weight: 600; color: var(--accent); }
+.iss-work-sub .k-origin.sisu { color: var(--iss-sisu); }
+.iss-work-sub .k-sev.HIGH b { color: var(--iss-high); }
+.iss-work-sub .k-sev.CRITICAL, .iss-work-sub .k-sev.CRITICAL b { color: var(--iss-crit); }
 .iss-work-h > .lab-btn { justify-self: start; }
 .iss-work-h .iss-actions { justify-self: end; }
 @media (max-width: 800px) { .iss-work-h { grid-template-columns: minmax(0, 1fr); } .iss-work-h .iss-actions { justify-self: start; } }
@@ -188,6 +199,7 @@
 .iss-kv { display: grid; grid-template-columns: 120px 1fr; gap: 8px 16px; margin: 0; font-size: 13px; }
 .iss-kv dt { color: var(--text-low); }
 .iss-kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.iss-kv dd .iss-low { white-space: nowrap; } /* «· hace 35 d» no se parte */
 .iss-tl { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 13px; }
 .iss-tl time { display: inline-block; width: 96px; color: var(--text-low); font-variant-numeric: tabular-nums; }
 .iss-trail-panel { overflow: hidden; gap: 10px; }
@@ -221,20 +233,6 @@
 .iss-send { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; flex: none; color: var(--surface); background: var(--accent); border: 0; cursor: pointer; }
 .iss-send:disabled { opacity: .45; cursor: default; }
 .iss-send:not(:disabled):hover { filter: brightness(1.08); }
-/* los datos clave: una tira fina encima de las pestañas («Criticidad Media · priorizada»), sin cajas */
-.iss-keys { flex: none; display: flex; flex-wrap: wrap; gap: 4px 22px; padding: 10px 22px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--bg) 50%, var(--surface)); font-size: 12px; line-height: 18px; }
-.iss-keys > div { display: flex; align-items: baseline; gap: 6px; min-width: 0; white-space: nowrap; }
-.iss-keys span { color: var(--text-low); }
-.iss-keys b { font-weight: 650; color: var(--text); font-variant-numeric: tabular-nums; }
-.iss-keys small { font-size: 11.5px; color: var(--text-low); }
-.iss-keys small::before { content: '· '; }
-.iss-keys a { color: var(--accent); text-decoration: none; }
-.iss-keys a:hover { text-decoration: underline; }
-/* color solo donde dice algo: criticidad alta o crítica, y el origen */
-.iss-keys .k-sev.CRITICAL b, .iss-keys .k-sev.CRITICAL small { color: var(--iss-crit); }
-.iss-keys .k-sev.HIGH b { color: var(--iss-high); }
-.iss-keys .k-origin b { color: var(--accent); }
-.iss-keys .k-origin.sisu b { color: var(--iss-sisu); }
 .iss-chat { min-height: 0; gap: 0; padding: 0; overflow: hidden; }
 /* la conversación del chat de la issue (issue-chat.js), de borde a borde del cuadro */
 .iss-chat .iss-card-h { flex: none; padding: 14px 20px 12px; border-bottom: 1px solid var(--border); }
@@ -628,9 +626,9 @@ a.rv-id:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
   @keyframes iss-fill { from { transform: scaleX(0); } to { transform: none; } }
   /* Una issue al abrirla: sus cajas, de arriba abajo; dentro de cada una, su contenido
      asoma justo después (los botones de la cabecera, de izquierda a derecha). */
-  .iss-opening :where(.iss-work-h, .iss-work-main, .iss-keys, .iss-chat, .iss-pending-acts) { animation: ai-in 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
-  .iss-opening :where(.iss-work-h > .lab-btn, .iss-work-h h2, .iss-actions > *, .iss-wtabs, .iss-wpanel, .iss-keys > *) { animation: iss-show 0.4s ease both; }
-  .iss-opening .iss-work-h > :is(.lab-btn, h2) { animation-delay: 60ms; }
+  .iss-opening :where(.iss-work-h, .iss-work-main, .iss-chat, .iss-pending-acts) { animation: ai-in 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .iss-opening :where(.iss-work-h > .lab-btn, .iss-work-title, .iss-actions > *, .iss-wtabs, .iss-wpanel) { animation: iss-show 0.4s ease both; }
+  .iss-opening .iss-work-h > :is(.lab-btn, .iss-work-title) { animation-delay: 60ms; }
   .iss-opening .iss-actions > :nth-child(1) { animation-delay: 60ms; }
   .iss-opening .iss-actions > :nth-child(2) { animation-delay: 120ms; }
   .iss-opening .iss-actions > :nth-child(3) { animation-delay: 160ms; }
@@ -638,7 +636,6 @@ a.rv-id:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
   .iss-opening .iss-work-main { animation-delay: 160ms; }
   .iss-opening .iss-wtabs { animation-delay: 260ms; }
   .iss-opening .iss-wpanel { animation-delay: 320ms; }
-  .iss-opening .iss-keys > * { animation-delay: 240ms; }
   .iss-opening :is(.iss-chat, .iss-pending-acts) { animation-delay: 320ms; }
 }
 @keyframes iss-show { from { opacity: 0; } }
