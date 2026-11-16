@@ -89,7 +89,7 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, me = null, gate, o
   const closeActive = async () => {
     const s = active();
     if (!s) return;
-    if (!s.dead && !(await dialogs.confirm('Nuevo chat', '<p class="dlg-lead">Se cierra este chat y vuelves a la portada para empezar otro.</p>', 'Nuevo chat'))) return;
+    if (!s.dead && !(await dialogs.open({ title: 'Nuevo chat', bodyHTML: '<p class="dlg-lead">Se cierra este chat y vuelves a la portada para empezar otro.</p>', okLabel: 'Nuevo chat', centered: true }))) return;
     closeSession(s.id);
   };
 
@@ -162,7 +162,7 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, me = null, gate, o
 
   // Copilot no tiene sesión iniciada: el aviso lleva a iniciarla; el chat, que se quedaba sin sesión, vuelve a la portada
   const noSession = (s, message) => {
-    dialogs.confirm('Copilot no tiene sesión iniciada', `<p class="dlg-lead">${esc(message)}</p>`, 'Ir a Proveedores IA').then((go) => { if (go) onLogin(); });
+    dialogs.open({ title: 'Copilot no tiene sesión iniciada', bodyHTML: `<p class="dlg-lead">${esc(message)}</p>`, okLabel: 'Ir a Proveedores IA', centered: true }).then((go) => { if (go) onLogin(); });
     if (s.launched && !s.remoteId) removeSession(s.id);
   };
 

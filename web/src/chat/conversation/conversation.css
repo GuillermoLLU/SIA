@@ -20,16 +20,14 @@
 .cv-bg i:nth-child(3) { left: 34%; bottom: 2%; background: color-mix(in srgb, var(--accent) 55%, #06b6d4); animation-duration: 47s; animation-delay: -23s; }
 .cv, .cv-top, .cv-dock { position: relative; z-index: 1; }
 
-/* arriba a la derecha, empezar otro chat: un botón claro */
+/* arriba a la derecha, empezar otro chat: un botón negro, el de la marca */
 .cv-top { position: absolute; top: 14px; right: 24px; z-index: 4; display: flex; gap: 6px; }
 .cv-close {
-  display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px;
-  border: 1px solid var(--border); background: var(--surface); color: var(--text);
-  font: 600 12.5px var(--font-ui); cursor: pointer; box-shadow: var(--shadow-float);
-  transition: border-color var(--motion-state), background var(--motion-state);
+  height: 36px; padding: 0 16px;
+  border: 1px solid var(--accent); background: var(--accent); color: var(--surface);
+  font: 600 12.5px var(--font-ui); cursor: pointer; transition: opacity var(--motion-state);
 }
-.cv-close:hover { border-color: var(--text); }
-.cv-close svg { width: 15px; height: 15px; }
+.cv-close:hover { opacity: .85; }
 
 .cv {
   flex: 1; min-height: 0;

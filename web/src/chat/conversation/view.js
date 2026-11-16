@@ -32,7 +32,6 @@ import './conversation.css';
 
 const NEAR_BOTTOM_PX = 80;
 const THINKING_SHOW_MS = 1500; // «Pensando…» se mantiene este tiempo desde el último aviso
-const NEW_CHAT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
 const CHEVRON = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
 const SKILL = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/></svg>';
 
@@ -75,7 +74,7 @@ export const createConversationView = ({ host, fileUrl, onSend, onStop, onPick, 
   if (onClose) {
     const top = document.createElement('div');
     top.className = 'cv-top';
-    top.innerHTML = `<button type="button" class="cv-close" title="Cerrar este chat y empezar otro">${NEW_CHAT}<span>Nuevo chat</span></button>`;
+    top.innerHTML = '<button type="button" class="cv-close" title="Cerrar este chat y empezar otro">Nuevo chat</button>';
     top.querySelector('button').addEventListener('click', onClose);
     wrap.appendChild(top);
   }
