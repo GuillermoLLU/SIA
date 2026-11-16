@@ -68,15 +68,18 @@ test('los comandos del menú de modelo los aplica SIA', () => {
   assert.equal(commandOf('hola /model x'), null);
 });
 
-test('los modelos de la cuenta; para abrir, «auto» o el primero', () => {
+test('los modelos del catálogo, cada uno con su proveedor; para abrir, «auto» o el primero', () => {
+  const gh = { id: 'copilot', kind: 'copilot', label: 'GitHub Copilot' };
   const models = modelsOf([
-    { id: 'auto', name: 'Auto', capabilities: {} },
+    { id: 'auto', name: 'Auto', capabilities: {}, provider: gh },
     { id: 'gpt-6-sol', name: 'GPT-6 Sol', supportedReasoningEfforts: ['low', 'high'], defaultReasoningEffort: 'low', billing: { multiplier: 3 } },
+    { id: 'acme/llama', name: 'Llama de Acme', provider: { id: 'acme', kind: 'byok', label: 'Acme' } },
     { id: 'vetado', name: 'X', policy: { state: 'disabled' } },
   ]);
   assert.deepEqual(models, [
-    { id: 'auto', label: 'Auto', hint: 'elige Copilot por ti', efforts: [], defaultEffort: null },
-    { id: 'gpt-6-sol', label: 'GPT-6 Sol', hint: '×3', efforts: ['low', 'high'], defaultEffort: 'low' },
+    { id: 'auto', label: 'Auto', hint: 'elige Copilot por ti', efforts: [], defaultEffort: null, provider: { id: 'copilot', label: 'GitHub Copilot' } },
+    { id: 'gpt-6-sol', label: 'GPT-6 Sol', hint: '×3', efforts: ['low', 'high'], defaultEffort: 'low', provider: null },
+    { id: 'acme/llama', label: 'Llama de Acme', hint: '', efforts: [], defaultEffort: null, provider: { id: 'acme', label: 'Acme' } },
   ]);
   assert.equal(defaultModel(models), 'auto');
   assert.equal(defaultModel(models.slice(1)), 'gpt-6-sol');

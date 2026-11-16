@@ -7,7 +7,7 @@
 //
 // deps: host (el panel del chat, position: relative) · getMeta() → { model,
 //   effort, models, modelVia } · onCommand(text) (mandarlo al chat)
-import { modelLabelIn, effortsIn } from './model-names.js';
+import { modelLabelIn, effortsIn, modelGroups } from './model-names.js';
 
 const GAP_PX = 6; // entre el chip y el panel
 
@@ -46,14 +46,23 @@ export const createModelMenu = ({ host, getMeta, onCommand }) => {
     head.querySelector('b').textContent = open === 'model' ? 'Modelo del chat' : 'Esfuerzo al pensar';
     head.querySelector('small').textContent = open === 'model' ? modelLabelIn(models, model) : (effort || 'de serie');
     panel.appendChild(head);
-    const sec = document.createElement('div');
-    sec.className = 'cv-menu-section';
+    const section = (label) => {
+      const sec = document.createElement('div');
+      sec.className = 'cv-menu-section';
+      if (label) { const h = document.createElement('div'); h.className = 'cv-menu-group'; h.textContent = label; sec.appendChild(h); }
+      panel.appendChild(sec);
+      return sec;
+    };
     if (open === 'model') {
-      for (const m of (Array.isArray(models) ? models : [])) choice(sec, { label: m.label, hint: m.hint, on: m.id === model, onClick: () => { onCommand(`/model ${m.id}`); close(); } });
+      // por proveedor (GitHub Copilot, el de una empresa…) cuando hay más de uno
+      for (const g of modelGroups(models)) {
+        const sec = section(g.label);
+        for (const m of g.models) choice(sec, { label: m.label, hint: m.hint, on: m.id === model, onClick: () => { onCommand(`/model ${m.id}`); close(); } });
+      }
     } else {
+      const sec = section('');
       for (const e of effortsIn(models, model)) choice(sec, { label: e.label, hint: e.hint, on: effort === e.id, onClick: () => { onCommand(`/effort ${e.id}`); close(); } });
     }
-    panel.appendChild(sec);
   };
 
   // encima del chip, pegado a su derecha (el panel es absoluto dentro de host)

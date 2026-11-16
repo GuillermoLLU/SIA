@@ -35,11 +35,15 @@ const fakeCopilot = (answer) => {
     calls: (method) => sent.filter((m) => m.method === method),
   };
 };
+const GH = { id: 'copilot', kind: 'copilot', label: 'GitHub Copilot' };
 const MODELS = { models: [{ id: 'auto', name: 'Auto' }, { id: 'sol', name: 'GPT Sol', supportedReasoningEfforts: ['low', 'high'], defaultReasoningEffort: 'low' }] };
+// el catálogo de la sesión: los de la cuenta con su proveedor, y uno propio de la empresa
+const CATALOG = { list: [...MODELS.models.map((m) => ({ ...m, provider: GH })), { id: 'acme/llama', name: 'Llama de Acme', provider: { id: 'acme', kind: 'byok', label: 'Acme' } }], providers: [GH] };
 const base = (answers = {}) => (method, params) => {
   if (method in answers) return typeof answers[method] === 'function' ? answers[method](params) : answers[method];
   if (method === 'connect') return { ok: true, protocolVersion: 3, version: '1.0.109' };
   if (method === 'auth.getStatus') return { isAuthenticated: true, authType: 'user', login: 'ana' };
+  if (method === 'session.model.list') return CATALOG;
   if (method === 'models.list') return MODELS;
   if (method === 'session.send') return { messageId: 'm' };
   return { success: true };
@@ -57,14 +61,24 @@ test('arranca: saludo, cuenta, modelos y una sesión nueva con su id, su carpeta
   const f = fakeCopilot(base());
   const native = start(f, { mcp: { knowledge: { command: 'k', args: ['a'], env: { X: '1' } } } });
   assert.deepEqual(await native.ready, { model: 'auto' });
-  assert.deepEqual(f.sent.filter((m) => m.method).map((m) => m.method), ['connect', 'auth.getStatus', 'models.list', 'session.create', 'session.permissions.setApproveAll']);
+  assert.deepEqual(f.sent.filter((m) => m.method).map((m) => m.method), ['connect', 'auth.getStatus', 'session.create', 'session.permissions.setApproveAll', 'session.model.list', 'session.model.switchTo']);
   const create = f.calls('session.create')[0].params;
-  assert.deepEqual([create.sessionId, create.workingDirectory, create.model, create.clientName], ['S1', '/ws', 'auto', 'sia']);
+  assert.deepEqual([create.sessionId, create.workingDirectory, create.model, create.clientName], ['S1', '/ws', undefined, 'sia']);
   assert.deepEqual(create.mcpServers, { knowledge: { type: 'local', command: 'k', args: ['a'], env: { X: '1' }, tools: ['*'] } });
   assert.deepEqual(f.calls('session.permissions.setApproveAll')[0].params, { sessionId: 'S1', enabled: true });
-  assert.deepEqual(native.models.map((m) => m.id), ['auto', 'sol']);
+  // el catálogo de la sesión: también los modelos propios de la empresa, cada uno con su proveedor
+  assert.deepEqual(native.models.map((m) => `${m.id}@${m.provider?.id}`), ['auto@copilot', 'sol@copilot', 'acme/llama@acme']);
+  assert.deepEqual(f.calls('session.model.switchTo')[0].params, { sessionId: 'S1', modelId: 'auto', providerId: 'copilot' }); // se abre con «auto», fijado
   assert.equal(native.pid, 9);
   assert.equal(native.model, 'auto'); // con cuál va: lo lee el bridge al montar la sesión
+});
+
+test('sin catálogo por sesión (runtime anterior), los modelos de la cuenta', async () => {
+  const f = fakeCopilot(base({ 'session.model.list': () => new Error('Unhandled method session.model.list') }));
+  const native = start(f);
+  await native.ready;
+  assert.deepEqual(native.models.map((m) => `${m.id}@${m.provider}`), ['auto@null', 'sol@null']);
+  assert.deepEqual(f.calls('session.model.switchTo')[0].params, { sessionId: 'S1', modelId: 'auto' });
 });
 
 test('sin sesión de Copilot, lo dice y no abre nada', async () => {
@@ -223,9 +237,10 @@ test('los comandos del menú: modelo y esfuerzo válidos de la cuenta; lo que no
   native.say('/model sol');
   native.say('/effort high');
   native.say('/model auto');       // el esfuerzo no vale en auto: vuelve al de serie
+  native.say('/model acme/llama'); // el de la empresa: con su proveedor
   await tick();
-  assert.deepEqual(metas, [{ model: 'sol', effort: null, modelVia: null }, { effort: 'high' }, { model: 'auto', effort: null, modelVia: null }]);
-  assert.deepEqual(f.calls('session.model.switchTo').map((m) => m.params), [{ sessionId: 'S1', modelId: 'sol' }, { sessionId: 'S1', modelId: 'auto' }]);
+  assert.deepEqual(metas, [{ model: 'sol', effort: null, modelVia: null }, { effort: 'high' }, { model: 'auto', effort: null, modelVia: null }, { model: 'acme/llama', effort: null, modelVia: null }]);
+  assert.deepEqual(f.calls('session.model.switchTo').slice(1).map((m) => m.params), [{ sessionId: 'S1', modelId: 'sol', providerId: 'copilot' }, { sessionId: 'S1', modelId: 'auto', providerId: 'copilot' }, { sessionId: 'S1', modelId: 'acme/llama', providerId: 'acme' }]);
   assert.deepEqual(f.calls('session.model.setReasoningEffort')[0].params, { sessionId: 'S1', reasoningEffort: 'high' });
   assert.equal(f.calls('session.send').length, 0); // ninguno llegó al modelo
 });

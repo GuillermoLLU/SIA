@@ -3,8 +3,10 @@
 // (@github/copilot-sdk): JSON-RPC 2.0 con cabecera Content-Length, como LSP.
 // SIA le habla así:
 //   → connect                                     el saludo (versión del protocolo)
-//   → auth.getStatus · models.list                la cuenta y sus modelos
+//   → auth.getStatus                              la cuenta
 //   → session.create                              la conversación (su id lo pone SIA), con el MCP de conocimiento
+//   → session.model.list                          los modelos de la sesión: los de Copilot y los de
+//        los demás proveedores a los que la cuenta tiene derecho (los propios de una empresa…)
 //   → session.send                                lo que escribe la persona
 //   → session.abort                               parar
 //   → session.model.switchTo / setReasoningEffort cambiar de modelo o de esfuerzo
@@ -121,7 +123,10 @@ export const commandOf = (text) => {
   return m ? { [m[1]]: m[2] } : null;
 };
 
-// ── los modelos (models.list): con su nombre y los esfuerzos que admite cada uno ──
+// ── los modelos (el catálogo de la sesión, session.model.list, o los de la cuenta,
+// models.list): con su nombre, los esfuerzos que admite cada uno y su proveedor
+// (GitHub Copilot, el de una empresa, Microsoft 365 Copilot…), que hace falta
+// para elegirlo y para agruparlos en el menú ──
 export const modelsOf = (list) => (Array.isArray(list) ? list : [])
   .filter((m) => m && m.id && m.policy?.state !== 'disabled')
   .map((m) => ({
@@ -130,6 +135,7 @@ export const modelsOf = (list) => (Array.isArray(list) ? list : [])
     hint: m.id === 'auto' ? 'elige Copilot por ti' : (m.billing?.multiplier != null && m.billing.multiplier !== 1 ? `×${m.billing.multiplier}` : ''),
     efforts: (m.supportedReasoningEfforts || []).map(String),
     defaultEffort: m.defaultReasoningEffort ? String(m.defaultReasoningEffort) : null,
+    provider: m.provider?.id ? { id: String(m.provider.id), label: String(m.provider.label || m.provider.id) } : null,
   }));
 // el modelo con el que abrir: «auto» (elige Copilot) o, si la cuenta no lo tiene, el primero
 export const defaultModel = (models) => (models.find((m) => m.id === 'auto') || models[0])?.id || null;

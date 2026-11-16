@@ -134,12 +134,22 @@ export const spawnCopilot = ({
     if (hello?.protocolVersion && hello.protocolVersion !== PROTOCOL_VERSION) log(`[sia] copilot: su protocolo es el ${hello.protocolVersion} y SIA habla el ${PROTOCOL_VERSION}; si algo falla, actualiza SIA`);
     const auth = await request('auth.getStatus', {});
     if (!auth?.isAuthenticated) throw new Error(NOT_LOGGED);
-    try { chat.models = modelsOf((await request('models.list', {}))?.models); } catch { chat.models = []; }
-    chat.model = defaultModel(chat.models);
-    await request('session.create', sessionCreateParams({ sessionId, cwd, model: chat.model, mcp }));
+    await request('session.create', sessionCreateParams({ sessionId, cwd, mcp }));
     await request('session.permissions.setApproveAll', { sessionId, enabled: true }).catch(() => {});
+    chat.models = modelsOf(await catalog());
+    chat.model = defaultModel(chat.models);
+    if (chat.model) await request('session.model.switchTo', { sessionId, ...switchParams(chat.model) }).catch((e) => log(`[sia] copilot: modelo de serie: ${e.message}`));
     return { model: chat.model };
   };
+  // los modelos: el catálogo de la sesión (los de Copilot y los de los demás
+  // proveedores a los que la cuenta tiene derecho: los propios de una empresa,
+  // Microsoft 365 Copilot…); con un runtime anterior, los de la cuenta
+  const catalog = async () => {
+    try { const r = await request('session.model.list', { sessionId }); if (Array.isArray(r?.list) && r.list.length) return r.list; } catch { /* sin catálogo por sesión */ }
+    try { return (await request('models.list', {}))?.models || []; } catch { return []; }
+  };
+  // elegir un modelo: con su proveedor, que el CLI exige para los que no son de GitHub
+  const switchParams = (id) => { const p = modelInfo(id)?.provider; return { modelId: id, ...(p ? { providerId: p.id } : {}) }; };
   chat.ready = new Promise((resolve, reject) => {
     const t = setTimer(() => reject(new Error('Copilot no ha respondido a tiempo')), COPILOT_READY_MS);
     start().then((r) => { clearTimer(t); resolve(r); }, (e) => { clearTimer(t); reject(e); });
@@ -187,7 +197,7 @@ export const spawnCopilot = ({
       chat.model = c.model;
       chat.via = null;
       if (chat.effort && !modelInfo(c.model).efforts.includes(chat.effort)) chat.effort = null;
-      call('session.model.switchTo', { modelId: c.model, ...(chat.effort ? { reasoningEffort: chat.effort } : {}) });
+      call('session.model.switchTo', { ...switchParams(c.model), ...(chat.effort ? { reasoningEffort: chat.effort } : {}) });
       return { meta: { model: c.model, effort: chat.effort, modelVia: null } };
     }
     if (!modelInfo(chat.model)?.efforts.includes(c.effort)) return { meta: null };

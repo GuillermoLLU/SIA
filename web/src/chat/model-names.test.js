@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { effortLabel, modelLabelIn, modelShown, effortsIn } from './model-names.js';
+import { effortLabel, modelLabelIn, modelShown, effortsIn, modelGroups } from './model-names.js';
 
 const MODELS = [
   { id: 'auto', label: 'Auto', hint: 'elige Copilot por ti', efforts: [], defaultEffort: null },
@@ -31,4 +31,12 @@ test('los esfuerzos del modelo que va, con el de serie marcado; «Auto» no tien
   assert.deepEqual(effortsIn(MODELS, 'auto'), []);
   assert.deepEqual(effortsIn(MODELS, null).map((e) => e.id), ['low', 'medium', 'high']); // sin elegir: los del primero que tenga
   assert.deepEqual(effortsIn([], 'x'), []);
+});
+
+test('por proveedor: con varios, un grupo con su nombre cada uno; con uno (o sin decirlo), todos juntos', () => {
+  const gh = { id: 'copilot', label: 'GitHub Copilot' };
+  const mixed = [{ id: 'auto', provider: gh }, { id: 'acme/llama', provider: { id: 'acme', label: 'Acme' } }, { id: 'sol', provider: gh }];
+  assert.deepEqual(modelGroups(mixed).map((g) => `${g.label}: ${g.models.map((m) => m.id).join(',')}`), ['GitHub Copilot: auto,sol', 'Acme: acme/llama']);
+  assert.deepEqual(modelGroups(MODELS), [{ label: '', models: MODELS }]);
+  assert.deepEqual(modelGroups(null), [{ label: '', models: [] }]);
 });

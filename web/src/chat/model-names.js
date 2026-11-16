@@ -32,3 +32,16 @@ export const effortsIn = (models, id) => {
   const m = modelIn(models, id) || models.find((x) => x.efforts?.length) || models[0];
   return (m.efforts || []).map(effortInfo).map((e) => ({ ...e, hint: e.id === m.defaultEffort ? 'el de serie' : e.hint }));
 };
+// los modelos por proveedor, en el orden en que llegan: [{ label, models }];
+// con uno solo (o ninguno dicho), un único grupo sin nombre
+export const modelGroups = (models) => {
+  const list = Array.isArray(models) ? models : [];
+  const groups = [];
+  for (const m of list) {
+    const key = m.provider?.id || '';
+    let g = groups.find((x) => x.key === key);
+    if (!g) { g = { key, label: m.provider?.label || '', models: [] }; groups.push(g); }
+    g.models.push(m);
+  }
+  return groups.length > 1 ? groups.map(({ label, models: ms }) => ({ label, models: ms })) : [{ label: '', models: list }];
+};
