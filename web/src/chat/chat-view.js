@@ -5,24 +5,26 @@
 // bridge, no aquí: se puede recargar la página o abrir el mismo chat desde
 // otro dispositivo (multidispositivo: una sesión pasiva es un chat que tiene
 // otro dispositivo; no se roba, se reclama con un botón). Las reglas, en
-// sessions.js y protocol.js.
+// sessions.js y protocol.js; los adjuntos, en uploads.js.
 import { esc } from '../ui/html.js';
 import { chatPlan } from './start.js';
 import { heroHtml } from './hero.js';
 import { msg, parse, closeReason, sendOn, isOpen } from './protocol.js';
-import { chatSessions, chromeVisible, nextActive, toAsset, uploadUrl, reconcile } from './sessions.js';
-import { createAssets } from './assets.js';
+import { chatSessions, nextActive, uploadUrl, reconcile } from './sessions.js';
+import { createUploads } from './uploads.js';
 import { createConversationView } from './conversation/view.js';
+
+const HERO_OUT_MS = 360; // lo que tarda la portada en irse (style.css: .ai-hero-host.leaving)
 
 // api/apiBase: el bridge · wsUrl(): el socket · me: el nombre de quien entra
 // (saluda la portada) · gate(): la puerta del candado · onSkills(list): las
 // skills de la paleta, cuando el bridge las manda · onFirstScreen('hero' |
 // 'chat'): qué se pinta primero al cargar (la portada o un chat vivo), para el
-// arranque · onLogin(): llevar a Configuración → Proveedores IA (Copilot sin sesión)
-export const mountChatView = ({ api, apiBase, wsUrl, dialogs, me = null, gate, onSkills, onFirstScreen = () => {}, onLogin = () => {} }) => {
+// arranque · onLogin(): llevar a Configuración → Proveedores IA (Copilot sin
+// sesión) · onPalette(): abrir la paleta de skills (desde el «+» de la caja)
+export const mountChatView = ({ api, apiBase, wsUrl, dialogs, me = null, gate, onSkills, onFirstScreen = () => {}, onLogin = () => {}, onPalette = null }) => {
   const viewEl = document.getElementById('view-chat');
   const stackEl = document.getElementById('chat-stack');
-  const barEl = document.getElementById('chat-bar');
   const sessions = new Map();
   let counter = 0;
   let activeId = null;
@@ -34,7 +36,6 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, me = null, gate, o
 
   const active = () => (activeId ? sessions.get(activeId) : null);
   const all = () => [...sessions.values()];
-  const updateChrome = () => { barEl.hidden = !chromeVisible(all()); };
 
   // ¿Está la persona escribiendo en un campo (ajustes, PIN…)? Entonces el chat
   // NO debe robarle el foco: cubre los setActive de fondo que dispara la
@@ -48,12 +49,11 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, me = null, gate, o
   const setActive = (id) => {
     activeId = id;
     for (const s of sessions.values()) s.pane.hidden = s.id !== id;
-    assets.render();
     const s = sessions.get(id);
     if (s?.launched) requestAnimationFrame(() => { if (!typingElsewhere()) s.view.focus(); });
   };
 
-  const assets = createAssets({ api, apiBase, dialogs, active });
+  const uploads = createUploads({ api, active, dialogs });
 
   /* La portada del chat (hero.js): un saludo y el campo de la pregunta. Al
      enviar, el chat arranca con esa pregunta como primer mensaje. Los
@@ -84,12 +84,21 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, me = null, gate, o
     if (!typingElsewhere()) field.focus();
   };
 
+  /* «Nuevo chat»: se confirma, porque el chat muere en el bridge para todos
+     los dispositivos; si ya había terminado, se cierra sin preguntar. */
+  const closeActive = async () => {
+    const s = active();
+    if (!s) return;
+    if (!s.dead && !(await dialogs.confirm('Nuevo chat', '<p class="dlg-lead">Se cierra este chat y vuelves a la portada para empezar otro.</p>', 'Nuevo chat'))) return;
+    closeSession(s.id);
+  };
+
   /* Montar la conversación de una sesión (común a lanzar nueva y re-enganchar).
      Se vuelve a montar al re-engancharse: lo que se estaba escribiendo pasa a
      la caja nueva. */
   const materialize = (s) => {
     s.launched = true;
-    s.start.hidden = true;
+    if (!s.start.classList.contains('leaving')) s.start.hidden = true; // al lanzar, la portada se va con su animación
     const draft = s.view?.draft();
     s.view?.destroy();
     s.view = createConversationView({
@@ -100,9 +109,11 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, me = null, gate, o
       onApprove: (requestId, allow) => sendOn(s.ws, msg.approve(requestId, allow)),
       onAuthCheck: () => sendOn(s.ws, msg.authCheck()),
       onLogin,
+      onAttach: () => uploads.pick(s),
+      onSkills: onPalette,
+      onClose: closeActive,
     });
     if (draft) s.view.restore(draft);
-    updateChrome();
     requestAnimationFrame(() => { if (!typingElsewhere()) s.view.focus(); });
   };
 
@@ -110,13 +121,16 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, me = null, gate, o
      re-engancharse llega todo lo que lleva, así que no se pierde nada. */
   const teardown = (s) => { if (s.view) { s.view.destroy(); s.view = null; } };
 
-  /* Abrir de verdad el chat: la conversación y la sesión del bridge, con el
-     plan de start.js y la pregunta como primer mensaje, que se ve ya mientras
-     Copilot arranca. */
+  /* Abrir de verdad el chat: la portada se va, la conversación entra con la
+     pregunta ya puesta (mientras Copilot arranca) y se pide la sesión al
+     bridge con el plan de start.js. */
   const launchSession = (s, { knowledge, projects }, prompt) => {
     if (s.launched) return;
+    s.start.classList.add('leaving');
+    setTimeout(() => { s.start.hidden = true; }, HERO_OUT_MS);
     materialize(s);
     s.view.local(prompt);
+    s.view.status('Abriendo el chat…');
     sendOn(s.ws, msg.start(knowledge, projects, { prompt }));
   };
 
@@ -139,15 +153,11 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, me = null, gate, o
       dead: false,      // el chat murió de verdad: no hay nada que recuperar
       linkLost: false,  // el socket cayó con el chat vivo: la reconciliación decide
       handoffEl: null,  // el aviso «abierto en otro dispositivo»
-      assets: (attach?.assets || []).map((a) => toAsset(a, apiBase)),
-      assetsOpen: true,
-      pendingAssets: [], // subidos sin socket: entran al volver
     };
     sessions.set(id, s);
     if (passive) showHandoff(s);
     else connectSession(s, attach);
     setActive(id);
-    updateChrome();
   };
 
   // Copilot no tiene sesión iniciada: el aviso lleva a iniciarla; el chat, que se quedaba sin sesión, vuelve a la portada
@@ -166,7 +176,6 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, me = null, gate, o
       if (!attach) return;
       materialize(s);
       sendOn(ws, msg.attach(attach.id));
-      assets.flushPending(s);
     };
     ws.onmessage = (e) => {
       const m = parse(e.data);
@@ -185,6 +194,7 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, me = null, gate, o
           break;
         case 'started':
           s.remoteId = m.sessionId;
+          s.view?.status(null); // ya está abierto: lo que siga es Copilot trabajando
           // ya sabemos qué chat es el nuestro: re-reconciliar quita cualquier
           // sesión fantasma de la carrera broadcast-vs-started y trae las
           // pasivas legítimas que se hubieran pospuesto en esa ventana
@@ -201,9 +211,9 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, me = null, gate, o
         case 'auth-check': // «Ya la he iniciado» en la tarjeta de «sin sesión», y su CLI dice que aún no
           if (!m.ok) dialogs.alert('Copilot sigue sin sesión iniciada', '<p class="dlg-lead">Inicia sesión en Configuración → Proveedores IA y vuelve a probar.</p>');
           break;
-        case 'exit': // el chat terminó: se deja leer lo último; «Cerrar chat» vuelve a la portada
+        case 'exit': // el chat terminó: se deja leer lo último; «Nuevo chat» vuelve a la portada
           s.dead = true;
-          s.view?.feed({ items: [{ kind: 'text', id: 'ended', text: 'El chat ha terminado: pulsa «Cerrar chat» para empezar otro.' }] });
+          s.view?.ended();
           break;
         case 'gone': // la sesión ya no existe en el bridge
           closeSession(s.id);
@@ -264,7 +274,6 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, me = null, gate, o
     teardown(s);
     s.ws = null;
     showHandoff(s);
-    updateChrome();
   };
   /* Volver a engancharse a un chat que sigue vivo en el bridge (perdimos el
      socket, o lo tenía otro dispositivo y lo reclamamos aquí). */
@@ -279,10 +288,9 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, me = null, gate, o
      tanto las sesiones pasivas como las que perdieron el enlace. */
   const claimHere = () => {
     for (const s of sessions.values()) if (s.remoteId && (s.passive || s.linkLost)) reattach(s);
-    updateChrome();
   };
 
-  /* Quitar una sesión. Con kill, también el chat del bridge («Cerrar chat» =
+  /* Quitar una sesión. Con kill, también el chat del bridge («Nuevo chat» =
      matar la sesión; recargar NO pasa por aquí). Sin kill, limpieza solo local
      (el chat murió o dejó de existir). Sin chats, de vuelta a la portada. */
   const dropSession = (id, { kill }) => {
@@ -302,19 +310,9 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, me = null, gate, o
       if (next) setActive(next);
       else { activeId = null; createSession(); }
     }
-    updateChrome();
   };
   const closeSession = (id) => dropSession(id, { kill: true });
   const removeSession = (id) => dropSession(id, { kill: false });
-
-  /* «Cerrar chat»: se confirma, porque el chat muere en el bridge para todos
-     los dispositivos; si ya había terminado, se cierra sin preguntar. */
-  barEl.querySelector('#chat-close').addEventListener('click', async () => {
-    const s = active();
-    if (!s) return;
-    if (!s.dead && !(await dialogs.confirm('Cerrar este chat', '<p class="dlg-lead">Se pierde la conversación y vuelves a la portada para empezar otro.</p>', 'Cerrar chat'))) return;
-    closeSession(s.id);
-  });
 
   // Aplicar lo que diga la reconciliación (sessions.js) a las sesiones.
   const reconcileSessions = (allRemote) => {
@@ -324,15 +322,9 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, me = null, gate, o
     killed = stillKilled;
     for (const a of actions) {
       const s = sessions.get(a.id);
-      if (a.do === 'remove') { removeSession(s.id); continue; }
-      if (a.do === 'dead') { s.linkLost = false; s.dead = true; continue; }
-      // adjuntos subidos desde otra ventana: salen
-      // aquí al momento, en el clip de la barra y en el panel
-      if (a.assets?.length) {
-        s.assets.push(...a.assets.map((x) => toAsset(x, apiBase)));
-        if (s.id === activeId) assets.render();
-      }
-      if (a.do === 'passive') setPassive(s);
+      if (a.do === 'remove') removeSession(s.id);
+      else if (a.do === 'dead') { s.linkLost = false; s.dead = true; }
+      else if (a.do === 'passive') setPassive(s);
       else if (a.do === 'reattach') reattach(s);
     }
     // un chat abierto en otro dispositivo → sesión pasiva aquí, sin robar el
@@ -381,13 +373,12 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, me = null, gate, o
   window.addEventListener('focus', reviveControl);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) reviveControl(); });
 
-  assets.wire(viewEl, stackEl);
+  uploads.wire(viewEl);
   connectControl();
-  createSession(); // arranque: la portada (sin la barra)
+  createSession(); // arranque: la portada
 
   return {
     active,
-    upload: assets.upload,
     focusActive,
     loadProjects,
     fileUrl,

@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sessionList, metaOf, pickMode, pickProjects, isIssueId, assetFrom, firstPrompt, PROMPT_MAX } from './sessions.js';
+import { sessionList, metaOf, pickMode, pickProjects, isIssueId, firstPrompt, PROMPT_MAX } from './sessions.js';
 
 test('sessionList: lo que ve el cliente de cada sesión', () => {
-  const sessions = new Map([['s1', { id: 's1', meta: { knowledge: 'auto', model: 'auto' }, assets: [], ws: {} }], ['s2', { id: 's2', meta: { knowledge: 'auto', issue: 'INC1' }, assets: [{ name: 'a' }], ws: null }]]);
-  assert.deepEqual(sessionList(sessions), [{ id: 's1', knowledge: 'auto', model: 'auto', assets: [], attached: true }, { id: 's2', knowledge: 'auto', issue: 'INC1', assets: [{ name: 'a' }], attached: false }]);
+  const sessions = new Map([['s1', { id: 's1', meta: { knowledge: 'auto', model: 'auto' }, ws: {} }], ['s2', { id: 's2', meta: { knowledge: 'auto', issue: 'INC1' }, ws: null }]]);
+  assert.deepEqual(sessionList(sessions), [{ id: 's1', knowledge: 'auto', model: 'auto', attached: true }, { id: 's2', knowledge: 'auto', issue: 'INC1', attached: false }]);
 });
 
 test('metaOf: el modelo, el esfuerzo, los modelos y el que contesta; sin nada, vacíos', () => {
@@ -24,9 +24,4 @@ test('pickMode, pickProjects, isIssueId', () => {
   assert.equal(firstPrompt('   '), null);
   assert.equal(firstPrompt(7), null);
   assert.equal(firstPrompt('a'.repeat(PROMPT_MAX + 5)).length, PROMPT_MAX);
-});
-
-test('assetFrom: acotado', () => {
-  assert.deepEqual(assetFrom({ name: 'a'.repeat(100), absPath: '/p' }), { name: 'a'.repeat(80), absPath: '/p' });
-  assert.equal(assetFrom({ name: 'a' }), null);
 });

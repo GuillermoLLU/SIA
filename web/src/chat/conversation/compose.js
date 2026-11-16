@@ -26,28 +26,12 @@ export const appendText = (text, more) => {
   return /\s$/.test(text) ? text + more : `${text} ${more}`;
 };
 
-// Un adjunto en la caja: no su ruta (larga y fea), sino una marca corta
-// («[Imagen 1]», «[Archivo 2]») que al enviar se cambia por la ruta, que es lo
-// que Copilot necesita. Si se borra la marca, ese adjunto no se envía.
-const IMAGE = /\.(png|jpe?g|gif|webp|bmp|svg|heic|avif)$/i;
+// Los adjuntos van con el mensaje como sus rutas, cada una en su línea detrás
+// del texto: así Copilot ve las imágenes (server/chats/copilot.js: sendParams)
+// y la burbuja las enseña aparte (thread.js: uploadsOf). Solo adjuntos, sin
+// texto, también vale.
+export const withFiles = (text, paths) => [text, ...paths].filter(Boolean).join('\n');
 
-// la marca del adjunto `path`, contando los que ya hay de su clase
-export const attachMark = (path, files) => {
-  const kind = IMAGE.test(path) ? 'Imagen' : 'Archivo';
-  const n = files.filter((f) => f.mark.startsWith(`[${kind} `)).length + 1;
-  return `[${kind} ${n}]`;
-};
-
-// meter `piece` donde está el cursor (start–end), con un espacio a cada lado
-// si hace falta → { text, at } (at: dónde queda el cursor)
-export const insertAt = (text, start, end, piece) => {
-  const before = text.slice(0, start);
-  const after = text.slice(end);
-  const lead = before && !/\s$/.test(before) ? ' ' : '';
-  const tail = after && /^\s/.test(after) ? '' : ' ';
-  const head = before + lead + piece + tail;
-  return { text: head + after, at: head.length };
-};
-
-// lo que se envía: cada marca, por su ruta
-export const expandMarks = (text, files) => files.reduce((t, f) => t.split(f.mark).join(f.path), text);
+export const isImageName = (name) => /\.(png|jpe?g|gif|webp|bmp|svg|heic|avif)$/i.test(name || '');
+// la extensión de un fichero, para su ficha («PDF», «XLSX»)
+export const fileExt = (name) => (String(name || '').split('.').pop() || 'file').toUpperCase().slice(0, 5);

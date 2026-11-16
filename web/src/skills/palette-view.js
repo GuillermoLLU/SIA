@@ -1,6 +1,7 @@
-// La paleta de skills (⌘K / Ctrl+K): busca entre las skills de la base de
-// conocimiento y aplica una al chat activo; abajo, «no sé cuál» lanza
-// skill-finder con lo que se describa. Las reglas, en palette.js.
+// La paleta de skills (⌘K / Ctrl+K, o «Usar una skill» en el «+» de la caja):
+// busca entre las skills de la base de conocimiento y aplica una al chat
+// activo; abajo, «no sé cuál» lanza skill-finder con lo que se describa. Las
+// reglas, en palette.js.
 import { esc } from '../ui/html.js';
 import { filterSkills, clampIndex, skillOrder, finderOrder } from './palette.js';
 
@@ -53,7 +54,6 @@ export const mountPalette = ({ chat }) => {
     if (e.key === 'Enter') { e.preventDefault(); applyFinder(finder.value); }
     else if (e.key === 'Escape') { e.preventDefault(); close(); }
   });
-  $('skills-btn').addEventListener('click', (e) => { e.stopPropagation(); toggle(); });
   palette.addEventListener('mousedown', (e) => { if (e.target === palette) close(); }); // clic en el fondo
   input.addEventListener('input', () => { index = 0; render(); });
   input.addEventListener('keydown', (e) => {

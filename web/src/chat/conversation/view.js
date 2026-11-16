@@ -1,20 +1,24 @@
 // La conversación de un chat de Copilot como un chat de verdad: lo tuyo en
-// burbujas, las respuestas con su Markdown, las herramientas en bloques
-// plegables, las preguntas y los planes en tarjetas (cards.js) y, debajo, la
-// caja de escribir (composer.js) con el pie del modelo y el esfuerzo
-// (../model-menu.js). Pinta lo que manda el bridge (server/chats/): el texto
-// llega en streaming (typing), las preguntas se contestan con onPick(requestId,
-// answers) y el plan con onApprove(requestId, ok). Solo repinta las filas que
-// cambian, y se queda al final mientras lees (salvo que hayas subido a mirar
-// algo). Si Copilot no tiene sesión iniciada sale su tarjeta (cards.js:
-// authHtml), con onLogin() (llevar a Configuración → Proveedores IA) y
-// onAuthCheck() (preguntar si ya la tiene).
+// burbujas a la derecha, las respuestas como prosa con su Markdown, las
+// herramientas en una línea plegable, las preguntas y los planes en tarjetas
+// (cards.js) y, debajo, la caja de escribir (composer.js) con el pie del
+// modelo y el esfuerzo (../model-menu.js). Arriba a la derecha, «Nuevo chat».
+// Pinta lo que manda el bridge (server/chats/): el texto llega en streaming
+// (typing), las preguntas se contestan con onPick(requestId, answers) y el
+// plan con onApprove(requestId, ok). Solo repinta las filas que cambian, y se
+// queda al final mientras lees (salvo que hayas subido a mirar algo). Si
+// Copilot no tiene sesión iniciada sale su tarjeta (cards.js: authHtml), con
+// onLogin() (llevar a Configuración → Proveedores IA) y onAuthCheck()
+// (preguntar si ya la tiene).
 //
 // deps: host (el panel del chat) · fileUrl(nombre) (la URL de un adjunto) ·
-//   onSend(text) · onStop() · onPick · onApprove · onLogin · onAuthCheck · agent
+//   onSend(text) · onStop() · onPick · onApprove · onLogin · onAuthCheck ·
+//   onAttach() (elegir un fichero; null si no) · onSkills() (la paleta; null si
+//   no) · onClose() («Nuevo chat»; null si este chat no se cierra desde aquí) · agent
 import { threadOf, localItem, settleLocal, rowSig } from './thread.js';
 import { renderMarkdown } from './markdown.js';
 import { createComposer } from './composer.js';
+import { isImageName } from './compose.js';
 import { createFind } from './find.js';
 import { createDock } from './dock.js';
 import { answerable, instant, complete, answerMap } from './ask.js';
@@ -24,14 +28,15 @@ import { modelShown, effortLabel, effortsIn } from '../model-names.js';
 import { esc } from '../../ui/html.js';
 import './conversation.css';
 
-const IMAGE = /\.(png|jpe?g|gif|webp|bmp|svg|heic|avif)$/i;
 const NEAR_BOTTOM_PX = 80;
 const THINKING_SHOW_MS = 1500; // «Pensando…» se mantiene este tiempo desde el último aviso
+const NEW_CHAT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
+const CHEVRON = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
 
 const userHtml = (row, fileUrl) => {
-  const files = row.files.map((f) => (IMAGE.test(f)
+  const files = row.files.map((f) => (isImageName(f)
     ? `<a class="cv-file img" href="${esc(fileUrl(f))}" target="_blank" rel="noopener"><img src="${esc(fileUrl(f))}" alt="${esc(f)}" loading="lazy"></a>`
-    : `<a class="cv-file" href="${esc(fileUrl(f))}" target="_blank" rel="noopener">📎 ${esc(f.replace(/^\d+-/, ''))}</a>`)).join('');
+    : `<a class="cv-file" href="${esc(fileUrl(f))}" target="_blank" rel="noopener">${esc(f.replace(/^\d+-/, ''))}</a>`)).join('');
   return `<div class="cv-user${row.local ? ' pending' : ''}"><div class="cv-bubble">${files ? `<div class="cv-files">${files}</div>` : ''}${row.text ? `<div class="cv-said">${esc(row.text)}</div>` : ''}</div></div>`;
 };
 
@@ -55,15 +60,21 @@ const rowHtml = (row, fileUrl, agent) => {
   return toolsHtml(row);
 };
 
-const CHEVRON = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
-
-export const createConversationView = ({ host, fileUrl, onSend, onStop, onPick, onApprove, onLogin, onAuthCheck, agent = 'Copilot' }) => {
+export const createConversationView = ({ host, fileUrl, onSend, onStop, onPick, onApprove, onLogin, onAuthCheck, onAttach = null, onSkills = null, onClose = null, agent = 'Copilot' }) => {
   const wrap = document.createElement('div');
-  wrap.className = 'conversation';
+  wrap.className = 'conversation entering';
   const el = document.createElement('div');
   el.className = 'cv';
   el.innerHTML = '<div class="cv-thread"></div><div class="cv-empty">¿Por dónde empezamos?</div><div class="cv-row cv-typing" hidden><div class="cv-text cv-md"></div></div><div class="cv-busy" hidden><i></i><i></i><i></i><span class="cv-busy-label"></span></div>';
   wrap.appendChild(el);
+  // arriba a la derecha, empezar otro chat
+  if (onClose) {
+    const top = document.createElement('div');
+    top.className = 'cv-top';
+    top.innerHTML = `<button type="button" class="cv-close" title="Cerrar este chat y empezar otro">${NEW_CHAT}<span>Nuevo chat</span></button>`;
+    top.querySelector('button').addEventListener('click', onClose);
+    wrap.appendChild(top);
+  }
   host.appendChild(wrap);
   const thread = el.querySelector('.cv-thread');
   const busyEl = el.querySelector('.cv-busy');
@@ -83,8 +94,9 @@ export const createConversationView = ({ host, fileUrl, onSend, onStop, onPick, 
   const askOf = (node) => shown.get(node.dataset.id)?.row.ask || [];
 
   // trabajando: desde que se manda algo hasta que acaba el turno; y mientras
-  // pregunta no está trabajando: espera
+  // pregunta no está trabajando: espera. status: qué pasa mientras (abriendo el chat)
   let working = false;
+  let status = null;
   let typingText = ''; // lo que está escribiendo (paintTyping)
   let thoughtAt = 0;   // cuándo dijo por última vez que estaba pensando
   let thoughtT = 0;
@@ -94,7 +106,7 @@ export const createConversationView = ({ host, fileUrl, onSend, onStop, onPick, 
     const on = (working || thinking()) && !pendingAsk() && !typingText; // escribiendo ya se ve: sin puntos
     const stick = atBottom();
     busyEl.hidden = !on;
-    busyEl.querySelector('.cv-busy-label').textContent = on && thinking() ? 'Pensando…' : '';
+    busyEl.querySelector('.cv-busy-label').textContent = !on ? '' : thinking() ? 'Pensando…' : (status || '');
     composer.busy((working || !!typingText) && !pendingAsk()); // parar también vale mientras escribe
     composer.asking(pendingAsk());
     if (stick) el.scrollTop = el.scrollHeight;
@@ -108,7 +120,7 @@ export const createConversationView = ({ host, fileUrl, onSend, onStop, onPick, 
   // lo enviado se pinta en el acto (thread.js localItem), sin esperar al eco de Copilot
   let locals = [];
   const say = (text) => { onSend(text); locals = [...locals, localItem(text)]; paint(); sent(); };
-  const composer = createComposer({ host: dock, onSend: say, onStop, agent });
+  const composer = createComposer({ host: dock, onSend: say, onStop, onAttach, onSkills, agent });
   // buscar en la conversación (⌘F / Ctrl+F, cuando esta vista se ve)
   const find = createFind({ host: wrap, scroller: el, onClose: () => composer.focus() });
   const onFindKey = (e) => {
@@ -136,6 +148,7 @@ export const createConversationView = ({ host, fileUrl, onSend, onStop, onPick, 
   const modelMenu = createModelMenu({ host: wrap, getMeta: () => meta, onCommand: onSend });
   for (const b of foot.querySelectorAll('.cv-foot-pick')) b.addEventListener('click', (e) => { e.stopPropagation(); modelMenu.toggle(b.dataset.pick, b); });
   const paintModel = () => {
+    foot.querySelector('[data-pick="model"]').hidden = !meta.model; // hasta que el bridge diga con cuál va
     foot.querySelector('[data-pick="model"] b').textContent = modelShown(meta.models, meta.model, meta.modelVia);
     foot.querySelector('[data-pick="effort"] b').textContent = effortLabel(meta.effort);
     // un modelo sin esfuerzos que elegir (el «Auto» de Copilot): sin su chip
@@ -208,7 +221,7 @@ export const createConversationView = ({ host, fileUrl, onSend, onStop, onPick, 
       let cur = shown.get(row.id);
       if (!cur || cur.sig !== sig) {
         const node = document.createElement('div');
-        node.className = 'cv-row';
+        node.className = cur ? 'cv-row' : 'cv-row cv-new'; // la fila nueva entra con su animación; la que cambia, no
         node.dataset.id = row.id;
         node.innerHTML = rowHtml(row, fileUrl, agent);
         if (cur) { // lo que estaba desplegado sigue desplegado
@@ -246,30 +259,34 @@ export const createConversationView = ({ host, fileUrl, onSend, onStop, onPick, 
     feed: ({ reset, items: more = [] }) => {
       items = reset ? more : items.concat(more);
       locals = settleLocal(locals, more);
-      if (more.some((i) => i.kind === 'text' || i.kind === 'tool')) typingReset(); // la respuesta entera (o su pregunta) ya está en el hilo
+      if (more.some((i) => i.kind === 'text' || i.kind === 'tool')) { typingReset(); status = null; } // ya responde
       paint(); paintBusy();
     },
     // un trozo más de lo que escribe
-    typing: (text) => { typingText += text; paintTyping(); paintBusy(); },
+    typing: (text) => { typingText += text; status = null; paintTyping(); paintBusy(); },
     // está pensando (antes de escribir): se dice, y se deja de decir si calla
-    thinking: () => { thoughtAt = Date.now(); paintBusy(); clearTimeout(thoughtT); thoughtT = setTimeout(paintBusy, THINKING_SHOW_MS + 20); },
+    thinking: () => { thoughtAt = Date.now(); status = null; paintBusy(); clearTimeout(thoughtT); thoughtT = setTimeout(paintBusy, THINKING_SHOW_MS + 20); },
     // lo que Copilot pregunta y espera ({ requestId, toolUseId }) / ya no
     ask: ({ requestId, toolUseId }) => { if (toolUseId) { pending.set(toolUseId, requestId); paint(); paintBusy(); } },
     askOff: (requestId) => { for (const [t, r] of pending) if (r === requestId) pending.delete(t); paint(); paintBusy(); },
     // terminó el turno
-    turn: () => { working = false; typingReset(); paintBusy(); },
+    turn: () => { working = false; status = null; typingReset(); paintBusy(); },
     // con qué modelo y esfuerzo va, y cuáles ofrece ({ model, effort, models, modelVia }), para el pie
     meta: (m) => { meta = { ...meta, ...m }; paintModel(); },
+    // qué pasa mientras trabaja («Abriendo el chat…»), junto a los puntos; null, nada
+    status: (text) => { status = text; paintBusy(); },
     // como si se escribiera en la caja: la burbuja y a Copilot (la paleta de skills)
     send: say,
     // lo que ya se mandó al abrir el chat (la pregunta de la portada): su burbuja, y trabajando
     local: (text) => { locals = [...locals, localItem(text)]; paint(); sent(); },
-    // un adjunto (su ruta), como una marca en la caja
-    attach: composer.attach,
+    // el chat ha terminado: la caja se apaga
+    ended: () => { working = false; composer.disable('Este chat ha terminado. Empieza otro con «Nuevo chat».'); paintBusy(); },
+    // un adjunto ya subido ({ name, absPath, url, isImage }), como una ficha en la caja
+    attachFile: composer.attachFile,
     draft: composer.draft,     // lo que se está escribiendo (text, files)
     restore: composer.restore, // …puesto en esta caja
     focus: composer.focus,
     // quitarla del panel (al volver a engancharse se monta otra)
-    destroy: () => { find.close(); modelMenu.destroy(); document.removeEventListener('keydown', onFindKey, true); wrap.remove(); },
+    destroy: () => { find.close(); modelMenu.destroy(); composer.destroy(); document.removeEventListener('keydown', onFindKey, true); wrap.remove(); },
   };
 };

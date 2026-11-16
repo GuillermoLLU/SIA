@@ -9,7 +9,7 @@
 //         copilotStatus() → la cuenta de Copilot ({ ok, loggedIn }), para la tarjeta de «sin sesión»,
 //         spawnChat (copilot-session.js) y newId (el id de la sesión de Copilot)
 import { randomUUID } from 'node:crypto';
-import { CLOSE, MAX_ASSETS, sessionList, pickMode, pickProjects, isIssueId, assetFrom, firstPrompt, metaOf } from './sessions.js';
+import { CLOSE, sessionList, pickMode, pickProjects, isIssueId, firstPrompt, metaOf } from './sessions.js';
 import { issueContext } from '../issues/context.js';
 import { spawnCopilot, NOT_LOGGED } from './copilot-session.js';
 import { wireNative, nativeSnapshot } from './session.js';
@@ -17,14 +17,14 @@ import { wireNative, nativeSnapshot } from './session.js';
 const SAY_MAX = 200_000; // lo que se le dice a un chat por el socket: con tope
 
 export const createChatBridge = ({ launchers, workspace, env, issues, accessibleProjects, currentBase, skillsOf, skillSync, lock, allowed, copilotStatus = async () => null, spawnChat = spawnCopilot, newId = randomUUID }) => {
-  const sessions = new Map(); // id → { id, chat, meta, assets, ws }
+  const sessions = new Map(); // id → { id, chat, meta, ws }
   const servers = [];         // los WebSocketServer que entran por aquí
   let seq = 0;
 
   const clients = () => servers.flatMap((s) => [...s.clients]);
   const send = (ws, obj) => { if (ws && ws.readyState === ws.OPEN) ws.send(JSON.stringify(obj)); };
   const broadcast = (obj) => { const msg = JSON.stringify(obj); for (const c of clients()) if (c.readyState === c.OPEN) c.send(msg); };
-  // la lista de chats en TODOS los dispositivos: en cada cambio (crear, matar, engancharse, adjuntar…)
+  // la lista de chats en TODOS los dispositivos: en cada cambio (crear, matar, engancharse…)
   const broadcastSessions = () => broadcast({ type: 'sessions', sessions: sessionList(sessions) });
   const closeQuietly = (ws, code, reason) => { try { ws.close(code, reason); } catch { /* ya cerrado */ } };
   // engancharse a un chat: la conversación que lleva, lo que pregunta y su modelo
@@ -48,7 +48,7 @@ export const createChatBridge = ({ launchers, workspace, env, issues, accessible
       if (err.message === NOT_LOGGED) return send(ws, { type: 'error', message: 'Copilot no tiene sesión iniciada. Entra con tu cuenta en Configuración → Proveedores IA.', auth: 'copilot' });
       return send(ws, { type: 'error', message: `Copilot no arrancó: ${err.message}. Comprueba su sesión en Configuración → Proveedores IA y, si es una versión antigua, actualízalo con «copilot update».` });
     }
-    const s = { id, chat, meta: { knowledge: mode, ...(issue ? { issue: issue.id } : {}), model: chat.model, effort: chat.effort, modelVia: null, models: chat.models }, assets: [], ws: null };
+    const s = { id, chat, meta: { knowledge: mode, ...(issue ? { issue: issue.id } : {}), model: chat.model, effort: chat.effort, modelVia: null, models: chat.models }, ws: null };
     sessions.set(id, s);
     console.log(`[sia] chat abierto (${issue ? `issue ${issue.id}, ` : ''}conocimiento ${mode}, base ${base?.name || '-'}, proyectos [${picked.join(',')}], id ${id}, pid ${chat.pid})`);
     chat.onExit(() => {
@@ -144,10 +144,7 @@ export const createChatBridge = ({ launchers, workspace, env, issues, accessible
         const cur = sess;
         Promise.resolve(copilotStatus()).then((st) => { if (st?.loggedIn) cur.chat.authReady(); else send(ws, { type: 'auth-check', ok: false }); }, () => send(ws, { type: 'auth-check', ok: false }));
       }
-      else if (msg.type === 'asset' && sess) {
-        const asset = assetFrom(msg.asset);
-        if (asset && sess.assets.length < MAX_ASSETS) { sess.assets.push(asset); broadcastSessions(); }
-      } else if (msg.type === 'kill') {
+      else if (msg.type === 'kill') {
         // con sessionId se puede matar un chat aunque lo tenga otro dispositivo
         // («Cerrar chat» sobre una sesión pasiva); sin él, el enganchado a este socket
         const target = sess || sessions.get(msg.sessionId);

@@ -7,16 +7,17 @@
 // solo suelta el socket (dispose); el chat sigue vivo en el bridge.
 import { msg, parse, sendOn } from '../chat/protocol.js';
 import { createConversationView } from '../chat/conversation/view.js';
+import { createUploads } from '../chat/uploads.js';
 import { esc } from '../ui/html.js';
 import { assistedPlan } from './assisted.js';
 import { originOf } from './origin.js';
 import { assistHtml } from './work-screen.js';
 
 // host: el hueco del chat · issue: la issue abierta (su id y su origen)
-// wsUrl(): socket del bridge · loadProjects(): los proyectos visibles
-// fileUrl(nombre): la URL de un adjunto · onLogin(): a Configuración →
-// Proveedores IA (Copilot sin sesión)
-export const mountIssueChat = (host, { issue, wsUrl, loadProjects, fileUrl, onLogin }) => {
+// wsUrl(): socket del bridge · loadProjects(): los proyectos visibles · api y
+// dialogs (los adjuntos: chat/uploads.js) · fileUrl(nombre): la URL de un
+// adjunto · onLogin(): a Configuración → Proveedores IA (Copilot sin sesión)
+export const mountIssueChat = (host, { issue, wsUrl, loadProjects, api, dialogs, fileUrl, onLogin }) => {
   const issueId = issue.id, origin = originOf(issue);
   host.innerHTML = `<div class="iss-card-h" data-chat-head hidden><h3>Resolución asistida por IA</h3></div>
     <div class="iss-chat-start"><p class="iss-empty">Conectando…</p></div><div class="iss-chat-conv" hidden></div>`;
@@ -24,6 +25,8 @@ export const mountIssueChat = (host, { issue, wsUrl, loadProjects, fileUrl, onLo
   const chooser = host.querySelector('.iss-chat-start');
   const convHost = host.querySelector('.iss-chat-conv');
   let ws = null, view = null, disposed = false;
+  const uploads = createUploads({ api, active: () => ({ launched: !!view, view }), dialogs });
+  const unwire = uploads.wire(host);
 
   // La cabecera del panel solo tiene sentido con el chat en marcha.
   const showConversation = () => {
@@ -39,6 +42,7 @@ export const mountIssueChat = (host, { issue, wsUrl, loadProjects, fileUrl, onLo
       onApprove: (requestId, allow) => sendOn(ws, msg.approve(requestId, allow)),
       onAuthCheck: () => sendOn(ws, msg.authCheck()),
       onLogin,
+      onAttach: () => uploads.pick({ view }),
     });
   };
 
@@ -51,7 +55,7 @@ export const mountIssueChat = (host, { issue, wsUrl, loadProjects, fileUrl, onLo
     chooser.hidden = false;
     head.hidden = true;
     chooser.innerHTML = `<p class="iss-empty">${esc(text)}</p><button class="lab-btn primary" data-chat-again>Iniciar otra resolución asistida</button>`;
-    chooser.querySelector('[data-chat-again]').addEventListener('click', () => { dispose(); mountIssueChat(host, { issue, wsUrl, loadProjects, fileUrl, onLogin }); });
+    chooser.querySelector('[data-chat-again]').addEventListener('click', () => { dispose(); mountIssueChat(host, { issue, wsUrl, loadProjects, api, dialogs, fileUrl, onLogin }); });
   };
 
   // El botón: se decide con qué se abre (conocimiento autónomo, el proyecto del
@@ -103,6 +107,7 @@ export const mountIssueChat = (host, { issue, wsUrl, loadProjects, fileUrl, onLo
   const dispose = () => {
     disposed = true;
     unmount();
+    unwire();
     try { ws.close(); } catch { /* ya cerrado */ }
   };
   return { dispose };

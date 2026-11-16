@@ -90,6 +90,7 @@ chat = mountChatView({
   // la portada solo marca el arranque si es lo primero que se ve
   onFirstScreen: (first) => { if (firstView(user) === 'chat') reveal(first); },
   onLogin: openProviders,
+  onPalette: () => palette.toggle(),
 });
 palette = mountPalette({ chat });
 
@@ -144,7 +145,7 @@ settings.onPane((name) => { if (name === 'priorizacion') { settings.setFull(true
 const PANELS = [
   { name: 'issues', mount: (el) => mountIssuesView(el, {
     api: createIssuesApi(api), me: user, toast, dialogs,
-    openChat: (host, issue) => mountIssueChat(host, { issue, wsUrl, loadProjects: chat.loadProjects, fileUrl: chat.fileUrl, onLogin: openProviders }),
+    openChat: (host, issue) => mountIssueChat(host, { issue, wsUrl, loadProjects: chat.loadProjects, api, dialogs, fileUrl: chat.fileUrl, onLogin: openProviders }),
   }) },
   { name: 'backlog', mount: (el) => mountBacklogView(el, { api: createBacklogApi(api), toast }) },
   // clic en una persona de Equipo soporte: se abre en Métricas frente al resto de su equipo

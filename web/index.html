@@ -37,32 +37,7 @@
 
       <!-- ── Vista CHAT ── -->
       <div class="window view" id="view-chat">
-        <div class="chat-bar" id="chat-bar" hidden>
-          <span class="chat-bar-spacer"></span>
-          <button class="chat-bar-btn" id="assets-btn" title="Adjuntos compartidos en este chat" hidden>
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-            <span class="count"></span>
-          </button>
-          <button class="chat-bar-btn" id="skills-btn" title="Aplicar una skill al chat (⌘K)">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-            <span>Skills</span>
-            <span class="kbd">⌘K</span>
-          </button>
-          <button class="chat-bar-btn" id="chat-close" title="Cerrar este chat y empezar otro">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-            <span>Cerrar chat</span>
-          </button>
-        </div>
-        <div class="chat-body">
-          <div class="chat-stack" id="chat-stack"></div>
-          <aside class="assets-panel" id="assets-panel" hidden>
-            <header class="assets-head">
-              <span>Adjuntos</span>
-              <button class="assets-close" id="assets-close" title="Ocultar panel">×</button>
-            </header>
-            <div class="assets-list" id="assets-list"></div>
-          </aside>
-        </div>
+        <div class="chat-stack" id="chat-stack"></div>
       </div>
 
       <!-- ── Vista LABORATORIO: el editor de una skill, a pantalla completa (el catálogo vive en Configuración → Skills) ── -->

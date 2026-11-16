@@ -118,14 +118,11 @@ test('sin pregunta, sin primer mensaje; con issue y pregunta a la vez, mandan lo
   x.done();
 });
 
-test('asset y kill: se difunden y al morir el chat se limpia la sesión', async () => {
+test('kill: al morir el chat se limpia la sesión y se avisa a todos', async () => {
   const x = setup();
   const ws = x.connect(fakeWs());
   ws.say({ type: 'start' });
   await tick();
-  ws.say({ type: 'asset', asset: { name: 'foto.png', absPath: '/u/foto.png' } });
-  const last = ws.sent.filter((m) => m.type === 'sessions').at(-1).sessions[0];
-  assert.deepEqual(last.assets, [{ name: 'foto.png', absPath: '/u/foto.png' }]);
   ws.say({ type: 'kill' });
   assert.equal(x.copilot.spawned[0].killed, true);
   assert.ok(ws.sent.some((m) => m.type === 'exit'));
