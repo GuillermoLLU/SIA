@@ -14,7 +14,7 @@ import { chatSessions, nextActive, uploadUrl, reconcile } from './sessions.js';
 import { createUploads } from './uploads.js';
 import { createConversationView } from './conversation/view.js';
 
-const HERO_OUT_MS = 360; // lo que tarda la portada en irse, ampliándose (style.css: .ai-hero-host.leaving)
+const HERO_OUT_MS = 400; // lo que tarda la portada en irse en fundido (style.css: .ai-hero-host.leaving)
 
 // api/apiBase: el bridge · wsUrl(): el socket · me: el nombre de quien entra
 // (saluda la portada) · gate(): la puerta del candado · onSkills(list): las
@@ -122,13 +122,15 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, me = null, gate, o
   const teardown = (s) => { if (s.view) { s.view.destroy(); s.view = null; } };
 
   /* Abrir de verdad el chat: se pide la sesión al bridge con el plan de
-     start.js y la portada se queda, con un giro bajo el campo, mientras
-     Copilot arranca. Cuando el bridge dice «started», la portada se va
-     ampliándose y la conversación entra con la pregunta ya puesta (open). */
+     start.js y la portada se queda mientras el agente arranca: el saludo y lo
+     escrito se difuminan y debajo queda «Iniciando agente…». Cuando el bridge
+     dice «started», la portada se va en fundido y la conversación entra con
+     la pregunta ya puesta (open). */
   const launchSession = (s, { knowledge, projects }, prompt) => {
     if (s.launched) return;
     s.launched = true;
     s.pending = prompt;
+    s.start.classList.add('waiting');
     s.start.querySelector('[data-wait]').hidden = false;
     sendOn(s.ws, msg.start(knowledge, projects, { prompt }));
   };

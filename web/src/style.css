@@ -690,9 +690,12 @@ body.top-nav #settings-modal[hidden] .settings-modal { transform: scale(.98); op
    va subiendo y desvaneciéndose por encima de la conversación, que entra debajo (conversation.css) */
 .ai-hero-host { flex: 1; position: relative; }
 .ai-hero-host[hidden] { display: none; }
-.ai-hero-host.leaving { position: absolute; inset: 0; z-index: 2; pointer-events: none; animation: hero-out .36s cubic-bezier(.4, 0, .6, 1) both; }
-/* se va ampliándose (zoom) mientras se desvanece: la conversación queda detrás */
-@keyframes hero-out { to { opacity: 0; transform: scale(1.08); } }
+.ai-hero-host.leaving { position: absolute; inset: 0; z-index: 2; pointer-events: none; animation: hero-out .4s ease both; }
+/* se va en fundido: la conversación entra detrás con el suyo (conversation.css: cv-enter) */
+@keyframes hero-out { to { opacity: 0; } }
+/* mientras el agente arranca (.waiting): el saludo y lo escrito se difuminan y queda el aviso */
+.ai-hero-host.waiting :is(.ai-hero-hi, .ai-ask) { opacity: 0; filter: blur(8px); transition: opacity .45s ease, filter .45s ease; }
+.ai-hero-host.waiting .ai-ask { pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { .ai-hero-host.leaving { animation: none; opacity: 0; } }
 
 /* ── Arranque del chat de una issue: un botón centrado y, debajo, por qué no
@@ -746,9 +749,13 @@ body:not(.ready) .ai-hero-box { animation: ai-in 0.55s cubic-bezier(0.2, 0.7, 0.
 .ai-ask textarea:focus::placeholder { opacity: 0.6; }
 .ai-ask textarea:disabled { opacity: 0.5; }
 .ai-hero-err { margin: 0; font-size: 12.5px; line-height: 1.5; color: #f25f5c; text-align: center; }
-/* mientras Copilot arranca: el giro bajo el campo (ui/loader.css) */
-.ai-hero-wait { display: flex; justify-content: center; margin-top: -6px; animation: ai-in .3s ease both; }
-.ai-hero-wait[hidden] { display: none; }
+
+/* ── El aviso de que el agente arranca (ui/wait.js): un giro negro fino y una línea sutil al lado.
+   En la portada del Chat va bajo el campo; en el chat de una issue, en el sitio del botón ── */
+.ai-wait { display: flex; align-items: center; justify-content: center; gap: 10px; font: 400 13px/1 var(--font-ui); color: var(--text-low); letter-spacing: .01em; animation: ai-in .4s ease .2s both; }
+.ai-wait[hidden] { display: none; }
+.ai-wait-spin { flex: none; width: 16px; height: 16px; border: 2px solid color-mix(in srgb, var(--text) 18%, transparent); border-top-color: var(--text); border-radius: 50%; animation: spin .9s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .ai-wait { animation: none; } .ai-hero-host.waiting :is(.ai-hero-hi, .ai-ask) { transition: none; } }
 
 /* El arranque (app/intro.js), por fases: mientras `booting`, el dock espera abajo, fuera de la
    pantalla, y el campo de la portada no se ve; con `asking` aparece el campo; con `ready` el dock

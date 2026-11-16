@@ -124,7 +124,7 @@ test('la primera línea de una nota, recortada a 90; el arranque de la resoluci�
   assert.equal(firstLine('x'.repeat(95)), 'x'.repeat(90) + '…');
   assert.match(assistHtml(), /<button class="lab-btn primary ai-start-go" data-assist >Iniciar resolución asistida por IA<\/button>/);
   assert.doesNotMatch(assistHtml(), /ai-start-hint/);
-  assert.match(assistWaitHtml(), /<div class="ai-start"><i class="ld-spin small"/); // pulsado: el giro
+  assert.match(assistWaitHtml(), /<div class="ai-start"><div class="ai-wait" data-wait><i class="ai-wait-spin"><\/i><span>Iniciando agente…<\/span>/); // pulsado: el aviso de arranque
   assert.match(assistHtml('Copilot <no> está'), /data-assist disabled>[^]*<p class="ai-start-hint">Copilot &lt;no&gt; está<\/p>/);
 });
 

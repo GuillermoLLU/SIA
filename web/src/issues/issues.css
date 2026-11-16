@@ -273,8 +273,8 @@
 .iss-work-page.chat-wide .iss-work-main { opacity: 0; border-color: transparent; pointer-events: none; }
 .iss-work-page.chat-wide .iss-work-main > * { min-width: 560px; } /* mientras se encoge, el detalle no se recoloca: se va tal cual */
 .iss-work-page.chat-wide .iss-keys { opacity: 0; margin-bottom: -16px; pointer-events: none; }
-/* al arrancar el chat, el giro se va ampliándose (hero-out, style.css) mientras entra la conversación */
-.iss-chat-start.leaving { position: absolute; inset: 0; pointer-events: none; animation: hero-out .36s cubic-bezier(.4, 0, .6, 1) both; } /* fuera del flujo: la conversación ocupa ya todo el alto */
+/* al arrancar el chat, el aviso se va en fundido (hero-out, style.css) mientras entra la conversación */
+.iss-chat-start.leaving { position: absolute; inset: 0; pointer-events: none; animation: hero-out .4s ease both; } /* fuera del flujo: la conversación ocupa ya todo el alto */
 @media (prefers-reduced-motion: reduce) { .iss-keys, .iss-keys-fold, .iss-keys-grid, .iss-work, .iss-work-main { transition: none; } .iss-keys-sum, .iss-keys-title { animation: none; } .iss-chat-start.leaving { animation: none; opacity: 0; } }
 /* la conversación del chat de la issue (issue-chat.js), de borde a borde del cuadro */
 .iss-chat-conv { flex: 1; min-height: 0; display: flex; flex-direction: column; }

@@ -26,10 +26,10 @@ export const mountIssueChat = (host, { issue, wsUrl, loadProjects, api, dialogs,
   const uploads = createUploads({ api, active: () => ({ launched: !!view, view }), dialogs });
   const unwire = uploads.wire(host);
 
-  // Al arrancar (el bridge ya ha dicho «started»), el giro se va ampliándose
+  // Al arrancar (el bridge ya ha dicho «started»), el aviso se va en fundido
   // mientras entra la conversación; al reengancharse, llega al momento. Avisa a
   // la pantalla (chat-open) para que deje sitio.
-  const CHOOSER_OUT_MS = 360; // lo que tarda el giro en irse (issues.css: .iss-chat-start.leaving)
+  const CHOOSER_OUT_MS = 400; // lo que tarda el aviso en irse (issues.css: .iss-chat-start.leaving)
   const showConversation = (animated = false) => {
     if (view) return;
     if (animated) { chooser.classList.add('leaving'); setTimeout(() => { chooser.hidden = true; }, CHOOSER_OUT_MS); }
@@ -72,7 +72,7 @@ export const mountIssueChat = (host, { issue, wsUrl, loadProjects, api, dialogs,
       try { projects = await loadProjects(); } catch { chooser.innerHTML = assistHtml('No se pudieron cargar los proyectos de conocimiento.'); return; }
       const plan = assistedPlan({ copilot, projects, origin });
       if (plan.error) { chooser.innerHTML = assistHtml(plan.error); return; }
-      chooser.innerHTML = assistWaitHtml(); // el giro, hasta que Copilot está en pie («started»)
+      chooser.innerHTML = assistWaitHtml(); // «Iniciando agente…», hasta que Copilot está en pie («started»)
       launching = true;
       sendOn(ws, msg.start(plan.knowledge, plan.projects, { issue: issueId }));
     });
