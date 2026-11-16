@@ -62,7 +62,7 @@ test('las rutas de imagen de un texto, también con espacios en la ruta; sin rut
 test('los comandos del menú de modelo los aplica SIA', () => {
   assert.deepEqual(commandOf('/model gpt-6.1-sol'), { model: 'gpt-6.1-sol' });
   assert.deepEqual(commandOf(' /effort high '), { effort: 'high' });
-  assert.deepEqual(commandOf('/compact'), { compact: true });
+  assert.equal(commandOf('/compact'), null);
   assert.equal(commandOf('/model'), null);
   assert.equal(commandOf('/modelo raro'), null);
   assert.equal(commandOf('hola /model x'), null);

@@ -76,5 +76,5 @@ export const createUploads = ({ api, active, dialogs }) => {
     return () => { document.removeEventListener('paste', onPaste); zone.remove(); };
   };
 
-  return { upload, pick, wire };
+  return { pick, wire };
 };

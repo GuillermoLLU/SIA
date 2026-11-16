@@ -7,7 +7,7 @@
 //
 // deps: host (donde se monta) · onSend(text) · onStop() · onAttach() (elegir
 //   un fichero; null si aquí no se puede) · agent (a quién se escribe)
-import { messageOf, sends, escapes, escTwice, appendText, withFiles, fileExt } from './compose.js';
+import { messageOf, sends, escapes, escTwice, withFiles, fileExt } from './compose.js';
 import { esc } from '../../ui/html.js';
 
 const MAX_ROWS_PX = 200;
@@ -89,7 +89,6 @@ export const createComposer = ({ host, onSend, onStop, onAttach = null, agent = 
   fit();
 
   return {
-    insert: (text) => { box.value = appendText(box.value, text); fit(); box.focus(); },
     // un adjunto ya subido: su ficha en la caja
     attachFile: (f) => { files.push(f); paintFiles(); box.focus(); },
     // lo escrito y sus adjuntos, para llevarlo a otra caja (la vista se vuelve

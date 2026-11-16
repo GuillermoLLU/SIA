@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { messageOf, sends, escapes, escTwice, ESC_TWICE_MS, appendText, withFiles, isImageName, fileExt } from './compose.js';
+import { messageOf, sends, escapes, escTwice, ESC_TWICE_MS, withFiles, isImageName, fileExt } from './compose.js';
 
 test('se manda el texto tal cual, sin el final en blanco; vacío, nada', () => {
   assert.equal(messageOf('hola  \n'), 'hola');
@@ -13,13 +13,6 @@ test('Enter envía; Shift+Enter y Enter componiendo un acento, no', () => {
   assert.equal(sends({ key: 'Enter', shiftKey: true }), false);
   assert.equal(sends({ key: 'Enter', isComposing: true }), false);
   assert.equal(sends({ key: 'a' }), false);
-});
-
-test('añadir algo a lo escrito, con un espacio de por medio', () => {
-  assert.equal(appendText('', 'hola '), 'hola ');
-  assert.equal(appendText('mira', 'esto'), 'mira esto');
-  assert.equal(appendText('mira ', 'esto'), 'mira esto');
-  assert.equal(appendText('igual', ''), 'igual');
 });
 
 test('los adjuntos van detrás del texto, cada uno en su línea; solo adjuntos también vale', () => {

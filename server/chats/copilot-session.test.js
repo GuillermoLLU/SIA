@@ -64,8 +64,7 @@ test('arranca: saludo, cuenta, modelos y una sesión nueva con su id, su carpeta
   assert.deepEqual(f.calls('session.permissions.setApproveAll')[0].params, { sessionId: 'S1', enabled: true });
   assert.deepEqual(native.models.map((m) => m.id), ['auto', 'sol']);
   assert.equal(native.pid, 9);
-  const { metas } = wire(native);
-  assert.deepEqual(metas, [{ model: 'auto' }]); // lo de antes de escuchar no se pierde
+  assert.equal(native.model, 'auto'); // con cuál va: lo lee el bridge al montar la sesión
 });
 
 test('sin sesión de Copilot, lo dice y no abre nada', async () => {
@@ -110,7 +109,7 @@ test('lo que hace, en piezas: texto en directo, «pensando», herramientas, el m
   await tick();
   const kinds = out.flatMap((m) => (m.type === 'transcript' ? m.items.map((i) => `${i.kind}:${i.id}`) : [m.type]));
   assert.deepEqual(kinds, ['user:e1', 'thinking', 'tool:c1', 'result:c1', 'typing', 'text:m1', 'turn']);
-  assert.deepEqual(metas, [{ model: 'auto' }, { modelVia: 'GPT-6 Luna' }]);
+  assert.deepEqual(metas, [{ modelVia: 'GPT-6 Luna' }]);
   assert.equal(native.busy, false);
 });
 
@@ -225,7 +224,7 @@ test('los comandos del menú: modelo y esfuerzo válidos de la cuenta; lo que no
   native.say('/effort high');
   native.say('/model auto');       // el esfuerzo no vale en auto: vuelve al de serie
   await tick();
-  assert.deepEqual(metas, [{ model: 'auto' }, { model: 'sol', effort: null, modelVia: null }, { effort: 'high' }, { model: 'auto', effort: null, modelVia: null }]);
+  assert.deepEqual(metas, [{ model: 'sol', effort: null, modelVia: null }, { effort: 'high' }, { model: 'auto', effort: null, modelVia: null }]);
   assert.deepEqual(f.calls('session.model.switchTo').map((m) => m.params), [{ sessionId: 'S1', modelId: 'sol' }, { sessionId: 'S1', modelId: 'auto' }]);
   assert.deepEqual(f.calls('session.model.setReasoningEffort')[0].params, { sessionId: 'S1', reasoningEffort: 'high' });
   assert.equal(f.calls('session.send').length, 0); // ninguno llegó al modelo

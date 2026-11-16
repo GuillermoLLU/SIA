@@ -6,7 +6,7 @@
 //   interrupt()            parar: lo que preguntaba, descartado; el turno, abortado
 //   reply(ask, result)     contestar en la tarjeta: una opción, o aprobar/rechazar un plan
 //   replyText(ask, text)   contestar a su pregunta escribiendo en la caja
-//   command(text)          /model, /effort, /compact: los aplica SIA → { meta } o null
+//   command(text)          /model y /effort: los aplica SIA → { meta } o null
 //   kill() · onExit(cb) · pid
 //   models, model, effort, via · busy, items, asks, listeners (los cablea session.js)
 // La conversación es la sesión de Copilot y vive lo que el proceso: SIA no
@@ -18,7 +18,7 @@ import {
   modelsOf, defaultModel, createTranslator, signalOfEvent, askOf, askMessage, planRow, planMessage, DISMISSED,
 } from './copilot.js';
 
-export const COPILOT_READY_MS = 45_000; // lo que se espera a que la sesión esté lista
+const COPILOT_READY_MS = 45_000; // lo que se espera a que la sesión esté lista
 export const NOT_LOGGED = 'Copilot no tiene sesión iniciada';
 const REJECTED = 'The plan was rejected by the user.'; // la tarjeta lo enseña como «Descartada»
 
@@ -42,12 +42,7 @@ export const spawnCopilot = ({
     kill: () => { try { proc.stdin.end(); } catch {} try { proc.kill(); } catch {} },
     onExit: (cb) => exitCbs.push(cb),
   };
-  // lo que pasa antes de que alguien escuche (el arranque: el modelo) espera
-  // y se entrega al primero que se engancha
-  const early = [];
-  const emit = (m) => { if (!chat.listeners.size) { early.push(m); return; } for (const cb of chat.listeners) cb(m); };
-  const addListener = chat.listeners.add.bind(chat.listeners);
-  chat.listeners.add = (cb) => { addListener(cb); for (const m of early.splice(0)) cb(m); return chat.listeners; };
+  const emit = (m) => { for (const cb of chat.listeners) cb(m); };
   const transcript = (items) => { if (items.length) emit({ type: 'transcript', items }); };
 
   const rowsOf = createTranslator();
@@ -143,7 +138,6 @@ export const spawnCopilot = ({
     chat.model = defaultModel(chat.models);
     await request('session.create', sessionCreateParams({ sessionId, cwd, model: chat.model, mcp }));
     await request('session.permissions.setApproveAll', { sessionId, enabled: true }).catch(() => {});
-    if (chat.model) emit({ type: 'model', model: chat.model });
     return { model: chat.model };
   };
   chat.ready = new Promise((resolve, reject) => {
@@ -183,12 +177,11 @@ export const spawnCopilot = ({
     transcript([{ kind: 'user', id: `ans-${ask.requestId}`, text, ts: new Date().toISOString() }]);
   };
 
-  // /model, /effort, /compact → { meta } (lo que cambia del chat) o null (no es un comando)
+  // /model y /effort → { meta } (lo que cambia del chat) o null (no es un comando)
   chat.command = (text) => {
     const c = commandOf(text);
     if (!c) return null;
     const call = (method, params) => chat.ready.then(() => request(method, { sessionId, ...params })).catch((e) => log(`[sia] copilot: ${method}: ${e.message}`));
-    if (c.compact) { call('session.history.compact', {}); return { meta: null }; }
     if (c.model) {
       if (!modelInfo(c.model)) return { meta: null };
       chat.model = c.model;

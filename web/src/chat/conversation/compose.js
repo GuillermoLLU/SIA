@@ -19,13 +19,6 @@ export const escapes = ({ key, isComposing }) => key === 'Escape' && !isComposin
 // ¿este Esc (en `now`) va seguido del anterior (en `lastAt`, o null si no hubo)?
 export const escTwice = (lastAt, now) => lastAt != null && now - lastAt <= ESC_TWICE_MS;
 
-// añadir algo a lo escrito (la orden de una skill), separado por un espacio
-export const appendText = (text, more) => {
-  if (!more) return text;
-  if (!text) return more;
-  return /\s$/.test(text) ? text + more : `${text} ${more}`;
-};
-
 // Los adjuntos van con el mensaje como sus rutas, cada una en su línea detrás
 // del texto: así Copilot ve las imágenes (server/chats/copilot.js: sendParams)
 // y la burbuja las enseña aparte (thread.js: uploadsOf). Solo adjuntos, sin

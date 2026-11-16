@@ -18,7 +18,7 @@
 
 export const REPO_KEY_VAR = 'SIA_GH_TOKEN';
 // lo que Copilot tomaría como su cuenta (en su orden): nunca en su entorno
-export const COPILOT_IDENTITY_VARS = ['COPILOT_GITHUB_TOKEN', 'GH_TOKEN', 'GITHUB_TOKEN'];
+const COPILOT_IDENTITY_VARS = ['COPILOT_GITHUB_TOKEN', 'GH_TOKEN', 'GITHUB_TOKEN'];
 
 // el guion de BASH_ENV: fijo (la clave no está en él: llega por el entorno)
 export const BASH_ENV_SCRIPT = [

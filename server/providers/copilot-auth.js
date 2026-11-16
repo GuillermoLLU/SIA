@@ -20,7 +20,7 @@
 import { spawn as nodeSpawn } from 'node:child_process';
 import { RUNTIME_ARGS, frame, createFrameReader } from '../chats/copilot.js';
 
-export const LOGIN_MAX_MS = 15 * 60_000; // lo que vale un código de dispositivo
+const LOGIN_MAX_MS = 15 * 60_000; // lo que vale un código de dispositivo
 const VIA = { 'gh-cli': 'la sesión de gh', env: 'una variable de entorno', token: 'un token', 'api-key': 'una clave de API' };
 
 // lo gastado: el cupo que tenga tope (el de peticiones premium en los planes de pago, el de chat en el gratuito)

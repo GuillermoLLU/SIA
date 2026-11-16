@@ -4,7 +4,7 @@
 // foco y al llegar abajo del todo. La regla es pura (nextTuck); createDock la
 // cablea al DOM.
 export const TUCK_PX = 36; // cuánto hay que subir seguido para que se esconda
-export const HOT_PX = 28;  // el aire por encima del muelle donde el puntero lo despierta
+const HOT_PX = 28;  // el aire por encima del muelle donde el puntero lo despierta
 
 // de un desplazamiento `d` (positivo hacia abajo), el estado siguiente:
 //   climbed: lo subido seguido (se reinicia al bajar o al llegar abajo)

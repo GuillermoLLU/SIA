@@ -15,9 +15,9 @@
 import { looksLikeAuth, authItem, authStateItem } from './auth.js';
 
 export const NATIVE_ITEMS_CAP = 4000; // piezas de conversación que se guardan por chat
-export const TYPING_FLUSH_MS = 60;    // el texto en streaming se manda por tandas
-export const THINKING_EVERY_MS = 400;  // «está pensando»: un aviso como mucho cada tanto
-export const SAY_AFTER_INTERRUPT_MS = 2500; // escrito mientras preguntaba: va cuando acabe el turno, o pasado esto
+const TYPING_FLUSH_MS = 60;    // el texto en streaming se manda por tandas
+const THINKING_EVERY_MS = 400;  // «está pensando»: un aviso como mucho cada tanto
+const SAY_AFTER_INTERRUPT_MS = 2500; // escrito mientras preguntaba: va cuando acabe el turno, o pasado esto
 
 // lo que la vista necesita al engancharse: la conversación que lleva y lo que está preguntando
 export const nativeSnapshot = (native, send) => {
@@ -89,7 +89,7 @@ export const wireNative = (n, { out, meta, onMeta, firstSay = null, authStatus =
   };
   const flushSay = () => { clearTimer(afterTurnT); afterTurnT = null; const text = afterTurn; afterTurn = null; if (text) sayNow(text); };
   n.say = (text) => {
-    const cmd = n.command(text); // /model, /effort, /compact: los aplica SIA, sin turno que esperar
+    const cmd = n.command(text); // /model y /effort: los aplica SIA, sin turno que esperar
     if (cmd) { if (cmd.meta) onMeta(cmd.meta); if (!n.busy) out({ type: 'turn', error: false, text: '' }); return; }
     if (afterTurn) { afterTurn = `${afterTurn}\n${text}`; return; } // más de uno antes de que acabe: juntos
     // una pregunta que admite texto: lo escrito es su respuesta, sin mensaje nuevo

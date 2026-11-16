@@ -114,13 +114,11 @@ export const sendParams = ({ sessionId, text, busy = false, exists, read = () =>
   return { sessionId, prompt, mode: busy ? 'immediate' : 'enqueue', ...(attachments.length ? { displayPrompt: text, attachments } : {}) };
 };
 
-// «/model x», «/effort x», «/compact» (los manda el menú del chat, o se
-// escriben): los aplica SIA, no van al modelo → { model } | { effort } | { compact } | null
+// «/model x» y «/effort x» (los manda el menú del chat, o se escriben): los
+// aplica SIA, no van al modelo → { model } | { effort } | null
 export const commandOf = (text) => {
-  const m = /^\/(model|effort|compact)(?:\s+(\S+))?\s*$/.exec(String(text || '').trim());
-  if (!m) return null;
-  if (m[1] === 'compact') return { compact: true };
-  return m[2] ? { [m[1]]: m[2] } : null;
+  const m = /^\/(model|effort)\s+(\S+)\s*$/.exec(String(text || '').trim());
+  return m ? { [m[1]]: m[2] } : null;
 };
 
 // ── los modelos (models.list): con su nombre y los esfuerzos que admite cada uno ──
@@ -193,7 +191,7 @@ export const toolRowOf = (data) => {
 // ── lo que llega: cada evento, en piezas ──
 // no son del agente principal (un subagente) o no los escribió la persona
 const nested = (ev) => !!ev.agentId || !!ev.data?.parentToolCallId;
-export const ASK_TOOL = 'ask_user';
+const ASK_TOOL = 'ask_user';
 const QUIET_TOOLS = new Set(['report_intent', ASK_TOOL]); // su intención (ruido) y su pregunta (va en tarjeta)
 const tsOf = (ev) => ev.timestamp || null;
 
@@ -202,11 +200,11 @@ export const askOf = ({ question, choices }) => [{
   question: String(question || ''), header: '', multi: false,
   options: (Array.isArray(choices) ? choices : []).map((c) => ({ label: String(c), description: '' })),
 }];
-export const askInputOf = (ask) => ({ questions: ask.map((q) => ({ question: q.question, header: q.header, multiSelect: q.multi, options: q.options })) });
+const askInputOf = (ask) => ({ questions: ask.map((q) => ({ question: q.question, header: q.header, multiSelect: q.multi, options: q.options })) });
 const shellTail = /\n?<shellId: \d+ completed with exit code \d+>\s*$/; // lo que el runtime añade a la salida de un comando
 
 // lo contestado, como lo anota la tarjeta («"¿pregunta?"="respuesta"»); y la descartada
-export const ANSWERED = (pairs) => pairs.map(([q, a]) => `"${q}"="${a}"`).join(' ');
+const ANSWERED = (pairs) => pairs.map(([q, a]) => `"${q}"="${a}"`).join(' ');
 export const DISMISSED = '[Request interrupted by user]';
 const ANSWER_PREFIX = /^User (selected|responded|answered|input)[^:]*:\s*/i; // «User selected: Verde»
 
