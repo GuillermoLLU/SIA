@@ -14,7 +14,7 @@ import { chatSessions, nextActive, uploadUrl, reconcile } from './sessions.js';
 import { createUploads } from './uploads.js';
 import { createConversationView } from './conversation/view.js';
 
-const HERO_OUT_MS = 360; // lo que tarda la portada en irse (style.css: .ai-hero-host.leaving)
+const HERO_OUT_MS = 360; // lo que tarda la portada en irse, ampliándose (style.css: .ai-hero-host.leaving)
 
 // api/apiBase: el bridge · wsUrl(): el socket · me: el nombre de quien entra
 // (saluda la portada) · gate(): la puerta del candado · onSkills(list): las
@@ -121,17 +121,24 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, me = null, gate, o
      re-engancharse llega todo lo que lleva, así que no se pierde nada. */
   const teardown = (s) => { if (s.view) { s.view.destroy(); s.view = null; } };
 
-  /* Abrir de verdad el chat: la portada se va, la conversación entra con la
-     pregunta ya puesta (mientras Copilot arranca) y se pide la sesión al
-     bridge con el plan de start.js. */
+  /* Abrir de verdad el chat: se pide la sesión al bridge con el plan de
+     start.js y la portada se queda, con un giro bajo el campo, mientras
+     Copilot arranca. Cuando el bridge dice «started», la portada se va
+     ampliándose y la conversación entra con la pregunta ya puesta (open). */
   const launchSession = (s, { knowledge, projects }, prompt) => {
     if (s.launched) return;
+    s.launched = true;
+    s.pending = prompt;
+    s.start.querySelector('[data-wait]').hidden = false;
+    sendOn(s.ws, msg.start(knowledge, projects, { prompt }));
+  };
+  const open = (s) => {
+    const prompt = s.pending;
+    s.pending = null;
     s.start.classList.add('leaving');
     setTimeout(() => { s.start.hidden = true; }, HERO_OUT_MS);
     materialize(s);
     s.view.local(prompt);
-    s.view.status('Abriendo el chat…');
-    sendOn(s.ws, msg.start(knowledge, projects, { prompt }));
   };
 
   // attach: sesión viva del bridge a re-enganchar · passive: el chat existe en
@@ -194,7 +201,7 @@ export const mountChatView = ({ api, apiBase, wsUrl, dialogs, me = null, gate, o
           break;
         case 'started':
           s.remoteId = m.sessionId;
-          s.view?.status(null); // ya está abierto: lo que siga es Copilot trabajando
+          if (s.pending) open(s); // Copilot ya está en pie: de la portada a la conversación
           // ya sabemos qué chat es el nuestro: re-reconciliar quita cualquier
           // sesión fantasma de la carrera broadcast-vs-started y trae las
           // pasivas legítimas que se hubieran pospuesto en esa ventana

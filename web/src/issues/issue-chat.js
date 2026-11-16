@@ -11,7 +11,7 @@ import { createUploads } from '../chat/uploads.js';
 import { esc } from '../ui/html.js';
 import { assistedPlan } from './assisted.js';
 import { originOf } from './origin.js';
-import { assistHtml } from './work-screen.js';
+import { assistHtml, assistWaitHtml } from './work-screen.js';
 
 // host: el hueco del chat · issue: la issue abierta (su id y su origen)
 // wsUrl(): socket del bridge · loadProjects(): los proyectos visibles · api y
@@ -22,17 +22,17 @@ export const mountIssueChat = (host, { issue, wsUrl, loadProjects, api, dialogs,
   host.innerHTML = `<div class="iss-chat-start"><p class="iss-empty">Conectando…</p></div><div class="iss-chat-conv" hidden></div>`;
   const chooser = host.querySelector('.iss-chat-start');
   const convHost = host.querySelector('.iss-chat-conv');
-  let ws = null, view = null, disposed = false;
+  let ws = null, view = null, disposed = false, launching = false; // launching: pedido al bridge, esperando «started»
   const uploads = createUploads({ api, active: () => ({ launched: !!view, view }), dialogs });
   const unwire = uploads.wire(host);
 
-  // Al lanzarlo (launching), el aviso de que Copilot arranca hasta que el
-  // bridge diga «started»; al reengancharse, la conversación llega al momento.
-  // Avisa a la pantalla (chat-open) para que deje sitio.
-  const CHOOSER_OUT_MS = 180; // lo que tarda el botón en irse (issues.css: .iss-chat-start.leaving)
-  const showConversation = (launching = false) => {
+  // Al arrancar (el bridge ya ha dicho «started»), el giro se va ampliándose
+  // mientras entra la conversación; al reengancharse, llega al momento. Avisa a
+  // la pantalla (chat-open) para que deje sitio.
+  const CHOOSER_OUT_MS = 360; // lo que tarda el giro en irse (issues.css: .iss-chat-start.leaving)
+  const showConversation = (animated = false) => {
     if (view) return;
-    if (launching) { chooser.classList.add('leaving'); setTimeout(() => { chooser.hidden = true; }, CHOOSER_OUT_MS); } // la conversación entra mientras el botón se va
+    if (animated) { chooser.classList.add('leaving'); setTimeout(() => { chooser.hidden = true; }, CHOOSER_OUT_MS); }
     else chooser.hidden = true;
     convHost.hidden = false;
     host.dispatchEvent(new CustomEvent('chat-open'));
@@ -46,7 +46,6 @@ export const mountIssueChat = (host, { issue, wsUrl, loadProjects, api, dialogs,
       onLogin,
       onAttach: () => uploads.pick({ view }),
     });
-    if (launching) view.opening('Abriendo el chat con Copilot…');
   };
 
   const unmount = () => {
@@ -55,6 +54,7 @@ export const mountIssueChat = (host, { issue, wsUrl, loadProjects, api, dialogs,
   };
   const ended = (text) => {
     unmount();
+    launching = false;
     chooser.hidden = false;
     chooser.classList.remove('leaving');
     chooser.innerHTML = `<p class="iss-empty">${esc(text)}</p><button class="lab-btn primary" data-chat-again>Iniciar otra resolución asistida</button>`;
@@ -72,7 +72,8 @@ export const mountIssueChat = (host, { issue, wsUrl, loadProjects, api, dialogs,
       try { projects = await loadProjects(); } catch { chooser.innerHTML = assistHtml('No se pudieron cargar los proyectos de conocimiento.'); return; }
       const plan = assistedPlan({ copilot, projects, origin });
       if (plan.error) { chooser.innerHTML = assistHtml(plan.error); return; }
-      showConversation(true);
+      chooser.innerHTML = assistWaitHtml(); // el giro, hasta que Copilot está en pie («started»)
+      launching = true;
       sendOn(ws, msg.start(plan.knowledge, plan.projects, { issue: issueId }));
     });
   };
@@ -88,7 +89,10 @@ export const mountIssueChat = (host, { issue, wsUrl, loadProjects, api, dialogs,
         offerAssist(m.copilot);
         break;
       }
-      case 'started': view?.opening('Copilot está leyendo la issue…'); view?.status('Leyendo la issue…'); break; // abierto: le llegan sus datos (el aviso se va con la conversación)
+      case 'started': // Copilot en pie: entra la conversación y le llegan los datos de la issue
+        if (launching) { launching = false; showConversation(true); }
+        view?.status('Leyendo la issue…');
+        break;
       case 'transcript': view?.feed(m); break;
       case 'typing': view?.typing(m.text); break;
       case 'thinking': view?.thinking(); break;

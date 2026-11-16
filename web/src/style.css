@@ -690,8 +690,9 @@ body.top-nav #settings-modal[hidden] .settings-modal { transform: scale(.98); op
    va subiendo y desvaneciéndose por encima de la conversación, que entra debajo (conversation.css) */
 .ai-hero-host { flex: 1; position: relative; }
 .ai-hero-host[hidden] { display: none; }
-.ai-hero-host.leaving { position: absolute; inset: 0; z-index: 2; pointer-events: none; animation: hero-out .32s cubic-bezier(.4, 0, .6, 1) both; }
-@keyframes hero-out { to { opacity: 0; transform: translateY(-16px) scale(.985); } }
+.ai-hero-host.leaving { position: absolute; inset: 0; z-index: 2; pointer-events: none; animation: hero-out .36s cubic-bezier(.4, 0, .6, 1) both; }
+/* se va ampliándose (zoom) mientras se desvanece: la conversación queda detrás */
+@keyframes hero-out { to { opacity: 0; transform: scale(1.08); } }
 @media (prefers-reduced-motion: reduce) { .ai-hero-host.leaving { animation: none; opacity: 0; } }
 
 /* ── Arranque del chat de una issue: un botón centrado y, debajo, por qué no
@@ -745,6 +746,9 @@ body:not(.ready) .ai-hero-box { animation: ai-in 0.55s cubic-bezier(0.2, 0.7, 0.
 .ai-ask textarea:focus::placeholder { opacity: 0.6; }
 .ai-ask textarea:disabled { opacity: 0.5; }
 .ai-hero-err { margin: 0; font-size: 12.5px; line-height: 1.5; color: #f25f5c; text-align: center; }
+/* mientras Copilot arranca: el giro bajo el campo (ui/loader.css) */
+.ai-hero-wait { display: flex; justify-content: center; margin-top: -6px; animation: ai-in .3s ease both; }
+.ai-hero-wait[hidden] { display: none; }
 
 /* El arranque (app/intro.js), por fases: mientras `booting`, el dock espera abajo, fuera de la
    pantalla, y el campo de la portada no se ve; con `asking` aparece el campo; con `ready` el dock

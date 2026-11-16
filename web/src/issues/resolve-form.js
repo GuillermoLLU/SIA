@@ -8,6 +8,7 @@
 // Las imágenes van numeradas y en el texto como [imagenN]: el técnico las coloca
 // donde quiera (pegar, arrastrar la miniatura al texto) y la IA sabrá dónde van.
 import { esc } from '../ui/html.js';
+import { loaderHtml } from '../ui/loader.js';
 import { ACTIONS } from './actions.js';
 import { toHtml, imageTag, TAG } from './tag-editor.js';
 
@@ -136,11 +137,8 @@ const CLOSE_PHASES = [
   { key: 'close', text: 'Cerrando la incidencia' },
 ];
 export const closePhasesHtml = () => CLOSE_PHASES.map((p) => `<li data-phase="${p.key}"><i></i>${p.text}</li>`).join('');
-const loader = () => `<div class="rv-loader" data-loader hidden>
-            <h4 class="rv-loader-title" data-loader-title>Redactando el informe</h4>
-            <i class="rv-spin"></i>
-            <ol class="rv-phases" data-phases></ol>
-          </div>`;
+// el proceso (ui/loader.js), escondido hasta que arranca
+const loader = () => loaderHtml({ title: 'Redactando el informe' }).replace('data-loader>', 'data-loader hidden>');
 export const phasesHtml = (hasFiles) => phasesFor(hasFiles).map((p) => `<li data-phase="${p.key}"><i></i>${p.text}</li>`).join('');
 
 // El borrador: el mensaje al centro que devuelve la IA (de momento, un texto de relleno con la

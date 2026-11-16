@@ -273,10 +273,9 @@
 .iss-work-page.chat-wide .iss-work-main { opacity: 0; border-color: transparent; pointer-events: none; }
 .iss-work-page.chat-wide .iss-work-main > * { min-width: 560px; } /* mientras se encoge, el detalle no se recoloca: se va tal cual */
 .iss-work-page.chat-wide .iss-keys { opacity: 0; margin-bottom: -16px; pointer-events: none; }
-/* al arrancar el chat, el botón se va en fundido y entra la conversación */
-.iss-chat-start { transition: opacity .18s ease; }
-.iss-chat-start.leaving { position: absolute; inset: 0; opacity: 0; pointer-events: none; } /* fuera del flujo: la conversación ocupa ya todo el alto */
-@media (prefers-reduced-motion: reduce) { .iss-keys, .iss-keys-fold, .iss-keys-grid, .iss-work, .iss-work-main, .iss-chat-start { transition: none; } .iss-keys-sum, .iss-keys-title { animation: none; } }
+/* al arrancar el chat, el giro se va ampliándose (hero-out, style.css) mientras entra la conversación */
+.iss-chat-start.leaving { position: absolute; inset: 0; pointer-events: none; animation: hero-out .36s cubic-bezier(.4, 0, .6, 1) both; } /* fuera del flujo: la conversación ocupa ya todo el alto */
+@media (prefers-reduced-motion: reduce) { .iss-keys, .iss-keys-fold, .iss-keys-grid, .iss-work, .iss-work-main { transition: none; } .iss-keys-sum, .iss-keys-title { animation: none; } .iss-chat-start.leaving { animation: none; opacity: 0; } }
 /* la conversación del chat de la issue (issue-chat.js), de borde a borde del cuadro */
 .iss-chat-conv { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .iss-chat-conv[hidden] { display: none; }
@@ -451,26 +450,12 @@ a.rv-id:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .rv-extras li small { color: var(--text-low); font-variant-numeric: tabular-nums; }
 .rv-extras li .rv-img-x { position: static; opacity: 1; width: 20px; height: 20px; font-size: 13px; }
 /* lo que se va (las opciones, el proceso) se difumina antes de desaparecer */
-.rv-gen.leaving, .rv-loader.leaving, .rv-review.leaving, .rv-cap.leaving, .rv-warn.leaving { opacity: 0; filter: blur(6px); transition: opacity .3s ease, filter .3s ease; }
-/* Redactando: el giro y las fases, que se van marcando */
-.rv-loader { margin: auto; display: flex; flex-direction: column; align-items: center; gap: 28px; animation: rv-fade-in .45s ease both; }
-.rv-loader-title { margin: 0 0 -8px; font-size: 18px; font-weight: 650; }
+.rv-gen.leaving, .ld.leaving, .rv-review.leaving, .rv-cap.leaving, .rv-warn.leaving { opacity: 0; filter: blur(6px); transition: opacity .3s ease, filter .3s ease; }
+/* Redactando y Resolviendo: el proceso compartido (ui/loader.js) */
 /* el borrador y su título entran con un fundido, en el sitio del proceso que se va */
 @keyframes rv-fade-in { from { opacity: 0; filter: blur(6px); } }
 .rv-review:not([hidden]), .rv-cap-final { animation: rv-fade-in .5s ease both; }
-.rv-spin { width: 56px; height: 56px; border: 4px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
-/* las fases, en negro sobre blanco como el resto del DS: la hecha con su ✓, la actual latiendo, las que faltan en gris */
-/* la lista tiene un ancho fijo y el texto pesa siempre igual (solo cambia el color): nada se mueve entre fases */
-.rv-phases { display: flex; flex-direction: column; gap: 14px; width: max-content; margin: 0; padding: 0; list-style: none; font-size: 15px; line-height: 22px; font-weight: 500; color: var(--text-low); }   /* ancho el de la fase más larga: centrada bajo el giro y fija entre fases */
-.rv-phases li { display: flex; align-items: center; gap: 14px; white-space: nowrap; transition: color .3s ease; }
-.rv-phases li i { display: grid; place-items: center; width: 22px; height: 22px; font-size: 0; border: 1.5px solid var(--border); border-radius: 50%; transition: background .3s ease, border-color .3s ease; }
-.rv-phases li.doing { color: var(--text); }
-.rv-phases li.doing i { border-color: var(--accent); background: var(--accent); animation: rv-pulse 1s ease-in-out infinite; }
-.rv-phases li.done { color: var(--text); }
-.rv-phases li.done i { color: var(--text); border-color: var(--text); }
-.rv-phases li.done i::before { content: '✓'; font-size: 12px; font-weight: 700; }
-@keyframes rv-pulse { 50% { transform: scale(1.25); } }
-@media (prefers-reduced-motion: reduce) { .rv-gen, .rv-loader, .rv-review, .rv-cap-final { animation: none; } .rv-phases li.doing i { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .rv-gen, .rv-review, .rv-cap-final { animation: none; } }
 /* el borrador del informe: el mensaje al centro, con «Descargar PDF» encima a la derecha */
 .rv-rtools { display: flex; align-items: center; justify-content: flex-end; gap: 16px; flex: none; }
 .rv-rtools small { font-size: 12px; color: var(--text-low); }

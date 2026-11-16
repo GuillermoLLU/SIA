@@ -2,6 +2,7 @@
 // vistas. Cada funcionalidad vive en su carpeta (chat/, lock/, skills/, settings/,
 // lab/, links/, issues/, backlog/, users/, projects/, work/, metrics/).
 import './style.css';
+import './ui/loader.css';
 import logoUrl from './logo.png';
 import { createApi } from './ui/api.js';
 import { createDialogs } from './ui/dialog.js';

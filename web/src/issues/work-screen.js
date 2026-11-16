@@ -81,6 +81,9 @@ export const assistHtml = (error = null) => `<div class="ai-start">
     ${error ? `<p class="ai-start-hint">${esc(error)}</p>` : ''}
   </div>`;
 
+// …y, pulsado, el giro mientras Copilot arranca
+export const assistWaitHtml = () => '<div class="ai-start"><i class="ld-spin small" role="status" aria-label="Abriendo el chat"></i></div>';
+
 // En el campo de nota, Intro envía; Mayús+Intro salta de línea.
 export const sendsNote = (e) => e.key === 'Enter' && !e.shiftKey;
 

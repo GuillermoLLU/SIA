@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { workScreen, trailHtml, trailTab, releaseDialogHtml, noteFormHtml, sendsNote, canEditNote, noteEditorHtml, worklogHtml, firstLine, assistHtml } from './work-screen.js';
+import { workScreen, trailHtml, trailTab, releaseDialogHtml, noteFormHtml, sendsNote, canEditNote, noteEditorHtml, worklogHtml, firstLine, assistHtml, assistWaitHtml } from './work-screen.js';
 
 const issue = (o = {}) => ({ id: 'INC1', text: 'PDA <sin imagen>', priority: 'HIGH', status: 'ASSIGNED', reason: '', notes: 'no <arranca>',
   resolution: '', category: 'SGA', group: 'AYS SOPORTE', assignee: '', reported: '2026-10-01 10:00', modified: '2026-10-01 11:00',
@@ -124,6 +124,7 @@ test('la primera línea de una nota, recortada a 90; el arranque de la resoluci�
   assert.equal(firstLine('x'.repeat(95)), 'x'.repeat(90) + '…');
   assert.match(assistHtml(), /<button class="lab-btn primary ai-start-go" data-assist >Iniciar resolución asistida por IA<\/button>/);
   assert.doesNotMatch(assistHtml(), /ai-start-hint/);
+  assert.match(assistWaitHtml(), /<div class="ai-start"><i class="ld-spin small"/); // pulsado: el giro
   assert.match(assistHtml('Copilot <no> está'), /data-assist disabled>[^]*<p class="ai-start-hint">Copilot &lt;no&gt; está<\/p>/);
 });
 
