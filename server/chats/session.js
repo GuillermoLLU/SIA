@@ -10,7 +10,8 @@
 //   out(m)          → a quien mira el chat
 //   meta            → { model, effort, modelVia… } de la sesión (se lee)
 //   onMeta(patch)   → el modelo o el esfuerzo cambió: guardar y avisar
-//   firstSay        → el primer mensaje (la pregunta de la portada, los datos de la issue), o null
+//   firstSay        → el primer mensaje: la pregunta de la portada, o { text, display }
+//                     (los datos de la issue para el modelo y la línea que se ve), o null
 //   authStatus()    → Promise de la cuenta de Copilot ({ ok, loggedIn }: providers/copilot-auth.js)
 import { looksLikeAuth, authItem, authStateItem } from './auth.js';
 
@@ -80,12 +81,12 @@ export const wireNative = (n, { out, meta, onMeta, firstSay = null, authStatus =
   // cuando ese turno haya terminado
   let afterTurn = null;
   let afterTurnT = null;
-  const sayNow = (text) => {
+  const sayNow = (text, display = null) => {
     n.busy = true;
     lastSaid = text;
     n.auth = null; // lo que se diga después de la tarjeta la deja atrás
     authIs = null;
-    n.sendText(text);
+    n.sendText(text, display);
   };
   const flushSay = () => { clearTimer(afterTurnT); afterTurnT = null; const text = afterTurn; afterTurn = null; if (text) sayNow(text); };
   n.say = (text) => {
@@ -105,5 +106,6 @@ export const wireNative = (n, { out, meta, onMeta, firstSay = null, authStatus =
     n.asks.delete(requestId);
     out({ type: 'ask-off', requestId });
   };
-  if (firstSay) n.say(firstSay);
+  if (typeof firstSay === 'string') n.say(firstSay);
+  else if (firstSay?.text) sayNow(firstSay.text, firstSay.display || null);
 };

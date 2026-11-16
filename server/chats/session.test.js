@@ -132,6 +132,14 @@ test('el primer mensaje se manda al cablear', () => {
   assert.equal(n.busy, true);
 });
 
+test('el primer mensaje de una issue: sus datos al modelo y, en la conversación, su línea', () => {
+  const { n, sent } = fakeNative();
+  n.sendText = (t, display) => sent.push([t, display]);
+  wire(n, { firstSay: { text: 'Datos de INC1…', display: 'Vamos a trabajar la incidencia INC1' } });
+  assert.deepEqual(sent, [['Datos de INC1…', 'Vamos a trabajar la incidencia INC1']]);
+  assert.equal(n.busy, true);
+});
+
 test('un turno que acaba en error deja su motivo en la conversación, salvo que ya lo haya dicho él', () => {
   const { n, emit } = fakeNative();
   const { out } = wire(n, { authStatus: async () => ({ ok: true, loggedIn: true }) });

@@ -103,7 +103,9 @@ export const imagePathsOf = (text, exists = () => true) => {
 // busy: con un turno en marcha, lo escrito entra en él (immediate) en vez de esperar
 const IMAGE_MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp' };
 export const IMAGE_MAX_BYTES = 3 * 1024 * 1024; // el tope de imagen de sus modelos
-export const sendParams = ({ sessionId, text, busy = false, exists, read = () => null }) => {
+// display: lo que se ve en la conversación en lugar del texto (Copilot lo
+// devuelve como el mensaje de la persona); sin él, con adjuntos, lo escrito
+export const sendParams = ({ sessionId, text, display = null, busy = false, exists, read = () => null }) => {
   let prompt = text;
   const attachments = imagePathsOf(text, exists).flatMap((p) => {
     const mimeType = IMAGE_MIME[path.extname(p).slice(1).toLowerCase()];
@@ -113,7 +115,8 @@ export const sendParams = ({ sessionId, text, busy = false, exists, read = () =>
     prompt = prompt.split(p).join(`[imagen adjunta: ${displayName}]`);
     return [{ type: 'blob', data: Buffer.from(data).toString('base64'), mimeType, displayName }];
   });
-  return { sessionId, prompt, mode: busy ? 'immediate' : 'enqueue', ...(attachments.length ? { displayPrompt: text, attachments } : {}) };
+  const shown = display || (attachments.length ? text : null);
+  return { sessionId, prompt, mode: busy ? 'immediate' : 'enqueue', ...(shown ? { displayPrompt: shown } : {}), ...(attachments.length ? { attachments } : {}) };
 };
 
 // «/model x» y «/effort x» (los manda el menú del chat, o se escriben): los

@@ -28,8 +28,10 @@ export const mountIssueChat = (host, { issue, wsUrl, loadProjects, api, dialogs,
   const uploads = createUploads({ api, active: () => ({ launched: !!view, view }), dialogs });
   const unwire = uploads.wire(host);
 
-  // La cabecera del panel solo tiene sentido con el chat en marcha.
-  const showConversation = () => {
+  // La cabecera del panel solo tiene sentido con el chat en marcha. Al
+  // lanzarlo (launching), el aviso de que Copilot arranca hasta que el bridge
+  // diga «started»; al reengancharse, la conversación llega al momento.
+  const showConversation = (launching = false) => {
     if (view) return;
     chooser.hidden = true;
     convHost.hidden = false;
@@ -44,6 +46,7 @@ export const mountIssueChat = (host, { issue, wsUrl, loadProjects, api, dialogs,
       onLogin,
       onAttach: () => uploads.pick({ view }),
     });
+    if (launching) view.opening('Abriendo el chat con Copilot…');
   };
 
   const unmount = () => {
@@ -69,7 +72,7 @@ export const mountIssueChat = (host, { issue, wsUrl, loadProjects, api, dialogs,
       try { projects = await loadProjects(); } catch { chooser.innerHTML = assistHtml('No se pudieron cargar los proyectos de conocimiento.'); return; }
       const plan = assistedPlan({ copilot, projects, origin });
       if (plan.error) { chooser.innerHTML = assistHtml(plan.error); return; }
-      showConversation();
+      showConversation(true);
       sendOn(ws, msg.start(plan.knowledge, plan.projects, { issue: issueId }));
     });
   };
@@ -85,6 +88,7 @@ export const mountIssueChat = (host, { issue, wsUrl, loadProjects, api, dialogs,
         offerAssist(m.copilot);
         break;
       }
+      case 'started': view?.opening('Copilot está leyendo la issue…'); view?.status('Leyendo la issue…'); break; // abierto: le llegan sus datos (el aviso se va con la conversación)
       case 'transcript': view?.feed(m); break;
       case 'typing': view?.typing(m.text); break;
       case 'thinking': view?.thinking(); break;

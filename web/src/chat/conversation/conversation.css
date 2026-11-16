@@ -43,6 +43,15 @@
 .cv.empty { display: flex; flex-direction: column; justify-content: center; }
 .cv.empty .cv-empty { display: block; }
 .cv.empty .cv-thread { display: none; }
+/* abriéndose (Copilot arrancando): el aviso centrado, en el sitio del saludo */
+.cv.opening :is(.cv-empty, .cv-busy) { display: none; } /* el aviso ya dice qué pasa */
+.cv-opening { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; pointer-events: none; animation: cv-enter .3s ease both; }
+.cv-opening[hidden] { display: none; }
+.cv-opening b { font: 600 15px/1.3 var(--font-ui); color: var(--text); }
+.cv-opening small { margin-top: -6px; font-size: 12.5px; color: var(--text-low); }
+.cv-opening-dots { display: flex; gap: 7px; margin-bottom: 4px; }
+.cv-opening-dots i { width: 9px; height: 9px; background: var(--accent); animation: cv-pulse 1.2s ease-in-out infinite; }
+.cv-opening-dots i:nth-child(2) { animation-delay: .2s; } .cv-opening-dots i:nth-child(3) { animation-delay: .4s; }
 
 /* Las burbujas, como en un chat de móvil: lo tuyo a la derecha, en gris, y lo
    que responde Copilot a la izquierda, en blanco con borde; cada una con su

@@ -157,8 +157,9 @@ export const spawnCopilot = ({
   chat.ready.catch(() => {}); // quien lanza la sesión decide; aquí no queda una promesa sin atender
 
   const failTurn = (e) => emit({ type: 'turn', error: true, text: `Copilot: ${e.message}` });
-  chat.sendText = (text) => {
-    chat.ready.then(() => request('session.send', sendParams({ sessionId, text, busy: active, exists, read }))).then(() => { active = true; }, failTurn);
+  // display: lo que se ve en la conversación en lugar del texto (los datos de una issue)
+  chat.sendText = (text, display = null) => {
+    chat.ready.then(() => request('session.send', sendParams({ sessionId, text, display, busy: active, exists, read }))).then(() => { active = true; }, failTurn);
   };
 
   // parar (o «Ninguna» en una tarjeta): lo que preguntaba, descartado; el turno, abortado

@@ -10,7 +10,7 @@
 //         spawnChat (copilot-session.js) y newId (el id de la sesión de Copilot)
 import { randomUUID } from 'node:crypto';
 import { CLOSE, sessionList, pickMode, pickProjects, isIssueId, firstPrompt, metaOf } from './sessions.js';
-import { issueContext } from '../issues/context.js';
+import { issueContext, issueBrief } from '../issues/context.js';
 import { spawnCopilot, NOT_LOGGED } from './copilot-session.js';
 import { wireNative, nativeSnapshot } from './session.js';
 
@@ -37,7 +37,7 @@ export const createChatBridge = ({ launchers, workspace, env, issues, accessible
     const id = `s${++seq}`;
     const base = currentBase();
     const picked = pickProjects((await accessibleProjects(base)).map((p) => p.id), projects);
-    const first = issue ? issueContext(issue) : prompt;
+    const first = issue ? { text: issueContext(issue), display: issueBrief(issue) } : prompt; // los datos de la issue van al modelo; en la conversación, una línea
     const { cmd, args, mcp } = launchers.prepare(picked, base);
     const { env: chatEnv, args: more } = launchers.envFor(env());
     const chat = spawnChat({ cmd, args: [...args, ...more], cwd: workspace.modeDirFor(mode, base), env: chatEnv, sessionId: newId(), mcp });

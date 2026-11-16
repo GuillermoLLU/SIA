@@ -45,6 +45,7 @@ test('lo escrito: en cola o dentro del turno en marcha; sus imágenes, además, 
   assert.equal(sent.prompt, 'mira [imagen adjunta: 3-foto.png] y dime'); // al modelo, sin la ruta (que no se ponga a abrirla)
   assert.equal(sent.displayPrompt, `mira ${img} y dime`);                 // en la conversación, lo que se escribió
   assert.equal('displayPrompt' in sendParams({ sessionId: 's', text: 'hola' }), false);
+  assert.equal(sendParams({ sessionId: 's', text: 'datos…', display: 'Vamos con INC1' }).displayPrompt, 'Vamos con INC1'); // lo que se ve, aparte de lo que va
   // la que no se puede leer, pesa demasiado o no admite (bmp) se queda en su ruta del texto
   assert.equal('attachments' in sendParams({ sessionId: 's', text: `mira ${img}`, exists: () => true }), false);
   assert.equal('attachments' in sendParams({ sessionId: 's', text: `mira ${img}`, exists: () => true, read: () => Buffer.alloc(IMAGE_MAX_BYTES + 1) }), false);

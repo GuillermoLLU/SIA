@@ -7,6 +7,10 @@ import { originOf } from './origin.js';
 const SEVERITY = { CRITICAL: 'crítica', HIGH: 'alta', MEDIUM: 'media', LOW: 'baja' };
 const MAX_NOTES = 6000; // la descripción del centro, recortada si es enorme
 
+// Lo que se ve en la conversación en lugar de los datos (que van al modelo):
+// una línea, como si lo hubiera escrito la persona
+export const issueBrief = (i) => `Vamos a trabajar la incidencia ${i.id}: ${i.text}`;
+
 export const issueContext = (i) => [
   `Vamos a trabajar juntos la incidencia ${i.id} de Remedy. Estos son sus datos:`,
   '',

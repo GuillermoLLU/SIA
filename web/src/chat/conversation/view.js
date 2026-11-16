@@ -70,6 +70,12 @@ export const createConversationView = ({ host, fileUrl, onSend, onStop, onPick, 
   el.className = 'cv';
   el.innerHTML = '<div class="cv-thread"></div><div class="cv-empty">¿Por dónde empezamos?</div><div class="cv-row cv-typing" hidden><div class="cv-text cv-md"></div></div><div class="cv-busy" hidden><i></i><i></i><i></i><span class="cv-busy-label"></span></div>';
   wrap.appendChild(el);
+  // mientras se abre el chat (Copilot arrancando): un aviso centrado en lugar del saludo
+  const openingEl = document.createElement('div');
+  openingEl.className = 'cv-opening';
+  openingEl.hidden = true;
+  openingEl.innerHTML = '<span class="cv-opening-dots" aria-hidden="true"><i></i><i></i><i></i></span><b></b><small>Suele tardar unos segundos.</small>';
+  wrap.appendChild(openingEl);
   // arriba a la derecha, empezar otro chat
   if (onClose) {
     const top = document.createElement('div');
@@ -266,6 +272,7 @@ export const createConversationView = ({ host, fileUrl, onSend, onStop, onPick, 
       items = reset ? more : items.concat(more);
       locals = settleLocal(locals, more);
       if (more.some((i) => i.kind === 'text' || i.kind === 'tool')) { typingReset(); status = null; } // ya responde
+      if (more.length && !openingEl.hidden) { openingEl.hidden = true; el.classList.remove('opening'); } // ya hay conversación: abierto
       paint(); paintBusy();
     },
     // un trozo más de lo que escribe
@@ -279,8 +286,11 @@ export const createConversationView = ({ host, fileUrl, onSend, onStop, onPick, 
     turn: () => { working = false; status = null; typingReset(); paintBusy(); },
     // con qué modelo y esfuerzo va, y cuáles ofrece ({ model, effort, models, modelVia }), para el pie
     meta: (m) => { meta = { ...meta, ...m }; paintModel(); },
-    // qué pasa mientras trabaja («Abriendo el chat…»), junto a los puntos; null, nada
-    status: (text) => { status = text; paintBusy(); },
+    // qué pasa mientras trabaja («Abriendo el chat…»), junto a los puntos; null, nada.
+    // Con texto, se da por trabajando (hasta que acabe el turno)
+    status: (text) => { status = text; if (text) working = true; paintBusy(); },
+    // se está abriendo el chat (Copilot arrancando): el aviso centrado, con lo que pasa; null, ya está
+    opening: (text) => { openingEl.hidden = !text; openingEl.querySelector('b').textContent = text || ''; el.classList.toggle('opening', !!text); },
     // como si se escribiera en la caja: la burbuja y a Copilot (la paleta de skills)
     send: say,
     // lo que ya se mandó al abrir el chat (la pregunta de la portada): su burbuja, y trabajando
