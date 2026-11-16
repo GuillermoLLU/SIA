@@ -1,10 +1,13 @@
 // El chat de una issue: una sesión del bridge ligada a ella (una por issue).
-// Si ya existe, se re-engancha con su historial; si no, un solo botón, «Iniciar
-// resolución asistida por IA», que abre Claude con conocimiento autónomo y el
+// Si ya existe, se re-engancha con lo que lleva; si no, un solo botón, «Iniciar
+// resolución asistida por IA», que abre Copilot con conocimiento autónomo y el
 // proyecto del origen de la issue (assisted.js); al arrancar, el bridge le
-// inyecta los datos de la issue como primer mensaje. Salir de la issue no lo
-// cierra: solo suelta el socket (dispose); el chat sigue vivo en el bridge.
+// inyecta los datos de la issue como primer mensaje. La conversación se ve
+// como en el Chat (chat/conversation/view.js); un CLI que aún vaya en un PTY,
+// en su terminal. Salir de la issue no lo cierra: solo suelta el socket
+// (dispose); el chat sigue vivo en el bridge.
 import { msg, parse, sendOn } from '../chat/protocol.js';
+import { createConversationView } from '../chat/conversation/view.js';
 import { esc } from '../ui/html.js';
 import { assistedPlan } from './assisted.js';
 import { originOf } from './origin.js';
@@ -12,19 +15,36 @@ import { assistHtml } from './work-screen.js';
 
 // host: el hueco del chat · issue: la issue abierta (su id y su origen)
 // wsUrl(): socket del bridge · loadProjects(): los proyectos visibles
-// makeTerminal(): { term, fit } con el tema de SIA
-export const mountIssueChat = (host, { issue, wsUrl, loadProjects, makeTerminal }) => {
+// makeTerminal(): { term, fit } con el tema de SIA · fileUrl(nombre): la URL
+// de un adjunto · onLogin(): a Configuración → Proveedores IA (Copilot sin sesión)
+export const mountIssueChat = (host, { issue, wsUrl, loadProjects, makeTerminal, fileUrl, onLogin }) => {
   const issueId = issue.id, origin = originOf(issue);
   host.innerHTML = `<div class="iss-card-h" data-chat-head hidden><h3>Resolución asistida por IA</h3></div>
-    <div class="iss-chat-start"><p class="iss-empty">Conectando…</p></div><div class="term-host" hidden></div>`;
+    <div class="iss-chat-start"><p class="iss-empty">Conectando…</p></div><div class="iss-chat-conv" hidden></div><div class="term-host" hidden></div>`;
   const head = host.querySelector('[data-chat-head]');
   const chooser = host.querySelector('.iss-chat-start');
+  const convHost = host.querySelector('.iss-chat-conv');
   const termHost = host.querySelector('.term-host');
-  let ws = null, term = null, fit = null, ro = null, disposed = false;
+  let ws = null, term = null, fit = null, ro = null, view = null, disposed = false;
 
   const resize = () => { if (!term || termHost.hidden) return; try { fit.fit(); sendOn(ws, msg.resize(term.cols, term.rows)); } catch { /* aún sin tamaño */ } };
 
   // La cabecera del panel solo tiene sentido con el chat en marcha.
+  const showConversation = () => {
+    if (view) return;
+    chooser.hidden = true;
+    convHost.hidden = false;
+    head.hidden = false;
+    view = createConversationView({
+      host: convHost, fileUrl,
+      onSend: (text) => sendOn(ws, msg.say(text)),
+      onStop: () => sendOn(ws, msg.stop()),
+      onPick: (requestId, answers) => sendOn(ws, msg.answer(requestId, answers)),
+      onApprove: (requestId, allow) => sendOn(ws, msg.approve(requestId, allow)),
+      onAuthCheck: () => sendOn(ws, msg.authCheck()),
+      onLogin,
+    });
+  };
   const showTerminal = () => {
     if (term) return;
     chooser.hidden = true;
@@ -39,6 +59,11 @@ export const mountIssueChat = (host, { issue, wsUrl, loadProjects, makeTerminal 
   };
 
   const launch = (launcher, knowledge, projects) => {
+    if (launcher.native) {
+      showConversation();
+      sendOn(ws, msg.start(launcher.id, knowledge, projects, 0, 0, { issue: issueId }));
+      return;
+    }
     showTerminal();
     // medir antes de arrancar: el CLI nace con el ancho real
     requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -47,17 +72,22 @@ export const mountIssueChat = (host, { issue, wsUrl, loadProjects, makeTerminal 
     }));
   };
 
-  const ended = (text) => {
+  const unmount = () => {
     if (ro) { ro.disconnect(); ro = null; }
     if (term) { term.dispose(); term = null; }
+    if (view) { view.destroy(); view = null; }
     termHost.hidden = true;
+    convHost.hidden = true;
+  };
+  const ended = (text) => {
+    unmount();
     chooser.hidden = false;
     head.hidden = true;
     chooser.innerHTML = `<p class="iss-empty">${esc(text)}</p><button class="lab-btn primary" data-chat-again>Iniciar otra resolución asistida</button>`;
-    chooser.querySelector('[data-chat-again]').addEventListener('click', () => { dispose(); mountIssueChat(host, { issue, wsUrl, loadProjects, makeTerminal }); });
+    chooser.querySelector('[data-chat-again]').addEventListener('click', () => { dispose(); mountIssueChat(host, { issue, wsUrl, loadProjects, makeTerminal, fileUrl, onLogin }); });
   };
 
-  // El botón: se decide con qué se abre (Claude, autónomo, el proyecto del
+  // El botón: se decide con qué se abre (Copilot, autónomo, el proyecto del
   // origen) y, si falta algo, se explica en su lugar.
   const offerAssist = (launchers) => {
     chooser.innerHTML = assistHtml();
@@ -76,25 +106,45 @@ export const mountIssueChat = (host, { issue, wsUrl, loadProjects, makeTerminal 
   ws.onmessage = (e) => {
     const m = parse(e.data);
     if (!m) return;
-    if (m.type === 'launchers') {
-      const open = (m.sessions || []).find((r) => r.issue === issueId);
-      if (open) { showTerminal(); sendOn(ws, msg.attach(open.id)); return; }
-      offerAssist(m.list);
-    } else if ((m.type === 'history' || m.type === 'data') && term) {
-      if (m.type === 'history') term.reset();
-      term.write(m.data);
-    } else if (m.type === 'exit' || m.type === 'gone') {
-      ended('El chat de esta issue se ha cerrado.');
-    } else if (m.type === 'error') {
-      ended(m.message || 'No se pudo abrir el chat.');
+    switch (m.type) {
+      case 'launchers': {
+        const open = (m.sessions || []).find((r) => r.issue === issueId);
+        if (open) { if (open.native) showConversation(); else showTerminal(); sendOn(ws, msg.attach(open.id)); return; }
+        offerAssist(m.list);
+        break;
+      }
+      case 'history':
+      case 'data':
+        if (!term) return;
+        if (m.type === 'history') term.reset();
+        term.write(m.data);
+        break;
+      case 'transcript': view?.feed(m); break;
+      case 'typing': view?.typing(m.text); break;
+      case 'thinking': view?.thinking(); break;
+      case 'ask': view?.ask(m); break;
+      case 'ask-off': view?.askOff(m.requestId); break;
+      case 'turn': view?.turn(); break;
+      case 'meta': view?.meta(m); break;
+      case 'auth-check': if (!m.ok) view?.feed({ items: [{ kind: 'text', id: `auth-${Date.now()}`, text: 'Copilot sigue sin sesión iniciada: inicia sesión en Configuración → Proveedores IA y vuelve a probar.' }] }); break;
+      case 'exit':
+      case 'gone':
+        ended('El chat de esta issue se ha cerrado.');
+        break;
+      case 'error':
+        ended(m.message || 'No se pudo abrir el chat.');
+        break;
     }
   };
-  ws.onclose = () => { if (!disposed && term) term.write('\r\n\x1b[2m[sin conexión con SIA: vuelve a abrir la issue]\x1b[0m\r\n'); };
+  ws.onclose = () => {
+    if (disposed) return;
+    if (term) term.write('\r\n\x1b[2m[sin conexión con SIA: vuelve a abrir la issue]\x1b[0m\r\n');
+    view?.feed({ items: [{ kind: 'text', id: 'offline', text: 'Sin conexión con SIA: vuelve a abrir la issue.' }] });
+  };
 
   const dispose = () => {
     disposed = true;
-    if (ro) ro.disconnect();
-    if (term) term.dispose();
+    unmount();
     try { ws.close(); } catch { /* ya cerrado */ }
   };
   return { dispose };

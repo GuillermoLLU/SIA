@@ -14,8 +14,10 @@ export const nextActive = (ids) => ids.at(-1) ?? null;
 
 export const isImageName = (n) => /\.(png|jpe?g|gif|webp|svg|bmp|ico)$/i.test(n || '');
 export const fileExt = (name) => (name.split('.').pop() || 'file').toUpperCase().slice(0, 5);
+// La URL de un adjunto subido al bridge, por su nombre.
+export const uploadUrl = (apiBase, name) => `${apiBase}/uploads/${encodeURIComponent(name)}`;
 // Un adjunto tal como lo da el bridge → con su URL y si es imagen.
-export const toAsset = (a, apiBase) => ({ ...a, url: `${apiBase}/uploads/${encodeURIComponent(a.name)}`, isImage: isImageName(a.name) });
+export const toAsset = (a, apiBase) => ({ ...a, url: uploadUrl(apiBase, a.name), isImage: isImageName(a.name) });
 // Los adjuntos que el bridge conoce y aquí faltan (los subió otro dispositivo).
 // Nunca se quita ninguno: un adjunto no se borra.
 export const missingAssets = (have, list) => (list || []).filter((a) => !have.some((x) => x.name === a.name));

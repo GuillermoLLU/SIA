@@ -1,5 +1,5 @@
 // Resolución asistida por IA de una issue (dominio, sin E/S): con qué se abre
-// el chat. El mismo lanzador que el Chat (chat/start.js: Claude, conocimiento
+// el chat. El mismo lanzador que el Chat (chat/start.js: Copilot, conocimiento
 // autónomo) y solo el proyecto del origen de la issue: SISU si viene de SISU,
 // SGA si no.
 import { pickLauncher, CHAT_KNOWLEDGE } from '../chat/start.js';

@@ -23,6 +23,7 @@ import { mountLockControls } from './lock/controls.js';
 import { mountChatView } from './chat/chat-view.js';
 import { mountPalette } from './skills/palette-view.js';
 import { mountSettings } from './settings/settings-view.js';
+import { mountProviders } from './settings/providers-view.js';
 import { mountLabView } from './lab/lab-view.js';
 import { mountLinksDirectory } from './links/links-directory.js';
 import { mountProjectsPanel } from './projects/projects-panel.js';
@@ -84,17 +85,21 @@ const theme = createThemeController({
   toggleEl: $('theme-toggle'),
   onTerm: (term) => chat?.setTermTheme(term),
 });
+// Copilot sin sesión iniciada (la tarjeta del chat): a Configuración → Proveedores IA
+const openProviders = () => settings.open('proveedores');
 chat = mountChatView({
   api, apiBase, wsUrl, dialogs, theme: theme.current, me: user.name,
   mac: /Mac/i.test(navigator.platform || navigator.userAgent || ''),
   gate: gate.open, onSkills: (list) => palette.setSkills(list),
   // la portada solo marca el arranque si es lo primero que se ve
   onFirstScreen: (first) => { if (firstView(user) === 'chat') reveal(first); },
+  onLogin: openProviders,
 });
 palette = mountPalette({ chat });
 
 /* ── Configuración ─────────────────────────────────────────────── */
 const settings = mountSettings({ api });
+mountProviders({ api, settings, toast, dialogs }); // la cuenta de Copilot
 wireLogout($('settings-session'), { session });
 const linksDirectory = mountLinksDirectory({ api, dialogs, settings });
 
@@ -143,7 +148,7 @@ settings.onPane((name) => { if (name === 'priorizacion') { settings.setFull(true
 const PANELS = [
   { name: 'issues', mount: (el) => mountIssuesView(el, {
     api: createIssuesApi(api), me: user, toast, dialogs,
-    openChat: (host, issue) => mountIssueChat(host, { issue, wsUrl, loadProjects: chat.loadProjects, makeTerminal: chat.makeTerminal }),
+    openChat: (host, issue) => mountIssueChat(host, { issue, wsUrl, loadProjects: chat.loadProjects, makeTerminal: chat.makeTerminal, fileUrl: chat.fileUrl, onLogin: openProviders }),
   }) },
   { name: 'backlog', mount: (el) => mountBacklogView(el, { api: createBacklogApi(api), toast }) },
   // clic en una persona de Equipo soporte: se abre en Métricas frente al resto de su equipo

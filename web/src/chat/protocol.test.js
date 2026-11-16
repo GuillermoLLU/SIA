@@ -22,3 +22,11 @@ test('closeReason: candado, handoff y el resto perdido', () => {
   assert.equal(closeReason(4409), 'handoff');
   assert.equal(closeReason(1006), 'lost');
 });
+
+test('un chat sin terminal: lo escrito, parar, contestar y comprobar la sesión', () => {
+  assert.deepEqual(msg.say('hola'), { type: 'say', text: 'hola' });
+  assert.deepEqual(msg.stop(), { type: 'stop' });
+  assert.deepEqual(msg.answer('r1', { '¿?': 'sí' }), { type: 'answer', requestId: 'r1', answers: { '¿?': 'sí' } });
+  assert.deepEqual(msg.approve('r2', true), { type: 'answer', requestId: 'r2', allow: true });
+  assert.deepEqual(msg.authCheck(), { type: 'auth-check' });
+});

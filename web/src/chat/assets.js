@@ -1,6 +1,8 @@
 // Adjuntos de un chat: cualquier fichero pegado o arrastrado se sube al bridge, se registra en la sesión (persiste con ella,
-// recargas incluidas) y su ruta va al prompt del CLI sin Enter, para que el
-// usuario escriba su pregunta alrededor. El panel de la derecha los lista.
+// recargas incluidas) y su ruta va a lo que se está escribiendo (en la
+// conversación, como una marca en la caja; en la terminal, al prompt sin
+// Enter), para que la persona escriba su pregunta alrededor. El panel de la
+// derecha los lista.
 import { esc } from '../ui/html.js';
 import { msg, sendOn, isOpen } from './protocol.js';
 import { toAsset, fileExt } from './sessions.js';
@@ -36,7 +38,9 @@ export const createAssets = ({ api, apiBase, dialogs, active, onLayout }) => {
       });
       item.querySelector('.asset-insert').addEventListener('click', () => {
         const sess = active();
-        if (sess?.launched && isOpen(sess.ws)) { sendOn(sess.ws, msg.input(`${a.absPath} `)); sess.term.focus(); }
+        if (!sess?.launched || !isOpen(sess.ws)) return;
+        if (sess.view) sess.view.attach(a.absPath);
+        else { sendOn(sess.ws, msg.input(`${a.absPath} `)); sess.term.focus(); }
       });
       list.appendChild(item);
     });
@@ -53,7 +57,8 @@ export const createAssets = ({ api, apiBase, dialogs, active, onLayout }) => {
 
   const announce = (s, asset) => {
     sendOn(s.ws, msg.asset(asset));
-    sendOn(s.ws, msg.input(`${asset.absPath} `));
+    if (s.view) s.view.attach(asset.absPath);
+    else sendOn(s.ws, msg.input(`${asset.absPath} `));
   };
   // adjuntos subidos mientras el socket estaba caído: entran al volver
   const flushPending = (s) => {
@@ -79,15 +84,16 @@ export const createAssets = ({ api, apiBase, dialogs, active, onLayout }) => {
       else s.pendingAssets.push(asset);
       render();
       onLayout();
-      s.term.focus();
+      if (!s.view) s.term.focus(); // la caja de la conversación ya tiene el foco con la marca
     } catch (err) {
       dialogs.alert('No se pudo adjuntar el fichero', esc(err.message));
     }
   };
 
-  // Pega en la sesión desde el portapapeles: imagen → se adjunta; texto → se
-  // escribe en la terminal. Lo usa el handler de teclado en Windows/Linux, donde
-  // xterm intercepta Ctrl+V como ^V y el evento de pegado nativo no llega.
+  // Pega en una sesión de terminal desde el portapapeles: imagen → se adjunta;
+  // texto → se escribe en la terminal. Lo usa el handler de teclado en
+  // Windows/Linux, donde xterm intercepta Ctrl+V como ^V y el evento de pegado
+  // nativo no llega (la caja de la conversación pega como cualquier campo).
   const pasteFromClipboard = async (s) => {
     if (!s || !s.launched || !s.term) return;
     try {
@@ -107,7 +113,7 @@ export const createAssets = ({ api, apiBase, dialogs, active, onLayout }) => {
   };
 
   // pegar desde el portapapeles (⌘V: imágenes copiadas o ficheros del Finder)
-  // y arrastrar ficheros (de cualquier tipo) encima de la terminal
+  // y arrastrar ficheros (de cualquier tipo) encima del chat
   const wire = (viewEl, stackEl) => {
     document.addEventListener('paste', (e) => {
       if (viewEl.hidden) return;
