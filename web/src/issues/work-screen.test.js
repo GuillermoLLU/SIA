@@ -30,7 +30,7 @@ test('la pantalla: cuatro pestañas, Detalle por defecto, sin análisis de la IA
 test('mía y cogida en SIA: se puede devolver y se ve quién la tiene', () => {
   const html = workScreen({ issue: issue({ claimedBy: { id: 'u', name: 'Ana', at: '2026-10-01T10:30:00Z' } }), sameCenter: [], now, mine: true, tab: 'detail' });
   assert.match(html, /data-release/);
-  assert.match(html, /en SIA, Ana/);
+  assert.match(html, /Asignada<\/span><b>[^<]*<\/b><small>Ana<\/small>/);
   assert.match(html, /data-wtab="detail" aria-selected="true"/);
 });
 

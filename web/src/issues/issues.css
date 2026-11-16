@@ -221,13 +221,13 @@
 .iss-send { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; flex: none; color: var(--surface); background: var(--accent); border: 0; cursor: pointer; }
 .iss-send:disabled { opacity: .45; cursor: default; }
 .iss-send:not(:disabled):hover { filter: brightness(1.08); }
-/* a la izquierda, los datos clave encima de las pestañas; a la derecha, el chat a todo el alto */
-.iss-left { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
-.iss-keys { flex: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; padding: 12px; }
-.iss-keys > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 8px 10px; background: color-mix(in srgb, var(--bg) 60%, var(--surface)); }
-.iss-keys span { font-size: 11px; color: var(--text-low); }
-.iss-keys b { font-size: 14px; font-weight: 650; color: var(--text); font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.iss-keys small { font-size: 11px; color: var(--text-low); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* los datos clave: una tira fina encima de las pestañas («Criticidad Media · priorizada»), sin cajas */
+.iss-keys { flex: none; display: flex; flex-wrap: wrap; gap: 4px 22px; padding: 10px 22px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--bg) 50%, var(--surface)); font-size: 12px; line-height: 18px; }
+.iss-keys > div { display: flex; align-items: baseline; gap: 6px; min-width: 0; white-space: nowrap; }
+.iss-keys span { color: var(--text-low); }
+.iss-keys b { font-weight: 650; color: var(--text); font-variant-numeric: tabular-nums; }
+.iss-keys small { font-size: 11.5px; color: var(--text-low); }
+.iss-keys small::before { content: '· '; }
 .iss-keys a { color: var(--accent); text-decoration: none; }
 .iss-keys a:hover { text-decoration: underline; }
 /* color solo donde dice algo: criticidad alta o crítica, y el origen */
@@ -638,9 +638,7 @@ a.rv-id:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
   .iss-opening .iss-work-main { animation-delay: 160ms; }
   .iss-opening .iss-wtabs { animation-delay: 260ms; }
   .iss-opening .iss-wpanel { animation-delay: 320ms; }
-  .iss-opening .iss-keys { animation-delay: 240ms; }
-  .iss-opening .iss-keys > * { animation-delay: 340ms; }
-  .iss-opening .iss-keys > :nth-child(n+5) { animation-delay: 400ms; }
+  .iss-opening .iss-keys > * { animation-delay: 240ms; }
   .iss-opening :is(.iss-chat, .iss-pending-acts) { animation-delay: 320ms; }
 }
 @keyframes iss-show { from { opacity: 0; } }
