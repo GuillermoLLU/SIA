@@ -7,8 +7,8 @@ const el = () => {
   return { hidden: false, classList: { toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)), has: (c) => classes.has(c) } };
 };
 const setup = () => {
-  const views = { chat: el(), issues: el(), backlog: el(), metrics: el(), lab: el() };
-  const dock = { issues: el(), backlog: el(), metrics: el() };
+  const views = { chat: el(), issues: el(), backlog: el(), hub: el(), work: el(), lab: el() };
+  const dock = { issues: el(), backlog: el(), hub: el() };
   const bar = [], entered = [], shown = [];
   const body = el();
   const v = createViews({
@@ -29,9 +29,8 @@ test('show: una vista a la vista, su icono del dock marcado y su nombre arriba',
   assert.equal(s.dock.issues.classList.has('active'), false);
   assert.deepEqual(s.bar.at(-1), { name: 'backlog', title: 'Backlog', from: null });
   assert.equal(s.v.current(), 'backlog');
-  s.v.show('metrics');
-  assert.equal(s.dock.metrics.classList.has('active'), true);
-  assert.equal(s.dock.backlog.classList.has('active'), false);
+  s.v.show('work');
+  assert.equal(s.dock.hub.classList.has('active'), true, 'una cara de Métricas marca su icono');
 });
 
 test('go: además, la entrada en cascada; show no la tiene', () => {

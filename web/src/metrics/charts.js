@@ -6,16 +6,12 @@
 // A respecto a B (compare.js); data-cmp lleva lo que enseña
 // la tarjeta al pasar el ratón.
 import { esc } from '../ui/html.js';
-import { num, pct, dur, signedDur } from './format.js';
+import { num, pct, dur } from './format.js';
 import { compareFigure } from './compare.js';
 import { SHIFTS } from './shifts.js';
 import { MIN_ISSUES, DAY, clearlyWorse, trendDelta, shadeSoft, HOT } from './rules.js';
 import { blockHead, blocksOf } from './pieces.js';
 import { periodSeries, monthTicks, dayTicks, lineScale, dayScale, scorecardOrder, shownRows, heatCounts, matrixCounts, groupMax, LINE_MIN } from './plot.js';
-
-// La rejilla de una gráfica de W de ancho con márgenes L y R: tres líneas (0, la mitad y el máximo, en y) con su cifra
-// a la izquierda, en fmt.
-export const yGrid = ({ W, L, R }, y, max, fmt = num) => [0, 0.5, 1].map((p) => `<line x1="${L}" x2="${W - R}" y1="${y(max * p)}" y2="${y(max * p)}" class="mt-gridline"/><text x="${L - 6}" y="${y(max * p) + 4}" text-anchor="end" class="mt-axis">${fmt(max * p)}</text>`).join('');
 
 // ui: { exp: {id: true}, sort: {id: [columna, ±1]} }, lo que la persona ha desplegado y ordenado.
 export const createCharts = (m, ui) => {
@@ -26,8 +22,7 @@ export const createCharts = (m, ui) => {
   // título dentro y forma un bloque
   const card = (t, body, o = {}) => `<section class="mt-card ${o.span ? `mt-${o.span}` : ''} ${t ? '' : 'mt-flush'}">${t ? `<h3>${t}</h3>` : ''}${o.sub ? `<p class="mt-sub">${o.sub}</p>` : ''}${body}</section>`;
   const legend = () => `<div class="mt-legend">${CO().map((k) => `<span><i class="mt-c${k}"></i>${esc(name(k))}</span>`).join('')}</div>`;
-  // attrs: atributos de más (p. ej., para pinchar la cifra: con cls mt-clk y un data-…)
-  const kpi = (l, v, d = '', cls = '', attrs = '') => `<div class="mt-kpi ${cls}"${attrs ? ` ${attrs}` : ''}><div class="mt-kpi-l">${l}</div><div class="mt-kpi-v">${v}</div><div class="mt-kpi-d">${d}</div></div>`;
+  const kpi = (l, v, d = '', cls = '') => `<div class="mt-kpi ${cls}"><div class="mt-kpi-l">${l}</div><div class="mt-kpi-v">${v}</div><div class="mt-kpi-d">${d}</div></div>`;
   const kpis = (...k) => `<div class="mt-kpis">${k.join('')}</div>`;
   const more = (id, total, top) => (total > top ? `<button class="mt-more" data-exp="${id}">${ui.exp[id] ? 'Ver menos' : `Ver todos (${num(total)})`}</button>` : '');
   const empty = '<p class="mt-mut mt-small">Sin datos con estos filtros.</p>';
@@ -41,22 +36,12 @@ export const createCharts = (m, ui) => {
   // segundo (en verde o rojo si tiene un sentido mejor; en puntos si es un %, que es lo que se lee al mirar los dos
   // valores) y debajo el valor de cada uno. La nota, al pasar el ratón.
   const kpiCo = (label, ST, fmt, o = {}) => {
-    // o.pair: comparar ST[0] con ST[1] aunque no se comparen lados (el Resumen: el periodo con el anterior). o.go:
-    // [pestaña, nombre], un enlace a esa pestaña debajo, como el de la corona («Ver … →»; metrics-view.js, data-go)
-    const go = o.go ? `<p class="mt-kpi-go"><button class="mt-go" data-go="${o.go[0]}">Ver ${esc(o.go[1])} →</button></p>` : '';
-    // o.pctSign: la diferencia de un porcentaje, con «%» en vez de «pts» (son puntos: 41 % frente a 53 %, «−12 %»).
-    // o.tip: la definición (o.note), al pasar el ratón por el KPI en vez de debajo. o.pick: el KPI se pincha para
-    // filtrar ({ attr: su data-…, on: si está filtrando }; quien lo pinta dice qué hace el clic)
-    const tip = o.tip && o.note ? o.note + (o.pick ? `\n${o.pick.on ? 'Clic para quitar el filtro.' : 'Clic para ver solo estas.'}` : '') : '';
-    const pickCls = o.pick ? ` mt-clk${o.pick.on ? ' mt-on' : ''}` : '';
-    const attrs = [tip ? `data-tip="${esc(tip)}"` : '', o.pick ? `${o.pick.attr} role="button" tabindex="0" aria-pressed="${!!o.pick.on}"` : ''].filter(Boolean).join(' ');
-    if (!CMP() && !o.pair) { const k = CO()[0]; return kpi(label, fmt(ST[k]), (o.tip ? '' : o.note || '') + go, `mt-t${k}${pickCls}`, attrs); }
+    if (!CMP()) { const k = CO()[0]; return kpi(label, fmt(ST[k]), o.note || '', `mt-t${k}`); }
     const f = compareFigure(ST[0], ST[1], fmt, o.val, o.better);
     const nm = (k) => o.names?.[k] || name(k);   // o.names: otro nombre para cada lado en esta cifra
-    // o.side: cómo se ve la cifra de cada lado, si no como fmt (que es lo que se compara: solo el valor)
-    const side = (k) => `<div class="mt-kpi-s"><i class="mt-c${k}"></i><span title="${esc(nm(k))}">${esc(nm(k))}</span><b>${ST[k].n ? (o.side || fmt)(ST[k]) : '—'}</b></div>`;
-    return `<div class="mt-kpi mt-kpi-co${pickCls}"${attrs ? ` ${attrs}` : ''}><div class="mt-kpi-l" ${o.note && !o.tip ? `data-tip="${esc(o.note)}"` : ''}>${label}</div>
-      <div class="mt-kpi-v ${f ? `mt-diff ${f.cls}` : 'mt-mut'}">${f ? (o.pctSign && f.pts ? f.pts.replace(/ pts$/, ' %') : f.pts || f.main) : '—'}</div>${side(0)}${side(1)}${go}</div>`;
+    const side = (k) => `<div class="mt-kpi-s"><i class="mt-c${k}"></i><span title="${esc(nm(k))}">${esc(nm(k))}</span><b>${ST[k].n ? fmt(ST[k]) : '—'}</b></div>`;
+    return `<div class="mt-kpi mt-kpi-co"><div class="mt-kpi-l" ${o.note ? `data-tip="${esc(o.note)}"` : ''}>${label}</div>
+      <div class="mt-kpi-v ${f ? `mt-diff ${f.cls}` : 'mt-mut'}">${f ? (f.pts || f.main) : '—'}</div>${side(0)}${side(1)}</div>`;
   };
 
   // Líneas de evolución en el periodo que se mira, una por lado: por meses o, si es de un mes o menos, por días
@@ -71,7 +56,7 @@ export const createCharts = (m, ui) => {
     const subs = ticks.some((t) => t.sub);
     const W = 620, H = o.height || 190, L = o.left || 74, R = 12, T = 12, B = subs ? 38 : 26;
     const { max, x, y } = lineScale(per.flat(), n - 1, { W, H, L, R, T, B });
-    const grid = yGrid({ W, L, R }, y, max, fmt);
+    const grid = [0, 0.5, 1].map((p) => `<line x1="${L}" x2="${W - R}" y1="${y(max * p)}" y2="${y(max * p)}" class="mt-gridline"/><text x="${L - 6}" y="${y(max * p) + 4}" text-anchor="end" class="mt-axis">${fmt(max * p)}</text>`).join('');
     // el tramo bajo su punto y, debajo, el año (meses) o el mes (días) donde cambia (monthTicks, dayTicks)
     const xs = ticks.map(({ k, label, sub }) => `<text x="${x(k)}" y="${H - (subs ? 19 : 6)}" text-anchor="middle" class="mt-axis">${label}${last(k) ? '*' : ''}</text>`
       + (sub ? `<text x="${x(k)}" y="${H - 4}" text-anchor="middle" class="mt-axis">${sub}</text>` : '')).join('');
@@ -98,30 +83,30 @@ export const createCharts = (m, ui) => {
   // o.child: { dim, top, noun }: cada fila se despliega (▸) en sus valores de otra dimensión (los temas, en sus problemas),
   // ordenados igual; los o.child.top primeros y «Otros», para que sumen la fila.
   const SC = {
-    n: ['Incidencias', null, (s) => s.n, 'Incidencias recibidas en el periodo y su parte del total.'],
+    n: ['Issues', null, (s) => s.n, 'Issues recibidas en el periodo y su parte del total.'],
     dl: ['90 días', null, (s) => (s.tr.prev ? (s.tr.now - s.tr.prev) / s.tr.prev : 0), 'Últimos 90 días de la foto frente a los 90 anteriores.'],
     sla: ['En SLA', 'high', (s) => s.sla, 'Empezadas (paso a En curso) dentro del plazo de su prioridad.'],
     avg: ['Media resol.', 'low', (s) => s.avg, 'Tiempo medio de la apertura a la resolución.'],
     d1: ['En < 24 h', 'high', (s) => s.d1, 'De las resueltas, las resueltas en menos de 24 horas.'],
     reop: ['Reabiertas', 'low', (s) => s.reop, 'Volvieron de Resuelta a abierta.'],
     crit: ['Críticas', null, (s) => s.crit, 'Parte de prioridad crítica.'],
-    vend: ['Escaladas', null, (s) => s.vend, 'Parte que ha estado en Pendiente de un tercero.'],
+    vend: ['Escaladas', null, (s) => s.vend, 'Parte con ticket de tercero.'],
     open: ['Pendientes', null, (s) => s.open, 'Lo recibido en el periodo que sigue sin resolver.'],
     // con o.extra: top, el valor de otra dimensión que más se repite ({ label, share }); mi, los major incidents
-    top: ['Lo que más falla', null, null, 'El módulo con más incidencias y su parte.'],
-    mi: ['Major inc.', null, (s) => s.mi, 'Incidencias con la etiqueta de major incident en sus notas de trabajo.'],
+    top: ['Lo que más falla', null, null, 'El módulo con más issues y su parte.'],
+    mi: ['Major inc.', null, (s) => s.mi, 'Issues con la etiqueta de major incident en sus notas de trabajo.'],
     // con o.extra: nce, en cuántos centros pasa; same, de las resueltas, la parte cerrada con el texto más usado
     nce: ['Centros', null, (s) => s.nce, 'En cuántos centros distintos ha pasado. En uno, es algo local; en muchos, del sistema.'],
     // Resolución: lo resuelto, cuánto tarda y en qué se le va el tiempo (de media por resuelta: model.js, stats rt)
-    d7: ['24 a 168 h', null, (s) => (s.resolved ? s.d7 : null), 'De las resueltas, las que tardaron de 24 a 168 h.'],
-    d15: ['168 a 360 h', 'low', (s) => (s.resolved ? s.d15 : null), 'De las resueltas, las que tardaron de 168 a 360 h.'],
+    d7: ['1 a 7 días', null, (s) => (s.resolved ? s.d7 : null), 'De las resueltas, las que tardaron de 1 a 7 días.'],
+    d15: ['7 a 15 días', 'low', (s) => (s.resolved ? s.d15 : null), 'De las resueltas, las que tardaron de 7 a 15 días.'],
     mx: ['Máximo', null, (s) => (s.resolved ? s.mx : null), 'Lo que tardó la resuelta más lenta.'],
-    w7: ['> 168 h', 'low', (s) => (s.resolved ? s.w7 : null), 'De las resueltas, las que tardaron más de 168 h.'],
+    w7: ['> 7 días', 'low', (s) => (s.resolved ? s.w7 : null), 'De las resueltas, las que tardaron más de 7 días.'],
     tq: ['En cola', 'low', (s) => (s.resolved ? s.rt[0] / s.resolved : null), 'Tiempo medio en Asignada.'],
     tc: ['Espera cliente', null, (s) => (s.resolved ? s.rt[2] / s.resolved : null), 'Tiempo medio en Pendiente del centro o del cliente.'],
     tv: ['Espera tercero', null, (s) => (s.resolved ? s.rt[3] / s.resolved : null), 'Tiempo medio en Pendiente de un tercero.'],
     // IA (con o.extra: tabs.js, iaView)
-    iaN: ['Incidencias', null, (s) => s.iaN, 'Con alguna marca de IA.'],
+    iaN: ['Issues', null, (s) => s.iaN, 'Con alguna marca de IA.'],
     iaShare: ['% de las suyas', null, (s) => s.iaShare, 'De lo recibido, lo que tiene alguna marca de IA.'],
     // el 5.º: sobre cuántas se marca si va peor (si no, sus issues)
     iaOk: ['Revisadas OK', 'high', (s) => s.iaOk, 'De las de IA, con revisión humana OK y sin fallo.', (s) => s.iaN],
@@ -130,7 +115,7 @@ export const createCharts = (m, ui) => {
     // con o.cell: la celda la pinta quien llama (el reparto de las de IA en una barra)
     iaMix: ['Reparto', null, null, 'Revisadas OK, con fallo y sin revisar.'],
     req: ['% peticiones', null, (s) => s.req, 'Tipo de servicio Petición de usuario.'],
-    rep: ['Resol. repetida', null, (s) => s.rep, 'Incidencias cuyo texto de resolución se ha usado 4 veces o más.'],
+    rep: ['Resol. repetida', null, (s) => s.rep, 'Issues cuyo texto de resolución se ha usado 4 veces o más.'],
     // SLA y calidad
     slaKo: ['Fuera de SLA', null, (s) => s.slaKo, 'Empezadas tarde y abiertas que siguen sin empezar pasado el plazo.'],
     ip: ['Hasta En curso', 'low', (s) => s.ip, 'Media de la apertura al primer paso a En curso.'],
@@ -139,15 +124,9 @@ export const createCharts = (m, ui) => {
     escNoPend: ['Esc. sin Pendiente', 'low', (s) => s.escNoPend, 'De las cerradas con ticket de tercero, las que nunca pasaron a Pendiente.'],
     noCat: ['Sin tipología', 'low', (s) => (s.n ? s.noCat : null), 'Sin categorización 3 de Remedy.'],
     noDesc: ['Sin descripción', 'low', (s) => (s.n ? s.noDesc : null), 'El título no dice cuál es el problema.'],
-    // Escalados (con o.extra: tabs/escalados.js, withTimes): los tiempos de escalado (resolution.js, escalationTimes) y el IDMTTR
-    the: ['THesc', 'low', (s) => s.esc?.the.avg ?? null, 'Media de la apertura al primer Jira.'],
-    tes: ['Tesc', 'low', (s) => s.esc?.tes.avg ?? null, 'Media del Jira más antiguo a la resolución del Jira de solución o, sin resolver, a la última carga.'],
-    tsr: ['Tesc-r', 'low', (s) => s.esc?.tsr.avg ?? null, 'Media de lo que lleva su Jira resuelto sin cerrarse en Remedy.'],
-    age: ['Antigüedad', 'low', (s) => s.esc?.total.avg ?? null, 'Media de la apertura a la última carga.'],
-    idm: ['IDMTTR', null, (s) => s.idm ?? null, 'Lo que mueve el MTTR del periodo: el MTTR con ellas menos el MTTR sin ellas.'],
     same: ['Mismo cierre', null, (s) => s.same, 'De las resueltas, la parte cerrada con el mismo texto de resolución (el más usado). Si es alta, se resuelve siempre igual: se puede automatizar o llevar a la IA.'],
   };
-  const SC_FMT = { sla: (v) => (v == null ? '—' : pct(v)), avg: dur, d1: (v) => pct(v), reop: (v) => pct(v, 1), crit: (v) => pct(v), vend: (v) => pct(v), open: num, mi: (v) => (v ? num(v) : ''), nce: num, same: pct, w7: (v) => pct(v), d7: (v) => pct(v), d15: (v) => pct(v), mx: dur, tq: dur, tc: dur, tv: dur, iaN: (v) => (v ? num(v) : ''), iaShare: (v) => (v ? pct(v, 1) : ''), iaOk: (v) => (v == null ? '' : pct(v)), iaFail: (v) => (v == null ? '' : pct(v)), iaUnrev: (v) => (v == null ? '' : pct(v)), req: (v) => pct(v), rep: (v) => pct(v), slaKo: num, ip: dur, bounce: (v) => pct(v, 1), noIpDone: (v) => pct(v, 1), escNoPend: (v) => pct(v, 1), noCat: (v) => pct(v, 1), noDesc: (v) => pct(v, 1), the: dur, tes: dur, tsr: dur, age: dur, idm: signedDur };
+  const SC_FMT = { sla: (v) => (v == null ? '—' : pct(v)), avg: dur, d1: (v) => pct(v), reop: (v) => pct(v, 1), crit: (v) => pct(v), vend: (v) => pct(v), open: num, mi: (v) => (v ? num(v) : ''), nce: num, same: pct, w7: (v) => pct(v), d7: (v) => pct(v), d15: (v) => pct(v), mx: dur, tq: dur, tc: dur, tv: dur, iaN: (v) => (v ? num(v) : ''), iaShare: (v) => (v ? pct(v, 1) : ''), iaOk: (v) => (v == null ? '' : pct(v)), iaFail: (v) => (v == null ? '' : pct(v)), iaUnrev: (v) => (v == null ? '' : pct(v)), req: (v) => pct(v), rep: (v) => pct(v), slaKo: num, ip: dur, bounce: (v) => pct(v, 1), noIpDone: (v) => pct(v, 1), escNoPend: (v) => pct(v, 1), noCat: (v) => pct(v, 1), noDesc: (v) => pct(v, 1) };
   const scorecard = (dim, groups, o = {}) => {
     const id = o.id || `sc-${dim}`, list = o.rows || rows(dim), cmp = CMP(), cols = groups.flatMap(([, c]) => c);
     const side = (l) => (cmp ? bySide(l)[0] : l), other = (l) => bySide(l)[1];
@@ -165,7 +144,7 @@ export const createCharts = (m, ui) => {
     // la barra, su parte real del total (el total, entera; «Resto», lo que suma)
     const cell = (c, r, isRef) => {
       if (c === 'n') return `<td><div class="mt-sc-vol"><em>${pct(r.n / T, 1)}</em><span class="mt-sc-bar"><i style="width:${(r.n / T * 100).toFixed(1)}%"></i></span><b>${num(r.n)}</b></div></td>`;
-      if (c === 'top') return `<td class="mt-sc-top">${r.top ? `<span data-tip="${esc(`${r.top.label}\n${pct(r.top.share, 1)} de sus incidencias`)}">${esc(r.top.label)}</span><em>${pct(r.top.share)}</em>` : ''}</td>`;
+      if (c === 'top') return `<td class="mt-sc-top">${r.top ? `<span data-tip="${esc(`${r.top.label}\n${pct(r.top.share, 1)} de sus issues`)}">${esc(r.top.label)}</span><em>${pct(r.top.share)}</em>` : ''}</td>`;
       if (o.cell?.[c]) return `<td class="mt-tbar">${o.cell[c](r)}</td>`;
       if (c === 'dl') return `<td class="mt-num" data-tip="${esc(`Últimos 90 días: ${num(r.tr.now)}\n90 anteriores: ${num(r.tr.prev)}`)}">${delta(r.tr)}</td>`;
       const v = SC[c][2](r), shown = v == null ? '—' : SC_FMT[c](v);
@@ -208,7 +187,7 @@ export const createCharts = (m, ui) => {
     const { mt, max } = heatCounts(R, Cc, list, (i) => keys(dr, i), (i) => keys(dc, i), SIDE);
     const cell = (t, r, c) => {
       const v = t[0] + t[1] + t[2], a = shadeSoft(v, max);
-      return `<td class="${a > HOT ? 'mt-hot' : ''}" style="--mt-a:${a}%" data-f2="${rd}:${R[r].k}|${cd}:${Cc[c].k}" data-tip="${esc(`${dr.label(R[r].k)} × ${dc.label(Cc[c].k)}\n${num(v)} incidencias\n${CO().map((k) => `${name(k)}: ${num(t[k])}`).join(' · ')}`)}">${v || ''}</td>`;
+      return `<td class="${a > HOT ? 'mt-hot' : ''}" style="--mt-a:${a}%" data-f2="${rd}:${R[r].k}|${cd}:${Cc[c].k}" data-tip="${esc(`${dr.label(R[r].k)} × ${dc.label(Cc[c].k)}\n${num(v)} issues\n${CO().map((k) => `${name(k)}: ${num(t[k])}`).join(' · ')}`)}">${v || ''}</td>`;
     };
     // cabeceras en horizontal; si son muchas (módulos, centros…), columnas iguales y el nombre cortado con «…» (entero al pasar el ratón)
     const v = 'mt-h', wide = Cc.length > 6;
@@ -264,7 +243,7 @@ export const createCharts = (m, ui) => {
     const band = (from, to, k) => { const b = bandOf(from, to); return `<rect x="${b.x.toFixed(1)}" y="${T}" width="${b.width.toFixed(1)}" height="${H - T - B}" class="mt-band${k}"/>`; };
     const bands = band(0, 7, 2) + band(7, 15, 0) + band(15, 23, 1) + band(23, 24, 2)
       + [[3.5, 2], [11, 0], [19, 1]].map(([h, k]) => `<text x="${edge(h).toFixed(1)}" y="${T - 8}" text-anchor="middle" class="mt-axis">${SHIFTS[k]}</text>`).join('');
-    const grid = yGrid({ W, L, R }, y, max, fmt);
+    const grid = [0, 0.5, 1].map((p) => `<line x1="${L}" x2="${W - R}" y1="${y(max * p)}" y2="${y(max * p)}" class="mt-gridline"/><text x="${L - 6}" y="${y(max * p) + 4}" text-anchor="end" class="mt-axis">${fmt(max * p)}</text>`).join('');
     const xs = [0, 3, 6, 9, 12, 15, 18, 21].map((h) => `<text x="${x(h)}" y="${H - 6}" text-anchor="middle" class="mt-axis">${h} h</text>`).join('');
     const ser = series.map((s) => `<polyline class="mt-line ${s.cls}" points="${s.v.map((v, h) => `${x(h).toFixed(1)},${y(v).toFixed(1)}`).join(' ')}"/>`
       + s.v.map((v, h) => `<circle cx="${x(h).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3" class="mt-dot ${s.cls}" data-tip="${esc(`${s.label} · de ${h} a ${h + 1} h\n${fmt(v)}`)}"/>`).join('')).join('');
@@ -278,21 +257,5 @@ export const createCharts = (m, ui) => {
       return `<div class="mt-split"><span class="mt-split-l">${r.k != null && CMP() ? `<i class="mt-sw mt-c${r.k}"></i>` : ''}${esc(r.label)}</span><span class="mt-hbar mt-split-b">${t ? r.v.map((v, j) => `<i class="mt-part${j}" style="width:${v / t * 100}%" data-tip="${esc(`${r.label}${r.k != null && CMP() ? ` · ${name(r.k)}` : ''}\n${names[j]}: ${num(v)} (${pct(v / t)})`)}">${v / t >= 0.08 ? pct(v / t) : ''}</i>`).join('') : ''}</span><span class="mt-split-n">${num(t)}</span></div>`;
     }).join('');
 
-  // Corona circular: partes de un todo (parts: [{ label, v, cls, f?, tip? }], en el orden en que se leen, desde arriba y
-  // en el sentido del reloj), con el total en el centro (center: [cifra, texto]). Entre tramos, 2 px del fondo; cada
-  // tramo, con su nota al pasar el ratón y, con f, clic para filtrar (con «|», por varias claves). Sin nada, un anillo vacío.
-  const donut = (parts, center, size = 116) => {
-    const total = parts.reduce((a, p) => a + p.v, 0), on = parts.filter((p) => p.v > 0), GAP = on.length > 1 ? 0.8 : 0;
-    let at = 0;
-    const arcs = on.map((p) => {
-      const len = (p.v / total) * 100, arc = `<circle class="mt-dn-${p.cls}${p.f ? ' mt-clk' : ''}" cx="60" cy="60" r="46" pathLength="100" stroke-dasharray="${Math.max(len - GAP, 0.01).toFixed(2)} ${(100 - len + GAP).toFixed(2)}" stroke-dashoffset="${(-at).toFixed(2)}" ${p.f ? `data-f${p.f.includes('|') ? '2' : ''}="${p.f}"` : ''} data-tip="${esc(`${p.label}: ${num(p.v)} (${pct(p.v / total, 1)})${p.tip ? `\n${p.tip}` : ''}`)}"/>`;
-      at += len;
-      return arc;
-    }).join('');
-    return `<svg class="mt-donut" viewBox="0 0 120 120" width="${size}" height="${size}" role="img" aria-label="${esc(`${center[1]}: ${center[0]}. ${parts.map((p) => `${p.label}: ${num(p.v)}`).join(', ')}`)}">
-      <circle class="mt-dn-track" cx="60" cy="60" r="46"/><g transform="rotate(-90 60 60)">${total ? arcs : ''}</g>
-      <text x="60" y="58" text-anchor="middle" class="mt-dn-n">${center[0]}</text><text x="60" y="74" text-anchor="middle" class="mt-dn-l">${esc(center[1])}</text></svg>`;
-  };
-
-  return { card, legend, kpi, kpis, kpiCo, diff, more, lines, heat, matrix, scorecard, day, split, donut };
+  return { card, legend, kpi, kpis, kpiCo, diff, more, lines, heat, matrix, scorecard, day, split };
 };

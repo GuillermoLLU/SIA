@@ -6,7 +6,7 @@ import { periodSeries, monthTicks, dayTicks, lineScale, dayScale, scorecardOrder
 
 const BOX = { W: 100, H: 50, L: 10, R: 10, T: 5, B: 5 };
 
-test('las series de evolución: los meses del periodo; un tramo con menos de 10 incidencias no se pinta', () => {
+test('las series de evolución: los meses del periodo; un tramo con menos de 10 issues no se pinta', () => {
   const m = createModel(data()); m.refilter();
   assert.deepEqual(periodSeries(m, m.rows(), (s) => s.n, [0]), { daily: false, n: 3, per: [[null, null, null]] });   // ene, feb y mar
   assert.equal(LINE_MIN, 10);
@@ -40,7 +40,7 @@ test('la escala del día: cada hora en el centro de su franja y las franjas de l
   assert.deepEqual(band(0, 12), { x: 10, width: 40 });
 });
 
-test('el orden de una ficha: lo que tiene pocas incidencias va al final al ordenar por cómo se atiende', () => {
+test('el orden de una ficha: lo que tiene pocas issues va al final al ordenar por cómo se atiende', () => {
   const rows = [{ k: 'a', n: 50, v: 1 }, { k: 'b', n: 5, v: 9 }, { k: 'c', n: 50, v: 3 }, { k: 'd', n: 50, v: 3 }];
   const by = (dir, rated) => [...rows].sort(scorecardOrder((r) => r.v, dir, rated)).map((r) => r.k);
   assert.deepEqual(by(-1, true), ['c', 'd', 'a', 'b']);   // b, con 5 issues, al final aunque tenga el valor más alto

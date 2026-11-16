@@ -84,12 +84,12 @@ export const mountIssueChat = (host, { issue, wsUrl, loadProjects, makeTerminal 
       if (m.type === 'history') term.reset();
       term.write(m.data);
     } else if (m.type === 'exit' || m.type === 'gone') {
-      ended('El chat de esta incidencia se ha cerrado.');
+      ended('El chat de esta issue se ha cerrado.');
     } else if (m.type === 'error') {
       ended(m.message || 'No se pudo abrir el chat.');
     }
   };
-  ws.onclose = () => { if (!disposed && term) term.write('\r\n\x1b[2m[sin conexión con SIA: vuelve a abrir la incidencia]\x1b[0m\r\n'); };
+  ws.onclose = () => { if (!disposed && term) term.write('\r\n\x1b[2m[sin conexión con SIA: vuelve a abrir la issue]\x1b[0m\r\n'); };
 
   const dispose = () => {
     disposed = true;

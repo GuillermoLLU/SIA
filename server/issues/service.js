@@ -48,9 +48,9 @@ export const createIssuesService = ({ source, platform, drafts, now = () => new 
   const resolvable = async ({ user, accessToken: jwt }, id) => {
     const { issues, claims } = await snapshot(jwt);
     const issue = issues.find((i) => i.id === id);
-    if (!issue) throw fail('Esa incidencia ya no está en la foto.', 404);
-    if (!deskOf(issues, user, claims).some((i) => i.id === id)) throw fail('Solo puedes resolver tus incidencias.', 403);
-    if (!OPEN.has(issue.status)) throw fail('Esta incidencia ya está resuelta o cerrada.', 409);
+    if (!issue) throw fail('Esa issue ya no está en la foto.', 404);
+    if (!deskOf(issues, user, claims).some((i) => i.id === id)) throw fail('Solo puedes resolver tus issues.', 403);
+    if (!OPEN.has(issue.status)) throw fail('Esta issue ya está resuelta o cerrada.', 409);
     return issue;
   };
 

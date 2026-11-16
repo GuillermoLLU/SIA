@@ -38,7 +38,7 @@ export const createSnapshot = ({ group = GROUP, now = () => new Date() } = {}) =
   const add = (r) => {
     if (!checked) {
       const missing = REQUIRED.filter((c) => !(c in r));
-      if (missing.length) throw new CsvError(`Ese CSV no es el de la consulta de incidencias: le falta ${missing.join(', ')}.`);
+      if (missing.length) throw new CsvError(`Ese CSV no es el de la consulta de issues: le falta ${missing.join(', ')}.`);
       checked = true;
     }
     if (r.ASSIGNEDGROUP.trim() !== group) return;
@@ -48,7 +48,7 @@ export const createSnapshot = ({ group = GROUP, now = () => new Date() } = {}) =
   };
 
   const build = () => {
-    if (!latest) throw new CsvError(`Ese CSV no tiene incidencias del grupo ${group}.`);
+    if (!latest) throw new CsvError(`Ese CSV no tiene issues del grupo ${group}.`);
     const since = dayBefore(latest.replace(' ', 'T'), KEEP_DONE_DAYS);
     return { taken: isoOf(latest), issues: issues.filter((i) => OPEN.has(i.status) || i.resolved >= since) };
   };

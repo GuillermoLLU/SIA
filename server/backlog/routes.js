@@ -29,7 +29,7 @@ export const backlogRoutes = (backlog, { json, readBody }) => async (req, res, [
     if (!ISSUE_ID.test(id || '')) return json(res, 404, { error: 'No existe.' });
     if (!sub && req.method === 'GET') {
       const got = await backlog.get(who, id);
-      return got ? json(res, 200, got) : json(res, 404, { error: 'Esa incidencia ya no está en la foto.' });
+      return got ? json(res, 200, got) : json(res, 404, { error: 'Esa issue ya no está en la foto.' });
     }
     if (sub === 'assign' && req.method === 'POST') {
       const { to } = await readBody(req);

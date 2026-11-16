@@ -14,20 +14,15 @@ import { num } from './format.js';
 import { createModel, COMPANIES } from './model.js';
 import { createCharts } from './charts.js';
 import { createTabs, TABS } from './tabs.js';
-import { periodLabel, presetRange } from './period.js';
-import { companyPick, presetPick, comparePop, pickCompany, pickPreset } from './quick-bar.js';
+import { periodLabel } from './period.js';
 import { mountPeriodPanel } from './period-panel.js';
 import { attachTip } from './tip.js';
-import { toggleProject } from './resolution.js';
-import { applyTableSorts, toggleTableSort } from './table-sort.js';
 import { PHASES, CSV_PHASES, CLEAR_PHASES } from './progress.js';
 import { mountMetricsModals } from './metrics-modals.js';
 import { progressCover } from './progress-cover.js';
 import { isNetWarning } from '../ui/net-warning.js';
 import { netWarningHtml, shake } from '../ui/net-warning-view.js';
-import { COLORS, defaultColors, freeColor, dayOf, coverage, freeCompany, withoutSide, togglePerson, filterKey, anyFilter, clearFilters, pickOnly, pickBoth } from './view.js';
-import { sheetOf, sheetCsv, sheetFile } from './sheet.js';
-import { downloadText } from './download.js';
+import { COLORS, defaultColors, freeColor, dayOf, coverage, freeCompany, withoutSide, togglePerson, filterKey } from './view.js';
 import { pressStartedIn } from '../ui/dom.js';
 
 const SEARCH_MS = 250;
@@ -41,18 +36,13 @@ const CALENDAR_ICON = svg('<rect x="3" y="5" width="18" height="16" rx="2"/><pat
 const SEARCH_ICON = svg('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>');
 const CHEVRON = svg('<path d="m6 9 6 6 6-6"/>');
 
-// team: una pestaña más, que es otra vista con sus propios datos, periodo y filtros (Equipo soporte): { id, label,
-// mount(host) → { show() } }. Se monta una vez, al abrirla; sus clics y su tarjeta se quedan en ella.
-export const mountMetricsView = (root, { api, toast, team = null }) => {
-  const teamHost = team && Object.assign(document.createElement('div'), { hidden: true });
-  let teamView = null;
-  for (const type of ['click', 'mousemove']) teamHost?.addEventListener(type, (e) => e.stopPropagation());
+export const mountMetricsView = (root, { api, toast }) => {
   let m = null, tabs = null, tab = 'resumen', loading = false, panel = null;
   // open: el desplegable abierto ('calendar', 'side0' o 'side1'); who: lo escrito en el buscador de
   // personas; searching: la búsqueda abierta
   let open = null, who = '', searching = false;
   let colors = defaultColors();   // el color de cada lado
-  const ui = { exp: {}, sort: {}, colSort: {} };
+  const ui = { exp: {}, sort: {} };
   const $ = (s) => root.querySelector(s);
   // Las ventanas de «Cargar CSV» y «Construir SQL»: al cargar, se vuelven a leer los datos y se abren como siempre.
   const modals = mountMetricsModals({
@@ -77,7 +67,7 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
   const renderEmpty = () => {
     root.innerHTML = `<div class="mt-page mt-empty-page">
       <div class="mt-empty"><b>Aún no hay datos</b>
-        <span>Trae de Snowflake las incidencias de Remedy (con notas e historial) desde 2025, para comparar con el año anterior, o carga un CSV de esa misma consulta. Se guardan en el repositorio local de este ordenador y de él salen las métricas; cada vez que actualices, solo llega lo nuevo y lo cambiado.</span>
+        <span>Trae de Snowflake las incidencias de Remedy (con notas e historial) desde 2026, o carga un CSV de esa misma consulta. Se guardan en el repositorio local de este ordenador y de él salen las métricas; cada vez que actualices, solo llega lo nuevo y lo cambiado.</span>
         <div class="mt-empty-actions">${loadButton()}${moreMenu(false)}</div></div></div>`;
   };
 
@@ -92,17 +82,15 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
         <span class="mt-date" data-coverage title="${esc(`${meta.file}, actualizado el ${dayOf(meta.generated)}`)}"></span>
         ${loadButton()}${moreMenu()}</header>
       <div class="mt-fbar">
-        ${sideSlot(0)}<span class="mt-vs" data-vs>frente a</span>${sideSlot(1)}<div data-qco></div>
-        <div data-presets></div><div class="mt-period"><button class="mt-btn mt-icon-btn" data-calendar aria-haspopup="true">${CALENDAR_ICON}<span data-period></span></button><div class="mt-pop mt-cal" data-cal hidden></div></div>
-        <div data-cmp></div>
+        ${sideSlot(0)}<span class="mt-vs" data-vs>frente a</span>${sideSlot(1)}<button class="mt-btn mt-add" data-side-add>+ Comparar</button>
+        <div class="mt-period"><button class="mt-btn mt-icon-btn" data-calendar aria-haspopup="true">${CALENDAR_ICON}<span data-period></span></button><div class="mt-pop mt-cal" data-cal hidden></div></div>
         <div class="mt-chips" data-chips></div>
         <div class="mt-find"><input type="search" data-q placeholder="Título o INC…" hidden><span class="mt-count" data-count></span>
           <button class="mt-search" data-search title="Buscar en el título o por número">${SEARCH_ICON}</button></div>
       </div>
-      <nav class="mt-tabs">${[...TABS, ...(team ? [[team.id, team.label]] : [])].map(([k, l]) => `<button data-tab="${k}">${l}</button>`).join('')}</nav>
+      <nav class="mt-tabs">${TABS.map(([k, l]) => `<button data-tab="${k}">${l}</button>`).join('')}</nav>
       <div class="mt-main" data-main></div>
     </div><div class="mt-tip" data-tip-box hidden></div>`;
-    if (teamHost) $('[data-main]').after(teamHost);
   };
 
   // Periodo: el botón dice qué fechas se miran; su panel (period-panel.js), la rejilla de meses y los campos Desde y
@@ -121,6 +109,7 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     colors.forEach((c, k) => root.style.setProperty(`--mt-base${k}`, c));
     $('[data-slot="1"]').hidden = !two;
     $('[data-vs]').hidden = !two;
+    $('[data-side-add]').hidden = two;
     for (const k of [0, 1]) {
       const s = S.sides[k], other = S.sides[1 - k];
       $(`[data-side-remove="${k}"]`).hidden = !two;
@@ -141,11 +130,6 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
         || '<p class="mt-mut">Nadie con ese nombre.</p>';
     }
   };
-  // el otro lado: quitarlo (queda el primero) o poner en él una empresa, con un color libre si no estaba
-  const sideOps = {
-    off: () => { if (m.S.sides[1]) ({ sides: m.S.sides, colors } = withoutSide(m.S.sides, colors, 1)); },
-    add: (c) => { const had = !!m.S.sides[1]; m.S.sides[1] = { company: c }; if (!had) colors[1] = freeColor(colors[0]); },
-  };
   const closePops = () => { open = null; who = ''; };
   const togglePop = (which) => {
     const was = open;
@@ -162,35 +146,20 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     m.refilter();
     const A = m.rows();
     const chips = Object.keys(S.f).flatMap((dim) => [...S.f[dim]].map((k) => `<span class="mt-chip">${DIMS[dim].name}: <b>${esc(DIMS[dim].label(k))}</b><button data-rm="${dim}:${k}" title="Quitar">×</button></span>`));
-    // y, si hay algún filtro (aunque sea de una pestaña o la búsqueda), el botón que los quita todos
-    const reset = anyFilter(S, ui) ? '<button class="mt-reset" data-reset-filters data-tip="Quita todos los filtros, la búsqueda y los de cada pestaña. El periodo y lo que se compara se quedan.">Quitar filtros</button>' : '';
-    $('[data-chips]').innerHTML = chips.join('') + reset;
+    $('[data-chips]').innerHTML = chips.join('');
     $('[data-coverage]').textContent = coverage(m);
     renderPeriod();
     renderSides();
-    $('[data-qco]').innerHTML = companyPick(m);
-    $('[data-presets]').innerHTML = presetPick(m, ui);
-    $('[data-cmp]').innerHTML = comparePop(m, ui);
     $('[data-q]').hidden = !(searching || S.q);
-    $('[data-count]').innerHTML = `<b>${num(A.length)}</b> incidencias`;
+    $('[data-count]').innerHTML = `<b>${num(A.length)}</b> issues`;
     root.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('mt-on', b.dataset.tab === tab));
-    // la pestaña del equipo va por su cuenta: sin los filtros de arriba, que no le afectan
-    const onTeam = tab === team?.id;
-    for (const s of ['.mt-fbar', '[data-main]']) $(s).style.display = onTeam ? 'none' : '';
-    if (teamHost) teamHost.hidden = !onTeam;
-    if (onTeam) {
-      teamView ||= team.mount(teamHost);
-      teamView.show();
-      return;
-    }
     $('[data-main]').innerHTML = tabs.render(tab, A);
-    applyTableSorts($('[data-main]'), tab, ui.colSort);   // y el orden por columnas de cada tabla (table-sort.js)
   };
 
   const start = (data) => {
     m = data ? createModel(data) : null;
-    m?.resetPeriod();   // de partida, el año fiscal en curso (desde el 1 de febrero)
-    ui.exp = {}; ui.sort = {}; ui.colSort = {}; ui.jiraPick = null; ui.resCmp = null; ui.resPop = false; ui.cliFilter = null; tab = 'resumen'; searching = false; closePops();
+    m?.resetPeriod();   // de partida, el mes en curso
+    ui.exp = {}; ui.sort = {}; tab = 'resumen'; searching = false; closePops();
     if (!m) return renderEmpty();
     tabs = createTabs(m, createCharts(m, ui), ui);
     renderFrame();
@@ -310,10 +279,9 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
       await new Promise((r) => setTimeout(r, FINISH_MS));
       loading = false;
       start(data);
-      const jira = data?.meta?.jira?.message ? ` Jira: ${data.meta.jira.message}` : '';
-      toast?.(`${counts.inserted || counts.updated
+      toast?.(counts.inserted || counts.updated
         ? `Informe actualizado: ${num(counts.inserted)} nuevas y ${num(counts.updated)} actualizadas.`
-        : 'Informe actualizado: sin cambios desde la última vez.'}${jira}`);
+        : 'Informe actualizado: sin cambios desde la última vez.');
     } catch (e) {
       loading = false;
       c.el.remove();
@@ -324,17 +292,6 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
       stop();
       if (!$('.mt-net')) root.classList.remove('mt-updating');
     }
-  };
-
-  // La sábana, a CSV (del Resumen o de Escalados): lo que se ve ahora (filtros y lados), entero, descargado como fichero (sheet.js).
-  const exportSheet = () => {
-    // la sábana de la pestaña: la de Escalados o la de Pendiente de cliente, con sus columnas; si no, lo abierto ahora
-    const own = { escalados: [ui.escSheet, 'incidencias-escaladas'], cliente: [ui.cliSheet, 'pendientes-de-cliente'], tiempos: [ui.timesSheet, 'incidencias-tiempos'], sla: [ui.slaSheet, 'sin-empezar-sla'], hoy: [ui.hoySheet, 'incidencias-abiertas'] }[tab];
-    const list = own ? own[0].list : sheetOf(m);
-    if (!list.length) return;
-    const file = own ? sheetFile(m, own[1]) : sheetFile(m);
-    downloadText(file, sheetCsv(m, list, own?.[0].cols), 'text/csv;charset=utf-8');
-    toast?.(`Exportadas ${num(list.length)} incidencias a ${file}.`);
   };
 
   const pressedInPop = pressStartedIn(root, (t) => !!t.closest('.mt-pop'));
@@ -351,7 +308,6 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     }
     if (!e.target.closest('.mt-menu')) setMenu(false);
     if (!m || e.target.closest('a')) return;
-    if (e.target.closest('[data-export]')) return exportSheet();
     const { S } = m;
     // desplegables: abrir y cerrar, elegir; un clic fuera los cierra
     if (e.target.closest('[data-calendar]')) return togglePop('calendar');
@@ -386,73 +342,14 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
       if (searching) $('[data-q]').focus();
       return;
     }
-    // Resumen: el pop-up de «Comparar» se cierra con un clic fuera de él (sin aplicar nada)
-    const outRes = ui.resPop && !e.target.closest('.mt-res-cmp');
-    if (outRes) ui.resPop = false;
-    const t = e.target.closest('[data-tab],[data-go],[data-rm],[data-exp],[data-sort],[data-evo],[data-evo-step],[data-qco],[data-preset],[data-cli-f],[data-times-mode],[data-times-by],[data-sla-mode],[data-mod-mode],[data-sla-side],[data-res-pop],[data-res-apply],[data-res-clear],[data-flk],[data-shk],[data-jc],[data-jc-clear],[data-esc-mode],[data-esc-nojira],[data-esc-by],[data-only],[data-reset-filters],[data-kf],[data-f2],[data-f]');
-    // la cabecera de una columna: ordenar la tabla por ella (table-sort.js; las que ya filtran u ordenan van por su lado)
-    const colTh = !t && e.target.closest('th[data-colsort]');
-    if (colTh) { toggleTableSort(colTh, ui.colSort); render(); return; }
-    if (!t) { if (outRes) render(); return; }
+    const t = e.target.closest('[data-tab],[data-go],[data-rm],[data-exp],[data-sort],[data-f2],[data-f]');
+    if (!t) return;
     const d = t.dataset;
-    if (d.tab || d.go) {
-      const from = tab;
-      tab = d.tab || d.go; root.scrollTop = 0;
-      // Escalados se abre en Activas llegando desde Foto de hoy o desde el enlace de Pendiente (proveedor) de Resumen; si no,
-      // en Histórico. Dentro, se cambia con data-esc-mode.
-      if (tab === 'escalados' && from !== 'escalados') { ui.escNow = from === 'hoy' || d.escNow != null; ui.escNoJira = false; }
-      if (d.rm) { const [dim, k] = filterKey(d.rm); S.f[dim]?.delete(k); }   // un enlace que quita un filtro al ir (Resumen → Escalados)
-      // un enlace con fechas y vista (Resumen → Histórico): esas fechas arriba y esa vista de la evolución
-      if (d.period) { const [a, b] = d.period.split(':').map(Number); m.setPeriod(a, b); }
-      if (d.goEvo) ui.evo = d.goEvo;
-    }
-    else if (d.evo) ui.evo = d.evo;   // Histórico: la evolución del backlog o entrantes frente a atendidas
-    else if (d.evoStep) ui.evoStep = d.evoStep;   // la evolución del backlog: por días, semanas o meses
-    // La barra de arriba (quick-bar.js): la empresa y las fechas rápidas (con Ctrl, o Cmd, se comparan con lo elegido) y
-    // «Comparar»: abrir o cerrar su pop-up y aplicar lo elegido en él. Un periodo frente a otro (ui.resCmp, del Resumen)
-    // o el mismo frente a T-Systems (el otro lado: vale para todas las pestañas); son excluyentes
-    else if (d.timesMode) ui.timesNow = d.timesMode === 'now';   // Análisis tiempos: Actual o Histórico
-    else if (d.timesBy) ui.timesBy = d.timesBy;   // y su desglose, por módulo o por centro
-    else if (d.slaMode) ui.slaNow = d.slaMode === 'now';   // SLAs: Actual o Histórico
-    else if (d.modMode) ui.modNow = d.modMode === 'now';   // Módulos y focos: Actual o Histórico
-    else if (d.slaSide) ui.slaOut = d.slaSide === 'out';   // y si sus KPIs dan el % dentro o fuera del SLA
-    // Pendiente de cliente: filtrar su sábana por un KPI o un motivo (otra vez, o vacío, lo quita)
-    else if (d.cliF != null) ui.cliFilter = !d.cliF || ui.cliFilter === d.cliF ? null : d.cliF;
-    else if (d.qco != null) { if (!pickCompany(m, ui, Number(d.qco), e.ctrlKey || e.metaKey, sideOps)) return; }
-    else if (d.preset) { const r = presetRange(m, d.preset); if (!r || !pickPreset(m, ui, d.preset, e.ctrlKey || e.metaKey, r, sideOps)) return; }
-    else if (d.resPop != null) ui.resPop = !ui.resPop;
-    else if (d.resApply != null) {
-      const pop = t.closest('[data-res-popup]'), mode = pop.querySelector('input[name="res-mode"]:checked')?.value;
-      const off = () => { if (S.sides[1]) ({ sides: S.sides, colors } = withoutSide(S.sides, colors, 1)); };
-      if (mode === 'tsys') { const had = !!S.sides[1]; ui.resCmp = null; S.sides[1] = { company: 1 }; if (!had) colors[1] = freeColor(colors[0]); }
-      else if (mode === 'periods') { off(); ui.resCmp = { a: pop.querySelector('[data-res-a]').value, b: pop.querySelector('[data-res-b]').value }; }
-      ui.resPop = false;
-    }
-    // y la × de «Comparar»: quita la comparación, sea de periodos o con T-Systems
-    else if (d.resClear != null) { if (S.sides[1]) ({ sides: S.sides, colors } = withoutSide(S.sides, colors, 1)); ui.resCmp = null; ui.resPop = false; }
-    else if (d.flk) { ui.flowOff = { ...ui.flowOff, [d.flk]: !ui.flowOff?.[d.flk] }; }   // y en estas, encender o apagar una serie
-    // Turnos: clic, solo ese turno; con Ctrl (o Cmd), sumarlo o quitarlo (sin quedarse sin ninguno)
-    else if (d.shk != null) {
-      const k = Number(d.shk), cur = ui.shifts || [0, 1, 2];
-      if (!(e.ctrlKey || e.metaKey)) ui.shifts = [k];
-      else if (!cur.includes(k)) ui.shifts = [...cur, k].sort();
-      else if (cur.length > 1) ui.shifts = cur.filter((x) => x !== k);
-    }
-    else if (d.jc) { ui.jiraPick = toggleProject(ui.jiraShown, Number(d.jc)); ui.escNoJira = false; }   // Escalados: los proyectos que se comparan y filtran
-    else if (d.jcClear != null) ui.jiraPick = [];
-    else if (d.escMode) ui.escNow = d.escMode === 'now';   // Escalados: Activas o Histórico
-    else if (d.escBy) ui.escBy = d.escBy;   // y su tabla, por proyecto Jira, módulo o centro
-    else if (d.escNojira != null) { ui.escNoJira = !ui.escNoJira; if (ui.escNoJira) ui.jiraPick = []; }   // y filtrar por las Sin Jira (sin proyecto)
-    // un selector: solo ese valor de la dimensión («dim:clave») o, sin clave («dim:»), todos (sin filtro)
-    // con Ctrl (o Cmd), sumarlo o quitarlo (view.js, pickOnly)
-    else if (d.only != null) { const [dim, k] = d.only.split(':'); pickOnly(S.f, dim, k === '' ? null : Number(k), e.ctrlKey || e.metaKey); }
+    if (d.tab || d.go) { tab = d.tab || d.go; root.scrollTop = 0; }
     else if (d.rm) { const [dim, k] = filterKey(d.rm); S.f[dim].delete(k); }
-    else if (d.resetFilters != null) { clearFilters(S, ui); const q = $('[data-q]'); q.value = ''; searching = false; }   // «Quitar filtros»
     else if (d.exp) ui.exp[d.exp] = !ui.exp[d.exp];
     else if (d.sort) { const [id, c] = d.sort.split(':'), cur = ui.sort[id]; ui.sort[id] = [c, cur && cur[0] === c ? -cur[1] : -1]; }
-    // un KPI que filtra (SLAs): sus filtros, todos; si ya estaban todos, los quita
-    else if (d.kf) { const ks = d.kf.split('|').map(filterKey), all = ks.every(([dim, k]) => m.isSel(dim, k)); ks.forEach(([dim, k]) => { if (m.isSel(dim, k) === all) m.toggle(dim, k); }); }
-    else if (d.f2) pickBoth(S.f, d.f2.split('|').map(filterKey), e.ctrlKey || e.metaKey);   // con Ctrl, si ya estaba, quitarlo
+    else if (d.f2) d.f2.split('|').forEach((x) => { const [dim, k] = filterKey(x); if (!m.isSel(dim, k)) m.toggle(dim, k); });
     else if (d.f) { const [dim, k] = filterKey(d.f); m.toggle(dim, k); }
     render();
   });
@@ -478,7 +375,7 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     if (m && e.target.matches('[data-q]') && !e.target.value && !e.relatedTarget?.closest('[data-search]')) { searching = false; e.target.hidden = true; }
   });
 
-  // Los datos guardados se leen una vez, aunque se pidan a la vez.
+  // Los datos guardados se leen una vez (aunque los pidan a la vez show y focus).
   let reading = null;
   const ready = () => (m ? Promise.resolve() : (reading ||= api.load().then(start).finally(() => { reading = null; })));
   const failed = (e) => { root.innerHTML = `<div class="mt-page"><p class="mt-empty">No se pudieron cargar las métricas: ${esc(e.message)}</p></div>`; };
@@ -486,7 +383,13 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
   return {
     // Al abrir la vista: siempre el Resumen.
     show: () => ready().then(() => { if (m && tab !== 'resumen') { tab = 'resumen'; render(); } }).catch(failed),
-    // De vuelta de la gestión del equipo: su pestaña.
-    showTeam: () => ready().then(() => { if (m) { tab = team.id; render(); } }).catch(failed),
+    // Una persona frente al resto de su equipo (desde Equipo soporte).
+    focus: (person) => ready().then(() => {
+      if (!m) return;
+      m.S.sides = [{ people: new Set([person]) }, { company: m.data.company[person] }];
+      colors = defaultColors();
+      tab = 'resumen'; closePops();
+      render();
+    }).catch(failed),
   };
 };

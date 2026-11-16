@@ -518,9 +518,10 @@ body.top-nav #settings-modal[hidden] .settings-modal { transform: scale(.98); op
   transition: border-color .15s ease;
 }
 .settings-box:hover { border-color: var(--accent); }
-/* Sin ninguna vista asignada: el aviso, centrado en la pantalla */
-.none-view { display: flex; align-items: center; justify-content: center; }
-.none-msg { margin: 0; font-size: 14px; color: var(--text-low); }
+/* Métricas (app/hub.js): una caja por cara (Equipo y Servicio), centradas en la pantalla */
+.hub-view { display: flex; align-items: center; justify-content: center; }
+.hub-none { margin: 0; font-size: 14px; color: var(--text-low); }
+.hub-boxes { display: flex; flex-wrap: wrap; justify-content: center; gap: 24px; animation: settings-in .25s ease; }
 .settings-box[hidden] { display: none; }
 .settings-box svg { width: 32px; height: 32px; }
 .settings-boxes, .settings-pane { animation: settings-in .25s ease; }

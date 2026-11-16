@@ -42,7 +42,7 @@ export const mountBacklogView = (root, { api, toast }) => {
 
   const render = () => {
     if (!data.taken) {
-      root.innerHTML = page('<p class="bl-empty"><b>Aún no hay foto de Remedy</b>Se carga desde Incidencias con el CSV de la consulta; el Backlog sale de ahí.</p>');
+      root.innerHTML = page('<p class="bl-empty"><b>Aún no hay foto de Remedy</b>Se carga desde Issues con el CSV de la consulta; el Backlog sale de ahí.</p>');
       return;
     }
     const snap = snapshotInfo(data.taken, now);
@@ -57,10 +57,10 @@ export const mountBacklogView = (root, { api, toast }) => {
         ${SEVERITIES.map((s) => tile(PLURAL[s], c.severity[s], { key: 'severity', value: s, on: filter.severity.includes(s), kind: s })).join('')}
       </div>
       <div class="bl-main">
-        ${shown.length ? `<div class="bl-list">${shown.map(row).join('')}</div>` : `<p class="bl-empty">${c.total ? 'Ninguna incidencia cumple lo marcado.' : 'La cola está vacía: no queda nada sin coger.'}</p>`}
-        ${opened ? `<aside class="bl-side" data-side aria-label="Detalle de la incidencia">${sideHtml()}</aside>` : ''}
+        ${shown.length ? `<div class="bl-list">${shown.map(row).join('')}</div>` : `<p class="bl-empty">${c.total ? 'Ninguna issue cumple lo marcado.' : 'La cola está vacía: no queda nada sin coger.'}</p>`}
+        ${opened ? `<aside class="bl-side" data-side aria-label="Detalle de la issue">${sideHtml()}</aside>` : ''}
       </div>`, {
-      search: `<label class="bl-search"><input type="search" data-q placeholder="Buscar una incidencia, un centro o un texto" value="${esc(filter.q)}" aria-label="Buscar en el backlog"></label>`,
+      search: `<label class="bl-search"><input type="search" data-q placeholder="Buscar una issue, un centro o un texto" value="${esc(filter.q)}" aria-label="Buscar en el backlog"></label>`,
       tools: `
         ${filtering ? `<p class="bl-shown"><b>${shown.length}</b> de ${c.total} · <button class="bl-clear" data-key="all">Ver todas</button></p>` : ''}
         <div class="bl-order" title="Orden de la cola"><span>Ordenar por</span>${pickerHtml({ id: 'bl-rule', name: 'rule', value: data.rule, inline: true, groups: [{ options: data.rules.map((r) => ({ value: r.id, label: r.label })) }] })}</div>
@@ -124,7 +124,7 @@ export const mountBacklogView = (root, { api, toast }) => {
       paintSide();
     } catch (err) {
       if (opened !== id) return;
-      toast?.(`No se pudo abrir la incidencia: ${err.message}`);
+      toast?.(`No se pudo abrir la issue: ${err.message}`);
       closeSide();
     }
   };

@@ -9,7 +9,7 @@ const model = (sides = [{ company: 0 }, null]) => { const m = createModel(data()
 test('cuándo pasan a En curso: por prioridad, con el tramo hasta el que se está en plazo', () => {
   const m = model(), list = m.rows(), { blocks, max } = startBlocks(m, list, [list]);
   assert.deepEqual(blocks.map((b) => [b[0].label, b[0].n, b[0].lim, b[0].c.indexOf(1)]),
-    [['Crítica · 0,25 h', 1, 0, 0], ['Media · 2 h', 1, 2, 7], ['Baja · 8 h', 1, 3, 8], ['Todas', 3, -1, 0]]);   // 7: abierta sin empezar; 8: cerrada sin En curso
+    [['Crítica · 15 min', 1, 0, 0], ['Media · 2 h', 1, 2, 7], ['Baja · 8 h', 1, 3, 8], ['Todas', 3, -1, 0]]);   // 7: abierta sin empezar; 8: cerrada sin En curso
   assert.equal(max, 1);
 });
 
