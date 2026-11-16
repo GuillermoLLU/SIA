@@ -650,6 +650,28 @@ body.top-nav #settings-modal[hidden] .settings-modal { transform: scale(.98); op
   overflow: hidden; background: var(--bg);
 }
 
+/* Arrastrando ficheros sobre el chat (chat/uploads.js): un velo y, en medio, la zona de «suelta aquí» */
+#view-chat, .iss-chat-body { position: relative; }
+.drop-zone {
+  position: absolute; inset: 0; z-index: 25;
+  display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+  animation: drop-in .15s ease-out;
+}
+.drop-zone[hidden] { display: none; }
+.drop-zone > * { pointer-events: none; } /* el arrastre no entra ni sale por los hijos */
+.drop-zone-box {
+  width: min(420px, 80%); padding: 40px 24px;
+  display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center;
+  border: 2px dashed var(--text); background: color-mix(in srgb, var(--surface) 88%, transparent);
+  color: var(--text); font-size: 13px;
+}
+.drop-zone-box svg { width: 40px; height: 40px; margin-bottom: 10px; }
+.drop-zone-box b { font-size: 16px; font-weight: 650; }
+.drop-zone-box span { color: var(--text-low); }
+@keyframes drop-in { from { opacity: 0; } }
+
 /* Chat abierto en otro dispositivo: aviso centrado con el botón de traerlo */
 .handoff {
   position: absolute; inset: 0;

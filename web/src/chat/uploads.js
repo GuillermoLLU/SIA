@@ -9,6 +9,8 @@
 import { esc } from '../ui/html.js';
 import { isImageName } from './conversation/compose.js';
 
+const IMAGE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 15l-5-5-8 8"/><path d="M12 20l-4-4-5 5"/></svg>';
+
 export const createUploads = ({ api, active, dialogs }) => {
   const upload = async (s, file) => {
     try {
@@ -36,8 +38,9 @@ export const createUploads = ({ api, active, dialogs }) => {
   };
 
   // pegar desde el portapapeles (⌘V: imágenes copiadas o ficheros del Finder)
-  // y arrastrar ficheros (de cualquier tipo) encima del chat. root: el panel
-  // que recibe los ficheros; solo cuenta mientras se ve. → cómo soltarse
+  // y arrastrar ficheros (de cualquier tipo) encima del chat: mientras se
+  // arrastra sale la zona de «suelta aquí», centrada sobre el panel. root: el
+  // panel que recibe los ficheros; solo cuenta mientras se ve. → cómo soltarse
   const wire = (root) => {
     const onPaste = (e) => {
       if (!root.getClientRects().length) return;
@@ -49,10 +52,20 @@ export const createUploads = ({ api, active, dialogs }) => {
       files.forEach((f) => upload(s, f));
     };
     document.addEventListener('paste', onPaste);
-    root.addEventListener('dragover', (e) => {
-      if ([...(e.dataTransfer?.types || [])].includes('Files')) e.preventDefault();
-    });
+    const zone = document.createElement('div');
+    zone.className = 'drop-zone';
+    zone.hidden = true;
+    zone.innerHTML = `<div class="drop-zone-box">${IMAGE_ICON}<b>Suelta aquí para adjuntar</b><span>Imágenes y archivos</span></div>`;
+    root.appendChild(zone);
+    const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
+    // dragenter/dragleave saltan al pasar por cada hijo: se cuentan para saber cuándo se ha salido del todo
+    let depth = 0;
+    const show = (on) => { zone.hidden = !on; if (!on) depth = 0; };
+    root.addEventListener('dragenter', (e) => { if (!hasFiles(e) || !active()?.launched) return; e.preventDefault(); depth++; show(true); });
+    root.addEventListener('dragover', (e) => { if (hasFiles(e)) e.preventDefault(); });
+    root.addEventListener('dragleave', () => { if (depth > 0 && --depth === 0) show(false); });
     root.addEventListener('drop', (e) => {
+      show(false);
       const files = [...(e.dataTransfer?.files || [])];
       if (!files.length) return;
       e.preventDefault();
@@ -60,7 +73,7 @@ export const createUploads = ({ api, active, dialogs }) => {
       if (!s?.launched) { dialogs.alert('Sin chat activo', 'Abre un chat antes de adjuntar ficheros.'); return; }
       files.forEach((f) => upload(s, f));
     });
-    return () => document.removeEventListener('paste', onPaste);
+    return () => { document.removeEventListener('paste', onPaste); zone.remove(); };
   };
 
   return { upload, pick, wire };

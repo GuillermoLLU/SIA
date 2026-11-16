@@ -7,15 +7,28 @@
 .conversation.entering { animation: cv-enter .36s cubic-bezier(.2, .7, .2, 1) .08s both; }
 @keyframes cv-enter { from { opacity: 0; transform: translateY(12px); } }
 
-/* arriba a la derecha, empezar otro chat: discreto, sin marco hasta pasar por encima */
-.cv-top { position: absolute; top: 12px; right: 20px; z-index: 4; display: flex; gap: 6px; }
-.cv-close {
-  display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px;
-  border: 1px solid transparent; background: transparent; color: var(--text-low);
-  font: 12.5px var(--font-ui); cursor: pointer;
-  transition: color var(--motion-state), border-color var(--motion-state), background var(--motion-state);
+/* de fondo, las manchas de color de la portada (style.css: .ai-hero-bg), más suaves y más lentas */
+.cv-bg { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+.cv-bg i {
+  position: absolute; width: 52vmin; height: 52vmin; border-radius: 50%;
+  filter: blur(90px); opacity: .11; will-change: transform;
+  background: var(--accent);
+  animation: ai-drift 34s ease-in-out infinite alternate;
 }
-.cv-close:hover { color: var(--text); border-color: var(--border); background: var(--surface); }
+.cv-bg i:nth-child(1) { left: 10%; top: 4%; }
+.cv-bg i:nth-child(2) { right: 8%; top: 22%; background: color-mix(in srgb, var(--accent) 55%, #7c3aed); animation-duration: 41s; animation-delay: -12s; }
+.cv-bg i:nth-child(3) { left: 34%; bottom: 2%; background: color-mix(in srgb, var(--accent) 55%, #06b6d4); animation-duration: 47s; animation-delay: -23s; }
+.cv, .cv-top, .cv-dock { position: relative; z-index: 1; }
+
+/* arriba a la derecha, empezar otro chat: un botón claro */
+.cv-top { position: absolute; top: 14px; right: 24px; z-index: 4; display: flex; gap: 6px; }
+.cv-close {
+  display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  font: 600 12.5px var(--font-ui); cursor: pointer; box-shadow: var(--shadow-float);
+  transition: border-color var(--motion-state), background var(--motion-state);
+}
+.cv-close:hover { border-color: var(--text); }
 .cv-close svg { width: 15px; height: 15px; }
 
 .cv {
@@ -192,24 +205,25 @@ button.cv-opt:disabled:not(.picked) { opacity: .5; cursor: default; }
 .cv-dock {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 3;
   display: flex; flex-direction: column; align-items: stretch;
-  padding: 18px 24px 0; background: linear-gradient(to bottom, transparent, var(--bg) 30px);
+  padding: 18px 24px 0; background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--bg) 90%, transparent) 30px);
   transition: opacity .12s ease, transform .12s ease;
 }
 .conversation.tucked .cv-dock { opacity: .1; transform: translateY(6px); pointer-events: none; transition: opacity .4s ease, transform .4s ease; }
 
-/* la caja de escribir: el texto arriba y, debajo, «+» y Enviar */
+/* la caja de escribir: una fila (el texto crece hacia arriba) con el clip y Enviar al final */
 .composer {
   width: 100%; max-width: 760px; margin: 0 auto 6px; box-sizing: border-box;
   display: flex; flex-direction: column; gap: 8px;
-  padding: 12px 12px 10px 16px;
+  padding: 10px 10px 10px 18px;
   background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-float);
   transition: border-color .15s;
 }
 .composer:focus-within { border-color: var(--text); }
 .composer.off { border-color: var(--border); }
+.cp-row { display: flex; align-items: flex-end; gap: 6px; }
 .composer textarea {
-  width: 100%; resize: none; border: 0; outline: 0; background: transparent;
-  min-height: 24px; max-height: 200px; padding: 2px 0; box-sizing: content-box;
+  flex: 1; min-width: 0; resize: none; border: 0; outline: 0; background: transparent;
+  min-height: 24px; max-height: 200px; padding: 5px 0; box-sizing: content-box;
   font: 15px/1.6 var(--font-ui); color: var(--text);
 }
 .composer textarea::placeholder { color: var(--text-low); }
@@ -223,21 +237,11 @@ button.cv-opt:disabled:not(.picked) { opacity: .5; cursor: default; }
 .cp-file-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cp-file button { width: 22px; height: 22px; border: 0; background: none; color: var(--text-low); font-size: 15px; line-height: 1; cursor: pointer; }
 .cp-file button:hover { color: var(--text); }
-/* la fila de abajo: «+» a la izquierda, Enviar o Detener a la derecha */
-.cp-bar { display: flex; align-items: center; gap: 8px; }
-.cp-space { flex: 1; }
-.cp-more { position: relative; }
-.cp-more[hidden] { display: none; }
-.cp-plus { width: 32px; height: 32px; border: 1px solid var(--border); background: transparent; color: var(--text-low); display: grid; place-items: center; cursor: pointer; transition: color var(--motion-state), border-color var(--motion-state); }
-.cp-plus:hover:not(:disabled), .cp-plus[aria-expanded="true"] { color: var(--text); border-color: var(--text); }
-.cp-plus:disabled { opacity: .4; cursor: default; }
-.cp-menu { position: absolute; left: 0; bottom: calc(100% + 8px); min-width: 250px; padding: 6px; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-float); z-index: 6; }
-.cp-menu[hidden] { display: none; }
-.cp-menu button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; border: 0; background: transparent; color: var(--text); font: 13px var(--font-ui); text-align: left; cursor: pointer; }
-.cp-menu button:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
-.cp-menu svg { width: 16px; height: 16px; flex: none; color: var(--text-low); }
-.cp-menu kbd { margin-left: auto; font: 11px var(--font-mono); color: var(--text-low); }
-.cp-send, .cp-stop { width: 34px; height: 34px; border: 0; display: grid; place-items: center; cursor: pointer; transition: opacity var(--motion-state); }
+/* el clip (adjuntar), Enviar o Detener */
+.cp-clip, .cp-send, .cp-stop { flex: none; width: 34px; height: 34px; border: 0; display: grid; place-items: center; cursor: pointer; transition: color var(--motion-state), opacity var(--motion-state); }
+.cp-clip { background: transparent; color: var(--text-low); }
+.cp-clip:hover:not(:disabled) { color: var(--text); }
+.cp-clip:disabled { opacity: .4; cursor: default; }
 .cp-send[hidden], .cp-stop[hidden] { display: none; }
 .cp-send { background: var(--accent); color: var(--surface); }
 .cp-send:hover:not(:disabled) { opacity: .85; }
@@ -245,14 +249,22 @@ button.cv-opt:disabled:not(.picked) { opacity: .5; cursor: default; }
 .cp-stop { background: transparent; color: var(--text); border: 1px solid var(--border); }
 .cp-stop:hover { border-color: var(--danger); color: var(--danger); }
 
-/* el pie de la caja: atajos a la izquierda; modelo y esfuerzo a la derecha */
+/* el pie de la caja: el atajo a la izquierda, las skills en el centro, modelo y esfuerzo a la derecha */
 .cv-foot {
   width: 100%; max-width: 760px; margin: 0 auto 10px; box-sizing: border-box;
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  display: flex; align-items: center; gap: 12px;
   padding: 0 2px; font: 11.5px var(--font-ui); color: var(--text-low);
 }
-.cv-foot-hint { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cv-foot-picks { flex: none; display: flex; align-items: center; gap: 2px; }
+.cv-foot-hint { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cv-foot-mid { flex: none; display: flex; justify-content: center; }
+.cv-foot-skills {
+  display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  font: 600 11.5px var(--font-ui); cursor: pointer; transition: border-color var(--motion-state);
+}
+.cv-foot-skills:hover { border-color: var(--text); }
+.cv-foot-skills kbd { font: 10.5px var(--font-mono); color: var(--text-low); }
+.cv-foot-picks { flex: 1; display: flex; align-items: center; justify-content: flex-end; gap: 2px; }
 .cv-foot-pick {
   display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 7px; border: 0;
   background: transparent; color: var(--text-low); font: inherit; cursor: pointer; white-space: nowrap;
@@ -277,4 +289,4 @@ button.cv-opt:disabled:not(.picked) { opacity: .5; cursor: default; }
 .cv-menu-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cv-menu-choice small { margin-left: auto; flex: none; font: 400 10.5px var(--font-mono); color: var(--text-low); }
 
-@media (prefers-reduced-motion: reduce) { .conversation.entering, .cv-row.cv-new { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .conversation.entering, .cv-row.cv-new, .cv-bg i { animation: none; } }

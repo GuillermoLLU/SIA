@@ -1,8 +1,10 @@
 // La conversación de un chat de Copilot como un chat de verdad: lo tuyo en
 // burbujas a la derecha, las respuestas como prosa con su Markdown, las
 // herramientas en una línea plegable, las preguntas y los planes en tarjetas
-// (cards.js) y, debajo, la caja de escribir (composer.js) con el pie del
-// modelo y el esfuerzo (../model-menu.js). Arriba a la derecha, «Nuevo chat».
+// (cards.js) y, debajo, la caja de escribir (composer.js) con su pie: el
+// atajo, el botón de las skills y el modelo y el esfuerzo (../model-menu.js).
+// Arriba a la derecha, «Nuevo chat». De fondo, las manchas de color de la
+// portada, más suaves.
 // Pinta lo que manda el bridge (server/chats/): el texto llega en streaming
 // (typing), las preguntas se contestan con onPick(requestId, answers) y el
 // plan con onApprove(requestId, ok). Solo repinta las filas que cambian, y se
@@ -13,8 +15,8 @@
 //
 // deps: host (el panel del chat) · fileUrl(nombre) (la URL de un adjunto) ·
 //   onSend(text) · onStop() · onPick · onApprove · onLogin · onAuthCheck ·
-//   onAttach() (elegir un fichero; null si no) · onSkills() (la paleta; null si
-//   no) · onClose() («Nuevo chat»; null si este chat no se cierra desde aquí) · agent
+//   onAttach() (elegir un fichero; null si no) · onSkills() (la paleta ⌘K; null
+//   si no) · onClose() («Nuevo chat»; null si este chat no se cierra desde aquí) · agent
 import { threadOf, localItem, settleLocal, rowSig } from './thread.js';
 import { renderMarkdown } from './markdown.js';
 import { createComposer } from './composer.js';
@@ -32,6 +34,7 @@ const NEAR_BOTTOM_PX = 80;
 const THINKING_SHOW_MS = 1500; // «Pensando…» se mantiene este tiempo desde el último aviso
 const NEW_CHAT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
 const CHEVRON = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+const SKILL = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/></svg>';
 
 const userHtml = (row, fileUrl) => {
   const files = row.files.map((f) => (isImageName(f)
@@ -63,6 +66,7 @@ const rowHtml = (row, fileUrl, agent) => {
 export const createConversationView = ({ host, fileUrl, onSend, onStop, onPick, onApprove, onLogin, onAuthCheck, onAttach = null, onSkills = null, onClose = null, agent = 'Copilot' }) => {
   const wrap = document.createElement('div');
   wrap.className = 'conversation entering';
+  wrap.innerHTML = '<div class="cv-bg" aria-hidden="true"><i></i><i></i><i></i></div>';
   const el = document.createElement('div');
   el.className = 'cv';
   el.innerHTML = '<div class="cv-thread"></div><div class="cv-empty">¿Por dónde empezamos?</div><div class="cv-row cv-typing" hidden><div class="cv-text cv-md"></div></div><div class="cv-busy" hidden><i></i><i></i><i></i><span class="cv-busy-label"></span></div>';
@@ -120,7 +124,7 @@ export const createConversationView = ({ host, fileUrl, onSend, onStop, onPick, 
   // lo enviado se pinta en el acto (thread.js localItem), sin esperar al eco de Copilot
   let locals = [];
   const say = (text) => { onSend(text); locals = [...locals, localItem(text)]; paint(); sent(); };
-  const composer = createComposer({ host: dock, onSend: say, onStop, onAttach, onSkills, agent });
+  const composer = createComposer({ host: dock, onSend: say, onStop, onAttach, agent });
   // buscar en la conversación (⌘F / Ctrl+F, cuando esta vista se ve)
   const find = createFind({ host: wrap, scroller: el, onClose: () => composer.focus() });
   const onFindKey = (e) => {
@@ -133,17 +137,20 @@ export const createConversationView = ({ host, fileUrl, onSend, onStop, onPick, 
   document.addEventListener('keydown', onFindKey, true);
   // el muelle se esconde al subir por la conversación y vuelve solo (dock.js)
   createDock({ wrap, dock, scroller: el, atBottom });
-  // bajo la caja, el pie con los atajos y con qué modelo y esfuerzo va (chips
-  // que abren el panel para cambiarlos: ../model-menu.js)
+  // bajo la caja, el pie: el atajo a la izquierda, las skills en el centro y,
+  // a la derecha, con qué modelo y esfuerzo va (chips que abren el panel para
+  // cambiarlos: ../model-menu.js)
   let meta = { model: null, effort: null, models: [], modelVia: null };
   const foot = document.createElement('div');
   foot.className = 'cv-foot';
   foot.innerHTML = `<span class="cv-foot-hint">Enter envía · Shift+Enter, salto de línea</span>
+    <span class="cv-foot-mid">${onSkills ? `<button type="button" class="cv-foot-skills" title="Aplicar una skill a este chat (⌘K)">${SKILL}<span>Skills</span><kbd>⌘K</kbd></button>` : ''}</span>
     <span class="cv-foot-picks">
       <button type="button" class="cv-foot-pick" data-pick="model" title="Cambiar el modelo de este chat"><span>Modelo</span><b></b>${CHEVRON}</button>
       <button type="button" class="cv-foot-pick" data-pick="effort" title="Cuánto piensa antes de responder"><span>Esfuerzo</span><b></b>${CHEVRON}</button>
     </span>`;
   dock.appendChild(foot);
+  foot.querySelector('.cv-foot-skills')?.addEventListener('click', () => onSkills());
   // los comandos del menú van directos: no son un mensaje de la conversación
   const modelMenu = createModelMenu({ host: wrap, getMeta: () => meta, onCommand: onSend });
   for (const b of foot.querySelectorAll('.cv-foot-pick')) b.addEventListener('click', (e) => { e.stopPropagation(); modelMenu.toggle(b.dataset.pick, b); });
@@ -287,6 +294,6 @@ export const createConversationView = ({ host, fileUrl, onSend, onStop, onPick, 
     restore: composer.restore, // …puesto en esta caja
     focus: composer.focus,
     // quitarla del panel (al volver a engancharse se monta otra)
-    destroy: () => { find.close(); modelMenu.destroy(); composer.destroy(); document.removeEventListener('keydown', onFindKey, true); wrap.remove(); },
+    destroy: () => { find.close(); modelMenu.destroy(); document.removeEventListener('keydown', onFindKey, true); wrap.remove(); },
   };
 };
