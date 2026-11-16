@@ -158,7 +158,7 @@
 .iss-work-h .iss-actions { justify-self: end; }
 @media (max-width: 800px) { .iss-work-h { grid-template-columns: minmax(0, 1fr); } .iss-work-h .iss-actions { justify-self: start; } }
 .iss-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.iss-work { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(360px, 1fr); grid-template-rows: minmax(0, 1fr); gap: 16px; flex: 1; min-height: 480px; }
+.iss-work { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(420px, 1fr); grid-template-rows: minmax(0, 1fr); gap: 16px; flex: 1; min-height: 480px; }
 .iss-work-main { gap: 0; padding: 0; min-height: 0; }
 .iss-wtabs { display: flex; gap: 24px; padding: 0 22px; border-bottom: 1px solid var(--border); }
 .iss-wtabs button { display: inline-flex; gap: 8px; align-items: baseline; padding: 14px 0 12px; margin-bottom: -1px; font: inherit; font-size: 13px; color: var(--text-low); background: none; border: 0; border-bottom: 2px solid transparent; cursor: pointer; }
