@@ -696,6 +696,8 @@ body.top-nav #settings-modal[hidden] .settings-modal { transform: scale(.98); op
 /* mientras el agente arranca (.waiting): el saludo y lo escrito se difuminan y queda el aviso */
 .ai-hero-host.waiting :is(.ai-hero-hi, .ai-ask) { opacity: 0; filter: blur(8px); transition: opacity .45s ease, filter .45s ease; }
 .ai-hero-host.waiting .ai-ask { pointer-events: none; }
+/* …y el aviso ocupa el centro de la portada (la caja está centrada: su mitad es la de la pantalla) */
+.ai-hero-host.waiting .ai-wait { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); }
 @media (prefers-reduced-motion: reduce) { .ai-hero-host.leaving { animation: none; opacity: 0; } }
 
 /* ── Arranque del chat de una issue: un botón centrado y, debajo, por qué no
