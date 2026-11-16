@@ -13,7 +13,8 @@ import { esc, fold } from '../ui/html.js';
 import { num } from './format.js';
 import { createModel, COMPANIES } from './model.js';
 import { createCharts } from './charts.js';
-import { createTabs, TABS } from './tabs.js';
+import { createTabs } from './tabs.js';
+import { FACES, faceOf, faceTabs, firstTab, faceFor } from './faces.js';
 import { periodLabel, presetRange, cmpOptions, rangeLabel } from './period.js';
 import { DAY } from './rules.js';
 import { reportBounds, reportHead, reportName, withDates, sidesOf, systemsFilter, PICKS, pickedFilter, pickedText, withShifts, shiftsFilter } from './report.js';
@@ -52,6 +53,9 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
   let teamView = null;
   for (const type of ['click', 'mousemove']) teamHost?.addEventListener(type, (e) => e.stopPropagation());
   let m = null, tabs = null, tab = 'resumen', loading = false, panel = null;
+  // face: la vista elegida en el menú de Métricas (faces.js: servicio, equipo, tecnicas); null, el menú
+  let face = null;
+  const tsys = () => faceOf(face)?.tsys !== false;   // si la vista deja mirar o comparar con T-Systems
   // open: el desplegable abierto ('calendar', 'side0' o 'side1'); who: lo escrito en el buscador de
   // personas; searching: la búsqueda abierta
   let open = null, who = '', searching = false;
@@ -85,6 +89,14 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
         <div class="mt-empty-actions">${loadButton()}${moreMenu(false)}</div></div></div>`;
   };
 
+  // El menú de Métricas: una caja por vista (faces.js). Con la cabecera de siempre (actualizar y los tres puntos).
+  const renderHub = () => {
+    root.innerHTML = `<div class="mt-page">
+      <header class="mt-top"><span class="mt-date">${esc(coverage(m))}</span>${loadButton()}${moreMenu()}</header>
+      <div class="mt-hub">${FACES.map((f) => `<button type="button" class="settings-box" data-face="${f.id}">${f.icon}<span>${f.label}</span><small>${esc(f.note)}</small></button>`).join('')}</div>
+    </div>`;
+  };
+
   const sideSlot = (k) => `<div class="mt-period mt-slot" data-slot="${k}"><button class="mt-btn mt-icon-btn mt-side" data-side="${k}" aria-haspopup="true"><i class="mt-c${k}"></i><span data-side-name="${k}"></span>${CHEVRON}</button><button class="mt-btn mt-x" data-side-remove="${k}" title="Quitar de la comparación">×</button>
     <div class="mt-pop mt-who" data-side-pop="${k}" hidden><div data-side-companies="${k}"></div><input type="search" data-who-q placeholder="Buscar personas…"><div class="mt-who-list" data-side-list="${k}"></div></div></div>`;
 
@@ -93,6 +105,7 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     const { meta } = m.data;
     root.innerHTML = `<div class="mt-page">
       <header class="mt-top">
+        <button class="mt-btn mt-hub-back" data-hub-back title="Volver al menú de Métricas">‹ Métricas</button><b class="mt-face">${esc(faceOf(face).label)}</b>
         <span class="mt-date" data-coverage title="${esc(`${meta.file}, actualizado el ${dayOf(meta.generated)}`)}"></span>
         ${loadButton()}${moreMenu()}</header>
       <div class="mt-fbar">
@@ -103,7 +116,7 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
         <div class="mt-find"><input type="search" data-q placeholder="Título o INC…" hidden><span class="mt-count" data-count></span>
           <button class="mt-search" data-search title="Buscar en el título o por número">${SEARCH_ICON}</button></div>
       </div>
-      <nav class="mt-tabs">${[...TABS, ...(team ? [[team.id, team.label]] : [])].map(([k, l]) => `<button data-tab="${k}">${l}</button>`).join('')}</nav>
+      <nav class="mt-tabs">${faceTabs(face, team).map(([k, l]) => `<button data-tab="${k}">${l}</button>`).join('')}</nav>
       <div class="mt-main" data-main></div>
     </div><div class="mt-tip" data-tip-box hidden></div>`;
     if (teamHost) $('[data-main]').after(teamHost);
@@ -136,10 +149,10 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
       if (pop.hidden) continue;
       const taken = (c) => !other?.people && other?.company === c;
       $(`[data-side-companies="${k}"]`).innerHTML = `<p class="mt-who-co">Color</p><div class="mt-colors">${COLORS.map(([c, n]) => `<button data-pick-color="${k}:${c}" class="${colors[k] === c ? 'mt-on' : ''}" style="--mt-swatch:${c}" title="${n}"></button>`).join('')}</div>
-        <p class="mt-who-co">Empresa</p><div class="mt-cos">${[0, 1, 2].map((c) => `<button data-pick-company="${k}:${c}" class="${!s.people && s.company === c ? 'mt-on' : ''}" ${taken(c) ? 'disabled title="Ya está en el otro lado"' : ''}>${COMPANIES[c]}</button>`).join('')}</div><p class="mt-who-co">Personas</p>`;
+        <p class="mt-who-co">Empresa</p><div class="mt-cos">${(tsys() ? [0, 1, 2] : [0]).map((c) => `<button data-pick-company="${k}:${c}" class="${!s.people && s.company === c ? 'mt-on' : ''}" ${taken(c) ? 'disabled title="Ya está en el otro lado"' : ''}>${COMPANIES[c]}</button>`).join('')}</div><p class="mt-who-co">Personas</p>`;
       const q = fold(who.trim()), mine = s.people || new Set(), theirs = other?.people || new Set();
       const all = m.group('as', m.pool()).filter((x) => x.k && (!q || fold(DIMS.as.label(x.k)).includes(q)));
-      const groups = [0, 1, 2].map((c) => [c, all.filter((x) => data.company[x.k] === c)]).filter(([, l]) => l.length);
+      const groups = (tsys() ? [0, 1, 2] : [0]).map((c) => [c, all.filter((x) => data.company[x.k] === c)]).filter(([, l]) => l.length);
       $(`[data-side-list="${k}"]`).innerHTML = groups.map(([c, l]) => `<p class="mt-who-co mt-who-sub">${c === 2 ? 'Fuera de las dos empresas' : COMPANIES[c]}</p>
         ${l.map((x) => `<button data-pick-person="${k}:${x.k}" class="${mine.has(x.k) ? 'mt-on' : ''}" aria-pressed="${mine.has(x.k)}" ${theirs.has(x.k) ? 'disabled title="Ya está en el otro lado"' : ''}><i class="mt-check"></i><span>${esc(DIMS.as.label(x.k))}</span><small>${num(x.n)}</small></button>`).join('')}`).join('')
         || '<p class="mt-mut">Nadie con ese nombre.</p>';
@@ -172,9 +185,9 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     $('[data-coverage]').textContent = coverage(m);
     renderPeriod();
     renderSides();
-    $('[data-qco]').innerHTML = companyPick(m);
+    $('[data-qco]').innerHTML = tsys() ? companyPick(m) : '';
     $('[data-presets]').innerHTML = presetPick(m, ui);
-    $('[data-cmp]').innerHTML = comparePop(m, ui);
+    $('[data-cmp]').innerHTML = comparePop(m, ui, tsys());
     $('[data-q]').hidden = !(searching || S.q);
     $('[data-count]').innerHTML = `<b>${num(A.length)}</b> incidencias`;
     root.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('mt-on', b.dataset.tab === tab));
@@ -194,12 +207,29 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
   const start = (data) => {
     m = data ? createModel(data) : null;
     m?.resetPeriod();   // de partida, el año fiscal en curso (desde el 1 de febrero)
-    ui.exp = {}; ui.sort = {}; ui.colSort = {}; ui.jiraPick = null; ui.resCmp = null; ui.resPop = false; ui.cliFilter = null; tab = 'resumen'; searching = false; closePops();
+    ui.exp = {}; ui.sort = {}; ui.colSort = {}; ui.jiraPick = null; ui.resCmp = null; ui.resPop = false; ui.cliFilter = null; tab = firstTab(face, team) || 'resumen'; searching = false; closePops();
     if (!m) return renderEmpty();
     tabs = createTabs(m, createCharts(m, ui), ui);
+    if (face) openFrame(); else renderHub();
+  };
+  // Lo fijo de la vista elegida, su periodo y lo de dentro.
+  const openFrame = () => {
     renderFrame();
     panel = mountPeriodPanel($('[data-cal]'), { model: () => m, onPick: (close) => { if (close) closePops(); render(); } });
     render();
+  };
+  // En una vista sin T-Systems, lo que se mira es Indra o personas de Indra: si un lado no lo es, se quita (el
+  // primero vuelve a Indra).
+  const onlyIndra = () => {
+    if (tsys()) return;
+    const S = m.S, indra = (s) => !s || (s.people ? [...s.people].every((p) => m.data.company[p] === 0) : s.company === 0);
+    if (!indra(S.sides[0])) { S.sides[0] = { company: 0 }; S.sides[1] = null; }
+    if (!indra(S.sides[1])) S.sides[1] = null;
+  };
+  // Entrar en una vista del menú (to: en esa pestaña; si no, en su primera).
+  const enterFace = (id, to = null) => {
+    face = id; tab = to || firstTab(id, team); root.scrollTop = 0;
+    closePops(); onlyIndra(); openFrame();
   };
 
   // Mientras el servidor trabaja en algo largo (cargar un CSV), la misma capa con su avance que la actualización,
@@ -466,6 +496,9 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     }
     if (!e.target.closest('.mt-menu')) setMenu(false);
     if (!m || e.target.closest('a')) return;
+    const box = e.target.closest('[data-face]');
+    if (box) return enterFace(box.dataset.face);
+    if (e.target.closest('[data-hub-back]')) { face = null; closePops(); return renderHub(); }
     if (e.target.closest('[data-export]')) return exportSheet();
     const { S } = m;
     // desplegables: abrir y cerrar, elegir; un clic fuera los cierra
@@ -510,9 +543,12 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     if (colTh) { toggleTableSort(colTh, ui.colSort); render(); return; }
     if (!t) { if (outRes) render(); return; }
     const d = t.dataset;
+    let reframe = false;   // un enlace a una pestaña de otra vista: se cambia a esa vista
     if (d.tab || d.go) {
       const from = tab;
       tab = d.tab || d.go; root.scrollTop = 0;
+      const to = faceFor(tab, face);
+      if (to !== face) { face = to; onlyIndra(); reframe = true; }
       // Escalados se abre en Activas llegando desde Foto de hoy o desde el enlace de Pendiente (proveedor) de Resumen; si no,
       // en Histórico. Dentro, se cambia con data-esc-mode.
       if (tab === 'escalados' && from !== 'escalados') { ui.escNow = from === 'hoy' || d.escNow != null; ui.escNoJira = false; }
@@ -569,7 +605,7 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     else if (d.kf) { const ks = d.kf.split('|').map(filterKey), all = ks.every(([dim, k]) => m.isSel(dim, k)); ks.forEach(([dim, k]) => { if (m.isSel(dim, k) === all) m.toggle(dim, k); }); }
     else if (d.f2) pickBoth(S.f, d.f2.split('|').map(filterKey), e.ctrlKey || e.metaKey);   // con Ctrl, si ya estaba, quitarlo
     else if (d.f) { const [dim, k] = filterKey(d.f); m.toggle(dim, k); }
-    render();
+    if (reframe) openFrame(); else render();
   });
   let searchTimer;
   root.addEventListener('input', (e) => {
@@ -599,9 +635,9 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
   const failed = (e) => { root.innerHTML = `<div class="mt-page"><p class="mt-empty">No se pudieron cargar las métricas: ${esc(e.message)}</p></div>`; };
 
   return {
-    // Al abrir la vista: siempre el Resumen.
-    show: () => ready().then(() => { if (m && tab !== 'resumen') { tab = 'resumen'; render(); } }).catch(failed),
-    // De vuelta de la gestión del equipo: su pestaña.
-    showTeam: () => ready().then(() => { if (m) { tab = team.id; render(); } }).catch(failed),
+    // Al abrir la vista: siempre el menú, con una caja por vista.
+    show: () => ready().then(() => { if (m) { face = null; closePops(); renderHub(); } }).catch(failed),
+    // De vuelta de la gestión del equipo: la vista Equipo, en su pestaña.
+    showTeam: () => ready().then(() => { if (m) enterFace('equipo', team.id); }).catch(failed),
   };
 };

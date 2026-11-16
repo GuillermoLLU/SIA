@@ -28,6 +28,14 @@
 .mt-top { display: flex; align-items: center; gap: 14px; padding: 22px 0 14px; }
 .mt-date { font-size: 13px; color: var(--mt-low); }
 .mt-top .mt-load { margin-left: auto; }
+/* El menú de Métricas: una caja por vista (faces.js), en el centro, como las de Configuración */
+.mt-hub { display: flex; flex-wrap: wrap; justify-content: center; gap: 24px; padding: 72px 0; animation: settings-in .25s ease; }
+.mt-hub .settings-box { width: 220px; height: 180px; gap: 12px; }
+.mt-hub .settings-box small { padding: 0 14px; font-size: 11.5px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--text-low); text-align: center; }
+@media (prefers-reduced-motion: reduce) { .mt-hub { animation: none; } }
+/* En una vista: volver al menú y su nombre */
+.mt-hub-back { padding: 4px 10px; }
+.mt-face { font-size: 13px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
 .mt-load { display: inline-flex; align-items: center; height: 32px; padding: 0 14px; border: 0; font-family: inherit; font-size: 13px; font-weight: 600; color: var(--surface); background: var(--accent); cursor: pointer; white-space: nowrap; }
 .mt-load:hover { filter: brightness(1.08); }
 .mt-load.mt-busy { opacity: .6; cursor: progress; }

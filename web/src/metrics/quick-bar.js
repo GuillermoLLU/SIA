@@ -40,9 +40,10 @@ export const presetPick = (m, ui) => {
 // marcada, la de ahora; sin comparar, la de periodos) y, para la de periodos, dos selectores (cmpOptions: el primero
 // sin «Periodo anterior», el segundo sin «Periodo actual»). Se aplica con su botón (data-res-apply); «Cancelar» o un
 // clic fuera lo cierran sin tocar nada.
-export const comparePop = (m, ui) => {
+// tsys: si la vista deja comparar con T-Systems (faces.js); sin él, solo un periodo frente a otro.
+export const comparePop = (m, ui, tsys = true) => {
   const now = compareMode(m, ui), checked = now === 'tsys' ? 'tsys' : 'periods', names = m.NAMES();
-  const canTsys = company(m.S.sides[0]) !== 1;
+  const canTsys = tsys && company(m.S.sides[0]) !== 1;
   const { a = 'cur', b = 'prev' } = ui.resCmp || {}, opts = cmpOptions(m);
   const select = (attr, pick, skip) => `<select ${attr} aria-label="Periodo">${opts.filter(([k]) => k !== skip).map(([k, l, r]) => `<option value="${k}" ${k === pick ? 'selected' : ''} ${r ? '' : 'disabled'}>${esc(l)}${r && !k.startsWith('m:') ? ` · ${esc(rangeLabel(m, r))}` : ''}</option>`).join('')}</select>`;
   const radio = (v, label, body = '') => `<label class="mt-res-opt"><input type="radio" name="res-mode" value="${v}" ${checked === v ? 'checked' : ''}><span>${label}</span></label>${body}`;
