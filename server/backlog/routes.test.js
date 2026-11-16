@@ -29,11 +29,11 @@ test('GET /: la cola con la regla pedida', async () => {
   assert.equal((await call('GET', [])).body.rule, 'basic');
 });
 
-test('el equipo y una incidencia entera (404 si no está en la foto)', async () => {
+test('el equipo y una issue entera (404 si no está en la foto)', async () => {
   const { call } = setup();
   assert.deepEqual((await call('GET', ['people'])).body, { people: [{ id: UUID, name: 'Ana' }] });
   assert.equal((await call('GET', ['INC1'])).status, 200);
-  assert.deepEqual(await call('GET', ['INC9']), { status: 404, body: { error: 'Esa incidencia ya no está en la foto.' } });
+  assert.deepEqual(await call('GET', ['INC9']), { status: 404, body: { error: 'Esa issue ya no está en la foto.' } });
   assert.equal((await call('GET', ['loquesea'])).status, 404);
 });
 

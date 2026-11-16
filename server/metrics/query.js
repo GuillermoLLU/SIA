@@ -3,11 +3,11 @@
 // la última actualización: Remedy toca LASTMODIFIEDDATE al crearlas y con cada
 // nota o cambio de auditoría (comprobado en 2026: nunca hay una nota ni un
 // cambio posterior a ella), así que basta con filtrar por esa fecha.
+
+// La primera carga, con la base local vacía: desde aquí.
 import { GROUP } from './dataset.js';
 
-// La primera carga, con la base vacía y sin periodo elegido: desde aquí. Un año antes de que empezara el servicio, para
-// comparar cada periodo con el mismo del año anterior (Métricas del servicio, #14).
-export const FIRST_LOAD = '2025-01-01 00:00:00.000';
+export const FIRST_LOAD = '2026-01-01 00:00:00.000';
 // Margen hacia atrás sobre lo último guardado: Snowflake carga Remedy cada hora en punto, y una modificación puede
 // tardar en llegar una carga entera más el retraso. Pedir de más no cambia nada (decide: same), así que va holgado.
 const MARGIN_HOURS = 6;

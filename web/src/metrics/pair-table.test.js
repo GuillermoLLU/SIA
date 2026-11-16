@@ -29,7 +29,7 @@ test('en ocre (warn), el más alto', () => {
 
 test('la tabla: leyenda, dos columnas por dato, grupos y bloques con el título a la izquierda', () => {
   const r = (label, a, b) => ({ label, x: [{ v: a, n: 50 }, { v: b, n: 50 }] });
-  const html = pairTable({ names: ['Indra', 'T-Systems'], first: 'Corte', defs: [share, ['Incidencias', (x) => x.n, String]],
+  const html = pairTable({ names: ['Indra', 'T-Systems'], first: 'Corte', defs: [share, ['Issues', (x) => x.n, String]],
     groups: [['Cómo sale', 1], ['Volumen', 1]],
     rows: [{ head: 'Prioridad', note: 'por su prioridad', rows: [r('Alta', 0.6, 0.4), r('Baja', 0.2, 0.2)] }, { ...r('Todo', 0.5, 0.3), cls: 'mt-tot' }] });
   assert.match(html, /<span><i class="mt-c0"><\/i>Indra<\/span><span><i class="mt-c1"><\/i>T-Systems<\/span>/);

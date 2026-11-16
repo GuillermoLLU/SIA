@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readIssue, statusHistory, timeUntil, noteFlags, vendorOf, jiraKeys, scopeOf, operationOf, minutesSince, FLAG, SCOPE } from './remedy.js';
+import { readIssue, statusHistory, noteFlags, vendorOf, scopeOf, operationOf, minutesSince, FLAG, SCOPE } from './remedy.js';
 
 const BASE = Date.UTC(2026, 0, 1);
 const at = (s) => minutesSince(BASE, s);
@@ -12,16 +12,6 @@ test('minutos desde el 1 de enero; -1 si no hay fecha', () => {
 });
 
 const audit = (...e) => e.map(([t, who, text]) => `2026-01-01 ${t}:00.000 - ${who} - ${text}`).join(' | ');
-
-test('historial: cada paso con quien lo hizo', () => {
-  const h = statusHistory(audit(
-    ['10:00', 'robot', 'Status: New → Assigned'],
-    ['10:10', 'ana', 'Status_Reason:  → Third Party Vendor Action Reqd'],
-    ['10:20', 'luis', 'Status_Reason: Third Party Vendor Action Reqd → Client Action Required'],
-    ['10:30', 'pepe', 'Status: Assigned → Resolved'],
-  ), { reported: 0, modified: 0, openNow: false, at: (s) => Number(s.slice(11, 13)) * 60 + Number(s.slice(14, 16)) });
-  assert.deepEqual(h.steps, [[1, 610, 'ana'], [2, 620, 'luis'], [0, 630, 'pepe']]);
-});
 
 test('historial: tiempos por estado, primera actuación, paso a En curso, devoluciones y reapertura', () => {
   const h = statusHistory(audit(
@@ -41,9 +31,6 @@ test('historial: tiempos por estado, primera actuación, paso a En curso, devolu
   assert.equal(h.pendings, 1);
   assert.equal(h.reopened, true);
   assert.deepEqual(h.resolvedBy, ['ana', 'luis']);
-  // cada tramo en un estado (Resuelta no cuenta), para partir el tiempo en un momento: hasta las 11:30 (escalado)
-  assert.deepEqual(h.spans, [[600, 620, 'queue'], [620, 650, 'work'], [650, 660, 'queue'], [660, 720, 'vendor'], [780, 810, 'work']]);
-  assert.deepEqual(timeUntil(h.spans, at('2026-01-01 09:55:00'), at('2026-01-01 11:30:00')), { queue: 30, work: 30, client: 0, vendor: 30, other: 0 });
 });
 
 test('historial: abierta ahora, el estado actual cuenta hasta el último movimiento; sin En curso, start = -1', () => {
@@ -61,35 +48,11 @@ test('notas: marcas entre corchetes y notas del agente de IA', () => {
   assert.equal(noteFlags(''), 0);
 });
 
-test('notas de análisis con IA (#58): [DIAGNOSTICO_IA] marca; [ANALISIS] sin _IA, no (TC-06)', () => {
-  assert.equal(noteFlags(audit(['10:00', 'pepe', '[DIAGNOSTICO_IA] causa'])), FLAG.IA_NOTE);
-  assert.equal(noteFlags(audit(['10:00', 'pepe', '[Análisis_IA] revisado'], ['10:01', 'pepe', '[ANTECEDENTES_IA] INC1'])), FLAG.IA_NOTE);
-  assert.equal(noteFlags(audit(['10:00', 'pepe', '[ANALISIS] a mano'])), 0);
-});
-
-test('escalada (#48): en Pendiente con motivo Third Party Vendor Action Reqd en algún momento, aunque luego cambie', () => {
-  const o = { reported: 600, modified: 900, openNow: false, at };
-  assert.equal(statusHistory(audit(['10:00', 'ana', 'Status: Assigned → Pending'], ['10:00', 'ana', 'Status_Reason:  → Third Party Vendor Action Reqd'],
-    ['11:00', 'ana', 'Status_Reason: Third Party Vendor Action Reqd → Client Action Required']), o).thirdParty, true);
-  assert.equal(statusHistory(audit(['10:00', 'ana', 'Status: Assigned → Pending'], ['10:00', 'ana', 'Status_Reason:  → Supplier Delivery']), o).thirdParty, false);
-});
-
-test('claves Jira: todas las del ticket de tercero y las de las notas, sin repetir', () => {
-  assert.deepEqual(jiraKeys('TEC: ITSMECOM-5356582 / ITSMECOM-5321940', audit(['10:00', 'ana', 'Escalado a SGAXWMSAP-15631 y ITSMECOM-5321940'])),
-    ['ITSMECOM-5356582', 'ITSMECOM-5321940', 'SGAXWMSAP-15631']);
-  assert.deepEqual(jiraKeys('', ''), []);
-});
-
 test('ticket de tercero: prefijo conocido, clave Jira, otro texto', () => {
   assert.deepEqual(vendorOf('TEC: SGAEWMSAP-7037'), { type: 'TEC', project: 'SGAEWMSAP', key: 'SGAEWMSAP-7037' });
   assert.deepEqual(vendorOf('ABC-12'), { type: 'JIRA', project: 'ABC', key: 'ABC-12' });
   assert.deepEqual(vendorOf('XYZ: algo'), { type: 'OTRO', project: '', key: '' });
   assert.deepEqual(vendorOf(' '), { type: '', project: '', key: '' });
-  // «ITD:» e «ITS:», marcas para otros informes: se quitan y cuenta lo que va detrás
-  assert.deepEqual(vendorOf('ITD:SGAEWMSAP-6990'), { type: 'JIRA', project: 'SGAEWMSAP', key: 'SGAEWMSAP-6990' });
-  assert.deepEqual(vendorOf('ITS: returns ITSMECOM-5207685'), { type: 'JIRA', project: 'ITSMECOM', key: 'ITSMECOM-5207685' });
-  assert.deepEqual(vendorOf('ITD: MAE: INC000026966520'), { type: 'MAE', project: '', key: '' });
-  assert.deepEqual(vendorOf('its: ITD: TEC: ABC-1'), { type: 'TEC', project: 'ABC', key: 'ABC-1' });
 });
 
 test('ámbito: SISU, SGA, petición y fuera', () => {
@@ -109,7 +72,7 @@ test('tipo de operación por el prefijo de la categoría 2', () => {
   assert.equal(operationOf(''), 'Sin clasificar');
 });
 
-test('fila entera → incidencia medida', () => {
+test('fila entera → issue medida', () => {
   const i = readIssue({
     INCIDENTNUMBER: 'INC000000000123', ASSIGNEE: ' ANA LOPEZ ', SUMMARY: ' 100001 High ECOM ZARA X PACKING - Etiqueta mal impresa ',
     PRIORITY: 'HIGH', STATUS: 'CLOSED', STATUSREASON: '', SERVICETYPE: 'USER_SERVICE_RESTORATION', TAGS: 'SIGLO_TIP_SOL=3; PRIO;IA_SOLVED_OK',
@@ -129,23 +92,4 @@ test('fila entera → incidencia medida', () => {
   assert.equal(i.title, '100001 High ECOM ZARA X PACKING - Etiqueta mal impresa');
   assert.equal(i.resolution, 'reimpresa # veces');
   assert.ok(i.themes > 0);
-});
-
-test('lo atendido (#48): cada paso a Resuelta, a Pendiente de proveedor y a Pendiente de cliente, con su minuto', () => {
-  const o = { reported: 600, modified: 900, openNow: false, at };
-  const { events } = statusHistory(audit(
-    ['10:00', 'ana', 'Status: Assigned → Pending'], ['10:00', 'ana', 'Status_Reason:  → Third Party Vendor Action Reqd'],
-    ['11:00', 'ana', 'Status_Reason: Third Party Vendor Action Reqd → Client Action Required'],
-    ['12:00', 'ana', 'Status: Pending → Resolved'], ['13:00', 'ana', 'Status: Resolved → Assigned'], ['14:00', 'ana', 'Status: Assigned → Resolved'],
-    ['15:00', 'ana', 'Status_Reason:  → Supplier Delivery']), o);
-  assert.deepEqual(events, { vendor: [600], client: [660], resolved: [720, 840] });
-});
-
-test('el Vendor Ticket Number viaja también tal cual (sin espacios a los lados), para la sábana', () => {
-  const row = { INCIDENTNUMBER: 'INC000000000123', ASSIGNEE: 'ANA', SUMMARY: 'x', PRIORITY: 'HIGH', STATUS: 'CLOSED', STATUSREASON: '', SERVICETYPE: '', TAGS: '',
-    REPORTEDDATE: '2026-01-01 10:00:00', LASTRESOLUTIONDATE: '', LASTMODIFIEDDATE: '', RESOLUTION: '', VENDORTICKETNUMBER: ' TEC: ITSMECOM-1 / ITSMECOM-2 ',
-    PRODUCTCATEGORIZATIONTIER1: '', PRODUCTCATEGORIZATIONTIER2: '', PRODUCTCATEGORIZATIONTIER3: '', CATEGORIZATIONTIER3: '', AUDIT_DETAIL: '', WORKLOG_DETAIL: '' };
-  const i = readIssue(row, BASE);
-  assert.equal(i.vendorText, 'TEC: ITSMECOM-1 / ITSMECOM-2');
-  assert.equal(i.vendor.key, 'ITSMECOM-1');
 });

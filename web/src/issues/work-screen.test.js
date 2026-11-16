@@ -17,7 +17,7 @@ test('la pantalla: cuatro pestañas, Detalle por defecto, sin análisis de la IA
   assert.match(html, /Nadie la ha movido ni anotado en SIA todavía/);
   assert.doesNotMatch(html, /data-chat-head|iss-chat-note/, 'la cabecera del chat la pinta el propio chat');
   assert.match(html, /<div class="iss-chat-body"><\/div>/);
-  assert.match(html, /iss-trail-hint">Por quién ha pasado esta incidencia y las notas internas del equipo</);
+  assert.match(html, /iss-trail-hint">Por quién ha pasado esta issue y las notas internas del equipo</);
   assert.doesNotMatch(html, /data-act="note"/);
   assert.match(html, /data-note-form/);
   assert.match(html, /Por conectar/);
@@ -50,18 +50,18 @@ test('el feed: lo más reciente arriba, con avatar, quién hizo qué y su cuánd
     'cada entrada con su día y hora, de la más nueva a la más antigua');
   assert.match(html, /<span class="iss-avatar" aria-hidden="true">AL<\/span>/);
   assert.match(html, /<span class="iss-avatar unknown" aria-hidden="true">\?<\/span>/);
-  assert.match(html, /<b>Ana López<\/b> cogió la incidencia/);
-  assert.match(html, /traspasó la incidencia a <b>Luis &lt;x&gt;<\/b>/);
-  assert.match(trailHtml([{ at: '2026-10-01T10:00:00+00:00', type: 'assigned', by: 'Guillermo', from: null, to: 'Elvis' }]), /asignó la incidencia a <b>Elvis<\/b> desde el Backlog/);
+  assert.match(html, /<b>Ana López<\/b> cogió la issue/);
+  assert.match(html, /traspasó la issue a <b>Luis &lt;x&gt;<\/b>/);
+  assert.match(trailHtml([{ at: '2026-10-01T10:00:00+00:00', type: 'assigned', by: 'Guillermo', from: null, to: 'Elvis' }]), /asignó la issue a <b>Elvis<\/b> desde el Backlog/);
   assert.match(html, /<span class="iss-feed-label">Motivo<\/span>Lleva &lt;dos&gt; llamadas\./);
   assert.match(html, /<b>Luis<\/b> escribió una nota/);
   assert.match(html, /editada /);
-  assert.match(html, /<b>Alguien<\/b> devolvió la incidencia a la cola/);
+  assert.match(html, /<b>Alguien<\/b> devolvió la issue a la cola/);
   const withTrail = workScreen({ issue: issue(), sameCenter: [], timeline: [{ at: '2026-10-01T08:00:00+00:00', type: 'claimed', by: 'Ana', to: 'Ana' }], now, mine: false, tab: 'trail' });
   assert.match(withTrail, /data-wtab="trail" aria-selected="true">Notas internas<span>1<\/span>/);
 });
 
-test('la pestaña del histórico lleva el contador solo si hay entradas; el diálogo de devolver, la incidencia escapada', () => {
+test('la pestaña del histórico lleva el contador solo si hay entradas; el diálogo de devolver, la issue escapada', () => {
   assert.equal(trailTab(0), 'Notas internas');
   assert.equal(trailTab(3), 'Notas internas<span>3</span>');
   const html = releaseDialogHtml('INC1', 'PDA <x>');

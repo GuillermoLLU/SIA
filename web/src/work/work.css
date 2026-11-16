@@ -1,19 +1,9 @@
 /* Equipo soporte: usa las piezas de las Métricas (metrics.css); aquí, lo suyo. */
 .wk-main { padding-top: 14px; }
-/* dentro de la página de Métricas, que ya pone sus márgenes */
-.mt-page .wk-view .mt-page { padding: 0 0 16px; max-width: none; }
 .wk-team td:first-child { max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wk-team td:first-child .mt-sw { margin-right: 8px; }
 .wk-team tr.mt-grp td { text-transform: none; letter-spacing: 0; font-size: 12.5px; }
 .mt-view .wk-team th.mt-num, .mt-view .wk-team td.mt-num { text-align: center; }
-/* comparar técnicos: sus filas, marcadas; la diferencia, al pie, en verde o rojo (metrics.css: mt-diff) */
-.mt-view .wk-team tr.wk-cmp td { background: color-mix(in srgb, var(--mt-c0) 7%, var(--mt-card)); }
-.mt-view .wk-team tr.wk-cmp td:first-child { font-weight: 600; }
-.mt-view .wk-team tr.wk-diff td { font-weight: 650; }
-/* con uno marcado, los demás técnicos, en segundo plano; al pasar por encima vuelven, para elegir con quién comparar */
-.mt-view .wk-team.wk-picking tr[data-person]:not(.wk-cmp) td { opacity: .4; transition: opacity .15s; }
-.mt-view .wk-team.wk-picking tr[data-person]:not(.wk-cmp):hover td { opacity: 1; }
-.mt-sub .wk-filter { margin-top: 4px; }
 
 /* bloques de arriba: dos filas de tres, una cifra grande por tema y sus apoyos */
 .wk-panel { display: flex; flex-direction: column; gap: 12px; }
@@ -23,10 +13,6 @@
 .wk-block-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .wk-chart-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin: -6px 0; padding: 0; color: var(--mt-low); background: none; border: 1px solid transparent; cursor: pointer; }
 .wk-chart-btn svg { width: 16px; height: 16px; }
-.wk-block-link { margin-left: auto; padding: 0; font: inherit; font-size: 12px; color: var(--accent); background: none; border: 0; cursor: pointer; }
-.wk-block-link:hover { text-decoration: underline; }
-.wk-page-h { display: flex; align-items: center; gap: 14px; }
-.wk-page-h h3 { margin: 0; }
 .wk-chart-btn:hover { color: var(--accent); border-color: var(--mt-line); background: var(--mt-soft); }
 /* el bloque como gráfica: la cifra principal en pequeño, la gráfica y una nota */
 .wk-as-chart { gap: 6px; }
@@ -69,52 +55,19 @@
 .wk-col-x { margin-top: 4px; font-size: 11px; text-align: center; color: var(--mt-low); }
 .wk-pair { display: flex; flex: 1; align-items: flex-end; justify-content: center; gap: 2px; min-height: 0; }
 .wk-pair i { display: block; width: 42%; min-height: 1px; }
-.wk-days { gap: 2px; }
-/* La actividad por día, arriba del todo: el ancho de los tres bloques. Sus colores, validados para daltonismo. */
-.wk-activity { grid-column: 1 / -1; }
-.wk-act-r { background: #2f6fb5; } .wk-act-v { background: #b9772a; } .wk-act-c { background: #7d5ab5; }
-.wk-act-hint { font-size: 12px; color: var(--mt-low); white-space: nowrap; }
-.wk-activity .wk-block-h { justify-content: flex-start; }
-.wk-activity .wk-act-clear { margin-left: 0; white-space: nowrap; }
-.wk-act-keys { display: flex; gap: 6px; margin-left: auto; }
-.wk-act-key { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; font: inherit; font-size: 12px; color: var(--mt-low); white-space: nowrap; background: none; border: 1px solid transparent; cursor: pointer; }
-.wk-act-key:hover { border-color: var(--mt-line); }
-.wk-act-key b { color: var(--text); font-weight: 650; font-variant-numeric: tabular-nums; }
-.wk-act-key i { width: 10px; height: 10px; border-radius: 2px; }
-.wk-act-on { border-color: var(--mt-line); background: var(--mt-soft); }
-.wk-act-dim { opacity: .55; }
-/* la media del equipo: a la altura --at (%) del alto de las barras, que no cuenta los días de abajo */
-.wk-act-avg { position: absolute; left: 0; right: 0; bottom: calc(var(--wk-act-x) + (100% - var(--wk-act-x)) * var(--at) / 100); border-top: 2px dashed var(--text); pointer-events: none; }
-.wk-act-avg span { position: absolute; right: 0; bottom: 3px; padding: 0 4px; font-size: 11px; font-weight: 600; color: var(--text); background: var(--mt-card); }
-.wk-act-plot { --wk-act-x: 18px; position: relative; display: flex; flex: 1; min-height: 0; user-select: none; touch-action: none; cursor: col-resize; }
-.wk-act-tall { --wk-act-x: 44px; }
-.wk-act-max { position: absolute; top: 0; left: 0; font-size: 11px; color: var(--mt-low); pointer-events: none; }
-.wk-act-day { display: flex; flex: 1; flex-direction: column; min-width: 0; }
-.wk-act-day:hover { background: var(--mt-soft); }
-.wk-act-out { opacity: .28; }
-.wk-act-bar { display: flex; flex: 1; flex-direction: column-reverse; align-items: center; gap: 2px; min-height: 0; padding: 0 12%; border-bottom: 1px solid var(--mt-line); }
-.wk-act-bar i { display: block; flex: none; width: 100%; max-width: 44px; pointer-events: none; }
-.wk-act-n { flex: none; font-size: 11px; line-height: 1.2; color: var(--mt-low); font-variant-numeric: tabular-nums; pointer-events: none; }
-.wk-act-x { flex: none; box-sizing: border-box; height: var(--wk-act-x); padding-top: 4px; font-size: 11px; line-height: 1.15; color: var(--mt-low); white-space: nowrap; text-align: center; }
-.wk-act-dense .wk-act-bar { gap: 0; padding: 0; }
-.wk-act-dense .wk-act-x { width: 0; overflow: visible; }
-.wk-filter { display: flex; flex: none; align-items: center; gap: 10px; font-size: 13px; }
-.wk-filter .wk-block-link { margin-left: 0; }
-.wk-days .wk-col-n b { font-weight: 600; color: var(--text); }
-/* cambiar de cara del equipo: métricas o gestión de personas (también en la cabecera de Personas) */
-.wk-switch-view { height: 32px; padding: 0 14px; font: inherit; font-size: 12px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text); background: var(--surface); border: 1px solid var(--mt-line, var(--border)); cursor: pointer; }
-.wk-switch-view:hover { border-color: var(--accent); color: var(--accent); }
 /* a la derecha de la cabecera, el periodo; el calendario se abre hacia la izquierda */
 .wk-tools { display: flex; align-items: center; gap: 10px; margin-left: auto; }
 .wk-top .mt-pop { left: auto; right: 0; }
 .wk-top { border-bottom: 1px solid var(--border); }
 
-/* La vista mide lo que necesita y se desplaza entera; si sobra alto, el conjunto se centra en vertical. */
-.wk-view .mt-page { display: flex; flex-direction: column; min-height: 100%; padding-bottom: 16px; }
-.wk-view .wk-main { display: flex; flex: 1; flex-direction: column; justify-content: safe center; }
-.wk-view .wk-panel { flex: none; }
+/* La vista llena la ventana. La tabla mide lo que necesita; si no cabe, se desplaza por dentro con las
+   cabeceras y los totales fijos. Si sobra alto, el conjunto se centra en vertical. Si la ventana es muy
+   baja, la tabla guarda un mínimo y la página se desplaza. */
+.wk-view .mt-page { display: flex; flex-direction: column; height: 100%; padding-bottom: 16px; }
+.wk-view .wk-main { display: flex; flex: 1; flex-direction: column; justify-content: safe center; min-height: 0; }
+.wk-view .wk-panel { flex: 0 1 auto; min-height: 0; }
 .wk-view .wk-panel > .wk-blocks { flex: none; }
-.wk-view .wk-panel > .mt-grid { display: flex; flex: none; flex-direction: column; }
+.wk-view .wk-panel > .mt-grid { display: flex; flex: 0 1 auto; flex-direction: column; min-height: 260px; }
 .wk-view .wk-panel > .mt-grid > .mt-card { display: flex; flex: 1; flex-direction: column; min-height: 0; padding-bottom: 8px; }
 .wk-view .wk-panel > .mt-grid .mt-tablewrap { flex: 1; min-height: 0; overflow: auto; }
 .wk-top { padding: 16px 0 12px; }

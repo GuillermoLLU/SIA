@@ -9,7 +9,7 @@ const live = (v) => escalateLive(v, { issue: issue(), dests: DESTINATIONS });
 
 test('el modal: el identificador y las dos opciones como tarjetas, sin texto de relleno', () => {
   const html = form();
-  assert.match(html, /<h3>Escalar la incidencia<\/h3><span class="iss-act-id">INC000027698079<\/span>/);
+  assert.match(html, /<h3>Escalar la issue<\/h3><span class="iss-act-id">INC000027698079<\/span>/);
   assert.match(html, /<label class="iss-esc-card"><input type="radio" class="iss-sr" name="mode" value="escalate" checked \/><b>Escalar a otro equipo<\/b>/);
   assert.match(html, /<b>Unir a un ticket ya abierto<\/b>/);
   assert.equal((html.match(/class="pick-group"/g) || []).length, 4);   // N3, N2, otros canales y fuera del mapa

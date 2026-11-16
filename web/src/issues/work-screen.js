@@ -42,10 +42,10 @@ const who = (name) => `<b>${esc(name || 'Alguien')}</b>`;
 // Cada entrada del feed: avatar, cabecera (quién hizo qué, y la hora) y, si
 // lo hay, el texto (la nota o el motivo del traspaso) como comentario.
 const DID = {
-  claimed: (t) => `${who(t.by)} cogió la incidencia`,
-  released: (t) => `${who(t.by)} devolvió la incidencia a la cola`,
-  transferred: (t) => `${who(t.by)} traspasó la incidencia a ${who(t.to)}`,
-  assigned: (t) => `${who(t.by)} asignó la incidencia a ${who(t.to)} desde el Backlog`,
+  claimed: (t) => `${who(t.by)} cogió la issue`,
+  released: (t) => `${who(t.by)} devolvió la issue a la cola`,
+  transferred: (t) => `${who(t.by)} traspasó la issue a ${who(t.to)}`,
+  assigned: (t) => `${who(t.by)} asignó la issue a ${who(t.to)} desde el Backlog`,
   note: (t) => `${who(t.by)} escribió una nota`,
 };
 // Una nota la edita quien la escribió, durante las 24 h siguientes (la misma
@@ -149,12 +149,12 @@ export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, meI
       </div>
 
       <div class="iss-wpanel" data-wpanel="remedy"${tab === 'remedy' ? '' : ' hidden'}>
-        <p class="iss-trail-hint">Lo que se ha ido anotando en Remedy sobre esta incidencia</p>
+        <p class="iss-trail-hint">Lo que se ha ido anotando en Remedy sobre esta issue</p>
         ${worklogHtml(i.worklog, now)}
       </div>
 
       <div class="iss-wpanel iss-trail-panel" data-wpanel="trail"${tab === 'trail' ? '' : ' hidden'}>
-        <p class="iss-trail-hint">Por quién ha pasado esta incidencia y las notas internas del equipo</p>
+        <p class="iss-trail-hint">Por quién ha pasado esta issue y las notas internas del equipo</p>
         <div class="iss-trail-scroll" data-trail>${trailHtml(timeline, now, meId)}</div>
         ${noteFormHtml()}
       </div>
@@ -163,7 +163,7 @@ export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, meI
         <h4 class="iss-sub">Del mismo centro <span class="iss-low">· ${sameCenter.length}</span></h4>
         ${sameCenter.length ? `<div class="iss-items">${sameCenter.map((x) => item(x, 'doing', now)).join('')}</div>` : '<p class="iss-empty">Ninguna otra abierta de este centro.</p>'}
         <h4 class="iss-sub">Parecidas <span class="iss-badge">Por conectar</span></h4>
-        <p class="iss-pending">Incidencias de otros centros con el mismo problema y cómo se resolvieron.</p>
+        <p class="iss-pending">Issues de otros centros con el mismo problema y cómo se resolvieron.</p>
       </div>
 
     </section>

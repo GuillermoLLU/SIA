@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { rangeOf, buildQuery, periodSql, firstLoadRange, FIRST_LOAD, SESSION } from './query.js';
 
-test('rangeOf: sin nada guardado, la primera carga desde 2025 (para comparar con el año anterior) y sin filtro de cambios', () => {
+test('rangeOf: sin nada guardado, la primera carga desde 2026 y sin filtro de cambios', () => {
   assert.deepEqual(rangeOf({ first: null, last: null }), { floor: FIRST_LOAD, since: null });
-  assert.equal(FIRST_LOAD, '2025-01-01 00:00:00.000');
+  assert.equal(FIRST_LOAD, '2026-01-01 00:00:00.000');
 });
 
 test('rangeOf: lo cambiado desde la última modificación menos 6 horas; el suelo, la apertura más antigua', () => {

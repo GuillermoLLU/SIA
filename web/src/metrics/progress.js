@@ -5,14 +5,12 @@ import { num } from './format.js';
 
 // Las fases de cada tarea y lo que suelen tardar (s), medido. Actualizar: cargar el conector unos segundos (con poca
 // memoria, 25–35 s; solo la primera vez tras arrancar SIA), conectar ~5 s, traer unas 3.000 incidencias ~10 s,
-// recalcular 30–40 s. Cargar un CSV: leerlo y guardarlo, unos segundos por cada 30.000 incidencias, y recalcular. Los tickets de Jira, de 100 en 100
-// (la primera vez, todos; después, los que seguían sin resolver). unit: lo que cuentan sus cifras.
+// recalcular 30–40 s. Cargar un CSV: leerlo y guardarlo, unos segundos por cada 30.000 incidencias, y recalcular.
 export const PHASES = [
   { id: 'prepare', label: 'Preparar el conector de Snowflake', usual: 5 },
   { id: 'connect', label: 'Conectar con Snowflake', usual: 5 },
   { id: 'download', label: 'Sincronizando nuevas y modificadas', usual: 10 },
   { id: 'compute', label: 'Recalcular el informe', usual: 35 },
-  { id: 'jira', label: 'Traer los tickets de Jira', usual: 10, unit: 'tickets' },
 ];
 export const CSV_PHASES = [
   { id: 'download', label: 'Leer el CSV y guardar sus incidencias', usual: 5 },
@@ -67,7 +65,7 @@ export const progressOf = (last, { elapsed, phaseMs }, phases = PHASES) => {
     ?? (p.unit === 'bytes' ? (p.total ? `${MB(p.done)} de ${MB(p.total)}` : `${MB(p.done)} leídos`)
       : id === 'download' && !p.total ? 'Sin cambios desde la última actualización.'
         : !Number.isFinite(p.total) ? 'Preparando…'   // todavía no hay cifras del servidor
-          : `${num(p.done ?? 0)} de ${num(p.total)} ${phases[phase].unit || 'incidencias'}`);
+          : `${num(p.done ?? 0)} de ${num(p.total)} incidencias`);
   return { phase, percent, detail, left: known ? leftLabel(s) : 'Calculando cuánto queda…' };
 };
 

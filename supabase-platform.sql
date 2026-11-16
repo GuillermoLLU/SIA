@@ -87,7 +87,7 @@ revoke all on schema platform from public, anon, authenticated;
 -- tiene siempre todas.
 create or replace function platform.known_views() returns text[]
 language sql immutable set search_path = '' as $$
-  select array['chat', 'issues', 'backlog', 'metrics', 'links', 'lab', 'admin', 'people']
+  select array['chat', 'issues', 'backlog', 'work', 'metrics', 'links', 'lab', 'admin', 'people']
 $$;
 
 -- Los criterios con que se ordena el backlog. Una regla de priorización es una
@@ -236,11 +236,6 @@ alter table platform.issue_events add constraint issue_events_action_check check
 insert into platform.priority_rules (name, criteria, builtin)
   select 'Regla básica', array['recent', 'prio', 'month', 'severity', 'age'], true
   where not exists (select 1 from platform.priority_rules where builtin);
-
--- Equipo soporte pasó a ser una pestaña de Métricas y Métricas del servicio se retiró: sus vistas («work» y
--- «service») ya no existen. Se quitan antes de tocar otras vistas, que el check ya no las admite.
-update platform.roles set views = array_remove(array_remove(views, 'work'), 'service') where views && array['work', 'service'];
-update platform.users set views = array_remove(array_remove(views, 'work'), 'service') where views && array['work', 'service'];
 
 -- El Chat pasó a ser una vista que se puede quitar: en las bases ya montadas, quien existía lo
 -- conserva. Una sola vez: la marca es el valor por defecto de users.views, que pasa a llevarlo.

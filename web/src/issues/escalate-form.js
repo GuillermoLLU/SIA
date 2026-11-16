@@ -74,7 +74,7 @@ export const escalateForm = ({ issue, dests, open, v = {} }) => {
   const live = escalateLive(values, { issue, dests });
   const link = values.mode === 'link';
   return `<form class="iss-act-form iss-esc" data-act-form="escalate" novalidate>
-    <header><h3>${issue.status === 'RESOLVED' ? 'Escalar por la causa raíz' : 'Escalar la incidencia'}</h3><span class="iss-act-id">${esc(issue.id)}</span></header>
+    <header><h3>${issue.status === 'RESOLVED' ? 'Escalar por la causa raíz' : 'Escalar la issue'}</h3><span class="iss-act-id">${esc(issue.id)}</span></header>
     ${fromPhoto && !link ? `<p class="iss-esc-hint"><span>Remedy ya trae el ticket <b class="iss-mono">${esc(fromPhoto)}</b>: puede que ya esté escalada.</span><button type="button" class="lab-btn" data-esc-use-link>Unirla a ${esc(fromPhoto)}</button></p>` : ''}
 
     <div class="iss-esc-mode" role="radiogroup" aria-label="¿Qué vas a hacer?">

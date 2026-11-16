@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { periodLabel, daysLabel, periodSummary, sideDay, lastDays, pickMonth, wholeMonth, pickDay, shiftYear, sideHtml, periodPanel } from './period.js';
+import { periodLabel, daysLabel, periodSummary, sideDay, pickMonth, wholeMonth, pickDay, shiftYear, sideHtml, periodPanel } from './period.js';
 import { createModel } from './model.js';
 import { data } from './fixture.js';
 
@@ -26,27 +26,13 @@ test('el texto del periodo: siempre de qué fecha a qué fecha, y cuántos días
   assert.equal(daysLabel(m), '1 día');
 });
 
-test('el periodo de partida: el año fiscal en curso, del 1 de febrero a la foto; en enero, desde el febrero anterior', () => {
+test('el periodo de partida: el mes en curso entero, del día 1 a la foto', () => {
   const m = twoYears();
   m.resetPeriod();
-  assert.equal(periodLabel(m), '01/02/2026 – 11/03/2026');
-  const d = data(), year = 365 * 1440;   // la foto, el 11 de enero de 2026: desde el 1 de febrero de 2025
-  d.meta.start = 2025; d.meta.first = 0; d.meta.snapshot = year + 10 * 1440 + 600; d.meta.last = d.meta.snapshot;
-  const jan = createModel(d);
-  jan.resetPeriod();
-  assert.equal(periodLabel(jan), '01/02/2025 – 11/01/2026');
+  assert.equal(periodLabel(m), '01/03/2026 – 11/03/2026');
 });
 
-test('los últimos días: contando el de la foto; con menos cargados, desde el primero', () => {
-  const m = model();
-  m.setPeriod(...lastDays(m, 15));
-  assert.equal(periodLabel(m), '25/02/2026 – 11/03/2026');
-  assert.equal(daysLabel(m), '15 días');
-  m.setPeriod(...lastDays(m, 1000));
-  assert.equal(m.S.d0, m.MIN_D);
-});
-
-test('el rango se limita a lo cargado: ni antes del primer día con incidencias ni después de la foto', () => {
+test('el rango se limita a lo cargado: ni antes del primer día con issues ni después de la foto', () => {
   const m = model();
   m.setPeriod(at(0, 1) - 99999, at(5, 1));
   assert.deepEqual([m.S.d0, m.S.d1], [m.MIN_D, m.END_D]);
@@ -114,7 +100,7 @@ test('un lado: su fecha, su mes elegido sólido, el año con ‹ › y los meses
 
 test('un lado que enseña otro año: ese mes con borde, y el elegido sigue siendo el de su fecha', () => {
   const m = twoYears();
-  m.resetPeriod();                       // de febrero a marzo de 2026
+  m.resetPeriod();                       // marzo de 2026
   const html = sideHtml(m, 'from', 2);   // enseña marzo de 2025
   assert.match(html, /<b>2025<\/b>/);
   assert.deepEqual(withClass(html, 'month', 'mt-shown'), [2]);
@@ -132,16 +118,4 @@ test('el panel: cabecera con el periodo y los dos lados, con los meses a la izqu
   assert.match(html, /mt-side-body">\s*<div class="mt-mcol">[\s\S]*?mt-months[\s\S]*?<\/div>\s*<\/div>\s*<div class="mt-days">/);
   assert.match(html, /Desde[\s\S]*Hasta/);
   assert.doesNotMatch(html, /<input|data-last|data-month-all|Todo/);
-});
-
-test('Desde la más antigua que sigue abierta de una empresa (Equipo soporte, de partida): de su día a la foto; sin ninguna, null', async () => {
-  const { sinceOldestOpen } = await import('./period.js');
-  const { createModel } = await import('./model.js');
-  const { data } = await import('./fixture.js');
-  const m = createModel(data());
-  const open = [...Array(m.N).keys()].filter((i) => m.OPEN[i] && m.TEAM[i] === 0), first = Math.min(...open.map((i) => m.C.rep[i]));
-  assert.ok(open.length);
-  assert.deepEqual(sinceOldestOpen(m, 0), [Math.floor(first / 1440) * 1440, m.END_D]);
-  const d = data(); d.cols.st = d.cols.st.map(() => d.dict.status.indexOf('CLOSED'));
-  assert.equal(sinceOldestOpen(createModel(d), 0), null);
 });
