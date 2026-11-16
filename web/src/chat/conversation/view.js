@@ -16,7 +16,8 @@
 // deps: host (el panel del chat) · fileUrl(nombre) (la URL de un adjunto) ·
 //   onSend(text) · onStop() · onPick · onApprove · onLogin · onAuthCheck ·
 //   onAttach() (elegir un fichero; null si no) · onSkills() (la paleta ⌘K; null
-//   si no) · onClose() («Nuevo chat»; null si este chat no se cierra desde aquí) · agent
+//   si no) · onClose() («Nuevo chat»; null si este chat no se cierra desde aquí) · agent ·
+//   greeting (lo que dice el hilo vacío; null, nada: el chat de una issue arranca solo)
 import { threadOf, localItem, settleLocal, rowSig } from './thread.js';
 import { renderMarkdown } from './markdown.js';
 import { createComposer } from './composer.js';
@@ -62,13 +63,13 @@ const rowHtml = (row, fileUrl, agent) => {
   return toolsHtml(row);
 };
 
-export const createConversationView = ({ host, fileUrl, onSend, onStop, onPick, onApprove, onLogin, onAuthCheck, onAttach = null, onSkills = null, onClose = null, agent = 'Copilot' }) => {
+export const createConversationView = ({ host, fileUrl, onSend, onStop, onPick, onApprove, onLogin, onAuthCheck, onAttach = null, onSkills = null, onClose = null, agent = 'Copilot', greeting = '¿Por dónde empezamos?' }) => {
   const wrap = document.createElement('div');
   wrap.className = 'conversation entering';
   wrap.innerHTML = '<div class="cv-bg" aria-hidden="true"><i></i><i></i><i></i></div>';
   const el = document.createElement('div');
   el.className = 'cv';
-  el.innerHTML = '<div class="cv-thread"></div><div class="cv-empty">¿Por dónde empezamos?</div><div class="cv-row cv-typing" hidden><div class="cv-text cv-md"></div></div><div class="cv-busy" hidden><i></i><i></i><i></i><span class="cv-busy-label"></span></div>';
+  el.innerHTML = `<div class="cv-thread"></div><div class="cv-empty">${esc(greeting || '')}</div><div class="cv-row cv-typing" hidden><div class="cv-text cv-md"></div></div><div class="cv-busy" hidden><i></i><i></i><i></i><span class="cv-busy-label"></span></div>`;
   wrap.appendChild(el);
   // arriba a la derecha, empezar otro chat
   if (onClose) {

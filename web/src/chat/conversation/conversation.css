@@ -192,6 +192,10 @@ button.cv-opt:disabled:not(.picked) { opacity: .5; cursor: default; }
 .cv-busy { max-width: 760px; margin: 14px auto 0; display: flex; gap: 5px; padding-left: 2px; align-items: center; }
 .cv-busy-label { margin-left: 8px; font-size: 13px; color: var(--text-low); }
 .cv-busy-label:empty { display: none; }
+/* con el hilo aún vacío (el chat de una issue leyendo sus datos), lo que hace va en el centro, en negro y más grande */
+.cv.empty .cv-busy { width: 100%; justify-content: center; margin-top: 0; }
+.cv.empty .cv-busy-label { font-size: 15px; font-weight: 600; color: var(--text); }
+.cv.empty .cv-empty:empty { display: none; }
 .cv-busy[hidden] { display: none; }
 .cv-busy i { width: 6px; height: 6px; background: var(--text-low); animation: cv-pulse 1.2s ease-in-out infinite; }
 .cv-busy i:nth-child(2) { animation-delay: .2s; } .cv-busy i:nth-child(3) { animation-delay: .4s; }

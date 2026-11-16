@@ -45,6 +45,7 @@ export const mountIssueChat = (host, { issue, wsUrl, loadProjects, api, dialogs,
       onAuthCheck: () => sendOn(ws, msg.authCheck()),
       onLogin,
       onAttach: () => uploads.pick({ view }),
+      greeting: null, // arranca solo con los datos de la issue: nada que preguntar
     });
   };
 
