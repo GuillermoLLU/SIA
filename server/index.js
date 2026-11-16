@@ -1,6 +1,7 @@
 // SIA: el bridge local. Sirve la web, la API y, por WebSocket, los chats:
-// cada conexión es una sesión y el bridge lanza el CLI elegido (Claude,
-// Copilot o Codex) en un PTY que se vuelca al navegador. Aquí solo se montan
+// cada conexión es una sesión y el bridge lanza el CLI elegido: Copilot sin
+// terminal (por el protocolo de su SDK, chats/), Claude o Codex en un PTY que
+// se vuelca al navegador. Aquí solo se montan
 // las piezas (cada funcionalidad vive en su carpeta) y se arrancan los
 // servidores; nada ocurre al importar: startBridge() lo pone todo en marcha.
 //
@@ -65,6 +66,8 @@ import { createRepository } from './metrics/repository.js';
 import { metricsRoutes } from './metrics/routes.js';
 import { createSnowflake } from './metrics/snowflake.js';
 import { createTerminalBridge } from './terminal/bridge.js';
+import { createCopilotAuth } from './providers/copilot-auth.js';
+import { providersRoutes } from './providers/routes.js';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url))); // sia/
 
@@ -133,6 +136,9 @@ export const startBridge = async ({ env = process.env } = {}) => {
   const issues = createIssuesService({ source: issuesSource, platform, drafts });
   const backlog = createBacklogService({ source: issuesSource, platform });
   const wsAuth = createWsAuth({ auth, isLoopback });   // quién entra por el socket de los chats
+  // la cuenta de Copilot (Configuración → Proveedores IA): la suya, sin ninguna clave de GitHub en el entorno;
+  // al iniciarla, los chats que la esperaban siguen
+  const copilotAuth = createCopilotAuth({ spec: (args) => launchers.spec('copilot', args), env: () => cleanEnv({ ...env }), onLogin: () => bridge.authRestored() });
   const bridge = createTerminalBridge({
     pty, launchers, workspace, lock, skillSync, issues, skillsOf, allowed: wsAuth.allowed,
     // SHELL_SESSIONS_DISABLE quita el aviso «Restored session…» de macOS. cleanEnv
@@ -140,6 +146,7 @@ export const startBridge = async ({ env = process.env } = {}) => {
     // leídas frescas en cada sesión: ese orden importa.
     env: () => ({ ...cleanEnv({ ...env, SHELL_SESSIONS_DISABLE: '1' }), ...userEnv(config.read()) }),
     accessibleProjects: base.accessibleProjects, currentBase: base.current,
+    copilotStatus: () => copilotAuth.status(),
   });
 
   const http_ = { json, readBody };
@@ -152,6 +159,7 @@ export const startBridge = async ({ env = process.env } = {}) => {
     auth: authRoutes(auth, { ...http_, onSession: assigned.login, onLogout: assigned.clear, platform, preflight }),
     lock: lockRoutes(lock, http_),
     config: configRoutes(config, { ...http_, version }),
+    providers: providersRoutes(copilotAuth, http_),
     users: usersRoutes(users, { ...http_, syncKeys, assignKnowledge: (jwt, userId, ids) => knowledge.setProjects(jwt, userId, ids), refreshProfile: (token) => auth.refreshProfile(token) }),
     knowledge: knowledgeRoutes(knowledge, { ...http_, syncKeys, onChange: (who) => assigned.reload(who.token) }),
     issues: issuesRoutes(issues, http_),

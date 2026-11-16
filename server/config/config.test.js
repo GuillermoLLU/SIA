@@ -28,7 +28,7 @@ test('userEnv: Jira y la clave de GitHub activa, nada más', () => {
 });
 
 test('cleanEnv: fuera las marcas de Claude Code y los tokens de GitHub heredados', () => {
-  assert.deepEqual(cleanEnv({ PATH: '/bin', CLAUDECODE: '1', CLAUDE_CODE_SSE_PORT: '2', GH_TOKEN: 'x', GITHUB_TOKEN: 'y' }), { PATH: '/bin' });
+  assert.deepEqual(cleanEnv({ PATH: '/bin', CLAUDECODE: '1', CLAUDE_CODE_SSE_PORT: '2', GH_TOKEN: 'x', GITHUB_TOKEN: 'y', COPILOT_GITHUB_TOKEN: 'z' }), { PATH: '/bin' });
 });
 
 test('migrate: usuarios locales y github antiguo; sin nada que migrar, null', () => {

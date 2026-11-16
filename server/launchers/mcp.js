@@ -1,11 +1,10 @@
 // El servidor MCP de conocimiento que ve cada chat (dominio, sin E/S): su
-// nombre, el entorno con el que arranca y los ficheros de config que lee cada
-// CLI. La config se escribe POR SESIÓN con los proyectos elegidos para ese chat
-// (SIA_ALLOWED_PROJECTS: la selección dentro del techo de la persona). La
-// conexión viaja al MCP por entorno, nunca por la conversación: la clave
-// publishable de la base y los tokens de los proyectos, que es lo que la base
-// exige para dejar ver algo. Sin base no se registra el MCP: el chat arranca
-// igual, solo que sin conocimiento.
+// nombre, el entorno con el que arranca y cómo se le da a cada CLI. La config
+// va POR SESIÓN con los proyectos elegidos para ese chat (SIA_ALLOWED_PROJECTS:
+// la selección dentro del techo de la persona). La conexión viaja al MCP por
+// entorno, nunca por la conversación: la clave publishable de la base y los
+// tokens de los proyectos, que es lo que la base exige para dejar ver algo. Sin
+// base no se registra el MCP: el chat arranca igual, solo que sin conocimiento.
 import { headerValue } from '../shared/credentials.js';
 
 // Es el nombre que sale en pantalla cada vez que un chat busca o guarda
@@ -24,12 +23,12 @@ export const mcpEnv = (allowedProjects, base) => ({
   ...(base ? { SIA_SUPABASE_URL: base.url, SIA_SUPABASE_KEY: base.key, SIA_ACCESS_TOKENS: headerValue(base.tokens) } : {}),
 });
 
-// El fichero de MCP de Claude o Copilot ({ mcpServers }); vacío sin base.
-export const mcpConfig = (kind, env, base, { execPath, server }) => ({
-  mcpServers: !base ? {} : kind === 'copilot'
-    ? { [MCP_NAME]: { type: 'local', command: execPath, args: [server], tools: ['*'], env } }
-    : { [MCP_NAME]: { command: execPath, args: [server], env } },
-});
+// Los servidores de la sesión ({ nombre: { command, args, env } }): el de
+// conocimiento, o ninguno sin base. Copilot los recibe así al crear la sesión.
+export const mcpServers = (env, base, { execPath, server }) => (base ? { [MCP_NAME]: { command: execPath, args: [server], env } } : null);
+
+// El fichero de MCP de Claude ({ mcpServers }); vacío sin base.
+export const mcpConfig = (env, base, bin) => ({ mcpServers: mcpServers(env, base, bin) || {} });
 
 // Codex no lee un fichero de MCP por sesión: se le escribe un PERFIL que se
 // apila sobre su config.toml sin tocarlo y se lanza con -p. Un perfil en vez
