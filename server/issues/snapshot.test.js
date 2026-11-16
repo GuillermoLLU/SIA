@@ -27,14 +27,14 @@ test('la hora de la foto es la del dato más reciente, también si es una resolu
   assert.equal(s.build().taken, new Date('2026-10-21T18:30:00').toISOString());
 });
 
-test('sin las columnas de la consulta, o sin issues del grupo: error con estado 400', () => {
+test('sin las columnas de la consulta, o sin incidencias del grupo: error con estado 400', () => {
   assert.throws(() => createSnapshot({ now: NOW }).add({ A: '1' }), (e) => e.status === 400 && /le falta INCIDENTNUMBER/.test(e.message));
   const s = createSnapshot({ now: NOW });
   s.add(row('INC1', 'ASSIGNED', 'OTRO', '2026-10-20 09:00:00', '2026-10-20 09:00:00'));
   assert.throws(() => s.build(), (e) => e.status === 400 && /grupo AYS SOPORTE/.test(e.message));
 });
 
-test('WORKLOG_DETAIL es obligatoria y la foto guarda las notas de trabajo de cada issue', () => {
+test('WORKLOG_DETAIL es obligatoria y la foto guarda las notas de trabajo de cada incidencia', () => {
   const sin = { ...row('INC1', 'ASSIGNED', 'AYS SOPORTE', '2026-10-20 09:00:00', '2026-10-20 09:00:00') };
   delete sin.WORKLOG_DETAIL;
   assert.throws(() => createSnapshot({ now: NOW }).add(sin), (e) => e.status === 400 && /le falta WORKLOG_DETAIL/.test(e.message));

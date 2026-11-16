@@ -19,9 +19,8 @@
         <button class="nav-btn" id="nav-chat" title="Chat" aria-label="Chat">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.6-.8L3 21l1.9-5.4A8.38 8.38 0 0 1 4 11.5 8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z"/></svg>
         </button>
-        <!-- Paneles (su icono lo pone web/src/users/views.js): la mesa, el Backlog y Métricas (Equipo y
-             Servicio, a elegir en su pantalla si tiene las dos: app/hub.js) -->
-        <button class="nav-btn" id="nav-issues" title="Issues" aria-label="Issues" hidden></button>
+        <!-- Paneles (su icono lo pone web/src/users/views.js): la mesa, el Backlog y Métricas -->
+        <button class="nav-btn" id="nav-issues" title="Incidencias" aria-label="Incidencias" hidden></button>
         <button class="nav-btn" id="nav-backlog" title="Backlog" aria-label="Backlog" hidden></button>
         <button class="nav-btn" id="nav-metrics" title="Métricas" aria-label="Métricas" hidden></button>
 
@@ -99,10 +98,10 @@
         </div>
       </div>
 
-      <div class="window view hub-view" id="view-hub" hidden></div>
+      <!-- Sin ninguna vista asignada (ni Chat): solo el aviso -->
+      <div class="window view none-view" id="view-none" hidden><p class="none-msg">No tienes vistas asignadas. Pídelas a quien gestiona el equipo.</p></div>
       <div class="window view iss-view" id="view-issues" hidden></div>
       <div class="window view iss-view bl-view" id="view-backlog" hidden></div>
-      <div class="window view mt-view" id="view-work" hidden></div>
       <div class="window view mt-view" id="view-metrics" hidden></div>
 
       <!-- Configuración (modal) -->

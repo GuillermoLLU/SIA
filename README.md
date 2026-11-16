@@ -59,7 +59,8 @@ Configuración → Conexiones → Snowflake. La primera vez se abre el navegador
 para entrar con la cuenta de Inditex (SSO); necesita la VPN.
 
 Cada persona ve las vistas que le dé su rol: el Chat siempre y, además,
-Issues, Backlog, Equipo soporte, Métricas, Enlaces, Laboratorio y Personas. Quien
+Issues, Backlog, Métricas (con Equipo soporte como pestaña), Enlaces, Laboratorio y
+Personas. Quien
 tiene Administración la encuentra en Configuración.
 
 ## Cómo trabajamos

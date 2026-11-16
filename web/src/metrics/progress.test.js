@@ -6,10 +6,10 @@ const prepare = { phase: 'prepare', done: 0, total: 0 };
 const connect = { phase: 'connect', done: 0, total: 0 };
 const download = (done, total) => ({ phase: 'download', done, total });
 const compute = (done, total) => ({ phase: 'compute', done, total });
-const COMPUTE_S = PHASES[3].usual;
+const COMPUTE_S = PHASES[3].usual, JIRA_S = PHASES[4].usual;
 
-test('las fases: preparar el conector, conectar, traer y recalcular', () => {
-  assert.deepEqual(PHASES.map((x) => x.id), ['prepare', 'connect', 'download', 'compute']);
+test('las fases: preparar el conector, conectar, traer, recalcular y los tickets de Jira', () => {
+  assert.deepEqual(PHASES.map((x) => x.id), ['prepare', 'connect', 'download', 'compute', 'jira']);
 });
 
 test('preparar y conectar no dan cifras: la barra avanza desde el primer momento con lo habitual, sin decir cuánto queda', () => {
@@ -23,30 +23,34 @@ test('preparar y conectar no dan cifras: la barra avanza desde el primer momento
   assert.equal(progressOf(connect, { elapsed: 8000, phaseMs: 1000 }).detail, 'Si se abre el navegador, entra con tu cuenta de Inditex.');
 });
 
-test('traer: lo que falta a su ritmo, más lo que suele tardar el recálculo', () => {
+test('traer: lo que falta a su ritmo, más lo que suelen tardar el recálculo y Jira', () => {
   assert.equal(estimate(download(0, 3000), 5000).known, false, 'sin ninguna aún, no hay ritmo');
   assert.equal(estimate(download(10, 3000), 1000).known, false, 'los primeros segundos no dicen nada');
-  // 1.000 en 20 s: las 2.000 que faltan, 40 s más; y el recálculo
-  assert.deepEqual(estimate(download(1000, 3000), 20000), { s: 40 + COMPUTE_S, known: true });
-  assert.deepEqual(estimate(download(0, 0), 3000), { s: COMPUTE_S, known: true }, 'sin nada que traer, solo el recálculo');
+  // 1.000 en 20 s: las 2.000 que faltan, 40 s más; y el recálculo y Jira
+  assert.deepEqual(estimate(download(1000, 3000), 20000), { s: 40 + COMPUTE_S + JIRA_S, known: true });
+  assert.deepEqual(estimate(download(0, 0), 3000), { s: COMPUTE_S + JIRA_S, known: true }, 'sin nada que traer, solo el recálculo y Jira');
 });
 
 test('recalcular: a su ritmo; hasta tenerlo, lo que suele tardar menos lo que lleva', () => {
-  assert.deepEqual(estimate(compute(0, 85000), 1000), { s: COMPUTE_S - 1, known: true });
+  assert.deepEqual(estimate(compute(0, 85000), 1000), { s: COMPUTE_S - 1 + JIRA_S, known: true });
   assert.ok(estimate(compute(0, 85000), 60000).s > 0, 'si se alarga, nunca cero');
-  assert.equal(Math.round(estimate(compute(42500, 85000), 15000).s), 15);
+  assert.equal(Math.round(estimate(compute(42500, 85000), 15000).s), 15 + JIRA_S);
 });
 
 test('el caso de la captura (2.095 de 3.048 a los ~107 s): lo que de verdad queda', () => {
   const v = progressOf(download(2095, 3048), { elapsed: 107000, phaseMs: 100000 });
-  assert.equal(v.left, 'Queda un minuto, más o menos');   // 953 a ~48 ms cada una (~45 s) + 35 s de recálculo
-  assert.equal(v.percent, 57);
+  assert.equal(v.left, 'Quedan unos 2 min');   // 953 a ~48 ms cada una (~45 s) + 35 s de recálculo + 10 s de Jira
+  assert.equal(v.percent, 54);
   assert.equal(v.detail, '2095 de 3048 incidencias');
 });
 
+test('Jira: sus cifras son tickets', () => {
+  assert.equal(progressOf({ phase: 'jira', done: 200, total: 900 }, { elapsed: 60000, phaseMs: 1000 }).detail, '200 de 900 tickets');
+});
+
 test('el porcentaje es de tiempo y nunca llega a 100 hasta acabar', () => {
-  assert.equal(progressOf(compute(42500, 85000), { elapsed: 45000, phaseMs: 15000 }).percent, 75);   // 45 s hechos, 15 por delante
-  assert.equal(progressOf(compute(84999, 85000), { elapsed: 80000, phaseMs: 40000 }).percent, 99);
+  assert.equal(progressOf(compute(42500, 85000), { elapsed: 45000, phaseMs: 15000 }).percent, 64);   // 45 s hechos, 15 + 10 de Jira por delante
+  assert.equal(progressOf({ phase: 'jira', done: 999, total: 1000 }, { elapsed: 80000, phaseMs: 40000 }).percent, 98);   // de Jira quedan como poco 1,5 s (usual × 0,15)
 });
 
 test('lo que queda, en palabras', () => {
@@ -62,7 +66,7 @@ test('la tarjeta: el porcentaje, la barra, lo que queda y los pasos hechos, el d
   assert.match(html, /<b>19<\/b><span>%<\/span>/);
   assert.match(html, /width:19%/);
   assert.match(html, /<b>Sincronizando nuevas y modificadas<\/b><span>Quedan unos 40 s<\/span>/);
-  assert.deepEqual([...html.matchAll(/<li class="([^"]*)">/g)].map((x) => x[1]), ['mt-done', 'mt-done', 'mt-now', '']);
+  assert.deepEqual([...html.matchAll(/<li class="([^"]*)">/g)].map((x) => x[1]), ['mt-done', 'mt-done', 'mt-now', '', '']);
 });
 
 test('el CSV: el avance en MB leídos, con sus propias fases (leer y guardar, recalcular)', () => {

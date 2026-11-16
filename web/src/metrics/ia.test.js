@@ -5,7 +5,7 @@ import { createModel } from './model.js';
 import { data } from './fixture.js';
 import { monthsIn } from './flow.js';
 
-test('cómo sale una issue según sus marcas de IA', () => {
+test('cómo sale una incidencia según sus marcas de IA', () => {
   assert.equal(iaKind(0), IA_NONE);
   assert.equal(iaKind(1 | 512), IA_NONE);              // otras marcas, sin IA
   assert.equal(iaKind(2048), IA_UNREVIEWED);           // intervención de IA, sin revisión
@@ -28,7 +28,7 @@ test('las cifras de IA de una lista', () => {
   assert.equal(s.unrevShare, 0.5);
 });
 
-test('sin issues con IA, los repartos no tienen dato', () => {
+test('sin incidencias con IA, los repartos no tienen dato', () => {
   const s = iaStats([4, 6], C);
   assert.equal(s.ia, 0);
   assert.equal(s.share, 0);

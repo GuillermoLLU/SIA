@@ -122,10 +122,10 @@ export const mountMetricsModals = ({ api, toast, onUpload, onFirstLoad, onClear 
     });
   };
 
-  // La primera carga, con la base vacía: el periodo a traer (por defecto, desde el 1 de enero de 2026 hasta hoy).
+  // La primera carga, con la base vacía: el periodo a traer (por defecto, desde el 1 de enero de 2025 hasta hoy, para comparar con el año anterior).
   const firstLoad = () => {
-    // desde 2020, como el constructor de SQL; al abrir, el 1 de enero de 2026 (la primera carga de siempre)
-    const model = calendarModel(SQL_FROM_YEAR, { openYear: 2026 });
+    // desde 2020, como el constructor de SQL; al abrir, el 1 de enero de 2025 (el año anterior al servicio, para comparar: #14)
+    const model = calendarModel(SQL_FROM_YEAR, { openYear: 2025 });
     open({
       title: 'Primera carga',
       wide: true,

@@ -4,7 +4,7 @@ import { chatSessions, chromeVisible, nextActive, isImageName, fileExt, toAsset,
 
 const local = (o) => ({ id: 1, remoteId: 's1', passive: false, linkLost: false, launched: true, assets: [], ...o });
 
-test('chatSessions: fuera los chats de issues; la barra solo con un chat real', () => {
+test('chatSessions: fuera los chats de incidencias; la barra solo con un chat real', () => {
   assert.deepEqual(chatSessions([{ id: 'a' }, { id: 'b', issue: 'INC1' }]).map((r) => r.id), ['a']);
   assert.equal(chromeVisible([{ launched: false, passive: false }]), false);
   assert.equal(chromeVisible([{ launched: true }]), true);

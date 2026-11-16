@@ -21,14 +21,14 @@ const iaBox = (label, value, lines, extra = '') => `<div class="mt-iabox"><div c
   ${lines.map(([l, v, c]) => `<div class="mt-kpi-s">${c ? `<i class="${c}"></i>` : ''}<span>${l}</span><b>${v}</b></div>`).join('')}</div>`;
 const IA_N = (x) => x.n, IA_K = (x) => x.ia, perVol = (v, x) => (x.H > 1 ? dec(v) : num(v));
 const IA_PAIR = {
-  vol: ['Recibidas', (x) => x.vol, perVol, null, 'Issues recibidas.'],
-  ia: ['Con IA', (x) => x.iaVol, perVol, null, 'Issues con alguna marca de IA.'],
+  vol: ['Recibidas', (x) => x.vol, perVol, null, 'Incidencias recibidas.'],
+  ia: ['Con IA', (x) => x.iaVol, perVol, null, 'Incidencias con alguna marca de IA.'],
   share: ['% con IA', (x) => (x.n ? x.share : null), (v) => pct(v, 1), 'high', 'De lo recibido, lo que tiene alguna marca de IA.', IA_N],
   ok: ['Revisadas OK', (x) => x.okShare, (v) => pct(v), 'high', 'De las de IA, con revisión humana OK y sin fallo.', IA_K],
   fail: ['Con fallo', (x) => x.failShare, (v) => pct(v), 'low', 'De las de IA, con alguna marca de fallo o de revisión no OK.', IA_K],
   unrev: ['Sin revisar', (x) => x.unrevShare, (v) => pct(v), null, 'De las de IA, sin revisión ni fallo.', IA_K],
   avg: ['Media con IA', (x) => x.avg, dur, 'low', 'De las resueltas con IA, de la apertura a la resolución.', (x) => x.r.resolved],
-  part: ['% de su IA', (x) => x.part, (v) => pct(v), null, 'De todas las issues con IA de cada uno, las de esta fila.'],
+  part: ['% de su IA', (x) => x.part, (v) => pct(v), null, 'De todas las incidencias con IA de cada uno, las de esta fila.'],
 };
 const IA_GROUPS = [['Volumen', 1], ['Uso de IA', 3], ['Cómo sale, de las de IA', 2]];
 
@@ -44,16 +44,16 @@ export const iaTab = (t) => {
     const { count, share: sh, top } = iaTop(m, A, dim, all);
     const rows = top.map((x) => {
       const l = m.DIMS[dim].label(x.k);
-      return `<div class="mt-iarank" data-tip="${esc(`${l}\n${num(x.n)} ${x.n === 1 ? 'issue' : 'issues'} con IA: ${pct(x.p, 1)} de todas las de IA${tip ? `\n${tip(x)}` : ''}`)}"><span>${esc(l)}</span><b>${num(x.n)}</b><em>${pct(x.p)}</em>
+      return `<div class="mt-iarank" data-tip="${esc(`${l}\n${num(x.n)} ${x.n === 1 ? 'incidencia' : 'incidencias'} con IA: ${pct(x.p, 1)} de todas las de IA${tip ? `\n${tip(x)}` : ''}`)}"><span>${esc(l)}</span><b>${num(x.n)}</b><em>${pct(x.p)}</em>
         <span class="mt-bt"><i class="mt-ia0" style="width:${(x.p * 100).toFixed(1)}%"></i></span></div>`;
     }).join('');
     return `<div class="mt-iabox"><div class="mt-kpi-l">${label}</div><div class="mt-kpi-v">${num(count)} <small>de ${num(all)} ${noun}</small></div>
       <div class="mt-iause"><span class="mt-bt"><i class="mt-ia0" style="width:${(sh * 100).toFixed(1)}%"></i></span><em>${pct(sh)} ${of}</em></div>
-      ${count ? `<div class="mt-iarank-h"></div>${rows}` : '<div class="mt-kpi-s"><span>Ninguna issue con IA</span></div>'}</div>`;
+      ${count ? `<div class="mt-iarank-h"></div>${rows}` : '<div class="mt-kpi-s"><span>Ninguna incidencia con IA</span></div>'}</div>`;
   };
   const iaHead = (A, s) => {
     const { last, first } = iaMonths(m, A, monthsOf);
-    const use = iaBox('Con IA, de lo recibido', s.share == null ? '—' : pct(s.share, 1), [['Issues con IA', num(s.ia)],
+    const use = iaBox('Con IA, de lo recibido', s.share == null ? '—' : pct(s.share, 1), [['Incidencias con IA', num(s.ia)],
       ...last.map((x, j) => [`${j ? 'Mes anterior' : 'Último mes completo'} (${m.monthName(x.k)})`, opt((v) => pct(v, 1))(x.share)]),
       ['Primer mes con IA', first == null ? '—' : m.monthName(first)]]);
     const how = iaBox(`Cómo sale, de las ${num(s.ia)} con IA`, s.ia ? `${pct(s.okShare)} OK` : '—',
@@ -61,7 +61,7 @@ export const iaTab = (t) => {
     const mods = new Set(A.map((i) => C.mo[i]).filter(Boolean)).size;
     const who = iaRank('Personas que la usan', 'as', A, s.people, 'personas', 'del equipo');
     const where = iaRank('Módulos donde se usa', 'mo', A, mods, 'módulos', 'de los módulos',
-      (x) => { const n = A.filter((i) => C.mo[i] === x.k).length; return `${pct(x.n / n, 1)} de las ${num(n)} issues del módulo`; });
+      (x) => { const n = A.filter((i) => C.mo[i] === x.k).length; return `${pct(x.n / n, 1)} de las ${num(n)} incidencias del módulo`; });
     return `<div class="mt-iaboxes">${use}${how}${who}${where}</div>`;
   };
   // Mes a mes, por mes de apertura, como las fichas de ¿Dónde? (el título dentro de la tabla y bloques de columnas):
@@ -81,8 +81,8 @@ export const iaTab = (t) => {
         ${td(res ? r.resolved : null, num)}${td(res ? r.avg : null, dur, res && bad(r.avg, R.avg, 'low'), R.avg)}
         ${td(res ? r.d1 : null, (v) => pct(v), res && bad(r.d1, R.d1, 'high'), R.d1)}${td(on ? r.reop : null, P1, on && bad(r.reop, R.reop, 'low'), R.reop)}`;
     };
-    const GROUPS = [['Volumen', [['Recibidas', 'Issues recibidas en el mes y su parte del total.']]],
-      ['Con IA', [['Issues', 'Con alguna marca de IA.'], ['% recib.', 'De lo recibido en el mes.'], ['Personas', 'Personas con alguna issue con IA ese mes.']]],
+    const GROUPS = [['Volumen', [['Recibidas', 'Incidencias recibidas en el mes y su parte del total.']]],
+      ['Con IA', [['Incidencias', 'Con alguna marca de IA.'], ['% recib.', 'De lo recibido en el mes.'], ['Personas', 'Personas con alguna incidencia con IA ese mes.']]],
       ['Cómo sale, de las de IA', [['Reparto', 'Revisadas OK, con fallo y sin revisar.'], ['<i class="mt-sw mt-ia0"></i>OK', 'Con revisión humana OK y sin fallo.'],
         ['<i class="mt-sw mt-ia1"></i>Con fallo', 'Con alguna marca de fallo o de revisión no OK.'], ['<i class="mt-sw mt-ia2"></i>Sin revisar', 'Con marca de IA, sin revisión ni fallo.']]],
       ['Lo resuelto con IA', [['Resueltas', ''], ['Media', 'De la apertura a la resolución.'], ['< 24 h', 'Resueltas en menos de 24 horas.'], ['Reabiertas', 'De las de IA, las que volvieron de Resuelta a abierta.']]]];
@@ -115,7 +115,7 @@ export const iaTab = (t) => {
       section('¿Cómo sale?'),
       card('Según cómo sale', qualityPivot(R, [['Con IA', '', [0, 1, 2].map((k) => [m.DIMS.ia.label(k), (i) => iaOf(i) === k, `ia:${k}`])], ['Sin IA', '', [['Sin IA', (i) => iaOf(i) === IA_NONE, `ia:${IA_NONE}`]]]],
         [['Volumen', [['Resueltas', (x) => x.resolved, num, null, '']]], ['Resolución', [['Media', (x) => (x.resolved ? x.avg : null), dur, 'low', 'De la apertura a la resolución.'], ['En < 24 h', (x) => (x.resolved ? x.d1 : null), (v) => pct(v), 'high', '']]],
-          ['Después', [['Reabiertas', (x) => (x.n ? x.reop : null), P1, 'low', 'Volvieron de Resuelta a abierta.'], ['Escaladas', (x) => (x.n ? x.vend : null), (v) => pct(v), null, 'Con ticket de tercero.']]]]),
+          ['Después', [['Reabiertas', (x) => (x.n ? x.reop : null), P1, 'low', 'Volvieron de Resuelta a abierta.'], ['Escaladas', (x) => (x.n ? x.vend : null), (v) => pct(v), null, 'Han estado en Pendiente de un tercero.']]]]),
         { span: 's12', sub: `Lo resuelto, según sus marcas de IA. ${WORSE_NOTE} Clic en una fila para filtrar.` }),
       section('¿Quién la usa?'),
       card('', scorecard('as', [['Volumen', ['n']], ['Con IA', ['iaN', 'iaShare']], ['Cómo sale', ['iaMix', 'iaOk', 'iaFail', 'iaUnrev']], ['Resolución', ['avg', 'd1']]],
@@ -126,7 +126,7 @@ export const iaTab = (t) => {
       card('', scorecard('rz', [['Volumen', ['n']], ['Dónde', ['top']], ['Con IA', ['iaN', 'iaShare']], ['Resolución', ['avg', 'd1']]],
         { id: 'ia-rz', skip: noK, refLabel: 'Todas las resoluciones repetidas', title: 'Resoluciones', extra: rzExtra, top: 15,
           rows: m.rows('rz').filter((i) => C.rz[i] > 0),
-          n: ['Veces', 'Issues cerradas con este texto (idéntico salvo números, usado 4 veces o más) y su parte de todas las repetidas.'], heads: { top: ['Módulo principal', 'El módulo con más issues cerradas con este texto y su parte.'] } }), { span: 's12' }));
+          n: ['Veces', 'Incidencias cerradas con este texto (idéntico salvo números, usado 4 veces o más) y su parte de todas las repetidas.'], heads: { top: ['Módulo principal', 'El módulo con más incidencias cerradas con este texto y su parte.'] } }), { span: 's12' }));
   };
 
   // las cifras de IA de cada lado de una lista, con el volumen por persona (comparando con personas, la empresa entre su equipo)
@@ -149,8 +149,8 @@ export const iaTab = (t) => {
       return { label, x: y, cls: `mt-clk ${selRow(f) ? 'mt-sel' : ''}`, attrs: `data-f="${f}"` };
     };
     const blocks = [['Prioridad', prioRows()],
-      ['Tipo de servicio', sv, 'Los cuatro con más issues.'],
-      ['Escalado', [['Sin escalar', (i) => !escd(i), 'es:0'], ['Escaladas', escd, 'es:1']], 'Con ticket de tercero.']]
+      ['Tipo de servicio', sv, 'Los cuatro con más incidencias.'],
+      ['Escalado', [['Sin escalar', (i) => !escd(i), 'es:0'], ['Escaladas', escd, 'es:1']], 'Han estado en Pendiente de un tercero.']]
       .map(([head, defs, note]) => ({ head, note, rows: defs.filter(([, x]) => A.some(x)).map(row) })).filter((b) => b.rows.length);
     all.forEach((y) => { y.part = y.ia ? 1 : null; });
     return [...blocks, { label: 'Todo', x: all, cls: 'mt-tot' }];
@@ -159,9 +159,9 @@ export const iaTab = (t) => {
   const iaUseTable = (A) => {
     const U = bySide(A).slice(0, 2).map((l) => iaUse(group('as', l.filter((i) => C.as[i]), true).filter((x) => x.k).map((x) => iaStats(x.rows))));
     const tot = U.map((u) => ({ n: u[0].n, c: u[0].n, ia: u[0].all, all: u[0].all }));
-    return pairTable('Parte de sus issues con IA', [['Personas', (x) => x.c, num, null, 'Personas con issues en el periodo.'],
-      ['% de la gente', (x) => (x.n ? x.c / x.n : null), (v) => pct(v), null, 'De las personas con issues, las de este tramo.'],
-      ['% de las de IA', (x) => (x.all ? x.ia / x.all : null), (v) => pct(v), null, 'De todas las issues con IA, las que llevan las personas de este tramo.']],
+    return pairTable('Parte de sus incidencias con IA', [['Personas', (x) => x.c, num, null, 'Personas con incidencias en el periodo.'],
+      ['% de la gente', (x) => (x.n ? x.c / x.n : null), (v) => pct(v), null, 'De las personas con incidencias, las de este tramo.'],
+      ['% de las de IA', (x) => (x.all ? x.ia / x.all : null), (v) => pct(v), null, 'De todas las incidencias con IA, las que llevan las personas de este tramo.']],
       [...U[0].map((u, j) => ({ label: u.label, x: [u, U[1][j]] })), { label: 'Todas', x: tot, cls: 'mt-tot' }], (x) => x.n);
   };
   const iaCmp = (A) => {
@@ -171,7 +171,7 @@ export const iaTab = (t) => {
       { val: (x) => x.v, better: ST.every((s) => n(s) >= BETTER_MIN) ? better : null, note, names });
     const P = (v) => pct(v), users = (s) => (s.people ? s.users / s.people : null);
     const mods = T.map((l) => new Set(l.filter(withIa).map((i) => C.mo[i]).filter(Boolean)).size);
-    const greenNote = `En verde, quien va mejor (con al menos ${BETTER_MIN} issues cada uno; en cómo sale, ${BETTER_MIN} con IA).`, perNote = team ? ' Lo de la empresa, por persona de su equipo.' : '';
+    const greenNote = `En verde, quien va mejor (con al menos ${BETTER_MIN} incidencias cada uno; en cómo sale, ${BETTER_MIN} con IA).`, perNote = team ? ' Lo de la empresa, por persona de su equipo.' : '';
     const months = monthRows();
     const D = IA_PAIR;
     // módulos (solo con personas): los 15 con más issues de la persona
@@ -181,13 +181,13 @@ export const iaTab = (t) => {
     const mr = pp ? modRows() : [];
     const kp = [
       fig('Con IA, de lo recibido', (s) => (s.n ? s.share : null), (v) => pct(v, 1), 'high', 'De lo recibido, lo que tiene alguna marca de IA.'),
-      kpiCo(`Issues con IA${team ? ' por persona' : ''}`, volume(T.map((l) => l.filter(withIa))), team ? (x) => dec(x.v) : (x) => num(x.v), { val: (x) => x.v, note: `con alguna marca de IA${team ? headsNote() : ''}`, names }),
+      kpiCo(`Incidencias con IA${team ? ' por persona' : ''}`, volume(T.map((l) => l.filter(withIa))), team ? (x) => dec(x.v) : (x) => num(x.v), { val: (x) => x.v, note: `con alguna marca de IA${team ? headsNote() : ''}`, names }),
       fig('Revisadas OK', (s) => s.okShare, P, 'high', 'De las de IA, con revisión humana OK y sin fallo.', (s) => s.ia),
       fig('Con fallo', (s) => s.failShare, P, 'low', 'De las de IA, con alguna marca de fallo o de revisión no OK.', (s) => s.ia),
       fig('Sin revisar', (s) => s.unrevShare, P, null, 'De las de IA, sin revisión ni fallo.', (s) => s.ia),
-      pp ? fig('Media con IA, en días', (s) => (s.avg == null ? null : s.avg / 1440), dec, 'low', 'De las resueltas con IA, de la apertura a la resolución.', (s) => s.r.resolved) : '',
-      co ? fig('Personas que la usan', users, P, 'high', 'De las personas con issues en el periodo, las que tienen alguna con IA.', (s) => s.people) : '',
-      co ? kpiCo('Módulos donde se usa', mods.map((v) => ({ n: 1, v })), (x) => num(x.v), { val: (x) => x.v, note: 'Módulos con alguna issue con IA.' }) : ''];
+      pp ? fig('Media con IA', (s) => s.avg, dur, 'low', 'De las resueltas con IA, de la apertura a la resolución.', (s) => s.r.resolved) : '',
+      co ? fig('Personas que la usan', users, P, 'high', 'De las personas con incidencias en el periodo, las que tienen alguna con IA.', (s) => s.people) : '',
+      co ? kpiCo('Módulos donde se usa', mods.map((v) => ({ n: 1, v })), (x) => num(x.v), { val: (x) => x.v, note: 'Módulos con alguna incidencia con IA.' }) : ''];
     return grid(ask('ia'),
       kpis(...kp.filter(Boolean)),
       section('¿Cuánto la usamos?'),
@@ -195,18 +195,18 @@ export const iaTab = (t) => {
         { span: 's12', sub: `${MONTH_NOTE} ${greenNote}${perNote} Clic en un mes para filtrar.` }),
       section('¿En qué trabajo la usamos?'),
       card('En qué trabajo', pairTable('Corte', [D.vol, D.ia, D.share, D.part, D.ok, D.fail], iaWorkRows(A), IA_N, IA_GROUPS),
-        { span: 's12', sub: `«% de su IA»: de todas las issues con IA de cada uno, las de esta fila (cada bloque suma el 100 %). ${greenNote}${perNote} Clic en una fila para filtrar.` }),
+        { span: 's12', sub: `«% de su IA»: de todas las incidencias con IA de cada uno, las de esta fila (cada bloque suma el 100 %). ${greenNote}${perNote} Clic en una fila para filtrar.` }),
       pp && mr.length ? card('Módulo a módulo', pairTable('Módulo', [D.vol, D.ia, D.share, D.ok, D.fail, D.avg], iaRows(A, mr, 'Todo'), IA_N, [['Volumen', 1], ['Uso de IA', 2], ['Cómo sale, de las de IA', 2], ['Resolución', 1]]),
-        { span: 's12', sub: `Los 15 módulos con más issues de ${esc(name(lead))}; cada uno, frente al otro en el mismo módulo. ${greenNote}${perNote} Clic en un módulo para filtrar.` }) : '',
+        { span: 's12', sub: `Los 15 módulos con más incidencias de ${esc(name(lead))}; cada uno, frente al otro en el mismo módulo. ${greenNote}${perNote} Clic en un módulo para filtrar.` }) : '',
       pp ? section('¿Cómo sale?') : '',
       pp ? card('Según cómo sale', pairTable('Uso de IA', [['Resueltas', (x) => x.r.resolved / x.H, perVol, null, ''], ['Media', (x) => (x.r.resolved ? x.r.avg : null), dur, 'low', 'De la apertura a la resolución.'],
         ['En < 24 h', (x) => (x.r.resolved ? x.r.d1 : null), (v) => pct(v), 'high', ''], ['Reabiertas', (x) => (x.r.n ? x.r.reop : null), (v) => pct(v, 1), 'low', 'Volvieron de Resuelta a abierta.'],
-        ['Escaladas', (x) => (x.r.n ? x.r.vend : null), (v) => pct(v), null, 'Con ticket de tercero.']],
+        ['Escaladas', (x) => (x.r.n ? x.r.vend : null), (v) => pct(v), null, 'Han estado en Pendiente de un tercero.']],
         [...[0, 1, 2, 3].map((k) => { const x = (i) => iaOf(i) === k, P2 = T.slice(0, 2).map((l) => stats(l.filter(x).filter(solved))); return { label: m.DIMS.ia.label(k), x: P2.map((r, j) => ({ r, H: ST[j].H })), cls: 'mt-clk', attrs: `data-f="ia:${k}"` }; }),
           { label: 'Todas las resueltas', x: T.slice(0, 2).map((l, j) => ({ r: stats(l.filter(solved)), H: ST[j].H })), cls: 'mt-tot' }], (x) => x.r.resolved, [['Volumen', 1], ['Resolución', 2], ['Seguimiento', 2]]),
         { span: 's12', sub: `Lo resuelto de cada uno, según sus marcas de IA. ${greenNote}${perNote} Clic en una fila para filtrar.` }) : '',
       co ? section('¿Quién la usa?') : '',
-      co ? card('Personas según su uso', iaUseTable(A), { span: 's12', sub: 'Las personas de cada empresa con issues en el periodo, según qué parte de las suyas lleva IA, y qué parte de todas las de IA llevan.' }) : '');
+      co ? card('Personas según su uso', iaUseTable(A), { span: 's12', sub: 'Las personas de cada empresa con incidencias en el periodo, según qué parte de las suyas lleva IA, y qué parte de todas las de IA llevan.' }) : '');
   };
 
   return (A) => {

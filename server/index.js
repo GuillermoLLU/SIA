@@ -26,7 +26,7 @@ import { trustSystemCerts, readSystemCerts } from './shared/certs.js';
 import { onVpn } from './shared/vpn.js';
 import { createRouter } from './router.js';
 import { createConfigStore } from './config/store.js';
-import { userEnv, cleanEnv, cleanSnowflake } from './config/config.js';
+import { userEnv, cleanEnv, cleanSnowflake, cleanJira } from './config/config.js';
 import { configRoutes } from './config/routes.js';
 import { createLock } from './lock/service.js';
 import { lockRoutes } from './lock/routes.js';
@@ -64,6 +64,7 @@ import { createMetricsStore } from './metrics/store.js';
 import { createRepository } from './metrics/repository.js';
 import { metricsRoutes } from './metrics/routes.js';
 import { createSnowflake } from './metrics/snowflake.js';
+import { createJira } from './metrics/jira.js';
 import { createTerminalBridge } from './terminal/bridge.js';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url))); // sia/
@@ -160,6 +161,7 @@ export const startBridge = async ({ env = process.env } = {}) => {
       repo: createRepository({ DatabaseSync, file: path.join(workspace.metricsDir, 'incidencias.sqlite'), fs }),
       source: createSnowflake({ loadSdk, config: () => cleanSnowflake(config.read().snowflake), certsHelpUrl: certsCfg.helpUrl, refreshCerts,
         onVpn: async () => !vpnCfg.probeHost || onVpn(lookup, vpnCfg.probeHost) }),
+      jira: createJira({ config: () => cleanJira(config.read().jira) }),
       fs,
       log: console.log,
     }), { json, readBody }),

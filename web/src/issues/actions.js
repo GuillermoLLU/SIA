@@ -9,7 +9,7 @@ import { thirdOf } from './format.js';
 
 export const ACTIONS = {
   resolve: {
-    label: 'Resolver', title: 'Resolver la issue', ok: 'Resolver',
+    label: 'Resolver', title: 'Resolver la incidencia', ok: 'Resolver',
     // la nota interna y los tres puntos del mensaje al centro; el formulario
     // es propio (resolve-form.js), aquí solo lo que hace falta para enviarlo
     fields: [
@@ -42,7 +42,7 @@ export const ACTIONS = {
 // El selector de persona es el propio de la app (ui/picker.js); abrir,
 // elegir y cerrar lo lleva la vista (issues-view.js).
 // empty: lo que dice sin nadie a quien elegir (p. ej. nadie más con el conocimiento de su origen)
-const picker = (f, people, empty) => peoplePicker({ name: f.name, id: `iss-f-${f.name}`, people, empty: empty || 'No hay más personas en Issues' });
+const picker = (f, people, empty) => peoplePicker({ name: f.name, id: `iss-f-${f.name}`, people, empty: empty || 'No hay más personas en Incidencias' });
 
 const field = (f, people, empty) => {
   const id = `iss-f-${f.name}`;

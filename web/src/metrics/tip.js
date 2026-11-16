@@ -5,7 +5,8 @@
 import { esc } from '../ui/html.js';
 
 export const attachTip = (root, names) => {
-  const box = () => root.querySelector('[data-tip-box]');
+  // la suya: dentro puede haber otra vista con su tarjeta (Equipo soporte, en Métricas)
+  const box = () => root.querySelector(':scope > [data-tip-box]');
   root.addEventListener('mousemove', (e) => {
     const tip = box();
     if (!tip) return;
