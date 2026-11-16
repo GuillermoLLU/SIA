@@ -17,6 +17,9 @@ export const cellValue = (raw) => {
   if (!s || s === '—' || s === '-') return null;
   const dt = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?: (\d{1,2}):(\d{2}))?$/);
   if (dt) return Date.UTC(+dt[3], +dt[2] - 1, +dt[1], +(dt[4] || 0), +(dt[5] || 0)) / 6e4;
+  // los tiempos de más de un día (format.js, dur): «3 días 2 h», «1 día 30 min», «−2 días»
+  const dd = s.replace(/−/g, '-').replace(/^\+/, '').match(/^(-?)(\d+) días?(?: (\d+) (h|min))?$/);
+  if (dd) return (dd[1] ? -1 : 1) * (Number(dd[2]) * 1440 + Number(dd[3] || 0) * UNIT[dd[4] || 'min']);
   const n = s.replace(/−/g, '-').replace(/^\+/, '').match(/^(-?[\d.]+(?:,\d+)?)\s*(%|pts|min|h|d)?$/);
   if (n) return Number(n[1].replace(/\./g, '').replace(',', '.')) * UNIT[n[2] || ''];
   const mo = s.toLowerCase().match(/^([a-zé]{3})\.?(?: (\d{4}))?$/);

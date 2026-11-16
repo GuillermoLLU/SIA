@@ -36,8 +36,8 @@ test('los tramos se apilan en su barra y suman su tiempo de resolución; una esc
   // los tres estados hasta escalar (de los colores de la otra barra) y los dos tramos de Jira
   assert.deepEqual([...esc.matchAll(/<i class="mt-svc-(p[ep]\d)" style="flex-grow:/g)].map((x) => x[1]), ['pp0', 'pp1', 'pp2', 'pe1', 'pe2']);
   assert.match(esc, /<span data-tip="En Asignada, y lo de antes del primer cambio de estado\. Hasta escalar[^"]*"><i class="mt-svc-pp0"><\/i>En cola<\/span>/);
-  assert.match(esc, /<b>1 h<\/b>/);   // en horas: 10 + 40 + 10 min
-  assert.match(esc, /Escalada \(Tesc\): 0,67 h \(67 %\)/);
+  assert.match(esc, /<b>1 h<\/b>/);   // 10 + 40 + 10 min
+  assert.match(esc, /Escalada \(Tesc\): 40 min \(67 %\)/);
   assert.match(esc, /1 escaladas resueltas\nFuera: 1 sin datos de Jira/);
 });
 

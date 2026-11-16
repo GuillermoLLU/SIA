@@ -2,14 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { num, dec, pct, dur, dateOf, nice, title } from './format.js';
 
-test('una duración en minutos, siempre en horas: sin decimales desde 10 h, uno como mucho hasta ahí y dos por debajo de una hora', () => {
+test('una duración en minutos: en minutos por debajo de una hora, en horas hasta 24 y en días y horas desde ahí', () => {
   assert.equal(dur(null), '—');
-  assert.deepEqual([4813, 3300, 576, 120, 60, 45, 15].map(dur), ['80 h', '55 h', '9,6 h', '2 h', '1 h', '0,75 h', '0,25 h']);
-  assert.equal(dur(54), '0,9 h');
-  assert.equal(dur(0.9 * 1440), '22 h');           // 21,6 h
-  assert.equal(dur(1.8 * 1440), '43 h');
-  assert.equal(dur(1439), '24 h');                 // 23 h 59 min
-  assert.equal(dur(3.1 * 1440), '74 h');
+  assert.deepEqual([0, 15, 45, 54, 59.4].map(dur), ['0 min', '15 min', '45 min', '54 min', '59 min']);
+  assert.deepEqual([59.6, 60, 90, 576, 600, 0.9 * 1440, 1409].map(dur), ['1 h', '1 h', '1,5 h', '9,6 h', '10 h', '22 h', '23 h']);
+  assert.equal(dur(1439), '1 día');                // 23 h 59 min: redondea a un día
+  assert.equal(dur(1440), '1 día');
+  assert.equal(dur(1470), '1 día 30 min');         // sobra menos de una hora: en minutos
+  assert.equal(dur(1.8 * 1440), '1 día 19 h');     // 43,2 h
+  assert.equal(dur(4813), '3 días 8 h');
+  assert.equal(dur(2 * 1440 + 23.7 * 60), '3 días');   // 23,7 h que sobran redondean al día siguiente
+  assert.equal(dur(7 * 1440), '7 días');
 });
 
 test('cifras, decimales y porcentajes a la española', () => {
