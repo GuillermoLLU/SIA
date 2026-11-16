@@ -189,6 +189,7 @@ export const readIssue = (r, base) => {
     status: r.STATUS, reason: r.STATUSREASON, priority: r.PRIORITY, service: r.SERVICETYPE,
     assignee: r.ASSIGNEE.trim(),
     centre: r.PRODUCTCATEGORIZATIONTIER1.trim().replace(/^AYS\s+/, ''),
+    area: r.PRODUCTCATEGORIZATIONTIER2.trim(),   // con él se distingue el centro cuando hace falta (dataset.js, centreNames)
     operation: operationOf(r.PRODUCTCATEGORIZATIONTIER2),
     module: key(r.PRODUCTCATEGORIZATIONTIER3),
     category: key(r.CATEGORIZATIONTIER3),

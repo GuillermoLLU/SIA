@@ -121,6 +121,7 @@ test('fila entera → incidencia medida', () => {
   assert.equal(i.id, 123);
   assert.equal(i.assignee, 'ANA LOPEZ');
   assert.equal(i.centre, 'ES13-ILLESCAS');
+  assert.equal(i.area, 'ECOM ZARA');
   assert.equal(i.module, 'PACKING');
   assert.equal(i.scope, SCOPE.SGA);
   assert.equal(i.flags, FLAG.PRIO | FLAG.IA_SOLVED);

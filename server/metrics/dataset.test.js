@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createDataset, checkColumns, REQUIRED } from './dataset.js';
+import { createDataset, checkColumns, REQUIRED, centreNames } from './dataset.js';
 import { THEME_NAMES } from './themes.js';
 
 const row = (o = {}) => ({ ...Object.fromEntries(REQUIRED.map((c) => [c, ''])),
@@ -123,3 +123,32 @@ test('el problema común de cada incidencia (pc), por el título y la descripci�
   assert.equal(out.problems[0], 'Sin clasificar');
 });
 
+
+test('el centro: la categoría de producto 1 y, si ese centro tiene varias categorías 2, las dos seguidas', () => {
+  assert.deepEqual(centreNames([
+    ['NL - LELYSTAD PLATFORM', 'PRENDA COLGADA LELYSTAD'], ['NL - LELYSTAD PLATFORM', 'PAQUETERÍA LELYSTAD'],
+    ['NL - LELYSTAD PLATFORM', ''],                                         // sin categoría 2: solo la 1
+    ['ES13-ILLESCAS ECOM ZARA', 'ECOM ZARA ES13'], ['ES13-ILLESCAS ECOM ZARA', 'ECOM ZARA ES13'],   // una sola: solo la 1
+    ['USA -EASTON - XPO LOGISTICS', 'ECOM ZARA'], ['USA -EASTON - XPO LOGISTICS', 'ECOM Zara'],      // es la misma
+    ['ECOM MARCHAMALO', 'ECOM ZARA'], ['ECOM MARCHAMALO', 'ECOM ZARA SUR'], ['ECOM MARCHAMALO', 'ECOM ZARA SUR'],
+    ['ECOM MARCHAMALO', 'ECOM Zara SUR'],                                   // se escribe como más veces viene
+    ['', ''],
+  ]), [
+    'NL - LELYSTAD PLATFORM PRENDA COLGADA LELYSTAD', 'NL - LELYSTAD PLATFORM PAQUETERÍA LELYSTAD', 'NL - LELYSTAD PLATFORM',
+    'ES13-ILLESCAS ECOM ZARA', 'ES13-ILLESCAS ECOM ZARA',
+    'USA -EASTON - XPO LOGISTICS', 'USA -EASTON - XPO LOGISTICS',
+    'ECOM MARCHAMALO ECOM ZARA', 'ECOM MARCHAMALO ECOM ZARA SUR', 'ECOM MARCHAMALO ECOM ZARA SUR', 'ECOM MARCHAMALO ECOM ZARA SUR',
+    '',
+  ]);
+});
+
+test('el centro en el dataset: sin «AYS » y con la categoría 2 solo donde hace falta', () => {
+  const ds = createDataset({ start: 2026 });
+  ds.add(row({ PRODUCTCATEGORIZATIONTIER1: 'AYS MECO - PLATAFORMA LOGISTICA MECO', PRODUCTCATEGORIZATIONTIER2: 'PAQUETERÍA MECO' }));
+  ds.add(row({ INCIDENTNUMBER: 'INC000000000002', PRODUCTCATEGORIZATIONTIER1: 'AYS MECO - PLATAFORMA LOGISTICA MECO', PRODUCTCATEGORIZATIONTIER2: 'PRENDA COLGADA MECO' }));
+  ds.add(row({ INCIDENTNUMBER: 'INC000000000003', PRODUCTCATEGORIZATIONTIER1: 'AYS TOLEDO - LEFTIES', PRODUCTCATEGORIZATIONTIER2: 'PAQUETERIA TOLEDO' }));
+  ds.add(row({ INCIDENTNUMBER: 'INC000000000004' }));
+  const out = ds.build({ file: 'x', generated: 'g' });
+  assert.deepEqual(out.cols.ce.map((n) => out.dict.centre[n]),
+    ['MECO - PLATAFORMA LOGISTICA MECO PAQUETERÍA MECO', 'MECO - PLATAFORMA LOGISTICA MECO PRENDA COLGADA MECO', 'TOLEDO - LEFTIES', '']);
+});

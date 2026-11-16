@@ -49,6 +49,7 @@ import { sessionsOf } from './sessions.js';
 import { THEME_NAMES, problemKey } from './themes.js';
 import { PENDING, OPEN_STATES } from './states.js';
 import { escalationOf } from './escalation.js';
+import { key } from './text.js';
 
 export const GROUP = 'AYS SOPORTE';
 export const FORMAT = 17;
@@ -88,6 +89,25 @@ const daysOf = (mins) => [...new Set(mins.filter((t) => t >= 0).map((t) => Math.
 // y de cada turno de 8 h desde las 7:00 (mañana de 7 a 15, tarde de 15 a 23 y noche de 23 a 7: web shifts.js, slotOf)
 const slotsOf = (mins) => [...new Set(mins.filter((t) => t >= 0).map((t) => Math.floor((t - 420) / 480)))];
 
+// El nombre del centro de cada issue: su categoría de producto 1 y, solo si ese centro tiene más de una categoría 2
+// (NL - LELYSTAD PLATFORM: prenda colgada y paquetería), las dos seguidas: «NL - LELYSTAD PLATFORM PAQUETERÍA
+// LELYSTAD». La 2 se compara sin mayúsculas ni tildes (ECOM ZARA y ECOM Zara son la misma) y se escribe como más
+// veces viene; vacía, no cuenta y la issue se queda con la 1. pairs: [categoría 1, categoría 2] por issue.
+export const centreNames = (pairs) => {
+  const areas = new Map();   // centro → categoría 2 (key) → cómo se escribe → veces
+  for (const [centre, area] of pairs) {
+    if (!area) continue;
+    const byKey = areas.get(centre) || areas.set(centre, new Map()).get(centre), k = key(area);
+    const w = byKey.get(k) || byKey.set(k, new Map()).get(k);
+    w.set(area, (w.get(area) || 0) + 1);
+  }
+  const spelling = (w) => [...w].reduce((a, b) => (b[1] > a[1] ? b : a))[0];
+  return pairs.map(([centre, area]) => {
+    const byKey = areas.get(centre);
+    return area && byKey.size > 1 ? `${centre} ${spelling(byKey.get(key(area)))}` : centre;
+  });
+};
+
 // start: el año de la primera issue del grupo.
 export const createDataset = ({ start }) => {
   const base = Date.UTC(start, 0, 1);
@@ -96,6 +116,7 @@ export const createDataset = ({ start }) => {
   const resolutions = [], resolutionCount = new Map(), resolvers = new Map();
   const stepsByRow = [], actionsBy = new Map(), notesByRow = [];   // los pasos y las acciones, con el autor tal cual: la persona se sabe en build
   const spellings = [];   // por problema: cuántas veces se escribe de cada forma
+  const centres = [];   // por issue: [categoría de producto 1 sin «AYS », categoría de producto 2]
   const jira = [], keys = new Set(), spans = [];   // las claves Jira de cada issue (las cuentas de escalado se hacen en build)
   let total = 0, snapshot = 0, first = Infinity, last = -1;
 
@@ -117,11 +138,12 @@ export const createDataset = ({ start }) => {
     const resolution = own(i.resolution);
     resolutionCount.set(resolution, (resolutionCount.get(resolution) || 0) + 1);
     resolutions.push(resolution);
+    centres.push([i.centre, i.area]);
     const de = D.problem.id(problemKey(i.problem));
     if (de) { const w = spellings[de] || (spellings[de] = new Map()); w.set(i.problem, (w.get(i.problem) || 0) + 1); }
     const row = {
       id: i.id, rep: i.reported, res: i.resolved, lm: i.modified, st: D.status.id(i.status), rs: D.reason.id(i.reason), pr: D.prio.id(i.priority),
-      sv: D.svc.id(i.service), as: D.person.id(i.assignee), ce: D.centre.id(i.centre), op: D.op.id(i.operation), mo: D.module.id(i.module),
+      sv: D.svc.id(i.service), as: D.person.id(i.assignee), ce: 0 /* en build: centreNames */, op: D.op.id(i.operation), mo: D.module.id(i.module),
       k3: D.cat.id(i.category), sc: i.scope, fl: i.flags, vt: D.vtype.id(i.vendor.type), vp: D.vproj.id(i.vendor.project), vk: D.vkey.id(i.vendor.key), vn: D.vtext.id(i.vendorText),
       fr: i.first, ip: i.start, tA: i.time.queue, tI: i.time.work, tPc: i.time.client, tPv: i.time.vendor, tPo: i.time.other,
       nb: i.bounces, np: i.pendings, nC: i.clientPendings, pc: i.common, th: i.themes, su: own(i.title), de,
@@ -167,6 +189,7 @@ export const createDataset = ({ start }) => {
   const build = ({ file, generated, tickets = new Map(), jira: jiraMeta = null }) => {
     if (!cols.id.length) throw new DataError(`No hay incidencias del grupo ${GROUP} en los datos cargados.`);
     Object.assign(cols, escalations(tickets));
+    cols.ce = centreNames(centres).map((name) => D.centre.id(name));
     cols.rz = resolutions.map((z) => (z && resolutionCount.get(z) >= 4 ? D.resol.id(z) : 0));
     const logins = new Map(), byLogin = loginsOf(resolvers);
     for (const [login, name] of byLogin) logins.set(name, [...(logins.get(name) || []), login]);
