@@ -37,7 +37,7 @@
   padding: 56px 24px calc(var(--dock-h, 140px) + 16px); /* el final queda libre bajo el muelle */
   font: 15px/1.6 var(--font-ui); color: var(--text);
 }
-.cv-thread { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+.cv-thread { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; }
 .cv-row.cv-new { animation: cv-row-in .26s cubic-bezier(.2, .7, .2, 1) both; }
 @keyframes cv-row-in { from { opacity: 0; transform: translateY(8px); } }
 /* chat nuevo: «¿Por dónde empezamos?» en medio; en cuanto hay conversación, fuera */
@@ -46,9 +46,25 @@
 .cv.empty .cv-empty { display: block; }
 .cv.empty .cv-thread { display: none; }
 
-/* lo tuyo: a la derecha, en una burbuja discreta del color del fondo apagado */
+/* Las burbujas, como en un chat de móvil: lo tuyo a la derecha, en gris, y lo
+   que responde Copilot a la izquierda, en blanco con borde; cada una con su
+   pico arriba, hacia su lado. Lo demás (herramientas, tarjetas) va a la
+   izquierda, como lo de Copilot. */
+.cv-thread { gap: 14px; }
 .cv-user { display: flex; justify-content: flex-end; }
-.cv-bubble { max-width: 72%; padding: 10px 14px; background: color-mix(in srgb, var(--text) 6%, var(--bg)); }
+.cv-bubble, .cv-row > .cv-text, .cv-typing .cv-text {
+  position: relative; max-width: 78%; padding: 10px 14px; box-sizing: border-box;
+}
+.cv-bubble { background: color-mix(in srgb, var(--text) 8%, var(--bg)); border: 1px solid color-mix(in srgb, var(--text) 14%, var(--bg)); }
+.cv-row > .cv-text, .cv-typing .cv-text { width: fit-content; background: var(--surface); border: 1px solid var(--border); }
+/* el pico: dos triángulos, el del borde y el del relleno, a 10 px del borde de arriba */
+.cv-bubble::before, .cv-bubble::after, .cv-row > .cv-text::before, .cv-row > .cv-text::after, .cv-typing .cv-text::before, .cv-typing .cv-text::after {
+  content: ''; position: absolute; top: 10px; width: 0; height: 0; border: 7px solid transparent;
+}
+.cv-bubble::before { right: -8px; border-right: 0; border-left-color: color-mix(in srgb, var(--text) 14%, var(--bg)); }
+.cv-bubble::after { right: -6px; border-right: 0; border-left-color: color-mix(in srgb, var(--text) 8%, var(--bg)); }
+.cv-row > .cv-text::before, .cv-typing .cv-text::before { left: -8px; border-left: 0; border-right-color: var(--border); }
+.cv-row > .cv-text::after, .cv-typing .cv-text::after { left: -6px; border-left: 0; border-right-color: var(--surface); }
 .cv-user.pending .cv-bubble { opacity: .6; } /* enviado, aún sin el eco de Copilot */
 .cv-said { white-space: pre-wrap; overflow-wrap: anywhere; }
 .cv-files { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -56,9 +72,10 @@
 .cv-file { display: inline-flex; align-items: center; height: 28px; padding: 0 10px; font-size: 12.5px; color: var(--text); text-decoration: none; background: var(--surface); border: 1px solid var(--border); }
 .cv-file.img { height: auto; padding: 0; background: none; }
 .cv-file.img img { display: block; max-width: 240px; max-height: 180px; object-fit: cover; }
+/* las herramientas y las tarjetas, del lado de Copilot */
+.cv-row > .cv-tools, .cv-row > .cv-ask { max-width: 78%; }
 
-/* lo que responde Copilot: prosa, sin caja, a todo el ancho de la columna */
-.cv-row > .cv-text { max-width: 100%; }
+/* el Markdown de lo que responde */
 .cv-md > :first-child { margin-top: 0; }
 .cv-md > :last-child { margin-bottom: 0; }
 .cv-md p, .cv-md ul, .cv-md ol, .cv-md blockquote, .cv-md pre, .cv-md table { margin: 0 0 12px; }
@@ -69,12 +86,12 @@
 .cv-md strong { font-weight: 650; }
 .cv-md a { color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
 .cv-md code { font: 13px/1.5 var(--font-mono); padding: 1px 5px; background: color-mix(in srgb, var(--text) 7%, transparent); }
-.cv-md pre { padding: 12px 14px; background: var(--surface); border: 1px solid var(--border); overflow-x: auto; }
+.cv-md pre { padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); overflow-x: auto; }
 .cv-md pre code { padding: 0; background: none; font-size: 12.5px; }
 .cv-md blockquote { padding: 2px 14px; border-left: 2px solid var(--border); color: var(--text-low); }
 .cv-md table { border-collapse: collapse; display: block; overflow-x: auto; font-size: 13.5px; }
 .cv-md th, .cv-md td { padding: 6px 10px; border: 1px solid var(--border); text-align: left; }
-.cv-md th { background: var(--surface); font-weight: 600; }
+.cv-md th { background: var(--bg); font-weight: 600; }
 .cv-md hr { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
 
 /* las herramientas: una línea discreta que se despliega */
@@ -167,13 +184,13 @@ button.cv-opt:disabled:not(.picked) { opacity: .5; cursor: default; }
 .cv-auth.past::before, .cv-auth.past::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 
 /* el texto que está escribiendo: la respuesta a medias, con cursor; debajo del hilo, con su misma columna */
-.cv-typing { max-width: 760px; margin: 22px auto 0; }
+.cv-typing { max-width: 760px; margin: 14px auto 0; }
 .cv-typing[hidden] { display: none; }
 .cv-typing .cv-md > :last-child::after { content: ''; display: inline-block; width: 7px; height: 1em; margin-left: 3px; vertical-align: text-bottom; background: var(--text); animation: cv-blink 1s steps(2) infinite; }
 @keyframes cv-blink { to { opacity: 0; } }
 
 /* trabajando: tres puntos y, si hay algo que decir, una línea */
-.cv-busy { max-width: 760px; margin: 18px auto 0; display: flex; gap: 5px; padding-left: 2px; align-items: center; }
+.cv-busy { max-width: 760px; margin: 14px auto 0; display: flex; gap: 5px; padding-left: 2px; align-items: center; }
 .cv-busy-label { margin-left: 8px; font-size: 13px; color: var(--text-low); }
 .cv-busy-label:empty { display: none; }
 .cv-busy[hidden] { display: none; }
