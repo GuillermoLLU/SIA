@@ -752,9 +752,10 @@ body:not(.ready) .ai-hero-box { animation: ai-in 0.55s cubic-bezier(0.2, 0.7, 0.
 
 /* ── El aviso de que el agente arranca (ui/wait.js): un giro negro fino y una línea sutil al lado.
    En la portada del Chat va bajo el campo; en el chat de una issue, en el sitio del botón ── */
-.ai-wait { display: flex; align-items: center; justify-content: center; gap: 10px; font: 400 13px/1 var(--font-ui); color: var(--text-low); letter-spacing: .01em; animation: ai-in .4s ease .2s both; }
+.ai-wait { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; font: 500 13px/1 var(--font-ui); color: var(--text-low); letter-spacing: .04em; text-transform: uppercase; animation: ai-in .4s ease .2s both; }
 .ai-wait[hidden] { display: none; }
-.ai-wait-spin { flex: none; width: 16px; height: 16px; border: 2px solid color-mix(in srgb, var(--text) 18%, transparent); border-top-color: var(--text); border-radius: 50%; animation: spin .9s linear infinite; }
+/* el giro: un anillo negro fino con un cuarto abierto, que gira suave */
+.ai-wait-spin { flex: none; width: 44px; height: 44px; border: 3px solid var(--text); border-right-color: transparent; border-radius: 50%; animation: spin 1s cubic-bezier(.45, .05, .55, .95) infinite; }
 @media (prefers-reduced-motion: reduce) { .ai-wait { animation: none; } .ai-hero-host.waiting :is(.ai-hero-hi, .ai-ask) { transition: none; } }
 
 /* El arranque (app/intro.js), por fases: mientras `booting`, el dock espera abajo, fuera de la
