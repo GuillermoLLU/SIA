@@ -37,7 +37,7 @@ export const createChatBridge = ({ launchers, workspace, env, issues, accessible
     const id = `s${++seq}`;
     const base = currentBase();
     const picked = pickProjects((await accessibleProjects(base)).map((p) => p.id), projects);
-    const first = issue ? { text: issueContext(issue), display: issueBrief(issue) } : prompt; // los datos de la issue van al modelo; en la conversación, una línea
+    const first = issue ? { text: issueContext(issue), display: issueBrief(issue) } : (prompt ? { text: prompt } : null); // los datos de la issue van al modelo; en la conversación, una línea
     const { cmd, args, mcp } = launchers.prepare(picked, base);
     const { env: chatEnv, args: more } = launchers.envFor(env());
     const chat = spawnChat({ cmd, args: [...args, ...more], cwd: workspace.modeDirFor(mode, base), env: chatEnv, sessionId: newId(), mcp });

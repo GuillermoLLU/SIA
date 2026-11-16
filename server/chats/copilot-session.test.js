@@ -91,7 +91,7 @@ test('sin sesión de Copilot, lo dice y no abre nada', async () => {
 test('el primer mensaje va nada más estar lista; lo escrito se manda en cola y, con un turno en marcha, entra en él', async () => {
   const f = fakeCopilot(base());
   const native = start(f);
-  wire(native, { firstSay: 'hola' });
+  wire(native, { firstSay: { text: 'hola' } });
   await native.ready;
   await tick();
   assert.deepEqual(f.calls('session.send')[0].params, { sessionId: 'S1', prompt: 'hola', mode: 'enqueue' });

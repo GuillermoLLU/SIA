@@ -188,7 +188,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     if (keys) {
       keys.style.maxHeight = `${wide ? keys.offsetHeight : keys.scrollHeight}px`;
       if (wide) requestAnimationFrame(() => { keys.style.maxHeight = '0px'; });
-      else keys.addEventListener('transitionend', () => { keys.style.maxHeight = ''; }, { once: true });
+      else keys.addEventListener('transitionend', function done(e) { if (e.propertyName !== 'max-height') return; keys.style.maxHeight = ''; keys.removeEventListener('transitionend', done); });
     }
     page.classList.toggle('chat-wide', wide);
     const b = page.querySelector('[data-chat-expand]');

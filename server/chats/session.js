@@ -10,8 +10,8 @@
 //   out(m)          → a quien mira el chat
 //   meta            → { model, effort, modelVia… } de la sesión (se lee)
 //   onMeta(patch)   → el modelo o el esfuerzo cambió: guardar y avisar
-//   firstSay        → el primer mensaje: la pregunta de la portada, o { text, display }
-//                     (los datos de la issue para el modelo y la línea que se ve), o null
+//   firstSay        → el primer mensaje, { text, display? } (la pregunta de la portada; o los
+//                     datos de la issue para el modelo y la línea que se ve), o null
 //   authStatus()    → Promise de la cuenta de Copilot ({ ok, loggedIn }: providers/copilot-auth.js)
 import { looksLikeAuth, authItem, authStateItem } from './auth.js';
 
@@ -106,6 +106,5 @@ export const wireNative = (n, { out, meta, onMeta, firstSay = null, authStatus =
     n.asks.delete(requestId);
     out({ type: 'ask-off', requestId });
   };
-  if (typeof firstSay === 'string') n.say(firstSay);
-  else if (firstSay?.text) sayNow(firstSay.text, firstSay.display || null);
+  if (firstSay?.text) sayNow(firstSay.text, firstSay.display || null);
 };

@@ -127,7 +127,7 @@ test('decir algo marca ocupado y va a la sesión; un comando lo aplica SIA sin t
 
 test('el primer mensaje se manda al cablear', () => {
   const { n, sent } = fakeNative();
-  wire(n, { firstSay: 'Incidencia INC1…' });
+  wire(n, { firstSay: { text: 'Incidencia INC1…' } });
   assert.deepEqual(sent, ['Incidencia INC1…']);
   assert.equal(n.busy, true);
 });

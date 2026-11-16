@@ -35,7 +35,7 @@ export const mountIssueChat = (host, { issue, wsUrl, loadProjects, api, dialogs,
     if (launching) { chooser.classList.add('leaving'); setTimeout(() => { chooser.hidden = true; }, CHOOSER_OUT_MS); } // la conversación entra mientras el botón se va
     else chooser.hidden = true;
     convHost.hidden = false;
-    host.dispatchEvent(new CustomEvent('chat-open', { bubbles: true }));
+    host.dispatchEvent(new CustomEvent('chat-open'));
     view = createConversationView({
       host: convHost, fileUrl,
       onSend: (text) => sendOn(ws, msg.say(text)),

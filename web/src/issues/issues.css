@@ -278,7 +278,6 @@
 .iss-chat-start.leaving { position: absolute; inset: 0; opacity: 0; pointer-events: none; } /* fuera del flujo: la conversación ocupa ya todo el alto */
 @media (prefers-reduced-motion: reduce) { .iss-keys, .iss-keys-fold, .iss-keys-grid, .iss-work, .iss-work-main, .iss-chat-start { transition: none; } .iss-keys-sum, .iss-keys-title { animation: none; } }
 /* la conversación del chat de la issue (issue-chat.js), de borde a borde del cuadro */
-.iss-chat .iss-card-h { flex: none; padding: 14px 20px 12px; border-bottom: 1px solid var(--border); }
 .iss-chat-conv { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .iss-chat-conv[hidden] { display: none; }
 .iss-chat-conv .cv { padding: 48px 16px calc(var(--dock-h, 140px) + 12px); } /* arriba, el sitio del botón de ampliar */
