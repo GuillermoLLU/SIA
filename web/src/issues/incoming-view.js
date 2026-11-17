@@ -60,14 +60,14 @@ export const createIncoming = ({ root, api, toast }) => {
     modal = document.body.lastElementChild;
     modal.dataset.issue = got.issue.id;
     wireModal(modal);
-    modal.querySelector('#inc-f-comment').focus();
+    modal.querySelector('#inc-f-phone').focus();
     offEscape = onEscape(close);
   };
   const save = async (form) => {
     const values = Object.fromEntries(new FormData(form));
     const err = form.querySelector('.iss-act-err');
     const btn = form.querySelector('[type=submit]');
-    if (!incomingReady(values)) { err.textContent = values.comment?.trim() ? 'Ese teléfono no parece un número: déjalo vacío o corrígelo.' : 'Falta: lo que se habló.'; err.hidden = false; return; }
+    if (!incomingReady(values)) { err.textContent = !String(values.phone || '').trim() ? 'Falta: el teléfono.' : !values.comment?.trim() ? 'Falta: lo que se habló.' : 'Ese teléfono no parece un número.'; err.hidden = false; return; }
     btn.disabled = true;
     const id = modal.dataset.issue;
     try {

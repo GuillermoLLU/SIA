@@ -47,8 +47,8 @@ export const hitsHtml = (results, q, active = 0) => {
     </button>`).join('');
 };
 
-// ¿Se puede guardar? Lo que se habló, siempre; el teléfono, si se pone, que lo sea.
-export const incomingReady = ({ phone = '', comment = '' } = {}) => !!String(comment).trim() && (!String(phone).trim() || isPhone(phone));
+// ¿Se puede guardar? El teléfono desde el que llaman y lo que se habló.
+export const incomingReady = ({ phone = '', comment = '' } = {}) => isPhone(phone) && !!String(comment).trim();
 
 // Las últimas notas del Seguimiento (de Remedy y de SIA, llamadas incluidas) que
 // se enseñan en la ventana, plegadas → { recent, total }
@@ -86,9 +86,8 @@ export const incomingModalHtml = ({ issue: i, recent = [], total = 0, now = new 
        ${recent.length ? `<ol class="nt-list inc-recent" data-incoming-recent>${recentHtml(recent, { now })}</ol>` : '<p class="inc-none">Todavía no hay notas.</p>'}
       </div>
       <div class="inc-call">
-       <label class="iss-field inc-phone" for="inc-f-phone"><span>Teléfono <i>(opcional)</i></span><input id="inc-f-phone" name="phone" type="tel" inputmode="tel" autocomplete="off" placeholder="El número desde el que llaman" /></label>
+       <label class="iss-field inc-phone" for="inc-f-phone"><span>Teléfono</span><input id="inc-f-phone" name="phone" type="tel" inputmode="tel" autocomplete="off" placeholder="El número desde el que llaman" /></label>
        <label class="iss-field inc-said-now" for="inc-f-comment"><span>Lo que se habló</span><textarea id="inc-f-comment" name="comment" rows="4" placeholder="Qué pide el centro y qué le has dicho…"></textarea></label>
-       <p class="iss-act-note">Solo queda registrada la llamada en el Seguimiento de la issue: no se resuelve, no se coge ni se mueve. Aún no llega a Remedy: irá por SIGLO cuando lo conectemos.</p>
        <p class="iss-act-err" hidden></p>
        <footer><button type="button" class="lab-btn" data-incoming-cancel>Cancelar</button><button type="submit" class="lab-btn primary" disabled>Guardar llamada</button></footer>
       </div>

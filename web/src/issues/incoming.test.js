@@ -30,9 +30,9 @@ test('los resultados: el número con lo buscado resaltado, el título y centro, 
   assert.equal(hitsHtml([], 'INC 9999'), '<p class="inc-none">Ninguna incidencia con «9999» en la foto.</p>');
 });
 
-test('se guarda con lo que se habló; el teléfono es opcional, pero si se pone, que lo sea', () => {
-  assert.equal(incomingReady({ comment: 'Pregunta cuándo estará.' }), true);
+test('se guarda con el teléfono desde el que llaman y lo que se habló', () => {
   assert.equal(incomingReady({ phone: '+34 600 000 000', comment: 'Pregunta.' }), true);
+  assert.equal(incomingReady({ comment: 'Pregunta cuándo estará.' }), false, 'sin teléfono, no');
   assert.equal(incomingReady({ phone: '12', comment: 'Pregunta.' }), false);
   assert.equal(incomingReady({ phone: '+34 600 000 000', comment: '  ' }), false);
   assert.equal(incomingReady(), false);
@@ -66,7 +66,8 @@ test('la ventana: a la izquierda el detalle (escapado); a la derecha sus última
   assert.doesNotMatch(html, / open"/, 'plegadas');
   assert.match(html, /name="phone" type="tel"/);
   assert.match(html, /<textarea id="inc-f-comment" name="comment"/);
-  assert.match(html, /no se resuelve, no se coge ni se mueve/);
+  assert.match(html, /<span>Teléfono<\/span><input id="inc-f-phone"/);
+  assert.doesNotMatch(html, /opcional|iss-act-note/);
   assert.match(html, /<button type="submit" class="lab-btn primary" disabled>Guardar llamada<\/button>/);
   assert.doesNotMatch(html, /data-act=|Resolver|Escalar|Traspasar/, 'nada más que registrar la llamada');
 });
