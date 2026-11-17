@@ -262,7 +262,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       const fol = t.closest('[data-follow]');
       if (fol) { follow = fol.dataset.follow; return renderDesk(); }
       // Coger o reasignar el escalado de otro (de momento, de prueba: la base aún no mueve la issue de otro)
-      // asignarse el escalado de otro, desde Seguimiento · Equipo
+      // asumir el escalado de otro, desde Seguimiento · Equipo
       const grab = t.closest('[data-esc-take]');
       if (grab) {
         const e = data.escalations.items.find((x) => x.id === grab.dataset.escTake);
@@ -332,17 +332,17 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     toast?.(`${mode === 'link' ? `Unida a ${target}` : `Escalada a ${target}${rootCause ? ' por la causa raíz' : ''}`}. De momento no sale hacia Remedy (falta conectar SIGLO).`);
   } });
 
-  // Asignarse una issue de otra persona (o de nadie en SIA): se confirma y pasa a mi mesa (la base mira
+  // Asumir una issue de otra persona (o de nadie en SIA): se confirma y pasa a mi mesa (la base mira
   // el origen). → true si se la ha quedado.
   const takeIssue = async (id, text, owner) => {
-    const ok = !dialogs || await dialogs.open({ title: 'Asignármela', centered: true, okLabel: 'Asignármela', bodyHTML: takeDialogHtml(id, text, owner) });
+    const ok = !dialogs || await dialogs.open({ title: 'Asumir la issue', centered: true, okLabel: 'Asumir', bodyHTML: takeDialogHtml(id, text, owner) });
     if (!ok) return false;
     await api.take(id);
     return true;
   };
 
   const openAction = async (key) => {
-    // la escalada de otra persona, abierta: me la asigno y se vuelve a abrir, ya mía
+    // la escalada de otra persona, abierta: la asumo y se vuelve a abrir, ya mía
     if (key === 'take') {
       if (await takeIssue(opened, issue?.text, issue?.claimedBy?.name || issue?.assignee)) { await openIssue(opened); toast?.('Ya está en tu mesa.'); }
       return;

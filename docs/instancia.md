@@ -90,7 +90,7 @@ asignar o traspasar, solo se puede elegir a quien lo tiene, y la base lo vuelve 
 comprobar (`platform.require_origin`, que rechaza con «Esa persona no tiene el
 conocimiento de SGA.»).
 
-Desde Issues, una persona puede **asignarse** una issue que tiene otra (o nadie en
+Desde Issues, una persona puede **asumir** una issue que tiene otra (o nadie en
 SIA), por ejemplo la escalada de un compañero de vacaciones: pasa a su mesa como
 cogida, en el histórico queda de quién la tomó (`taken`) y en las métricas cuenta
 como recibida para ella y como entregada para quien la tenía

@@ -16,7 +16,7 @@ export const handed = (t) => (t ? `<span class="iss-handed"><span class="iss-tag
 // Una pendiente de terceros: los días sin moverse, bien a la vista y con su color (format.js stillLevel).
 // Si su Jira ya está resuelto, lo que toca es cerrarla.
 const still = (i, now) => {
-  if (jiraDone(i)) return `<span class="iss-still done" title="Su Jira está resuelto${i.jira.at ? ` desde el ${when(i.jira.at)}` : ''}: se cierra sola (en Remedy, cuando conectemos SIGLO)"><b>Cerrada</b> Jira resuelto</span>`;
+  if (jiraDone(i)) return `<span class="iss-still done" title="Su Jira está resuelto${i.jira.at ? ` desde el ${when(i.jira.at)}` : ''}: se cierra sola (en Remedy, cuando conectemos SIGLO)"><b>Cerrada</b> · Jira resuelto</span>`;
   const s = stillInfo(i, now);
   return `<span class="iss-still ${s.level}" title="Sin moverse desde el ${when(i.modified)}"><b>${s.label}</b> sin moverse</span>`;
 };
@@ -37,12 +37,12 @@ export const item = (i, key, now) => {
   </button>`;
 };
 
-// Un escalado del equipo: la fila y, debajo, lo que se puede hacer con él. La de otro me la
-// asigno (pasa a mi mesa) o se reasigna; el Jira se abre si hay base de Jira en Conexiones.
+// Un escalado del equipo: la fila y, bajo sus días, lo que se puede hacer con él, solo al pasar por
+// encima. La de otro la asumo (pasa a mi mesa) o se reasigna; el Jira se abre si hay base de Jira.
 export const teamItem = (e, now) => {
   const acts = [
-    e.jira.url ? `<a href="${esc(e.jira.url)}" target="_blank" rel="noopener">Abrir ${esc(e.jira.key)} ↗</a>` : '',
-    e.mine ? '' : `<button type="button" data-esc-take="${esc(e.id)}">Asignármela</button><button type="button" data-esc-reassign="${esc(e.id)}">Reasignar</button>`,
+    e.jira.url ? `<a href="${esc(e.jira.url)}" target="_blank" rel="noopener" title="Abrir ${esc(e.jira.key)} en Jira">Jira ↗</a>` : '',
+    e.mine ? '' : `<button type="button" data-esc-take="${esc(e.id)}">Asumir</button><button type="button" data-esc-reassign="${esc(e.id)}">Reasignar</button>`,
   ].join('');
   return `<div class="iss-esc-row">${item(e, 'team', now)}${acts ? `<div class="iss-esc-acts">${acts}</div>` : ''}</div>`;
 };
