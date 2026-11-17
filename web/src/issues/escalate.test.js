@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseTickets, ticketCheck, jiraPriority, n3Subject, stepMissing, stepWarning, resumeStep, channelOf, targetOf } from './escalate.js';
+import { parseTickets, ticketCheck, jiraPriority, n3Subject, stepMissing, stepWarning, resumeStep, targetOf, minimumsOf, checkedMins, resultTicket, STEPS } from './escalate.js';
 import { DESTINATIONS } from './escalate-mock.js';
 
 const dest = (id) => DESTINATIONS.find((d) => d.id === id);
@@ -26,16 +26,16 @@ test('la prioridad del Jira y el asunto del chat de N3', () => {
   assert.equal(n3Subject({ id: 'INC000027698079', center: '100497' }, dest('sisupac')), 'N3 - "SISUPAC" - INC000027698079 - 100497');
 });
 
-const missing = (n, v) => stepMissing(n, { mode: 'escalate', ...v }, DESTINATIONS);
+const ISSUE = { id: 'INC000027698079', priority: 'MEDIUM', center: '100497' };
+const CTX = { dests: DESTINATIONS, issue: ISSUE };
+const missing = (n, v) => stepMissing(n, { mode: 'escalate', ...v }, CTX);
 
-test('paso 1: sin destino no se sigue (TC-09); fuera del mapa, con su nombre', () => {
-  assert.deepEqual(missing(1, {}), { field: 'dest', text: 'Elige el equipo para seguir' });
-  assert.deepEqual(missing(1, { dest: 'other' }), { field: 'destOther', text: 'Escribe el equipo para seguir' });
-  assert.equal(missing(1, { dest: 'other', destOther: 'Equipo X' }), null);
-  assert.equal(missing(1, { dest: 'sisupac' }), null);
+test('cinco pasos: primero se busca un ticket abierto y al final, el resumen', () => {
+  assert.deepEqual(STEPS.map((s) => s.title), ['Ticket abierto', 'A quién', 'Motivo', 'Requisitos', 'Resumen']);
 });
 
-test('paso 1 al unir: a uno de la lista o a otro, siempre un ticket válido (TC-02)', () => {
+test('paso 1: sin ticket se sigue a escalar; al unir, un ticket válido (TC-02)', () => {
+  assert.equal(missing(1, {}), null);   // «Ninguno: escalar»
   assert.deepEqual(missing(1, { mode: 'link' }), { field: 'linked', text: 'Elige el ticket para seguir' });
   assert.equal(missing(1, { mode: 'link', linked: 'SISUPAC-9211' }), null);
   assert.deepEqual(missing(1, { mode: 'link', linked: 'other', linkedOther: 'MOCA' }), { field: 'linkedOther', text: 'Escribe un ticket válido para seguir' });
@@ -43,45 +43,65 @@ test('paso 1 al unir: a uno de la lista o a otro, siempre un ticket válido (TC-
   assert.equal(targetOf({ mode: 'link', linked: 'other', linkedOther: 'ITD: ERA-4170' }, DESTINATIONS), 'ERA-4170');
 });
 
-test('pasos 2 y 3: qué pasa siempre; la evidencia, solo si el destino no deja rastro en una herramienta (TC-10)', () => {
-  assert.equal(missing(2, {}).field, 'reason');
-  assert.equal(missing(2, { reason: 'Timeouts' }), null);
-  assert.equal(missing(3, { dest: 'sisupac' }), null);
-  assert.equal(missing(3, { dest: 'maestros' }), null);   // IOP abre su incidencia de Remedy
-  for (const d of ['operaciones', 'as400', 'other']) assert.equal(missing(3, { dest: d }).field, 'sent');
-  assert.equal(missing(3, { dest: 'operaciones', sent: 'Correo de las 10:12' }), null);
-  assert.equal(missing(4, {}), null);
+test('paso 2: sin destino no se sigue (TC-09); fuera del mapa, con su nombre', () => {
+  assert.deepEqual(missing(2, {}), { field: 'dest', text: 'Elige el equipo para seguir' });
+  assert.deepEqual(missing(2, { dest: 'other' }), { field: 'destOther', text: 'Escribe el equipo para seguir' });
+  assert.equal(missing(2, { dest: 'other', destOther: 'Equipo X' }), null);
+  assert.equal(missing(2, { dest: 'sisupac' }), null);
+});
+
+test('paso 3: el motivo, siempre', () => {
+  assert.equal(missing(3, {}).field, 'reason');
+  assert.equal(missing(3, { reason: 'Timeouts' }), null);
+});
+
+test('paso 4: lo mínimo del destino bloquea, salvo lo que es «si aplica»; la evidencia, si no queda rastro (TC-10)', () => {
+  assert.deepEqual(minimumsOf(ISSUE, dest('sisupac')).map((m) => [m.key, m.required]), [['form', true], ['chat', false], ['logs', true]]);
+  assert.deepEqual(minimumsOf(ISSUE, dest('sisupac')).map((m) => m.title), ['Formulario de SIGLO', 'Chat N3', 'Logs']);
+  assert.equal(minimumsOf(ISSUE, dest('sisupac'))[1].subject, 'N3 - "SISUPAC" - INC000027698079 - 100497');   // el asunto, para copiarlo
+  assert.deepEqual(minimumsOf(ISSUE, dest('returns')), []);   // solo N3 de desarrollo, de momento
+  assert.deepEqual(checkedMins({ mins: 'form,logs' }), ['form', 'logs']);
+  assert.deepEqual(checkedMins({}), []);
+  assert.deepEqual(missing(4, { dest: 'sisupac' }), { field: 'mins', text: 'Confirma lo mínimo para seguir' });
+  assert.deepEqual(missing(4, { dest: 'sisupac', mins: 'form' }), { field: 'mins', text: 'Confirma lo mínimo para seguir' });
+  assert.equal(missing(4, { dest: 'sisupac', mins: 'form,logs' }), null);   // sin el chat: no hubo llamada
+  assert.equal(missing(4, { dest: 'maestros' }), null);   // IOP abre su incidencia de Remedy
+  for (const d of ['operaciones', 'as400', 'other']) assert.equal(missing(4, { dest: d }).field, 'sent');
+  assert.equal(missing(4, { dest: 'operaciones', sent: 'Correo de las 10:12' }), null);
+  assert.equal(missing(5, {}), null);
 });
 
 test('el borrador se retoma en su paso si los de antes siguen completos (TC-04); al unir, en el 1', () => {
-  assert.equal(resumeStep(null, DESTINATIONS), 1);
-  assert.equal(resumeStep({ mode: 'escalate', dest: 'sisupac', reason: 'x', step: '3' }, DESTINATIONS), 3);
-  assert.equal(resumeStep({ mode: 'escalate', dest: 'sisupac', reason: '', step: 4 }, DESTINATIONS), 2);
-  assert.equal(resumeStep({ mode: 'link', linked: 'SISUPAC-9211', step: 3 }, DESTINATIONS), 1);
+  assert.equal(resumeStep(null, CTX), 1);
+  assert.equal(resumeStep({ mode: 'escalate', dest: 'sisupac', reason: 'x', step: '4' }, CTX), 4);
+  assert.equal(resumeStep({ mode: 'escalate', dest: 'sisupac', reason: 'x', step: 5 }, CTX), 4);   // falta lo mínimo
+  assert.equal(resumeStep({ mode: 'escalate', dest: 'sisupac', reason: '', step: 5 }, CTX), 3);
+  assert.equal(resumeStep({ mode: 'link', linked: 'SISUPAC-9211', step: 3 }, CTX), 1);
 });
 
 test('avisos que se pueden pasar por alto: se sigue, pero avisando, como en Resolver', () => {
-  const warn = (n, v, o = {}) => stepWarning(n, { mode: 'escalate', ...v }, { dests: DESTINATIONS, issue: { priority: 'MEDIUM' }, background: { text: 'Hay un Jira abierto: sisupac-9211, mismo síntoma.' }, ...o });
+  const warn = (n, v, o = {}) => stepWarning(n, { mode: 'escalate', ...v }, { ...CTX, background: { text: 'Hay un Jira abierto: sisupac-9211, mismo síntoma.' }, ...o });
   // unir: los antecedentes tienen que nombrar el ticket (da igual mayúsculas o prefijos)
   assert.equal(warn(1, { mode: 'link', linked: 'SISUPAC-9211' }), null);
   assert.match(warn(1, { mode: 'link', linked: 'other', linkedOther: 'ITD: ERA-4170' }).text, /no aparece ERA-4170/);
   assert.equal(warn(1, { mode: 'link', linked: 'SISUPAC-9211' }, { background: null }).ok, 'Unir igualmente');
-  assert.equal(warn(1, { dest: 'sisupac' }), null);   // escalar: el paso 1 no avisa
-  // qué pasa, muy breve
-  assert.equal(warn(2, { reason: 'Va lento' }).title, 'La descripción es muy breve');
-  assert.equal(warn(2, { reason: 'x'.repeat(80) }), null);
+  assert.equal(warn(1, {}), null);   // seguir sin ticket no avisa
+  // el motivo, muy breve
+  assert.equal(warn(3, { reason: 'Va lento' }).title, 'El motivo es muy breve');
+  assert.equal(warn(3, { reason: 'x'.repeat(80) }), null);
   // la prioridad del Jira que no toca (la auditoría resta −1)
-  assert.match(warn(3, { dest: 'sisupac', jiraPriority: 'BLOCKER' }).text, /le toca «Importante» y has elegido «Bloqueo»/);
-  assert.equal(warn(3, { dest: 'sisupac', jiraPriority: 'MEDIUM' }), null);
-  assert.equal(warn(3, { dest: 'maestros', jiraPriority: 'BLOCKER' }), null);   // no abre Jira: no cuenta
+  assert.match(warn(4, { dest: 'sisupac', jiraPriority: 'BLOCKER' }).text, /le toca «Importante» y has elegido «Bloqueo»/);
+  assert.equal(warn(4, { dest: 'sisupac', jiraPriority: 'MEDIUM' }), null);
+  assert.equal(warn(4, { dest: 'maestros', jiraPriority: 'BLOCKER' }), null);   // no abre Jira: no cuenta
   // la evidencia, muy breve, cuando es la única prueba
-  assert.equal(warn(3, { dest: 'operaciones', sent: 'Correo' }).title, 'La evidencia es muy breve');
-  assert.equal(warn(3, { dest: 'operaciones', sent: 'Correo a operaciones@ a las 10:12 con los logs del proceso y la captura del error de la mesa 3.' }), null);
+  assert.equal(warn(4, { dest: 'operaciones', sent: 'Correo' }).title, 'La evidencia es muy breve');
+  assert.equal(warn(4, { dest: 'operaciones', sent: 'Correo a operaciones@ a las 10:12 con los logs del proceso y la captura del error de la mesa 3.' }), null);
 });
 
-test('por dónde va cada destino, en una línea', () => {
-  assert.equal(channelOf(dest('sisupac')), 'Por SIGLO · abre un Jira de SISUPAC');
-  assert.equal(channelOf(dest('maestros')), 'Por IOP · abre una incidencia de Remedy');
-  assert.equal(channelOf(dest('operaciones')), 'Por correo · sin ticket');
-  assert.equal(channelOf(null), 'Fuera del mapa · sin ticket');
+test('el ticket que queda al acabar: el elegido al unir; al escalar, de ejemplo hasta conectar Jira', () => {
+  assert.deepEqual(resultTicket({ mode: 'link', linked: 'other', linkedOther: 'itd: era-4170' }, DESTINATIONS), { ticket: 'ERA-4170', sample: false });
+  assert.deepEqual(resultTicket({ mode: 'escalate', dest: 'sisupac' }, DESTINATIONS), { ticket: 'SISUPAC-0000', sample: true });
+  assert.deepEqual(resultTicket({ mode: 'escalate', dest: 'maestros' }, DESTINATIONS), { ticket: 'INC000000000000', sample: true });
+  assert.equal(resultTicket({ mode: 'escalate', dest: 'operaciones' }, DESTINATIONS), null);   // por correo: sin ticket
+  assert.equal(resultTicket({ mode: 'escalate', dest: 'other', destOther: 'X' }, DESTINATIONS), null);
 });

@@ -284,7 +284,7 @@ test('abrir Escalar: las notas que pide y las que faltan; el borrador va y vuelv
   assert.equal((await call('GET', ['INC8', 'escalate'])).body.check.analysis.text, 'hecho');
   assert.equal((await call('POST', ['INC4', 'escalate'], ESC)).status, 409);
   assert.deepEqual((await call('PUT', ['INC7', 'escalate', 'draft'], ESC)).body, { at: 'at' });
-  assert.deepEqual((await call('GET', ['INC7', 'escalate'])).body.draft, { mode: 'escalate', dest: 'sisupac', destOther: '', linked: '', linkedOther: '', reason: 'Timeouts', jiraPriority: '', sent: '', step: 4 });
+  assert.deepEqual((await call('GET', ['INC7', 'escalate'])).body.draft, { mode: 'escalate', dest: 'sisupac', destOther: '', linked: '', linkedOther: '', reason: 'Timeouts', jiraPriority: '', sent: '', mins: '', step: 4 });
   assert.equal((await call('GET', ['INC7', 'resolve'])).body.draft, null);   // el de Resolver es otro
   assert.equal((await call('PUT', ['INC7', 'escalate', 'draft'], { step: '9' })).status, 400);
   assert.equal((await call('POST', ['INC7', 'escalate'], { ...ESC, reason: ' ' })).status, 400);

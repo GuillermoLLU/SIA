@@ -28,8 +28,8 @@ test('en altas y críticas, también la evaluación de mayor incidente', () => {
 });
 
 test('el borrador: solo texto y un modo y un paso conocidos', () => {
-  assert.deepEqual(cleanEscalate({ dest: 'era', step: '3', extra: 'x' }), { mode: 'escalate', dest: 'era', destOther: '', linked: '', linkedOther: '', reason: '', jiraPriority: '', sent: '', step: 3 });
-  for (const bad of [null, [], { mode: 'otro' }, { step: '5' }, { reason: 7 }]) assert.throws(() => cleanEscalate(bad), { status: 400 });
+  assert.deepEqual(cleanEscalate({ dest: 'era', step: '5', mins: 'form,logs', extra: 'x' }), { mode: 'escalate', dest: 'era', destOther: '', linked: '', linkedOther: '', reason: '', jiraPriority: '', sent: '', mins: 'form,logs', step: 5 });
+  for (const bad of [null, [], { mode: 'otro' }, { step: '6' }, { reason: 7 }, { mins: ['form'] }]) assert.throws(() => cleanEscalate(bad), { status: 400 });
   assert.throws(() => cleanEscalate({ reason: 'x'.repeat(20_001) }), /pasa de/);
 });
 

@@ -28,9 +28,10 @@ export const escalateCheck = (issue) => {
 export const ESCALABLE = new Set(['ASSIGNED', 'IN_PROGRESS', 'RESOLVED']);
 
 // Lo que escribe el técnico (escalate-form.js), todo texto, y el paso en el que va.
-const FIELDS = ['dest', 'destOther', 'linked', 'linkedOther', 'reason', 'jiraPriority', 'sent'];
+// mins: lo mínimo del destino que ha confirmado, separado por comas.
+const FIELDS = ['dest', 'destOther', 'linked', 'linkedOther', 'reason', 'jiraPriority', 'sent', 'mins'];
 const MODES = ['escalate', 'link'];
-const STEPS = [1, 2, 3, 4];
+const STEPS = [1, 2, 3, 4, 5];
 
 // body del formulario → { mode, …FIELDS, step }. Lo que no cuadra se rechaza, como en Resolver.
 export const cleanEscalate = (body) => {
