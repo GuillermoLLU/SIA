@@ -11,6 +11,7 @@ import { resolveDraft, checkResolve, OPEN } from './resolve.js';
 import { timeline } from './timeline.js';
 import { editProblem } from './notes.js';
 import { forGroups, originArg } from './origin.js';
+import { searchIssues } from './search.js';
 
 const WEEKS = 12;
 
@@ -92,8 +93,8 @@ export const createIssuesService = ({ source, platform, drafts, now = () => new 
     // con el origen de la issue: la base solo la deja pasar a quien tiene ese conocimiento
     transfer: ({ accessToken: jwt }, id, { to, comment }) =>
       platform.rpc(jwt, 'platform_transfer_issue', { p_issue: id, p_to: to, p_comment: comment, ...originArg(source.load().issues, id) }),
-    // una nota interna del equipo → su id
-    addNote: ({ accessToken: jwt }, id, body) => platform.rpc(jwt, 'platform_add_issue_note', { p_issue: id, p_body: body }),
+    // una nota (privada, interna o pública, con su etiqueta o sin ella: notes.js) → su id
+    addNote: ({ accessToken: jwt }, id, { body, visibility, tag }) => platform.rpc(jwt, 'platform_add_issue_note', { p_issue: id, p_body: body, p_visibility: visibility, p_tag: tag }),
     // editar una nota propia, dentro de su plazo (notes.js) → { ok } | { error }
     async editNote({ user, accessToken: jwt }, id, noteId, body) {
       const notes = await platform.rpc(jwt, 'platform_issue_notes', { p_issue: id });
@@ -115,6 +116,11 @@ export const createIssuesService = ({ source, platform, drafts, now = () => new 
         sameCenter: issue.center ? issues.filter((i) => i.center === issue.center && i.id !== id).map(brief) : [],
         timeline: await timelineOf(jwt, id),
       };
+    },
+    // buscar issues por su número, sea de quien sea (atender la llamada de un centro, search.js)
+    async search({ accessToken: jwt }, q) {
+      const { issues, claims } = await snapshot(jwt);
+      return searchIssues(issues, claims, q);
     },
     // una issue de la foto, por id (el chat de una issue)
     find: (id) => source.load().issues.find((i) => i.id === id) || null,

@@ -8,6 +8,8 @@
 //                         (timeline: su histórico en SIA, movimientos y notas por orden)
 //   GET  /:id/timeline  → { timeline }
 //   GET  /teammates     → { teammates: [{ id, name, groups }] }  (el equipo de Issues, sin mí; groups: sus proyectos)
+//   GET  /search?q=     → { results }  (por su número de Remedy, sea de quien sea: atender la
+//                         llamada de un centro; search.js)
 //   POST /next          → { id }  (en el orden de la regla de la persona; null: no queda ninguna libre;
 //                                409 con el tope de en curso)
 //   POST /:id/release   → { ok }  (devolverla a la cola)
@@ -21,13 +23,15 @@
 //   GET  /:id/draft/file/:n → { name, type, data (base64) }
 //   DELETE /:id/draft/file/:n → { at }
 //   POST /:id/transfer  { to, comment } → { ok }  (a un compañero; el motivo, obligatorio, queda como nota)
-//   POST /:id/notes     { body } → { id }  (una nota interna del equipo)
+//   POST /:id/notes     { body, visibility?, tag? } → { id }  (una nota: privada, interna
+//                       —la de serie— o pública, con una etiqueta del método opcional; notes.js)
 //   PUT  /:id/notes/:nota { body } → { ok }  (editar la propia, hasta 24 h después; si no, 403)
 //   POST /csv?name=<fichero>  cuerpo: el CSV de la consulta, tal cual → { meta }
 //                         (la foto de Issues; se queda en este ordenador, source.js)
 import { failed } from '../shared/http.js';
 import { isCsvName } from '../shared/csv.js';
 import { isUuid } from '../shared/ids.js';
+import { noteInput } from './notes.js';
 
 const ISSUE_ID = /^INC\d+$/;
 
@@ -41,6 +45,7 @@ export const issuesRoutes = (issues, { json, readBody }) => async (req, res, [id
     }
     if (!id && req.method === 'GET') return json(res, 200, await issues.desk(who));
     if (id === 'teammates' && !action && req.method === 'GET') return json(res, 200, { teammates: await issues.teammates(who) });
+    if (id === 'search' && !action && req.method === 'GET') return json(res, 200, { results: await issues.search(who, query.get('q') || '') });
     if (id === 'next' && !action && req.method === 'POST') return json(res, 200, { id: await issues.next(who) });
     if (!ISSUE_ID.test(id || '')) return json(res, 404, { error: 'No existe.' });
     if (action === 'release' && req.method === 'POST') { await issues.release(who, id); return json(res, 200, { ok: true }); }
@@ -67,9 +72,9 @@ export const issuesRoutes = (issues, { json, readBody }) => async (req, res, [id
       return json(res, 200, { ok: true });
     }
     if (action === 'notes' && req.method === 'POST') {
-      const { body } = await readBody(req);
-      if (typeof body !== 'string' || !body.trim()) return json(res, 400, { error: 'Escribe la nota.' });
-      return json(res, 200, { id: await issues.addNote(who, id, body.trim()) });
+      const note = noteInput(await readBody(req));
+      if (note.error) return json(res, 400, { error: note.error });
+      return json(res, 200, { id: await issues.addNote(who, id, note) });
     }
     if (action === 'notes' && part && req.method === 'PUT') {
       const noteId = Number(part);

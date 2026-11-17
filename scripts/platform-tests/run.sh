@@ -10,7 +10,7 @@
 # a una sola persona, se traspasa solo a alguien de Issues y deja histórico, se
 # asigna y traspasa solo a quien tiene el conocimiento del origen (SGA, SISU), la
 # regla de cada rol y persona queda puesta y auditada, y
-# las notas internas las edita solo su autor; nadie cambia su propio rol ni
+# las notas las edita solo su autor y las privadas solo las ve él; nadie cambia su propio rol ni
 # sus vistas ni se desactiva; claves secret y
 # URLs ajenas rechazadas; tokens enmascarados para los admins; usuarios
 # desactivados sin acceso; auditoría inmutable y sin tokens. Después vuelve a
