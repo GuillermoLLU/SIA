@@ -1,7 +1,7 @@
 // La pestaña Notas de una issue, en HTML (sin E/S; el cableado, notes-view.js).
 // Una conversación de la más antigua a la más reciente: cada nota con su autor,
-// su hora y su caja, plegada a una línea (la etiqueta, la primera frase y
-// quién la ve) que se despliega entera al pulsarla; los movimientos (cogida,
+// su etiqueta (una ficha junto al nombre), su hora y su caja, plegada a una
+// línea (la primera frase y quién la ve) que se despliega entera al pulsarla; los movimientos (cogida,
 // devuelta, traspasada, asignada), como un hito en la misma línea de tiempo: su
 // icono en el sitio del avatar y una frase. Abajo, la barra de escribir: quién la verá (menú), la
 // etiqueta (menú) y Enviar.
@@ -33,16 +33,19 @@ const MOVE = {
   assigned: { strong: true, icon: svg('<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/>'), say: (e) => `${who(e.by)} se la asignó a ${who(e.to)} desde el Backlog` },
 };
 
-// Quién la ve (las de Remedy no lo dicen) y su etiqueta
+// Quién la ve (las de Remedy no lo dicen); la etiqueta, junto al nombre (con su
+// código de Remedy al pasar por encima); el motivo de un traspaso, dentro de su caja
 const visHtml = (v) => (v ? `<span class="nt-vis">${ICON[v]}${VISIBILITY[v].label}</span>` : '');
-const labelHtml = (tag) => (tag ? `<span class="iss-feed-label">${esc(tagLabel(tag))}</span>` : '');
+const tagHtml = (tag) => (tag ? `<span class="nt-tag" title="${esc(tag)}">${esc(tagLabel(tag))}</span>` : '');
+const labelHtml = (label) => (label ? `<span class="iss-feed-label">${esc(label)}</span>` : '');
 
-// La caja de una nota. Desplegada: arriba la etiqueta y quién la ve, y el texto
-// entero; plegada: todo en una línea, con la primera frase. (Sin espacios entre
-// etiquetas: la caja respeta los saltos de línea del texto.)
-const boxHtml = ({ tag, visibility, text }, open) => (open
-  ? `<div class="iss-feed-text nt-box" data-note-fold role="button" tabindex="0" aria-expanded="true">${tag || visibility ? `<div class="nt-top">${labelHtml(tag)}${visHtml(visibility)}</div>` : ''}<div class="nt-text">${esc(text)}</div><i class="nt-chev">${CHEV}</i></div>`
-  : `<div class="iss-feed-text nt-box nt-folded" data-note-fold role="button" tabindex="0" aria-expanded="false">${labelHtml(tag)}<span class="nt-first">${esc(firstSentence(text))}</span>${visHtml(visibility)}<i class="nt-chev">${CHEV}</i></div>`);
+// La caja de una nota. Desplegada: el texto entero, con quién la ve a la
+// derecha de su primera línea (y, en la del motivo de un traspaso, su título
+// encima); plegada: todo en una línea, con la primera frase. (Sin espacios entre etiquetas: la caja respeta los saltos de
+// línea del texto.)
+const boxHtml = ({ label = null, visibility, text }, open) => (open
+  ? `<div class="iss-feed-text nt-box" data-note-fold role="button" tabindex="0" aria-expanded="true">${label ? `<div class="nt-top">${labelHtml(label)}${visHtml(visibility)}</div>` : visHtml(visibility)}<div class="nt-text">${esc(text)}</div><i class="nt-chev">${CHEV}</i></div>`
+  : `<div class="iss-feed-text nt-box nt-folded" data-note-fold role="button" tabindex="0" aria-expanded="false">${labelHtml(label)}<span class="nt-first">${esc(firstSentence(text))}</span>${visHtml(visibility)}<i class="nt-chev">${CHEV}</i></div>`);
 
 // Un movimiento: un hito en la línea de tiempo (su icono en el sitio del
 // avatar) con su frase y su hora; el motivo de un traspaso, debajo, en su caja
@@ -51,7 +54,7 @@ const moveHtml = (e, { open, now }) => {
   const m = MOVE[e.type] || { icon: '', say: (x) => esc(x.type) };
   return `<li class="iss-feed-item nt-ev${m.strong ? ' strong' : ''}${open ? ' open' : ''}" data-note-key="${esc(e.key)}"><span class="nt-ev-ic" aria-hidden="true">${m.icon}</span><div class="iss-feed-body">
       <header><span class="iss-feed-did">${m.say(e)}</span><time>${whenLabel(e.at, now)}</time></header>
-      ${e.text ? boxHtml({ tag: 'Motivo', visibility: null, text: e.text }, open) : ''}
+      ${e.text ? boxHtml({ label: 'Motivo', visibility: null, text: e.text }, open) : ''}
     </div></li>`;
 };
 
@@ -60,8 +63,8 @@ export const noteItemHtml = (e, { open = false, meId = null, now = new Date() } 
   if (e.kind === 'move') return moveHtml(e, { open, now });
   const edit = canEditNote(e, meId, now) ? `<button type="button" class="iss-feed-edit" data-edit-note="${esc(e.key)}">Editar</button>` : '';
   return `<li class="iss-feed-item nt-item v-${e.visibility || 'none'}${open ? ' open' : ''}" data-note-key="${esc(e.key)}">${avatar(e.by)}<div class="iss-feed-body">
-      <header><span class="iss-feed-did">${who(e.by)}${e.src === 'remedy' ? ' <small>desde Remedy</small>' : ''}</span>${edit}${e.edited ? `<small>editada ${whenLabel(e.edited, now)}</small>` : ''}<time>${whenLabel(e.at, now)}</time></header>
-      ${boxHtml(e, open)}
+      <header><span class="iss-feed-did">${who(e.by)}${tagHtml(e.tag)}</span>${edit}${e.edited ? `<small>editada ${whenLabel(e.edited, now)}</small>` : ''}<time>${whenLabel(e.at, now)}</time></header>
+      ${boxHtml({ visibility: e.visibility, text: e.text }, open)}
     </div></li>`;
 };
 

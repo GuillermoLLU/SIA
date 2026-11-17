@@ -7,26 +7,33 @@ const now = new Date('2026-10-22T20:00:00Z');
 const sia = (o = {}) => ({ key: 'n7', kind: 'note', src: 'sia', id: 7, at: '2026-10-22T19:00:00Z', by: 'Ana López', byId: 'u1', text: 'El perfil <RFID> caducó. El resto entra bien.', tag: 'ANALISIS', visibility: 'internal', edited: null, ...o });
 const box = (html) => html.match(/<div class="iss-feed-text nt-box[^"]*"[^>]*>(.*?)<\/div><\/div>|<div class="iss-feed-text nt-box nt-folded"[^>]*>(.*?)<\/i><\/div>/s)[0];
 
-test('plegada: en una sola línea la etiqueta, la primera frase con «…» y quién la ve; sin espacios dentro de la caja', () => {
+test('plegada: la etiqueta, una ficha junto al nombre; en la caja, en una sola línea, la primera frase con «…» y quién la ve; sin espacios dentro', () => {
   const html = noteItemHtml(sia(), { open: false, now });
   assert.match(html, /<li class="iss-feed-item nt-item v-internal" data-note-key="n7">/);
   assert.match(html, /<span class="iss-avatar" aria-hidden="true">AL<\/span>/);
-  assert.match(html, /aria-expanded="false"><span class="iss-feed-label">Análisis<\/span><span class="nt-first">El perfil &lt;RFID&gt; caducó…<\/span><span class="nt-vis">.*Interna<\/span><i class="nt-chev">/s);
+  assert.match(html, /<span class="iss-feed-did"><b>Ana López<\/b><span class="nt-tag" title="ANALISIS">Análisis<\/span><\/span>/);
+  assert.match(html, /aria-expanded="false"><span class="nt-first">El perfil &lt;RFID&gt; caducó…<\/span><span class="nt-vis">.*Interna<\/span><i class="nt-chev">/s);
+  assert.doesNotMatch(box(html), /iss-feed-label|nt-tag/, 'la etiqueta no se repite dentro de la caja');
   assert.doesNotMatch(box(html), />\s+</, 'la caja respeta los saltos de línea: nada de espacios entre etiquetas');
 });
 
-test('desplegada: arriba la etiqueta y quién la ve, y el texto entero, escapado', () => {
+test('desplegada: arriba quién la ve y el texto entero, escapado; la etiqueta, junto al nombre', () => {
   const html = noteItemHtml(sia({ visibility: 'public', tag: 'ESCALADO' }), { open: true, now });
   assert.match(html, /nt-item v-public open"/);
-  assert.match(html, /aria-expanded="true"><div class="nt-top"><span class="iss-feed-label">Escalado<\/span><span class="nt-vis">.*Pública<\/span><\/div><div class="nt-text">El perfil &lt;RFID&gt; caducó\. El resto entra bien\.<\/div>/s);
+  assert.match(html, /<span class="nt-tag" title="ESCALADO">Escalado<\/span>/);
+  assert.match(html, /aria-expanded="true"><span class="nt-vis">.*Pública<\/span><div class="nt-text">El perfil &lt;RFID&gt; caducó\. El resto entra bien\.<\/div>/s, 'quién la ve, junto a la primera línea, sin fila propia');
   const privada = noteItemHtml(sia({ visibility: 'private', tag: null }), { open: true, now });
-  assert.match(privada, /<div class="nt-top"><span class="nt-vis">.*Privada<\/span><\/div>/s, 'sin etiqueta, solo quién la ve');
+  assert.match(privada, /aria-expanded="true"><span class="nt-vis">.*Privada<\/span><div class="nt-text">/s);
+  assert.doesNotMatch(privada, /nt-tag/, 'sin etiqueta, sin ficha');
 });
 
-test('las de Remedy dicen de dónde vienen y no quién las ve; sin etiqueta ni visibilidad, la caja va directa al texto', () => {
+test('las de Remedy: su autor y, si la traen, su etiqueta (sin decir de dónde vienen ni quién las ve); sin nada más, la caja va directa al texto', () => {
   const [r] = notesFeed({ worklog: [{ at: '2026-10-12 12:25', who: 'robot.siglo', text: 'No podemos entrar.' }] });
   const html = noteItemHtml(r, { open: true, now });
-  assert.match(html, /<b>robot\.siglo<\/b> <small>desde Remedy<\/small>/);
+  assert.match(html, /<span class="iss-feed-did"><b>robot\.siglo<\/b><\/span>/);
+  assert.doesNotMatch(html, /desde Remedy/);
+  const [act] = notesFeed({ worklog: [{ at: '2026-10-12 12:25', who: 'CESARHD', text: '[ACT] Enviamos por IOP 4477622' }] });
+  assert.match(noteItemHtml(act, { now }), /<b>CESARHD<\/b><span class="nt-tag" title="ACT">Actuación<\/span>/);
   assert.match(html, /<span class="iss-avatar" aria-hidden="true">RS<\/span>/);
   assert.match(html, /nt-item v-none open"/);
   assert.doesNotMatch(html, /nt-vis|nt-top/);

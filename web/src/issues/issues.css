@@ -217,12 +217,15 @@
 .iss-send { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; flex: none; color: var(--surface); background: var(--accent); border: 0; cursor: pointer; }
 .iss-send:disabled { opacity: .45; cursor: default; }
 .iss-send:not(:disabled):hover { filter: brightness(1.08); }
+/* la etiqueta de una nota, una ficha junto al nombre (como la de la barra de escribir) */
+.nt-tag { display: inline-block; margin-left: 10px; padding: 3px 8px; font-size: 10.5px; font-weight: 600; line-height: 1.2; letter-spacing: .06em; text-transform: uppercase; color: var(--text); background: color-mix(in srgb, var(--text) 8%, transparent); vertical-align: 1px; }
 /* la caja de cada nota: quién la ve, en su borde (pública: negro; privada: discontinuo); se pliega a una línea */
 .nt-box { position: relative; padding-right: 38px; cursor: pointer; }
 .nt-box:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .v-public > .iss-feed-body > .nt-box { background: var(--surface); border-color: var(--text); }
 .v-private > .iss-feed-body > .nt-box { background: none; border-style: dashed; }
 .nt-top { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; white-space: nowrap; }
+.nt-box > .nt-vis { float: right; margin: 2px 0 2px 16px; } /* desplegada, a la derecha de la primera línea: el texto la rodea */
 .nt-top .iss-feed-label { margin: 0; }
 .nt-vis { flex: none; display: inline-flex; align-items: center; gap: 5px; margin-left: auto; font-size: 11px; color: var(--text-low); white-space: nowrap; }
 .nt-vis svg { width: 13px; height: 13px; }
