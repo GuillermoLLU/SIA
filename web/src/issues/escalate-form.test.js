@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { escalateForm, requirementsHtml, summaryHtml, filesHtml, ticketHtml, doneHtml, closePhases, linkedText, startValues, withoutLevel, searchingHtml, searchPhases } from './escalate-form.js';
+import { escalateForm, requirementsHtml, summaryHtml, filesHtml, ticketHtml, doneHtml, closePhases, linkedText, startValues, withoutLevel, searchingHtml, searchPhases, ticketDetailHtml } from './escalate-form.js';
 import { findEscalations } from './escalate.js';
 import { resolveBlocked } from './resolve-form.js';
 import { DESTINATIONS, OPEN_TICKETS } from './escalate-mock.js';
@@ -46,10 +46,25 @@ test('al abrir: arriba el buscador de tickets de Jira y debajo las coincidencias
   assert.match(html, /<\/div>\s*<div class="rv-cap"><b>Tickets que pueden tener similitud con esta incidencia<\/b><\/div>\s*<div class="rv-text">\s*<fieldset class="iss-esc-open">/, 'debajo, las coincidencias');
   assert.deepEqual([...html.matchAll(/name="linked" value="([^"]+)"/g)].map((m) => m[1]), ['other', 'SISUPAC-9211', 'ITSMECOM-5804475']);
   assert.match(html, /5 issues esperando/);
-  assert.match(html, /<span class="iss-esc-why"><small>Mismo centro · Resumen parecido<\/small><button type="button" class="rv-link" data-jira-open="SISUPAC-9211">Abrir en Jira<\/button><\/span>/);
+  assert.match(html, /<span class="iss-esc-why"><small>Mismo centro · Resumen parecido<\/small><button type="button" class="rv-link" data-ticket-detail="SISUPAC-9211">Ver detalle<\/button><\/span>/);
   assert.doesNotMatch(html, /data-esc-ai|<h4>Antecedentes|INC000027778368/);   // la del otro centro no sale
   assert.doesNotMatch(html, /<b>Otro escalado<\/b>|data-esc-new/, 'ni la tarjeta de otro escalado ni un segundo botón');
   assert.match(form({}, null, []), /Ningún escalado del mismo problema/);
+});
+
+test('el detalle de un ticket sugerido, sin salir de SIA: volver al listado, sus datos, lo que dice y quién espera', () => {
+  const o = OPEN_TICKETS[0];
+  const html = ticketDetailHtml(o, DESTINATIONS);
+  assert.match(html, /^<button type="button" class="lab-btn iss-esc-detail-back" data-detail-back><svg[\s\S]*?<\/svg>Volver al listado<\/button>/);
+  assert.match(html, /<header class="iss-esc-detail-h"><b class="iss-mono">SISUPAC-9211<\/b><h3>Lentitud RFID en packing<\/h3><\/header>/);
+  assert.deepEqual([...html.matchAll(/<dt>([^<]+)<\/dt><dd>(.*?)<\/dd>/g)].map((m) => [m[1], m[2].replace(/<[^>]+>/g, '')]),
+    [['Estado', 'En curso'], ['Prioridad', 'Muy importante'], ['Equipo', 'SISUPAC · N3 SISU'], ['Abierto', '27/10 09:12'], ['Último movimiento', '29/10 11:40'], ['Esperando', '5 incidencias']]);
+  assert.match(html, /<h4>Último comentario<\/h4><p><small>Equipo SISUPAC · 29\/10 11:40<\/small>Identificado un bloqueo/);
+  assert.equal((html.match(/<li><span class="iss-mono">INC\d{12}<\/span> · \d+<\/li>/g) || []).length, 5);
+  assert.doesNotMatch(html, /Jira ↗|target="_blank"|Nuevo escalado/, 'sin salir a Jira ni el pie del asistente');
+  assert.match(ticketDetailHtml({ ...OPEN_TICKETS[2], comment: null }, DESTINATIONS), /Aún sin comentarios\.<\/p>/);
+  assert.match(ticketDetailHtml({ ...o, title: 'A <b>', description: 'x < y' }, DESTINATIONS), /<h3>A &lt;b&gt;<\/h3>[\s\S]*x &lt; y/);
+  for (const t of OPEN_TICKETS) assert.equal(t.waiting.length, t.issues, `${t.ticket}: tantas esperando como dice`);
 });
 
 test('la búsqueda: en SGA por centro, en SISU por módulo; no sale de la nota [RECURRENCIA]', () => {

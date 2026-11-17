@@ -5,7 +5,7 @@
 import { onEscape } from '../ui/dialog.js';
 import { esc } from '../ui/html.js';
 import { BACK_ARROW, NEXT_ARROW, slideStep, lockSteps, flashEmpty, fadeOut as fade, runPhases } from '../ui/wizard.js';
-import { escalateForm, requirementsHtml, linkedText, summaryHtml, filesHtml, ticketHtml, doneHtml, closePhases, searchingHtml, searchPhases } from './escalate-form.js';
+import { escalateForm, requirementsHtml, linkedText, summaryHtml, filesHtml, ticketHtml, doneHtml, closePhases, searchingHtml, searchPhases, ticketDetailHtml } from './escalate-form.js';
 import { resolveBlocked, noteMeter, localShort } from './resolve-form.js';
 import { stepMissing, stepWarning, resumeStep, resultTicket, targetOf, titleOf, nextOf, prevOf, findEscalations, LAST, FEED, FLOWS } from './escalate.js';
 import { syncEditor, setEditorText, toText, insertChip, removeChips } from './tag-editor.js';
@@ -248,6 +248,39 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
     } catch { toast?.('No se ha podido copiar: selecciónalo y cópialo a mano.'); }
   };
 
+  /* ── El detalle de un ticket sugerido: todo el modal, sin salir de SIA ── */
+  // Lo de debajo se difumina y el detalle entra deslizándose (issues.css); «Volver al listado» o
+  // Escape lo devuelven todo como estaba, con el foco en su «Ver detalle».
+  const DETAIL_OUT_MS = 250;   // lo que tarda en irse (issues.css)
+  let offDetail = null, detailTimer = null;
+  const openDetail = (f, ticket) => {
+    const o = found.find((x) => x.ticket === ticket);
+    if (!o) return;
+    clearTimeout(detailTimer);
+    const box = f.querySelector('[data-esc-detail]');
+    box.classList.remove('leaving');
+    box.innerHTML = ticketDetailHtml(o, dests);
+    box.dataset.ticket = ticket;
+    box.setAttribute('aria-label', `Detalle de ${ticket}`);
+    box.hidden = false;
+    box.scrollTop = 0;
+    f.classList.add('detailing');
+    for (const el of f.children) el.inert = el !== box;
+    box.querySelector('[data-detail-back]').focus({ preventScroll: true });
+    offDetail?.();
+    offDetail = onEscape(() => closeDetail(f));
+  };
+  const closeDetail = (f) => {
+    const box = f.querySelector('[data-esc-detail]');
+    if (box.hidden || box.classList.contains('leaving')) return;
+    offDetail?.(); offDetail = null;
+    for (const el of f.children) el.inert = false;
+    f.classList.remove('detailing');
+    box.classList.add('leaving');
+    detailTimer = setTimeout(() => { box.hidden = true; box.classList.remove('leaving'); box.innerHTML = ''; }, DETAIL_OUT_MS);
+    f.querySelector(`[data-ticket-detail="${CSS.escape(box.dataset.ticket)}"]`)?.focus({ preventScroll: true });
+  };
+
   /* ── Los listeners, acotados al formulario de Escalar ── */
   const inForm = (e) => e.target.closest?.('[data-act-form="escalate"]');
   root.addEventListener('click', (e) => {
@@ -260,8 +293,9 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
     const t = e.target;
     // las ayudas aún no tienen nada detrás: la IA del chat y la documentación de cada destino llegarán después
     if (t.closest('[data-esc-help]')) return toast?.('Se abriría el chat de la incidencia para que la IA te ayude a elegir el destino.');
-    const jira = t.closest('[data-jira-open]');   // dentro de la tarjeta: abrirlo no la elige
-    if (jira) { e.preventDefault(); return toast?.(`Se abriría ${jira.dataset.jiraOpen} en Jira para compararlo.`); }
+    const detail = t.closest('[data-ticket-detail]');   // dentro de la tarjeta: verlo no la elige
+    if (detail) { e.preventDefault(); return openDetail(f, detail.dataset.ticketDetail); }
+    if (t.closest('[data-detail-back]')) return closeDetail(f);
     const help = t.closest('[data-dest-help]');
     if (help) { e.preventDefault(); return toast?.(`Aquí irá qué cubre ${dests.find((d) => d.id === help.dataset.destHelp)?.name}: la documentación está por hacer.`); }
     if (t.closest('[data-esc-close]')) return finish();
@@ -374,6 +408,7 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
   // escalado, la vista avisa igual.
   const close = () => {
     flushSave(); clearTimeout(timer); timer = null; offEscape?.(); offEscape = null; opened = null; closeIt = null;
+    clearTimeout(detailTimer); offDetail?.(); offDetail = null;
     for (const x of files) if (x.url) URL.revokeObjectURL(x.url);   // las miniaturas, fuera de memoria
     files = [];
     if (done) { const d = done; done = null; onEscalated(d.target, d.mode); }

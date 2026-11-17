@@ -8,6 +8,7 @@
 // (escalate-view.js) vuelve a pintar lo que depende de lo escrito: requirementsHtml, linkedText,
 // summaryHtml, filesHtml y doneHtml.
 import { esc } from '../ui/html.js';
+import { BACK_ARROW } from '../ui/wizard.js';
 import { loaderHtml, phasesHtml } from '../ui/loader.js';
 import { when } from './format.js';
 import { ticketCheck, JIRA_PRIORITIES, jiraPriority, opensTicket, destOf, minimumsOf, checkedMins, priorityLabel, feedComment, STEPS, LAST, FEED, FLOWS } from './escalate.js';
@@ -54,7 +55,25 @@ export const searchPhases = (issue) => phasesHtml([issue.sisu ? 'Mismo módulo' 
 // Paso 1: una coincidencia (findEscalations): el escalado, por qué ha salido y abrirlo para comparar.
 const foundCard = (o, v, dests) => card('linked', o.ticket, v.linked === o.ticket,
   `<span><b class="iss-mono">${esc(o.ticket)}</b> · ${esc(dests.find((d) => d.id === o.dest)?.name || '')}</span><small>${esc(o.title)} · ${o.issues} ${o.issues === 1 ? 'issue' : 'issues'} esperando · abierto el ${when(o.since)}</small>
-              <span class="iss-esc-why"><small>${o.why.map(esc).join(' · ')}</small><button type="button" class="rv-link" data-jira-open="${esc(o.ticket)}">Abrir en Jira</button></span>`);
+              <span class="iss-esc-why"><small>${o.why.map(esc).join(' · ')}</small><button type="button" class="rv-link" data-ticket-detail="${esc(o.ticket)}">Ver detalle</button></span>`);
+
+// El detalle de un ticket sugerido, sin salir de SIA: ocupa todo el modal, sin su título, sus pasos
+// ni su pie; solo «Volver al listado» arriba (escalate-view.js). De momento, con los datos de prueba
+// (escalate-mock.js).
+const fact = (label, value) => `<div><dt>${label}</dt><dd>${value}</dd></div>`;
+export const ticketDetailHtml = (o, dests) => `<button type="button" class="lab-btn iss-esc-detail-back" data-detail-back>${BACK_ARROW}Volver al listado</button>
+    <header class="iss-esc-detail-h"><b class="iss-mono">${esc(o.ticket)}</b><h3>${esc(o.title)}</h3></header>
+    <dl class="iss-esc-facts">
+      ${fact('Estado', `<span class="iss-esc-state">${esc(o.state || '—')}</span>`)}
+      ${fact('Prioridad', esc(o.priority ? priorityLabel(o.priority) : '—'))}
+      ${fact('Equipo', esc(dests.find((d) => d.id === o.dest)?.name || '—'))}
+      ${fact('Abierto', o.since ? when(o.since) : '—')}
+      ${fact('Último movimiento', o.moved ? when(o.moved) : '—')}
+      ${fact('Esperando', `${o.issues} ${o.issues === 1 ? 'incidencia' : 'incidencias'}`)}
+    </dl>
+    ${o.description ? `<section class="iss-esc-detail-sec"><h4>Descripción</h4><p>${esc(o.description)}</p></section>` : ''}
+    <section class="iss-esc-detail-sec"><h4>Último comentario</h4>${o.comment ? `<p><small>${esc(o.comment.by)} · ${when(o.comment.at)}</small>${esc(o.comment.text)}</p>` : '<p class="iss-esc-none-text">Aún sin comentarios.</p>'}</section>
+    ${o.waiting?.length ? `<section class="iss-esc-detail-sec"><h4>Incidencias esperando</h4><ul class="iss-esc-waiting">${o.waiting.map((w) => `<li><span class="iss-mono">${esc(w.id)}</span> · ${esc(w.center)}</li>`).join('')}</ul></section>` : ''}`;
 
 // Una opción que se elige pulsando la tarjeta entera; el radio no se ve.
 const card = (name, value, checked, body, cls = '') => `<label class="iss-esc-card${cls}"><input type="radio" class="iss-sr" name="${name}" value="${esc(value)}"${checked ? ' checked' : ''} />${body}</label>`;
@@ -262,5 +281,6 @@ export const escalateForm = ({ issue, dests, found = [], check, saved = null, li
       <button type="submit" class="lab-btn primary rv-next" data-confirm-send hidden>Crear escalado</button>
       <button type="button" class="lab-btn primary rv-next" data-esc-close hidden>Cerrar</button>
     </footer>
+    <section class="iss-esc-detail" data-esc-detail hidden></section>
   </form>`;
 };
