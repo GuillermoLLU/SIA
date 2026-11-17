@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseTickets, ticketCheck, jiraPriority, n3Subject, stepMissing, stepWarning, resumeStep, targetOf, minimumsOf, checkedMins, resultTicket, STEPS } from './escalate.js';
+import { parseTickets, ticketCheck, jiraPriority, n3Subject, stepMissing, stepWarning, resumeStep, targetOf, minimumsOf, checkedMins, resultTicket, STEPS, FEED, nextOf, prevOf, titleOf, feedComment } from './escalate.js';
 import { DESTINATIONS } from './escalate-mock.js';
 
 const dest = (id) => DESTINATIONS.find((d) => d.id === id);
@@ -30,8 +30,19 @@ const ISSUE = { id: 'INC000027698079', priority: 'MEDIUM', center: '100497' };
 const CTX = { dests: DESTINATIONS, issue: ISSUE };
 const missing = (n, v) => stepMissing(n, { mode: 'escalate', ...v }, CTX);
 
-test('cinco pasos: primero se busca un ticket abierto y al final, el resumen', () => {
-  assert.deepEqual(STEPS.map((s) => s.title), ['Ticket abierto', 'A quién', 'Motivo', 'Requisitos', 'Resumen']);
+test('dos flujos con el mismo aspecto: actualizar el escalado, o uno nuevo hasta el resumen', () => {
+  assert.deepEqual(STEPS.map((s) => s.title), ['Recurrencia', 'A quién', 'Motivo', 'Requisitos', 'Resumen', 'Actualizar escalado']);
+  assert.deepEqual([nextOf('link', 1), nextOf('link', FEED), prevOf('link', FEED)], [FEED, null, 1]);
+  assert.deepEqual([nextOf('escalate', 1), nextOf('escalate', 4), nextOf('escalate', 5), prevOf('escalate', 2)], [2, 5, null, 1]);
+  assert.equal(titleOf(FEED), 'Actualizar escalado');
+});
+
+test('actualizar escalado: el comentario empieza con lo nuevo de la incidencia y no se une sin él', () => {
+  const check = { notes: [{ key: 'initial', note: { text: 'No lee' } }, { key: 'analysis', note: { text: 'Timeouts' } }] };
+  assert.equal(feedComment({ id: 'INC1', center: '100497' }, check), 'Nueva incidencia relacionada: INC1 (centro 100497).\n\nSituación inicial: No lee\n\nAnálisis: Timeouts');
+  assert.equal(feedComment({ id: 'INC1' }, { notes: [] }), 'Nueva incidencia relacionada: INC1.');
+  assert.deepEqual(missing(FEED, { mode: 'link', comment: ' ' }), { field: 'comment', text: 'Escribe el comentario para seguir' });
+  assert.equal(missing(FEED, { mode: 'link', comment: 'x' }), null);
 });
 
 test('paso 1: sin ticket se sigue a escalar; al unir, un ticket válido (TC-02)', () => {
@@ -77,24 +88,26 @@ test('el borrador se retoma en su paso si los de antes siguen completos (TC-04);
   assert.equal(resumeStep({ mode: 'escalate', dest: 'sisupac', reason: 'x', step: 5 }, CTX), 4);   // falta lo mínimo
   assert.equal(resumeStep({ mode: 'escalate', dest: 'sisupac', reason: '', step: 5 }, CTX), 3);
   assert.equal(resumeStep({ mode: 'link', linked: 'SISUPAC-9211', step: 3 }, CTX), 1);
+  assert.equal(resumeStep({ mode: 'link', linked: 'SISUPAC-9211', step: 6 }, CTX), 6);   // nutriendo: vuelve al comentario
+  assert.equal(resumeStep({ mode: 'link', linked: 'other', linkedOther: 'MOCA', step: 6 }, CTX), 1);
 });
 
 test('avisos que se pueden pasar por alto: se sigue, pero avisando, como en Resolver', () => {
-  const warn = (n, v, o = {}) => stepWarning(n, { mode: 'escalate', ...v }, { ...CTX, background: { text: 'Hay un Jira abierto: sisupac-9211, mismo síntoma.' }, ...o });
-  // unir: los antecedentes tienen que nombrar el ticket (da igual mayúsculas o prefijos)
-  assert.equal(warn(1, { mode: 'link', linked: 'SISUPAC-9211' }), null);
-  assert.match(warn(1, { mode: 'link', linked: 'other', linkedOther: 'ITD: ERA-4170' }).text, /no aparece ERA-4170/);
-  assert.equal(warn(1, { mode: 'link', linked: 'SISUPAC-9211' }, { background: null }).ok, 'Unir igualmente');
+  const warn = (n, v, o = {}) => stepWarning(n, { mode: 'escalate', ...v }, { ...CTX, recurrence: { tickets: ['SISUPAC-9211'] }, ...o });
+  // unir: la recurrencia en Jira tiene que haberlo encontrado (da igual mayúsculas o prefijos)
+  assert.equal(warn(1, { mode: 'link', linked: 'other', linkedOther: 'itd: sisupac-9211' }), null);
+  assert.match(warn(1, { mode: 'link', linked: 'other', linkedOther: 'ITD: ERA-4170' }).text, /^ERA-4170 no aparece en la recurrencia/);
+  assert.equal(warn(1, { mode: 'link', linked: 'SISUPAC-9211' }, { recurrence: null }).ok, 'Unir igualmente');
   assert.equal(warn(1, {}), null);   // seguir sin ticket no avisa
   // el motivo, muy breve
-  assert.equal(warn(3, { reason: 'Va lento' }).title, 'El motivo es muy breve');
+  assert.equal(warn(3, { reason: 'Va lento' }).title, 'Motivo muy breve');
   assert.equal(warn(3, { reason: 'x'.repeat(80) }), null);
   // la prioridad del Jira que no toca (la auditoría resta −1)
-  assert.match(warn(4, { dest: 'sisupac', jiraPriority: 'BLOCKER' }).text, /le toca «Importante» y has elegido «Bloqueo»/);
+  assert.match(warn(4, { dest: 'sisupac', jiraPriority: 'BLOCKER' }).text, /le toca «Importante»; has elegido «Bloqueo»/);
   assert.equal(warn(4, { dest: 'sisupac', jiraPriority: 'MEDIUM' }), null);
   assert.equal(warn(4, { dest: 'maestros', jiraPriority: 'BLOCKER' }), null);   // no abre Jira: no cuenta
   // la evidencia, muy breve, cuando es la única prueba
-  assert.equal(warn(4, { dest: 'operaciones', sent: 'Correo' }).title, 'La evidencia es muy breve');
+  assert.equal(warn(4, { dest: 'operaciones', sent: 'Correo' }).title, 'Evidencia muy breve');
   assert.equal(warn(4, { dest: 'operaciones', sent: 'Correo a operaciones@ a las 10:12 con los logs del proceso y la captura del error de la mesa 3.' }), null);
 });
 

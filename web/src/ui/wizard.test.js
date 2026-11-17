@@ -7,7 +7,7 @@ const el = (o = {}) => {
   const cls = new Set(), on = {};
   const node = {
     hidden: false, textContent: '', children: [], focused: false, removed: false, offsetWidth: 1,
-    cls, classList: { add: (...c) => c.forEach((x) => cls.add(x)), remove: (...c) => c.forEach((x) => cls.delete(x)), replace: (a, b) => cls.delete(a) && cls.add(b) },
+    cls, classList: { contains: (c) => cls.has(c), add: (...c) => c.forEach((x) => cls.add(x)), remove: (...c) => c.forEach((x) => cls.delete(x)), replace: (a, b) => cls.delete(a) && cls.add(b) },
     addEventListener: (type, fn) => { on[type] = fn; }, fire: (type) => on[type]?.(),
     append: (c) => node.children.push(c), remove: () => { node.removed = true; },
     focus: () => { node.focused = true; },
@@ -27,6 +27,13 @@ test('slideStep: el nuevo entra por el lado del que viene y el anterior sale por
   assert.deepEqual([[...s1.cls], [...s2.cls]], [['in-back'], ['out-back']]);
   slideStep(f, 1, 2, true);   // con el movimiento reducido, sin animación
   assert.deepEqual([[...s1.cls], [...s2.cls]], [[], []]);
+  // se vuelve al 1 antes de que acabe su salida: su animación de entrada no lo oculta
+  slideStep(f, 2, 1, false);
+  slideStep(f, 1, 2, false);
+  slideStep(f, 2, 1, false);
+  s1.hidden = false;
+  s1.fire('animationend');
+  assert.equal(s1.hidden, false);
 });
 
 test('flashEmpty: el campo parpadea con el aviso en su caja, y todo se va solo', (t) => {

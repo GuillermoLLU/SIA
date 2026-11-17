@@ -1,5 +1,6 @@
-// Escalar, en cinco pasos y uno solo a la vista, con el aspecto de Resolver (las clases rv-*):
-// 1) si ya hay un ticket abierto (si lo hay, se une y todo acaba aquí); 2) a quién, del catálogo;
+// Escalar, por pasos y uno solo a la vista, con el aspecto de Resolver (las clases rv-*):
+// 1) si se une a uno de los tickets que encontró la recurrencia en Jira (entonces se nutre con un
+// comentario: actualizar escalado) o se crea uno nuevo por los demás; 2) a quién, del catálogo;
 // 3) el motivo, que empieza con la nota [ANALISIS] de Remedy, con sus archivos; 4) lo que pide el
 // destino (prioridad del Jira, lo mínimo y la evidencia); y 5) el resumen, como el de Resolver.
 // Al acabar se queda con el ticket a la vista. No se pasa de paso sin lo obligatorio (escalate.js).
@@ -8,7 +9,7 @@
 // summaryHtml, filesHtml y doneHtml.
 import { esc } from '../ui/html.js';
 import { when } from './format.js';
-import { ticketCheck, JIRA_PRIORITIES, jiraPriority, opensTicket, destOf, minimumsOf, checkedMins, priorityLabel, STEPS, LAST } from './escalate.js';
+import { ticketCheck, JIRA_PRIORITIES, jiraPriority, opensTicket, destOf, minimumsOf, checkedMins, priorityLabel, feedComment, STEPS, LAST, FEED, FLOWS } from './escalate.js';
 import { doneMark, noteMeter, localShort, short, issueRef, CHECK, MISSING } from './resolve-form.js';
 import { noteQuality } from './quality.js';
 import { toHtml, imageTag } from './tag-editor.js';
@@ -31,21 +32,23 @@ export const linkedText = (raw) => {
 };
 
 // Lo que se abre con el asistente: lo que dejó el borrador o, si no hay, lo que toca. Si la foto
-// ya trae un ticket, se propone unirla a él; el motivo empieza con la nota de análisis.
+// ya trae un ticket, se propone unirla a él; el motivo empieza con la nota de análisis y el
+// comentario para actualizar el escalado, con lo nuevo de esta incidencia.
 export const startValues = ({ issue, open, check, saved }) => {
-  if (saved) return saved;
+  if (saved) return { ...saved, comment: saved.comment || feedComment(issue, check) };
   const known = ticketCheck(issue.vendorTicket);
   const fromPhoto = known.state === 'ok' ? known.value : '';
   const listed = open.some((o) => o.ticket === fromPhoto);
-  return { mode: fromPhoto ? 'link' : 'escalate', jiraPriority: jiraPriority(issue.priority), reason: check.analysis?.text ?? '',
+  return { mode: fromPhoto ? 'link' : 'escalate', jiraPriority: jiraPriority(issue.priority), reason: check.analysis?.text ?? '', comment: feedComment(issue, check),
     ...(fromPhoto ? (listed ? { linked: fromPhoto } : { linked: 'other', linkedOther: fromPhoto }) : {}) };
 };
 
-// Al unir: la nota [ANTECEDENTES] de Remedy, que dice por qué es el mismo problema.
-const backgroundBox = (n) => (n ? `<section class="iss-esc-dev iss-esc-bg">
-              <h4>Antecedentes <small>${esc(short(n.at))} · ${esc(n.who)}</small></h4>
-              <p>${esc(n.text)}</p>
-            </section>` : '');
+// Paso 1: los tickets que encontró la recurrencia en Jira, con lo que se sabe de cada uno (el
+// catálogo de abiertos, de prueba). → [{ ticket, dest?, title?, issues?, since? }]
+export const foundTickets = (check, known = []) => (check.recurrence?.tickets || []).map((t) => known.find((o) => o.ticket === t) || { ticket: t });
+const foundCard = (o, v, dests) => card('linked', o.ticket, v.linked === o.ticket, o.title
+  ? `<span><b class="iss-mono">${esc(o.ticket)}</b> · ${esc(dests.find((d) => d.id === o.dest)?.name || '')}</span><small>${esc(o.title)} · ${o.issues} ${o.issues === 1 ? 'issue' : 'issues'} esperando · abierto el ${when(o.since)}</small>`
+  : `<span><b class="iss-mono">${esc(o.ticket)}</b></span>`);
 
 // Una opción que se elige pulsando la tarjeta entera; el radio no se ve.
 const card = (name, value, checked, body, cls = '') => `<label class="iss-esc-card${cls}"><input type="radio" class="iss-sr" name="${name}" value="${esc(value)}"${checked ? ' checked' : ''} />${body}</label>`;
@@ -79,8 +82,7 @@ export const requirementsHtml = (v, { issue, dests }) => {
     ? `<p class="iss-esc-subject"><code>${esc(m.subject)}</code><button type="button" class="rv-link" data-copy="${esc(m.subject)}">Copiar asunto</button></p>` : ''}</li>`).join('')}</ul>
         </section>` : '',
     opensTicket(dest) ? '' : `<section class="iss-field iss-esc-req"><h4>¿Qué has enviado y por dónde?</h4>
-          <p class="iss-esc-hint">${esc(dest?.name || v.destOther || 'Este destino')} no abre ticket: lo que escribas aquí es la prueba del escalado.</p>
-          <textarea class="rv-ed iss-esc-sent" id="iss-f-sent" name="sent" aria-label="Qué has enviado y por dónde" placeholder="Ej.: correo a las 10:12 con los logs del proceso y una captura del error.">${esc(v.sent || '')}</textarea>
+          <textarea class="rv-ed iss-esc-sent" id="iss-f-sent" name="sent" aria-label="Qué has enviado y por dónde" placeholder="Correo a las 10:12 con logs y captura">${esc(v.sent || '')}</textarea>
         </section>`,
   ].filter(Boolean);
   return `${parts.join('') || '<p class="iss-esc-none">No pide nada más.</p>'}
@@ -115,8 +117,9 @@ export const summaryHtml = (v, { issue, dests, check, files = [] }) => {
     mins.length && `Lo mínimo: ${mins.filter((m) => checked.includes(m.key)).length} de ${mins.length} confirmado`,
     !opensTicket(dest) && v.sent,
   ].filter(Boolean).join(' · ');
+  const method = check.notes.filter((x) => x.key !== 'jira');
   return [
-    ...check.notes.map((x) => ({ title: x.label, text: x.note?.text, q: noteQuality(x.note?.text) })),
+    { title: 'Notas del método', text: method.map((x) => x.label).join(' · '), q: { level: 'ok', label: 'Completas' } },   // ya comprobadas al entrar
     { n: 2, title: 'A quién', text: dest?.name || v.destOther },
     { n: 3, title: 'Motivo', text: v.reason, q: noteQuality(v.reason), files: files.length },
     { n: 4, title: 'Requisitos', text: reqs || 'No pide nada más' },
@@ -124,9 +127,10 @@ export const summaryHtml = (v, { issue, dests, check, files = [] }) => {
 };
 
 // Antes de escalar, el borrador de lo que se abre, como el «Borrador del informe» de Resolver: con lo
-// escrito en cada paso, las notas del método y los adjuntos. Se puede retocar (de momento no sale de SIA).
+// escrito en cada paso, las notas que necesita el destino y los adjuntos. Se puede retocar (de momento no sale de SIA).
 const ticketKind = (dest) => (!dest ? 'sin ticket' : dest.opens === 'jira' ? `Jira de ${dest.project}` : dest.opens === 'remedy' ? 'incidencia de Remedy' : 'sin ticket');
 const kb = (size) => `${Math.max(1, Math.round(size / 1024))} KB`;
+const noteOf = (check, key) => check.notes.find((n) => n.key === key)?.note?.text;
 export const ticketHtml = (v, { issue, dests, check, files = [] }) => {
   const dest = destOf(v, dests), mins = minimumsOf(issue, dest), checked = checkedMins(v);
   const rows = [
@@ -134,13 +138,14 @@ export const ticketHtml = (v, { issue, dests, check, files = [] }) => {
     dest?.opens === 'jira' && ['Prioridad del Jira', priorityLabel(v.jiraPriority)],
     ['Título', `${issue.id} · ${issue.text || ''}`],
     ['Motivo del escalado', v.reason],
-    check.analysis && ['Análisis previo', check.analysis.text],
+    noteOf(check, 'initial') && ['Situación inicial', noteOf(check, 'initial')],
+    noteOf(check, 'recurrence') && ['Recurrencia', noteOf(check, 'recurrence')],
+    check.analysis && check.analysis.text.trim() !== String(v.reason ?? '').trim() && ['Análisis', check.analysis.text],
     check.background && ['Antecedentes', check.background.text],
     mins.length && ['Lo mínimo', mins.filter((m) => checked.includes(m.key)).map((m) => m.title).join(' · ') || 'Nada confirmado'],
     !opensTicket(dest) && ['Evidencia', v.sent],
   ].filter(Boolean);
-  return `<div class="rv-rtools"><small>Puedes retocar el texto antes de escalar</small></div>
-        <div class="rv-rpanel"><section class="rv-rep rv-rep-mail">
+  return `<div class="rv-rpanel"><section class="rv-rep rv-rep-mail">
           <div class="rv-rep-edit" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Borrador del ticket">${rows.map(([h, p]) => `<h5>${h}</h5><p>${esc(p || '')}</p>`).join('')}</div>
           ${files.map((x) => `<div class="rv-rep-att"><i>${FILE_ICON}</i><div><b>${esc(x.name)}</b><small>Adjunto · ${kb(x.size)}</small></div></div>`).join('')}
         </section></div>`;
@@ -150,40 +155,52 @@ export const ticketHtml = (v, { issue, dests, check, files = [] }) => {
 // de ejemplo y se dice. result: resultTicket (escalate.js).
 export const doneHtml = (result, target, mode, rootCause) => `<i class="iss-esc-done-ok" aria-hidden="true">✓</i>
           <h4>${mode === 'link' ? `Unida a ${esc(target)}` : `Escalada a ${esc(target)}`}</h4>
-          <p>${mode === 'link' || !rootCause ? 'Pasa a Pendiente (proveedor) y se avisa al centro.' : 'Queda registrada la causa raíz y sigue Resuelta.'}</p>
+          <p>${mode === 'link' ? 'Jira y Remedy actualizados · Pendiente (proveedor)' : !rootCause ? 'Pendiente (proveedor) · Centro avisado' : 'Sigue Resuelta'}</p>
           ${result ? `<div class="iss-esc-ticket"><span>${result.sample ? 'Ticket generado' : 'Ticket'}</span><code>${esc(result.ticket)}</code><button type="button" class="lab-btn" data-copy="${esc(result.ticket)}">Copiar</button></div>
-          ${result.sample ? '<small>De ejemplo: el ticket real llegará al conectar Jira.</small>' : ''}` : ''}`;
+          ${result.sample ? '<small>De ejemplo hasta conectar Jira</small>' : ''}` : ''}`;
 
 // Al escalar: lo que hace SIA (de momento, un simulacro, como el cierre de Resolver).
 export const closePhases = (v, rootCause) => (v.mode === 'link'
-  ? ['Uniendo al ticket', 'Pasando a Pendiente (proveedor)']
+  ? ['Comentando en Jira', 'Registrando en Remedy', 'Pasando a Pendiente (proveedor)']
   : ['Registrando el escalado', 'Avisando al centro', ...(rootCause ? [] : ['Pasando a Pendiente (proveedor)'])]
 ).map((t) => `<li><i></i>${t}</li>`).join('');
 
-const stepper = () => `<ol class="rv-steps">${STEPS.map((s) => `<li data-step-mark="${s.n}"${s.n === LAST ? ' class="last"' : ''}${s.n === 1 ? ' aria-current="step"' : ''}><i>${s.n}</i><span>${s.title}</span></li>`).join('')}</ol>`;
+// La barra lleva los pasos de los dos flujos; la vista enseña los del elegido (FLOWS) y marca su último.
+const stepper = (mode) => {
+  const flow = FLOWS[mode === 'link' ? 'link' : 'escalate'];
+  return `<ol class="rv-steps">${STEPS.map((s) => `<li data-step-mark="${s.n}"${s.n === flow.at(-1) ? ' class="last"' : ''}${s.n === 1 ? ' aria-current="step"' : ''}${flow.includes(s.n) ? '' : ' hidden'}><i>${s.n === FEED ? 2 : s.n}</i><span>${s.title}</span></li>`).join('')}</ol>`;
+};
 const FILE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>';
 
 // `issue`: la issue abierta; `dests` y `open`: el catálogo y los tickets abiertos; `check`: lo que
 // dice el bridge (las notas, la de análisis y la de antecedentes); `saved`: el borrador, si lo hay;
 // `link`: su ticket en Remedy.
 export const escalateForm = ({ issue, dests, open, check, saved = null, link = null }) => {
-  const v = startValues({ issue, open, check, saved });
+  const found = foundTickets(check, open);
+  const v = startValues({ issue, open: found, check, saved });
   const rootCause = issue.status === 'RESOLVED';
   const analysis = check.analysis;
+  const jira = check.notes.find((n) => n.key === 'jira')?.note;
   return `<form class="iss-act-form rv iss-esc" data-act-form="escalate" data-step="1" novalidate>
     <header class="rv-head"><h3>${rootCause ? 'Escalar por la causa raíz' : 'Escalar incidencia'}</h3>${issueRef(issue.id, link)}</header>
-    ${stepper()}
+    ${stepper(v.mode)}
     <input type="hidden" name="step" value="1" />
     <input type="hidden" name="mode" value="${v.mode === 'link' ? 'link' : 'escalate'}" />
     <div class="rv-body">
       <section class="rv-step rv-step-one" data-rstep="1">
-        <div class="rv-cap"><b>¿Ya hay un ticket abierto?</b><button type="button" class="rv-link iss-esc-ai" data-esc-ai>Buscarlo con la IA</button></div>
+        <div class="rv-cap"><b>¿Lo unes a un ticket abierto?</b>${jira ? `<small class="iss-esc-from">Jira · ${esc(short(jira.at))} · ${esc(jira.who)}</small>` : ''}</div>
         <div class="rv-text">
           <fieldset class="iss-esc-open">
-            ${backgroundBox(check.background)}
-            ${open.map((o) => card('linked', o.ticket, v.linked === o.ticket, `<span><b class="iss-mono">${esc(o.ticket)}</b> · ${esc(dests.find((d) => d.id === o.dest)?.name || '')}</span><small>${esc(o.title)} · ${o.issues} ${o.issues === 1 ? 'issue' : 'issues'} esperando · abierto el ${when(o.since)}</small>`)).join('')}
+            ${found.length ? found.map((o) => foundCard(o, v, dests)).join('') : '<p class="iss-esc-none">Sin tickets abiertos en Jira</p>'}
             ${card('linked', 'other', v.linked === 'other', `<b>Otro ticket</b><input name="linkedOther" class="iss-mono" value="${esc(v.linkedOther || '')}" placeholder="PROYECTO-número o INC…" aria-label="Otro ticket" /><span data-esc-linked>${linkedText(v.linkedOther)}</span>`)}
           </fieldset>
+        </div>
+      </section>
+
+      <section class="rv-step rv-step-one" data-rstep="${FEED}" hidden>
+        <div class="rv-cap"><b>Comentario para <span class="iss-mono" data-esc-feed-ticket></span></b><small class="iss-esc-from">Jira · Remedy [ACTUALIZAR ESCALADO]</small></div>
+        <div class="rv-text">
+          <div class="iss-field rv-grow"><textarea class="rv-ed iss-esc-comment" id="iss-f-comment" name="comment" aria-label="Comentario para el ticket">${esc(v.comment || '')}</textarea>${noteMeter(v.comment, 'comment')}</div>
         </div>
       </section>
 
@@ -212,11 +229,10 @@ export const escalateForm = ({ issue, dests, open, check, saved = null, link = n
       </section>
 
       <section class="rv-step rv-step-one" data-rstep="${LAST}" hidden>
-        <div class="rv-cap rv-cap-center rv-cap-final" data-esc-cap hidden><b>Borrador del ticket</b><em>Revísalo antes de escalar</em></div>
+        <div class="rv-cap rv-cap-center rv-cap-final" data-esc-cap hidden><b>Borrador del ticket</b></div>
         <div class="rv-text">
           <section class="rv-gen-sum iss-esc-review" data-esc-review>
             <h4>Lo que has escrito</h4>
-            <p class="iss-esc-after">Al escalar, ${rootCause ? 'queda registrada la causa raíz y la issue sigue Resuelta.' : 'la issue pasa a Pendiente (proveedor) y se avisa al centro.'}</p>
             <ol data-summary></ol>
           </section>
           <div class="rv-review" data-esc-ticket hidden></div>
@@ -233,6 +249,7 @@ export const escalateForm = ({ issue, dests, open, check, saved = null, link = n
     <footer>
       <small class="iss-autosave" data-autosave>${saved?.at ? `Borrador guardado ${localShort(saved.at)}` : 'El borrador se guarda solo mientras escribes'}</small>
       <button type="button" class="lab-btn rv-back" data-step-back hidden>Atrás</button>
+      <button type="button" class="lab-btn rv-next" data-esc-new hidden>Nuevo escalado</button>
       <button type="button" class="lab-btn rv-next" data-step-next>${STEPS[1].title}</button>
       <button type="button" class="lab-btn primary rv-next" data-esc-preview hidden>Ver el ticket</button>
       <button type="submit" class="lab-btn primary rv-next" data-confirm-send hidden>Escalar</button>

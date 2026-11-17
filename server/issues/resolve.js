@@ -15,6 +15,7 @@ import { fail } from './draft.js';
 // tilde (en el CSV a veces llega rota).
 export const NOTES = [
   { key: 'initial', label: 'Situación inicial', tag: /^SITUACI.?N INICIAL$/ },
+  { key: 'recurrence', label: 'Recurrencia', tag: /^RECURRENCIA$/ },
   { key: 'background', label: 'Antecedentes', tag: /^ANTECEDENTES$/ },
   { key: 'analysis', label: 'Análisis', tag: /^AN.?LISIS$/ },
   { key: 'diagnosis', label: 'Diagnóstico', tag: /^DIAGN.?STICO$/ },
@@ -26,6 +27,13 @@ export const CRITICAL = [
   { key: 'restored', label: 'Servicio restablecido', tag: /^SERVREST$/ },
 ];
 const TAG = /^\s*\[([^\]]+)\]\s*/;
+const byKey = new Map([...NOTES, ...CRITICAL].map((n) => [n.key, n]));
+
+// Las notas del método por orden (reunión del 17/11/2026): iguales al resolver y al escalar hasta
+// el análisis; en una crítica, la evaluación de mayor incidente va justo después de la situación inicial.
+// more: las que siguen (al resolver, el diagnóstico y la resolución). → [{ key, label }]
+export const methodNotes = (critical, more = []) => ['initial', ...(critical ? ['major'] : []), 'recurrence', 'background', 'analysis', ...more]
+  .map((k) => byKey.get(k));
 
 const keyOf = (text) => {
   const m = String(text).match(TAG);
@@ -55,7 +63,7 @@ const from = (n, label) => n ? { value: n.text, from: `${label.toLowerCase()} ($
 export const resolveDraft = (issue) => {
   const last = lastByKey(issue.worklog);
   const critical = issue.priority === 'CRITICAL';
-  const notes = [...NOTES, ...(critical ? CRITICAL : [])].map(({ key, label }) => ({ key, label, note: last[key] || null }));
+  const notes = methodNotes(critical, ['diagnosis', 'resolution', ...(critical ? ['restored'] : [])]).map(({ key, label }) => ({ key, label, note: last[key] || null }));
   const missing = notes.filter((n) => !n.note && n.key !== 'resolution').map((n) => n.label);
   if (!issue.category) missing.push('Categoría');
 

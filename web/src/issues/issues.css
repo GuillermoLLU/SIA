@@ -586,10 +586,7 @@ a.rv-id:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .iss-esc-open input[name=linkedOther] { margin-top: 4px; padding: 6px 8px; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border); }
 .iss-esc-dev { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; font-size: 12.5px; line-height: 1.45; border: 1px solid var(--border); background: color-mix(in srgb, var(--bg) 60%, var(--surface)); }
 .iss-esc-dev h4 { margin: 0; font-size: 13px; font-weight: 600; }
-.iss-esc-bg { margin-bottom: 6px; }
-.iss-esc-bg h4 small { margin-left: 6px; font-weight: 400; color: var(--text-low); }
-.iss-esc-bg p { margin: 0; white-space: pre-wrap; }
-.iss-esc .rv-cap .iss-esc-ai { margin-left: auto; }
+.iss-esc .rv-cap .iss-esc-from { margin-left: auto; font-size: 12px; color: var(--text-low); }
 .iss-esc-scroll { overflow-y: auto; }
 /* Paso 2: los destinos por nivel y canal, como el selector de idioma de Resolver (.rv-gen .iss-lang):
    botones pegados, en gris claro, y el elegido en negro; cada uno con su ayuda */

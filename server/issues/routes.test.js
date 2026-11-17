@@ -186,9 +186,9 @@ test('POST /csv: carga el cuerpo con el nombre del fichero; sin nombre .csv, 400
 // Resolver: INC4 es mía (responsable en Remedy), abierta y con todas las notas;
 // INC5, mía pero ya resuelta; INC1, de nadie; INC6, mía pero sin diagnóstico.
 const note = (tag) => ({ at: '2026-10-28 10:00', who: 'ANA', text: `[${tag}] hecho` });
-const NOTES = ['SITUACION INICIAL', 'ANTECEDENTES', 'ANALISIS', 'DIAGNOSTICO'].map(note);
+const NOTES = ['SITUACION INICIAL', 'RECURRENCIA', 'ANTECEDENTES', 'ANALISIS', 'DIAGNOSTICO'].map(note).map((x) => (x.text.startsWith('[RECURRENCIA]') ? { ...x, text: '[RECURRENCIA] Remedy: ninguna\nJira: SISUPAC-9211' } : x));
 const ANA = { assignee: 'ANA LOPEZ GARCIA', category: 'ECOM', worklog: NOTES };
-const RES = [...ISSUES, issue('INC4', { ...ANA, status: 'IN_PROGRESS' }), issue('INC5', { ...ANA, status: 'RESOLVED' }), issue('INC6', { ...ANA, worklog: NOTES.slice(0, 3) })];
+const RES = [...ISSUES, issue('INC4', { ...ANA, status: 'IN_PROGRESS' }), issue('INC5', { ...ANA, status: 'RESOLVED' }), issue('INC6', { ...ANA, worklog: NOTES.slice(0, -1) })];
 const SEND = { note: 'Se relanza', what: 'Se paró', how: 'Se relanzó', prevent: 'Corrección pedida', lang: 'es' };
 const b64 = Buffer.from('hola').toString('base64');
 
@@ -271,20 +271,22 @@ test('confirmar Resolver: lo comprueba todo otra vez y, si cumple, borra el borr
   assert.equal((await call('GET', ['INC4', 'resolve'])).body.draft, null);
 });
 
-// Escalar: INC4 (alta) sin mayor incidente; INC7, alta y con él; INC5, Resuelta (por la causa raíz);
+// Escalar: INC10 (crítica) sin mayor incidente; INC7, crítica y con él; INC5, Resuelta (por la causa raíz);
 // INC3, Pendiente; INC6 sin [DIAGNOSTICO], que no se pide.
 const MAJOR = { at: '2026-10-28 10:40', who: 'ANA', text: '[MAJOR INCIDENT] No' };
-const ESC_ISSUES = [...RES, issue('INC7', { ...ANA, worklog: [...NOTES, MAJOR] }), issue('INC8', { ...ANA, priority: 'LOW', worklog: NOTES.slice(0, 3) }), issue('INC9', { ...ANA, status: 'RESOLVED', worklog: [...NOTES, MAJOR] })];
+const ESC_ISSUES = [...RES, issue('INC7', { ...ANA, priority: 'CRITICAL', worklog: [...NOTES, MAJOR] }), issue('INC8', { ...ANA, priority: 'LOW', worklog: NOTES.slice(0, -1) }), issue('INC10', { ...ANA, priority: 'CRITICAL' }), issue('INC9', { ...ANA, status: 'RESOLVED', worklog: [...NOTES, MAJOR] })];
 const ESC = { mode: 'escalate', dest: 'sisupac', reason: 'Timeouts', step: '4' };
 
 test('abrir Escalar: las notas que pide y las que faltan; el borrador va y vuelve, y se borra al escalar', async () => {
   const { call } = setup([], { issues: ESC_ISSUES });
-  assert.deepEqual((await call('GET', ['INC4', 'escalate'])).body.check.missing, ['¿Es mayor incidente?']);
+  assert.deepEqual((await call('GET', ['INC10', 'escalate'])).body.check.missing, ['¿Es mayor incidente?']);
+  assert.deepEqual((await call('GET', ['INC4', 'escalate'])).body.check.missing, []);   // alta: ya no lo pide
+  assert.deepEqual((await call('GET', ['INC4', 'escalate'])).body.check.recurrence.tickets, ['SISUPAC-9211']);
   assert.deepEqual((await call('GET', ['INC8', 'escalate'])).body.check.missing, []);   // baja y sin diagnóstico: vale
   assert.equal((await call('GET', ['INC8', 'escalate'])).body.check.analysis.text, 'hecho');
-  assert.equal((await call('POST', ['INC4', 'escalate'], ESC)).status, 409);
+  assert.equal((await call('POST', ['INC10', 'escalate'], ESC)).status, 409);
   assert.deepEqual((await call('PUT', ['INC7', 'escalate', 'draft'], ESC)).body, { at: 'at' });
-  assert.deepEqual((await call('GET', ['INC7', 'escalate'])).body.draft, { mode: 'escalate', dest: 'sisupac', destOther: '', linked: '', linkedOther: '', reason: 'Timeouts', jiraPriority: '', sent: '', mins: '', step: 4 });
+  assert.deepEqual((await call('GET', ['INC7', 'escalate'])).body.draft, { mode: 'escalate', dest: 'sisupac', destOther: '', linked: '', linkedOther: '', reason: 'Timeouts', jiraPriority: '', sent: '', mins: '', comment: '', step: 4 });
   assert.equal((await call('GET', ['INC7', 'resolve'])).body.draft, null);   // el de Resolver es otro
   assert.equal((await call('PUT', ['INC7', 'escalate', 'draft'], { step: '9' })).status, 400);
   assert.equal((await call('POST', ['INC7', 'escalate'], { ...ESC, reason: ' ' })).status, 400);

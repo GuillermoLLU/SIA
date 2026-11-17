@@ -3,7 +3,7 @@
 // pregunta al centro, 250). Las fichas de imagen no cuentan.
 import { TAG } from './tag-editor.js';
 
-export const FULL = { note: 400, what: 250, how: 250, prevent: 250 };
+export const FULL = { note: 400, what: 250, how: 250, prevent: 250, comment: 250 };
 export const noteQuality = (text, full = FULL.note) => {
   const len = String(text ?? '').replace(TAG, '').trim().length;
   const pct = Math.min(100, Math.round(len / full * 100));

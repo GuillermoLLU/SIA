@@ -48,23 +48,42 @@ export const opensTicket = (dest) => !!dest && dest.opens !== 'none' && dest.via
 // momento solo está definido para N3 de desarrollo; el resto, cuando se complete el catálogo (#9).
 // subject: el asunto que se copia, si lo lleva.
 export const minimumsOf = (issue, dest) => (isDev(dest) ? [
-  { key: 'form', title: 'Formulario de SIGLO', text: 'Con el análisis previo y las evidencias.', required: true },
-  { key: 'chat', title: 'Chat N3', text: 'Si has llamado: con la persona de desarrollo, el responsable técnico y la referencia de N3.', subject: n3Subject(issue, dest), required: false },
+  { key: 'form', title: 'Formulario de SIGLO', text: 'Con el análisis y las evidencias.', required: true },
+  { key: 'chat', title: 'Chat N3', text: 'Si has llamado: con desarrollo, el responsable técnico y la referencia N3.', subject: n3Subject(issue, dest), required: false },
   { key: 'logs', title: 'Logs', text: 'Copiados a soporteSGA.', required: true },
 ] : []);
 // Las casillas marcadas van en un solo campo, separadas por comas: «form,logs».
 export const checkedMins = (v) => String(v.mins ?? '').split(',').filter(Boolean);
 
-// Los pasos del asistente, como los de Resolver. Primero se busca un ticket abierto: si lo hay,
-// se une y todo acaba en el 1; si no, se escala por los demás.
+// Los pasos del asistente, como los de Resolver. En el 1 se elige el flujo (reunión del 17/11/2026),
+// los dos con el mismo aspecto: unir a uno de los tickets que encontró la recurrencia en Jira (u otro)
+// y actualizar el escalado con un comentario, o un escalado nuevo por los pasos 2 a 5.
+export const FEED = 6;
 export const STEPS = [
-  { n: 1, title: 'Ticket abierto' },
+  { n: 1, title: 'Recurrencia' },   // como la nota: los tickets que encontró en Jira
   { n: 2, title: 'A quién' },
   { n: 3, title: 'Motivo' },
   { n: 4, title: 'Requisitos' },
   { n: 5, title: 'Resumen' },
+  { n: FEED, title: 'Actualizar escalado' },
 ];
-export const LAST = STEPS.length;
+export const FLOWS = { link: [1, FEED], escalate: [1, 2, 3, 4, 5] };
+export const LAST = 5;   // el resumen del escalado
+export const titleOf = (n) => STEPS.find((s) => s.n === n)?.title;
+const flowOf = (mode) => FLOWS[mode === 'link' ? 'link' : 'escalate'];
+export const nextOf = (mode, n) => { const f = flowOf(mode); return f[f.indexOf(n) + 1] ?? null; };
+export const prevOf = (mode, n) => { const f = flowOf(mode); return f[f.indexOf(n) - 1] ?? null; };
+
+// Actualizar escalado: el comentario que se deja en el ticket (y en Remedy) al unirla, con lo nuevo de esta incidencia. Empieza
+// escrito y se puede retocar. check: la comprobación del bridge (las notas de Remedy).
+export const feedComment = (issue, check) => {
+  const note = (k) => check.notes.find((n) => n.key === k)?.note?.text;
+  return [
+    `Nueva incidencia relacionada: ${issue.id}${issue.center ? ` (centro ${issue.center})` : ''}.`,
+    note('initial') && `Situación inicial: ${note('initial')}`,
+    note('analysis') && `Análisis: ${note('analysis')}`,
+  ].filter(Boolean).join('\n\n');
+};
 
 const text = (v, k) => String(v[k] ?? '').trim();
 const linkedRaw = (v) => text(v, v.linked === 'other' ? 'linkedOther' : 'linked');
@@ -79,6 +98,7 @@ export const stepMissing = (n, v, { dests, issue }) => {
     if (!linkedRaw(v)) return { field, text: 'Elige el ticket para seguir' };
     return ticketCheck(linkedRaw(v)).state === 'ok' ? null : { field, text: 'Escribe un ticket válido para seguir' };
   }
+  if (n === FEED && !text(v, 'comment')) return { field: 'comment', text: 'Escribe el comentario para seguir' };
   if (n === 2 && !text(v, 'dest')) return { field: 'dest', text: 'Elige el equipo para seguir' };
   if (n === 2 && v.dest === 'other' && !text(v, 'destOther')) return { field: 'destOther', text: 'Escribe el equipo para seguir' };
   if (n === 3 && !text(v, 'reason')) return { field: 'reason', text: 'Cuenta el motivo para seguir' };
@@ -92,33 +112,33 @@ export const stepMissing = (n, v, { dests, issue }) => {
 
 // Lo que se le puede pasar al técnico al salir del paso n (o al unir, en el 1): se puede seguir,
 // pero avisando, como la nota breve de Resolver. → { title, text, ok } | null
-// background: la nota [ANTECEDENTES] de Remedy (la comprobación del bridge).
+// recurrence: la nota [RECURRENCIA] de Remedy, con los tickets de Jira que encontró (la comprobación del bridge).
 export const priorityLabel = (id) => JIRA_PRIORITIES.find((p) => p.id === id)?.label || id;
-export const stepWarning = (n, v, { dests, issue, background }) => {
+export const stepWarning = (n, v, { dests, issue, recurrence }) => {
   if (n === 1 && v.mode === 'link') {
     const ticket = ticketCheck(linkedRaw(v)).value;
-    const said = String(background?.text ?? '').toUpperCase().includes(ticket);
-    return said ? null : { title: 'Los antecedentes no mencionan el ticket', ok: 'Unir igualmente',
-      text: `En los antecedentes no aparece ${ticket}. ¿Seguro que es el mismo problema?` };
+    return recurrence?.tickets?.includes(ticket) ? null : { title: 'Fuera de la recurrencia', ok: 'Unir igualmente',
+      text: `${ticket} no aparece en la recurrencia en Jira. ¿Es el mismo problema?` };
   }
   if (n === 3 && noteQuality(v.reason).level === 'low') {
-    return { title: 'El motivo es muy breve', ok: 'Continuar', text: '¿Seguro que quieres continuar? El motivo es muy breve y el destino puede devolverla.' };
+    return { title: 'Motivo muy breve', ok: 'Continuar', text: 'El destino puede devolverla.' };
   }
   const dest = destOf(v, dests);
   const due = jiraPriority(issue.priority);
   if (n === 4 && dest?.opens === 'jira' && v.jiraPriority && v.jiraPriority !== due) {
-    return { title: 'La prioridad del Jira no es la que le toca', ok: 'Continuar',
-      text: `Por la criticidad de la issue le toca «${priorityLabel(due)}» y has elegido «${priorityLabel(v.jiraPriority)}». ¿Seguro que quieres seguir?` };
+    return { title: 'Prioridad del Jira distinta', ok: 'Continuar',
+      text: `Por su criticidad le toca «${priorityLabel(due)}»; has elegido «${priorityLabel(v.jiraPriority)}».` };
   }
   if (n === 4 && !opensTicket(dest) && noteQuality(v.sent).level === 'low') {
-    return { title: 'La evidencia es muy breve', ok: 'Continuar', text: '¿Seguro que quieres continuar? Sin herramienta, lo que has enviado es la única prueba del escalado.' };
+    return { title: 'Evidencia muy breve', ok: 'Continuar', text: 'Es la única prueba del escalado.' };
   }
   return null;
 };
 
 // El paso en el que se retoma un borrador: en el que se quedó, si los de antes siguen completos.
 export const resumeStep = (saved, ctx) => {
-  if (!saved || saved.mode === 'link') return 1;
+  if (!saved) return 1;
+  if (saved.mode === 'link') return Number(saved.step) === FEED && !stepMissing(1, saved, ctx) ? FEED : 1;
   const step = Math.min(Number(saved.step) || 1, LAST);
   for (let n = 1; n < step; n++) if (stepMissing(n, saved, ctx)) return n;
   return step;

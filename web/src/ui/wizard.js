@@ -19,7 +19,12 @@ export const slideStep = (f, prev, n, reduced = prefersReducedMotion()) => {
   void sec.offsetWidth;   // reiniciar la animación
   sec.classList.add(fwd ? 'in-fwd' : 'in-back');
   out.hidden = false; out.classList.add(fwd ? 'out-fwd' : 'out-back');
-  out.addEventListener('animationend', () => { out.hidden = true; out.classList.remove('out-fwd', 'out-back'); }, { once: true });
+  // solo si sigue saliendo: si se cambió de paso a mitad, su salida se cortó y este aviso llega
+  // cuando vuelve a entrar (no hay que ocultarlo)
+  out.addEventListener('animationend', () => {
+    if (!out.classList.contains('out-fwd') && !out.classList.contains('out-back')) return;
+    out.hidden = true; out.classList.remove('out-fwd', 'out-back');
+  }, { once: true });
 };
 
 // El campo `el` parpadea en rojo con el aviso en el centro de `box`, y todo se va solo.

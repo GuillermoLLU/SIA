@@ -1,4 +1,4 @@
-// Escalar una issue: el asistente de cinco pasos encima de la pantalla de trabajo (escalate-form.js
+// Escalar una issue: el asistente por pasos encima de la pantalla de trabajo (escalate-form.js
 // pinta; aquí el cableado), con el comportamiento de Resolver: las piezas comunes (ui/wizard.js),
 // el borrador solo en la BBDD local y el cierre por fases. Al acabar se queda con el ticket a la
 // vista hasta cerrar. De momento no sale nada hacia Remedy ni Jira: al cerrar, la vista avisa (onEscalated).
@@ -7,7 +7,7 @@ import { esc } from '../ui/html.js';
 import { BACK_ARROW, NEXT_ARROW, slideStep, flashEmpty, fadeOut as fade, runPhases } from '../ui/wizard.js';
 import { escalateForm, requirementsHtml, linkedText, summaryHtml, filesHtml, ticketHtml, doneHtml, closePhases } from './escalate-form.js';
 import { resolveBlocked, noteMeter, localShort } from './resolve-form.js';
-import { stepMissing, stepWarning, resumeStep, resultTicket, targetOf, STEPS, LAST } from './escalate.js';
+import { stepMissing, stepWarning, resumeStep, resultTicket, targetOf, titleOf, nextOf, prevOf, LAST, FEED, FLOWS } from './escalate.js';
 import { syncEditor, setEditorText, toText, insertChip, removeChips } from './tag-editor.js';
 import { hasFiles } from './chip-drag.js';
 
@@ -44,20 +44,28 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
 
   /* ── Los pasos ── */
   const isLink = (f) => f.elements.mode.value === 'link';
-  // El pie y la barra según el paso: en el 1, «Unir al ticket» si hay uno elegido y, siempre,
-  // seguir sin ticket; al unir, los demás pasos se apagan.
-  // En el resumen, primero «Ver el ticket» y, con el borrador a la vista, «Escalar» (como Resolver).
+  // El pie y la barra según el flujo y el paso. En el 1, con un ticket elegido, «Actualizar escalado» y, al
+  // lado, «Nuevo escalado»; sin ticket, solo el nuevo. La barra enseña los pasos del flujo (FLOWS).
+  // Al actualizar, el botón dice eso mismo. En el resumen, primero «Ver el ticket» y, con el borrador a la vista,
+  // «Escalar» (como Resolver).
+  const flowOf = (f) => FLOWS[isLink(f) ? 'link' : 'escalate'];
   const syncFoot = (f) => {
-    const n = Number(f.dataset.step), link = isLink(f), viewing = 'viewing' in f.dataset;
-    f.querySelectorAll('[data-step-mark]').forEach((m) => m.classList.toggle('off', link && m.dataset.stepMark !== '1'));
+    const n = Number(f.dataset.step), link = isLink(f), viewing = 'viewing' in f.dataset, mode = f.elements.mode.value;
+    const flow = flowOf(f);
+    f.querySelectorAll('[data-step-mark]').forEach((m) => {
+      const k = Number(m.dataset.stepMark);
+      m.hidden = !flow.includes(k);
+      m.classList.toggle('last', k === flow.at(-1));
+    });
     const next = f.querySelector('[data-step-next]'), send = f.querySelector('[data-confirm-send]');
-    next.hidden = n === LAST;
-    next.classList.toggle('primary', !(n === 1 && link));
-    if (n < LAST) next.innerHTML = `${n === 1 ? 'Ninguno: escalar' : STEPS[n].title}${NEXT_ARROW}`;
+    const to = nextOf(mode, n);
+    next.hidden = !to;
+    if (to) next.innerHTML = `${n === 1 && !link ? 'Nuevo escalado' : titleOf(to)}${NEXT_ARROW}`;
+    f.querySelector('[data-esc-new]').hidden = !(n === 1 && link);
     f.querySelector('[data-esc-preview]').hidden = !(n === LAST && !viewing);
-    send.hidden = !((n === LAST && viewing) || (n === 1 && link));
-    send.textContent = n === 1 ? 'Unir al ticket' : 'Escalar';
-    if (n > 1) f.querySelector('[data-step-back]').innerHTML = `${BACK_ARROW}${STEPS[viewing ? LAST - 1 : n - 2].title}`;   // a la izquierda, adónde se vuelve
+    send.hidden = !((n === LAST && viewing) || n === FEED);
+    send.textContent = n === FEED ? titleOf(FEED) : 'Escalar';
+    if (n > 1) f.querySelector('[data-step-back]').innerHTML = `${BACK_ARROW}${titleOf(viewing ? LAST - 1 : prevOf(mode, n))}`;   // a la izquierda, adónde se vuelve
   };
   // El borrador del ticket ocupa el paso, con su título centrado y sin la barra de pasos, como el
   // informe de Resolver; volver lo quita y deja el resumen.
@@ -82,10 +90,12 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
     slideStep(f, prev, n);
     f.querySelectorAll('[data-step-mark]').forEach((m) => {
       const k = Number(m.dataset.stepMark);
-      m.classList.toggle('done', k < n);
+      const flow = flowOf(f);
+      m.classList.toggle('done', flow.indexOf(k) > -1 && flow.indexOf(k) < flow.indexOf(n));
       if (k === n) m.setAttribute('aria-current', 'step'); else m.removeAttribute('aria-current');
     });
     if (n === 1 && f.querySelector('[name="linked"]:checked')) f.elements.mode.value = 'link';   // de vuelta al 1 con un ticket elegido: se puede unir
+    if (n === FEED) f.querySelector('[data-esc-feed-ticket]').textContent = targetOf(values(f), dests);
     const back = f.querySelector('[data-step-back]');
     back.hidden = n === 1;
     syncFoot(f);
@@ -112,22 +122,28 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
   };
   // Lo que se le puede pasar al técnico (escalate.js): se puede seguir, pero avisando. → true si sigue
   const confirmed = async (f, n) => {
-    const w = stepWarning(n, values(f), { ...ctx(), background: check.background });
+    const w = stepWarning(n, values(f), { ...ctx(), recurrence: check.recurrence });
     if (!w) return true;
     const ok = await dialogs.open({ title: w.title, centered: true, okLabel: w.ok, bodyHTML: `<p class="iss-dlg-p">${esc(w.text)}</p>` });
     return ok && f.isConnected;
   };
   const setMode = (f, mode) => { f.elements.mode.value = mode; syncFoot(f); };
   const stepNext = async (f) => {
-    const n = Number(f.dataset.step);
-    if (n === 1) setMode(f, 'escalate');   // «Ninguno: escalar»: sin ticket, se escala
-    if (complete(f, n) && await confirmed(f, n)) moveTo(f, n + 1);
+    const n = Number(f.dataset.step), to = nextOf(f.elements.mode.value, n);
+    if (to && complete(f, n) && await confirmed(f, n)) moveTo(f, to);
+  };
+  // «Nuevo escalado» con un ticket elegido: se suelta el ticket elegido y se sigue por el escalado.
+  const startNew = (f) => {
+    f.querySelectorAll('[name="linked"]').forEach((r) => { r.checked = false; });
+    setMode(f, 'escalate');
+    moveTo(f, 2);
   };
   // Pulsar un paso de arriba (o una fila del resumen): hacia atrás, siempre; hacia delante, hasta
   // donde esté todo completo (si falta algo por el camino, se para ahí y lo señala).
   const jumpTo = (f, target) => {
     const current = Number(f.dataset.step);
-    if (target === current || isLink(f)) return;
+    if (target === current) return;
+    if (isLink(f)) return target === 1 ? moveTo(f, 1) : stepNext(f);   // al unir solo hay dos: ida y vuelta
     if (target < current) return moveTo(f, target);
     for (let k = current; k < target; k++) {
       const missing = stepMissing(k, values(f), ctx());
@@ -163,12 +179,12 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
   const fadeOut = (el) => fade(el, track);
   const submit = async (f) => {
     const n = Number(f.dataset.step), link = isLink(f);
-    if (!link && n < LAST) return stepNext(f);   // Intro en un paso: siguiente
+    if (link ? n !== FEED : n < LAST) return stepNext(f);   // Intro en un paso: siguiente
     if (!link && !('viewing' in f.dataset)) return showTicket(f, true);   // primero, el borrador del ticket
     const send = f.querySelector('[data-confirm-send]');
     if (send.disabled) return;   // un segundo clic mientras se envía
     send.disabled = true;
-    if (link && !(complete(f, 1) && await confirmed(f, 1))) { send.disabled = false; return; }
+    if (link && !complete(f, FEED)) { send.disabled = false; return; }
     const id = opened, fields = values(f);
     if (autosave) { clearTimeout(autosave); autosave = null; saveNow(f); }
     const work = (async () => { await saving; await api.escalate(id, fields); })();
@@ -176,22 +192,22 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
     const review = f.querySelector('[data-esc-review]');
     for (const b of f.querySelectorAll('footer .lab-btn')) b.hidden = true;
     f.querySelector('.rv-steps').hidden = true;
-    // se va el borrador del ticket; al unir no se ha pasado por el resumen: se va el paso 1 y las fases
-    // salen en el sitio del último
-    await Promise.all((link ? [f.querySelector('[data-rstep="1"]')] : [f.querySelector('[data-esc-ticket]'), f.querySelector('[data-esc-cap]')]).map(fadeOut));
+    // se va el borrador del ticket; al unir no se ha pasado por el resumen: se va el comentario y las
+    // fases salen en el sitio del último
+    await Promise.all((link ? [f.querySelector(`[data-rstep="${FEED}"]`)] : [f.querySelector('[data-esc-ticket]'), f.querySelector('[data-esc-cap]')]).map(fadeOut));
     if (!f.isConnected) return;
     if (link) { review.hidden = true; f.querySelector(`[data-rstep="${LAST}"]`).hidden = false; }
     const loader = f.querySelector('[data-loader]');
     loader.hidden = false;
     try {
-      await Promise.all([work, runPhases(loader, link ? 'Uniendo la incidencia' : 'Escalando la incidencia', closePhases(fields, issue.status === 'RESOLVED'), { alive: () => f.isConnected, track })]);
+      await Promise.all([work, runPhases(loader, link ? 'Actualizando el escalado' : 'Escalando la incidencia', closePhases(fields, issue.status === 'RESOLVED'), { alive: () => f.isConnected, track })]);
     } catch (err) {
       if (!f.isConnected) return;
       clearTimeout(timer);
       loader.hidden = true;
       f.querySelector('.rv-steps').hidden = false;
       send.disabled = false;
-      goStep(f, link ? 1 : LAST);   // de vuelta al resumen (o al paso 1, al unir)
+      goStep(f, link ? FEED : LAST);   // de vuelta al resumen (o al comentario, al unir)
       review.hidden = false;
       return showErr(f, err.message);
     }
@@ -231,11 +247,12 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
     if (!f) {
       // el aviso de notas sin cubrir: de momento solo se avisa; el comando al chat llegará con la resolución asistida
       if (e.target.closest?.('[data-escalate-chat]')) { closeIt?.(); toast?.('Se lanzaría un comando al chat para completar las notas del método.'); }
+      // y la búsqueda en Jira: la skill de la IA que deja lo encontrado en la nota [RECURRENCIA]
+      if (e.target.closest?.('[data-escalate-jira]')) { closeIt?.(); toast?.('Se lanzaría la búsqueda en Jira con la IA: lo que encuentre queda en la nota [RECURRENCIA].'); }
       return;
     }
     const t = e.target;
     // las ayudas aún no tienen nada detrás: la IA del chat y la documentación de cada destino llegarán después
-    if (t.closest('[data-esc-ai]')) return toast?.('Se lanzaría un comando al chat de la incidencia para buscar el ticket con la IA.');
     if (t.closest('[data-esc-help]')) return toast?.('Se abriría el chat de la incidencia para que la IA te ayude a elegir el destino.');
     const help = t.closest('[data-dest-help]');
     if (help) { e.preventDefault(); return toast?.(`Aquí irá qué cubre ${dests.find((d) => d.id === help.dataset.destHelp)?.name}: la documentación está por hacer.`); }
@@ -245,11 +262,12 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
     const drop = t.closest('[data-file-drop]');
     if (drop) return dropFile(f, Number(drop.dataset.fileDrop));
     if (t.closest('[data-step-next]')) return stepNext(f);
+    if (t.closest('[data-esc-new]')) return startNew(f);
     const mark = t.closest('[data-step-mark], [data-go]');
     if (mark) return jumpTo(f, Number(mark.dataset.stepMark ?? mark.dataset.go));
     if (t.closest('[data-esc-preview]')) return showTicket(f, true);
     // desde el borrador del ticket, «atrás» vuelve al resumen
-    if (t.closest('[data-step-back]')) return 'viewing' in f.dataset ? showTicket(f, false) : moveTo(f, Number(f.dataset.step) - 1);
+    if (t.closest('[data-step-back]')) return 'viewing' in f.dataset ? showTicket(f, false) : moveTo(f, prevOf(f.elements.mode.value, Number(f.dataset.step)));
     if (t.closest('[data-restore-note]')) {
       const ed = editor(f);
       setEditorText(ed, f.querySelector('[data-restore-note]').dataset.original);
@@ -320,6 +338,7 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
     if (t.name === 'dest' || t.name === 'destOther') syncDest(f);
     if (t.name === 'dest' && t.value === 'other') f.elements.destOther.focus();   // fuera del mapa: a escribir su nombre
     if (t.matches('[data-min]')) syncMins(f);
+    if (t.name === 'comment') f.querySelector('[data-meter="comment"]').outerHTML = noteMeter(t.value, 'comment');
     if (t.matches('[data-ed="reason"]')) {   // el editor lleva su texto al campo oculto, como en Resolver
       syncEditor(t);
       syncRestore(f);
@@ -355,10 +374,10 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
       opened = theIssue.id; issue = theIssue; check = start.check; closeIt = onClose; files = []; lastImage = 0; done = null;
       const blocked = start.check.missing.length > 0;
       root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${blocked
-        ? resolveBlocked(issue.id, start.check, { title: 'Aún no se puede escalar', chat: 'data-escalate-chat' })
+        ? resolveBlocked(issue.id, start.check, { title: 'Aún no se puede escalar', chat: 'data-escalate-chat', jira: 'data-escalate-jira' })
         : escalateForm({ issue, dests, open: tickets, check: start.check, saved: start.draft, link })}</div>`);
       offEscape = onEscape(onClose);
-      if (blocked) { root.querySelector('[data-escalate-chat]').focus(); return; }
+      if (blocked) { root.querySelector('.rb-foot .lab-btn').focus(); return; }
       const f = form();
       syncFoot(f);
       const resume = resumeStep(start.draft, ctx());
