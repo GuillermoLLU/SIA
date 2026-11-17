@@ -4,7 +4,7 @@
 // vista hasta cerrar. De momento no sale nada hacia Remedy ni Jira: al cerrar, la vista avisa (onEscalated).
 import { onEscape } from '../ui/dialog.js';
 import { esc } from '../ui/html.js';
-import { BACK_ARROW, NEXT_ARROW, slideStep, flashEmpty, fadeOut as fade, runPhases } from '../ui/wizard.js';
+import { BACK_ARROW, NEXT_ARROW, slideStep, lockSteps, flashEmpty, fadeOut as fade, runPhases } from '../ui/wizard.js';
 import { escalateForm, requirementsHtml, linkedText, summaryHtml, filesHtml, ticketHtml, doneHtml, closePhases, searchHtml, searchPhases } from './escalate-form.js';
 import { resolveBlocked, noteMeter, localShort } from './resolve-form.js';
 import { stepMissing, stepWarning, resumeStep, resultTicket, targetOf, titleOf, nextOf, prevOf, findEscalations, LAST, FEED, FLOWS } from './escalate.js';
@@ -52,6 +52,10 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
   // En el paso 1, las dos respuestas («No, nuevo escalado» y «Sí, actualizar escalado») si hay
   // coincidencias o se ha elegido uno; sin ninguna, solo «No».
   const answers = (f) => found.length > 0 || isLink(f);
+  // Hasta dónde se ha llegado avanzando con los botones (o hasta donde se dejó el borrador): la barra
+  // solo lleva ahí. Así no se salta la decisión del paso 1 ni lo que aún no se ha hecho.
+  const reachedOf = (f) => Number(f.dataset.reached || 1);
+  const reached = (f, k) => flowOf(f).indexOf(k) <= flowOf(f).indexOf(reachedOf(f));
   const syncFoot = (f) => {
     const n = Number(f.dataset.step), link = isLink(f), viewing = 'viewing' in f.dataset, mode = f.elements.mode.value;
     const flow = flowOf(f);
@@ -60,6 +64,7 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
       m.hidden = !flow.includes(k);
       m.classList.toggle('last', k === flow.at(-1));
     });
+    lockSteps(f, (k) => reached(f, k));
     const next = f.querySelector('[data-step-next]'), send = f.querySelector('[data-confirm-send]');
     const to = nextOf(mode, n), both = n === 1 && answers(f);
     next.hidden = !to;
@@ -88,6 +93,7 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
     if ('viewing' in f.dataset) showTicket(f, false);
     f.dataset.step = String(n);
     f.elements.step.value = String(n);   // va en el borrador: al volver se retoma aquí
+    if (!reached(f, n)) f.dataset.reached = String(n);
     showErr(f, null);
     f.querySelectorAll('[data-rstep]').forEach((p) => { p.hidden = p.dataset.rstep !== String(n); });
     slideStep(f, prev, n);
@@ -130,7 +136,12 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
     const ok = await dialogs.open({ title: w.title, centered: true, okLabel: w.ok, bodyHTML: `<p class="iss-dlg-p">${esc(w.text)}</p>` });
     return ok && f.isConnected;
   };
-  const setMode = (f, mode) => { f.elements.mode.value = mode; syncFoot(f); };
+  // Cambiar la respuesta del paso 1 cambia el flujo: lo alcanzado en el otro ya no cuenta.
+  const setMode = (f, mode) => {
+    if (f.elements.mode.value !== mode) f.dataset.reached = '1';
+    f.elements.mode.value = mode;
+    syncFoot(f);
+  };
   const stepNext = async (f) => {
     const n = Number(f.dataset.step);
     // «Sí, actualizar escalado» sin haber elegido ninguno: se pide, como cualquier campo que falta
@@ -144,14 +155,13 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
     setMode(f, 'escalate');
     moveTo(f, 2);
   };
-  // Pulsar un paso de arriba (o una fila del resumen): hacia atrás, siempre; hacia delante, hasta
-  // donde esté todo completo (si falta algo por el camino, se para ahí y lo señala).
+  // Pulsar un paso de arriba (o una fila del resumen): hacia atrás, siempre; hacia delante, solo hasta
+  // donde ya se llegó (reached) y si lo de por medio sigue completo (si no, se para ahí y lo señala).
   const jumpTo = (f, target) => {
-    const current = Number(f.dataset.step);
-    if (target === current) return;
-    if (isLink(f)) return target === 1 ? moveTo(f, 1) : stepNext(f);   // al unir solo hay dos: ida y vuelta
-    if (target < current) return moveTo(f, target);
-    for (let k = current; k < target; k++) {
+    const current = Number(f.dataset.step), flow = flowOf(f);
+    if (target === current || !reached(f, target)) return;
+    if (flow.indexOf(target) < flow.indexOf(current)) return moveTo(f, target);
+    for (const k of flow.slice(flow.indexOf(current), flow.indexOf(target))) {
       const missing = stepMissing(k, values(f), ctx());
       if (!missing) continue;
       if (k !== current) moveTo(f, k);

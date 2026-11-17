@@ -5,7 +5,7 @@
 // sigue en issues-view.js.
 import { esc } from '../ui/html.js';
 import { onEscape } from '../ui/dialog.js';
-import { BACK_ARROW, NEXT_ARROW, slideStep, flashEmpty, fadeOut as fade, runPhases as phasesIn } from '../ui/wizard.js';
+import { BACK_ARROW, NEXT_ARROW, slideStep, lockSteps, flashEmpty, fadeOut as fade, runPhases as phasesIn } from '../ui/wizard.js';
 import { readAction } from './actions.js';
 import { resolveForm, resolveBlocked, resumeStep, stepMissing, STEPS, LAST, MAX_FILE, MAX_IMAGES, imagesDock, sectionImages, noteMeter, phasesHtml, closePhasesHtml, reportHtml, summaryHtml, localShort } from './resolve-form.js';
 import { noteQuality, FULL } from './quality.js';
@@ -52,9 +52,15 @@ export const createResolver = (root, { api, dialogs, toast, onResolved }) => {
   };
 
   /* ── Los pasos ── */
+  // Hasta dónde se ha llegado avanzando con los botones (o hasta donde se dejó el borrador): la barra
+  // solo lleva ahí, como en Escalar. Lo que aún no se ha alcanzado no se puede pulsar.
+  const reachedOf = (f) => Number(f.dataset.reached || 1);
+  const lockMarks = (f) => lockSteps(f, (n) => n <= reachedOf(f));
   const goStep = (f, n) => {
     const prev = Number(f.dataset.step);
     f.dataset.step = String(n);
+    if (n > reachedOf(f)) f.dataset.reached = String(n);
+    lockMarks(f);
     f.querySelector('.rv-steps').hidden = false;   // de vuelta de un borrador, los pasos otra vez
     f.querySelector('[data-gen-cap]').classList.remove('rv-cap-final');
     f.elements.step.value = String(n);   // va en el borrador: al volver se retoma aquí
@@ -104,11 +110,11 @@ export const createResolver = (root, { api, dialogs, toast, onResolved }) => {
     if (n + 1 === LAST) await saving;   // el informe cuenta con las imágenes aunque aún se estuvieran guardando
     if (f.isConnected) moveTo(f, n + 1);
   };
-  // Pulsar un paso de arriba (o una fila del resumen): hacia atrás, siempre; hacia delante, hasta
-  // donde esté todo completo (si falta algo por el camino, se para en ese paso y lo señala).
+  // Pulsar un paso de arriba (o una fila del resumen): hacia atrás, siempre; hacia delante, solo hasta
+  // donde ya se llegó y si todo sigue completo (si falta algo por el camino, se para en ese paso y lo señala).
   const jumpTo = async (f, target) => {
     const current = Number(f.dataset.step);
-    if (target === current) return;
+    if (target === current || target > reachedOf(f)) return;
     if (target < current) return moveTo(f, target);
     const values = Object.fromEntries(new FormData(f));
     for (let k = current; k < target; k++) {
@@ -411,7 +417,7 @@ export const createResolver = (root, { api, dialogs, toast, onResolved }) => {
       const f = form();
       f.querySelector('.rv-ed')?.focus();
       const resume = resumeStep(start.check, start.draft);
-      if (resume > 1) goStep(f, resume);
+      if (resume > 1) goStep(f, resume); else lockMarks(f);
       loadThumbs(f);
     },
     close,

@@ -33,7 +33,7 @@ API y su vista:
 | `knowledge/`, `projects/` | Conocimiento asignado y la sección Administración de Configuración |
 | `lab/`, `links/`, `skills/` | Laboratorio de skills, Enlaces (la columna de Configuración y su formulario) y la paleta ⌘K |
 | `settings/`, `lock/`, `theme/` | Configuración (sus cajas por sección y su cabecera, `head.js`; Proveedores IA, `providers-view.js`: la cuenta de Copilot), candado y temas |
-| `ui/` | Lo común: `api.js` (el único cliente HTTP), diálogos, toast, html, tiempo, el selector (`picker.js`), las piezas de los asistentes por pasos (`wizard.js`: cómo entra un paso, el aviso de lo que falta y el cierre por fases), la entrada en cascada de una vista (`enter.js`) y el aviso de lo que falta para la red del cliente (`net-warning.js`, `net-warning-view.js`: certificados y VPN; lo usan el inicio de sesión y Métricas) |
+| `ui/` | Lo común: `api.js` (el único cliente HTTP), diálogos, toast, html, tiempo, el selector (`picker.js`), las piezas de los asistentes por pasos (`wizard.js`: cómo entra un paso, la barra que solo lleva a lo ya alcanzado, el aviso de lo que falta y el cierre por fases), la entrada en cascada de una vista (`enter.js`) y el aviso de lo que falta para la red del cliente (`net-warning.js`, `net-warning-view.js`: certificados y VPN; lo usan el inicio de sesión y Métricas) |
 
 ### `server/` — el bridge local
 

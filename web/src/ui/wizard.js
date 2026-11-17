@@ -10,6 +10,14 @@ export const FLASH_MS = 1800;   // lo que dura el parpadeo y el aviso de un camp
 export const PHASE_MS = 1000;   // cada fase del cierre
 export const FADE_MS = 300;     // lo que tarda en irse lo de antes
 
+// La barra de pasos solo lleva a los ya alcanzados: los demás ([data-step-mark] para los que
+// reached(n) es falso) quedan bloqueados, sin poder pulsarse (.locked en issues.css).
+export const lockSteps = (f, reached) => f.querySelectorAll('[data-step-mark]').forEach((m) => {
+  const off = !reached(Number(m.dataset.stepMark));
+  m.classList.toggle('locked', off);
+  if (off) m.setAttribute('aria-disabled', 'true'); else m.removeAttribute('aria-disabled');
+});
+
 // El paso n ([data-rstep]) entra desde el lado del que viene mientras el anterior sale por el otro.
 export const slideStep = (f, prev, n, reduced = prefersReducedMotion()) => {
   const sec = f.querySelector(`[data-rstep="${n}"]`), out = prev && prev !== n ? f.querySelector(`[data-rstep="${prev}"]`) : null;

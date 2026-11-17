@@ -1,13 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { slideStep, flashEmpty, fadeOut, runPhases, FLASH_MS, FADE_MS, PHASE_MS } from './wizard.js';
+import { slideStep, lockSteps, flashEmpty, fadeOut, runPhases, FLASH_MS, FADE_MS, PHASE_MS } from './wizard.js';
 
 // Un elemento falso: clases, hijos, eventos y lo justo de cada pieza.
 const el = (o = {}) => {
   const cls = new Set(), on = {};
   const node = {
     hidden: false, textContent: '', children: [], focused: false, removed: false, offsetWidth: 1,
-    cls, classList: { contains: (c) => cls.has(c), add: (...c) => c.forEach((x) => cls.add(x)), remove: (...c) => c.forEach((x) => cls.delete(x)), replace: (a, b) => cls.delete(a) && cls.add(b) },
+    cls, attrs: {}, setAttribute: (k, v) => { node.attrs[k] = v; }, removeAttribute: (k) => { delete node.attrs[k]; },
+    classList: { toggle: (c, on) => (on ? cls.add(c) : cls.delete(c)), contains: (c) => cls.has(c), add: (...c) => c.forEach((x) => cls.add(x)), remove: (...c) => c.forEach((x) => cls.delete(x)), replace: (a, b) => cls.delete(a) && cls.add(b) },
     addEventListener: (type, fn) => { on[type] = fn; }, fire: (type) => on[type]?.(),
     append: (c) => node.children.push(c), remove: () => { node.removed = true; },
     focus: () => { node.focused = true; },
@@ -34,6 +35,15 @@ test('slideStep: el nuevo entra por el lado del que viene y el anterior sale por
   s1.hidden = false;
   s1.fire('animationend');
   assert.equal(s1.hidden, false);
+});
+
+test('lockSteps: la barra solo deja pulsar lo ya alcanzado', () => {
+  const marks = [1, 2, 3].map((n) => el({ dataset: { stepMark: String(n) } }));
+  const f = { querySelectorAll: () => marks };
+  lockSteps(f, (n) => n <= 2);
+  assert.deepEqual(marks.map((m) => [m.cls.has('locked'), m.attrs['aria-disabled'] ?? null]), [[false, null], [false, null], [true, 'true']]);
+  lockSteps(f, () => true);   // al llegar, se desbloquea
+  assert.deepEqual(marks.map((m) => m.cls.has('locked') || 'aria-disabled' in m.attrs), [false, false, false]);
 });
 
 test('flashEmpty: el campo parpadea con el aviso en su caja, y todo se va solo', (t) => {

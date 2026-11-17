@@ -523,6 +523,7 @@ a.rv-id:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .rv-steps { display: flex; align-items: flex-end; margin: -22px 0 0; padding: 0 40px 16px; list-style: none; }   /* la etiqueta del grupo sube al hueco libre junto a la cabecera */
 .rv-steps li[data-step-mark] { position: relative; display: flex; align-items: center; gap: 10px; min-width: 0; font-size: 13px; color: var(--text-low); cursor: pointer; }
 .rv-steps li[data-step-mark]:hover:not([aria-current]) span { color: var(--text); }
+.rv-steps li[data-step-mark].locked { cursor: default; pointer-events: none; }   /* un paso al que aún no se ha llegado */
 .rv-steps li[data-step-mark]:hover:not([aria-current]) i { border-color: var(--text-low); }
 .rv-steps > li[data-step-mark] { flex: 1 1 auto; }
 .rv-steps > li.last { flex: none; }
