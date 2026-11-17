@@ -8,6 +8,7 @@
 // (escalate-view.js) vuelve a pintar lo que depende de lo escrito: requirementsHtml, linkedText,
 // summaryHtml, filesHtml y doneHtml.
 import { esc } from '../ui/html.js';
+import { loaderHtml, phasesHtml } from '../ui/loader.js';
 import { when } from './format.js';
 import { ticketCheck, JIRA_PRIORITIES, jiraPriority, opensTicket, destOf, minimumsOf, checkedMins, priorityLabel, feedComment, STEPS, LAST, FEED, FLOWS } from './escalate.js';
 import { doneMark, noteMeter, localShort, issueRef, notePoint, CHECK, MISSING } from './resolve-form.js';
@@ -55,15 +56,10 @@ export const searchHtml = (issueId, check) => `<div class="rb rb-search" role="a
       </div>
     </div>
     <ul class="rb-list">${check.notes.map(notePoint).join('')}</ul>
-    <div class="rv-loader" data-loader>
-      <h4 class="rv-loader-title" data-loader-title></h4>
-      <i class="rv-spin"></i>
-      <ol class="rv-phases" data-phases></ol>
-    </div>
+    ${loaderHtml({ title: '' })}
   </div>`;
 // Lo que se busca, con los criterios del equipo: en SGA, el mismo centro; en SISU, el mismo módulo.
-export const searchPhases = (issue) => [issue.sisu ? 'Mismo módulo' : `Mismo centro · ${issue.center || '—'}`, 'Resumen parecido']
-  .map((t) => `<li><i></i>${esc(t)}</li>`).join('');
+export const searchPhases = (issue) => phasesHtml([issue.sisu ? 'Mismo módulo' : `Mismo centro · ${issue.center || '—'}`, 'Resumen parecido']);
 
 // Paso 1: los tickets que encontró la recurrencia en Jira, con lo que se sabe de cada uno (el
 // catálogo de abiertos, de prueba). → [{ ticket, dest?, title?, issues?, since? }]
@@ -181,10 +177,9 @@ export const doneHtml = (result, target, mode, rootCause) => `<i class="iss-esc-
           ${result.sample ? '<small>De ejemplo hasta conectar Jira</small>' : ''}` : ''}`;
 
 // Al escalar: lo que hace SIA (de momento, un simulacro, como el cierre de Resolver).
-export const closePhases = (v, rootCause) => (v.mode === 'link'
+export const closePhases = (v, rootCause) => phasesHtml(v.mode === 'link'
   ? ['Comentando en Jira', 'Registrando en Remedy', 'Pasando a Pendiente (proveedor)']
-  : ['Registrando el escalado', 'Avisando al centro', ...(rootCause ? [] : ['Pasando a Pendiente (proveedor)'])]
-).map((t) => `<li><i></i>${t}</li>`).join('');
+  : ['Registrando el escalado', 'Avisando al centro', ...(rootCause ? [] : ['Pasando a Pendiente (proveedor)'])]);
 
 // La barra lleva los pasos de los dos flujos; la vista enseña los del elegido (FLOWS) y marca su último.
 const stepper = (mode) => {
@@ -256,11 +251,7 @@ export const escalateForm = ({ issue, dests, open, check, saved = null, link = n
             <ol data-summary></ol>
           </section>
           <div class="rv-review" data-esc-ticket hidden></div>
-          <div class="rv-loader" data-loader hidden>
-            <h4 class="rv-loader-title" data-loader-title></h4>
-            <i class="rv-spin"></i>
-            <ol class="rv-phases" data-phases></ol>
-          </div>
+          ${loaderHtml({ title: '' }).replace('data-loader>', 'data-loader hidden>')}
           <div class="iss-esc-done" data-esc-done hidden></div>
         </div>
       </section>

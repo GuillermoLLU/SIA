@@ -31,7 +31,7 @@ test('antes del asistente, lo que ya cumple y la búsqueda de recurrencias en Ji
   assert.match(html, /<span class="rb-icon ok">/);
   assert.deepEqual([...html.matchAll(/<li class="ok">.*?<span>([^<]+)<\/span>/g)].map((m) => m[1]), ['Situación inicial', 'Recurrencia', 'Antecedentes', 'Análisis']);
   assert.doesNotMatch(html, /Recurrencia en Jira|lab-btn/);   // ni la fila de Jira ni botones: se busca sola
-  assert.match(html, /<div class="rv-loader" data-loader>/);
+  assert.match(html, /<div class="ld" data-loader>/);   // el cargador común (ui/loader.js)
   // con los criterios del equipo: SGA por centro, SISU por módulo
   assert.deepEqual([...searchPhases({ center: '100497' }).matchAll(/<\/i>([^<]+)/g)].map((m) => m[1]), ['Mismo centro · 100497', 'Resumen parecido']);
   assert.match(searchPhases({ sisu: true }), /<\/i>Mismo módulo</);

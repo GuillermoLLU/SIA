@@ -8,7 +8,7 @@ import { allowed } from './auth/views.js';
 import { NO_DB_MSG, noDbClient } from './base/client.js';
 
 // rutas que no tocan la base de conocimiento
-const DB_FREE = new Set(['version', 'config', 'upload', 'uploads']);
+const DB_FREE = new Set(['version', 'config', 'providers', 'upload', 'uploads']);
 // GET de un adjunto: un <img> no lleva cabeceras; es un fichero de aquí
 const sessionFree = (parts, method) => (parts[1] === 'uploads' && method === 'GET') || parts[1] === 'version';
 
@@ -54,6 +54,7 @@ export const createRouter = ({ ping, base, auth, lock, routes, ensureBase = asyn
       if (parts[1] === 'backlog') return routes.backlog(req, res, rest, who, url.searchParams);
       if (parts[1] === 'metrics') return routes.metrics(req, res, rest, who, url.searchParams);
       if (parts[1] === 'config') return routes.config(req, res);
+      if (parts[1] === 'providers') return routes.providers(req, res, rest); // la cuenta de Copilot (providers/)
       if (parts[1] === 'upload' || parts[1] === 'uploads') return routes.uploads(req, res, parts.slice(1));
 
       // lo demás necesita la base de conocimiento y lo que abre en ella la

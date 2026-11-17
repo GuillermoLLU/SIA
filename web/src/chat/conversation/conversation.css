@@ -1,0 +1,314 @@
+/* La conversación de un chat (view.js): el hilo en una columna de lectura
+   cómoda, con la caja de escribir (composer.js) flotando debajo. Colores,
+   letra y formas de SIA: las variables del tema, Helvetica Now y las esquinas
+   rectas. */
+.conversation { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; }
+/* al abrir el chat, la conversación entra subiendo mientras la portada se va (style.css: .ai-hero-host.leaving) */
+.conversation.entering { animation: cv-enter .36s cubic-bezier(.2, .7, .2, 1) .08s both; }
+@keyframes cv-enter { from { opacity: 0; transform: translateY(12px); } }
+
+/* de fondo, las manchas de color de la portada (style.css: .ai-hero-bg), más suaves y más lentas */
+.cv-bg { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+.cv-bg i {
+  position: absolute; width: 52vmin; height: 52vmin; border-radius: 50%;
+  filter: blur(90px); opacity: .11; will-change: transform;
+  background: var(--accent);
+  animation: ai-drift 34s ease-in-out infinite alternate;
+}
+.cv-bg i:nth-child(1) { left: 10%; top: 4%; }
+.cv-bg i:nth-child(2) { right: 8%; top: 22%; background: color-mix(in srgb, var(--accent) 55%, #7c3aed); animation-duration: 41s; animation-delay: -12s; }
+.cv-bg i:nth-child(3) { left: 34%; bottom: 2%; background: color-mix(in srgb, var(--accent) 55%, #06b6d4); animation-duration: 47s; animation-delay: -23s; }
+.cv, .cv-top, .cv-dock { position: relative; z-index: 1; }
+
+/* arriba a la derecha, empezar otro chat: un botón negro, el de la marca */
+.cv-top { position: absolute; top: 14px; right: 24px; z-index: 4; display: flex; gap: 6px; }
+.cv-close {
+  height: 36px; padding: 0 16px;
+  border: 1px solid var(--accent); background: var(--accent); color: var(--surface);
+  font: 600 12.5px var(--font-ui); cursor: pointer; transition: opacity var(--motion-state);
+}
+.cv-close:hover { opacity: .85; }
+
+.cv {
+  flex: 1; min-height: 0;
+  overflow-y: auto; overscroll-behavior: contain;
+  padding: 56px 24px calc(var(--dock-h, 140px) + 16px); /* el final queda libre bajo el muelle */
+  font: 15px/1.6 var(--font-ui); color: var(--text);
+}
+.cv-thread { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; }
+.cv-row.cv-new { animation: cv-row-in .26s cubic-bezier(.2, .7, .2, 1) both; }
+@keyframes cv-row-in { from { opacity: 0; transform: translateY(8px); } }
+/* chat nuevo: «¿Por dónde empezamos?» en medio; en cuanto hay conversación, fuera */
+.cv-empty { display: none; text-align: center; color: var(--text); font: 600 22px/1.3 var(--font-ui); letter-spacing: -0.01em; }
+.cv.empty { display: flex; flex-direction: column; justify-content: center; }
+.cv.empty .cv-empty { display: block; }
+.cv.empty .cv-thread { display: none; }
+/* abriéndose (Copilot arrancando): el aviso centrado, en el sitio del saludo */
+
+/* Las burbujas, como en un chat de móvil: lo tuyo a la derecha, en gris, y lo
+   que responde Copilot a la izquierda, en blanco con borde; cada una con su
+   pico arriba, hacia su lado. Lo demás (herramientas, tarjetas) va a la
+   izquierda, como lo de Copilot. */
+.cv-thread { gap: 14px; }
+.cv-user { display: flex; justify-content: flex-end; }
+.cv-bubble, .cv-row > .cv-text, .cv-typing .cv-text {
+  position: relative; max-width: 78%; padding: 10px 14px; box-sizing: border-box;
+}
+.cv-bubble { background: color-mix(in srgb, var(--text) 8%, var(--bg)); border: 1px solid color-mix(in srgb, var(--text) 14%, var(--bg)); }
+.cv-row > .cv-text, .cv-typing .cv-text { width: fit-content; background: var(--surface); border: 1px solid var(--border); }
+/* el pico: dos triángulos, el del borde y el del relleno, a 10 px del borde de arriba */
+.cv-bubble::before, .cv-bubble::after, .cv-row > .cv-text::before, .cv-row > .cv-text::after, .cv-typing .cv-text::before, .cv-typing .cv-text::after {
+  content: ''; position: absolute; top: 10px; width: 0; height: 0; border: 7px solid transparent;
+}
+.cv-bubble::before { right: -8px; border-right: 0; border-left-color: color-mix(in srgb, var(--text) 14%, var(--bg)); }
+.cv-bubble::after { right: -6px; border-right: 0; border-left-color: color-mix(in srgb, var(--text) 8%, var(--bg)); }
+.cv-row > .cv-text::before, .cv-typing .cv-text::before { left: -8px; border-left: 0; border-right-color: var(--border); }
+.cv-row > .cv-text::after, .cv-typing .cv-text::after { left: -6px; border-left: 0; border-right-color: var(--surface); }
+.cv-user.pending .cv-bubble { opacity: .6; } /* enviado, aún sin el eco de Copilot */
+.cv-said { white-space: pre-wrap; overflow-wrap: anywhere; }
+.cv-files { display: flex; flex-wrap: wrap; gap: 6px; }
+.cv-files + .cv-said { margin-top: 8px; }
+.cv-file { display: inline-flex; align-items: center; height: 28px; padding: 0 10px; font-size: 12.5px; color: var(--text); text-decoration: none; background: var(--surface); border: 1px solid var(--border); }
+.cv-file.img { height: auto; padding: 0; background: none; }
+.cv-file.img img { display: block; max-width: 240px; max-height: 180px; object-fit: cover; }
+/* las herramientas y las tarjetas, del lado de Copilot */
+.cv-row > .cv-tools, .cv-row > .cv-ask { max-width: 78%; }
+
+/* el Markdown de lo que responde */
+.cv-md > :first-child { margin-top: 0; }
+.cv-md > :last-child { margin-bottom: 0; }
+.cv-md p, .cv-md ul, .cv-md ol, .cv-md blockquote, .cv-md pre, .cv-md table { margin: 0 0 12px; }
+.cv-md h1, .cv-md h2, .cv-md h3, .cv-md h4 { margin: 20px 0 8px; line-height: 1.3; font-weight: 650; }
+.cv-md h1 { font-size: 20px; } .cv-md h2 { font-size: 18px; } .cv-md h3 { font-size: 16px; } .cv-md h4 { font-size: 15px; }
+.cv-md ul, .cv-md ol { padding-left: 22px; }
+.cv-md li + li { margin-top: 4px; }
+.cv-md strong { font-weight: 650; }
+.cv-md a { color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
+.cv-md code { font: 13px/1.5 var(--font-mono); padding: 1px 5px; background: color-mix(in srgb, var(--text) 7%, transparent); }
+.cv-md pre { padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); overflow-x: auto; }
+.cv-md pre code { padding: 0; background: none; font-size: 12.5px; }
+.cv-md blockquote { padding: 2px 14px; border-left: 2px solid var(--border); color: var(--text-low); }
+.cv-md table { border-collapse: collapse; display: block; overflow-x: auto; font-size: 13.5px; }
+.cv-md th, .cv-md td { padding: 6px 10px; border: 1px solid var(--border); text-align: left; }
+.cv-md th { background: var(--bg); font-weight: 600; }
+.cv-md hr { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
+
+/* las herramientas: una línea discreta que se despliega */
+.cv-tools { font-size: 13px; color: var(--text-low); }
+.cv-tools summary { display: flex; align-items: center; gap: 8px; cursor: pointer; list-style: none; padding: 2px 0; }
+.cv-tools summary::-webkit-details-marker { display: none; }
+.cv-tools summary:hover { color: var(--text); }
+.cv-tools.group > .cv-tool { margin-left: 15px; }
+.cv-sum { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cv-state { flex: none; width: 6px; height: 6px; background: var(--success); }
+.cv-state[data-done="false"] { background: var(--text); animation: cv-pulse 1s ease-in-out infinite; }
+.cv-tool.error > summary .cv-state { background: var(--danger); }
+.cv-detail, .cv-result {
+  margin: 4px 0 8px 14px; padding: 8px 10px;
+  background: var(--surface); border: 1px solid var(--border);
+  font: 12px/1.5 var(--font-mono); color: var(--text-low);
+  white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow-y: auto;
+}
+.cv-result { color: var(--text); }
+
+/* lo que Copilot pregunta: una tarjeta con sus opciones */
+.cv-ask { padding: 16px 18px; background: var(--surface); border: 1px solid var(--border); }
+.cv-ask.done { padding: 10px 14px; }
+.cv-ask-title { font: 600 11px/1 var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--text-low); margin-bottom: 10px; }
+.cv-ask.done .cv-ask-title { margin-bottom: 6px; }
+.cv-answers { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; font-size: 13.5px; }
+.cv-answers li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
+.cv-answers span, .cv-answers b { color: var(--text-low); font-weight: 400; }
+.cv-ask-more { margin-top: 6px; font-size: 12.5px; }
+.cv-ask-more > summary { cursor: pointer; color: var(--text-low); list-style: none; }
+.cv-ask-more > summary::-webkit-details-marker { display: none; }
+.cv-ask-more > summary::before { content: '▸ '; }
+.cv-ask-more[open] > summary::before { content: '▾ '; }
+.cv-ask-more > summary:hover { color: var(--text); }
+.cv-ask-more[open] > summary { margin-bottom: 10px; }
+.cv-q + .cv-q { margin-top: 14px; }
+.cv-q-head { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-low); }
+.cv-q-text { margin: 2px 0 10px; font-weight: 600; }
+.cv-opts { display: flex; flex-direction: column; gap: 6px; }
+.cv-opt {
+  display: flex; flex-direction: column; gap: 2px; text-align: left;
+  padding: 10px 12px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text); font: inherit; font-size: 14px; cursor: pointer;
+  transition: border-color var(--motion-state);
+}
+button.cv-opt:hover:not(:disabled) { border-color: var(--text); }
+.cv-opt small { font-size: 12.5px; color: var(--text-low); }
+.cv-opt.static { cursor: default; }
+.cv-opt.picked { border-color: var(--text); background: color-mix(in srgb, var(--text) 6%, var(--bg)); }
+button.cv-opt:disabled:not(.picked) { opacity: .5; cursor: default; }
+.cv-opt.radio, .cv-opt.check { position: relative; padding-left: 40px; }
+.cv-opt.radio::before, .cv-opt.check::before {
+  content: ''; position: absolute; left: 13px; top: 13px; width: 14px; height: 14px; box-sizing: border-box;
+  border: 1px solid var(--text-low); border-radius: 50%;
+}
+.cv-opt.check::before { border-radius: 0; }
+.cv-opt.radio.picked::before { border-color: var(--text); box-shadow: inset 0 0 0 2px var(--bg), inset 0 0 0 7px var(--text); }
+.cv-opt.check.picked::before { border-color: var(--text); background: var(--text); }
+.cv-opt.check.picked::after { content: ''; position: absolute; left: 17.5px; top: 14.5px; width: 4px; height: 8px; border: solid var(--bg); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.cv-ask-foot { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.cv-ask-send, .cv-ask-deny { margin-top: 14px; height: 34px; padding: 0 16px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.cv-ask-send { border: 1px solid var(--accent); background: var(--accent); color: var(--surface); }
+.cv-ask-send:disabled { background: var(--border); border-color: var(--border); color: var(--text-low); cursor: default; }
+.cv-ask-deny { border: 1px solid var(--border); background: transparent; color: var(--text-low); }
+.cv-ask-deny:hover:not(:disabled) { border-color: var(--text); color: var(--text); }
+.cv-ask-hint { margin-top: 14px; font-size: 12.5px; color: var(--text-low); }
+.cv-plan { padding: 4px 2px; }
+.cv-ask-answer { margin-top: 10px; font-size: 12.5px; color: var(--text-low); white-space: pre-wrap; }
+
+/* Copilot no tiene sesión iniciada (cards.js: authHtml): centrada, con el botón debajo; es parte del
+   chat, no un error pegado encima. Sola en un chat aún sin mensajes (.cv.solo) ocupa el sitio del saludo */
+.cv-auth { align-self: center; width: 100%; max-width: 440px; margin: 10px auto; padding: 22px 24px 20px; display: flex; flex-direction: column; align-items: center; text-align: center; background: var(--surface); border: 1px solid var(--border); }
+.cv-auth-ico { width: 42px; height: 42px; display: grid; place-items: center; color: var(--surface); background: var(--accent); margin-bottom: 12px; }
+.cv-auth-ico svg { width: 20px; height: 20px; }
+.cv-auth-title { font: 650 16px/1.3 var(--font-ui); color: var(--text); }
+.cv-auth p { margin: 6px 0 0; max-width: 34em; font-size: 13px; line-height: 1.5; color: var(--text-low); text-wrap: balance; }
+.cv-auth-actions { margin-top: 16px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.cv-auth-main { min-width: 168px; height: 36px; padding: 0 22px; border: 1px solid var(--accent); background: var(--accent); color: var(--surface); font: 600 13px var(--font-ui); cursor: pointer; }
+.cv-auth-main:hover:not(:disabled) { opacity: .9; }
+.cv-auth-link { padding: 6px 10px; border: 0; background: none; color: var(--text-low); font: 500 12.5px var(--font-ui); cursor: pointer; }
+.cv-auth-link:hover:not(:disabled) { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
+.cv-auth-main:disabled, .cv-auth-link:disabled { opacity: .5; cursor: default; }
+.cv-auth-detail { display: block; margin-top: 12px; font-size: 12px; color: var(--text-low); }
+.cv.solo { display: flex; flex-direction: column; justify-content: center; }
+.cv.solo .cv-thread { width: 100%; }
+.cv.solo .cv-auth { max-width: 480px; background: none; border-color: transparent; }
+.cv.solo .cv-auth-title { font-size: 20px; }
+/* ya pasó (se ha escrito después): una línea fina entre dos rayas, como una marca del hilo */
+.cv-auth.past { max-width: none; margin: 2px 0; padding: 0; flex-direction: row; gap: 12px; background: none; border: 0; font-size: 12px; color: var(--text-low); }
+.cv-auth.past::before, .cv-auth.past::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* el texto que está escribiendo: la respuesta a medias, con cursor; debajo del hilo, con su misma columna */
+.cv-typing { max-width: 760px; margin: 14px auto 0; }
+.cv-typing[hidden] { display: none; }
+.cv-typing .cv-md > :last-child::after { content: ''; display: inline-block; width: 7px; height: 1em; margin-left: 3px; vertical-align: text-bottom; background: var(--text); animation: cv-blink 1s steps(2) infinite; }
+@keyframes cv-blink { to { opacity: 0; } }
+
+/* trabajando: tres puntos y, si hay algo que decir, una línea */
+.cv-busy { max-width: 760px; margin: 14px auto 0; display: flex; gap: 5px; padding-left: 2px; align-items: center; }
+.cv-busy-label { margin-left: 8px; font-size: 13px; color: var(--text-low); }
+.cv-busy-label:empty { display: none; }
+/* con el hilo aún vacío (el chat de una issue leyendo sus datos), lo que hace va en el centro, en negro y más grande */
+.cv.empty .cv-busy { width: 100%; justify-content: center; margin-top: 0; }
+.cv.empty .cv-busy-label { font-size: 15px; font-weight: 600; color: var(--text); }
+.cv.empty .cv-empty:empty { display: none; }
+.cv-busy[hidden] { display: none; }
+.cv-busy i { width: 6px; height: 6px; background: var(--text-low); animation: cv-pulse 1.2s ease-in-out infinite; }
+.cv-busy i:nth-child(2) { animation-delay: .2s; } .cv-busy i:nth-child(3) { animation-delay: .4s; }
+@keyframes cv-pulse { 50% { opacity: .3; } }
+
+/* buscar en la conversación (find.js): una barra flotante arriba, centrada */
+.cv-find {
+  position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 5;
+  display: flex; align-items: center; gap: 2px;
+  padding: 4px 6px 4px 12px;
+  background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-float);
+  font: 13px/1.3 var(--font-ui); color: var(--text);
+}
+.cv-find[hidden] { display: none; }
+.cv-find input { width: 220px; min-width: 0; border: 0; background: none; color: var(--text); font: inherit; outline: none; padding: 2px 0; }
+.cv-find input::-webkit-search-cancel-button, .cv-find input::-webkit-search-decoration { display: none; }
+.cv-find-n { flex: none; min-width: 3.5ch; margin: 0 4px; font-size: 12px; text-align: right; color: var(--text-low); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cv-find-n.none { color: var(--danger); }
+.cv-find button { flex: none; width: 24px; height: 24px; display: grid; place-items: center; border: 0; background: none; color: var(--text-low); cursor: pointer; }
+.cv-find button:hover { background: var(--border); color: var(--text); }
+::highlight(cv-find) { background-color: color-mix(in srgb, var(--text) 18%, transparent); }
+::highlight(cv-find-cur) { background-color: var(--accent); color: var(--surface); }
+
+/* el muelle: la caja y el pie, pegados abajo y por encima de la conversación,
+   con un velo del fondo para que lo que pasa por debajo no se lea a través.
+   Escondido (.conversation.tucked, al subir por el hilo) vuelve deprisa */
+.cv-dock {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 3;
+  display: flex; flex-direction: column; align-items: stretch;
+  padding: 18px 24px 0; background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--bg) 90%, transparent) 30px);
+  transition: opacity .12s ease, transform .12s ease;
+}
+.conversation.tucked .cv-dock { opacity: .1; transform: translateY(6px); pointer-events: none; transition: opacity .4s ease, transform .4s ease; }
+
+/* la caja de escribir: una fila (el texto crece hacia arriba) con el clip y Enviar al final */
+.composer {
+  width: 100%; max-width: 760px; margin: 0 auto 6px; box-sizing: border-box;
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 10px 10px 10px 18px;
+  background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-float);
+  transition: border-color .15s;
+}
+.composer:focus-within { border-color: var(--text); }
+.composer.off { border-color: var(--border); }
+.cp-row { display: flex; align-items: flex-end; gap: 6px; }
+.composer textarea {
+  flex: 1; min-width: 0; resize: none; border: 0; outline: 0; background: transparent;
+  min-height: 24px; max-height: 200px; padding: 5px 0; box-sizing: content-box;
+  font: 15px/1.6 var(--font-ui); color: var(--text);
+}
+.composer textarea::placeholder { color: var(--text-low); }
+.composer textarea:disabled { color: var(--text-low); }
+/* las fichas de los adjuntos, encima del texto */
+.cp-files { display: flex; flex-wrap: wrap; gap: 8px; }
+.cp-files[hidden] { display: none; }
+.cp-file { display: inline-flex; align-items: center; gap: 8px; height: 36px; max-width: 260px; padding: 0 6px 0 4px; border: 1px solid var(--border); background: var(--bg); font-size: 12.5px; color: var(--text); }
+.cp-file img { width: 28px; height: 28px; object-fit: cover; display: block; }
+.cp-file-ico { width: 28px; height: 28px; display: grid; place-items: center; background: var(--surface); border: 1px solid var(--border); font: 600 9px var(--font-mono); font-style: normal; color: var(--text-low); }
+.cp-file-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp-file button { width: 22px; height: 22px; border: 0; background: none; color: var(--text-low); font-size: 15px; line-height: 1; cursor: pointer; }
+.cp-file button:hover { color: var(--text); }
+/* el clip (adjuntar), Enviar o Detener */
+.cp-clip, .cp-send, .cp-stop { flex: none; width: 34px; height: 34px; border: 0; display: grid; place-items: center; cursor: pointer; transition: color var(--motion-state), opacity var(--motion-state); }
+.cp-clip { background: transparent; color: var(--text-low); }
+.cp-clip:hover:not(:disabled) { color: var(--text); }
+.cp-clip:disabled { opacity: .4; cursor: default; }
+.cp-send[hidden], .cp-stop[hidden] { display: none; }
+.cp-send { background: var(--accent); color: var(--surface); }
+.cp-send:hover:not(:disabled) { opacity: .85; }
+.cp-send:disabled { background: var(--border); color: var(--text-low); cursor: default; }
+.cp-stop { background: transparent; color: var(--text); border: 1px solid var(--border); }
+.cp-stop:hover { border-color: var(--danger); color: var(--danger); }
+
+/* el pie de la caja: el atajo a la izquierda, las skills en el centro, modelo y esfuerzo a la derecha */
+.cv-foot {
+  width: 100%; max-width: 760px; margin: 0 auto 10px; box-sizing: border-box;
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 2px; font: 11.5px var(--font-ui); color: var(--text-low);
+}
+.cv-foot-hint { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cv-foot-mid { flex: none; display: flex; justify-content: center; }
+.cv-foot-skills {
+  display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  font: 600 11.5px var(--font-ui); cursor: pointer; transition: border-color var(--motion-state);
+}
+.cv-foot-skills:hover { border-color: var(--text); }
+.cv-foot-skills kbd { font: 10.5px var(--font-mono); color: var(--text-low); }
+.cv-foot-picks { flex: 1; display: flex; align-items: center; justify-content: flex-end; gap: 2px; }
+.cv-foot-pick {
+  display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 7px; border: 0;
+  background: transparent; color: var(--text-low); font: inherit; cursor: pointer; white-space: nowrap;
+}
+.cv-foot-pick[hidden] { display: none; }
+.cv-foot-pick b { font-weight: 600; color: var(--text); }
+.cv-foot-pick svg { opacity: .7; }
+.cv-foot-pick:hover, .cv-foot-pick.active { background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }
+
+/* el panel del modelo o el esfuerzo (../model-menu.js): anclado encima de su chip */
+.cv-menu { position: absolute; z-index: 30; width: 300px; max-height: 60vh; overflow-y: auto; border: 1px solid var(--border); background: var(--surface); box-shadow: var(--shadow-float); font-size: 12.5px; }
+.cv-menu[hidden] { display: none; }
+.cv-menu-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 11px 14px 10px; border-bottom: 1px solid var(--border); }
+.cv-menu-head b { font-size: 12.5px; font-weight: 600; color: var(--text); white-space: nowrap; }
+.cv-menu-head small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 11px var(--font-mono); color: var(--text-low); }
+.cv-menu-section { display: grid; gap: 2px; padding: 8px; }
+.cv-menu-section + .cv-menu-section { border-top: 1px solid var(--border); }
+.cv-menu-group { padding: 4px 8px 5px; font-size: 10.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-low); }
+.cv-menu-choice { display: flex; align-items: center; gap: 9px; width: 100%; padding: 7px 8px; border: 1px solid transparent; background: transparent; color: var(--text); font: inherit; font-size: 12.5px; font-weight: 500; text-align: left; cursor: pointer; }
+.cv-menu-choice:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.cv-menu-choice i { flex: none; width: 11px; height: 11px; border-radius: 50%; border: 1px solid var(--text-low); }
+.cv-menu-choice.on { border-color: var(--accent); }
+.cv-menu-choice.on i { border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--surface), inset 0 0 0 6px var(--accent); }
+.cv-menu-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cv-menu-choice small { margin-left: auto; flex: none; font: 400 10.5px var(--font-mono); color: var(--text-low); }
+
+@media (prefers-reduced-motion: reduce) { .conversation.entering, .cv-row.cv-new, .cv-bg i { animation: none; } }

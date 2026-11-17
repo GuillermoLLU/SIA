@@ -11,8 +11,8 @@ export const filterSkills = (skills, query) => {
 // La fila seleccionada se queda dentro de la lista al cambiar el filtro.
 export const clampIndex = (i, n) => Math.min(Math.max(0, i), Math.max(0, n - 1));
 
-// Una línea corta en el CLI: Claude, Copilot y Codex leen la skill ellos
-// mismos (por las instrucciones de CLAUDE.md/AGENTS.md).
+// Una línea corta: Copilot lee la skill él mismo (por las instrucciones
+// de AGENTS.md).
 export const skillOrder = (id) => `Ejecuta la skill ${id}: lee skills/${id}/SKILL.md y sigue sus instrucciones estrictamente.`;
 
 // «No sé cuál»: skill-finder con la descripción del usuario (las comillas

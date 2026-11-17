@@ -1,50 +1,38 @@
-// Arrancar un CLI para un chat: deja escritos los ficheros de MCP de la sesión
-// (en el workspace, porque el directorio de la app empaquetada puede ser de
-// solo lectura; el perfil de Codex en $CODEX_HOME) y dice qué ejecutar y con
-// qué argumentos. Al terminar la sesión se borran; los huérfanos de arranques
-// anteriores (cierres bruscos), al arrancar.
+// Lanzar el CLI de Copilot para un chat: dónde está (resolve.js), con qué
+// argumentos (su modo programable, chats/copilot.js), los servidores MCP de
+// la sesión (mcp.js) y su entorno, con la clave de GitHub de los repos aparte
+// de su cuenta (repo-key.js: el guion de BASH_ENV, fijo, en el workspace
+// porque el directorio de la app empaquetada puede ser de solo lectura).
 import fs from 'node:fs';
 import path from 'node:path';
-import { LAUNCHERS, launcherById, launcherArgs, promptArgs, spawnSpec } from './launchers.js';
-import { mcpEnv, mcpConfig, codexProfile, codexProfileToml } from './mcp.js';
-import { createResolver } from './resolve.js';
+import { RUNTIME_ARGS } from '../chats/copilot.js';
+import { mcpEnv, mcpServers } from './mcp.js';
+import { BASH_ENV_SCRIPT, repoKeyEnv, applyRepoKey } from './repo-key.js';
+import { createResolver, spawnSpec } from './resolve.js';
 
-export const createLaunchers = ({ workspace, codexHome, mcpServer, execPath = process.execPath, isWin, env = process.env }) => {
+const CMD = 'copilot';
+
+export const createLaunchers = ({ workspace, mcpServer, execPath = process.execPath, isWin, env = process.env, platform = process.platform }) => {
   const { resolve, which } = createResolver({ isWin, env });
-  const mcpFile = (kind, sessionId) => path.join(workspace, `.mcp-${kind}-${sessionId}.json`);
-  const profileFile = (sessionId) => path.join(codexHome, `${codexProfile(sessionId)}.config.toml`);
   const bin = { execPath, server: mcpServer };
+  // qué ejecutar y con qué argumentos (en Windows, a través de cmd.exe)
+  const spec = (args) => spawnSpec(resolve(CMD) || CMD, args, { isWin, comspec: env.COMSPEC });
 
-  try { for (const f of fs.readdirSync(codexHome)) if (/^sia-s\d+\.config\.toml$/.test(f)) fs.unlinkSync(path.join(codexHome, f)); } catch { /* sin perfiles */ }
+  // el guion que da a los comandos de Copilot la clave de GitHub (bash lo lee del disco)
+  const repoEnvFile = path.join(workspace, '.repo-env.sh');
+  let bashEnvFile = null;
+  try { fs.mkdirSync(workspace, { recursive: true }); fs.writeFileSync(repoEnvFile, BASH_ENV_SCRIPT); bashEnvFile = repoEnvFile; } catch (e) { console.warn(`[sia] no se pudo escribir ${repoEnvFile}: ${e.message}`); }
 
   return {
-    list: () => LAUNCHERS.map((l) => ({ id: l.id, label: l.label, available: which(l.cmd) })),
-    byId: launcherById,
-    installed: (def) => which(def.cmd),
-    // → { cmd, args } listos para el PTY. `prompt`: el primer mensaje, si lo hay.
-    prepare(def, sessionId, allowedProjects, base, prompt = null) {
-      const env = mcpEnv(allowedProjects, base);
-      let args;
-      if (def.id === 'codex') {
-        let profile = null;
-        if (base) {
-          profile = codexProfile(sessionId);
-          fs.mkdirSync(codexHome, { recursive: true });
-          fs.writeFileSync(profileFile(sessionId), codexProfileToml(env, bin), { mode: 0o600 });
-        }
-        args = launcherArgs(def.id, { profile });
-      } else {
-        const file = mcpFile(def.id, sessionId);
-        fs.writeFileSync(file, JSON.stringify(mcpConfig(def.id, env, base, bin), null, 2));
-        args = launcherArgs(def.id, { mcpFile: file });
-      }
-      if (prompt) args = [...promptArgs(def.id, prompt), ...args];
-      return spawnSpec(resolve(def.cmd) || def.cmd, args, { isWin, comspec: env.COMSPEC });
+    installed: () => which(CMD),
+    // → { cmd, args, mcp }: lo que se lanza y los servidores de la sesión (o null sin base)
+    prepare: (allowedProjects, base) => ({ ...spec(RUNTIME_ARGS), mcp: mcpServers(mcpEnv(allowedProjects, base), base, bin) }),
+    // El entorno con el que arranca y lo que pide de más: la clave de GitHub
+    // de los repos, aparte de su cuenta (repo-key.js).
+    envFor(chatEnv) {
+      const key = repoKeyEnv({ token: chatEnv.GH_TOKEN || '', platform, bashEnvFile, userBashEnv: chatEnv.BASH_ENV || null });
+      return { env: applyRepoKey(chatEnv, key), args: key.args };
     },
-    cleanup(sessionId) {
-      for (const k of ['claude', 'copilot']) { try { fs.rmSync(mcpFile(k, sessionId)); } catch { /* no era de ese CLI */ } }
-      try { fs.unlinkSync(profileFile(sessionId)); } catch { /* no era Codex */ }
-    },
-    resolve,
+    spec,
   };
 };

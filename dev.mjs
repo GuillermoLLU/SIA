@@ -1,5 +1,5 @@
 // Cross-platform dev launcher (Windows / macOS / Linux).
-// Starts the PTY bridge (server) and the web UI together.
+// Starts the bridge (server) and the web UI together.
 //   node dev.mjs
 
 import { spawn, spawnSync } from 'node:child_process';

@@ -1,16 +1,16 @@
 // El workspace: lo escribible de SIA, fuera del código. Empaquetado
 // (Electron) el .app es de solo lectura, así que todo vive en SIA_WORKSPACE
 // (userData); en dev, en ~/.sia/workspace, FUERA del repo: así el cwd de los
-// CLIs no cae dentro del código de SIA y claude no husmea el repo (README,
+// chats no cae dentro del código de SIA y Copilot no husmea el repo (README,
 // package.json…) creyéndolo «el proyecto». El conocimiento del equipo llega
 // solo por el RAG, no por el cwd.
 //
-// Los CLIs corren en un directorio por modo cuyo CLAUDE.md/AGENTS.md fija cómo
-// usan el conocimiento: «auto» consulta el RAG por su cuenta, «demand» solo
-// con la skill de buscar. Cada directorio de modo lleva un symlink a las skills
-// para que las rutas relativas de la paleta sigan valiendo. La base de
-// conocimiento tiene su rincón, bases/<id>/: sus skills sincronizadas y sus
-// modos; sin base (sin sesión) se usa modes/<modo>, con las skills vacías.
+// Copilot corre en un directorio por modo cuyo AGENTS.md fija cómo usa el
+// conocimiento: «auto» consulta el RAG por su cuenta, «demand» solo con la
+// skill de buscar. Cada directorio de modo lleva un symlink a las skills para
+// que las rutas relativas de la paleta sigan valiendo. La base de conocimiento
+// tiene su rincón, bases/<id>/: sus skills sincronizadas y sus modos; sin base
+// (sin sesión) se usa modes/<modo>, con las skills vacías.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -33,17 +33,15 @@ export const createWorkspace = ({ root, dir }) => {
   const prepareModeDir = (modeDir, mode, skills) => {
     try {
       fs.mkdirSync(modeDir, { recursive: true });
-      // instrucciones del modo: sembrar desde la plantilla si aún no existen
-      for (const f of ['CLAUDE.md', 'AGENTS.md']) {
-        const dest = path.join(modeDir, f);
-        const src = path.join(templates, mode, f);
-        if (!fs.existsSync(dest) && fs.existsSync(src) && dest !== src) fs.copyFileSync(src, dest);
-        // las sembradas por una versión anterior: solo se corrige el nombre del
-        // servidor MCP, sin tocar lo demás (el fichero puede estar retocado a mano)
-        if (fs.existsSync(dest) && dest !== src) {
-          const text = fs.readFileSync(dest, 'utf8');
-          if (mcpRename(text) !== text) fs.writeFileSync(dest, mcpRename(text));
-        }
+      // las instrucciones del modo: sembrar desde la plantilla si aún no existen
+      const dest = path.join(modeDir, 'AGENTS.md');
+      const src = path.join(templates, mode, 'AGENTS.md');
+      if (!fs.existsSync(dest) && fs.existsSync(src) && dest !== src) fs.copyFileSync(src, dest);
+      // las sembradas por una versión anterior: solo se corrige el nombre del
+      // servidor MCP, sin tocar lo demás (el fichero puede estar retocado a mano)
+      if (fs.existsSync(dest) && dest !== src) {
+        const text = fs.readFileSync(dest, 'utf8');
+        if (mcpRename(text) !== text) fs.writeFileSync(dest, mcpRename(text));
       }
       // ojo: existsSync sigue el symlink (un enlace roto da false) → readlink
       const link = path.join(modeDir, 'skills');
