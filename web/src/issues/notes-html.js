@@ -1,12 +1,12 @@
 // La pestaña Notas de una issue, en HTML (sin E/S; el cableado, notes-view.js).
 // Una conversación de la más antigua a la más reciente: cada nota con su autor,
-// su hora y su caja, que se pliega a una línea (la etiqueta, la primera frase y
-// quién la ve) o se despliega entera; los movimientos, como una línea fina
+// su hora y su caja, plegada a una línea (la etiqueta, la primera frase y
+// quién la ve) que se despliega entera al pulsarla; los movimientos, como una línea fina
 // entre las notas. Abajo, la barra de escribir: quién la verá (menú), la
 // etiqueta (menú) y Enviar.
 import { esc } from '../ui/html.js';
 import { whenLabel } from './format.js';
-import { VISIBILITY, VISIBILITIES, NOTE_TAGS, tagLabel, firstSentence, canEditNote, isFoldable, notesFeed, noteCount, defaultOpen } from './notes.js';
+import { VISIBILITY, VISIBILITIES, NOTE_TAGS, tagLabel, firstSentence, canEditNote, isFoldable, notesFeed, noteCount } from './notes.js';
 
 const svg = (paths) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
 const ICON = {
@@ -87,11 +87,11 @@ export const noteEditorHtml = (text) => `<form class="iss-note-edit" data-note-e
     <footer><button type="button" class="lab-btn" data-edit-cancel>Cancelar</button><button type="submit" class="lab-btn primary">Guardar</button></footer>
   </form>`;
 
-// La pestaña («Notas» y cuántas hay) y su panel, con las últimas notas desplegadas.
+// La pestaña («Notas» y cuántas hay) y su panel, con todo plegado.
 export const notesTab = (n) => `Notas${n ? `<span>${n}</span>` : ''}`;
 export const notesPanelHtml = ({ worklog, timeline = [], meId = null, now = new Date() }) => {
   const feed = notesFeed({ worklog, timeline });
-  return `<div class="nt-scroll" data-notes-scroll><ol class="nt-list" data-notes-list>${notesListHtml(feed, { open: defaultOpen(feed), meId, now, remedyMissing: !worklog })}</ol></div>
+  return `<div class="nt-scroll" data-notes-scroll><ol class="nt-list" data-notes-list>${notesListHtml(feed, { meId, now, remedyMissing: !worklog })}</ol></div>
       ${noteFormHtml()}`;
 };
 export const notesCountOf = ({ worklog, timeline = [] }) => noteCount(notesFeed({ worklog, timeline }));

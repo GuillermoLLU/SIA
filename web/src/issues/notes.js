@@ -78,11 +78,9 @@ export const notesFeed = ({ worklog = [], timeline = [] } = {}) => {
 };
 export const noteCount = (feed) => feed.filter((e) => e.kind === 'note').length;
 
-// Al abrirla, desplegadas las últimas notas (y el motivo de un traspaso
-// reciente); las anteriores, plegadas a su primera frase.
-const OPEN_LAST = 2;
+// Se pliegan las notas y el motivo de un traspaso; todo empieza plegado (a su
+// primera frase) y cada una se despliega a mano.
 const foldable = (e) => e.kind === 'note' || (e.type === 'transferred' && e.text);
-export const defaultOpen = (feed, n = OPEN_LAST) => new Set(feed.filter(foldable).slice(-n).map((e) => e.key));
 export const isFoldable = foldable;
 
 // Una nota la edita quien la escribió, durante las 24 h siguientes (la misma

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { notesFeed, noteCount, defaultOpen, firstSentence, splitTag, tagLabel, canEditNote, sendsNote, NOTE_TAGS } from './notes.js';
+import { notesFeed, noteCount, firstSentence, splitTag, tagLabel, canEditNote, sendsNote, NOTE_TAGS } from './notes.js';
 
 const WORKLOG = [
   { at: '2026-10-12 12:25', who: 'robot.siglo', text: 'Buenas, no podemos entrar en RFID Warehouse.' },
@@ -29,13 +29,6 @@ test('sin las notas de Remedy en la foto (o sin nada), lo que haya', () => {
   assert.deepEqual(notesFeed(), []);
   const old = notesFeed({ timeline: [{ at: '2026-10-01T10:00:00+00:00', type: 'note', id: 1, by: 'Ana', text: 'x' }] })[0];
   assert.deepEqual([old.visibility, old.tag], ['internal', null]); // las de antes: internas y sin etiqueta
-});
-
-test('al abrirla, desplegadas las dos últimas notas (o el motivo de un traspaso); el resto, plegado', () => {
-  const feed = notesFeed({ worklog: WORKLOG, timeline: TIMELINE });
-  assert.deepEqual([...defaultOpen(feed)], ['n7', 'm2']);
-  assert.deepEqual([...defaultOpen(feed, 3)], ['r1', 'n7', 'm2']);
-  assert.deepEqual([...defaultOpen(notesFeed({ worklog: WORKLOG }))], ['r0', 'r1']);
 });
 
 test('plegada: la primera frase y, si sigue, «…» en lugar de su punto', () => {

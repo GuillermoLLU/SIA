@@ -5,7 +5,7 @@
 // desde otro sitio (refresh, como Reclamar respuesta).
 //
 // deps: root · api (addNote, editNote, timeline) · toast · me ({ id })
-import { notesFeed, noteCount, defaultOpen, isFoldable, sendsNote, tagLabel } from './notes.js';
+import { notesFeed, noteCount, sendsNote, tagLabel } from './notes.js';
 import { notesListHtml, noteItemHtml, noteEditorHtml, notesTab, visPickHtml } from './notes-html.js';
 
 const GROW_MAX_PX = 160; // lo que crece la caja de escribir antes de hacer scroll
@@ -32,14 +32,12 @@ export const createNotes = ({ root, api, toast, me }) => {
   const attach = (i, timeline) => {
     issue = i;
     feed = notesFeed({ worklog: i.worklog, timeline });
-    open = defaultOpen(feed);
+    open = new Set(); // todo plegado
   };
-  // Releer el histórico y repintar; lo que entra nuevo, desplegado, y abajo del todo
+  // Releer el histórico y repintar (lo nuevo, plegado como todo) y abajo del todo
   const refresh = async () => {
     if (!issue) return;
-    const before = new Set(feed.map((e) => e.key));
     feed = notesFeed({ worklog: issue.worklog, timeline: await api.timeline(issue.id) });
-    for (const e of feed) if (!before.has(e.key) && isFoldable(e)) open.add(e.key);
     paint();
     toEnd();
   };
