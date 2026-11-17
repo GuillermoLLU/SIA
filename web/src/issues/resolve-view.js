@@ -1,19 +1,17 @@
 // Resolver una issue: el asistente de cinco pasos encima de la pantalla de trabajo (resolve-form.js
-// pinta; aquí el cableado). Guarda el borrador solo (texto e imágenes) en la BBDD local, mueve las
-// fichas [imagenN] por el texto, simula de momento la redacción de la IA y el cierre, y al acabar
+// pinta; aquí el cableado). Guarda el borrador solo (texto e imágenes) en la BBDD local (las fichas
+// [imagenN] se mueven por el texto con chip-drag.js), simula de momento la redacción de la IA y el cierre, y al acabar
 // avisa a la mesa (onResolved). Lo que no es de Resolver (la mesa, la issue, Escalar, Traspasar)
 // sigue en issues-view.js.
 import { esc } from '../ui/html.js';
 import { onEscape } from '../ui/dialog.js';
-import { prefersReducedMotion } from '../ui/dom.js';
+import { BACK_ARROW, NEXT_ARROW, slideStep, lockSteps, flashEmpty, fadeOut as fade, runPhases as phasesIn } from '../ui/wizard.js';
 import { readAction } from './actions.js';
-import { resolveForm, resolveBlocked, resumeStep, stepMissing, STEPS, LAST, MAX_FILE, MAX_IMAGES, imagesDock, sectionImages, noteMeter, noteQuality, FULL, phasesHtml, closePhasesHtml, reportHtml, summaryHtml, localShort } from './resolve-form.js';
-import { syncEditor, setEditorText, toText, insertChip, removeChips, rangeAtPoint, imageTag } from './tag-editor.js';
+import { resolveForm, resolveBlocked, resumeStep, stepMissing, STEPS, LAST, MAX_FILE, MAX_IMAGES, imagesDock, sectionImages, noteMeter, phasesHtml, closePhasesHtml, reportHtml, summaryHtml, localShort } from './resolve-form.js';
+import { noteQuality, FULL } from './quality.js';
+import { syncEditor, setEditorText, toText, insertChip, removeChips } from './tag-editor.js';
+import { hasFiles } from './chip-drag.js';
 
-const BACK_ARROW = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>';
-const NEXT_ARROW = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>';
-const FLASH_MS = 1800;   // lo que dura el parpadeo y el aviso de un campo vacío (issues.css)
-const PHASE_MS = 1000, FADE_MS = 300;   // cada fase del simulacro, y lo que tarda en irse lo de antes (issues.css)
 const AUTOSAVE_MS = 800;
 
 const base64 = (file) => new Promise((ok, ko) => {
@@ -22,7 +20,6 @@ const base64 = (file) => new Promise((ok, ko) => {
   r.onerror = () => ko(r.error);
   r.readAsDataURL(file);
 });
-const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
 
 // root: la vista de Issues (los listeners van ahí, acotados al formulario de Resolver).
 // api: issues-api.js; dialogs: ui/dialog.js; toast: el aviso de la app;
@@ -55,15 +52,21 @@ export const createResolver = (root, { api, dialogs, toast, onResolved }) => {
   };
 
   /* ── Los pasos ── */
+  // Hasta dónde se ha llegado avanzando con los botones (o hasta donde se dejó el borrador): la barra
+  // solo lleva ahí, como en Escalar. Lo que aún no se ha alcanzado no se puede pulsar.
+  const reachedOf = (f) => Number(f.dataset.reached || 1);
+  const lockMarks = (f) => lockSteps(f, (n) => n <= reachedOf(f));
   const goStep = (f, n) => {
     const prev = Number(f.dataset.step);
     f.dataset.step = String(n);
+    if (n > reachedOf(f)) f.dataset.reached = String(n);
+    lockMarks(f);
     f.querySelector('.rv-steps').hidden = false;   // de vuelta de un borrador, los pasos otra vez
     f.querySelector('[data-gen-cap]').classList.remove('rv-cap-final');
     f.elements.step.value = String(n);   // va en el borrador: al volver se retoma aquí
     showErr(f, null);
     f.querySelectorAll('[data-rstep]').forEach((p) => { p.hidden = p.dataset.rstep !== String(n); });
-    slide(f, prev, n);
+    slideStep(f, prev, n);
     f.querySelectorAll('[data-step-mark]').forEach((m) => {
       const k = Number(m.dataset.stepMark);
       m.classList.toggle('done', k < n);
@@ -86,17 +89,6 @@ export const createResolver = (root, { api, dialogs, toast, onResolved }) => {
     (last ? f.querySelector('[data-confirm-send]') : f.querySelector(`[data-rstep="${n}"] .rv-ed`))?.focus({ preventScroll: true });
     f.querySelector('.rv-body').scrollLeft = 0;
   };
-  // el paso nuevo entra deslizándose desde el lado del que viene mientras el anterior sale por el otro
-  const slide = (f, prev, n) => {
-    const sec = f.querySelector(`[data-rstep="${n}"]`), out = prev && prev !== n ? f.querySelector(`[data-rstep="${prev}"]`) : null;
-    for (const p of f.querySelectorAll('[data-rstep]')) p.classList.remove('in-fwd', 'in-back', 'out-fwd', 'out-back');
-    if (!out || prefersReducedMotion()) return;
-    const fwd = n > prev;
-    void sec.offsetWidth;
-    sec.classList.add(fwd ? 'in-fwd' : 'in-back');
-    out.hidden = false; out.classList.add(fwd ? 'out-fwd' : 'out-back');
-    out.addEventListener('animationend', () => { out.hidden = true; out.classList.remove('out-fwd', 'out-back'); }, { once: true });
-  };
   // Cambiar de paso guarda el borrador, aunque no se haya escrito nada más.
   const moveTo = (f, n) => { goStep(f, n); saveNow(f); };
   const stepNext = async (f) => {
@@ -105,7 +97,7 @@ export const createResolver = (root, { api, dialogs, toast, onResolved }) => {
     if (missing) {
       // el campo vacío parpadea en rojo con el aviso en su centro, y todo se va solo
       const ed = [...f.querySelectorAll(`[data-rstep="${n}"] .rv-ed`)].find((a) => !toText(a).trim());
-      if (ed) flashEmpty(ed, n === 1 ? 'Completa la descripción para seguir' : 'Responde a la pregunta para seguir');
+      if (ed) flashEmpty(ed, ed.closest('.iss-field'), n === 1 ? 'Completa la descripción para seguir' : 'Responde a la pregunta para seguir');
       return;
     }
     // una nota muy breve: se puede seguir, pero avisando
@@ -118,11 +110,11 @@ export const createResolver = (root, { api, dialogs, toast, onResolved }) => {
     if (n + 1 === LAST) await saving;   // el informe cuenta con las imágenes aunque aún se estuvieran guardando
     if (f.isConnected) moveTo(f, n + 1);
   };
-  // Pulsar un paso de arriba (o una fila del resumen): hacia atrás, siempre; hacia delante, hasta
-  // donde esté todo completo (si falta algo por el camino, se para en ese paso y lo señala).
+  // Pulsar un paso de arriba (o una fila del resumen): hacia atrás, siempre; hacia delante, solo hasta
+  // donde ya se llegó y si todo sigue completo (si falta algo por el camino, se para en ese paso y lo señala).
   const jumpTo = async (f, target) => {
     const current = Number(f.dataset.step);
-    if (target === current) return;
+    if (target === current || target > reachedOf(f)) return;
     if (target < current) return moveTo(f, target);
     const values = Object.fromEntries(new FormData(f));
     for (let k = current; k < target; k++) {
@@ -132,16 +124,6 @@ export const createResolver = (root, { api, dialogs, toast, onResolved }) => {
     }
     if (target === LAST) await saving;
     if (f.isConnected) moveTo(f, target);
-  };
-  const flashEmpty = (ed, text) => {
-    const box = ed.closest('.iss-field');
-    box.querySelector('.rv-ed-note')?.remove();
-    const note = document.createElement('span');
-    note.className = 'rv-ed-note'; note.textContent = text;
-    box.append(note);
-    ed.classList.remove('blink'); void ed.offsetWidth; ed.classList.add('blink');   // reiniciar la animación si se repite
-    ed.focus();
-    setTimeout(() => { note.remove(); ed.classList.remove('blink'); }, FLASH_MS);
   };
   // La nota que ya estaba en Remedy: «Restaurar» asoma en cuanto se cambia y la deja como estaba.
   const syncRestore = (f) => {
@@ -224,24 +206,6 @@ export const createResolver = (root, { api, dialogs, toast, onResolved }) => {
   const dropZone = (e) => e.target.closest?.(`[data-act-form="resolve"]:not([data-step="${LAST}"])`);
   const stepField = (f) => f.querySelector('[data-rstep]:not([hidden]) [data-images]')?.dataset.for || null;
 
-  /* ── Mover una ficha: arrastrarla (desde el texto o desde el muelle) y soltarla en el punto del
-     texto. Mientras se arrastra, el origen se atenúa y una línea del color de la ficha marca en
-     vivo dónde caerá; sin la copia de la ficha pegada al ratón. ── */
-  let dragChip = null;
-  const ghost = new Image(); ghost.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-  const noDragImage = (e) => e.dataTransfer.setDragImage(ghost, 0, 0);
-  const caret = document.createElement('i');
-  caret.className = 'rv-caret';
-  caret.hidden = true;
-  document.body.append(caret);
-  const showCaret = (ed, range) => {
-    let r = range?.getBoundingClientRect();
-    if (!r || (!r.height && !r.width)) { const b = ed.getBoundingClientRect(); r = { left: b.left + 10, top: b.top + 8, height: 20 }; }   // editor vacío: al principio
-    Object.assign(caret.style, { left: `${r.left}px`, top: `${r.top}px`, height: `${r.height || 20}px` });
-    caret.hidden = false;
-  };
-  const hideCaret = () => { caret.hidden = true; };
-
   /* ── El último paso, en tres estados: las opciones y «Generar informe»; el simulacro de la IA
      (las fases se marcan una a una); y el informe, para revisar y resolver. ── */
   let generating = null;
@@ -272,24 +236,10 @@ export const createResolver = (root, { api, dialogs, toast, onResolved }) => {
   // o la pista, o el enlace para volver al texto de la IA: nunca los dos
   const syncRepTools = (f, changed) => { f.querySelector('[data-rep-hint]').hidden = changed; f.querySelector('[data-rep-restore]').hidden = !changed; };
   const restoreReport = (f) => { f.querySelector('[data-rep-text]').innerHTML = reportOriginal; syncRepTools(f, false); };
-  // Las fases de un proceso, una a una (un simulacro de momento) → promesa al acabar la última
-  const runPhases = (f, title, html) => new Promise((done) => {
-    const p = genParts(f);
-    p.loader.querySelector('[data-loader-title]').textContent = title;
-    const list = p.loader.querySelector('[data-phases]');
-    list.innerHTML = html;
-    const phases = [...list.children];
-    const run = (i) => {
-      if (!f.isConnected) return;
-      if (i > 0) phases[i - 1].classList.replace('doing', 'done');
-      if (i === phases.length) return done();
-      phases[i].classList.add('doing');
-      generating = setTimeout(() => run(i + 1), PHASE_MS);
-    };
-    run(0);
-  });
-  // algo se va con un difuminado y, cuando ya no está, sigue lo siguiente
-  const fadeOut = (el) => new Promise((done) => { el.classList.add('leaving'); generating = setTimeout(() => { el.hidden = true; el.classList.remove('leaving'); done(); }, FADE_MS); });
+  // Las fases y los difuminados (ui/wizard.js), con su temporizador en `generating` para pararlos al cerrar
+  const track = (id) => { generating = id; };
+  const runPhases = (f, title, html) => phasesIn(genParts(f).loader, title, html, { alive: () => f.isConnected, track });
+  const fadeOut = (el) => fade(el, track);
   const generate = async (f) => {
     const p = genParts(f);
     p.btn.hidden = true;
@@ -421,51 +371,22 @@ export const createResolver = (root, { api, dialogs, toast, onResolved }) => {
     e.preventDefault();
     addImages(f, files, e.target.closest?.('.rv-ed')?.dataset.ed || null);
   });
-  // Arrastrar: una ficha del texto o una miniatura del muelle, con su [imagenN] como dato
-  root.addEventListener('dragstart', (e) => {
-    const chip = e.target.closest?.('.rv-chip'), fig = e.target.closest?.('[data-img]');
-    const src = chip || fig;
-    if (!src) return;
-    dragChip = chip;
-    src.classList.add('dragging');
-    noDragImage(e);
-    e.dataTransfer.setData('text/plain', imageTag(Number(chip ? chip.dataset.n : fig.dataset.img)));
-    e.dataTransfer.effectAllowed = chip ? 'move' : 'copy';
-  });
-  root.addEventListener('dragend', (e) => { e.target.closest?.('.rv-chip, [data-img]')?.classList.remove('dragging'); dragChip = null; hideCaret(); });
+  // Imágenes arrastradas sobre el modal: el muelle se marca como destino y van al campo del paso. Las
+  // fichas [imagenN] que se mueven por el texto las lleva chip-drag.js, para toda la vista.
   root.addEventListener('dragover', (e) => {
-    const ed = e.target.closest?.('.rv-ed');
-    if (ed && !hasFiles(e)) {   // una ficha sobre el texto: la línea dice dónde caerá
-      e.preventDefault();
-      e.dataTransfer.dropEffect = dragChip ? 'move' : 'copy';
-      return showCaret(ed, rangeAtPoint(document, e.clientX, e.clientY));
-    }
-    hideCaret();
-    const z = hasFiles(e) && dropZone(e);   // imágenes sobre el modal: el muelle se marca como destino
+    const z = hasFiles(e) && dropZone(e);
     if (z) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; z.classList.add('over'); }
   });
   root.addEventListener('dragleave', (e) => {
-    const ed = e.target.closest?.('.rv-ed');
-    if (ed && !ed.contains(e.relatedTarget)) hideCaret();
     const z = dropZone(e);
     if (z && !z.contains(e.relatedTarget)) z.classList.remove('over');
   });
   root.addEventListener('drop', (e) => {
-    hideCaret();
     const z = hasFiles(e) && dropZone(e);
-    if (z) {
-      e.preventDefault();
-      z.classList.remove('over');
-      return addImages(z, e.dataTransfer.files, stepField(z));
-    }
-    const ed = e.target.closest?.('.rv-ed');
-    const m = !hasFiles(e) && ed && (e.dataTransfer?.getData('text/plain') || '').match(/^\[imagen(\d+)\]$/);
-    if (!m) return;
+    if (!z) return;
     e.preventDefault();
-    const range = rangeAtPoint(document, e.clientX, e.clientY);
-    if (dragChip?.isConnected) { if (range && dragChip.contains(range.startContainer)) { dragChip.classList.remove('dragging'); return; } dragChip.remove(); }
-    insertChip(ed, Number(m[1]), range);
-    dragChip = null;
+    z.classList.remove('over');
+    addImages(z, e.dataTransfer.files, stepField(z));
   });
   // Fuera del modal el navegador no abre ni descarga lo que se suelte (en toda la página).
   const ignoreDrop = (e) => {
@@ -496,10 +417,10 @@ export const createResolver = (root, { api, dialogs, toast, onResolved }) => {
       const f = form();
       f.querySelector('.rv-ed')?.focus();
       const resume = resumeStep(start.check, start.draft);
-      if (resume > 1) goStep(f, resume);
+      if (resume > 1) goStep(f, resume); else lockMarks(f);
       loadThumbs(f);
     },
     close,
-    dispose: () => { close(); caret.remove(); document.removeEventListener('dragover', ignoreDrop); document.removeEventListener('drop', ignoreDrop); },
+    dispose: () => { close(); document.removeEventListener('dragover', ignoreDrop); document.removeEventListener('drop', ignoreDrop); },
   };
 };

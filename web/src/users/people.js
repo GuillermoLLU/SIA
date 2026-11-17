@@ -9,9 +9,6 @@ export const viewsText = (views) => {
   return names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} y ${names.at(-1)}`;
 };
 
-// Las iniciales del avatar: las dos primeras palabras del nombre.
-export const initials = (n) => String(n).split(/\s+/).filter(Boolean).map((w) => w[0]).slice(0, 2).join('').toUpperCase() || '?';
-
 // Los proyectos (ids de su token) que ve una persona.
 export const knOf = (p) => (p.knowledge || []).flatMap((k) => k.groups.map((g) => g.id));
 

@@ -8,10 +8,12 @@ import { deskOf, brief, canTake, MAX_DOING } from './desk.js';
 import { today, history, dayKey } from './stats.js';
 import { cleanFields, cleanFile, MAX_IMAGES, fail } from './draft.js';
 import { resolveDraft, checkResolve, OPEN } from './resolve.js';
+import { escalateCheck, checkEscalate, cleanEscalate, ESCALABLE } from './escalate.js';
 import { timeline } from './timeline.js';
 import { editProblem } from './notes.js';
 import { forGroups, originArg } from './origin.js';
 import { teamEscalations } from './escalations.js';
+import { searchIssues } from './search.js';
 
 const WEEKS = 12;
 
@@ -50,12 +52,22 @@ export const createIssuesService = ({ source, platform, drafts, jira = NO_JIRA, 
 
   // Resolver (y su borrador) solo sobre una issue de la foto, mía y aún abierta:
   // la web lo enseña así, pero el bridge no se fía de lo que le llegue.
-  const resolvable = async ({ user, accessToken: jwt }, id) => {
+  const mine = async ({ user, accessToken: jwt }, id, verb) => {
     const { issues, claims } = await snapshot(jwt);
     const issue = issues.find((i) => i.id === id);
     if (!issue) throw fail('Esa issue ya no está en la foto.', 404);
-    if (!deskOf(issues, user, claims).some((i) => i.id === id)) throw fail('Solo puedes resolver tus issues.', 403);
+    if (!deskOf(issues, user, claims).some((i) => i.id === id)) throw fail(`Solo puedes ${verb} tus issues.`, 403);
+    return issue;
+  };
+  const resolvable = async (who, id) => {
+    const issue = await mine(who, id, 'resolver');
     if (!OPEN.has(issue.status)) throw fail('Esta issue ya está resuelta o cerrada.', 409);
+    return issue;
+  };
+  // Escalar, igual, en una que se trabaja o ya Resuelta (por la causa raíz)
+  const escalable = async (who, id) => {
+    const issue = await mine(who, id, 'escalar');
+    if (!ESCALABLE.has(issue.status)) throw fail('Esta issue ya espera a un tercero o está cerrada.', 409);
     return issue;
   };
 
@@ -104,8 +116,8 @@ export const createIssuesService = ({ source, platform, drafts, jira = NO_JIRA, 
     // con el origen de la issue: la base solo la deja pasar a quien tiene ese conocimiento
     transfer: ({ accessToken: jwt }, id, { to, comment }) =>
       platform.rpc(jwt, 'platform_transfer_issue', { p_issue: id, p_to: to, p_comment: comment, ...originArg(source.load().issues, id) }),
-    // una nota interna del equipo → su id
-    addNote: ({ accessToken: jwt }, id, body) => platform.rpc(jwt, 'platform_add_issue_note', { p_issue: id, p_body: body }),
+    // una nota (privada, interna o pública, con su etiqueta o sin ella: notes.js) → su id
+    addNote: ({ accessToken: jwt }, id, { body, visibility, tag }) => platform.rpc(jwt, 'platform_add_issue_note', { p_issue: id, p_body: body, p_visibility: visibility, p_tag: tag }),
     // editar una nota propia, dentro de su plazo (notes.js) → { ok } | { error }
     async editNote({ user, accessToken: jwt }, id, noteId, body) {
       const notes = await platform.rpc(jwt, 'platform_issue_notes', { p_issue: id });
@@ -127,6 +139,11 @@ export const createIssuesService = ({ source, platform, drafts, jira = NO_JIRA, 
         sameCenter: issue.center ? issues.filter((i) => i.center === issue.center && i.id !== id).map(brief) : [],
         timeline: await timelineOf(jwt, id),
       };
+    },
+    // buscar issues por su número, sea de quien sea (atender la llamada de un centro, search.js)
+    async search({ accessToken: jwt }, q) {
+      const { issues, claims } = await snapshot(jwt);
+      return searchIssues(issues, claims, q);
     },
     // una issue de la foto, por id (el chat de una issue)
     find: (id) => source.load().issues.find((i) => i.id === id) || null,
@@ -168,6 +185,22 @@ export const createIssuesService = ({ source, platform, drafts, jira = NO_JIRA, 
       const f = quiet((d) => d.getImage(who.user.id, id, n), null);
       if (!f) throw fail('No existe.', 404);
       return { name: f.name, type: f.type, data: Buffer.from(f.data).toString('base64') };
+    },
+    // Abrir Escalar → { check: las notas que pide y las que faltan (escalate.js), draft: mi borrador | null }
+    async startEscalate(who, id) {
+      return { check: escalateCheck(await escalable(who, id)), draft: quiet((d) => d.getEscalate(who.user.id, id), null) };
+    },
+    // Confirmar Escalar o Unir: se comprueba otra vez y se borra el borrador. Aún no
+    // sale nada hacia Remedy (falta SIGLO) → { ok, sent: false }
+    async escalate(who, id, body) {
+      checkEscalate(await escalable(who, id), cleanEscalate(body));
+      quiet((d) => d.dropEscalate(who.user.id, id));
+      return { ok: true, sent: false };
+    },
+    async saveEscalateDraft(who, id, body) {
+      const fields = cleanEscalate(body);
+      await escalable(who, id);
+      return { at: write((d) => d.setEscalate(who.user.id, id, fields)) };
     },
     // el CSV de la consulta, tal cual, por trozos → { file, taken, issues }
     importCsv: (chunks, name) => source.importCsv(chunks, name),
