@@ -102,6 +102,14 @@ checks (orden, comprobacion, ok, detalle) as (
     'firmas: ' || (select count(*) from api where proname in ('platform_assign_issue', 'platform_transfer_issue'))::text || ' (2 esperadas) · con p_origin: '
       || (select count(*) from api where proname in ('platform_assign_issue', 'platform_transfer_issue') and pg_get_function_arguments(oid) like '%p_origin%')::text || ' · platform.require_origin: '
       || case when exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'platform' and p.proname = 'require_origin') then 'sí' else 'falta' end
+  union all
+  select 18, 'Las notas llevan visibilidad y etiqueta: una sola firma de añadir, con p_visibility',
+    (select count(*) from information_schema.columns where table_schema = 'platform' and table_name = 'issue_notes' and column_name in ('visibility', 'tag')) = 2
+      and (select count(*) from api where proname = 'platform_add_issue_note') = 1
+      and exists (select 1 from api where proname = 'platform_add_issue_note' and pg_get_function_arguments(oid) like '%p_visibility%'),
+    'columnas: ' || (select count(*) from information_schema.columns where table_schema = 'platform' and table_name = 'issue_notes' and column_name in ('visibility', 'tag'))::text || ' de 2 · firmas de añadir: '
+      || (select count(*) from api where proname = 'platform_add_issue_note')::text || ' (1 esperada) · con p_visibility: '
+      || (select count(*) from api where proname = 'platform_add_issue_note' and pg_get_function_arguments(oid) like '%p_visibility%')::text
 )
 select orden as "#", case when ok then 'OK' else 'FALLO' end as estado, comprobacion, detalle
 from checks order by orden;

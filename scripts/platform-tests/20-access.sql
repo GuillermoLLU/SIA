@@ -275,7 +275,7 @@ select public.platform_release_issue('INC1');
 select assert_eq((select count(*) from public.platform_issue_claims()), 0::bigint, 'quien la recibe sí puede devolverla');
 select assert_eq((select count(*) from public.platform_my_transfers()), 0::bigint, 'devuelta: ya no consta como traspasada');
 
--- ── 6a³. issues: notas internas ──
+-- ── 6a³. issues: notas (privadas, internas y públicas) ──
 select t_as(:U1);
 select expect_error($$select public.platform_add_issue_note('INC1', 'hola')$$, 'sin la vista Issues no se anota');
 select expect_error($$select count(*) from public.platform_issue_notes('INC1')$$, 'ni se leen las notas');
@@ -295,6 +295,20 @@ select assert_eq((select body from public.platform_issue_notes('INC1') where kin
 select assert_eq((select edited_at is not null from public.platform_issue_notes('INC1') where kind = 'note' order by created_at, id limit 1), true, 'y queda marcada como editada');
 select expect_error($$select public.platform_edit_issue_note((select min(id) from public.platform_issue_notes('INC1') where kind = 'note'), '')$$, 'editar a vacío no vale');
 select assert_eq((select count(*) from public.platform_issue_notes('INC2')), 0::bigint, 'cada issue, sus notas');
+select assert_eq((select string_agg(distinct visibility, ',') from public.platform_issue_notes('INC1')), 'internal', 'sin decirlo, las notas (y los motivos de traspaso) son internas');
+select assert_eq((select count(*) from public.platform_issue_notes('INC1') where tag is not null), 0::bigint, 'y sin etiqueta');
+-- visibilidad y etiqueta
+select expect_error($$select public.platform_add_issue_note('INC1', 'hola', 'secreta')$$, 'solo privada, interna o pública');
+select expect_error($$select public.platform_add_issue_note('INC1', 'hola', 'internal', 'analisis; drop')$$, 'una etiqueta rara no vale');
+select assert_eq(public.platform_add_issue_note('INC1', 'Llamar mañana al jefe de turno.', 'private') > 0, true, 'una nota privada');
+select assert_eq(public.platform_add_issue_note('INC1', 'Os escribimos en cuanto esté.', 'public', 'ESCALADO') > 0, true, 'una pública, con su etiqueta');
+select assert_eq((select visibility || ':' || coalesce(tag, '-') || ':' || body from public.platform_issue_notes('INC1') order by created_at desc, id desc limit 1), 'public:ESCALADO:Os escribimos en cuanto esté.', 'la pública se guarda con su visibilidad y su etiqueta');
+select assert_eq((select count(*) from public.platform_issue_notes('INC1') where visibility = 'private'), 1::bigint, 'quien la escribió ve su nota privada');
+select t_as(:AD);
+select assert_eq((select count(*) from public.platform_issue_notes('INC1') where visibility = 'private'), 0::bigint, 'los demás no ven las privadas de otro');
+select assert_eq((select count(*) from public.platform_issue_notes('INC1') where visibility = 'public'), 1::bigint, 'pero sí las públicas');
+select assert_eq(public.platform_add_issue_note('INC1', 'Mía y solo mía.', 'private', 'CALLKO') > 0, true, 'cada uno tiene las suyas');
+select assert_eq((select string_agg(coalesce(tag, '-') || ':' || body, '|') from public.platform_issue_notes('INC1') where visibility = 'private'), 'CALLKO:Mía y solo mía.', 'y ve solo las suyas');
 
 -- ── 6a⁴. backlog: asignar y las reglas de priorización ──
 -- Todo está libre tras 6a². Backlog lo tiene el admin (todas las vistas), que coge INC1 para las pruebas.
