@@ -15,8 +15,12 @@ import { rangeLabel, cmpRange, cmpName } from '../period.js';
 import { mttrOf } from '../resolution.js';
 import { iaStats } from '../ia.js';
 import { stateCard } from './hoy.js';
+import { backlogParts } from './backlog.js';
+import { MISROUTED_FILTER } from '../backlog.js';
 import { evolutionOf } from './evolucion.js';
 import { compareFigure } from '../compare.js';
+import { MTTR_TARGET, monthTrend, DAY } from '../rules.js';
+import { resolvedAt } from '../flow.js';
 
 export const IQA_NOTE = 'De las auditadas, el % con calidad 3 o 4 (sobre 4: la nota mínima de técnica, proceso y comunicación). Aún sin datos: la nota del agente de calidad (tarea #55) no llega a SIA.';
 
@@ -24,7 +28,7 @@ export const resumenTab = (t) => {
   const { m, ch, ui, grid, ask, solved } = t;
   const { C, S, OPEN, CMP, CO, bySide } = m;
   const { card, kpi, kpis, kpiCo } = ch;
-  const stateOf = stateCard(t), evolution = evolutionOf(t);
+  const stateOf = stateCard(t), evolution = evolutionOf(t), detail = backlogParts(t);
   const opt = (f) => (s) => (s.v == null ? '—' : f(s.v));
   const val = (s) => s.v;
   // con qué se comparan los KPIs: 'side' (otro lado: T-Systems u otro, desde arriba), 'periods' (un periodo con otro:
@@ -81,6 +85,106 @@ export const resumenTab = (t) => {
       kpiCo('%IQA', of('iqa'), () => '—', o({ better: 'high', go: ['calidad', 'Calidad'], note: IQA_NOTE })),
       kpiCo('Uso de la IA', of('ia'), opt((v) => pct(v, 1)), o({ better: 'high', go: ['ia', 'Uso de la IA'], note: 'De lo recibido en el periodo, lo que tiene alguna marca de IA (en TAGS o en las notas). El detalle, en la pestaña Uso de la IA.' }))),
       { span: CMP() || wide ? 's12' : 's8', ...(live ? { tip: sub } : { sub: esc(sub) }) });
+  };
+
+  // El último mes del periodo (el más reciente; si el periodo acaba a mitad de mes, sus días dentro de él), de lo
+  // recibido en él con los filtros de arriba (A): incidencias, MTTR, % dentro de SLA, %IQA y uso de la IA. Comparando,
+  // de cada lado. La tarjeta entera lleva a SLA y calidad.
+  const lastMonthCard = (A) => {
+    const mo = m.monthAt(S.d1 - 1), a = Math.max(m.minuteOf(mo), S.d0);
+    const F = bySide(A.filter((i) => C.rep[i] >= a && C.rep[i] < S.d1)).map(figures), of = (k, f = (x) => x) => F.map((x) => f(x[k]));
+    const o = (x) => ({ val, tip: true, ...x });
+    const body = kpis(
+      kpiCo('Incidencias', of('inc', (x) => ({ n: x.n, v: x.n })), opt(num), o({ note: 'Las que entraron en el mes.' })),
+      kpiCo('MTTR', of('mttr'), opt(dur), o({ better: 'low', note: 'De lo recibido en el mes: (TTR de las resueltas + lo que llevan abiertas las que siguen abiertas) / cuántas son.' })),
+      kpiCo('% dentro de SLA', of('sla'), opt(pct), o({ better: 'high', note: 'De lo recibido en el mes, lo que se empezó (paso a En curso) dentro del plazo de su prioridad.' })),
+      kpiCo('%IQA', of('iqa'), () => '—', o({ better: 'high', note: IQA_NOTE })),
+      kpiCo('Uso de la IA', of('ia'), opt((v) => pct(v, 1)), o({ better: 'high', note: 'De lo recibido en el mes, lo que tiene alguna marca de IA (en TAGS o en las notas).' })));
+    const when = rangeLabel(m, [a, Math.min(S.d1, m.END_D)]);
+    return card(`${esc(m.monthName(mo))} <small class="mt-mut">· el último mes del periodo</small>`, body,
+      { span: CMP() ? 's6' : 's5', tip: `Lo recibido en el mes más reciente del periodo elegido (${when}), con los filtros de arriba.`, go: { tab: 'slaq', label: 'SLA y calidad' } });
+  };
+
+  // Mes a mes (la pestaña, debajo de la corona): los KPIs de Del periodo, una fila cada uno y una columna por cada mes del
+  // periodo (el primero y el último, solo con sus días dentro de él), de lo recibido en ese mes. Comparando, una fila por
+  // lado en cada KPI, con su color. Junto a cada cifra, su tendencia frente al mes anterior (rules.js, monthTrend): una
+  // flecha, en verde si mejora y en rojo si empeora; y la cifra, frente a la media del año fiscal (la última columna): en
+  // verde si es mejor que ella y en rojo si es peor (las entrantes, mejor si bajan). La de la media, del MTTR, frente a
+  // MTTR_TARGET. El primer mes, frente al de antes del periodo (entero, aunque quede fuera). Al
+  // final, la media del año fiscal en curso (del 1 de febrero a la foto: model.js, START_D), sea cual sea el periodo: de
+  // las entrantes, la media por mes (el de la foto cuenta entero); de los demás, la cifra de todo lo recibido en él.
+  // [nombre, clave de figures, su cifra, cómo se ve, cómo se calcula, cuándo es mejor]
+  const MONTH_ROWS = [
+    ['Abiertas', 'open', (x) => x, num, 'De lo recibido en el mes, cuántas siguen abiertas ahora. Sin flecha ni color: es lo que queda de ese mes. Sin media del año fiscal.', { plain: true, noFy: true }],
+    ['Entrantes', 'inc', (x) => (x.n ? x.n : null), num, 'Las incidencias que entraron en el mes. Mejor si baja.', { better: 'low' }],
+    ['Entrantes por día', 'inDay', (x) => x, dec, 'Las que entraron en el mes, entre sus días naturales (el primero y el último del periodo, solo los suyos; el de la foto, hasta ella). Mejor si baja.', { better: 'low' }],
+    ['Resueltas por día', 'resDay', (x) => x, dec, 'Las que se resolvieron en el mes (por su fecha de resolución, se recibieran cuando se recibieran), entre sus días naturales. Mejor si sube.', { better: 'high' }],
+    ['MTTR', 'mttr', (x) => x.v, dur, `De lo recibido en el mes: (TTR de las resueltas + lo que llevan abiertas las que siguen abiertas) / cuántas son. Mejor si baja. La media del año fiscal, en verde por debajo de ${dur(MTTR_TARGET)} y en rojo por encima.`, { better: 'low', target: MTTR_TARGET }],
+    ['% dentro de SLA', 'sla', (x) => x.v, (v) => pct(v), 'De lo recibido en el mes, lo que se empezó (paso a En curso) dentro del plazo de su prioridad. Mejor si sube.', { better: 'high' }],
+    ['%IQA', 'iqa', (x) => x.v, (v) => pct(v), IQA_NOTE, { better: 'high' }],
+    ['Uso de la IA', 'ia', (x) => x.v, (v) => pct(v, 1), 'De lo recibido en el mes, lo que tiene alguna marca de IA (en TAGS o en las notas). Mejor si sube.', { better: 'high' }],
+  ];
+  const ARROWS = { up: '▲', down: '▼', eq: '=' };
+  const monthCard = () => {
+    const k0 = m.monthAt(S.d0), k1 = m.monthAt(S.d1 - 1), months = Array.from({ length: k1 - k0 + 1 }, (_, j) => k0 + j);
+    const sides = bySide(m.today()), cos = CO();
+    // lo recibido en el mes mo, dentro del periodo (el de antes del periodo, entero): de lo de arriba sin su periodo
+    const span = (mo) => [mo < k0 ? m.minuteOf(mo) : Math.max(m.minuteOf(mo), S.d0), mo < k0 ? m.minuteOf(mo + 1) : Math.min(m.minuteOf(mo + 1), S.d1)];
+    const inMonth = (l, mo) => { const [a, b] = span(mo); return l.filter((i) => C.rep[i] >= a && C.rep[i] < b); };
+    // por día: las entrantes y las resueltas (por su fecha de resolución) en [a, b), entre sus días naturales (hasta la foto)
+    const resAt = resolvedAt(m);
+    const perDay = (all, inc, a, b) => { const days = Math.max(Math.ceil((Math.min(b, m.END_D) - a) / DAY), 1);
+      const res = all.filter((i) => { const r = resAt(i); return r != null && r >= a && r < b; }).length;
+      return { inDay: inc.length / days, resDay: res / days, any: inc.length || res }; };
+    const withDay = (l, d) => (d.any ? { ...(l.length ? figures(l) : {}), open: l.filter((i) => OPEN[i]).length, inDay: d.inDay, resDay: d.resDay } : null);
+    // de cada lado, los KPIs de cada mes y del de antes (sin nada en él, como si no lo hubiera: sin flecha)
+    const F = cos.map((k) => [k0 - 1, ...months].map((mo) => { const l = inMonth(sides[k], mo); return withDay(l, perDay(sides[k], l, ...span(mo))); }));
+    // la media del año fiscal, de cada lado
+    const fyMonths = m.LASTM - m.monthAt(m.START_D) + 1;
+    const FY = cos.map((k) => { const l = sides[k].filter((i) => C.rep[i] >= m.START_D && C.rep[i] < m.END_D); return withDay(l, perDay(sides[k], l, m.START_D, m.END_D)); });
+    const fyOf = (s, key, valOf) => { const v = FY[s]?.[key] != null ? valOf(FY[s][key]) : null; return v == null ? null : key === 'inc' ? v / fyMonths : v; };
+    const cell = (s, j, [, key, valOf, fmt, , how]) => {
+      const f = F[s][j + 1], p = F[s][j], v = f?.[key] != null ? valOf(f[key]) : null, pv = p?.[key] != null ? valOf(p[key]) : null;
+      if (v == null) return '<td class="mt-num">—</td>';
+      if (how.plain) return `<td class="mt-num">${fmt(v)}</td>`;   // las abiertas: sin flecha ni color
+      const { dir, cls, value } = monthTrend(v, pv, { better: how.better, ref: fyOf(s, key, valOf) });
+      const tip = pv == null ? 'Sin el mes anterior para comparar.' : `${m.monthName((j ? months[j - 1] : k0 - 1))}: ${fmt(pv)}`;
+      const shown = value ? `<b class="mt-diff ${value}">${fmt(v)}</b>` : fmt(v);
+      return `<td class="mt-num" data-tip="${esc(tip)}">${shown}${dir ? ` <span class="mt-trend ${cls}">${ARROWS[dir]}</span>` : ''}</td>`;
+    };
+      const fyCell = (s, [, key, valOf, fmt, , how]) => {
+      if (how.noFy) return '<td class="mt-num"></td>';   // las abiertas: sin media
+      const avg = fyOf(s, key, valOf);
+      if (avg == null) return '<td class="mt-num">—</td>';
+      const { value } = monthTrend(avg, null, { target: how.target });
+      const shown = key === 'inc' ? dec(avg) : fmt(avg);
+      return `<td class="mt-num">${value ? `<b class="mt-diff ${value}">${shown}</b>` : shown}</td>`;
+    };
+    // una fila por mes (comparando, una por lado, con su color) y, al final, la media del año fiscal; una columna por KPI
+    const fyTip = `El año fiscal en curso, ${rangeLabel(m, [m.START_D, m.END_D])}, sea cual sea el periodo elegido: de las entrantes, la media por mes (${num(fyMonths)} ${fyMonths === 1 ? 'mes' : 'meses'}, el último sin acabar); por día, entre los días del año hasta la foto; de lo demás, la cifra de todo lo recibido en él.`;
+    // comparando, cada mes en un bloque: su nombre una vez (a lo alto de sus dos filas), una columna con el lado (su color
+    // y su nombre) y una raya más marcada entre un mes y el siguiente
+    const cmp = CMP();
+    const who = (k, s, label, tip = '') => {
+      const at = tip ? ` data-tip="${esc(tip)}"` : '';
+      if (!cmp) return `<td${at}>${label}</td>`;
+      return `${s ? '' : `<td class="mt-mm-mo" rowspan="${cos.length}"${at}>${label}</td>`}<td class="mt-mm-side"><i class="mt-sw mt-c${k}"></i>${esc(t.name(k))}</td>`;
+    };
+    const tr = (s, cls, body) => `<tr class="${[cls, cmp ? `mt-mm-s${s}` : ''].filter(Boolean).join(' ')}">${body}</tr>`;
+    const rows = months.flatMap((mo, j) => cos.map((k, s) => tr(s, '', `${who(k, s, esc(m.monthName(mo)))}${MONTH_ROWS.map((r) => cell(s, j, r)).join('')}`)))
+      .concat(cos.map((k, s) => tr(s, 'mt-grp mt-fy', `${who(k, s, 'Media año fiscal', fyTip)}${MONTH_ROWS.map((r) => fyCell(s, r)).join('')}`))).join('');
+    return card('Mes a mes', t.table(cmp ? 'Mes</th><th>' : 'Mes', MONTH_ROWS.map(([label, , , , tip]) => [label, tip]), rows), { span: 's12', tip: 'Lo recibido cada mes del periodo elegido: el primero y el último, solo con sus días dentro de él. La flecha, frente al mes anterior: en verde si mejora, en rojo si empeora. Al final, la media del año fiscal en curso; cada cifra, en verde si es mejor que ella y en rojo si es peor. Pasa el ratón por una columna para ver cómo se calcula y por una cifra para ver la del mes anterior.' });
+  };
+
+  // Junto a la corona, en su propia tarjeta y de lo mismo que ella (P: lo abierto ahora que se abrió hasta el final del
+  // periodo): lo que conviene vigilar (tabs/backlog.js, watchBox; un clic filtra), sin las escaladas ni las mal
+  // escaladas (están en Resolución y escalados). Comparando, de cada lado.
+  const WATCH_DROP = ['es:1', MISROUTED_FILTER];
+  const watchCard = (P) => {
+    const ks = CO();
+    const watchTip = 'Dentro de lo de la corona (lo abierto ahora que se abrió hasta el final del periodo); se solapan. Clic en una para filtrar.';
+    if (CMP()) return card('A vigilar', `<div class="mt-res-watch">${ks.map((k) => `<div><p class="mt-who-co"><i class="mt-sw mt-c${k}"></i>${esc(t.name(k))}</p>${detail.watchBox(P[k], WATCH_DROP)}</div>`).join('')}</div>`, { span: 's6', tip: watchTip });
+    return card('A vigilar', detail.watchBox(P[ks[0]], WATCH_DROP), { span: 's3', tip: watchTip });
   };
 
   // El informe Estado de SLAs (report.js, PARAMS): los parámetros elegidos (only: sus claves), siempre en el mismo orden, de lo
@@ -240,9 +344,17 @@ export const resumenTab = (t) => {
   return (A, { state = true, slas = null, part = 'top', vsPeriod = null } = {}) => {
     if (vsPeriod) return periodsCard(vsPeriod);
     if (slas) return slaState(A, slas, part);
-    // la corona: lo abierto ahora (con su estado de ahora) que se abrió como mucho hasta el final del periodo elegido, se
-    // abriera cuando se abriera (con los filtros y los lados de arriba). Con un periodo que llega a hoy, todo lo abierto.
+    // sin la corona (el informe), solo lo del periodo y la evolución
+    if (!state) return grid(ask('resumen'), periodKpis(A, true), evolution({ only: 'backlog', periods: periods() }));
+    // la pestaña, con lo que era Foto de hoy: arriba, sus selectores (SISU o SGA, prioridad); la corona, que filtra: lo
+    // abierto ahora (con su estado de ahora) que se abrió como mucho hasta el final del periodo, se abriera cuando se
+    // abriera (con los filtros y los lados de arriba; con un periodo que llega a hoy, todo lo abierto); a su lado, lo del
+    // periodo; la evolución del backlog; y debajo, el backlog de ahora: en qué punto está, sus tablas, quién tiene qué y
+    // la sábana (hoy.js, bare)
     const P = bySide(m.today()).map((l) => l.filter((i) => OPEN[i] && C.rep[i] < m.S.d1));
-    return grid(ask('resumen'), state ? stateOf(P, { link: true }) : '', periodKpis(A, !state, state), evolution({ only: 'backlog', periods: periods(), link: state, compact: state }));
+    // todo en una pantalla: arriba, la corona, A vigilar y la evolución (más estrecha); debajo, Mes a mes. Comparando,
+    // la corona a todo el ancho y, debajo, A vigilar y la evolución, a medias
+    // sin la pregunta de arriba; a la derecha, el último mes del periodo (lleva a SLA y calidad)
+    return grid(stateOf(P, { upTo: true, links: false, pick: false, go: { tab: 'backlog', label: 'Backlog' } }), watchCard(P), lastMonthCard(A), monthCard());
   };
 };

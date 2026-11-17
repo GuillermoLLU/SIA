@@ -14,7 +14,7 @@ import { num } from './format.js';
 import { createModel, COMPANIES } from './model.js';
 import { createCharts } from './charts.js';
 import { createTabs } from './tabs.js';
-import { FACES, faceOf, faceTabs, firstTab, faceFor } from './faces.js';
+import { FACES, faceOf, faceTabs, firstTab, routeTo } from './faces.js';
 import { periodLabel, presetRange, cmpOptions, rangeLabel } from './period.js';
 import { DAY } from './rules.js';
 import { reportBounds, reportHead, reportName, withDates, sidesOf, systemsFilter, PICKS, pickedFilter, pickedText, withShifts, shiftsFilter } from './report.js';
@@ -55,7 +55,9 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
   let m = null, tabs = null, tab = 'resumen', loading = false, panel = null;
   // face: la vista elegida en el menú de Métricas (faces.js: servicio, equipo, tecnicas); null, el menú
   let face = null;
-  const tsys = () => faceOf(face)?.tsys !== false;   // si la vista deja mirar o comparar con T-Systems
+  // si la vista deja mirar o comparar con T-Systems; la pestaña Backlog, nunca (solo Indra y sin comparar nada: render)
+  const NO_TSYS_TABS = ['backlog'];
+  const tsys = () => faceOf(face)?.tsys !== false && !NO_TSYS_TABS.includes(tab);
   // open: el desplegable abierto ('calendar', 'side0' o 'side1'); who: lo escrito en el buscador de
   // personas; searching: la búsqueda abierta
   let open = null, who = '', searching = false;
@@ -74,7 +76,7 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
   // Los tres puntos: lo que se hace pocas veces (exportar un informe, cargar un CSV, construir la consulta). Sin nada
   // encima de la vista. Sin datos (withClear: false), no hay informe que exportar ni histórico que borrar.
   const moreMenu = (withClear = true) => `<div class="mt-menu"><button class="mt-btn mt-icon-btn mt-more" data-more aria-haspopup="menu" aria-expanded="false" aria-label="Más opciones" title="Más opciones"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
-    <div class="mt-pop mt-menu-pop" data-more-pop role="menu" hidden>${withClear ? '<button role="menuitem" data-open-report>Exportar informe…</button>' : ''}<button role="menuitem" data-open-csv>Cargar CSV…</button><button role="menuitem" data-open-sql>Construir SQL…</button>${withClear ? '<button role="menuitem" class="mt-danger-item" data-clear>Eliminar histórico…</button>' : ''}</div></div>`;
+    <div class="mt-pop mt-menu-pop" data-more-pop role="menu" hidden>${withClear ? '<button role="menuitem" data-open-report>Exportar informe…</button><button role="menuitem" data-export-sheet hidden>Exportar sábana a CSV</button>' : ''}<button role="menuitem" data-open-csv>Cargar CSV…</button><button role="menuitem" data-open-sql>Construir SQL…</button>${withClear ? '<button role="menuitem" class="mt-danger-item" data-clear>Eliminar histórico…</button>' : ''}</div></div>`;
   const setMenu = (on) => {
     const pop = $('[data-more-pop]');
     if (!pop) return;
@@ -112,6 +114,7 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
         ${sideSlot(0)}<span class="mt-vs" data-vs>frente a</span>${sideSlot(1)}<div data-qco></div>
         <div class="mt-period"><button class="mt-btn mt-icon-btn" data-calendar aria-haspopup="true">${CALENDAR_ICON}<span data-period></span></button><div class="mt-pop mt-cal" data-cal hidden></div></div>
         <div data-cmp></div>
+        <div class="mt-fpicks" data-picks></div>
         <div class="mt-chips" data-chips></div>
         <div class="mt-find"><input type="search" data-q placeholder="Título o INC…" hidden><span class="mt-count" data-count></span>
           <button class="mt-search" data-search title="Buscar en el título o por número">${SEARCH_ICON}</button></div>
@@ -176,6 +179,11 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
 
   const render = () => {
     const { S, DIMS } = m;
+    // en Backlog no se compara nada (ni con otro lado ni con otro periodo): sin «Comparar» y, si se venía comparando, se quita
+    if (NO_TSYS_TABS.includes(tab)) {
+      if (S.sides[1]) ({ sides: S.sides, colors } = withoutSide(S.sides, colors, 1));
+      ui.resCmp = null; ui.cmpPick = false;
+    }
     m.refilter();
     const A = m.rows();
     const chips = Object.keys(S.f).flatMap((dim) => [...S.f[dim]].map((k) => `<span class="mt-chip">${DIMS[dim].name}: <b>${esc(DIMS[dim].label(k))}</b><button data-rm="${dim}:${k}" title="Quitar">×</button></span>`));
@@ -186,12 +194,16 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     renderPeriod();
     renderSides();
     $('[data-qco]').innerHTML = tsys() ? companyPick(m) : '';
-    $('[data-cmp]').innerHTML = comparePop(m, ui, tsys());
+    $('[data-picks]').innerHTML = tabs.picks();   // SISU o SGA y la prioridad: comunes a todas las pestañas
+    $('[data-cmp]').innerHTML = NO_TSYS_TABS.includes(tab) ? '' : comparePop(m, ui, tsys());
     $('[data-q]').hidden = !(searching || S.q);
     $('[data-count]').innerHTML = `<b>${num(A.length)}</b> incidencias`;
     root.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('mt-on', b.dataset.tab === tab));
     // la pestaña del equipo va por su cuenta: sin los filtros de arriba, que no le afectan
     const onTeam = tab === team?.id;
+    // la sábana ya no se ve en ninguna pestaña: en las que la tenían, se exporta desde los tres puntos
+    const sheetItem = $('[data-export-sheet]');
+    if (sheetItem) sheetItem.hidden = !(onTeam || SHEET_TABS.includes(tab));
     for (const s of ['.mt-fbar', '[data-main]']) $(s).style.display = onTeam ? 'none' : '';
     if (teamHost) teamHost.hidden = !onTeam;
     if (onTeam) {
@@ -199,13 +211,13 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
       teamView.show();
       return;
     }
-    $('[data-main]').innerHTML = tabs.render(tab, A);
+    $('[data-main]').innerHTML = tabs.render(tab, A, { face });   // la vista: alguna pestaña cambia con ella (Módulos y focos, en Equipo)
     applyTableSorts($('[data-main]'), tab, ui.colSort);   // y el orden por columnas de cada tabla (table-sort.js)
   };
 
   const start = (data) => {
     m = data ? createModel(data) : null;
-    m?.resetPeriod();   // de partida, este mes
+    m?.resetPeriod();   // de partida, los meses en los que tenemos algo abierto (model.js)
     ui.exp = {}; ui.sort = {}; ui.colSort = {}; ui.jiraPick = null; ui.resCmp = null; ui.cmpPick = false; ui.cliFilter = null; tab = firstTab(face, team) || 'resumen'; searching = false; closePops();
     if (!m) return renderEmpty();
     tabs = createTabs(m, createCharts(m, ui), ui);
@@ -224,11 +236,14 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
   };
   // En una vista sin T-Systems, lo que se mira es Indra o personas de Indra: si un lado no lo es, se quita (el
   // primero vuelve a Indra).
+  // Devuelve si ha cambiado algo.
   const onlyIndra = () => {
-    if (tsys()) return;
+    if (tsys()) return false;
     const S = m.S, indra = (s) => !s || (s.people ? [...s.people].every((p) => m.data.company[p] === 0) : s.company === 0);
-    if (!indra(S.sides[0])) { S.sides[0] = { company: 0 }; S.sides[1] = null; }
-    if (!indra(S.sides[1])) S.sides[1] = null;
+    let changed = false;
+    if (!indra(S.sides[0])) { S.sides[0] = { company: 0 }; S.sides[1] = null; changed = true; }
+    if (!indra(S.sides[1])) { S.sides[1] = null; changed = true; }
+    return changed;
   };
   // Entrar en una vista del menú (to: en esa pestaña; si no, en su primera).
   const enterFace = (id, to = null) => {
@@ -364,10 +379,13 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     }
   };
 
-  // La sábana, a CSV (del Resumen o de Escalados): lo que se ve ahora (filtros y lados), entero, descargado como fichero (sheet.js).
+  // La sábana, a CSV (de la pestaña en la que se está): lo que pasa ahora los filtros y los lados, entero, descargado como
+  // fichero (sheet.js). Ya no se ve en las pestañas: se exporta desde los tres puntos (Exportar sábana a CSV), solo en
+  // las que la tenían (SHEET_TABS; Equipo soporte, la suya: work-view.js).
+  const SHEET_TABS = ['backlog', 'escalados', 'resesc', 'cliente', 'tiempos'];
   const exportSheet = () => {
     // la sábana de la pestaña: la de Escalados o la de Pendiente de cliente, con sus columnas; si no, lo abierto ahora
-    const own = { escalados: [ui.escSheet, 'incidencias-escaladas'], cliente: [ui.cliSheet, 'pendientes-de-cliente'], tiempos: [ui.timesSheet, 'incidencias-tiempos'], sla: [ui.slaSheet, 'sin-empezar-sla'], hoy: [ui.hoySheet, 'incidencias-abiertas'] }[tab];
+    const own = { escalados: [ui.escSheet, 'incidencias-escaladas'], resesc: [ui.escSheet, 'incidencias-escaladas'], slaq: [ui.slaSheet, 'sin-empezar-sla'], cliente: [ui.cliSheet, 'pendientes-de-cliente'], tiempos: [ui.timesSheet, 'incidencias-tiempos'], sla: [ui.slaSheet, 'sin-empezar-sla'], backlog: [ui.hoySheet, 'incidencias-abiertas'] }[tab];
     const list = own ? own[0].list : sheetOf(m);
     if (!list.length) return;
     const file = own ? sheetFile(m, own[1]) : sheetFile(m);
@@ -490,10 +508,11 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     // con datos, actualizar; sin datos, la primera carga con el periodo que se elige
     if (e.target.closest('[data-update]')) return m ? update() : modals.firstLoad();
     if (e.target.closest('[data-more]')) return setMenu($('[data-more-pop]')?.hidden === true);
-    const item = e.target.closest('[data-open-report],[data-open-csv],[data-open-sql],[data-clear]');
+    const item = e.target.closest('[data-open-report],[data-export-sheet],[data-open-csv],[data-open-sql],[data-clear]');
     if (item) {
       setMenu(false);
       if (item.hasAttribute('data-open-report')) return exportReport();
+      if (item.hasAttribute('data-export-sheet')) return tab === team?.id ? teamView?.exportSheet() : exportSheet();
       if (item.hasAttribute('data-open-csv')) return modals.csv();
       if (item.hasAttribute('data-clear')) return modals.clear();
       return modals.sql();
@@ -547,12 +566,12 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     let reframe = false;   // un enlace a una pestaña de otra vista: se cambia a esa vista
     if (d.tab || d.go) {
       const from = tab;
-      tab = d.tab || d.go; root.scrollTop = 0;
-      const to = faceFor(tab, face);
-      if (to !== face) { face = to; onlyIndra(); reframe = true; }
+      const [to, k] = routeTo(d.tab || d.go, face);
+      tab = k; root.scrollTop = 0;
+      if (to !== face) { face = to; onlyIndra(); reframe = true; } else if (onlyIndra()) m.refilter();   // Backlog: sin T-Systems
       // Escalados se abre en Activas llegando desde Foto de hoy o desde el enlace de Pendiente (proveedor) de Resumen; si no,
       // en Histórico. Dentro, se cambia con data-esc-mode.
-      if (tab === 'escalados' && from !== 'escalados') { ui.escNow = from === 'hoy' || d.escNow != null; ui.escNoJira = false; }
+      if ((tab === 'escalados' || tab === 'resesc') && from !== tab) { ui.escNow = from === 'resumen' || from === 'backlog' || d.escNow != null; ui.escNoJira = false; }
       if (d.rm) { const [dim, k] = filterKey(d.rm); S.f[dim]?.delete(k); }   // un enlace que quita un filtro al ir (Resumen → Escalados)
       // un enlace con fechas y vista (Resumen → Histórico): esas fechas arriba y esa vista de la evolución
       if (d.period) { const [a, b] = d.period.split(':').map(Number); m.setPeriod(a, b); }

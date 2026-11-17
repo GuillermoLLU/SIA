@@ -7,7 +7,7 @@ import { data } from '../fixture.js';
 
 test('Escalados en el informe: sin la pregunta, el selector ni la comparativa; la tabla por proyecto Jira, módulo y centro', () => {
   const m = createModel(data()); m.S.sides = [{ company: 0 }, null]; m.refilter();
-  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  const ui = { exp: {}, sort: {}, showSheet: true }, tabs = createTabs(m, createCharts(m, ui), ui);
   for (const now of [true, false]) {
     ui.escNow = now;
     const app = tabs.render('escalados', m.rows()), rep = tabs.render('escalados', m.rows(), { inReport: true });

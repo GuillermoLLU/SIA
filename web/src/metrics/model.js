@@ -85,7 +85,7 @@ export const createModel = (data) => {
   // la foto), o del primer día con issues, hasta la foto. Los meses k cuentan desde enero de meta.start.
   const FISCAL_M = LASTM - (((LASTM - 1) % 12) + 12) % 12;
   const START_D = Math.max(MIN_D, minuteOf(FISCAL_M));
-  // El periodo con el que abren las vistas (resetPeriod): este mes, el de la foto, desde su día 1 (o lo primero cargado).
+  // este mes, el de la foto, desde su día 1 (o lo primero cargado)
   const MONTH_D = Math.max(MIN_D, minuteOf(LASTM));
   const CRIT = DI.prio.indexOf('CRITICAL');
   const SLA = DI.prio.map((p) => SLA_MINUTES[p] ?? -1);
@@ -134,6 +134,8 @@ export const createModel = (data) => {
     vk: dictDim('Ticket Jira', 'vk', 'vkey', (s) => s || '(sin clave Jira)'),
     rz: dictDim('Resolución (texto)', 'rz', 'resol', (s) => s || '(texto único o vacío)'),
     dow: { name: 'Día de la semana', get: (i) => DOW[i], label: (k) => DOWS[k] },
+    // el mes en que se abrió (Backlog, Meses con incidencias abiertas: un clic en una barra filtra)
+    mes: { name: 'Mes de apertura', get: (i) => MONTH[i], label: (k) => monthName(k) },
     hour: { name: 'Hora', get: (i) => HOUR[i], label: (k) => `${k} h` },
     tj: { name: 'Tarjeta', multi: true, label: (k) => CARDS[k],
       get: (i) => { const o = []; if (C.sc[i] === SCOPE.SGA) o.push(0); if (C.sc[i] === SCOPE.SISU) o.push(1); if (C.fl[i] & PRIO) o.push(2); return o.length ? o : [3]; } },
@@ -192,7 +194,14 @@ export const createModel = (data) => {
   };
   // un mes entero dentro del periodo y ya cerrado (el de la foto aún puede cambiar)
   const fullMonth = (k) => k < LASTM && minuteOf(k) >= S.d0 && minuteOf(k + 1) <= S.d1;
-  const resetPeriod = () => setPeriod(MONTH_D, END_D);
+  // El periodo con el que abren las vistas (resetPeriod): los meses en los que tenemos algo abierto, del de la abierta más
+  // antigua de Indra (desde su día 1) a la foto; sin nada abierto, este mes.
+  const openFrom = () => {
+    let t = Infinity;
+    for (let i = 0; i < N; i++) if (OPEN[i] && TEAM[i] === 0 && C.rep[i] < t) t = C.rep[i];
+    return t === Infinity ? MONTH_D : Math.max(MIN_D, minuteOf(monthAt(t)));
+  };
+  const resetPeriod = () => setPeriod(openFrom(), END_D);
   const daily = () => S.d1 - S.d0 <= 31 * DAY;   // hasta un mes se ve día a día; más, mes a mes
   const inPeriod = (i) => C.rep[i] >= S.d0 && C.rep[i] < S.d1;
   const SIDE = new Uint8Array(N);

@@ -4,7 +4,8 @@
 //   Equipo: qué hace cada técnico (Equipo soporte, con su propio periodo, y los turnos).
 //   Técnicas: el detalle para entender el porqué (escalados, módulos y focos, pendiente de cliente…).
 // tsys: si la vista deja mirar o comparar con T-Systems; sin él, solo Indra (y sus personas, frente a frente).
-// Una pestaña puede ir en más de una vista (Uso de la IA, en Servicio y en Técnicas).
+// Una pestaña puede ir en más de una vista: Servicio lleva todas las que tenía antes Métricas del servicio, y Técnicas y
+// Equipo repiten algunas (Resumen, Histórico, Entrantes, Calidad, Módulos y focos).
 import { svg } from '../ui/html.js';
 import { TABS } from './tabs.js';
 
@@ -17,24 +18,46 @@ const ICONS = {
 // La pestaña de Equipo soporte no está en TABS: la monta main.js aparte (team.id), con su propio periodo.
 export const TEAM_TAB = 'equipo';
 
+// labels: el nombre de una pestaña en esa vista, si no es el de siempre (Servicio: Equipo soporte, «Equipo»).
 export const FACES = [
   { id: 'servicio', label: 'Servicio', tsys: true, note: 'El estado del servicio y frente a T-Systems',
-    tabs: ['resumen', 'hoy', 'historico', 'entrada', 'sla', 'resolucion', 'calidad', 'ia'] },
+    tabs: ['resumen', 'backlog', 'entrada', 'modulos', 'resesc', 'slaq', 'ia', 'turnos', TEAM_TAB], labels: { [TEAM_TAB]: 'Equipo' } },
   { id: 'equipo', label: 'Equipo', tsys: false, note: 'Qué hace cada técnico',
-    tabs: [TEAM_TAB, 'turnos'] },
+    tabs: [TEAM_TAB, 'calidad', 'modulos', 'turnos'] },
   { id: 'tecnicas', label: 'Técnicas', tsys: false, note: 'Por qué pasa: escalados, módulos, esperas',
-    tabs: ['escalados', 'modulos', 'cliente', 'tiempos', 'ia'] },
+    tabs: ['resumen', 'backlog', 'entrada', 'escalados', 'modulos', 'cliente', 'tiempos', 'calidad', 'ia'] },
 ].map((f) => ({ ...f, icon: ICONS[f.id] }));
 
 export const faceOf = (id) => FACES.find((f) => f.id === id) || null;
 
+// Pestañas que ya no van solas: Foto de hoy, partida entre el Resumen (la corona) y Backlog (lo demás). Un enlace a
+// ella, a Backlog. El Histórico ya no está en ninguna vista.
+export const TAB_ALIAS = { hoy: 'backlog' };
+export const HIDDEN = ['historico'];
+// Pestañas que van juntas en una (tabs.js): en una vista que tiene la de las dos, un enlace a una de ellas lleva a esa.
+export const JOINED = { resesc: ['resolucion', 'escalados'], slaq: ['sla', 'calidad'] };
+
 // Las pestañas de una vista, [clave, nombre], en su orden. team: { id, label } de Equipo soporte (sin él, no sale).
 export const faceTabs = (id, team = null) => {
   const names = new Map([...TABS, ...(team ? [[team.id, team.label]] : [])]);
-  return (faceOf(id)?.tabs || []).filter((k) => names.has(k)).map((k) => [k, names.get(k)]);
+  const f = faceOf(id);
+  return (f?.tabs || []).filter((k) => names.has(k)).map((k) => [k, f.labels?.[k] || names.get(k)]);
 };
 export const firstTab = (id, team = null) => faceTabs(id, team)[0]?.[0] || null;
 
 // Un enlace a una pestaña (data-go): si está en la vista en la que se está, se queda en ella; si no, la primera
 // vista que la tiene.
 export const faceFor = (tab, current) => (faceOf(current)?.tabs.includes(tab) ? current : FACES.find((f) => f.tabs.includes(tab))?.id || current);
+// A dónde lleva un enlace a una pestaña desde una vista: [vista, pestaña]. Foto de hoy, al Resumen (TAB_ALIAS); en la
+// misma vista, a la pestaña o a la que la junta con otra (JOINED); si no, a la primera vista que la tiene.
+export const routeTo = (tab, current) => {
+  const k = TAB_ALIAS[tab] || tab, here = faceOf(current)?.tabs || [];
+  if (here.includes(k)) return [current, k];
+  const joined = Object.keys(JOINED).find((j) => JOINED[j].includes(k) && here.includes(j));
+  if (joined) return [current, joined];
+  const other = FACES.find((f) => f.tabs.includes(k));
+  if (other) return [other.id, k];
+  // solo junta con otras, en otra vista (Resolución, en Servicio)
+  const far = FACES.map((f) => [f.id, Object.keys(JOINED).find((j) => JOINED[j].includes(k) && f.tabs.includes(j))]).find(([, j]) => j);
+  return far || [current, k];
+};

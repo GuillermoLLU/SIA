@@ -20,7 +20,14 @@ export const backlogParts = (t, { card: cardOf = null } = {}) => {
   // un tercero, del cliente u otro motivo, que suman el total), en una barra; lo que conviene vigilar dentro
   // (se solapa: no se suma) y, a la derecha, lo que se le pase (Foto de hoy: la antigüedad media). open: lo abierto que
   // se mira (con las sin asignar, si las hay). Solo con un lado.
-  const stockPanel = (open, aside = '') => {
+  // A vigilar, dentro de open (se solapa: no se suma); un clic en una filtra. drop: los filtros (data-f) que no salen
+  const watchBox = (open, drop = []) => {
+    const watch = watchList(m).filter(([, , , f]) => !drop.includes(f)).map(([l, test, tip, f]) => [l, open.filter(test).length, tip, f]);
+    return `<section class="mt-st mt-st-watch"><h4>A vigilar<small>dentro de las pendientes; se solapan</small></h4>
+      ${watch.map(([l, v, tip, f]) => `<div class="mt-st-item mt-clk" data-f${f.includes('|') ? '2' : ''}="${f}" data-tip="${esc(tip)}"><span>${l}</span><b>${num(v)}</b></div>`).join('')}</section>`;
+  };
+  // watch: con el cuadro A vigilar (sin él, el Resumen: lo pone arriba)
+  const stockPanel = (open, aside = '', watch = true) => {
     const count = (test) => open.filter(test).length;
     const sit = SITUATION.map((x, k) => ({ ...x, k, v: count(x.test) })).filter((x) => x.v);
     const share = (x) => (open.length ? x.v / open.length : 0);
@@ -28,13 +35,10 @@ export const backlogParts = (t, { card: cardOf = null } = {}) => {
       const p = share(x);
       return `<i class="mt-sit${x.k}" style="width:${(p * 100).toFixed(2)}%" data-f="${x.f}" data-tip="${esc(`${x.label}\n${num(x.v)} de ${num(open.length)} (${pct(p)})\n${x.tip}`)}">${p >= 0.07 ? pct(p) : ''}</i>`;
     }).join('')}</div>`;
-    const watch = watchList(m).map(([l, test, tip, f]) => [l, count(test), tip, f]);
     const where = `<section class="mt-st mt-st-where"><h4>¿En qué punto están?<small>suman las pendientes</small></h4>
       <div class="mt-st-row">${bar}</div>
       <div class="mt-st-legend">${sit.map((x) => `<div class="mt-clk" data-f="${x.f}" data-tip="${esc(x.tip)}"><span><i class="mt-sit${x.k}"></i>${x.label}</span><b>${num(x.v)}</b><em>${pct(share(x))}</em></div>`).join('')}</div></section>`;
-    const watchHtml = `<section class="mt-st mt-st-watch"><h4>A vigilar<small>dentro de las pendientes; se solapan</small></h4>
-      ${watch.map(([l, v, tip, f]) => `<div class="mt-st-item mt-clk" data-f${f.includes('|') ? '2' : ''}="${f}" data-tip="${esc(tip)}"><span>${l}</span><b>${num(v)}</b></div>`).join('')}</section>`;
-    return `<div class="mt-stock mt-st-nototal ${aside ? '' : 'mt-st-noapart'}">${where}${watchHtml}${aside}</div>`;
+    return `<div class="mt-stock mt-st-nototal ${aside ? '' : 'mt-st-noapart'}${watch ? '' : ' mt-st-nowatch'}">${where}${watch ? watchBox(open) : ''}${aside}</div>`;
   };
   // Lo pendiente, comparando: no cuánto hay (depende de lo que entra), sino cómo está. Cada fila, por lado: sus issues
   // (con personas, la media por persona del equipo), qué parte son de sus pendientes y cuánto llevan abiertas de media.
@@ -87,7 +91,14 @@ export const backlogParts = (t, { card: cardOf = null } = {}) => {
 
   // De un solo lado (now: lo abierto ahora y lo cerrado, como lo da m.today(); lo sin técnico de las búsquedas del
   // equipo ya va con Indra: model.js, SEARCH_OWNER)
-  const single = (now, aside = '') => {
+  // La pestaña Backlog (simple): la situación, como en la corona (En curso, Asignada, Pendiente de cliente, Pendiente
+  // proveedor externo y, si lo hay, otro motivo), y sin la fila de las que no tienen tarjeta
+  const SIT_GROUPS = [['En curso', [0], 'Alguien está trabajando en ellas.'], ['Asignada', [1, 2], 'En Asignada: sin tocar o devueltas a la cola.'],
+    ['Pendiente de cliente', [4], 'En Pendiente por una acción o respuesta del centro o del cliente.'],
+    ['Pendiente proveedor externo', [3], 'En Pendiente por una acción de un tercero (desarrollo, proveedor…).'],
+    ['Pendiente (otro motivo)', [5], 'En Pendiente con otro motivo o sin motivo informado.']]
+    .map(([label, sits, tip]) => ({ label, tip, test: (i) => sits.includes(m.DIMS.sit.get(i)), f: sits.map((k) => `sit:${k}`).join('|') }));
+  const single = (now, aside = '', watch = true, { simple = false } = {}) => {
     const A = now, inA = (i) => SIDE[i] < 2;
     const op = A.filter((i) => OPEN[i] && inA(i));
     // lo pendiente: su situación y, aparte, lo que hay que vigilar
@@ -96,7 +107,7 @@ export const backlogParts = (t, { card: cardOf = null } = {}) => {
     const pend = { label: 'Pendientes', test: inA };
     const stateRows = [
       { head: 'Situación', note: 'Suman las pendientes.' },
-      ...SIT.map((s) => ({ ...s, test: (i) => inA(i) && s.test(i) })),
+      ...(simple ? SIT_GROUPS.filter((x) => op.some(x.test)) : SIT).map((s) => ({ ...s, test: (i) => inA(i) && s.test(i) })),
       { head: 'A vigilar', note: 'Dentro de las pendientes.' },
       { label: 'Fuera de plazo', tip: 'Sin iniciar: nunca han pasado a En curso y ya superan su SLA.', test: (i) => inA(i) && late(i), f: 'sl:4' },
       { label: 'Sin tocar', tip: 'En Asignada y sin ningún movimiento desde que se abrieron: nadie las ha mirado.', test: (i) => inA(i) && m.DIMS.sit.get(i) === 1, f: 'sit:1' },
@@ -106,20 +117,20 @@ export const backlogParts = (t, { card: cardOf = null } = {}) => {
       { label: 'PRIO', test: (i) => inA(i) && cardsOf(i).includes(2), f: 'tj:2' },
       { label: 'Críticas', test: (i) => inA(i) && C.pr[i] === CRIT, f: `pr:${CRIT}` },
     ];
-    const prioCards = [{ head: 'Prioridad' }, ...asRows(prioRows()), { head: 'Tarjeta', note: 'Una PRIO cuenta también en su SGA o SISU.' }, ...asRows(CARD_ROWS())];
+    const prioCards = [{ head: 'Prioridad' }, ...asRows(prioRows()), { head: 'Tarjeta', note: 'Una PRIO cuenta también en su SGA o SISU.' }, ...asRows(CARD_ROWS().filter(([c]) => !simple || c !== 'Sin tarjeta'))];
     const modRows = topRows('mo', op, 12), esc3 = op.filter((i) => m.C.vt[i] > 0);   // con ticket de tercero, por su proyecto Jira
-    const st = { total: true, foot: pend };
+    const st = { total: true, foot: pend }, hrs = simple ? { mttr: true } : {};   // Backlog: los «desde cuándo», con el MTTR en vez del total
 
     return [
-      stockPanel(op, aside),
-      card('En qué situación está y desde cuándo', matrix(stateRows, AGES, op, { ...st, share: true, of: op.length, corner: 'Antigüedad →' }),
+      stockPanel(op, aside, watch),
+      card('En qué situación está y desde cuándo', matrix(stateRows, AGES, op, { ...st, ...hrs, share: true, of: op.length, corner: 'Antigüedad →' }),
         { span: 's6', sub: 'Las situaciones suman las pendientes. Debajo, lo que conviene vigilar dentro de ellas. Clic en una celda para filtrar.' }),
       card('Por prioridad y tarjeta', matrix(prioCards, SIT, op, { ...st, corner: 'Situación →' }), { span: 's6', sub: 'En qué situación está lo pendiente de cada prioridad y tarjeta.' }),
       card('Por módulo: en qué situación', matrix(modRows, SIT, op, { ...st, corner: 'Módulo · situación →' }), { span: 's6', sub: 'Los 12 módulos con más pendientes; «Resto», los demás. Clic en una celda para filtrar.' }),
-      card('Por módulo: desde cuándo', matrix(modRows, AGES, op, { ...st, corner: 'Módulo · antigüedad →' }), { span: 's6', sub: 'Los mismos módulos, por lo que lleva abierto lo suyo.' }),
-      card('Escaladas: a quién y desde cuándo', esc3.length ? matrix(topRows('vp', esc3, 10), AGES, esc3, { total: true, foot: { label: 'Escaladas', test: () => true }, corner: 'Proyecto Jira · antigüedad →' }) : '<p class="mt-mut mt-small">Nada escalado.</p>',
+      card('Por módulo: desde cuándo', matrix(modRows, AGES, op, { ...st, ...hrs, corner: 'Módulo · antigüedad →' }), { span: 's6', sub: 'Los mismos módulos, por lo que lleva abierto lo suyo.' }),
+      card('Escaladas: a quién y desde cuándo', esc3.length ? matrix(topRows('vp', esc3, 10), AGES, esc3, { total: true, ...hrs, foot: { label: 'Escaladas', test: () => true }, corner: 'Proyecto Jira · antigüedad →' }) : '<p class="mt-mut mt-small">Nada escalado.</p>',
         { span: 's6', sub: 'Lo pendiente con ticket de tercero, por el proyecto Jira al que se escaló; «(sin clave Jira)», las de un ticket que no es de Jira. Clic en una celda para filtrar.' }),
-      card('Por centro: desde cuándo', matrix(topRows('ce', op, 10), AGES, op, { ...st, corner: 'Centro · antigüedad →' }), { span: 's6', sub: 'Los 10 centros con más pendientes; «Resto», los demás.' })];
+      card('Por centro: desde cuándo', matrix(topRows('ce', op, 10), AGES, op, { ...st, ...hrs, corner: 'Centro · antigüedad →' }), { span: 's6', sub: 'Los 10 centros con más pendientes; «Resto», los demás.' })];
   };
-  return { single, cmpParts };
+  return { single, cmpParts, watchBox };
 };

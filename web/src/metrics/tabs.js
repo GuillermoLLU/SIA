@@ -26,5 +26,11 @@ export const createTabs = (m, ch, ui) => {
   const VIEWS = { resumen: resumenTab(t), hoy: hoyTab(t), historico: historicoTab(t), entrada: entradaTab(t), modulos: modulosTab(t),
     resolucion: resolucionTab(t), tiempos: tiemposTab(t), cliente: clienteTab(t), escalados: escaladosTab(t), sla: slaTab(t), calidad: pendingTab(t, 'calidad'),
     ia: iaTab(t), turnos: turnosTab(t) };
-  return { render: (tab, A, opts) => VIEWS[tab](A, opts) };
+  // Las que van juntas (Servicio), una debajo de otra: Resolución y escalados; SLA y calidad (SLAs, Calidad y Uso de la IA)
+  VIEWS.resesc = (A, opts) => VIEWS.resolucion(A, opts) + VIEWS.escalados(A, opts);
+  VIEWS.slaq = (A, opts) => VIEWS.sla(A, opts) + VIEWS.calidad(A, opts);
+  // Backlog: lo de Foto de hoy sin su corona (la del Resumen)
+  VIEWS.backlog = (A, opts) => VIEWS.hoy(A, { ...opts, backlog: true });
+  // picks: los selectores comunes de la barra de arriba (SISU o SGA y la prioridad: tabs/common.js)
+  return { render: (tab, A, opts) => VIEWS[tab](A, opts), picks: () => t.filterPicks() };
 };

@@ -25,7 +25,7 @@ const data = () => ({
 });
 
 const render = (sides, charts = new Set()) => {
-  const m = createModel(data()), ui = { exp: {}, sort: {}, charts };
+  const m = createModel(data()), ui = { exp: {}, sort: {}, showSheet: true, charts };
   m.S.sides = sides; m.refilter();
   return teamPanel(m, createCharts(m, ui), ui);
 };
@@ -57,7 +57,7 @@ test('un bloque como gráfica: su evolución en lugar de las cifras, con la prin
 
 test('pendientes: lo del equipo cuenta aunque no caiga en SGA ni SISU, como en la tabla', () => {
   const d = data(); d.dict.status = ['', 'CLOSED', 'ASSIGNED']; d.cols.st[0] = 2;   // una de ANA, abierta y fuera de los filtros
-  const m = createModel(d), ui = { exp: {}, sort: {}, charts: new Set() };
+  const m = createModel(d), ui = { exp: {}, sort: {}, showSheet: true, charts: new Set() };
   m.S.sides = [{ company: 0 }, null]; m.refilter();
   const h = teamPanel(m, createCharts(m, ui), ui);
   assert.match(h, /<h3>Pendientes<\/h3>[\s\S]*?<div class="wk-hero"><b>1<\/b>/);
@@ -67,7 +67,7 @@ test('pendientes: lo del equipo cuenta aunque no caiga en SGA ni SISU, como en l
 test('por turno: RPT, EPPT y PCPT (con sus e y b) y %IQA, por persona y del equipo', () => {
   const d = data();
   d.sessions = [[], [[1000, 1130, 1]], [], []];   // la sesión de ANA, de un turno: sus 10 se abren y se resuelven en ella
-  const m = createModel(d), ui = { exp: {}, sort: {}, charts: new Set() };
+  const m = createModel(d), ui = { exp: {}, sort: {}, showSheet: true, charts: new Set() };
   m.S.sides = [{ company: 0 }, null]; m.refilter();
   const h = teamPanel(m, createCharts(m, ui), ui);
   const heads = [...h.matchAll(/data-sort="team:[^"]+"[^>]*>([^<]+)</g)].map((x) => x[1].replace(/ [↓↑]$/, ''));
@@ -84,7 +84,7 @@ test('Tatt, Tan y TTR medios, por persona y del equipo; el Tan, solo de las resu
   const d = data();
   d.cols.tI = d.cols.as.map((a) => (a === 1 ? 30 : 150));
   d.cols.res[0] = -1; d.cols.tI[0] = 9999;   // una de ANA sin resolver: su tiempo En curso no cuenta en el Tan
-  const m = createModel(d), ui = { exp: {}, sort: {}, charts: new Set() };
+  const m = createModel(d), ui = { exp: {}, sort: {}, showSheet: true, charts: new Set() };
   m.S.sides = [{ company: 0 }, null]; m.refilter();
   const h = teamPanel(m, createCharts(m, ui), ui);
   const heads = [...h.matchAll(/data-sort="team:[^"]+"[^>]*>([^<]+)</g)].map((x) => x[1].replace(/ [↓↑]$/, ''));
@@ -107,7 +107,7 @@ test('La página de Calidad: se llega desde el bloque Calidad, con cifras o como
 });
 
 test('Volumen: la media de resueltas cuenta lo mismo que su barra, también lo creado antes del periodo', () => {
-  const m = createModel(data()), ui = { exp: {}, sort: {}, charts: new Set(['volumeMonths']) };
+  const m = createModel(data()), ui = { exp: {}, sort: {}, showSheet: true, charts: new Set(['volumeMonths']) };
   m.S.sides = [{ company: 0 }, null];
   m.setPeriod(5 * 1440, 7 * 1440);   // las 10 de PEPE se crean antes (minuto 2000) y se resuelven el día 6 (minuto 9000)
   m.refilter();
@@ -117,7 +117,7 @@ test('Volumen: la media de resueltas cuenta lo mismo que su barra, también lo c
 });
 
 test('Volumen: la media por día de la semana, de todos los de ese tipo del periodo', () => {
-  const m = createModel(data()), ui = { exp: {}, sort: {}, charts: new Set() };
+  const m = createModel(data()), ui = { exp: {}, sort: {}, showSheet: true, charts: new Set() };
   m.S.sides = [{ company: 0 }, null];
   m.setPeriod(0, 14 * 1440);   // dos de cada; el minuto 0 es jueves: ANA crea y resuelve 10 el jueves y PEPE crea 10 el viernes y resuelve el miércoles
   m.refilter();
@@ -136,7 +136,7 @@ test('Volumen: la media por día de la semana, de todos los de ese tipo del peri
 
 test('filtrar a una persona: los bloques, solo sus datos; la tabla, entera, para poder elegir otra', () => {
   const d = data(); d.dict.status = ['', 'CLOSED', 'ASSIGNED']; d.cols.st[MIN] = 2;   // una de PEPE, abierta
-  const m = createModel(d), ui = { exp: {}, sort: {}, charts: new Set(), person: 1 };
+  const m = createModel(d), ui = { exp: {}, sort: {}, showSheet: true, charts: new Set(), person: 1 };
   m.S.sides = [{ company: 0 }, null]; m.refilter();
   const h = teamPanel(m, createCharts(m, ui), ui);
   assert.ok(rowOf(h, 'ANA') && rowOf(h, 'PEPE'));
@@ -156,7 +156,7 @@ test('filtrar a una persona: los bloques, solo sus datos; la tabla, entera, para
 test('Calidad: en grande el %IQA y, en pequeño, las reaperturas y las devueltas a la cola', () => {
   const d = data(); d.cols.nb = d.cols.nb.map((_, i) => (i < 2 ? 1 : 0));   // ANA: 2 devueltas de las 20 del equipo
   d.cols.fl[0] = 512;                                                       // y 1 reabierta
-  const m = createModel(d), ui = { exp: {}, sort: {}, charts: new Set() };
+  const m = createModel(d), ui = { exp: {}, sort: {}, showSheet: true, charts: new Set() };
   m.S.sides = [{ company: 0 }, null]; m.refilter();
   const h = teamPanel(m, createCharts(m, ui), ui);
   const b = h.slice(h.indexOf('<h3>Calidad'), h.indexOf('</section>', h.indexOf('<h3>Calidad')));
@@ -171,7 +171,7 @@ test('Calidad: en grande el %IQA y, en pequeño, las reaperturas y las devueltas
 test('Actividad: arriba del todo, del equipo o de la persona filtrada; con días elegidos, sigue enseñando el periodo de partida', () => {
   const d = data();
   d.cols.sp = d.cols.as.map((a) => (a === 1 ? [[0, 10, 1]] : a === 2 ? [[0, 1450, 2]] : [[0, 10, 3]]));   // ANA resuelve el día 0, PEPE el 1 y LUIS es de otra empresa
-  const m = createModel(d), ui = { exp: {}, sort: {}, charts: new Set() };
+  const m = createModel(d), ui = { exp: {}, sort: {}, showSheet: true, charts: new Set() };
   m.S.sides = [{ company: 0 }, null];
   m.setPeriod(0, 3 * 1440); m.refilter();
   const h = teamPanel(m, createCharts(m, ui), ui);
@@ -195,7 +195,7 @@ test('Actividad: arriba del todo, del equipo o de la persona filtrada; con días
 test('Días sueltos: los bloques y la tabla, solo lo de esos días, no lo que queda entre ellos', () => {
   const d = data();
   d.cols.sp = d.cols.as.map((a) => (a === 1 ? [[0, 10, 1]] : a === 2 ? [[0, 1450, 2]] : []));
-  const m = createModel(d), ui = { exp: {}, sort: {}, charts: new Set(), range: { base: [0, 3 * 1440], days: [0, 2 * 1440] } };
+  const m = createModel(d), ui = { exp: {}, sort: {}, showSheet: true, charts: new Set(), range: { base: [0, 3 * 1440], days: [0, 2 * 1440] } };
   m.S.sides = [{ company: 0 }, null]; m.setPeriod(0, 3 * 1440); m.refilter();   // ANA resuelve el día 0 y PEPE, el 1, que queda fuera
   const h = teamPanel(m, createCharts(m, ui), ui);
   assert.match(h, /<div class="wk-key"><b>10<\/b><span>incidencias con actividad esos días/);
@@ -205,7 +205,7 @@ test('Días sueltos: los bloques y la tabla, solo lo de esos días, no lo que qu
 });
 
 test('Sábana: abajo del todo, las incidencias del panel, abiertas o cerradas, con los filtros de técnico y días', () => {
-  const m = createModel(data()), ui = { exp: {}, sort: {}, charts: new Set() };
+  const m = createModel(data()), ui = { exp: {}, sort: {}, showSheet: true, charts: new Set() };
   m.S.sides = [{ company: 0 }, null]; m.setPeriod(0, 3 * 1440); m.refilter();
   const h = teamPanel(m, createCharts(m, ui), ui), sheet = h.slice(h.indexOf('Sábana de incidencias'));
   assert.ok(h.indexOf('persona a persona') < h.indexOf('Sábana de incidencias'));
@@ -229,7 +229,7 @@ test('Días elegidos: lo hecho en ellos, aunque la incidencia se creara antes; t
   // creadas el día 0: ANA resuelve sus 10 el día 5; PEPE solo escala sus 10 el día 5 y las resuelve después
   d.cols.rep = d.cols.rep.map(() => 100); d.cols.res = d.cols.as.map((a) => (a === 1 ? 5 * 1440 + 100 : a === 2 ? 9 * 1440 + 100 : 3100));
   d.cols.sp = d.cols.as.map((a) => (a === 1 ? [[0, 5 * 1440 + 100, 1]] : a === 2 ? [[1, 5 * 1440 + 100, 2], [0, 9 * 1440 + 100, 2]] : []));
-  const m = createModel(d), ui = { exp: {}, sort: {}, charts: new Set(), range: { base: [0, 10 * 1440], days: [5 * 1440] } };
+  const m = createModel(d), ui = { exp: {}, sort: {}, showSheet: true, charts: new Set(), range: { base: [0, 10 * 1440], days: [5 * 1440] } };
   m.S.sides = [{ company: 0 }, null]; m.setPeriod(5 * 1440, 6 * 1440); m.refilter();
   assert.equal(m.rows().length, 0);   // ninguna creada ese día
   const h = teamPanel(m, createCharts(m, ui), ui);
@@ -248,7 +248,7 @@ test('Actividad frente a la media: todo el equipo, por día; una persona, por tu
   const d = data();
   d.cols.sp = d.cols.as.map((a) => (a === 3 ? [] : [[0, 50, a]]));   // las 20 del equipo, el primero de los 3 días: 10 de ANA y 10 de PEPE
   d.sessions = [[], [[0, 100, 1]], [[0, 100, 1]], []];                // un turno cada uno: 10 por turno
-  const m = createModel(d), ui = { exp: {}, sort: {}, charts: new Set(), actSeries: 'r' };
+  const m = createModel(d), ui = { exp: {}, sort: {}, showSheet: true, charts: new Set(), actSeries: 'r' };
   m.S.sides = [{ company: 0 }, null]; m.setPeriod(0, 3 * 1440); m.refilter();
   const team = teamPanel(m, createCharts(m, ui), ui);
   // eR, por día: sin técnico elegido se compara por día, sin depender de los turnos
@@ -265,7 +265,7 @@ test('Actividad frente a la media: todo el equipo, por día; una persona, por tu
 test('los pasos son de quien los hizo: un técnico ve lo que resolvió él, aunque hoy la incidencia la lleve otro', () => {
   const d = data();
   d.cols.sp = d.cols.as.map((a) => (a === 1 ? [[0, 1100, 2]] : []));   // las 10 de ANA las resolvió PEPE
-  const m = createModel(d), ui = { exp: {}, sort: {}, charts: new Set(), person: 2 };
+  const m = createModel(d), ui = { exp: {}, sort: {}, showSheet: true, charts: new Set(), person: 2 };
   m.S.sides = [{ company: 0 }, null]; m.setPeriod(0, 3 * 1440); m.refilter();
   const pepe = teamPanel(m, createCharts(m, ui), ui);
   assert.ok(pepe.includes('Resueltas <b>10<'));
@@ -297,7 +297,7 @@ test('comparar técnicos: un clic marca o desmarca; con dos, el tercero entra co
 });
 
 test('comparar técnicos: con dos, solo sus filas y la diferencia de A frente a B, en verde o rojo según qué es mejor', () => {
-  const m = createModel(data()), ui = { exp: {}, sort: {}, charts: new Set(), cmp: [1, 2] };
+  const m = createModel(data()), ui = { exp: {}, sort: {}, showSheet: true, charts: new Set(), cmp: [1, 2] };
   m.S.sides = [{ company: 0 }, null]; m.refilter();
   const h = teamPanel(m, createCharts(m, ui), ui);
   const table = h.slice(h.indexOf('<table class="wk-team"'), h.indexOf('</table>'));
@@ -315,7 +315,7 @@ test('comparar técnicos: con dos, solo sus filas y la diferencia de A frente a 
 });
 
 test('comparar técnicos: con uno, toda la tabla, el elegido marcado y cómo elegir el otro; quien no tiene fila no cuenta', () => {
-  const m = createModel(data()), ui = { exp: {}, sort: {}, charts: new Set(), cmp: [1] };
+  const m = createModel(data()), ui = { exp: {}, sort: {}, showSheet: true, charts: new Set(), cmp: [1] };
   m.S.sides = [{ company: 0 }, null]; m.refilter();
   const h = teamPanel(m, createCharts(m, ui), ui), table = h.slice(h.indexOf('<table class="wk-team'));
   assert.match(table, /^<table class="wk-team wk-picking">/);   // el resto, en segundo plano
@@ -332,7 +332,7 @@ test('comparar técnicos: con uno, toda la tabla, el elegido marcado y cómo ele
 test('una persona frente a la media del equipo (vsTeam, el informe): su fila, la media por persona y la diferencia', () => {
   const m = createModel(data());
   m.S.sides = [{ company: 0 }, null]; m.refilter();
-  const vs = (person) => { const ui = { exp: {}, sort: {}, charts: new Set(), person, vsTeam: true }; return teamPanel(m, createCharts(m, ui), ui); };
+  const vs = (person) => { const ui = { exp: {}, sort: {}, showSheet: true, charts: new Set(), person, vsTeam: true }; return teamPanel(m, createCharts(m, ui), ui); };
   const ana = vs(1), card = ana.slice(ana.indexOf('<h3>ANA frente a la media del equipo</h3>'));
   assert.ok(ana.includes('<h3>ANA frente a la media del equipo</h3>'));
   assert.doesNotMatch(ana, /El equipo, persona a persona|undefined|NaN/);
@@ -349,9 +349,15 @@ test('una persona frente a la media del equipo (vsTeam, el informe): su fila, la
 });
 
 test('Equipo soporte en un informe (noSheet): sin la sábana de incidencias', () => {
-  const m = createModel(data()), ui = { exp: {}, sort: {}, charts: new Set(), noSheet: true };
+  const m = createModel(data()), ui = { exp: {}, sort: {}, showSheet: true, charts: new Set(), noSheet: true };
   m.S.sides = [{ company: 0 }, null]; m.refilter();
   assert.doesNotMatch(teamPanel(m, createCharts(m, ui), ui), /Sábana de incidencias/);
   ui.noSheet = false;
   assert.match(teamPanel(m, createCharts(m, ui), ui), /Sábana de incidencias/);
+});
+
+test('Equipo soporte: la sábana ya no se ve (se exporta desde los tres puntos de Métricas)', () => {
+  const m = createModel(data()), ui = { exp: {}, sort: {}, charts: new Set() };
+  m.S.sides = [{ company: 0 }, null]; m.setPeriod(0, 3 * 1440); m.refilter();
+  assert.doesNotMatch(teamPanel(m, createCharts(m, ui), ui), /Sábana de incidencias|data-export/);
 });

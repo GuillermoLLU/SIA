@@ -26,21 +26,27 @@ test('el texto del periodo: siempre de qué fecha a qué fecha, y cuántos días
   assert.equal(daysLabel(m), '1 día');
 });
 
-test('el periodo de partida: este mes, del día 1 del mes de la foto a la foto; con menos cargado, desde lo primero', () => {
-  const m = twoYears();
+test('el periodo de partida: los meses en los que tenemos algo abierto, del de la abierta más antigua de Indra a la foto', () => {
+  // la 3, abierta y de Indra, se abrió el 11 de marzo: desde el 1 de marzo
+  const m = createModel(data());
   m.resetPeriod();
   assert.equal(periodLabel(m), '01/03/2026 – 11/03/2026');
-  const d = data(), year = 365 * 1440;   // la foto, el 11 de enero de 2026: desde el 1 de enero
-  d.meta.start = 2025; d.meta.first = 0; d.meta.snapshot = year + 10 * 1440 + 600; d.meta.last = d.meta.snapshot;
-  const jan = createModel(d);
-  jan.resetPeriod();
-  assert.equal(periodLabel(jan), '01/01/2026 – 11/01/2026');
-  // lo cargado empieza a mitad de mes: desde su primer día
-  const late = data();
-  late.meta.first = late.meta.snapshot - 3 * 1440;
-  const lm = createModel(late);
-  lm.resetPeriod();
-  assert.equal(lm.S.d0, lm.MIN_D);
+  // con dos años cargados, esa misma se abrió en marzo del año anterior: desde entonces
+  const two = twoYears();
+  two.resetPeriod();
+  assert.equal(periodLabel(two), '01/03/2025 – 11/03/2026');
+  // sin nada abierto: este mes
+  const d = data(); d.cols.st[2] = 1; d.cols.res[2] = d.cols.rep[2] + 10;
+  const none = createModel(d);
+  none.resetPeriod();
+  assert.equal(periodLabel(none), '01/03/2026 – 11/03/2026');
+  assert.equal(none.OPEN.reduce((a, b) => a + b, 0), 0);
+  // lo abierto de T-Systems no cuenta: la 3, de una persona de T-Systems, y sin nada más abierto, este mes
+  const t = data(); t.cols.rep[2] = 2000; t.cols.as[2] = 2;
+  const ts = createModel(t);
+  ts.resetPeriod();
+  assert.equal(ts.TEAM[2], 1);
+  assert.equal(periodLabel(ts), '01/03/2026 – 11/03/2026');
 });
 
 test('los últimos días: contando el de la foto; con menos cargados, desde el primero', () => {
@@ -120,7 +126,7 @@ test('un lado: su fecha, su mes elegido sólido, el año con ‹ › y los meses
 
 test('un lado que enseña otro año: ese mes con borde, y el elegido sigue siendo el de su fecha', () => {
   const m = twoYears();
-  m.resetPeriod();                       // de febrero a marzo de 2026
+  m.setPeriod(m.minuteOf(m.LASTM), m.END_D);   // marzo de 2026
   const html = sideHtml(m, 'from', 2);   // enseña marzo de 2025
   assert.match(html, /<b>2025<\/b>/);
   assert.deepEqual(withClass(html, 'month', 'mt-shown'), [2]);

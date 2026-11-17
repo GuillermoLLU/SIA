@@ -366,27 +366,6 @@ test('el periodo es un rango de fechas: filtra por apertura y la tendencia cuent
   assert.equal(m.inPeriod(2), true);
 });
 
-test('Módulos y focos: el selector de criticidad arriba, con lo recibido en el periodo de cada una; filtra todo y se marca', () => {
-  const m = createModel(data()); m.S.sides = [{ company: 0 }, null]; m.refilter();
-  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
-  const picks = (h) => [...h.slice(0, h.indexOf('<p class="mt-ask">')).matchAll(/<button class="mt-seg-b ([^"]*)" data-only="pr:(\d*)"[^>]*>([^<]*)(?:<small>(\d+)<\/small>)?/g)]
-    .map((x) => [x[3], x[1].includes('mt-on'), x[4] == null ? null : Number(x[4])]);
-  const html = tabs.render('modulos', m.rows());
-  assert.ok(html.indexOf('aria-label="Prioridad"') < html.indexOf('¿De dónde viene?'));
-  const count = (p) => m.rows().filter((i) => m.C.pr[i] === m.DI.prio.indexOf(p)).length;
-  assert.deepEqual(picks(html), [['Todas', true, null], ['Crítica', false, count('CRITICAL')], ['Alta', false, count('HIGH')], ['Media', false, count('MEDIUM')], ['Baja', false, count('LOW')]]);
-  // con una elegida: marcada, lo de la pestaña solo de ella y las cifras de las demás, como estaban
-  const before = picks(html).map((x) => x[2]);
-  m.S.f.pr = new Set([m.DI.prio.indexOf('CRITICAL')]); m.refilter();
-  const one = tabs.render('modulos', m.rows());
-  assert.deepEqual(picks(one).map((x) => x[1]), [false, true, false, false, false]);
-  assert.deepEqual(picks(one).map((x) => x[2]), before);
-  assert.ok(m.rows().every((i) => m.C.pr[i] === m.DI.prio.indexOf('CRITICAL')));
-  // comparando con personas, también
-  m.S.f = {}; m.S.sides = [{ people: new Set([1]) }, { company: 0 }]; m.refilter();
-  assert.match(tabs.render('modulos', m.rows()), /aria-label="Prioridad"/);
-});
-
 test('Módulos y focos: Actual (lo abierto ahora, sea cual sea el periodo) o Histórico (de partida), con los mismos cuadros', () => {
   const m = createModel(data()); m.S.sides = [{ company: 0 }, null]; m.refilter();
   const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
@@ -394,7 +373,7 @@ test('Módulos y focos: Actual (lo abierto ahora, sea cual sea el periodo) o His
   const vol = (h, title) => { const a = h.indexOf(`class="mt-sc-title">${title}<`); const b = h.indexOf('class="mt-sc-ref"', a); return h.slice(b, h.indexOf('</tr>', b)).match(/<b>(\d+)<\/b>/)?.[1]; };
   const past = tabs.render('modulos', m.rows());
   assert.match(past, /data-mod-mode="past" aria-pressed="true"/);
-  assert.ok(past.indexOf('data-mod-mode') < past.indexOf('aria-label="Prioridad"'));   // a la izquierda de la criticidad
+  assert.doesNotMatch(past, /aria-label="Prioridad"/);   // la prioridad, en la barra de arriba (tabs/common.js, filterPicks)
   const period = [m.S.d0, m.S.d1];
   ui.modNow = true;
   const now = tabs.render('modulos', m.rows());
@@ -407,8 +386,8 @@ test('Módulos y focos: Actual (lo abierto ahora, sea cual sea el periodo) o His
   assert.equal(Number(vol(past, 'Módulos')), m.rows().filter((i) => m.SIDE[i] === 0).length);
   assert.equal(tabs.render('modulos', []), now);   // sea cual sea el periodo
   assert.doesNotMatch(now, /undefined|NaN/);
-  // la criticidad, con lo abierto
-  const medias = [...now.matchAll(/data-only="pr:(\d+)"[^>]*>[^<]*<small>(\d+)<\/small>/g)].reduce((s, x) => s + Number(x[2]), 0);
+  // la criticidad, en la barra de arriba (tabs/common.js, filterPicks): con lo abierto ahora
+  const medias = [...tabs.picks().matchAll(/data-only="pr:(\d+)"[^>]*>[^<]*<small>(\d+)<\/small>/g)].reduce((s, x) => s + Number(x[2]), 0);
   assert.equal(medias, open);
 });
 
@@ -440,4 +419,21 @@ test('Lo sin técnico que cae en las búsquedas del equipo (SGA, SISU o PRIO) es
   const d2 = data(); d2.cols.as[2] = 0; d2.cols.sc[2] = 0; d2.cols.fl[2] &= ~2;
   const m2 = createModel(d2); m2.S.sides = [{ company: 0 }, { company: 1 }]; m2.refilter();
   assert.equal(m2.SIDE[2], 2);
+});
+
+test('Módulos y focos en Equipo: dos mapas de calor de lo resuelto, técnico × módulo y técnico × centro, que filtran', () => {
+  const m = createModel(data()); m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  const html = tabs.render('modulos', m.rows(), { face: 'equipo' });
+  assert.deepEqual([...html.matchAll(/<h3[^>]*>([^<]*)<\/h3>/g)].map((x) => x[1]), ['Resueltas por técnico y módulo', 'Resueltas por técnico y centro']);
+  assert.equal((html.match(/<table class="mt-hm /g) || []).length, 2);
+  assert.match(html, /data-f2="as:\d+\|mo:\d+"/);
+  assert.match(html, /data-f2="as:\d+\|ce:\d+"/);
+  // solo lo resuelto y con técnico: el total de cada técnico, sus resueltas del periodo
+  const done = m.rows().filter((i) => m.C.as[i] && m.DIMS.tb.get(i) < 8);
+  const totals = [...html.slice(0, html.indexOf('Resueltas por técnico y centro')).matchAll(/<td class="mt-mut mt-total">(\d+)<\/td>/g)].reduce((a, x) => a + Number(x[1]), 0);
+  assert.equal(totals, done.length);
+  // en las demás vistas, Módulos y focos de siempre
+  assert.doesNotMatch(tabs.render('modulos', m.rows(), { face: 'tecnicas' }), /Resueltas por técnico/);
+  assert.doesNotMatch(html, /undefined|NaN/);
 });

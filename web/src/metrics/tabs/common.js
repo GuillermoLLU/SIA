@@ -17,7 +17,9 @@ import { perHead as perHeadOf, solved as solvedOf } from '../resolution.js';
 // el orden: primero las que se miran a diario (de Resumen a Histórico); el resto, de momento, en el de antes
 export const TABS = [['resumen', 'Resumen'], ['hoy', 'Foto de hoy'], ['escalados', 'Escalados'], ['cliente', 'Pendiente de cliente'],
   ['entrada', 'Entrantes'], ['tiempos', 'Análisis tiempos'], ['calidad', 'Calidad'], ['ia', 'Uso de la IA'], ['historico', 'Histórico'],
-  ['sla', 'SLAs'], ['modulos', 'Módulos y focos'], ['resolucion', 'Resolución'], ['turnos', 'Turnos']];
+  ['sla', 'SLAs'], ['modulos', 'Módulos y focos'], ['resolucion', 'Resolución'], ['turnos', 'Turnos'],
+  // juntas, como en la antigua Métricas del servicio (faces.js: Servicio; tabs.js)
+  ['resesc', 'Resolución y escalados'], ['slaq', 'SLA y calidad'], ['backlog', 'Backlog']];
 export const QUESTIONS = {
   resumen: ['¿Cómo vamos?', 'De un vistazo: en qué estado está lo abierto ahora y, de lo recibido en el periodo, el MTTR, el %IQA y el uso de la IA. El detalle, en cada pestaña.'],
   hoy: ['¿Cómo está hoy?', 'Cómo está el backlog ahora: en qué estado, desde cuándo, de qué y qué conviene vigilar. Lo recibido en el periodo y cómo ha ido el backlog día a día, en el Histórico.'],
@@ -179,13 +181,22 @@ export const createCommon = (m, ch, ui) => {
   // El selector de criticidad (Foto de hoy, Módulos y focos): un filtro de pr, una sola o todas (data-only, como el de
   // SISU o SGA: sale con los demás filtros y vale para todas las pestañas). Cada una, con cuántas hay en list, que debe
   // venir sin el propio filtro de prioridad, para que se vean todas aunque se esté mirando una.
-  const prioPicker = (list) => {
+  const prioPicker = (list, cls = 'mt-seg') => {
     const opt1 = (label, k, n) => { const on = isPicked(m.S.f, 'pr', k);
       return `<button class="mt-seg-b ${on ? 'mt-on' : ''}" data-only="pr:${k ?? ''}" aria-pressed="${on}"${k == null ? '' : ' data-tip="Clic: solo esta. Ctrl+clic: sumarla o, si ya está, quitarla."'}>${esc(label)}${n == null ? '' : `<small>${num(n)}</small>`}</button>`; };
-    return `<div class="mt-seg" role="group" aria-label="Prioridad">${opt1('Todas', null)}${m.PRIOS.map((p) => opt1(m.DIMS.pr.label(p), p, list.filter((i) => m.C.pr[i] === p).length)).join('')}</div>`;
+    return `<div class="${cls}" role="group" aria-label="Prioridad">${opt1('Todas', null)}${m.PRIOS.map((p) => opt1(m.DIMS.pr.label(p), p, list.filter((i) => m.C.pr[i] === p).length)).join('')}</div>`;
   };
+  // SISU o SGA (por el módulo: model.js, DIMS.ss): un selector que pone o quita ese filtro
+  const systemPicker = (cls = 'mt-seg') => {
+    const opt1 = (label, k) => { const on = isPicked(m.S.f, 'ss', k);
+      return `<button class="mt-seg-b ${on ? 'mt-on' : ''}" data-only="ss:${k ?? ''}" aria-pressed="${on}"${k == null ? '' : ' data-tip="Clic: solo esta. Ctrl+clic: sumarla o, si ya está, quitarla."'}>${label}</button>`; };
+    return `<div class="${cls}" role="group" aria-label="SISU o SGA">${opt1('Todo', null)}${[0, 1].map((k) => opt1(m.DIMS.ss.label(k), k)).join('')}</div>`;
+  };
+  // Los selectores de la barra de arriba (metrics-view.js), comunes a todas las pestañas: SISU o SGA y la prioridad, con
+  // lo abierto ahora de cada una. Son filtros: salen con los demás y se quitan con ellos.
+  const filterPicks = () => `${systemPicker('mt-seg mt-seg-sm')}${prioPicker(m.today(false, 'pr').filter((i) => m.OPEN[i]), 'mt-seg mt-seg-sm')}`;
 
-  return { m, ch, ui, name, noK, prioPicker, noTheme, REQ, slaPct, monthsIn, heads, sideLabel, selRow, monthRows, prioRows, asRows, monthBody, sideRows,
+  return { m, ch, ui, name, noK, prioPicker, filterPicks, noTheme, REQ, slaPct, monthsIn, heads, sideLabel, selRow, monthRows, prioRows, asRows, monthBody, sideRows,
     late, old, escd, solved, resAt, startAt, shareOf, grid, ask, section, SLICE, cell, table, slices, cardsOf, CARD_ROWS, days, topRows,
     volume, teamNames, headsNote, sideTable, mixCmp, pairTable, spreadHead, spreadRow, spreadWho, spreadCell, qualityPivot };
 };

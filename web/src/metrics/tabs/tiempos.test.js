@@ -7,7 +7,7 @@ import { data } from '../fixture.js';
 
 test('en el informe Análisis de tiempos: sin la pregunta y con los dos desgloses, por módulo y por centro; la pestaña, con el suyo', () => {
   const m = createModel(data()); m.refilter();
-  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  const ui = { exp: {}, sort: {}, showSheet: true }, tabs = createTabs(m, createCharts(m, ui), ui);
   const tab = tabs.render('tiempos', m.rows()), rep = tabs.render('tiempos', m.rows(), { inReport: true });
   assert.match(tab, /class="mt-ask"/);
   assert.ok(tab.includes('<h3>Por módulo') && !tab.includes('<h3>Por centro'), 'la pestaña, solo el desglose elegido');

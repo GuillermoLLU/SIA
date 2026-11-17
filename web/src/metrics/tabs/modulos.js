@@ -9,7 +9,7 @@ import { OWNERS_SHARE } from '../rules.js';
 import { centreExtra as centreExtraOf, problemExtra as problemExtraOf, owners as ownersOf } from '../focus.js';
 
 export const modulosTab = (t) => {
-  const { m, ch, ui, name, grid, ask, noK, noTheme, topRows, mixCmp, prioPicker } = t;
+  const { m, ch, ui, name, grid, ask, noK, noTheme, topRows, mixCmp, solved } = t;
   const { S, PRIOS, CMP, OPEN, isSel } = m;
   const { card, heat, scorecard } = ch;
   // la ficha de los módulos: bloques de columnas (charts.js, scorecard)
@@ -35,14 +35,14 @@ export const modulosTab = (t) => {
       <th class="mt-num" data-tip="Cuántas personas, de la que más lleva a la que menos, suman el ${OWNERS_PCT} % de las incidencias del módulo.">Llevan el ${OWNERS_PCT} %</th><th>Quién lleva más</th></tr></thead><tbody>${body}</tbody></table></div>` : '<p class="mt-mut mt-small">Sin datos con estos filtros.</p>';
   };
 
-  // arriba, Actual o Histórico y la criticidad (tabs/common.js): cada una con lo que se mira (rowsOf, sin su filtro)
+  // arriba, Actual o Histórico (la prioridad, en la barra de arriba, para todas las pestañas: tabs/common.js)
   const modes = (now) => `<div class="mt-seg mt-seg-sm" role="group" aria-label="Qué módulos y focos">${[['now', 'Actual', 'Lo que sigue abierto, a fecha de la última carga: no depende del periodo.'], ['past', 'Histórico', 'Lo recibido en el periodo.']]
     .map(([k, l, tip]) => { const a = (k === 'now') === now; return `<button class="mt-seg-b ${a ? 'mt-on' : ''}" data-mod-mode="${k}" aria-pressed="${a}" data-tip="${esc(tip)}">${l}</button>`; }).join('')}</div>`;
-  const picks = (rowsOf) => `<div class="mt-hoy-picks">${modes(!!ui.modNow)}${prioPicker(rowsOf('pr'))}</div>`;
+  const picks = () => `<div class="mt-hoy-picks">${modes(!!ui.modNow)}</div>`;
   // Módulos y focos de un solo lado; note: un aviso arriba; rowsOf: lo que cuenta (sin el filtro de una dimensión)
   const modulesView = (A, note = '', rowsOf = m.rows) => {
     const team = !S.sides[0].people;
-    return grid(picks(rowsOf), ask('modulos'), note,
+    return grid(picks(), ask('modulos'), note,
       card('', scorecard('ce', CE_GROUPS, { id: 'md-ce', rows: rowsOf('ce'), skip: noK, refLabel: 'Todos los centros', extra: centreExtra, title: 'Centros' }), { span: 's12' }),
       card('', scorecard('mo', MOD_GROUPS, { id: 'md-mo', rows: rowsOf('mo'), skip: noK, refLabel: 'Todos los módulos', title: 'Módulos' }), { span: 's12' }),
       team ? card('Quién lleva cada módulo', owners(A), { span: 's12', sub: `${ui.modNow ? 'De lo abierto ahora' : 'De lo recibido en el periodo'} con responsable: cuántas personas tocan cada módulo, cuántas llevan entre todas el 80 % y quién lleva más. Clic en un módulo o en una persona para filtrar.` }) : '',
@@ -66,10 +66,21 @@ export const modulosTab = (t) => {
     if (CMP() && !m.perHead()) return m.alone(() => modulesView(rowsOf(), `<p class="mt-note">Esta pestaña no compara empresas: cada una recibe trabajo distinto. Se ve solo ${esc(name(0))}.</p>`, rowsOf));
     if (CMP()) {
       const rowsDef = [{ head: 'Módulo' }, ...topRows('mo', A, 12), { head: 'Centro' }, ...topRows('ce', A, 8), { head: 'Tema', note: 'El principal del título.' }, ...topRows('tp', A, 8)];
-      return grid(picks(rowsOf), ask('modulos'), card('Qué toca cada uno', mixCmp(rowsDef, A, 'Incidencias'),
+      return grid(picks(), ask('modulos'), card('Qué toca cada uno', mixCmp(rowsDef, A, 'Incidencias'),
         { span: 's12', sub: `En qué se ha especializado cada uno: sus incidencias de cada módulo, centro y tema y qué parte son de lo suyo${m.perHead() && S.sides.some((x) => !x.people) ? '; las de la empresa, la media por persona de su equipo' : ''}. Clic en una fila para filtrar.` }));
     }
     return modulesView(A, '', rowsOf);
   };
-  return (A) => (ui.modNow ? openNow(render) : render(A, m.rows));
+  // En la vista Equipo (face): en qué módulo y en qué centro es más fuerte cada técnico. De lo resuelto en el periodo
+  // (con los filtros de arriba), dos mapas de calor: técnico × módulo y técnico × centro, los de más volumen; cuanto más
+  // resuelto, más color. Clic en una celda: filtrar por ese técnico y ese módulo o centro.
+  const TEAM_PEOPLE = 40, TEAM_MODULES = 14, TEAM_CENTRES = 12;
+  const teamView = (A) => {
+    const done = A.filter((i) => m.C.as[i] && solved(i));
+    const tip = (what) => `De lo resuelto en el periodo, cuántas incidencias de cada ${what} ha resuelto cada técnico (el responsable al resolverla): cuanto más color, más resueltas. Los técnicos y los ${what === 'módulo' ? 'módulos' : 'centros'} con más volumen. Clic en una celda para filtrar.`;
+    return grid(ask('modulos'),
+      card('Resueltas por técnico y módulo', heat('as', 'mo', TEAM_PEOPLE, TEAM_MODULES, { rows: done, skipR: noK, skipC: noK, title: true }), { span: 's12', tip: tip('módulo') }),
+      card('Resueltas por técnico y centro', heat('as', 'ce', TEAM_PEOPLE, TEAM_CENTRES, { rows: done, skipR: noK, skipC: noK, title: true }), { span: 's12', tip: tip('centro') }));
+  };
+  return (A, opts = {}) => (opts.face === 'equipo' ? teamView(A) : ui.modNow ? openNow(render) : render(A, m.rows));
 };

@@ -26,7 +26,8 @@ test('las fechas rápidas: este mes, el pasado, los últimos 3 meses, el año fi
   assert.equal(apply(m, 'fy'), '01/02/2026 – 11/03/2026');
   assert.equal(presetOf(m), 'fy');
   m.resetPeriod();
-  assert.equal(presetOf(m), 'month');   // el de partida: este mes
+  assert.equal(periodLabel(m), '01/03/2025 – 11/03/2026');   // el de partida: desde el mes de la abierta más antigua
+  assert.equal(presetOf(m), null);
   assert.equal(apply(m, 'all'), '01/01/2025 – 11/03/2026');
   m.setPeriod(m.minuteOf(14, 3), m.minuteOf(14, 6));
   assert.equal(presetOf(m), null);
@@ -47,7 +48,7 @@ test('el periodo anterior: los mismos días del mes de antes, los meses enteros 
 });
 
 test('los periodos que se comparan: el actual, el anterior, las fechas rápidas y cada mes, del más reciente', () => {
-  const m = twoYears(); m.resetPeriod();
+  const m = twoYears(); m.setPeriod(...presetRange(m, 'month'));
   const o = cmpOptions(m);
   assert.deepEqual(o.slice(0, 6).map(([k, l]) => [k, l]), [['cur', 'Periodo actual'], ['prev', 'Periodo anterior'], ['p:month', 'Este mes'], ['p:prev', 'Mes pasado'], ['p:3m', 'Últimos 3 meses'], ['p:fy', 'Año fiscal']]);
   assert.deepEqual(o.slice(6, 8).map(([k, l]) => [k, l]), [['m:14', 'mar 2026'], ['m:13', 'feb 2026']]);
@@ -59,7 +60,7 @@ test('los periodos que se comparan: el actual, el anterior, las fechas rápidas 
 });
 
 test('Resumen: fechas rápidas y «Comparar», en modo comparar: sin comparar, un periodo frente a otro o frente a T-Systems', () => {
-  const m = twoYears(); m.S.sides = [{ company: 0 }, null]; m.resetPeriod(); m.refilter();
+  const m = twoYears(); m.S.sides = [{ company: 0 }, null]; m.setPeriod(...presetRange(m, 'month')); m.refilter();
   const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
   let html = tabs.render('resumen', m.rows());
   // la barra de arriba (quick-bar.js): la empresa, las fechas rápidas (en el panel del periodo) y «Comparar»; en la
@@ -83,23 +84,25 @@ test('Resumen: fechas rápidas y «Comparar», en modo comparar: sin comparar, u
   assert.deepEqual(ui.resCmp, { a: 'cur', b: 'p:prev' });
   assert.equal(periodLabel(m), '01/03/2026 – 11/03/2026');   // lo marcado no cambia
   ui.cmpPick = false;
-  // un periodo frente a otro: cada KPI con los dos; solo los KPIs
+  // un periodo frente a otro: en la pestaña, la evolución del backlog; en el informe (Del periodo), cada KPI con los dos
   ui.resCmp = { a: 'm:13', b: 'm:12' };
   html = tabs.render('resumen', m.rows());
+  const report = () => tabs.render('resumen', m.rows(), { state: false });
   assert.match(bar(), /Comparar: <b>feb 2026 vs ene 2026<\/b><\/button><button class="mt-btn mt-x" data-res-clear title="Quitar la comparación"/);
-  assert.equal((html.match(/class="mt-kpi mt-kpi-co[ "]/g) || []).length, 5);
-  assert.match(html, /<span title="feb 2026">feb 2026<\/span>/);
-  assert.match(html, /<span title="ene 2026">ene 2026<\/span>/);
-  assert.match(html, /feb 2026 \(01\/02\/2026 – 28\/02\/2026\) frente a ene 2026 \(01\/01\/2026 – 31\/01\/2026\)/);
+  assert.equal((report().match(/class="mt-kpi mt-kpi-co[ "]/g) || []).length, 5);
+  assert.match(report(), /<span title="feb 2026">feb 2026<\/span>/);
+  assert.match(report(), /<span title="ene 2026">ene 2026<\/span>/);
+  assert.match(report(), /feb 2026 \(01\/02\/2026 – 28\/02\/2026\) frente a ene 2026 \(01\/01\/2026 – 31\/01\/2026\)/);
   // la corona: lo abierto ahora que se abrió hasta el final del periodo de arriba (si no hay nada, lo dice)
   assert.match(html, m.today().some((i) => m.OPEN[i] && m.C.rep[i] < m.S.d1) ? /<svg class="mt-donut"/ : /Sin incidencias abiertas/);
   assert.doesNotMatch(html, /undefined|NaN/);
   // Entrantes, en totales: la diferencia de entrantes y de resueltas, en unidades
-  const inc = html.slice(html.indexOf('>Entrantes<'), html.indexOf('>MTTR<'));
+  const inc = report().slice(report().indexOf('>Entrantes<'), report().indexOf('>MTTR<'));
   assert.match(inc, /<span title="feb 2026">feb 2026<\/span><b>\d+ <small class="mt-mut">· \d+ res\.<\/small><\/b>/);
   assert.match(inc, /<div class="mt-kpi-v [^"]*">(=|[+−]\d+) <small class="mt-mut">· (=|[+−]\d+) res\.<\/small><\/div>|<div class="mt-kpi-v mt-mut">—<\/div>/);
-  // el backlog, una línea por periodo, cada una desde su primer día; con el selector de días, semanas o meses
-  const evo = html.slice(html.indexOf('>Evolución del backlog</h3>'));
+  // el backlog (en el informe: la pestaña ya no lo lleva), una línea por periodo, cada una desde su primer día; con el
+  // selector de días, semanas o meses
+  const evo = report().slice(report().indexOf('>Evolución del backlog</h3>'));
   assert.match(evo, /<span><i class="mt-c0"><\/i>feb 2026<\/span><span><i class="mt-c1"><\/i>ene 2026<\/span>/);
   assert.match(evo, /<polyline class="mt-line mt-s0"[\s\S]*<polyline class="mt-line mt-s1"/);
   assert.equal((evo.match(/<rect class="mt-hit"/g) || []).length, 31);   // los días del más largo (enero)
@@ -108,15 +111,14 @@ test('Resumen: fechas rápidas y «Comparar», en modo comparar: sin comparar, u
   assert.match(evo, /data-evo-step="day" aria-pressed="true"/);
   assert.doesNotMatch(evo, /mt-pq\d/);   // sin las barras por prioridad
   // el enlace al Histórico, con las fechas del primer periodo (feb 2026)
-  assert.match(html, new RegExp(`data-go="historico" data-go-evo="backlog" data-period="${m.minuteOf(13)}:${m.minuteOf(14)}"`));
+  assert.doesNotMatch(html, /data-go="historico"/);   // el Histórico ya no está en ninguna vista
   ui.evoStep = 'week';
-  assert.match(tabs.render('resumen', m.rows()), /Semana 1\nfeb 2026: /);
+  assert.match(report(), /Semana 1\nfeb 2026: /);
   ui.evoStep = 'day';
   // el actual frente al anterior: el actual, lo de arriba (de partida, este mes: del 1 al 11 de marzo, frente a los mismos
   // días de febrero)
   ui.resCmp = { a: 'cur', b: 'prev' };
-  html = tabs.render('resumen', m.rows());
-  assert.match(html, /frente a Periodo anterior \(01\/02\/2026 – 11\/02\/2026\)/);
+  assert.match(report(), /frente a Periodo anterior \(01\/02\/2026 – 11\/02\/2026\)/);
   // el mismo periodo frente a T-Systems (el otro lado): manda sobre la de periodos
   m.S.sides[1] = { company: 1 }; m.refilter();
   html = tabs.render('resumen', m.rows());
@@ -124,11 +126,11 @@ test('Resumen: fechas rápidas y «Comparar», en modo comparar: sin comparar, u
   assert.match(bar(), /data-res-clear/);   // también se quita con la ×
   // la corona, de cada lado (lo abierto ahora que se abrió hasta el final del periodo; sin nada abierto, lo dice)
   assert.equal((html.match(/<svg class="mt-donut"/g) || []).length, m.today().some((i) => m.OPEN[i] && m.C.rep[i] < m.S.d1) ? 2 : 0);
-  assert.match(html, /<span title="T-Systems">T-Systems<\/span>/);
+  assert.match(html, /<i class="mt-sw mt-c1"><\/i>T-Systems<\/p>/);   // A vigilar, de cada lado
 });
 
 test('la barra de arriba: Indra | T-Systems y las fechas rápidas; Ctrl+clic en una segunda, comparar', () => {
-  const m = twoYears(); m.S.sides = [{ company: 0 }, null]; m.resetPeriod(); m.refilter();
+  const m = twoYears(); m.S.sides = [{ company: 0 }, null]; m.setPeriod(...presetRange(m, 'month')); m.refilter();
   const ui = {};
   const ops = { off: () => { m.S.sides[1] = null; }, add: (c) => { m.S.sides[1] = { company: c }; } };
   const btn = (h, attr) => h.match(new RegExp(`<button class="mt-seg-b ([^"]*)" ${attr} aria-pressed="(true|false)"`)).slice(1);
@@ -165,10 +167,10 @@ test('la barra de arriba: Indra | T-Systems y las fechas rápidas; Ctrl+clic en 
   assert.equal(pickPreset(m, ui, 'month', false, presetRange(m, 'month'), ops), true);
   assert.equal(ui.resCmp, null);
   assert.equal(periodLabel(m), '01/03/2026 – 11/03/2026');
-  // comparando periodos, el Resumen lo enseña en sus KPIs
+  // comparando periodos, el informe del Resumen lo enseña en sus KPIs
   ui.resCmp = { a: 'cur', b: 'p:prev' };
   const tabs = createTabs(m, createCharts(m, { exp: {}, sort: {} }), Object.assign(ui, { exp: {}, sort: {} }));
   m.refilter();
-  assert.match(tabs.render('resumen', m.rows()), /<span title="Mes pasado">Mes pasado<\/span>/);
+  assert.match(tabs.render('resumen', m.rows(), { state: false }), /<span title="Mes pasado">Mes pasado<\/span>/);
 });
 

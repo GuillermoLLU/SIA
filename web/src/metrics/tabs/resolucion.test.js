@@ -8,7 +8,7 @@ import { afterDash } from './escalados.js';
 
 const render = (sides, tab = 'resolucion') => {
   const m = createModel(data()); m.S.sides = sides; m.refilter();
-  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  const ui = { exp: {}, sort: {}, showSheet: true }, tabs = createTabs(m, createCharts(m, ui), ui);
   return tabs.render(tab, m.rows());
 };
 // la tarjeta de las dos barras, dentro de «¿En qué se va el tiempo?»
@@ -49,7 +49,7 @@ test('Escalados: solo lo activo; los proyectos elegidos filtran las cifras, los 
   d.cols.vt = d.cols.vt.map(() => 1);
   d.cols.vp = d.cols.vp.map((_, i) => (i % 2 ? 2 : 1));
   const m = createModel(d); m.S.sides = [{ company: 0 }, null]; m.refilter();
-  const ui = { exp: {}, sort: {}, escNow: true }, tabs = createTabs(m, createCharts(m, ui), ui);
+  const ui = { exp: {}, sort: {}, showSheet: true, escNow: true }, tabs = createTabs(m, createCharts(m, ui), ui);
   const kpiN = (h) => h.match(/Incidencias escaladas<\/div><div class="mt-kpi-v">(\d+)/)[1];
   const sheetRows = (h) => (h.slice(h.indexOf('Sábana de incidencias')).match(/<td class="mt-subj"/g) || []).length;
   const all = tabs.render('escalados', m.rows());
@@ -82,7 +82,7 @@ test('Malos escalados: con su motivo, solo los activos, y filtrados por los proy
   d.cols.vp = d.cols.vp.map((_, i) => (i % 2 ? 2 : 1));
   d.cols.fl = d.cols.fl.map((x, i) => x | (i === 0 ? 2097152 | 8388608 : i === 3 ? 2097152 | 4194304 : i === 2 ? 2097152 | 4194304 | 8388608 : 0) | (i > 1 ? 131072 : 0));   // las abiertas, escaladas: sus proyectos se eligen
   const m = createModel(d); m.S.sides = [{ company: 0 }, null]; m.refilter();
-  const ui = { exp: {}, sort: {}, escNow: true }, tabs = createTabs(m, createCharts(m, ui), ui);
+  const ui = { exp: {}, sort: {}, showSheet: true, escNow: true }, tabs = createTabs(m, createCharts(m, ui), ui);
   const card = (h) => h.slice(h.indexOf('<h3>Malos escalados</h3>'), h.indexOf('</section>', h.indexOf('<h3>Malos escalados</h3>')));
   const all = card(tabs.render('escalados', m.rows()));
   assert.match(all, /<td>Descartado en Jira<\/td>/);
@@ -107,7 +107,7 @@ test('¿Qué escalamos y a quién?, en Activas: una tabla de los proyectos Jira 
   open(d, [0]);
   d.cols.fl[0] |= 131072;   // la crítica de Indra (abierta, TEC: SGA-1), escalada
   const m = createModel(d); m.S.sides = [{ company: 0 }, null]; m.refilter();
-  const ui = { exp: {}, sort: {}, escNow: true }, tabs = createTabs(m, createCharts(m, ui), ui), html = tabs.render('escalados', m.rows());
+  const ui = { exp: {}, sort: {}, showSheet: true, escNow: true }, tabs = createTabs(m, createCharts(m, ui), ui), html = tabs.render('escalados', m.rows());
   const at = html.indexOf('¿Qué escalamos y a quién?'), card = html.slice(html.indexOf('<table class="mt-sc">', at), html.indexOf('</table>', at));
   const top = html.slice(0, html.indexOf('<table class="mt-sc">'));
   for (const label of ['Incidencias escaladas', 'THesc medio', 'Tesc medio', 'Antigüedad media', 'IDMTTR']) assert.ok(top.includes(label), label);
@@ -154,7 +154,7 @@ test('Escalados, en Histórico (de partida): lo escalado y resuelto del periodo,
   const d = data();
   d.cols.fl = d.cols.fl.map((x) => x | 131072);   // todas escaladas: de Indra, la 0 y la 3 resueltas y la 2 abierta
   const m = createModel(d); m.S.sides = [{ company: 0 }, null]; m.refilter();
-  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  const ui = { exp: {}, sort: {}, showSheet: true }, tabs = createTabs(m, createCharts(m, ui), ui);
   const kpiN = (h) => Number(h.match(/Incidencias escaladas<\/div><div class="mt-kpi-v">(\d+)/)[1]);
   const past = tabs.render('escalados', m.rows());
   assert.match(past, /data-esc-mode="past" aria-pressed="true"/);
@@ -189,7 +189,7 @@ test('Sin Jira: un KPI junto a los tiempos que, al pincharlo, filtra la pestaña
   d.cols.st[2] = 3; d.cols.rs[2] = 1;   // la 2 (de Indra, abierta), en Pendiente de un tercero y sin Jira
   d.cols.fl = d.cols.fl.map((x) => x | 131072);   // todas escaladas; la 0 (resuelta) tiene SGA-1
   const m = createModel(d); m.S.sides = [{ company: 0 }, null]; m.refilter();
-  const ui = { exp: {}, sort: {}, escNow: true }, tabs = createTabs(m, createCharts(m, ui), ui);
+  const ui = { exp: {}, sort: {}, showSheet: true, escNow: true }, tabs = createTabs(m, createCharts(m, ui), ui);
   const kpiOf = (h, l) => h.match(new RegExp(`<div class="mt-kpi ([^"]*)"([^>]*)><div class="mt-kpi-l">${l}</div><div class="mt-kpi-v">([^<]*)<`));
   let h = tabs.render('escalados', m.rows());
   assert.doesNotMatch(h, /<h3>Sin Jira<\/h3>/);   // ya no es un cuadro
@@ -216,7 +216,7 @@ test('Sin Jira: un KPI junto a los tiempos que, al pincharlo, filtra la pestaña
 
 test('En qué se va el tiempo: Actual (lo abierto, hasta hoy) o Histórico (lo resuelto del periodo, de partida)', () => {
   const m = createModel(data()); m.S.sides = [{ company: 0 }, null]; m.refilter();
-  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  const ui = { exp: {}, sort: {}, showSheet: true }, tabs = createTabs(m, createCharts(m, ui), ui);
   let html = times(tabs.render('tiempos', m.rows()));
   assert.match(html, /data-times-mode="past" aria-pressed="true"/);
   assert.match(html, /data-times-mode="now" aria-pressed="false"/);
@@ -235,7 +235,7 @@ test('En qué se va el tiempo: Actual (lo abierto, hasta hoy) o Histórico (lo r
 
 test('Análisis tiempos, por módulo: de más a menos tiempo total, con su parte, su media y en qué se le va; sigue Actual o Histórico', () => {
   const m = createModel(data()); m.S.sides = [{ company: 0 }, null]; m.refilter();
-  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  const ui = { exp: {}, sort: {}, showSheet: true }, tabs = createTabs(m, createCharts(m, ui), ui);
   const card = (h) => { const a = h.indexOf('<h3>Por módulo</h3>'); return h.slice(a, h.indexOf('</section>', a)); };
   const rows = (h) => [...card(h).matchAll(/<tr class="mt-clk [^"]*" data-f="mo:(\d+)"><th class="mt-r" title="([^"]*)">[^<]*<\/th>\s*<td class="mt-num">(\d+)<\/td><td class="mt-num"><b>([^<]*)<\/b><\/td><td class="mt-num">([^<]*)<\/td>/g)].map((x) => [x[2], +x[3], x[4], x[5]]);
   // Histórico, Indra: resueltas la crítica (EWMS, 60 min) y la baja (PACKING, 100 min): PACKING, la primera
@@ -260,7 +260,7 @@ test('Análisis tiempos, problemas comunes: de más a menos incidencias, con su 
   d.problems = ['Sin clasificar', 'Etiqueta de transporte', 'Impresoras e impresión'];
   d.cols.pc = [1, 2, 0, 1, 2];   // Indra: la crítica (EWMS) y la baja (PACKING), resueltas, con etiqueta de transporte; la media, abierta, sin clasificar
   const m = createModel(d); m.S.sides = [{ company: 0 }, null]; m.refilter();
-  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  const ui = { exp: {}, sort: {}, showSheet: true }, tabs = createTabs(m, createCharts(m, ui), ui);
   const card = (h) => { const a = h.indexOf('<h3>Problemas comunes</h3>'); return h.slice(a, h.indexOf('</section>', a)); };
   const rows = (h) => [...card(h).matchAll(/data-f="pc:(\d+)"><th class="mt-r" title="([^"]*)">[^<]*<\/th>\s*<td class="mt-num"><b>(\d+)<\/b><\/td>/g)].map((x) => [x[2], +x[3]]);
   let html = tabs.render('tiempos', m.rows());
@@ -280,7 +280,7 @@ test('Análisis tiempos, problemas comunes: de más a menos incidencias, con su 
   assert.equal(m.DIMS.pc.label(1), 'Etiqueta de transporte');
   // sin los problemas en los datos (de antes), lo avisa
   const old = createModel(data()); old.S.sides = [{ company: 0 }, null]; old.refilter();
-  const u2 = { exp: {}, sort: {} };
+  const u2 = { exp: {}, sort: {}, showSheet: true };
   assert.match(createTabs(old, createCharts(old, u2), u2).render('tiempos', old.rows()), /Faltan los problemas comunes: reinicia SIA/);
 });
 
@@ -289,7 +289,7 @@ test('Análisis tiempos: la sábana, abajo del todo, con las incidencias de las 
   d.problems = ['Sin clasificar', 'Etiqueta de transporte'];
   d.cols.pc = [1, 0, 0, 0, 0];
   const m = createModel(d); m.S.sides = [{ company: 0 }, null]; m.refilter();
-  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  const ui = { exp: {}, sort: {}, showSheet: true }, tabs = createTabs(m, createCharts(m, ui), ui);
   let html = tabs.render('tiempos', m.rows());
   const sheet = html.slice(html.indexOf('<h3>Sábana de incidencias</h3>'));
   assert.ok(html.indexOf('<h3>Problemas comunes</h3>') < html.indexOf('<h3>Sábana de incidencias</h3>'));
@@ -318,7 +318,7 @@ test('Escalados: la tabla de lo escalado se agrupa por proyecto Jira (de partida
   open(d, [0]);
   d.cols.fl[0] |= 131072;   // la crítica de Indra (abierta, TEC: SGA-1), escalada
   const m = createModel(d); m.S.sides = [{ company: 0 }, null]; m.refilter();
-  const ui = { exp: {}, sort: {}, escNow: true }, tabs = createTabs(m, createCharts(m, ui), ui);
+  const ui = { exp: {}, sort: {}, showSheet: true, escNow: true }, tabs = createTabs(m, createCharts(m, ui), ui);
   const table = (h) => h.slice(h.indexOf('<div class="mt-esc-by">'), h.indexOf('</table>', h.indexOf('<div class="mt-esc-by">')));
   const picks = (h) => [...table(h).matchAll(/<button class="mt-seg-b ([^"]*)" data-esc-by="(\w+)"[^>]*>([^<]*)</g)].map((x) => [x[2], x[3], x[1].includes('mt-on')]);
   const cols = (h) => [...table(h).matchAll(/data-sort="rs-\w+:(\w+)"/g)].map((x) => x[1]);
@@ -341,7 +341,7 @@ test('Escalados: la tabla de lo escalado se agrupa por proyecto Jira (de partida
 
 test('Análisis tiempos, el desglose con su selector: por módulo (de partida) o por centro, con las mismas columnas; clic, filtrar', () => {
   const m = createModel(data()); m.S.sides = [{ company: 0 }, null]; m.refilter();
-  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  const ui = { exp: {}, sort: {}, showSheet: true }, tabs = createTabs(m, createCharts(m, ui), ui);
   const cardOf = (h, t) => { const a = h.indexOf(`<h3>${t}</h3>`); return a < 0 ? '' : h.slice(a, h.indexOf('</section>', a)); };
   const picks = (c) => [...c.matchAll(/<button class="mt-seg-b ([^"]*)" data-times-by="(\w+)"[^>]*>([^<]*)</g)].map((x) => [x[2], x[3], x[1].includes('mt-on')]);
   const rows = (c, dim) => [...c.matchAll(new RegExp(String.raw`<tr class="mt-clk [^"]*" data-f="${dim}:(\d+)"><th class="mt-r" title="([^"]*)">[^<]*</th>\s*<td class="mt-num">(\d+)</td><td class="mt-num"><b>([^<]*)</b>`, 'g'))].map((x) => [x[2], +x[3], x[4]]);

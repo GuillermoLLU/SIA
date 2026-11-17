@@ -27,7 +27,7 @@ test('Histórico: lo recibido en el periodo, un bloque por pregunta y su evoluci
   const have = cut(html, '¿Qué tenemos?');
   for (const l of ['Recibidas', 'Entran al día', 'Pendientes', 'Fuera de plazo']) assert.match(have, new RegExp(`<span>${l}</span>`));
   assert.match(have, /<span>Recibidas<\/span><b>3<\/b>/);
-  assert.match(have, /data-go="entrada"[^>]*>Entrantes →<\/button><button class="mt-go" data-go="hoy">Foto de hoy →/);
+  assert.match(have, /data-go="entrada"[^>]*>Entrantes →<\/button><button class="mt-go" data-go="backlog">Backlog →/);   // lo de Foto de hoy, en Backlog
   assert.match(html, /<h3>Evolución mes a mes<\/h3>/);
   // y lo primero, antes de los bloques, la evolución del backlog día a día
   const ev = html.indexOf('<h3>Evolución del backlog</h3>');

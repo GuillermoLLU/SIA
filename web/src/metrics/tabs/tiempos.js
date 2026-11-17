@@ -91,6 +91,8 @@ ${PARTS[j][0]}: ${dur(v * r.n)} en total, ${dur(v)} de media`)}"></i>`).join('')
     const cols = [shared('Incidencia'), ['Título', (mm, i) => afterDash(mm.C.su[i])], ['Problema común', (mm, i) => mm.DIMS.pc.label(mm.DIMS.pc.get(i))], shared('Módulo'),
       shared('Prioridad'), ...(on ? [shared('Estado')] : []), shared('Responsable'), shared('Centro'), [on ? 'Antigüedad' : 'Tiempo de resolución', (mm, i) => dur(time(i)), 'num']];
     ui.timesSheet = { list, cols };   // lo que exporta el botón (metrics-view.js)
+    // ya no se ve (se exporta desde los tres puntos: Exportar sábana a CSV); solo con ui.showSheet (los tests)
+    if (!ui.showSheet) return '';
     const filtered = m.S.f.mo?.size || m.S.f.ce?.size || m.S.f.pc?.size ? ' Filtrada por lo que has pinchado arriba (quítalo en los filtros de la barra).' : '';
     return ch.card('Sábana de incidencias', sheetBody(m, list, { ui, id: 'times-sheet', expanded: ui.exp['times-sheet'], more: ch.more, empty: `${on ? 'Nada abierto' : 'Nada resuelto'} con estos filtros.`, cols }),
       { span: 's12', sub: `Las incidencias ${on ? 'abiertas ahora' : 'resueltas del periodo'} de las tablas de arriba, con los filtros de la barra, de la que más tiempo ${on ? 'lleva' : 'tardó'} a la que menos. Pincha un módulo o un problema para ver solo esas.${filtered} Exportar a CSV las descarga todas, con su enlace a Remedy.` });

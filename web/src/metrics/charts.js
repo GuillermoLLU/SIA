@@ -8,6 +8,7 @@
 import { esc } from '../ui/html.js';
 import { num, pct, dur, signedDur } from './format.js';
 import { compareFigure } from './compare.js';
+import { mttrOf } from './resolution.js';
 import { SHIFTS } from './shifts.js';
 import { MIN_ISSUES, DAY, clearlyWorse, trendDelta, shadeSoft, HOT } from './rules.js';
 import { blockHead, blocksOf } from './pieces.js';
@@ -239,7 +240,7 @@ export const createCharts = (m, ui) => {
     const show = (t) => (!CMP() || (!t[0] && !t[1]) ? (tot(t) ? num(tot(t)) : '') : `${num(t[0])}<span class="mt-mut"> / ${num(t[1])}</span>`);
     const gmax = groupMax(rowsDef, cnt, (r) => ri.get(r));   // el máximo de cada bloque, para el color
     const tip = (label, t) => `${label}\n${num(tot(t))} issues${CMP() ? `\n${CO().map((k) => `${name(k)}: ${num(t[k])}`).join(' · ')}` : ''}`;
-    const filt = (r, c) => (r.f && c?.f ? `data-f2="${r.f}|${c.f}"` : r.f && !c ? `data-f="${r.f}"` : c?.f && !r.f ? `data-f="${c.f}"` : '');
+    const filt = (r, c) => (r.f && c?.f ? `data-f2="${r.f}|${c.f}"` : r.f && !c ? `data-f${r.f.includes('|') ? '2' : ''}="${r.f}"` : c?.f && !r.f ? `data-f="${c.f}"` : '');
     const cell = (r, j, c, k) => {
       const v = tot(cnt[j][k]), a = shadeSoft(v, gmax.get(r));
       return `<td class="mt-num ${a > HOT ? 'mt-hot' : ''}" style="--mt-a:${a}%" ${filt(r, c)} data-tip="${esc(tip(`${r.label} · ${c.label}`, cnt[j][k]))}">${show(cnt[j][k])}</td>`;
@@ -249,7 +250,10 @@ export const createCharts = (m, ui) => {
     // abarca todas sus filas (como en una tabla dinámica). Las filas antes del primero, sin bloque.
     const blocks = blocksOf(rowsDef);
     const grouped = blocks.some((b) => b.head), span = grouped ? 'colspan="2"' : '';
-    const tail = (t, r = {}) => `${o.total ? `<td class="mt-num mt-total" ${filt(r)} data-tip="${esc(tip(r.label || 'Total', t))}">${show(t)}</td>` : ''}${o.share ? `<td class="mt-num mt-mut">${pct(tot(t) / (of || 1), 1)}</td>` : ''}`;
+    // o.mttr: en vez del total, el MTTR de las de la fila (resolution.js, mttrOf: de las abiertas, lo que llevan abiertas)
+    const mttrCell = (test) => { const v = mttrOf(m, list.filter((i) => !test || test(i))).mttr; return v == null ? '—' : dur(v); };
+    const tail = (t, r = {}) => `${o.total ? `<td class="mt-num mt-total" ${filt(r)} data-tip="${esc(o.mttr ? `${r.label || 'Total'}
+${num(tot(t))} issues; MTTR: lo que llevan abiertas, de media` : tip(r.label || 'Total', t))}">${o.mttr ? mttrCell(r.test) : show(t)}</td>` : ''}${o.share ? `<td class="mt-num mt-mut">${pct(tot(t) / (of || 1), 1)}</td>` : ''}`;
     const row = (r, b, first) => {
       const j = ri.get(r), lab = `<th class="mt-r" ${r.tip ? `data-tip="${esc(r.tip)}"` : `title="${esc(r.label)}"`} ${filt(r)}>${esc(r.label)}</th>`;
       const gl = !grouped ? lab : !b.head ? lab.replace('<th ', `<th ${span} `) : (first ? blockHead(b.head, b.note, b.rows.length) : '') + lab;
@@ -257,11 +261,11 @@ export const createCharts = (m, ui) => {
     };
     const fj = all.length - 1;
     // el total: arriba (footTop) encabeza la tabla y lo de debajo es su desglose; abajo, la cierra
-    const foot = o.foot ? `<tr class="mt-lead ${o.footTop ? '' : 'mt-lead-end'}"><th class="mt-r" ${span}>${esc(o.foot.label)}</th>${cols.map((c, k) => `<td class="mt-num" ${filt({}, c)}>${show(cnt[fj][k])}</td>`).join('')}${tail(rt[fj])}</tr>` : '';
+    const foot = o.foot ? `<tr class="mt-lead ${o.footTop ? '' : 'mt-lead-end'}"><th class="mt-r" ${span}>${esc(o.foot.label)}</th>${cols.map((c, k) => `<td class="mt-num" ${filt({}, c)}>${show(cnt[fj][k])}</td>`).join('')}${tail(rt[fj], { test: o.foot.test })}</tr>` : '';
     const wide = cols.length > 8, widths = grouped ? [wide ? 12 : 15, wide ? 17 : 20] : [wide ? 20 : 27];
     const body = blocks.map((b) => b.rows.map((r, k) => row(r, b, k === 0)).join('')).join('');
     return `${CMP() ? `<p class="mt-small mt-mut">Cada celda: ${esc(name(0))} / ${esc(name(1))}.</p>` : ''}<div class="mt-tablewrap"><table class="mt-hm mt-mx"><colgroup>${widths.map((w) => `<col style="width:${w}%">`).join('')}${'<col>'.repeat(cols.length + (o.total ? 1 : 0) + (o.share ? 1 : 0))}</colgroup>
-      <thead><tr><th class="mt-corner" ${span}>${esc(o.corner || '')}</th>${cols.map((c) => `<th class="mt-h" ${c.tip ? `data-tip="${esc(c.tip)}"` : ''}>${esc(c.label)}</th>`).join('')}${o.total ? '<th class="mt-h">Total</th>' : ''}${o.share ? '<th class="mt-h">%</th>' : ''}</tr></thead><tbody>
+      <thead><tr><th class="mt-corner" ${span}>${esc(o.corner || '')}</th>${cols.map((c) => `<th class="mt-h" ${c.tip ? `data-tip="${esc(c.tip)}"` : ''}>${esc(c.label)}</th>`).join('')}${o.total ? `<th class="mt-h"${o.mttr ? ' data-tip="Lo que llevan abiertas, de media."' : ''}>${o.mttr ? 'MTTR' : 'Total'}</th>` : ''}${o.share ? '<th class="mt-h">%</th>' : ''}</tr></thead><tbody>
       ${o.footTop ? foot : ''}${body}${o.footTop ? '' : foot}</tbody></table></div>`;
   };
 

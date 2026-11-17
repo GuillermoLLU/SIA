@@ -112,10 +112,12 @@ export const clienteTab = (t) => {
     const all = [...P[CO()[0]]].sort((a, b) => C.rep[a] - C.rep[b]), cols = sheetCols(mttrOf(m, A));
     const f = filterOf(ui.cliFilter), list = f ? all.filter(f[0]) : all;
     ui.cliSheet = { list, cols };   // lo que exporta el botón (metrics-view.js), con el filtro
-    const filtered = f ? `<p class="mt-note">Sábana filtrada: ${num(list.length)} de ${num(all.length)}, ${esc(f[1])}. <button class="mt-jc-clear" data-cli-f="">Quitar filtro</button></p>` : '';
+    // la sábana ya no se ve (se exporta desde los tres puntos): el filtro, a la vista, porque cambia lo que se exporta
+    const filtered = f ? `<p class="mt-note">Filtrado: ${num(list.length)} de ${num(all.length)}, ${esc(f[1])} (lo que exporta la sábana). <button class="mt-jc-clear" data-cli-f="">Quitar filtro</button></p>` : '';
     const old = ready ? '' : '<p class="mt-note">Faltan las notas públicas y los rebotes: reinicia SIA para que el bridge los calcule.</p>';
     return grid(ask('cliente'), old, kpiCards(P, A), reasonCard(all), groupCard('mo', 'Por módulo afectado', 'Módulo'), groupCard('ce', 'Por centro', 'Centro'), filtered,
-      card('Sábana de incidencias', sheetBody(m, list, { ui, id: 'cli-sheet', expanded: ui.exp['cli-sheet'], more: ch.more, empty: 'Nada en Pendiente de cliente con estos filtros.', cols }),
-        { span: 's12', sub: 'Lo que está ahora en Pendiente de cliente, con los filtros de arriba, de la más antigua a la más reciente. Exportar a CSV las descarga todas, con su enlace a Remedy.' }));
+      // la sábana, solo con ui.showSheet (los tests): en la app, desde los tres puntos
+      ui.showSheet ? card('Sábana de incidencias', sheetBody(m, list, { ui, id: 'cli-sheet', expanded: ui.exp['cli-sheet'], more: ch.more, empty: 'Nada en Pendiente de cliente con estos filtros.', cols }),
+        { span: 's12', sub: 'Lo que está ahora en Pendiente de cliente, con los filtros de arriba, de la más antigua a la más reciente. Exportar a CSV las descarga todas, con su enlace a Remedy.' }) : '');
   };
 };

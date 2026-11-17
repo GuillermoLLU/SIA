@@ -7,8 +7,10 @@ import { ages, meanAge } from '../backlog.js';
 import { whoHas } from '../today.js';
 import { sheetOf, sheetBody, SHEET_COLS } from '../sheet.js';
 import { afterDash } from './escalados.js';
-import { isPicked } from '../view.js';
 import { backlogParts } from './backlog.js';
+import { evolutionOf } from './evolucion.js';
+import { mttrOf } from '../resolution.js';
+import { MTTR_TARGET, monthTrend } from '../rules.js';
 
 // Las columnas de la sábana de Foto de hoy: las de siempre, con el título del guion en adelante y el estado sin su motivo
 const HOY_COLS = SHEET_COLS.map((c) => (c[0] === 'Título' ? ['Título', (mm, i) => afterDash(mm.C.su[i])]
@@ -30,8 +32,7 @@ export const stateCard = (t) => {
     ['otro', 'Pendiente (otro motivo)', [5], 'En Pendiente con otro motivo o sin motivo informado.'],
   ].map(([cls, label, sits, tip]) => ({ cls, label, sits, tip, f: sits.map((k) => `sit:${k}`).join('|') }));
   // (lo sin técnico de las búsquedas del equipo ya es de Indra: model.js, SEARCH_OWNER)
-  // pick: un clic en un estado filtra (Foto de hoy); sin él, los estados no se pinchan (el Resumen: la tarjeta entera
-  // lleva a Foto de hoy)
+  // pick: un clic en un estado filtra
   const haveNow = (P, pick = true) => {
     const ks = CO(), one = ks.length === 1;
     const total = (k) => P[k].length, share = (v, k) => (total(k) ? pct(v / total(k)) : '—');
@@ -44,19 +45,18 @@ export const stateCard = (t) => {
     const sum = `<tr class="mt-dn-sum" data-tip="Lo abierto ahora, se abriera cuando se abriera."><th>Incidencias</th>${ks.map((k) => `<td class="mt-num"><b>${num(total(k))}</b><small>ahora</small></td>`).join('')}</tr>`;
     return `<div class="mt-dn ${one ? '' : 'mt-dn-cmp'}"><div class="mt-dn-rings">${rings}</div><table class="mt-dn-legend">${head}${shown.map(row).join('')}${sum}</table></div>`;
   };
-  // En Foto de hoy, filtrado por Pendiente (proveedor): un enlace a Escalados, en Activas y sin ese filtro, que allí
-  // sobra (Activas ya es lo escalado y abierto) y vaciaría Histórico (metrics-view.js, data-esc-now y data-rm).
-  // link (el Resumen): sin enlaces y sin filtrar: un clic en cualquier sitio de la tarjeta abre Foto de hoy. upTo (el
-  // Resumen y Foto de hoy en la pestaña): P es lo abierto ahora que se abrió hasta el final del periodo (resumen.js,
-  // hoyTab); la explicación, en el tooltip del título, y sin nada abierto en ningún lado, lo dice. Sin upTo (el informe
-  // Backlog actual), lo abierto, con la explicación debajo.
-  return (P, { link = false, upTo = link } = {}) => {
-    const toEscalated = !link && m.isSel('sit', 3) ? '<p class="mt-dn-go"><button class="mt-go" data-go="escalados" data-esc-now data-rm="sit:3" data-tip="Abre Escalados en Activas: todo lo escalado y abierto, con sus tiempos, sus proyectos Jira y los malos escalados.">Ver en Escalados →</button></p>' : '';
-    const about = upTo ? `Lo abierto ahora que se abrió hasta el final del periodo elegido (también antes de él), por su estado.${link ? '' : ' Clic en uno para filtrar.'}`
+  // links: filtrado por Pendiente (proveedor), un enlace a Escalados, en Activas y sin ese filtro, que allí sobra
+  // (Activas ya es lo escalado y abierto) y vaciaría Histórico (metrics-view.js, data-esc-now y data-rm); el Resumen, sin
+  // enlaces. upTo (el Resumen): P es lo abierto ahora que se abrió hasta el final del periodo (resumen.js); la
+  // explicación, en el tooltip del título, y sin nada abierto en ningún lado, lo dice. Sin upTo (el informe Backlog
+  // actual), lo abierto, con la explicación debajo. Un clic en un estado filtra.
+  // pick: un clic en un estado filtra (el Resumen y Backlog, no); go: la tarjeta entera lleva a esa pestaña (el Resumen, a Backlog)
+  return (P, { upTo = false, links = true, pick = true, go = null } = {}) => {
+    const toEscalated = links && m.isSel('sit', 3) ? '<p class="mt-dn-go"><button class="mt-go" data-go="escalados" data-esc-now data-rm="sit:3" data-tip="Abre Escalados en Activas: todo lo escalado y abierto, con sus tiempos, sus proyectos Jira y los malos escalados.">Ver en Escalados →</button></p>' : '';
+    const about = upTo ? `Lo abierto ahora que se abrió hasta el final del periodo elegido (también antes de él), por su estado.${pick ? ' Clic en uno para filtrar.' : ''}`
       : 'Lo abierto, por su estado. Clic en uno para filtrar.';
     const none = upTo && P.every((l) => !l.length);
-    return ch.card('En qué estado está', (none ? '<p class="mt-none-open">Sin incidencias abiertas</p>' : haveNow(P, !link)) + toEscalated, { span: CMP() ? 's12' : 's4', ...(upTo ? { tip: about } : { sub: about }),
-      go: link ? { tab: 'hoy', label: 'Foto de hoy' } : null });
+    return ch.card('En qué estado está', (none ? '<p class="mt-none-open">Sin incidencias abiertas</p>' : haveNow(P, pick)) + toEscalated, { span: CMP() ? 's12' : 's4', ...(upTo ? { tip: about } : { sub: about }), go });
   };
 };
 
@@ -68,7 +68,7 @@ export const hoyTab = (t) => {
   // (inReport), debajo, como siempre.
   const plain = (h) => h.replace(/<[^>]+>/g, '').replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
   const card = (title, body, o = {}) => ch.card(title, body, !inReport && o.sub ? { ...o, sub: '', tip: plain(o.sub) } : o);
-  const stateOf = stateCard(t), detail = backlogParts(t, { card });
+  const stateOf = stateCard(t), detail = backlogParts(t, { card }), evolution = evolutionOf(t);
   const sec = (title, small = '') => (inReport || !small ? section(title, small) : `<h2 class="mt-sec" data-tip="${esc(plain(small).replace(/^./, (c) => c.toUpperCase()))}">${title}</h2>`);
 
   // --- El backlog ahora: lo abierto a fecha de la última carga, se abriera cuando se abriera (no
@@ -80,16 +80,6 @@ export const hoyTab = (t) => {
     { head: 'Centro', note: 'Los 8 con más.' }, ...topRows('ce', op, 8),
     { head: 'Módulo', note: 'Los 8 con más.' }, ...topRows('mo', op, 8),
   ];
-
-  // Arriba del todo, SISU o SGA (por el módulo: model.js, DIMS.ss): un selector que pone o quita ese filtro, así que
-  // vale para todas las pestañas y sale con los demás filtros, donde también se quita
-  const systemPicker = () => {
-    const opt1 = (label, k) => { const on = isPicked(m.S.f, 'ss', k);
-      return `<button class="mt-seg-b ${on ? 'mt-on' : ''}" data-only="ss:${k ?? ''}" aria-pressed="${on}"${k == null ? '' : ' data-tip="Clic: solo esta. Ctrl+clic: sumarla o, si ya está, quitarla."'}>${label}</button>`; };
-    return `<div class="mt-seg" role="group" aria-label="SISU o SGA">${opt1('Todo', null)}${[0, 1].map((k) => opt1(DIMS.ss.label(k), k)).join('')}</div>`;
-  };
-  // y a su lado, la criticidad (tabs/common.js, prioPicker): cada una con lo abierto ahora
-  const prioPicker = () => t.prioPicker(m.today(false, 'pr').filter((i) => OPEN[i]));
 
   // Quién tiene qué: lo abierto ahora de cada persona, con su total (today.js). Clic en una persona: todo, solo de ella.
   const whoCard = () => {
@@ -104,9 +94,53 @@ export const hoyTab = (t) => {
   const sheetCard = () => {
     const list = sheetOf(m).reverse();
     ui.hoySheet = { list, cols: HOY_COLS };   // lo que exporta el botón (metrics-view.js)
+    // ya no se ve (se exporta desde los tres puntos: Exportar sábana a CSV); solo con ui.showSheet (los tests)
+    if (!ui.showSheet) return '';
     const body = sheetBody(m, list, { ui, id: 'res-sheet', expanded: ui.exp['res-sheet'], more: ch.more, empty: 'Nada abierto con estos filtros.', cols: HOY_COLS });
     return card('Sábana de incidencias', body, { span: 's12', sub: 'Lo abierto ahora, con los filtros y los lados de arriba, de la más reciente a la más antigua. Exportar a CSV las descarga todas, con su enlace a Remedy, para abrirlas en Excel.' });
   };
+
+  // La pestaña Backlog: los meses en los que se abrió algo que sigue abierto (de lo de ahora, con los filtros y los
+  // lados de arriba): cuántas siguen abiertas de cada mes y el MTTR de todo lo recibido en él (TTR de las resueltas + lo
+  // que llevan las abiertas, como en el Mes a mes del Resumen), en verde por debajo de MTTR_TARGET y en rojo por encima.
+  // Del más antiguo al más reciente; al final, el total. Comparando, las dos cifras de cada lado.
+  const MONTHS_TIP = `Los meses en los que se abrió algo que sigue abierto. Abiertas: cuántas de ese mes siguen abiertas. MTTR: de todo lo recibido en ese mes, (TTR de las resueltas + lo que llevan abiertas las que siguen abiertas) / cuántas son; en verde por debajo de ${dur(MTTR_TARGET)} y en rojo por encima.`;
+  // En una gráfica de barras, para que llene el sitio al lado de la corona: una barra por mes (comparando, una por lado,
+  // con su color) con sus abiertas encima y, debajo del mes, su MTTR en verde o en rojo; arriba, el total. Comparando, a
+  // todo el ancho (la corona va sola en su fila). Al pasar el ratón por un mes, sus cifras.
+  const monthsCard = (all, P) => {
+    const cos = CO(), cmp = CMP(), monthOf = (i) => m.monthAt(C.rep[i]), span = cmp ? 's12' : 's4';
+    const months = [...new Set(cos.flatMap((k) => P[k].map(monthOf)))].sort((a, b) => a - b);
+    if (!months.length) return card('Meses con incidencias abiertas', '<p class="mt-mut mt-small">Nada abierto con estos filtros.</p>', { span, tip: MONTHS_TIP });
+    const mttr = (k, mos) => mttrOf(m, all[k].filter((i) => mos.includes(monthOf(i)))).mttr;
+    const tone = (v) => (v == null ? '' : monthTrend(v, null, { target: MTTR_TARGET }).value);
+    const open = cos.map((k) => months.map((mo) => P[k].filter((i) => monthOf(i) === mo).length));
+    const times = cos.map((k) => months.map((mo) => mttr(k, [mo])));
+    // sin comparar, pequeña: debajo de la corona (a su ancho)
+    const W = cmp ? 1240 : 480, H = cmp ? 200 : 180, T = 22, B = cmp ? 30 + 16 * cos.length : 46, L = 8, R = 8, n = months.length, slot = (W - L - R) / n;
+    const max = Math.max(1, ...open.flat()), y = (v) => T + (H - T - B) * (1 - v / max);
+    const bw = Math.min(56, (slot * 0.62) / cos.length);
+    const bars = months.map((mo, j) => {
+      const x0 = L + slot * j + slot / 2 - (bw * cos.length) / 2;
+      const cols = cos.map((k, s) => { const v = open[s][j], x = x0 + bw * s;
+        return `<rect class="mt-f${k}" x="${x.toFixed(1)}" y="${y(v).toFixed(1)}" width="${(bw - 2).toFixed(1)}" height="${(H - B - y(v)).toFixed(1)}" rx="2"/>`
+          + (v ? `<text x="${(x + bw / 2 - 1).toFixed(1)}" y="${(y(v) - 5).toFixed(1)}" text-anchor="middle" class="mt-mm-n">${num(v)}</text>` : ''); }).join('');
+      const xc = L + slot * (j + 0.5);
+      const lab = `<text x="${xc.toFixed(1)}" y="${H - B + 16}" text-anchor="middle" class="mt-axis">${esc(m.monthName(mo))}</text>`;
+      const ttr = cos.map((k, s) => `<text x="${xc.toFixed(1)}" y="${H - B + 32 + 16 * s}" text-anchor="middle" class="mt-mm-t ${tone(times[s][j])}">${cmp ? `${esc(t.name(k))}: ` : ''}${times[s][j] == null ? '—' : dur(times[s][j])}</text>`).join('');
+      const tip = `${m.monthName(mo)}\n${cos.map((k, s) => `${cmp ? `${t.name(k)}: ` : ''}${num(open[s][j])} abiertas · MTTR ${times[s][j] == null ? '—' : dur(times[s][j])}`).join('\n')}`;
+      // un clic en el mes filtra por él (como un estado de la corona); marcado, el resto más claro
+      const on = m.isSel('mes', mo), dim = m.anySel('mes') && !on ? ' mt-mm-off' : '';
+      return `<g class="mt-clk${dim}" data-f="mes:${mo}">${cols}${lab}${ttr}<rect class="mt-hit" x="${(L + slot * j).toFixed(1)}" y="0" width="${slot.toFixed(1)}" height="${H}" data-tip="${esc(`${tip}
+Clic para filtrar por este mes.`)}"/></g>`;
+    }).join('');
+    const base = `<line x1="${L}" x2="${W - R}" y1="${H - B}" y2="${H - B}" class="mt-gridline"/>`;
+    const total = cos.map((k) => { const v = mttr(k, months);
+      return `<span>${cmp ? `<i class="mt-sw mt-c${k}"></i>${esc(t.name(k))}: ` : 'Total: '}<b>${num(P[k].length)}</b> abiertas · MTTR <b class="mt-diff ${tone(v)}">${v == null ? '—' : dur(v)}</b></span>`; }).join('');
+    return card('Meses con incidencias abiertas', `<div class="mt-mm-total">${total}</div><svg viewBox="0 0 ${W} ${H}" class="mt-svg">${base}${bars}</svg>`, { span, tip: MONTHS_TIP });
+  };
+
+
 
   const backlogNow = (A) => {
     const all = bySide(m.today()), op = m.today().filter((i) => OPEN[i]), P = all.map((l) => l.filter((i) => OPEN[i])), cos = CO(), cmp = CMP();
@@ -116,22 +150,32 @@ export const hoyTab = (t) => {
     const ageBox = () => `<section class="mt-st mt-st-age"><h4>Antigüedad media</h4><div class="mt-st-big"><b>${dur(meanAge(m, S0))}</b></div><p>lo que llevan abiertas, de media</p></section>`;
     // lo primero, la corona (en qué estado está); sin comparar, a su lado en qué punto está y debajo la baldosa y la
     // prioridad; comparando, la corona sola en su fila, la antigüedad con la diferencia y una tabla de dos lados
-    // en la pestaña, la corona: lo abierto ahora que se abrió hasta el final del periodo (también antes de él), como en el
-    // Resumen; en el informe, todo lo abierto
-    const ring = inReport ? stateOf(P) : stateOf(all.map((l) => l.filter((i) => OPEN[i] && C.rep[i] < m.S.d1)), { upTo: true });
+    // la corona: en el Resumen (bare), la pone él; en el informe, de todo lo abierto; sola (la pestaña, que ya no sale en
+    // ninguna vista), como la del Resumen
+    // en Backlog, la del Resumen (lo abierto ahora que se abrió hasta el final del periodo, sin enlaces)
+    const ring = bare ? '' : inReport ? stateOf(P) : stateOf(all.map((l) => l.filter((i) => OPEN[i] && C.rep[i] < m.S.d1)), { upTo: true, links: !bklog });
     // y debajo, lo pendiente en detalle (lo que era la pestaña Backlog: backlog.js): en qué punto está, qué vigilar y
     // sus tablas; comparando, sus cifras junto a la antigüedad media y la tabla de cómo está lo de cada uno
     const cp = cmp ? detail.cmpParts(m.today(), A) : null;
+    const ageKpi = bklog ? [] : [kpiCo('Antigüedad media', [0, 1].map((k) => ({ n: P[k].length, v: meanAge(m, P[k]) })), (s) => dur(s.v), { val: (s) => s.v, better: 'low', note: 'Lo que llevan abiertas, de media.' })];
     const top = cmp
-      ? [ring, kpis(kpiCo('Antigüedad media', [0, 1].map((k) => ({ n: P[k].length, v: meanAge(m, P[k]) })), (s) => dur(s.v), { val: (s) => s.v, better: 'low', note: 'Lo que llevan abiertas, de media.' }), ...cp.kpis),
+      ? [ring, kpis(...ageKpi, ...cp.kpis), ...(bklog ? [monthsCard(all, P), evolution({ only: 'backlog', compact: true })] : []),
         card('Cómo se reparte', mixCmp(nowRows(op), op, 'Pendientes'), { span: 's12', sub: 'De cada uno, cuántas y qué parte de lo suyo. Clic en una fila para filtrar.' }),
         sec('¿En qué punto está lo pendiente?'), cp.table]
       : (() => {
         // sin comparar: a la derecha de la corona, en qué punto está lo pendiente (el panel, con la antigüedad media al
         // final); debajo, las tablas de detalle (la antigüedad, el centro y el módulo ya están en ellas; la prioridad, en
         // el selector de arriba)
-        const [panel, ...tables] = detail.single(m.today(), ageBox());
-        return [ring, panel.replace('class="mt-stock ', 'class="mt-stock mt-st-side '),
+        // en Backlog, sin A vigilar ni la antigüedad media: debajo del panel, los meses con incidencias abiertas
+        // en Backlog, sin «¿En qué punto están?»: la corona y, a su lado, los meses con incidencias abiertas
+        // en Backlog, sin «¿En qué punto están?»: a la izquierda, la corona y debajo los meses con incidencias abiertas; a
+        // la derecha, la evolución del backlog
+        if (bklog) {
+          return [`<div class="mt-s4 mt-stackcol">${ring}${monthsCard(all, P)}</div>`, evolution({ only: 'backlog', span: 's8', fixedScale: true }),
+            ...detail.single(m.today(), '', false, { simple: true }).slice(1)];
+        }
+        const [panel, ...tables] = bare ? detail.single(m.today(), '', false) : detail.single(m.today(), ageBox());
+        return [ring, bare ? panel : panel.replace('class="mt-stock ', 'class="mt-stock mt-st-side '),
           sec('Lo pendiente en detalle', 'su situación, lo que conviene vigilar y desde cuándo.'), ...tables];
       })();
     return [sec('¿Cómo está el backlog ahora?', 'lo abierto a fecha de la última carga, se abriera cuando se abriera.'), ...top,
@@ -139,10 +183,14 @@ export const hoyTab = (t) => {
       inReport ? '' : sheetCard()];
   };
 
-  // inReport: en un informe (Backlog actual, report.js), sin la sábana de incidencias
-  let inReport = false;
+  // inReport: en un informe (Backlog actual, report.js), sin la sábana de incidencias. bare: como parte del Resumen
+  // (resumen.js): lo de debajo de la corona, sin la pregunta. Los selectores (SISU o SGA, prioridad), en la barra de
+  // arriba, para todas las pestañas (tabs/common.js, filterPicks).
+  // bklog: la pestaña Backlog, sin la corona (está en el Resumen) y con todo lo demás
+  let inReport = false, bare = false, bklog = false;
   return (A, opts = {}) => {
-    inReport = !!opts.inReport;
-    return grid(`<div class="mt-hoy-picks">${systemPicker()}${prioPicker()}</div>`, ask('hoy'), ...backlogNow(A));
+    inReport = !!opts.inReport; bare = !!opts.bare; bklog = !!opts.backlog;
+    if (bare) return backlogNow(A);
+    return grid(bklog ? '' : ask('hoy'), ...backlogNow(A));   // Backlog, sin la pregunta de arriba
   };
 };

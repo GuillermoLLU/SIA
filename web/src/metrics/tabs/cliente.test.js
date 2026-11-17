@@ -25,7 +25,7 @@ const pendingData = ({ old = false } = {}) => {
 };
 const setup = (opts, sides = [{ company: 0 }, null]) => {
   const m = createModel(pendingData(opts)); m.S.sides = sides; m.refilter();
-  const ui = { exp: {}, sort: {} };
+  const ui = { exp: {}, sort: {}, showSheet: true };
   return { m, ui, html: createTabs(m, createCharts(m, ui), ui).render('cliente', m.rows()) };
 };
 const kpiOf = (html, label) => html.match(new RegExp(`<div class="mt-kpi-l"[^>]*>${label}</div><div class="mt-kpi-v[^"]*">([^<]*)<`))?.[1];
@@ -74,7 +74,7 @@ test('Pendiente de cliente, comparando: los KPIs de cada lado', () => {
 
 test('Pendiente de cliente: las definiciones, al pasar el ratón; Sin reclamar, Rebotes y cada motivo filtran la sábana', () => {
   const m = createModel(pendingData()); m.S.sides = [{ company: 0 }, null]; m.refilter();
-  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  const ui = { exp: {}, sort: {}, showSheet: true }, tabs = createTabs(m, createCharts(m, ui), ui);
   const render = () => tabs.render('cliente', m.rows());
   let html = render();
   // la definición ya no va debajo de la cifra: en el tooltip del KPI
@@ -92,7 +92,7 @@ test('Pendiente de cliente: las definiciones, al pasar el ratón; Sin reclamar, 
   assert.deepEqual(ui.cliSheet.list, [0]);
   assert.match(html, /data-cli-f="quiet" role="button" tabindex="0" aria-pressed="true"/);
   assert.match(html, /mt-t0 mt-clk mt-on/);
-  assert.match(html, /Sábana filtrada: 1 de 2, sin reclamar más de 24 h\. <button class="mt-jc-clear" data-cli-f="">Quitar filtro<\/button>/);
+  assert.match(html, /Filtrado: 1 de 2, sin reclamar más de 24 h \(lo que exporta la sábana\)\. <button class="mt-jc-clear" data-cli-f="">Quitar filtro<\/button>/);
   assert.equal(kpiOf(html, 'Pendientes de cliente'), '2');   // los KPIs, sin filtrar
   ui.cliFilter = 'reb';
   render();
@@ -132,7 +132,7 @@ test('Pendiente de cliente: por módulo afectado y por centro, con sus cifras y 
   }
   // filtrando un módulo: esa fila marcada y las demás apagadas, que siguen a la vista
   const k = m.C.mo[0]; m.toggle('mo', k); m.refilter();
-  const ui2 = { exp: {}, sort: {} }, h2 = createTabs(m, createCharts(m, ui2), ui2).render('cliente', m.rows());
+  const ui2 = { exp: {}, sort: {}, showSheet: true }, h2 = createTabs(m, createCharts(m, ui2), ui2).render('cliente', m.rows());
   const mo2 = cardOf(h2, 'Por módulo afectado');
   assert.match(mo2, new RegExp(`<tr class="mt-clk mt-sel" data-f="mo:${k}">`));
   assert.equal(rowsOf(mo2).length, rowsOf(cardOf(html, 'Por módulo afectado')).length);

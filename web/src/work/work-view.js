@@ -141,6 +141,7 @@ export const mountWorkView = (root, { api, onManage, toast }) => {
 
   // Al abrir: los datos de las Métricas; si no han cambiado, se queda como estaba.
   return {
+    exportSheet: () => m && exportSheet(),   // desde los tres puntos de Métricas: la sábana ya no se ve en el panel
     show: async () => {
       try {
         const data = await api.load();

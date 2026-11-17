@@ -80,6 +80,25 @@
 .mt-empty b { font-size: 15px; color: var(--text); }
 .mt-empty span { max-width: 460px; }
 /* La corona del Resumen sin nada abierto en el periodo */
+/* La tendencia frente al mes anterior (Resumen, Mes a mes) */
+.mt-view tr.mt-fy td { border-top: 1px solid var(--mt-line); }
+/* Mes a mes, comparando: cada mes, un bloque (raya marcada arriba) y el segundo lado, con un fondo suave */
+.mt-view tr.mt-mm-s0 td { border-top: 2px solid var(--mt-line); }
+.mt-view tr.mt-mm-s1 td:not(.mt-mm-mo) { background: var(--mt-soft); }
+.mt-view td.mt-mm-mo { vertical-align: middle; font-weight: 600; }
+.mt-stackcol { display: flex; flex-direction: column; gap: 16px; min-width: 0; } .mt-stackcol > .mt-card { flex: 0 0 auto; }
+.mt-mm-total { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 0 0 6px; font-size: 13px; color: var(--mt-low); } .mt-mm-total b { color: var(--text); } .mt-mm-total .mt-sw { margin-right: 5px; }
+.mt-svg .mt-mm-off { opacity: .35; }
+.mt-svg .mt-mm-n { font-size: 13px; font-weight: 600; fill: var(--text); }
+.mt-svg .mt-mm-t { font-size: 12px; font-weight: 600; fill: var(--mt-low); } .mt-svg .mt-mm-t.good { fill: var(--mt-good); } .mt-svg .mt-mm-t.bad { fill: var(--mt-bad); }
+.mt-view td.mt-mm-side { white-space: nowrap; color: var(--mt-low); } .mt-view td.mt-mm-side .mt-sw { margin-right: 6px; }
+/* El Resumen, junto a la corona: A vigilar (comparando, un lado al lado del otro) y la antigüedad media */
+.mt-res-watch { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.mt-res-watch .mt-who-co { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; }
+.mt-card > .mt-st-watch { padding: 0; background: none; border: 0; box-shadow: none; } .mt-card > .mt-st-watch h4 { display: none; }
+.mt-res-age { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; min-height: 120px; }
+.mt-res-age b { font-size: 34px; font-weight: 650; line-height: 1.1; } .mt-res-age p { margin: 6px 0 0; font-size: 12px; color: var(--mt-low); }
+.mt-trend { margin-left: 3px; font-size: 10px; color: var(--mt-low); } .mt-trend.good { color: var(--mt-good); } .mt-trend.bad { color: var(--mt-bad); }
 .mt-none-open { margin: 0; padding: 48px 12px; text-align: center; font-size: 13px; color: var(--mt-low); }
 
 /* filtros: fijos arriba al hacer scroll */
@@ -180,7 +199,7 @@
 /* rejilla y tarjetas */
 .mt-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; }
 .mt-card { grid-column: span 6; min-width: 0; padding: 16px 18px; background: var(--mt-card); border: 1px solid var(--mt-line); box-shadow: var(--mt-shadow); }
-.mt-s12 { grid-column: span 12; } .mt-s8 { grid-column: span 8; } .mt-s6 { grid-column: span 6; } .mt-s4 { grid-column: span 4; }
+.mt-s12 { grid-column: span 12; } .mt-s8 { grid-column: span 8; } .mt-s6 { grid-column: span 6; } .mt-s5 { grid-column: span 5; } .mt-s4 { grid-column: span 4; } .mt-s3 { grid-column: span 3; }
 .mt-card h3 { margin: 0 0 2px; font-size: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--mt-low); }
 .mt-sub { margin: 0 0 12px; font-size: 12.5px; color: var(--mt-low); }
 .mt-card h3 + :not(.mt-sub) { margin-top: 12px; }
@@ -349,7 +368,7 @@
 .mt-part0 { background: var(--mt-c0); } .mt-part1 { background: color-mix(in srgb, var(--mt-c0) 62%, var(--mt-card)); }
 .mt-part2 { background: color-mix(in srgb, var(--mt-c0) 36%, var(--mt-card)); } .mt-part3 { background: var(--mt-c2); }
 
-@media (max-width: 1100px) { .mt-card, .mt-s8, .mt-s6, .mt-s4 { grid-column: span 12; } .mt-trio { grid-template-columns: 1fr; } }
+@media (max-width: 1100px) { .mt-card, .mt-stackcol, .mt-s8, .mt-s6, .mt-s5, .mt-s4, .mt-s3 { grid-column: span 12; } .mt-trio { grid-template-columns: 1fr; } }
 
 /* Lo pendiente (Entrada y backlog): total · en qué punto están (barra que suma el total) · a vigilar · aparte */
 .mt-stock { grid-column: span 12; display: grid; grid-template-columns: minmax(150px, 1fr) minmax(0, 2.6fr) minmax(220px, 1.3fr) minmax(150px, 1fr); gap: 12px; }
@@ -362,6 +381,8 @@
 /* Foto de hoy: arriba, SISU o SGA y la prioridad, en una fila */
 .mt-hoy-picks { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .mt-hoy-picks .mt-seg { grid-column: auto; }
+/* Los selectores comunes de la barra de arriba (SISU o SGA y prioridad: tabs/common.js, filterPicks) */
+.mt-fpicks { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; } .mt-fpicks .mt-seg { margin-bottom: 0; }
 /* sin el total (Foto de hoy: está en la corona), a la derecha de la corona */
 .mt-stock.mt-st-side { grid-column: span 8; align-self: stretch; }
 @media (max-width: 1100px) { .mt-stock.mt-st-side { grid-column: span 12; } }
