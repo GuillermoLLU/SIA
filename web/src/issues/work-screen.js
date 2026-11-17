@@ -10,7 +10,7 @@ import { esc, svg } from '../ui/html.js';
 import { STATUS_ES, SEVERITY_ES, when, whenIso, whenLabel, newestFirst, age, pendingSince, stillInfo, escalatedLabel } from './format.js';
 import { item } from './parts.js';
 import { waitHtml } from '../ui/wait.js';
-import { actionsFor, CENTRE_ACTIONS } from './actions.js';
+import { ACTIONS, actionsFor, CENTRE_ACTIONS } from './actions.js';
 import { notesPanelHtml, notesTab, notesCountOf, PHONE } from './notes-html.js';
 
 const WORK_TABS = [
@@ -60,10 +60,11 @@ const ACTION_BUTTON = {
 };
 const icon = (paths) => svg(paths, { width: 2, hidden: true });
 const HANDOFF_PATHS = '<path d="M17 3l4 4-4 4"/><path d="M3 7h18"/><path d="M7 21l-4-4 4-4"/><path d="M21 17H3"/>';
+// cada una con su nombre (el de actions.js; devolver no es una ventana, sino el diálogo de confirmar)
 const MORE_ITEM = {
-  call: { label: 'Llamada', hint: 'Registrar una llamada con el centro', icon: PHONE },
-  contact: { label: 'Contactar con el centro', hint: 'Escribirle tus dudas como nota pública', icon: icon('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>') },
-  transfer: { label: 'Traspasar', hint: 'A un compañero o a otro equipo', icon: icon(HANDOFF_PATHS) },
+  call: { label: ACTIONS.call.label, hint: 'Registrar una llamada con el centro', icon: PHONE },
+  contact: { label: ACTIONS.contact.label, hint: 'Escribirle tus dudas como nota pública', icon: icon('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>') },
+  transfer: { label: ACTIONS.transfer.label, hint: 'A un compañero o a otro equipo', icon: icon(HANDOFF_PATHS) },
   release: { label: 'Devolver a la cola', hint: 'Que la coja otro compañero', icon: icon('<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>') },
 };
 const CHEV = icon('<path d="M6 9l6 6 6-6"/>');
