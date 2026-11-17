@@ -201,7 +201,7 @@ export const escalateForm = ({ issue, dests, found = [], check, saved = null, li
           <input name="linkedOther" class="iss-mono" value="${esc(v.linkedOther || '')}" placeholder="Busca un ticket de Jira: PROYECTO-número o INC…" aria-label="Buscar un ticket de Jira" autocomplete="off" spellcheck="false" />
           <span data-esc-linked>${linkedText(v.linkedOther)}</span>
         </div>
-        <div class="rv-cap"><b>¿Alguno es el mismo problema?</b></div>
+        <div class="rv-cap"><b>Tickets que pueden tener similitud con esta incidencia</b></div>
         <div class="rv-text">
           <fieldset class="iss-esc-open">
             ${found.length ? found.map((o) => foundCard(o, v, dests)).join('') : '<p class="iss-esc-none">Ningún escalado del mismo problema</p>'}

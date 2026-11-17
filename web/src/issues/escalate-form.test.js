@@ -43,7 +43,7 @@ test('al abrir por el paso 1, la búsqueda de escalados del mismo problema va de
 test('al abrir: arriba el buscador de tickets de Jira y debajo las coincidencias, con por qué ha salido cada una', () => {
   const html = form();
   assert.match(html, /<section class="rv-step rv-step-one iss-esc-pick" data-rstep="1">\s*<div class="iss-esc-find">\s*<input type="radio" class="iss-sr" name="linked" value="other"[^>]*\/>\s*<i><svg[\s\S]*?<\/i>\s*<input name="linkedOther"[^>]*placeholder="Busca un ticket de Jira: PROYECTO-número o INC…" aria-label="Buscar un ticket de Jira"/, 'el buscador, lo primero');
-  assert.match(html, /<\/div>\s*<div class="rv-cap"><b>¿Alguno es el mismo problema\?<\/b><\/div>\s*<div class="rv-text">\s*<fieldset class="iss-esc-open">/, 'debajo, las coincidencias');
+  assert.match(html, /<\/div>\s*<div class="rv-cap"><b>Tickets que pueden tener similitud con esta incidencia<\/b><\/div>\s*<div class="rv-text">\s*<fieldset class="iss-esc-open">/, 'debajo, las coincidencias');
   assert.deepEqual([...html.matchAll(/name="linked" value="([^"]+)"/g)].map((m) => m[1]), ['other', 'SISUPAC-9211', 'ITSMECOM-5804475']);
   assert.match(html, /5 issues esperando/);
   assert.match(html, /<span class="iss-esc-why"><small>Mismo centro · Resumen parecido<\/small><button type="button" class="rv-link" data-jira-open="SISUPAC-9211">Abrir en Jira<\/button><\/span>/);
