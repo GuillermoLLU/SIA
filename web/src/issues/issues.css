@@ -620,6 +620,9 @@ a.rv-id:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .iss-esc-card > b { padding-right: 32px; font-weight: 600; }
 .iss-esc-card > span:first-of-type { padding-right: 32px; }
 .iss-esc-card small { font-size: 12px; color: var(--text-low); }
+/* una coincidencia: por qué ha salido y, a la derecha, abrirla en Jira para comparar */
+.iss-esc-why { display: flex; align-items: center; gap: 12px; margin-top: 2px; }
+.iss-esc-why .rv-link { margin-left: auto; font-size: 12px; }
 .iss-esc-open { position: relative; display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; border: 0; }
 .iss-esc-open input[name=linkedOther] { margin-top: 4px; padding: 6px 8px; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border); }
 .iss-esc-dev { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; font-size: 12.5px; line-height: 1.45; border: 1px solid var(--border); background: color-mix(in srgb, var(--bg) 60%, var(--surface)); }

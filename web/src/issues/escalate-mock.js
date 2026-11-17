@@ -20,9 +20,10 @@ export const DESTINATIONS = [
   { id: 'operaciones', name: 'Operaciones/Implantaciones · N2', level: 'N2', via: 'Correo', opens: 'none' },
 ];
 
-// Tickets de proveedor abiertos que ya esperan otras issues del mismo problema.
+// Escalados abiertos que ya esperan otras issues, con el centro y el módulo del problema: sobre
+// ellos busca SIA al abrir Escalar (findEscalations, escalate.js), hasta tener la búsqueda en Jira.
 export const OPEN_TICKETS = [
-  { ticket: 'SISUPAC-9211', dest: 'sisupac', title: 'Lentitud RFID en packing', issues: 5, since: '2026-10-27 09:12' },
-  { ticket: 'ITSMECOM-5804475', dest: 'returns', title: 'Error aleatorio en el proceso de returns', issues: 2, since: '2026-10-26 18:40' },
-  { ticket: 'INC000027778368', dest: 'maestros', title: 'Artículo sin maestro en el centro', issues: 1, since: '2026-10-28 08:05' },
+  { ticket: 'SISUPAC-9211', dest: 'sisupac', title: 'Lentitud RFID en packing', issues: 5, since: '2026-10-27 09:12', center: '100497', module: 'RFID' },
+  { ticket: 'ITSMECOM-5804475', dest: 'returns', title: 'Error aleatorio en el proceso de returns', issues: 2, since: '2026-10-26 18:40', center: '100497', module: 'Returns' },
+  { ticket: 'INC000027778368', dest: 'maestros', title: 'Artículo sin maestro en el centro', issues: 1, since: '2026-10-28 08:05', center: '100537', module: 'Maestros' },
 ];

@@ -7,16 +7,16 @@ import { esc } from '../ui/html.js';
 import { BACK_ARROW, NEXT_ARROW, slideStep, flashEmpty, fadeOut as fade, runPhases } from '../ui/wizard.js';
 import { escalateForm, requirementsHtml, linkedText, summaryHtml, filesHtml, ticketHtml, doneHtml, closePhases, searchHtml, searchPhases } from './escalate-form.js';
 import { resolveBlocked, noteMeter, localShort } from './resolve-form.js';
-import { stepMissing, stepWarning, resumeStep, resultTicket, targetOf, titleOf, nextOf, prevOf, LAST, FEED, FLOWS } from './escalate.js';
+import { stepMissing, stepWarning, resumeStep, resultTicket, targetOf, titleOf, nextOf, prevOf, findEscalations, LAST, FEED, FLOWS } from './escalate.js';
 import { syncEditor, setEditorText, toText, insertChip, removeChips } from './tag-editor.js';
 import { hasFiles } from './chip-drag.js';
 
 const AUTOSAVE_MS = 800;   // el mismo que Resolver
 
 // root: la vista de Issues; api: issues-api.js; dialogs: ui/dialog.js (los avisos); dests y tickets: el
-// catálogo y los tickets abiertos (de prueba); onEscalated(target, mode): ya escalada o unida, al cerrar.
+// catálogo y los escalados abiertos (de prueba), sobre los que se buscan las coincidencias; onEscalated(target, mode): ya escalada o unida, al cerrar.
 export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onEscalated }) => {
-  let opened = null, issue = null, check = null, offEscape = null, closeIt = null, timer = null, done = null;
+  let opened = null, issue = null, check = null, found = [], offEscape = null, closeIt = null, timer = null, done = null;
   // los del motivo: de momento solo se listan (no van al borrador ni salen de SIA); las imágenes van
   // numeradas, como en Resolver, para colocarlas en el texto como [imagenN]
   let files = [], lastImage = 0;
@@ -49,6 +49,9 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
   // Al actualizar, el botón dice eso mismo. En el resumen, primero «Ver el ticket» y, con el borrador a la vista,
   // «Escalar» (como Resolver).
   const flowOf = (f) => FLOWS[isLink(f) ? 'link' : 'escalate'];
+  // En el paso 1, las dos respuestas («No, nuevo escalado» y «Sí, actualizar escalado») si hay
+  // coincidencias o se ha elegido uno; sin ninguna, solo «No».
+  const answers = (f) => found.length > 0 || isLink(f);
   const syncFoot = (f) => {
     const n = Number(f.dataset.step), link = isLink(f), viewing = 'viewing' in f.dataset, mode = f.elements.mode.value;
     const flow = flowOf(f);
@@ -58,13 +61,13 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
       m.classList.toggle('last', k === flow.at(-1));
     });
     const next = f.querySelector('[data-step-next]'), send = f.querySelector('[data-confirm-send]');
-    const to = nextOf(mode, n);
+    const to = nextOf(mode, n), both = n === 1 && answers(f);
     next.hidden = !to;
-    if (to) next.innerHTML = `${n === 1 && !link ? 'Nuevo escalado' : titleOf(to)}${NEXT_ARROW}`;
-    f.querySelector('[data-esc-new]').hidden = !(n === 1 && link);
+    if (to) next.innerHTML = `${n === 1 ? (both ? 'Sí, actualizar escalado' : 'No, nuevo escalado') : titleOf(to)}${NEXT_ARROW}`;
+    f.querySelector('[data-esc-new]').hidden = !both;
     f.querySelector('[data-esc-preview]').hidden = !(n === LAST && !viewing);
     send.hidden = !((n === LAST && viewing) || n === FEED);
-    send.textContent = n === FEED ? titleOf(FEED) : 'Escalar';
+    send.textContent = n === FEED ? titleOf(FEED) : 'Crear escalado';
     if (n > 1) f.querySelector('[data-step-back]').innerHTML = `${BACK_ARROW}${titleOf(viewing ? LAST - 1 : prevOf(mode, n))}`;   // a la izquierda, adónde se vuelve
   };
   // El borrador del ticket ocupa el paso, con su título centrado y sin la barra de pasos, como el
@@ -122,14 +125,17 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
   };
   // Lo que se le puede pasar al técnico (escalate.js): se puede seguir, pero avisando. → true si sigue
   const confirmed = async (f, n) => {
-    const w = stepWarning(n, values(f), { ...ctx(), recurrence: check.recurrence });
+    const w = stepWarning(n, values(f), { ...ctx(), found });
     if (!w) return true;
     const ok = await dialogs.open({ title: w.title, centered: true, okLabel: w.ok, bodyHTML: `<p class="iss-dlg-p">${esc(w.text)}</p>` });
     return ok && f.isConnected;
   };
   const setMode = (f, mode) => { f.elements.mode.value = mode; syncFoot(f); };
   const stepNext = async (f) => {
-    const n = Number(f.dataset.step), to = nextOf(f.elements.mode.value, n);
+    const n = Number(f.dataset.step);
+    // «Sí, actualizar escalado» sin haber elegido ninguno: se pide, como cualquier campo que falta
+    if (n === 1 && answers(f) && !isLink(f)) return flashMissing(f, { field: 'linked', text: 'Elige el escalado para seguir' });
+    const to = nextOf(f.elements.mode.value, n);
     if (to && complete(f, n) && await confirmed(f, n)) moveTo(f, to);
   };
   // «Nuevo escalado» con un ticket elegido: se suelta el ticket elegido y se sigue por el escalado.
@@ -220,6 +226,7 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
     box.hidden = false;
     const closeBtn = f.querySelector('[data-esc-close]');
     closeBtn.hidden = false;
+    f.querySelector('[data-autosave]').hidden = true;   // el borrador ya se ha borrado
     closeBtn.focus({ preventScroll: true });
   };
   // Cerrar tras escalar: la ventana se funde y la vista avisa.
@@ -252,6 +259,8 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
     const t = e.target;
     // las ayudas aún no tienen nada detrás: la IA del chat y la documentación de cada destino llegarán después
     if (t.closest('[data-esc-help]')) return toast?.('Se abriría el chat de la incidencia para que la IA te ayude a elegir el destino.');
+    const jira = t.closest('[data-jira-open]');   // dentro de la tarjeta: abrirlo no la elige
+    if (jira) { e.preventDefault(); return toast?.(`Se abriría ${jira.dataset.jiraOpen} en Jira para compararlo.`); }
     const help = t.closest('[data-dest-help]');
     if (help) { e.preventDefault(); return toast?.(`Aquí irá qué cubre ${dests.find((d) => d.id === help.dataset.destHelp)?.name}: la documentación está por hacer.`); }
     if (t.closest('[data-esc-close]')) return finish();
@@ -370,7 +379,7 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
     async open(theIssue, link, onClose) {
       await saving;   // lo que se guardaba al cerrar, antes de leer el borrador
       const start = await api.startEscalate(theIssue.id);
-      opened = theIssue.id; issue = theIssue; check = start.check; closeIt = onClose; files = []; lastImage = 0; done = null;
+      opened = theIssue.id; issue = theIssue; check = start.check; found = findEscalations(theIssue, tickets); closeIt = onClose; files = []; lastImage = 0; done = null;
       offEscape = onEscape(onClose);
       if (start.check.missing.length) {
         root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${resolveBlocked(issue.id, start.check, { title: 'Aún no se puede escalar', chat: 'data-escalate-chat' })}</div>`);
@@ -378,12 +387,12 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
         return;
       }
       const resume = resumeStep(start.draft, ctx());
-      const formHtml = () => escalateForm({ issue, dests, open: tickets, check: start.check, saved: start.draft, link });
+      const formHtml = () => escalateForm({ issue, dests, found, check: start.check, saved: start.draft, link });
       if (resume === 1) {
         root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${searchHtml(issue.id, start.check)}</div>`);
         const box = root.querySelector('.rb-search');
         const alive = () => opened === theIssue.id && box.isConnected;
-        await runPhases(box.querySelector('[data-loader]'), 'Buscando recurrencias en Jira', searchPhases(issue), { alive, track });
+        await runPhases(box.querySelector('[data-loader]'), 'Buscando escalados del mismo problema', searchPhases(issue), { alive, track });
         await fadeOut(box);
         if (!alive()) return;
         box.outerHTML = formHtml();

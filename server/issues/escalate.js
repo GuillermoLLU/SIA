@@ -8,33 +8,16 @@ import { methodNotes, lastByKey } from './resolve.js';
 
 // Las notas del método hasta el análisis, como al resolver (reunión del 17/11/2026): situación inicial,
 // en críticas la evaluación de mayor incidente, recurrencia, antecedentes y análisis. El diagnóstico
-// no: a veces se escala justo porque no se llega a él. La recurrencia en Jira no se pide: la busca
-// SIA al abrir Escalar, cada vez (de momento, de prueba).
+// no: a veces se escala justo porque no se llega a él. [RECURRENCIA] es la de Remedy (las incidencias
+// abiertas del mismo problema); los escalados del mismo problema en Jira los busca SIA al abrir
+// Escalar, cada vez (la web, findEscalations; de momento, de prueba).
 
-// La nota [RECURRENCIA] lleva un apartado por herramienta: «Remedy: …» y, si ya se buscó, «Jira: …».
-// → { remedy, jira, tickets }: el texto de cada apartado (null si no está) y las claves de Jira que nombra.
-const PART = /^\s*(REMEDY|JIRA)\s*:\s*/i;
-const JIRA_KEY = /\b[A-Z][A-Z0-9]*-\d+\b/g;
-export const recurrenceOf = (text) => {
-  const out = { remedy: null, jira: null };
-  let cur = null;
-  for (const line of String(text ?? '').split('\n')) {
-    const m = line.match(PART);
-    if (m) { cur = m[1].toLowerCase(); out[cur] = line.replace(PART, '').trim(); }
-    else if (cur && line.trim()) out[cur] = `${out[cur]} ${line.trim()}`.trim();
-  }
-  return { ...out, tickets: [...new Set(out.jira?.toUpperCase().match(JIRA_KEY) || [])] };
-};
-
-// → { notes: [{ key, label, note }], missing: [label], analysis, background, recurrence: recurrenceOf | null }
-// analysis: la nota [ANALISIS], con la que empieza el motivo; recurrence: la nota [RECURRENCIA]
-// por apartados. Hasta tener la búsqueda en Jira, los tickets «encontrados» son los que nombra su
-// apartado «Jira:» (los datos de prueba lo traen).
+// → { notes: [{ key, label, note }], missing: [label], analysis, background }
+// analysis: la nota [ANALISIS], con la que empieza el motivo; background: [ANTECEDENTES].
 export const escalateCheck = (issue) => {
   const last = lastByKey(issue.worklog);
   const notes = methodNotes(issue.priority === 'CRITICAL').map(({ key, label }) => ({ key, label, note: last[key] || null }));
-  return { notes, missing: notes.filter((n) => !n.note).map((n) => n.label), analysis: last.analysis || null, background: last.background || null,
-    recurrence: last.recurrence ? recurrenceOf(last.recurrence.text) : null };
+  return { notes, missing: notes.filter((n) => !n.note).map((n) => n.label), analysis: last.analysis || null, background: last.background || null };
 };
 
 // Se escala lo que se está trabajando; una Resuelta, por la causa raíz. Una

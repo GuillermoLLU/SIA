@@ -31,7 +31,7 @@ const CTX = { dests: DESTINATIONS, issue: ISSUE };
 const missing = (n, v) => stepMissing(n, { mode: 'escalate', ...v }, CTX);
 
 test('dos flujos con el mismo aspecto: actualizar el escalado, o uno nuevo hasta el resumen', () => {
-  assert.deepEqual(STEPS.map((s) => s.title), ['Recurrencia', 'A quién', 'Motivo', 'Requisitos', 'Resumen', 'Actualizar escalado']);
+  assert.deepEqual(STEPS.map((s) => s.title), ['Coincidencias', 'A quién', 'Motivo', 'Requisitos', 'Resumen', 'Actualizar escalado']);
   assert.deepEqual([nextOf('link', 1), nextOf('link', FEED), prevOf('link', FEED)], [FEED, null, 1]);
   assert.deepEqual([nextOf('escalate', 1), nextOf('escalate', 4), nextOf('escalate', 5), prevOf('escalate', 2)], [2, 5, null, 1]);
   assert.equal(titleOf(FEED), 'Actualizar escalado');
@@ -47,9 +47,9 @@ test('actualizar escalado: el comentario empieza con lo nuevo de la incidencia y
 
 test('paso 1: sin ticket se sigue a escalar; al unir, un ticket válido (TC-02)', () => {
   assert.equal(missing(1, {}), null);   // «Ninguno: escalar»
-  assert.deepEqual(missing(1, { mode: 'link' }), { field: 'linked', text: 'Elige el ticket para seguir' });
+  assert.deepEqual(missing(1, { mode: 'link' }), { field: 'linked', text: 'Elige el escalado para seguir' });
   assert.equal(missing(1, { mode: 'link', linked: 'SISUPAC-9211' }), null);
-  assert.deepEqual(missing(1, { mode: 'link', linked: 'other', linkedOther: 'MOCA' }), { field: 'linkedOther', text: 'Escribe un ticket válido para seguir' });
+  assert.deepEqual(missing(1, { mode: 'link', linked: 'other', linkedOther: 'MOCA' }), { field: 'linkedOther', text: 'Escribe una clave válida para seguir' });
   assert.equal(missing(1, { mode: 'link', linked: 'other', linkedOther: 'ITD: ERA-4170' }), null);
   assert.equal(targetOf({ mode: 'link', linked: 'other', linkedOther: 'ITD: ERA-4170' }, DESTINATIONS), 'ERA-4170');
 });
@@ -93,11 +93,11 @@ test('el borrador se retoma en su paso si los de antes siguen completos (TC-04);
 });
 
 test('avisos que se pueden pasar por alto: se sigue, pero avisando, como en Resolver', () => {
-  const warn = (n, v, o = {}) => stepWarning(n, { mode: 'escalate', ...v }, { ...CTX, recurrence: { tickets: ['SISUPAC-9211'] }, ...o });
+  const warn = (n, v, o = {}) => stepWarning(n, { mode: 'escalate', ...v }, { ...CTX, found: [{ ticket: 'SISUPAC-9211' }], ...o });
   // unir: la recurrencia en Jira tiene que haberlo encontrado (da igual mayúsculas o prefijos)
   assert.equal(warn(1, { mode: 'link', linked: 'other', linkedOther: 'itd: sisupac-9211' }), null);
-  assert.match(warn(1, { mode: 'link', linked: 'other', linkedOther: 'ITD: ERA-4170' }).text, /^ERA-4170 no salió en la búsqueda en Jira/);
-  assert.equal(warn(1, { mode: 'link', linked: 'SISUPAC-9211' }, { recurrence: null }).ok, 'Unir igualmente');
+  assert.match(warn(1, { mode: 'link', linked: 'other', linkedOther: 'ITD: ERA-4170' }).text, /^¿ERA-4170 es el mismo problema\?$/);
+  assert.equal(warn(1, { mode: 'link', linked: 'SISUPAC-9211' }, { found: [] }).ok, 'Actualizar igualmente');
   assert.equal(warn(1, {}), null);   // seguir sin ticket no avisa
   // el motivo, muy breve
   assert.equal(warn(3, { reason: 'Va lento' }).title, 'Motivo muy breve');

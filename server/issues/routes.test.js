@@ -186,7 +186,7 @@ test('POST /csv: carga el cuerpo con el nombre del fichero; sin nombre .csv, 400
 // Resolver: INC4 es mía (responsable en Remedy), abierta y con todas las notas;
 // INC5, mía pero ya resuelta; INC1, de nadie; INC6, mía pero sin diagnóstico.
 const note = (tag) => ({ at: '2026-10-28 10:00', who: 'ANA', text: `[${tag}] hecho` });
-const NOTES = ['SITUACION INICIAL', 'RECURRENCIA', 'ANTECEDENTES', 'ANALISIS', 'DIAGNOSTICO'].map(note).map((x) => (x.text.startsWith('[RECURRENCIA]') ? { ...x, text: '[RECURRENCIA] Remedy: ninguna\nJira: SISUPAC-9211' } : x));
+const NOTES = ['SITUACION INICIAL', 'RECURRENCIA', 'ANTECEDENTES', 'ANALISIS', 'DIAGNOSTICO'].map(note);
 const ANA = { assignee: 'ANA LOPEZ GARCIA', category: 'ECOM', worklog: NOTES };
 const RES = [...ISSUES, issue('INC4', { ...ANA, status: 'IN_PROGRESS' }), issue('INC5', { ...ANA, status: 'RESOLVED' }), issue('INC6', { ...ANA, worklog: NOTES.slice(0, -1) })];
 const SEND = { note: 'Se relanza', what: 'Se paró', how: 'Se relanzó', prevent: 'Corrección pedida', lang: 'es' };
@@ -281,7 +281,6 @@ test('abrir Escalar: las notas que pide y las que faltan; el borrador va y vuelv
   const { call } = setup([], { issues: ESC_ISSUES });
   assert.deepEqual((await call('GET', ['INC10', 'escalate'])).body.check.missing, ['¿Es mayor incidente?']);
   assert.deepEqual((await call('GET', ['INC4', 'escalate'])).body.check.missing, []);   // alta: ya no lo pide
-  assert.deepEqual((await call('GET', ['INC4', 'escalate'])).body.check.recurrence.tickets, ['SISUPAC-9211']);
   assert.deepEqual((await call('GET', ['INC8', 'escalate'])).body.check.missing, []);   // baja y sin diagnóstico: vale
   assert.equal((await call('GET', ['INC8', 'escalate'])).body.check.analysis.text, 'hecho');
   assert.equal((await call('POST', ['INC10', 'escalate'], ESC)).status, 409);

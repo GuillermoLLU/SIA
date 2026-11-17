@@ -55,12 +55,21 @@ export const minimumsOf = (issue, dest) => (isDev(dest) ? [
 // Las casillas marcadas van en un solo campo, separadas por comas: «form,logs».
 export const checkedMins = (v) => String(v.mins ?? '').split(',').filter(Boolean);
 
+// La búsqueda de escalados del mismo problema, al abrir Escalar (reunión del 17/11/2026): en SGA, del
+// mismo centro; en SISU, del mismo módulo; y con el resumen parecido. No es la nota [RECURRENCIA], que
+// es la de Remedy. Hasta tener la búsqueda en Jira, sobre los escalados abiertos de prueba, y el
+// resumen no se compara. → [{ …escalado, why: [por qué ha salido] }]
+export const moduleOf = (issue) => String(issue.category ?? '').split('›').pop().trim();
+export const findEscalations = (issue, open) => open
+  .filter((o) => (issue.sisu ? o.module === moduleOf(issue) : o.center === issue.center))
+  .map((o) => ({ ...o, why: [issue.sisu ? 'Mismo módulo' : 'Mismo centro', 'Resumen parecido'] }));
+
 // Los pasos del asistente, como los de Resolver. En el 1 se elige el flujo (reunión del 17/11/2026),
-// los dos con el mismo aspecto: unir a uno de los tickets que encontró la recurrencia en Jira (u otro)
-// y actualizar el escalado con un comentario, o un escalado nuevo por los pasos 2 a 5.
+// los dos con el mismo aspecto: si alguna coincidencia es el mismo problema, se actualiza ese escalado
+// con un comentario; si no, uno nuevo por los pasos 2 a 5.
 export const FEED = 6;
 export const STEPS = [
-  { n: 1, title: 'Recurrencia' },   // como la nota: los tickets que encontró en Jira
+  { n: 1, title: 'Coincidencias' },   // ¿alguna es el mismo problema? Sí: actualizar; no: nuevo
   { n: 2, title: 'A quién' },
   { n: 3, title: 'Motivo' },
   { n: 4, title: 'Requisitos' },
@@ -95,8 +104,8 @@ export const destOf = (v, dests) => dests.find((d) => d.id === v.dest) || null;
 export const stepMissing = (n, v, { dests, issue }) => {
   if (n === 1 && v.mode === 'link') {
     const field = v.linked === 'other' ? 'linkedOther' : 'linked';
-    if (!linkedRaw(v)) return { field, text: 'Elige el ticket para seguir' };
-    return ticketCheck(linkedRaw(v)).state === 'ok' ? null : { field, text: 'Escribe un ticket válido para seguir' };
+    if (!linkedRaw(v)) return { field, text: 'Elige el escalado para seguir' };
+    return ticketCheck(linkedRaw(v)).state === 'ok' ? null : { field, text: 'Escribe una clave válida para seguir' };
   }
   if (n === FEED && !text(v, 'comment')) return { field: 'comment', text: 'Escribe el comentario para seguir' };
   if (n === 2 && !text(v, 'dest')) return { field: 'dest', text: 'Elige el equipo para seguir' };
@@ -112,13 +121,13 @@ export const stepMissing = (n, v, { dests, issue }) => {
 
 // Lo que se le puede pasar al técnico al salir del paso n (o al unir, en el 1): se puede seguir,
 // pero avisando, como la nota breve de Resolver. → { title, text, ok } | null
-// recurrence: los tickets que encontró la búsqueda en Jira al abrir (la comprobación del bridge).
+// found: las coincidencias de la búsqueda al abrir (findEscalations).
 export const priorityLabel = (id) => JIRA_PRIORITIES.find((p) => p.id === id)?.label || id;
-export const stepWarning = (n, v, { dests, issue, recurrence }) => {
+export const stepWarning = (n, v, { dests, issue, found = [] }) => {
   if (n === 1 && v.mode === 'link') {
     const ticket = ticketCheck(linkedRaw(v)).value;
-    return recurrence?.tickets?.includes(ticket) ? null : { title: 'Fuera de la recurrencia', ok: 'Unir igualmente',
-      text: `${ticket} no salió en la búsqueda en Jira. ¿Es el mismo problema?` };
+    return found.some((o) => o.ticket === ticket) ? null : { title: 'No está entre las coincidencias', ok: 'Actualizar igualmente',
+      text: `¿${ticket} es el mismo problema?` };
   }
   if (n === 3 && noteQuality(v.reason).level === 'low') {
     return { title: 'Motivo muy breve', ok: 'Continuar', text: 'El destino puede devolverla.' };

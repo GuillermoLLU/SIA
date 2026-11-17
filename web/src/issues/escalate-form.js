@@ -1,9 +1,9 @@
 // Escalar, por pasos y uno solo a la vista, con el aspecto de Resolver (las clases rv-*):
-// 1) si se une a uno de los tickets que encontró la recurrencia en Jira (entonces se nutre con un
-// comentario: actualizar escalado) o se crea uno nuevo por los demás; 2) a quién, del catálogo;
+// 1) las coincidencias: si alguna es el mismo problema, se actualiza ese escalado con un comentario
+// (y acaba ahí); si no, se crea uno nuevo por los demás; 2) a quién, del catálogo;
 // 3) el motivo, que empieza con la nota [ANALISIS] de Remedy, con sus archivos; 4) lo que pide el
 // destino (prioridad del Jira, lo mínimo y la evidencia); y 5) el resumen, como el de Resolver.
-// Al acabar se queda con el ticket a la vista. No se pasa de paso sin lo obligatorio (escalate.js).
+// Al acabar se queda con el escalado a la vista. No se pasa de paso sin lo obligatorio (escalate.js).
 // Sin las notas del método no se abre: el mismo aviso que Resolver (resolveBlocked). La vista
 // (escalate-view.js) vuelve a pintar lo que depende de lo escrito: requirementsHtml, linkedText,
 // summaryHtml, filesHtml y doneHtml.
@@ -24,11 +24,11 @@ const GROUPS = [
 // «SISUPAC · N3 SISU» → «SISUPAC · SISU»; «N2 Courier Support» → «Courier Support»; «ERA · N3» → «ERA».
 export const withoutLevel = (name) => name.replace(/\bN[23]\b\s*/g, '').replace(/\s*·\s*$/, '').trim();
 
-// El ticket «otro» al unir, comprobado al teclear.
+// «Otro escalado», comprobado al teclear.
 export const linkedText = (raw) => {
   const t = ticketCheck(raw);
-  return t.state === 'empty' ? '' : t.state === 'bad' ? `<small class="bad">«${esc(t.bad)}» no es un ticket: PROYECTO-número o INC y 12 dígitos.</small>`
-    : t.state === 'many' ? `<small class="bad">Hay ${t.tickets.length} tickets: escribe solo uno.</small>`
+  return t.state === 'empty' ? '' : t.state === 'bad' ? `<small class="bad">«${esc(t.bad)}» no es una clave: PROYECTO-número o INC y 12 dígitos.</small>`
+    : t.state === 'many' ? `<small class="bad">Hay ${t.tickets.length} claves: escribe solo una.</small>`
     : `<small class="ok">Correcto${t.changed ? `: se guardará como <b>${esc(t.value)}</b>` : ''}.</small>`;
 };
 
@@ -45,8 +45,8 @@ export const startValues = ({ issue, open, check, saved }) => {
 };
 
 // Antes de abrir el asistente, con las notas del método completas: lo que ya cumple y, debajo, la
-// búsqueda de recurrencias en Jira (de momento, de prueba), con las fases del cierre. Al acabar se
-// abre el paso 1 con lo encontrado. El mismo aspecto que el aviso de lo que falta (resolveBlocked).
+// búsqueda de escalados del mismo problema (de momento, de prueba), con las fases del cierre. Al
+// acabar se abre el paso 1 con las coincidencias. El mismo aspecto que el aviso de lo que falta (resolveBlocked).
 export const searchHtml = (issueId, check) => `<div class="rb rb-search" role="alertdialog" aria-labelledby="rb-title" aria-busy="true">
     <div class="rb-head">
       <span class="rb-icon ok">${CHECK}</span>
@@ -61,12 +61,10 @@ export const searchHtml = (issueId, check) => `<div class="rb rb-search" role="a
 // Lo que se busca, con los criterios del equipo: en SGA, el mismo centro; en SISU, el mismo módulo.
 export const searchPhases = (issue) => phasesHtml([issue.sisu ? 'Mismo módulo' : `Mismo centro · ${issue.center || '—'}`, 'Resumen parecido']);
 
-// Paso 1: los tickets que encontró la recurrencia en Jira, con lo que se sabe de cada uno (el
-// catálogo de abiertos, de prueba). → [{ ticket, dest?, title?, issues?, since? }]
-export const foundTickets = (check, known = []) => (check.recurrence?.tickets || []).map((t) => known.find((o) => o.ticket === t) || { ticket: t });
-const foundCard = (o, v, dests) => card('linked', o.ticket, v.linked === o.ticket, o.title
-  ? `<span><b class="iss-mono">${esc(o.ticket)}</b> · ${esc(dests.find((d) => d.id === o.dest)?.name || '')}</span><small>${esc(o.title)} · ${o.issues} ${o.issues === 1 ? 'issue' : 'issues'} esperando · abierto el ${when(o.since)}</small>`
-  : `<span><b class="iss-mono">${esc(o.ticket)}</b></span>`);
+// Paso 1: una coincidencia (findEscalations): el escalado, por qué ha salido y abrirlo para comparar.
+const foundCard = (o, v, dests) => card('linked', o.ticket, v.linked === o.ticket,
+  `<span><b class="iss-mono">${esc(o.ticket)}</b> · ${esc(dests.find((d) => d.id === o.dest)?.name || '')}</span><small>${esc(o.title)} · ${o.issues} ${o.issues === 1 ? 'issue' : 'issues'} esperando · abierto el ${when(o.since)}</small>
+              <span class="iss-esc-why"><small>${o.why.map(esc).join(' · ')}</small><button type="button" class="rv-link" data-jira-open="${esc(o.ticket)}">Abrir en Jira</button></span>`);
 
 // Una opción que se elige pulsando la tarjeta entera; el radio no se ve.
 const card = (name, value, checked, body, cls = '') => `<label class="iss-esc-card${cls}"><input type="radio" class="iss-sr" name="${name}" value="${esc(value)}"${checked ? ' checked' : ''} />${body}</label>`;
@@ -145,7 +143,7 @@ export const summaryHtml = (v, { issue, dests, check, files = [] }) => {
 
 // Antes de escalar, el borrador de lo que se abre, como el «Borrador del informe» de Resolver: con lo
 // escrito en cada paso, las notas que necesita el destino y los adjuntos. Se puede retocar (de momento no sale de SIA).
-const ticketKind = (dest) => (!dest ? 'sin ticket' : dest.opens === 'jira' ? `Jira de ${dest.project}` : dest.opens === 'remedy' ? 'incidencia de Remedy' : 'sin ticket');
+const ticketKind = (dest) => (!dest ? 'sin herramienta' : dest.opens === 'jira' ? `Jira de ${dest.project}` : dest.opens === 'remedy' ? 'incidencia de Remedy' : 'sin herramienta');
 const kb = (size) => `${Math.max(1, Math.round(size / 1024))} KB`;
 const noteOf = (check, key) => check.notes.find((n) => n.key === key)?.note?.text;
 export const ticketHtml = (v, { issue, dests, check, files = [] }) => {
@@ -163,23 +161,25 @@ export const ticketHtml = (v, { issue, dests, check, files = [] }) => {
     !opensTicket(dest) && ['Evidencia', v.sent],
   ].filter(Boolean);
   return `<div class="rv-rpanel"><section class="rv-rep rv-rep-mail">
-          <div class="rv-rep-edit" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Borrador del ticket">${rows.map(([h, p]) => `<h5>${h}</h5><p>${esc(p || '')}</p>`).join('')}</div>
+          <div class="rv-rep-edit" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Borrador del escalado">${rows.map(([h, p]) => `<h5>${h}</h5><p>${esc(p || '')}</p>`).join('')}</div>
           ${files.map((x) => `<div class="rv-rep-att"><i>${FILE_ICON}</i><div><b>${esc(x.name)}</b><small>Adjunto · ${kb(x.size)}</small></div></div>`).join('')}
         </section></div>`;
 };
 
-// Al acabar: lo que se ha hecho y el ticket, para copiarlo. Hasta conectar Jira, el de un escalado es
+// Al acabar: lo que se ha hecho y el escalado, para copiar su clave. Hasta conectar Jira, el nuevo es
 // de ejemplo y se dice. result: resultTicket (escalate.js).
 export const doneHtml = (result, target, mode, rootCause) => `<i class="iss-esc-done-ok" aria-hidden="true">✓</i>
-          <h4>${mode === 'link' ? `Unida a ${esc(target)}` : `Escalada a ${esc(target)}`}</h4>
-          <p>${mode === 'link' ? 'Jira y Remedy actualizados · Pendiente (proveedor)' : !rootCause ? 'Pendiente (proveedor) · Centro avisado' : 'Sigue Resuelta'}</p>
-          ${result ? `<div class="iss-esc-ticket"><span>${result.sample ? 'Ticket generado' : 'Ticket'}</span><code>${esc(result.ticket)}</code><button type="button" class="lab-btn" data-copy="${esc(result.ticket)}">Copiar</button></div>
+          <h4>${mode === 'link' ? 'Escalado actualizado' : `Nuevo escalado a ${esc(target)}`}</h4>
+          <p>${mode === 'link' ? 'Comentado en Jira y en Remedy · Pendiente (proveedor)' : !rootCause ? 'Registrado en Remedy · Pendiente (proveedor) · Centro avisado' : 'Registrado en Remedy · Sigue Resuelta'}</p>
+          ${result ? `<div class="iss-esc-ticket"><span>Escalado</span><code>${esc(result.ticket)}</code><button type="button" class="lab-btn" data-copy="${esc(result.ticket)}">Copiar</button></div>
           ${result.sample ? '<small>De ejemplo hasta conectar Jira</small>' : ''}` : ''}`;
 
-// Al escalar: lo que hace SIA (de momento, un simulacro, como el cierre de Resolver).
+// Al escalar: lo que hace SIA (de momento, un simulacro, como el cierre de Resolver). Al crear, el
+// escalado nuevo se registra en Remedy con su clave y lo nuevo ([NUEVO ESCALADO]); al actualizar, el
+// comentario va al escalado y a Remedy ([ACTUALIZAR ESCALADO]).
 export const closePhases = (v, rootCause) => phasesHtml(v.mode === 'link'
-  ? ['Comentando en Jira', 'Registrando en Remedy', 'Pasando a Pendiente (proveedor)']
-  : ['Registrando el escalado', 'Avisando al centro', ...(rootCause ? [] : ['Pasando a Pendiente (proveedor)'])]);
+  ? ['Comentando en el escalado', 'Registrando en Remedy', 'Pasando a Pendiente (proveedor)']
+  : ['Creando el escalado', 'Registrando en Remedy', 'Avisando al centro', ...(rootCause ? [] : ['Pasando a Pendiente (proveedor)'])]);
 
 // La barra lleva los pasos de los dos flujos; la vista enseña los del elegido (FLOWS) y marca su último.
 const stepper = (mode) => {
@@ -188,11 +188,10 @@ const stepper = (mode) => {
 };
 const FILE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>';
 
-// `issue`: la issue abierta; `dests` y `open`: el catálogo y los tickets abiertos; `check`: lo que
-// dice el bridge (las notas, la de análisis y la de antecedentes); `saved`: el borrador, si lo hay;
-// `link`: su ticket en Remedy.
-export const escalateForm = ({ issue, dests, open, check, saved = null, link = null }) => {
-  const found = foundTickets(check, open);
+// `issue`: la issue abierta; `dests`: el catálogo; `found`: las coincidencias (findEscalations);
+// `check`: lo que dice el bridge (las notas, la de análisis y la de antecedentes); `saved`: el
+// borrador, si lo hay; `link`: su ticket en Remedy.
+export const escalateForm = ({ issue, dests, found = [], check, saved = null, link = null }) => {
   const v = startValues({ issue, open: found, check, saved });
   const rootCause = issue.status === 'RESOLVED';
   const analysis = check.analysis;
@@ -203,19 +202,19 @@ export const escalateForm = ({ issue, dests, open, check, saved = null, link = n
     <input type="hidden" name="mode" value="${v.mode === 'link' ? 'link' : 'escalate'}" />
     <div class="rv-body">
       <section class="rv-step rv-step-one" data-rstep="1">
-        <div class="rv-cap"><b>¿Lo unes a un ticket abierto?</b></div>
+        <div class="rv-cap"><b>¿Alguno es el mismo problema?</b></div>
         <div class="rv-text">
           <fieldset class="iss-esc-open">
-            ${found.length ? found.map((o) => foundCard(o, v, dests)).join('') : '<p class="iss-esc-none">Sin tickets abiertos en Jira</p>'}
-            ${card('linked', 'other', v.linked === 'other', `<b>Otro ticket</b><input name="linkedOther" class="iss-mono" value="${esc(v.linkedOther || '')}" placeholder="PROYECTO-número o INC…" aria-label="Otro ticket" /><span data-esc-linked>${linkedText(v.linkedOther)}</span>`)}
+            ${found.length ? found.map((o) => foundCard(o, v, dests)).join('') : '<p class="iss-esc-none">Ningún escalado del mismo problema</p>'}
+            ${card('linked', 'other', v.linked === 'other', `<b>Otro escalado</b><input name="linkedOther" class="iss-mono" value="${esc(v.linkedOther || '')}" placeholder="PROYECTO-número o INC…" aria-label="Otro escalado" /><span data-esc-linked>${linkedText(v.linkedOther)}</span>`)}
           </fieldset>
         </div>
       </section>
 
       <section class="rv-step rv-step-one" data-rstep="${FEED}" hidden>
-        <div class="rv-cap"><b>Comentario para <span class="iss-mono" data-esc-feed-ticket></span></b><small class="iss-esc-from">Jira · Remedy [ACTUALIZAR ESCALADO]</small></div>
+        <div class="rv-cap"><b>Comentario para <span class="iss-mono" data-esc-feed-ticket></span></b><small class="iss-esc-from">Se añade al escalado y a Remedy</small></div>
         <div class="rv-text">
-          <div class="iss-field rv-grow"><textarea class="rv-ed iss-esc-comment" id="iss-f-comment" name="comment" aria-label="Comentario para el ticket">${esc(v.comment || '')}</textarea>${noteMeter(v.comment, 'comment')}</div>
+          <div class="iss-field rv-grow"><textarea class="rv-ed iss-esc-comment" id="iss-f-comment" name="comment" aria-label="Comentario para el escalado">${esc(v.comment || '')}</textarea>${noteMeter(v.comment, 'comment')}</div>
         </div>
       </section>
 
@@ -244,7 +243,7 @@ export const escalateForm = ({ issue, dests, open, check, saved = null, link = n
       </section>
 
       <section class="rv-step rv-step-one" data-rstep="${LAST}" hidden>
-        <div class="rv-cap rv-cap-center rv-cap-final" data-esc-cap hidden><b>Borrador del ticket</b></div>
+        <div class="rv-cap rv-cap-center rv-cap-final" data-esc-cap hidden><b>Borrador del escalado</b></div>
         <div class="rv-text">
           <section class="rv-gen-sum iss-esc-review" data-esc-review>
             <h4>Lo que has escrito</h4>
@@ -260,10 +259,10 @@ export const escalateForm = ({ issue, dests, open, check, saved = null, link = n
     <footer>
       <small class="iss-autosave" data-autosave>${saved?.at ? `Borrador guardado ${localShort(saved.at)}` : 'El borrador se guarda solo mientras escribes'}</small>
       <button type="button" class="lab-btn rv-back" data-step-back hidden>Atrás</button>
-      <button type="button" class="lab-btn rv-next" data-esc-new hidden>Nuevo escalado</button>
+      <button type="button" class="lab-btn rv-next" data-esc-new hidden>No, nuevo escalado</button>
       <button type="button" class="lab-btn rv-next" data-step-next>${STEPS[1].title}</button>
-      <button type="button" class="lab-btn primary rv-next" data-esc-preview hidden>Ver el ticket</button>
-      <button type="submit" class="lab-btn primary rv-next" data-confirm-send hidden>Escalar</button>
+      <button type="button" class="lab-btn primary rv-next" data-esc-preview hidden>Ver el escalado</button>
+      <button type="submit" class="lab-btn primary rv-next" data-confirm-send hidden>Crear escalado</button>
       <button type="button" class="lab-btn primary rv-next" data-esc-close hidden>Cerrar</button>
     </footer>
   </form>`;

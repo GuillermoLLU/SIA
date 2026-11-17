@@ -1,15 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { escalateForm, requirementsHtml, summaryHtml, filesHtml, ticketHtml, doneHtml, closePhases, linkedText, startValues, withoutLevel, foundTickets, searchHtml, searchPhases } from './escalate-form.js';
+import { escalateForm, requirementsHtml, summaryHtml, filesHtml, ticketHtml, doneHtml, closePhases, linkedText, startValues, withoutLevel, searchHtml, searchPhases } from './escalate-form.js';
+import { findEscalations } from './escalate.js';
 import { resolveBlocked } from './resolve-form.js';
 import { DESTINATIONS, OPEN_TICKETS } from './escalate-mock.js';
 
 const issue = (o = {}) => ({ id: 'INC000027698079', priority: 'MEDIUM', status: 'IN_PROGRESS', vendorTicket: '', center: '100497', ...o });
 const note = (text) => ({ at: '2026-10-28 10:30', who: 'ANA', text });
 const ANALYSIS = note('Timeouts de 8 a 12 s en el túnel RFID');
-const NOTES = [['initial', 'Situación inicial', 'No lee el túnel'], ['recurrence', 'Recurrencia', 'Remedy: ninguna'], ['background', 'Antecedentes', 'Sin KB ni Jira'], ['analysis', 'Análisis', ANALYSIS.text]].map(([key, label, t]) => ({ key, label, note: note(t) }));
-const CHECK = { notes: NOTES, missing: [], analysis: ANALYSIS, background: NOTES[2].note, recurrence: { remedy: 'ninguna', jira: 'SISUPAC-9211 y ERA-4170', tickets: ['SISUPAC-9211', 'ERA-4170'] } };
-const form = (o = {}, saved = null, check = CHECK) => escalateForm({ issue: issue(o), dests: DESTINATIONS, open: OPEN_TICKETS, check, saved });
+const NOTES = [['initial', 'Situación inicial', 'No lee el túnel'], ['recurrence', 'Recurrencia', 'Ninguna abierta en el centro'], ['background', 'Antecedentes', 'Sin KB ni Jira'], ['analysis', 'Análisis', ANALYSIS.text]].map(([key, label, t]) => ({ key, label, note: note(t) }));
+const CHECK = { notes: NOTES, missing: [], analysis: ANALYSIS, background: NOTES[2].note };
+const FOUND = findEscalations(issue(), OPEN_TICKETS);   // SGA, centro 100497: SISUPAC-9211 e ITSMECOM-5804475
+const form = (o = {}, saved = null, found = FOUND) => escalateForm({ issue: issue(o), dests: DESTINATIONS, found, check: CHECK, saved });
 const reqs = (v, o) => requirementsHtml({ mode: 'escalate', ...v }, { issue: issue(o), dests: DESTINATIONS });
 const steps = (html) => [...html.matchAll(/data-step-mark="\d"(?:(?! hidden)[^>])*><i>\d<\/i><span>([^<]+)/g)].map((m) => m[1]);
 
@@ -17,15 +19,15 @@ test('el asistente: el aspecto de Resolver, los pasos de cada flujo y sin texto 
   const html = form();
   assert.match(html, /<form class="iss-act-form rv iss-esc" data-act-form="escalate" data-step="1"/);
   assert.match(html, /<h3>Escalar incidencia<\/h3><span class="rv-id">INC000027698079<\/span>/);
-  assert.deepEqual(steps(html), ['Recurrencia', 'A quién', 'Motivo', 'Requisitos', 'Resumen']);
-  assert.deepEqual(steps(form({ vendorTicket: 'SISUPAC-9211' })), ['Recurrencia', 'Actualizar escalado']);   // al unir, dos
+  assert.deepEqual(steps(html), ['Coincidencias', 'A quién', 'Motivo', 'Requisitos', 'Resumen']);
+  assert.deepEqual(steps(form({ vendorTicket: 'SISUPAC-9211' })), ['Coincidencias', 'Actualizar escalado']);   // al unir, dos
   assert.match(form({ vendorTicket: 'SISUPAC-9211' }), /data-step-mark="6" class="last"><i>2<\/i><span>Actualizar escalado/);
   assert.match(html, /<input type="hidden" name="mode" value="escalate" \/>/);
   // fuera: el desplegable de destinos, «Cómo se envía» y los textos de relleno
   assert.doesNotMatch(html, /data-pick|<select|Cómo se envía|Por SIGLO ·|Para que llegue bien|\(recomendado\)|Aún no se envía/);
 });
 
-test('antes del asistente, lo que ya cumple y la búsqueda de recurrencias en Jira', () => {
+test('antes del asistente, lo que ya cumple y la búsqueda de escalados del mismo problema', () => {
   const html = searchHtml('INC1', CHECK);
   assert.match(html, /<div class="rb rb-search" role="alertdialog"[^>]*aria-busy="true">/);
   assert.match(html, /<span class="rb-icon ok">/);
@@ -37,35 +39,42 @@ test('antes del asistente, lo que ya cumple y la búsqueda de recurrencias en Ji
   assert.match(searchPhases({ sisu: true }), /<\/i>Mismo módulo</);
 });
 
-test('paso 1: elegir el flujo, con los tickets que encontró la búsqueda en Jira; sin antecedentes', () => {
+test('paso 1: las coincidencias, con la pregunta, por qué ha salido cada una y abrirla en Jira', () => {
   const html = form();
-  assert.match(html, /<b>¿Lo unes a un ticket abierto\?<\/b><\/div>/);
-  assert.deepEqual([...html.matchAll(/name="linked" value="([^"]+)"/g)].map((m) => m[1]), ['SISUPAC-9211', 'ERA-4170', 'other']);
-  assert.match(html, /5 issues esperando/);   // del catálogo de abiertos
-  assert.match(html, /value="ERA-4170" \/><span><b class="iss-mono">ERA-4170<\/b><\/span>/);   // sin datos: solo la clave
-  assert.doesNotMatch(html, /data-esc-ai|<h4>Antecedentes|INC000027778368/);
-  assert.match(form({}, null, { ...CHECK, recurrence: { tickets: [] } }), /Sin tickets abiertos en Jira/);
-  assert.deepEqual(foundTickets({ recurrence: null }, OPEN_TICKETS), []);
-  assert.match(html, /data-esc-new hidden>Nuevo escalado</);
+  assert.match(html, /<b>¿Alguno es el mismo problema\?<\/b><\/div>/);
+  assert.deepEqual([...html.matchAll(/name="linked" value="([^"]+)"/g)].map((m) => m[1]), ['SISUPAC-9211', 'ITSMECOM-5804475', 'other']);
+  assert.match(html, /5 issues esperando/);
+  assert.match(html, /<span class="iss-esc-why"><small>Mismo centro · Resumen parecido<\/small><button type="button" class="rv-link" data-jira-open="SISUPAC-9211">Abrir en Jira<\/button><\/span>/);
+  assert.doesNotMatch(html, /data-esc-ai|<h4>Antecedentes|INC000027778368/);   // la del otro centro no sale
+  assert.match(html, /<b>Otro escalado<\/b>/);
+  assert.match(form({}, null, []), /Ningún escalado del mismo problema/);
+  assert.match(html, /data-esc-new hidden>No, nuevo escalado</);
 });
 
-test('actualizar escalado: el comentario para el ticket empieza escrito con lo nuevo y se puede retocar', () => {
+test('la búsqueda: en SGA por centro, en SISU por módulo; no sale de la nota [RECURRENCIA]', () => {
+  assert.deepEqual(findEscalations({ center: '100537' }, OPEN_TICKETS).map((o) => o.ticket), ['INC000027778368']);
+  assert.deepEqual(findEscalations({ center: '100999' }, OPEN_TICKETS), []);
+  const sisu = findEscalations({ sisu: true, center: '100537', category: 'ECOM › EWMS › RFID' }, OPEN_TICKETS);
+  assert.deepEqual(sisu.map((o) => [o.ticket, o.why.join(' · ')]), [['SISUPAC-9211', 'Mismo módulo · Resumen parecido']]);
+});
+
+test('actualizar escalado: el comentario para el escalado empieza escrito con lo nuevo y se puede retocar', () => {
   const html = form({ vendorTicket: 'SISUPAC-9211' });
-  assert.match(html, /<section class="rv-step rv-step-one" data-rstep="6" hidden>\s*<div class="rv-cap"><b>Comentario para <span class="iss-mono" data-esc-feed-ticket><\/span><\/b><small class="iss-esc-from">Jira · Remedy \[ACTUALIZAR ESCALADO\]<\/small>/);
+  assert.match(html, /<section class="rv-step rv-step-one" data-rstep="6" hidden>\s*<div class="rv-cap"><b>Comentario para <span class="iss-mono" data-esc-feed-ticket><\/span><\/b><small class="iss-esc-from">Se añade al escalado y a Remedy<\/small>/);
   assert.match(html, /name="comment"[^>]*>Nueva incidencia relacionada: INC000027698079 \(centro 100497\)\.\n\nSituación inicial: No lee el túnel\n\nAnálisis: Timeouts/);
   assert.match(html, /data-meter="comment"/);
   assert.match(form({}, { mode: 'link', linked: 'ERA-4170', comment: 'Lo mío', step: 6 }), /name="comment"[^>]*>Lo mío</);
 });
 
 test('si la foto trae un ticket, se propone unirla a él, de la lista o como otro (TC-02)', () => {
-  const values = (vendorTicket) => startValues({ issue: issue({ vendorTicket }), open: foundTickets(CHECK, OPEN_TICKETS), check: CHECK, saved: null });
+  const values = (vendorTicket) => startValues({ issue: issue({ vendorTicket }), open: FOUND, check: CHECK, saved: null });
   assert.deepEqual([values('ITD: SISUPAC-9211').mode, values('ITD: SISUPAC-9211').linked], ['link', 'SISUPAC-9211']);
   assert.deepEqual([values('TEC: SGAMSRAP-8777').linked, values('TEC: SGAMSRAP-8777').linkedOther], ['other', 'SGAMSRAP-8777']);
   assert.equal(values('TEC: MOCA').mode, 'escalate');
   const html = form({ vendorTicket: 'ITD: SISUPAC-9211' });
   assert.match(html, /name="mode" value="link"/);
   assert.match(html, /name="linked" value="SISUPAC-9211" checked/);
-  assert.match(linkedText('MOCA'), /no es un ticket/);
+  assert.match(linkedText('MOCA'), /no es una clave/);
   assert.match(linkedText('itd: era-4170'), /se guardará como <b>ERA-4170/);
 });
 
@@ -147,40 +156,41 @@ test('antes de escalar, el borrador del ticket, como el informe de Resolver: lo 
     { issue: issue({ text: 'No lee el túnel RFID' }), dests: DESTINATIONS, check: CHECK, files: [{ name: 'logs.zip', size: 4096 }] });
   assert.deepEqual([...t.matchAll(/<h5>([^<]+)<\/h5><p>([^<]*)<\/p>/g)].map((m) => [m[1], m[2]]), [
     ['Destino', 'SISUPAC · N3 SISU · Jira de SISUPAC'], ['Prioridad del Jira', 'Muy importante'], ['Título', 'INC000027698079 · No lee el túnel RFID'],
-    ['Motivo del escalado', 'Timeouts'], ['Situación inicial', 'No lee el túnel'], ['Recurrencia', 'Remedy: ninguna'], ['Análisis', ANALYSIS.text], ['Antecedentes', 'Sin KB ni Jira'], ['Lo mínimo', 'Logs'],
+    ['Motivo del escalado', 'Timeouts'], ['Situación inicial', 'No lee el túnel'], ['Recurrencia', 'Ninguna abierta en el centro'], ['Análisis', ANALYSIS.text], ['Antecedentes', 'Sin KB ni Jira'], ['Lo mínimo', 'Logs'],
   ]);
-  assert.match(t, /contenteditable="true"[^>]*aria-label="Borrador del ticket"/);   // se puede retocar, como en Resolver
+  assert.match(t, /contenteditable="true"[^>]*aria-label="Borrador del escalado"/);   // se puede retocar, como en Resolver
   assert.match(t, /<div class="rv-rep-att"><i><svg[^]*?<\/svg><\/i><div><b>logs\.zip<\/b><small>Adjunto · 4 KB<\/small>/);
   const mail = ticketHtml({ mode: 'escalate', dest: 'operaciones', reason: 'x', sent: 'Correo de las 10:12' }, { issue: issue(), dests: DESTINATIONS, check: CHECK });
-  assert.match(mail, /<h5>Destino<\/h5><p>Operaciones\/Implantaciones · N2 · sin ticket<\/p>/);
+  assert.match(mail, /<h5>Destino<\/h5><p>Operaciones\/Implantaciones · N2 · sin herramienta<\/p>/);
   assert.match(mail, /<h5>Evidencia<\/h5><p>Correo de las 10:12<\/p>/);
   assert.doesNotMatch(mail, /Prioridad del Jira|Lo mínimo|rv-rep-att/);
-  assert.match(form(), /<b>Borrador del ticket<\/b><\/div>/);   // sin «revísalo» ni «retócalo»: el título basta
+  assert.match(form(), /<b>Borrador del escalado<\/b><\/div>/);   // sin «revísalo» ni «retócalo»: el título basta
   assert.doesNotMatch(t, /Puedes retocar/);
   // el análisis no se repite si el motivo ya es la nota de análisis
   const same = ticketHtml({ mode: 'escalate', dest: 'sisupac', reason: ANALYSIS.text }, { issue: issue(), dests: DESTINATIONS, check: CHECK });
   assert.doesNotMatch(same, /<h5>Análisis<\/h5>/);
-  assert.match(form(), /data-esc-preview hidden>Ver el ticket</);
+  assert.match(form(), /data-esc-preview hidden>Ver el escalado</);
+  assert.match(form(), /data-confirm-send hidden>Crear escalado</);   // como «Actualizar escalado» en el otro flujo
 });
 
 test('resuelta: se escala por la causa raíz y sigue Resuelta (TC-05)', () => {
   const html = form({ status: 'RESOLVED' });
   assert.match(html, /<h3>Escalar por la causa raíz<\/h3>/);
   assert.doesNotMatch(closePhases({ mode: 'escalate' }, true), /Pendiente/);
-  assert.deepEqual([...closePhases({ mode: 'escalate' }, false).matchAll(/<\/i>([^<]+)/g)].map((m) => m[1]), ['Registrando el escalado', 'Avisando al centro', 'Pasando a Pendiente (proveedor)']);
-  assert.deepEqual([...closePhases({ mode: 'link' }, false).matchAll(/<\/i>([^<]+)/g)].map((m) => m[1]), ['Comentando en Jira', 'Registrando en Remedy', 'Pasando a Pendiente (proveedor)']);
+  assert.deepEqual([...closePhases({ mode: 'escalate' }, false).matchAll(/<\/i>([^<]+)/g)].map((m) => m[1]), ['Creando el escalado', 'Registrando en Remedy', 'Avisando al centro', 'Pasando a Pendiente (proveedor)']);
+  assert.deepEqual([...closePhases({ mode: 'link' }, false).matchAll(/<\/i>([^<]+)/g)].map((m) => m[1]), ['Comentando en el escalado', 'Registrando en Remedy', 'Pasando a Pendiente (proveedor)']);
 });
 
 test('al acabar: lo hecho y el ticket para copiarlo; el de un escalado, de ejemplo hasta conectar Jira', () => {
   const sample = doneHtml({ ticket: 'SISUPAC-0000', sample: true }, 'SISUPAC · N3 SISU', 'escalate', false);
-  assert.match(sample, /<h4>Escalada a SISUPAC · N3 SISU<\/h4>/);
-  assert.match(sample, /<span>Ticket generado<\/span><code>SISUPAC-0000<\/code><button type="button" class="lab-btn" data-copy="SISUPAC-0000">Copiar<\/button>/);
+  assert.match(sample, /<h4>Nuevo escalado a SISUPAC · N3 SISU<\/h4>/);
+  assert.match(sample, /<span>Escalado<\/span><code>SISUPAC-0000<\/code><button type="button" class="lab-btn" data-copy="SISUPAC-0000">Copiar<\/button>/);
   assert.match(sample, /De ejemplo hasta conectar Jira/);
   const linked = doneHtml({ ticket: 'SISUPAC-9211', sample: false }, 'SISUPAC-9211', 'link', false);
-  assert.match(linked, /<h4>Unida a SISUPAC-9211<\/h4>/);
-  assert.match(linked, /<span>Ticket<\/span>/);
+  assert.match(linked, /<h4>Escalado actualizado<\/h4>/);
+  assert.match(linked, /<span>Escalado<\/span><code>SISUPAC-9211/);
   assert.doesNotMatch(linked, /De ejemplo/);
-  assert.doesNotMatch(doneHtml(null, 'Operaciones', 'escalate', false), /Ticket/);   // por correo: sin ticket
+  assert.doesNotMatch(doneHtml(null, 'Operaciones', 'escalate', false), /iss-esc-ticket/);   // por correo: sin clave que copiar
   assert.match(doneHtml(null, 'X', 'escalate', true), /Sigue Resuelta/);
   assert.match(form(), /data-esc-close hidden>Cerrar</);
 });
