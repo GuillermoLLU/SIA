@@ -59,7 +59,7 @@ export const checkedMins = (v) => String(v.mins ?? '').split(',').filter(Boolean
 // mismo centro; en SISU, del mismo módulo; y con el resumen parecido. No es la nota [RECURRENCIA], que
 // es la de Remedy. Hasta tener la búsqueda en Jira, sobre los escalados abiertos de prueba, y el
 // resumen no se compara. → [{ …escalado, why: [por qué ha salido] }]
-export const moduleOf = (issue) => String(issue.category ?? '').split('›').pop().trim();
+const moduleOf = (issue) => String(issue.category ?? '').split('›').pop().trim();
 export const findEscalations = (issue, open) => open
   .filter((o) => (issue.sisu ? o.module === moduleOf(issue) : o.center === issue.center))
   .map((o) => ({ ...o, why: [issue.sisu ? 'Mismo módulo' : 'Mismo centro', 'Resumen parecido'] }));
