@@ -173,7 +173,7 @@ export const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
 export const MISSING = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg>';
 const ALERT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>';
 // La Resolución no es un punto previo: se escribe en el asistente, así que aquí no sale.
-export const notePoint = (n) => `<li class="${n.note ? 'ok' : 'no'}"><i>${n.note ? CHECK : MISSING}</i><span>${n.label}</span><small>${n.note ? `${short(n.note.at)} · ${esc(n.note.who)}` : 'Falta'}</small></li>`;
+const notePoint = (n) => `<li class="${n.note ? 'ok' : 'no'}"><i>${n.note ? CHECK : MISSING}</i><span>${n.label}</span><small>${n.note ? `${short(n.note.at)} · ${esc(n.note.who)}` : 'Falta'}</small></li>`;
 // Escalar enseña el mismo aviso con su título y su botón (`chat`: el atributo que lo distingue).
 export const resolveBlocked = (issueId, r, { title = 'Aún no se puede resolver', chat = 'data-resolve-chat' } = {}) => `<div class="rb" role="alertdialog" aria-labelledby="rb-title">
     <div class="rb-head">
