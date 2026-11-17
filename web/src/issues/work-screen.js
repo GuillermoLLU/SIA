@@ -65,7 +65,7 @@ const HANDOFF_PATHS = '<path d="M17 3l4 4-4 4"/><path d="M3 7h18"/><path d="M7 2
 const MORE_ITEM = {
   call: { label: ACTIONS.call.label, hint: 'Registrar una llamada con el centro', icon: PHONE },
   contact: { label: ACTIONS.contact.label, hint: 'Escribirle tus dudas como nota pública', icon: icon('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>') },
-  warroom: { label: ACTIONS.warroom.label, hint: 'Si la issue es bloqueante', icon: icon('<path d="M7 18v-6a5 5 0 1 1 10 0v6"/><path d="M5 21a1 1 0 0 1-1-1v-1a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v1a1 1 0 0 1-1 1z"/><path d="M21 12h1"/><path d="M18.5 4.5 18 5"/><path d="M2 12h1"/><path d="M12 2v1"/><path d="m4.929 4.929.707.707"/><path d="M12 12v6"/>') },
+  warroom: { label: ACTIONS.warroom.label, hint: 'Si la crítica es bloqueante', icon: icon('<path d="M7 18v-6a5 5 0 1 1 10 0v6"/><path d="M5 21a1 1 0 0 1-1-1v-1a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v1a1 1 0 0 1-1 1z"/><path d="M21 12h1"/><path d="M18.5 4.5 18 5"/><path d="M2 12h1"/><path d="M12 2v1"/><path d="m4.929 4.929.707.707"/><path d="M12 12v6"/>') },
   transfer: { label: ACTIONS.transfer.label, hint: 'A un compañero o a otro equipo', icon: icon(HANDOFF_PATHS) },
   release: { label: 'Devolver a la cola', hint: 'Que la coja otro compañero', icon: icon('<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>') },
 };

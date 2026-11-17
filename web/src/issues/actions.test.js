@@ -9,8 +9,12 @@ test('las acciones (las notas van en Seguimiento; la llamada, también como nota
 test('actionsFor: pendiente de un tercero, reclamarle; traspasar y devolver, solo si es mía en SIA', () => {
   assert.deepEqual(actionsFor({ status: 'PENDING' }, true), ['chase', 'transfer']);
   assert.deepEqual(actionsFor({ status: 'PENDING' }, false), ['chase'], 'asignada en Remedy pero sin coger en SIA: la base no deja traspasarla');
-  assert.deepEqual(actionsFor({ status: 'IN_PROGRESS' }, true), ['resolve', 'escalate', 'call', 'contact', 'warroom', 'transfer', 'release']);
-  assert.deepEqual(actionsFor({ status: 'ASSIGNED' }, false), ['resolve', 'escalate', 'call', 'contact', 'warroom'], 'hablar con el centro y abrir un WAR-ROOM, aunque no sea mía');
+  assert.deepEqual(actionsFor({ status: 'IN_PROGRESS', priority: 'HIGH' }, true), ['resolve', 'escalate', 'call', 'contact', 'transfer', 'release']);
+  assert.deepEqual(actionsFor({ status: 'ASSIGNED', priority: 'HIGH' }, false), ['resolve', 'escalate', 'call', 'contact'], 'hablar con el centro, aunque no sea mía');
+  assert.deepEqual(actionsFor({ status: 'IN_PROGRESS', priority: 'CRITICAL' }, true), ['resolve', 'escalate', 'call', 'contact', 'warroom', 'transfer', 'release'], 'una crítica: también abrir un WAR-ROOM');
+  assert.deepEqual(actionsFor({ status: 'ASSIGNED', priority: 'CRITICAL' }, false), ['resolve', 'escalate', 'call', 'contact', 'warroom'], 'aunque no sea mía');
+  for (const priority of ['HIGH', 'MEDIUM', 'LOW', '']) assert.ok(!actionsFor({ status: 'IN_PROGRESS', priority }, true).includes('warroom'), `${priority || 'sin criticidad'}: nunca WAR-ROOM`);
+  assert.deepEqual(actionsFor({ status: 'PENDING', priority: 'CRITICAL' }, true), ['chase', 'transfer'], 'pendiente de un tercero, tampoco');
   assert.deepEqual(CENTRE_ACTIONS, ['call', 'contact']);
 });
 

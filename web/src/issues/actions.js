@@ -36,7 +36,7 @@ export const ACTIONS = {
       { name: 'message', label: 'Mensaje al centro', kind: 'text', required: true, rows: 7, hint: 'Queda en Seguimiento como nota pública: la verá el centro.' },
     ],
   },
-  // abrir un WAR-ROOM si la issue es bloqueante: de momento no hace nada, solo lo avisa (issues-view.js)
+  // abrir un WAR-ROOM si una crítica es bloqueante: de momento no hace nada, solo lo avisa (issues-view.js)
   warroom: {
     label: 'Abrir WAR-ROOM',
   },
@@ -78,11 +78,12 @@ export const actionForm = (key, issueId) => {
 export const CENTRE_ACTIONS = ['call', 'contact'];
 
 // Qué se puede hacer con una issue: pendiente de un tercero, reclamarle respuesta; si no, resolverla,
-// escalarla, hablar con el centro o abrir un WAR-ROOM si es bloqueante. Traspasarla o devolverla a la
-// cola, solo si es de uno (cogida en SIA): la base no mueve una issue que no tienes. Traspasar no
-// mira el tope de en curso.
+// escalarla, hablar con el centro y, solo si es crítica, abrir un WAR-ROOM (en una alta o menos no
+// aplica nunca). Traspasarla o devolverla a la cola, solo si es de uno (cogida en SIA): la base no
+// mueve una issue que no tienes. Traspasar no mira el tope de en curso.
 export const actionsFor = (issue, mine) => [
-  ...(issue.status === 'PENDING' ? ['chase'] : ['resolve', 'escalate', ...CENTRE_ACTIONS, 'warroom']),
+  ...(issue.status === 'PENDING' ? ['chase'] : ['resolve', 'escalate', ...CENTRE_ACTIONS]),
+  ...(issue.status !== 'PENDING' && issue.priority === 'CRITICAL' ? ['warroom'] : []),
   ...(mine ? ['transfer'] : []),
   ...(mine && issue.status !== 'PENDING' ? ['release'] : []),
 ];

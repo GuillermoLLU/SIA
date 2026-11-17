@@ -77,18 +77,21 @@ test('la primera línea de una nota, recortada a 90; el arranque de la resoluci�
 });
 
 test('la cabecera de la issue: volver al panel, el título en una línea con su title, y las acciones', () => {
-  const html = workScreen({ issue: issue({ text: 'Cola <llena>' }), sameCenter: [], now, mine: true });
+  const html = workScreen({ issue: issue({ text: 'Cola <llena>', priority: 'CRITICAL' }), sameCenter: [], now, mine: true });
   assert.match(html, /<header class="iss-work-h">\s*<button class="lab-btn primary" data-back>Volver al panel<\/button>\s*<h2 title="Cola &lt;llena&gt;">Cola &lt;llena&gt;<\/h2>/);
   assert.match(html, /<div class="iss-actions"><button class="lab-btn primary" data-act="resolve">Resolver<\/button><button class="lab-btn" data-act="escalate">Escalar<\/button><div class="iss-more">/, 'a la vista, Resolver y Escalar');
   assert.match(html, /data-more aria-expanded="false" aria-controls="iss-more-menu">Otras acciones<svg/);
   const menu = html.match(/<div class="iss-more-menu" id="iss-more-menu" hidden>([\s\S]*?)<\/div><\/div>/)[1];
   assert.deepEqual([...menu.matchAll(/<b>([^<]+)<\/b>/g)].map((m) => m[1]), ['Llamada', 'Contactar con el centro', 'Abrir WAR-ROOM', 'Traspasar', 'Devolver a la cola'], 'el resto, en «Otras acciones»');
-  assert.match(menu, /Escribirle tus dudas como nota pública<\/small><\/button><hr><button type="button" data-act="warroom">[\s\S]*<b>Abrir WAR-ROOM<\/b><small>Si la issue es bloqueante<\/small><\/button><hr><button type="button" data-act="transfer">/, 'hablar con el centro, el WAR-ROOM y soltarla, separados por una línea');
+  assert.match(menu, /Escribirle tus dudas como nota pública<\/small><\/button><hr><button type="button" data-act="warroom">[\s\S]*<b>Abrir WAR-ROOM<\/b><small>Si la crítica es bloqueante<\/small><\/button><hr><button type="button" data-act="transfer">/, 'hablar con el centro, el WAR-ROOM y soltarla, separados por una línea');
   assert.match(menu, /data-release>/);
   assert.doesNotMatch(html, /Mi mesa|iss-state/);
-  const notMine = workScreen({ issue: issue(), sameCenter: [], now, mine: false });
+  const notMine = workScreen({ issue: issue({ priority: 'CRITICAL' }), sameCenter: [], now, mine: false });
   assert.doesNotMatch(notMine, /data-act="transfer"|data-release/, 'sin cogerla en SIA no se traspasa ni se devuelve');
   assert.match(notMine, /data-act="call">[\s\S]*data-act="contact">[\s\S]*<\/button><hr><button type="button" data-act="warroom">[\s\S]*<\/button><\/div><\/div>/, 'sin la línea de soltarla');
+  const high = workScreen({ issue: issue({ priority: 'HIGH' }), sameCenter: [], now, mine: true });
+  assert.doesNotMatch(high, /data-act="warroom"/, 'una alta, sin WAR-ROOM');
+  assert.match(high, /Escribirle tus dudas como nota pública<\/small><\/button><hr><button type="button" data-act="transfer">/, 'y sin su grupo: del centro a soltarla');
 });
 
 test('una issue pendiente de un tercero: en lugar del chat, reclamarle y traspasar, grandes', () => {
