@@ -280,7 +280,7 @@ export const escalateForm = ({ issue, dests, found = [], check, saved = null, li
     <footer>
       <small class="iss-autosave" data-autosave>${saved?.at ? `Borrador guardado ${localShort(saved.at)}` : 'El borrador se guarda solo mientras escribes'}</small>
       <button type="button" class="lab-btn rv-back" data-step-back hidden>Atrás</button>
-      <button type="button" class="lab-btn rv-next" data-step-next>${STEPS[1].title}</button>
+      <button type="button" class="lab-btn primary rv-next" data-step-next>${STEPS[1].title}</button>
       <button type="button" class="lab-btn primary rv-next" data-esc-preview hidden>Ver el escalado</button>
       <button type="submit" class="lab-btn primary rv-next" data-confirm-send hidden>Crear escalado</button>
       <button type="button" class="lab-btn primary rv-next" data-esc-close hidden>Cerrar</button>
