@@ -55,8 +55,8 @@ test('al abrir: arriba el buscador de tickets de Jira y debajo las coincidencias
 test('el detalle de un ticket sugerido, sin salir de SIA: volver al listado, sus datos, lo que dice y quién espera', () => {
   const o = OPEN_TICKETS[0];
   const html = ticketDetailHtml(o, DESTINATIONS);
-  assert.match(html, /^<button type="button" class="lab-btn iss-esc-detail-back" data-detail-back><svg[\s\S]*?<\/svg>Volver al listado<\/button>/);
-  assert.match(html, /<header class="iss-esc-detail-h"><b class="iss-mono">SISUPAC-9211<\/b><h3>Lentitud RFID en packing<\/h3><\/header>/);
+  // una sola fila arriba: volver a la izquierda, el título en el centro y el ticket a la derecha
+  assert.match(html, /^<header class="iss-esc-detail-h">\s*<button type="button" class="lab-btn iss-esc-detail-back" data-detail-back><svg[\s\S]*?<\/svg>Volver al listado<\/button>\s*<h3>Lentitud RFID en packing<\/h3>\s*<b class="iss-mono">SISUPAC-9211<\/b>\s*<\/header>/);
   assert.deepEqual([...html.matchAll(/<dt>([^<]+)<\/dt><dd>(.*?)<\/dd>/g)].map((m) => [m[1], m[2].replace(/<[^>]+>/g, '')]),
     [['Estado', 'En curso'], ['Prioridad', 'Muy importante'], ['Equipo', 'SISUPAC · N3 SISU'], ['Abierto', '27/10 09:12'], ['Último movimiento', '29/10 11:40'], ['Esperando', '5 incidencias']]);
   assert.match(html, /<h4>Último comentario<\/h4><p><small>Equipo SISUPAC · 29\/10 11:40<\/small>Identificado un bloqueo/);

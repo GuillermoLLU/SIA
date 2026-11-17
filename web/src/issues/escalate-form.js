@@ -61,8 +61,12 @@ const foundCard = (o, v, dests) => card('linked', o.ticket, v.linked === o.ticke
 // ni su pie; solo «Volver al listado» arriba (escalate-view.js). De momento, con los datos de prueba
 // (escalate-mock.js).
 const fact = (label, value) => `<div><dt>${label}</dt><dd>${value}</dd></div>`;
-export const ticketDetailHtml = (o, dests) => `<button type="button" class="lab-btn iss-esc-detail-back" data-detail-back>${BACK_ARROW}Volver al listado</button>
-    <header class="iss-esc-detail-h"><b class="iss-mono">${esc(o.ticket)}</b><h3>${esc(o.title)}</h3></header>
+// Arriba, una sola fila: «Volver al listado» a la izquierda, el título centrado y el ticket a la derecha.
+export const ticketDetailHtml = (o, dests) => `<header class="iss-esc-detail-h">
+      <button type="button" class="lab-btn iss-esc-detail-back" data-detail-back>${BACK_ARROW}Volver al listado</button>
+      <h3>${esc(o.title)}</h3>
+      <b class="iss-mono">${esc(o.ticket)}</b>
+    </header>
     <dl class="iss-esc-facts">
       ${fact('Estado', `<span class="iss-esc-state">${esc(o.state || '—')}</span>`)}
       ${fact('Prioridad', esc(o.priority ? priorityLabel(o.priority) : '—'))}

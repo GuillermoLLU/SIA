@@ -647,10 +647,11 @@ a.rv-id:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .iss-esc-detail.leaving { animation: iss-esc-detail-out .25s ease both; }
 @keyframes iss-esc-detail-in { from { opacity: 0; transform: translateX(32px); } }
 @keyframes iss-esc-detail-out { to { opacity: 0; transform: translateX(32px); } }
-.iss-esc-detail-back { align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; }
+.iss-esc-detail > .iss-esc-detail-h { display: grid; grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr); align-items: center; gap: 24px; }   /* .iss-act-form header la pondría en flex */
+.iss-esc-detail-back { justify-self: start; display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; }
 .iss-esc-detail-back svg { width: 15px; height: 15px; }
-.iss-esc-detail-h b { font-size: 14px; }
-.iss-esc-detail-h h3 { margin: 6px 0 0; font-size: 22px; font-weight: 650; line-height: 1.3; }
+.iss-esc-detail-h h3 { margin: 0; font-size: 20px; font-weight: 650; line-height: 1.3; text-align: center; }
+.iss-esc-detail-h b { justify-self: end; font-size: 14px; }
 .iss-esc-facts { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin: 0; }
 .iss-esc-facts div { padding: 12px 14px; background: color-mix(in srgb, var(--text) 4%, var(--surface)); }
 .iss-esc-facts dt { font-size: 11.5px; color: var(--text-low); }
