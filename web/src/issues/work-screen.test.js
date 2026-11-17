@@ -83,7 +83,7 @@ test('la cabecera de la issue: volver al panel, el título en una línea con su 
   assert.match(html, /data-more aria-expanded="false" aria-controls="iss-more-menu">Otras acciones<svg/);
   const menu = html.match(/<div class="iss-more-menu" id="iss-more-menu" hidden>([\s\S]*?)<\/div><\/div>/)[1];
   assert.deepEqual([...menu.matchAll(/<b>([^<]+)<\/b>/g)].map((m) => m[1]), ['Llamada', 'Contactar con el centro', 'Abrir WAR-ROOM', 'Traspasar', 'Devolver a la cola'], 'el resto, en «Otras acciones»');
-  assert.match(menu, /Escribirle tus dudas como nota pública<\/small><\/button><hr><button type="button" data-act="warroom">[\s\S]*<b>Abrir WAR-ROOM<\/b><small>Si la crítica es bloqueante<\/small><\/button><hr><button type="button" data-act="transfer">/, 'hablar con el centro, el WAR-ROOM y soltarla, separados por una línea');
+  assert.match(menu, /Escribirle tus dudas como nota pública<\/small><\/button><hr><button type="button" data-act="warroom">[\s\S]*<b>Abrir WAR-ROOM<\/b><\/button><hr><button type="button" data-act="transfer">/, 'hablar con el centro, el WAR-ROOM y soltarla, separados por una línea');
   assert.match(menu, /data-release>/);
   assert.doesNotMatch(html, /Mi mesa|iss-state/);
   const notMine = workScreen({ issue: issue({ priority: 'CRITICAL' }), sameCenter: [], now, mine: false });
