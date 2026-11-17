@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { escalateForm, requirementsHtml, summaryHtml, filesHtml, ticketHtml, doneHtml, closePhases, linkedText, startValues, withoutLevel, searchingHtml, searchPhases, ticketDetailHtml } from './escalate-form.js';
+import { escalateForm, requirementsHtml, summaryHtml, filesHtml, ticketHtml, doneHtml, closePhases, linkedText, startValues, withoutLevel, searchingHtml, ticketDetailHtml } from './escalate-form.js';
 import { findEscalations } from './escalate.js';
 import { resolveBlocked } from './resolve-form.js';
 import { DESTINATIONS, OPEN_TICKETS } from './escalate-mock.js';
@@ -35,9 +35,8 @@ test('al abrir por el paso 1, la búsqueda de escalados del mismo problema va de
   const html = searchingHtml();
   assert.match(html, /^<div class="iss-esc-searching"><div class="ld" data-loader>/);   // el cargador común (ui/loader.js)
   assert.doesNotMatch(html, /rb-list|rb-icon|lab-btn/, 'sin los puntos ya cumplidos ni botones: se busca sola');
-  // con los criterios del equipo: SGA por centro, SISU por módulo
-  assert.deepEqual([...searchPhases({ center: '100497' }).matchAll(/<\/i>([^<]+)/g)].map((m) => m[1]), ['Mismo centro · 100497', 'Resumen parecido']);
-  assert.match(searchPhases({ sisu: true }), /<\/i>Mismo módulo</);
+  assert.match(html, /<h4 class="ld-title" data-loader-title>Buscando escalados del mismo problema<\/h4>/);
+  assert.match(html, /<ol class="ld-phases" data-phases><\/ol>/, 'solo el título y el giro, sin fases: es un proceso interno');
 });
 
 test('al abrir: arriba el buscador de tickets de Jira y debajo las coincidencias, con por qué ha salido cada una', () => {

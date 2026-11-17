@@ -47,10 +47,9 @@ export const startValues = ({ issue, open, check, saved }) => {
 
 // Al abrir por el paso 1, con las notas del método completas: el modal ya abierto y, en su cuerpo,
 // antes que nada, la búsqueda de escalados del mismo problema (de momento, de prueba) con el cargador
-// común y sus fases. Al acabar entran los pasos (escalate-view.js).
-export const searchingHtml = () => `<div class="iss-esc-searching">${loaderHtml({ title: '' })}</div>`;
-// Lo que se busca, con los criterios del equipo: en SGA, el mismo centro; en SISU, el mismo módulo.
-export const searchPhases = (issue) => phasesHtml([issue.sisu ? 'Mismo módulo' : `Mismo centro · ${issue.center || '—'}`, 'Resumen parecido']);
+// común: solo su título y el giro, sin fases (es un proceso interno; los criterios, findEscalations).
+// Al acabar entran los pasos (escalate-view.js).
+export const searchingHtml = () => `<div class="iss-esc-searching">${loaderHtml({ title: 'Buscando escalados del mismo problema' })}</div>`;
 
 // Paso 1: una coincidencia (findEscalations): el escalado, por qué ha salido y abrirlo para comparar.
 const foundCard = (o, v, dests) => card('linked', o.ticket, v.linked === o.ticket,

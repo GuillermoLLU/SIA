@@ -5,7 +5,7 @@
 import { onEscape } from '../ui/dialog.js';
 import { esc } from '../ui/html.js';
 import { BACK_ARROW, NEXT_ARROW, slideStep, lockSteps, flashEmpty, fadeOut as fade, runPhases } from '../ui/wizard.js';
-import { escalateForm, requirementsHtml, linkedText, summaryHtml, filesHtml, ticketHtml, doneHtml, closePhases, searchingHtml, searchPhases, ticketDetailHtml } from './escalate-form.js';
+import { escalateForm, requirementsHtml, linkedText, summaryHtml, filesHtml, ticketHtml, doneHtml, closePhases, searchingHtml, ticketDetailHtml } from './escalate-form.js';
 import { resolveBlocked, noteMeter, localShort } from './resolve-form.js';
 import { stepMissing, stepWarning, resumeStep, resultTicket, targetOf, titleOf, nextOf, prevOf, findEscalations, LAST, FEED, FLOWS } from './escalate.js';
 import { syncEditor, setEditorText, toText, insertChip, removeChips } from './tag-editor.js';
@@ -418,6 +418,7 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
   // Empezar por el paso 1: el modal ya está abierto y en su cuerpo, antes que nada, se buscan los
   // escalados del mismo problema (searchingHtml); mientras, la barra de pasos, el paso y los botones
   // no se ven (.searching). Al acabar, el cargador se difumina y entran (.arriving).
+  const SEARCH_MS = 1800;  // lo que dura la búsqueda (de momento, un simulacro)
   const ARRIVE_MS = 450;   // lo que tardan en entrar (issues.css)
   const searchFirst = async (f, id) => {
     f.classList.add('searching');
@@ -425,7 +426,8 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
     f.querySelector('.rv-body').insertAdjacentHTML('afterbegin', searchingHtml());
     const box = f.querySelector('.iss-esc-searching');
     const loader = box.querySelector('[data-loader]');
-    await runPhases(loader, 'Buscando escalados del mismo problema', searchPhases(issue), { alive: () => opened === id && f.isConnected, track });
+    await new Promise((done) => track(setTimeout(done, SEARCH_MS)));   // al cerrar se para (close: timer)
+    if (opened !== id || !f.isConnected) return;
     await fadeOut(loader);
     if (!f.isConnected) return;
     box.remove();
