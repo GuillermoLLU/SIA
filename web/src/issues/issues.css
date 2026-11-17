@@ -194,7 +194,7 @@
 /* un escalado del equipo: la fila y, debajo, sus acciones, discretas hasta pasar por encima */
 .iss-esc-row { border-bottom: 1px solid var(--border); }
 .iss-esc-row:last-child { border-bottom: 0; }
-.iss-esc-row .iss-item { border-bottom: 0; }
+.iss-esc-row .iss-item { width: 100%; border-bottom: 0; }   /* todo el ancho, como en «Mías»: los días, a la derecha */
 .iss-esc-acts { display: flex; gap: 14px; padding: 0 8px 10px; font-size: 12px; }
 .iss-esc-acts a, .iss-esc-acts button { padding: 0; border: 0; background: none; font: inherit; color: var(--text-low); text-decoration: none; cursor: pointer; }
 .iss-esc-row:hover .iss-esc-acts a, .iss-esc-row:hover .iss-esc-acts button { color: var(--text); }
