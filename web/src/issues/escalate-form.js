@@ -10,7 +10,7 @@
 import { esc } from '../ui/html.js';
 import { when } from './format.js';
 import { ticketCheck, JIRA_PRIORITIES, jiraPriority, opensTicket, destOf, minimumsOf, checkedMins, priorityLabel, feedComment, STEPS, LAST, FEED, FLOWS } from './escalate.js';
-import { doneMark, noteMeter, localShort, short, issueRef, CHECK, MISSING } from './resolve-form.js';
+import { doneMark, noteMeter, localShort, issueRef, notePoint, CHECK, MISSING } from './resolve-form.js';
 import { noteQuality } from './quality.js';
 import { toHtml, imageTag } from './tag-editor.js';
 
@@ -42,6 +42,28 @@ export const startValues = ({ issue, open, check, saved }) => {
   return { mode: fromPhoto ? 'link' : 'escalate', jiraPriority: jiraPriority(issue.priority), reason: check.analysis?.text ?? '', comment: feedComment(issue, check),
     ...(fromPhoto ? (listed ? { linked: fromPhoto } : { linked: 'other', linkedOther: fromPhoto }) : {}) };
 };
+
+// Antes de abrir el asistente, con las notas del método completas: lo que ya cumple y, debajo, la
+// búsqueda de recurrencias en Jira (de momento, de prueba), con las fases del cierre. Al acabar se
+// abre el paso 1 con lo encontrado. El mismo aspecto que el aviso de lo que falta (resolveBlocked).
+export const searchHtml = (issueId, check) => `<div class="rb rb-search" role="alertdialog" aria-labelledby="rb-title" aria-busy="true">
+    <div class="rb-head">
+      <span class="rb-icon ok">${CHECK}</span>
+      <div>
+        <h3 id="rb-title">Escalar incidencia</h3>
+        <p><b>${esc(issueId)}</b></p>
+      </div>
+    </div>
+    <ul class="rb-list">${check.notes.map(notePoint).join('')}</ul>
+    <div class="rv-loader" data-loader>
+      <h4 class="rv-loader-title" data-loader-title></h4>
+      <i class="rv-spin"></i>
+      <ol class="rv-phases" data-phases></ol>
+    </div>
+  </div>`;
+// Lo que se busca, con los criterios del equipo: en SGA, el mismo centro; en SISU, el mismo módulo.
+export const searchPhases = (issue) => [issue.sisu ? 'Mismo módulo' : `Mismo centro · ${issue.center || '—'}`, 'Resumen parecido']
+  .map((t) => `<li><i></i>${esc(t)}</li>`).join('');
 
 // Paso 1: los tickets que encontró la recurrencia en Jira, con lo que se sabe de cada uno (el
 // catálogo de abiertos, de prueba). → [{ ticket, dest?, title?, issues?, since? }]
@@ -117,9 +139,8 @@ export const summaryHtml = (v, { issue, dests, check, files = [] }) => {
     mins.length && `Lo mínimo: ${mins.filter((m) => checked.includes(m.key)).length} de ${mins.length} confirmado`,
     !opensTicket(dest) && v.sent,
   ].filter(Boolean).join(' · ');
-  const method = check.notes.filter((x) => x.key !== 'jira');
   return [
-    { title: 'Notas del método', text: method.map((x) => x.label).join(' · '), q: { level: 'ok', label: 'Completas' } },   // ya comprobadas al entrar
+    { title: 'Notas del método', text: check.notes.map((x) => x.label).join(' · '), q: { level: 'ok', label: 'Completas' } },   // ya comprobadas al entrar
     { n: 2, title: 'A quién', text: dest?.name || v.destOther },
     { n: 3, title: 'Motivo', text: v.reason, q: noteQuality(v.reason), files: files.length },
     { n: 4, title: 'Requisitos', text: reqs || 'No pide nada más' },
@@ -180,7 +201,6 @@ export const escalateForm = ({ issue, dests, open, check, saved = null, link = n
   const v = startValues({ issue, open: found, check, saved });
   const rootCause = issue.status === 'RESOLVED';
   const analysis = check.analysis;
-  const jira = check.notes.find((n) => n.key === 'jira')?.note;
   return `<form class="iss-act-form rv iss-esc" data-act-form="escalate" data-step="1" novalidate>
     <header class="rv-head"><h3>${rootCause ? 'Escalar por la causa raíz' : 'Escalar incidencia'}</h3>${issueRef(issue.id, link)}</header>
     ${stepper(v.mode)}
@@ -188,7 +208,7 @@ export const escalateForm = ({ issue, dests, open, check, saved = null, link = n
     <input type="hidden" name="mode" value="${v.mode === 'link' ? 'link' : 'escalate'}" />
     <div class="rv-body">
       <section class="rv-step rv-step-one" data-rstep="1">
-        <div class="rv-cap"><b>¿Lo unes a un ticket abierto?</b>${jira ? `<small class="iss-esc-from">Jira · ${esc(short(jira.at))} · ${esc(jira.who)}</small>` : ''}</div>
+        <div class="rv-cap"><b>¿Lo unes a un ticket abierto?</b></div>
         <div class="rv-text">
           <fieldset class="iss-esc-open">
             ${found.length ? found.map((o) => foundCard(o, v, dests)).join('') : '<p class="iss-esc-none">Sin tickets abiertos en Jira</p>'}

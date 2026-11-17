@@ -112,13 +112,13 @@ export const stepMissing = (n, v, { dests, issue }) => {
 
 // Lo que se le puede pasar al técnico al salir del paso n (o al unir, en el 1): se puede seguir,
 // pero avisando, como la nota breve de Resolver. → { title, text, ok } | null
-// recurrence: la nota [RECURRENCIA] de Remedy, con los tickets de Jira que encontró (la comprobación del bridge).
+// recurrence: los tickets que encontró la búsqueda en Jira al abrir (la comprobación del bridge).
 export const priorityLabel = (id) => JIRA_PRIORITIES.find((p) => p.id === id)?.label || id;
 export const stepWarning = (n, v, { dests, issue, recurrence }) => {
   if (n === 1 && v.mode === 'link') {
     const ticket = ticketCheck(linkedRaw(v)).value;
     return recurrence?.tickets?.includes(ticket) ? null : { title: 'Fuera de la recurrencia', ok: 'Unir igualmente',
-      text: `${ticket} no aparece en la recurrencia en Jira. ¿Es el mismo problema?` };
+      text: `${ticket} no salió en la búsqueda en Jira. ¿Es el mismo problema?` };
   }
   if (n === 3 && noteQuality(v.reason).level === 'low') {
     return { title: 'Motivo muy breve', ok: 'Continuar', text: 'El destino puede devolverla.' };

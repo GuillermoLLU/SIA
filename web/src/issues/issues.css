@@ -404,7 +404,7 @@ a.rv-id:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .rv-extras li small { color: var(--text-low); font-variant-numeric: tabular-nums; }
 .rv-extras li .rv-img-x { position: static; opacity: 1; width: 20px; height: 20px; font-size: 13px; }
 /* lo que se va (las opciones, el proceso) se difumina antes de desaparecer */
-.rv-gen.leaving, .rv-loader.leaving, .rv-review.leaving, .rv-cap.leaving, .rv-warn.leaving { opacity: 0; filter: blur(6px); transition: opacity .3s ease, filter .3s ease; }
+.rv-gen.leaving, .rv-loader.leaving, .rb.leaving, .rv-review.leaving, .rv-cap.leaving, .rv-warn.leaving { opacity: 0; filter: blur(6px); transition: opacity .3s ease, filter .3s ease; }
 /* Redactando: el giro y las fases, que se van marcando */
 .rv-loader { margin: auto; display: flex; flex-direction: column; align-items: center; gap: 28px; animation: rv-fade-in .45s ease both; }
 .rv-loader-title { margin: 0 0 -8px; font-size: 18px; font-weight: 650; }
@@ -554,6 +554,12 @@ a.rv-id:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .rb-list .no small { font-weight: 600; color: var(--iss-high); }
 .rb-foot { display: flex; justify-content: center; }
 .rb-foot .lab-btn { height: 48px; padding: 0 32px; font-size: 14px; }
+/* Escalar con todo lo que pide: lo que cumple y, debajo, la búsqueda de recurrencias en Jira */
+.rb-icon.ok { color: var(--iss-ok); background: color-mix(in srgb, var(--iss-ok) 14%, transparent); }
+.rb-search .rv-loader { margin: 4px 0 0; gap: 20px; }
+.rb-search .rv-loader-title { font-size: 16px; }
+.rb-search .rv-spin { width: 40px; height: 40px; border-width: 3px; }
+.rb-search .rv-phases { font-size: 14px; gap: 10px; }
 @media (prefers-reduced-motion: reduce) { .rb { animation: none; } }
 .iss-mono, .iss-esc code { font-family: var(--font-mono); font-size: 12.5px; }
 .iss-esc [hidden] { display: none !important; }

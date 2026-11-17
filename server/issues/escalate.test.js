@@ -12,22 +12,21 @@ const BASE = [
 const issue = (o) => ({ status: 'IN_PROGRESS', priority: 'MEDIUM', worklog: BASE, ...o });
 const FULL = cleanEscalate({ mode: 'escalate', dest: 'sisupac', reason: 'Timeouts' });
 
-test('las notas que pide: las del método hasta el análisis y la recurrencia en Jira; el diagnóstico no', () => {
+test('las notas que pide: las del método hasta el análisis; el diagnóstico no', () => {
   const r = escalateCheck(issue());
-  assert.deepEqual(r.notes.map((x) => [x.key, Boolean(x.note)]), [['initial', true], ['recurrence', true], ['background', true], ['analysis', true], ['jira', true]]);
+  assert.deepEqual(r.notes.map((x) => [x.key, Boolean(x.note)]), [['initial', true], ['recurrence', true], ['background', true], ['analysis', true]]);
   assert.deepEqual(r.missing, []);
   assert.deepEqual(r.analysis, { at: '2026-10-28 10:30', who: 'ANA', text: 'Timeouts de 8 a 12 s en el túnel RFID' });
   assert.deepEqual(r.recurrence.tickets, ['SISUPAC-9211', 'ERA-4170']);   // los que se proponen para unir
-  assert.equal(r.notes.at(-1).note.text, 'SISUPAC-9211 y ERA-4170, mismo síntoma.');
   assert.deepEqual(escalateCheck(issue({ worklog: BASE.filter((x) => !x.text.includes('ANÁLISIS')) })).missing, ['Análisis']);
   assert.equal(escalateCheck(issue({ worklog: [] })).recurrence, null);
 });
 
-test('sin el apartado de Jira en la recurrencia no se escala; «ninguno» vale', () => {
+test('la recurrencia en Jira no se pide: la busca SIA al abrir', () => {
   const only = (t) => issue({ worklog: [...BASE, n('2026-10-28 10:40', `[RECURRENCIA] ${t}`)] });
-  assert.deepEqual(escalateCheck(only('Remedy: INC000027700001')).missing, ['Recurrencia en Jira']);
-  assert.deepEqual(escalateCheck(only('Remedy: ninguna\nJira: ninguno abierto')).missing, []);
-  assert.deepEqual(escalateCheck(issue({ worklog: [] })).missing, ['Situación inicial', 'Recurrencia', 'Antecedentes', 'Análisis', 'Recurrencia en Jira']);
+  assert.deepEqual(escalateCheck(only('Remedy: INC000027700001')).missing, []);
+  assert.deepEqual(escalateCheck(only('Remedy: INC000027700001')).recurrence.tickets, []);
+  assert.deepEqual(escalateCheck(issue({ worklog: [] })).missing, ['Situación inicial', 'Recurrencia', 'Antecedentes', 'Análisis']);
 });
 
 test('la recurrencia: un apartado por herramienta, aunque siga en otra línea', () => {
@@ -50,7 +49,7 @@ test('el borrador: solo texto y un modo y un paso conocidos', () => {
 
 test('confirmar: sin las notas no se escala ni se une; y lo que no puede faltar', () => {
   assert.equal(checkEscalate(issue(), FULL), FULL);
-  assert.throws(() => checkEscalate(issue({ worklog: [] }), FULL), { status: 409, message: /Situación inicial, Recurrencia, Antecedentes, Análisis, Recurrencia en Jira/ });
+  assert.throws(() => checkEscalate(issue({ worklog: [] }), FULL), { status: 409, message: /Situación inicial, Recurrencia, Antecedentes, Análisis\./ });
   assert.throws(() => checkEscalate(issue({ worklog: [] }), cleanEscalate({ mode: 'link', linked: 'SISUPAC-9211', comment: 'x' })), { status: 409 });
   assert.ok(checkEscalate(issue(), cleanEscalate({ mode: 'link', linked: 'other', linkedOther: 'ERA-4170', comment: 'Nueva incidencia' })));
   assert.throws(() => checkEscalate(issue(), cleanEscalate({ mode: 'link', linked: 'ERA-4170' })), /el comentario/);

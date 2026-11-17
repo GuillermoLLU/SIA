@@ -175,12 +175,9 @@ export const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
 export const MISSING = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg>';
 const ALERT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>';
 // La Resolución no es un punto previo: se escribe en el asistente, así que aquí no sale.
-const point = (n) => `<li class="${n.note ? 'ok' : 'no'}"><i>${n.note ? CHECK : MISSING}</i><span>${n.label}</span><small>${n.note ? `${short(n.note.at)} · ${esc(n.note.who)}` : 'Falta'}</small></li>`;
+export const notePoint = (n) => `<li class="${n.note ? 'ok' : 'no'}"><i>${n.note ? CHECK : MISSING}</i><span>${n.label}</span><small>${n.note ? `${short(n.note.at)} · ${esc(n.note.who)}` : 'Falta'}</small></li>`;
 // Escalar enseña el mismo aviso con su título y su botón (`chat`: el atributo que lo distingue).
-const JIRA_NOTE = 'Recurrencia en Jira';   // la que pide el bridge al escalar (escalate.js)
-// jira: al escalar, el botón que busca la recurrencia en Jira con la IA, si es lo que falta; el de
-// completar las notas sale solo si falta alguna.
-export const resolveBlocked = (issueId, r, { title = 'Aún no se puede resolver', chat = 'data-resolve-chat', jira = null } = {}) => `<div class="rb" role="alertdialog" aria-labelledby="rb-title">
+export const resolveBlocked = (issueId, r, { title = 'Aún no se puede resolver', chat = 'data-resolve-chat' } = {}) => `<div class="rb" role="alertdialog" aria-labelledby="rb-title">
     <div class="rb-head">
       <span class="rb-icon">${ALERT}</span>
       <div>
@@ -188,10 +185,9 @@ export const resolveBlocked = (issueId, r, { title = 'Aún no se puede resolver'
         <p><b>${esc(issueId)}</b></p>
       </div>
     </div>
-    <ul class="rb-list">${r.notes.filter((n) => n.key !== 'resolution').map(point).join('')}${r.missing.includes('Categoría') ? `<li class="no"><i>${MISSING}</i><span>Categoría de la issue</span><small>Falta</small></li>` : ''}</ul>
+    <ul class="rb-list">${r.notes.filter((n) => n.key !== 'resolution').map(notePoint).join('')}${r.missing.includes('Categoría') ? `<li class="no"><i>${MISSING}</i><span>Categoría de la issue</span><small>Falta</small></li>` : ''}</ul>
     <footer class="rb-foot">
-      ${!jira || r.missing.some((m) => m !== JIRA_NOTE) ? `<button type="button" class="lab-btn primary" ${chat}>Completar con ayuda de la IA</button>` : ''}
-      ${jira && r.missing.includes(JIRA_NOTE) ? `<button type="button" class="lab-btn primary" ${jira}>Buscar en Jira con la IA</button>` : ''}
+      <button type="button" class="lab-btn primary" ${chat}>Completar con ayuda de la IA</button>
     </footer>
   </div>`;
 

@@ -96,7 +96,7 @@ test('avisos que se pueden pasar por alto: se sigue, pero avisando, como en Reso
   const warn = (n, v, o = {}) => stepWarning(n, { mode: 'escalate', ...v }, { ...CTX, recurrence: { tickets: ['SISUPAC-9211'] }, ...o });
   // unir: la recurrencia en Jira tiene que haberlo encontrado (da igual mayúsculas o prefijos)
   assert.equal(warn(1, { mode: 'link', linked: 'other', linkedOther: 'itd: sisupac-9211' }), null);
-  assert.match(warn(1, { mode: 'link', linked: 'other', linkedOther: 'ITD: ERA-4170' }).text, /^ERA-4170 no aparece en la recurrencia/);
+  assert.match(warn(1, { mode: 'link', linked: 'other', linkedOther: 'ITD: ERA-4170' }).text, /^ERA-4170 no salió en la búsqueda en Jira/);
   assert.equal(warn(1, { mode: 'link', linked: 'SISUPAC-9211' }, { recurrence: null }).ok, 'Unir igualmente');
   assert.equal(warn(1, {}), null);   // seguir sin ticket no avisa
   // el motivo, muy breve

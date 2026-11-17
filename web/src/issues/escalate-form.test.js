@@ -1,14 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { escalateForm, requirementsHtml, summaryHtml, filesHtml, ticketHtml, doneHtml, closePhases, linkedText, startValues, withoutLevel, foundTickets } from './escalate-form.js';
+import { escalateForm, requirementsHtml, summaryHtml, filesHtml, ticketHtml, doneHtml, closePhases, linkedText, startValues, withoutLevel, foundTickets, searchHtml, searchPhases } from './escalate-form.js';
 import { resolveBlocked } from './resolve-form.js';
 import { DESTINATIONS, OPEN_TICKETS } from './escalate-mock.js';
 
 const issue = (o = {}) => ({ id: 'INC000027698079', priority: 'MEDIUM', status: 'IN_PROGRESS', vendorTicket: '', center: '100497', ...o });
 const note = (text) => ({ at: '2026-10-28 10:30', who: 'ANA', text });
 const ANALYSIS = note('Timeouts de 8 a 12 s en el túnel RFID');
-const NOTES = [['initial', 'Situación inicial', 'No lee el túnel'], ['recurrence', 'Recurrencia', 'Remedy: ninguna'], ['background', 'Antecedentes', 'Sin KB ni Jira'], ['analysis', 'Análisis', ANALYSIS.text],
-  ['jira', 'Recurrencia en Jira', 'SISUPAC-9211 y ERA-4170']].map(([key, label, t]) => ({ key, label, note: note(t) }));
+const NOTES = [['initial', 'Situación inicial', 'No lee el túnel'], ['recurrence', 'Recurrencia', 'Remedy: ninguna'], ['background', 'Antecedentes', 'Sin KB ni Jira'], ['analysis', 'Análisis', ANALYSIS.text]].map(([key, label, t]) => ({ key, label, note: note(t) }));
 const CHECK = { notes: NOTES, missing: [], analysis: ANALYSIS, background: NOTES[2].note, recurrence: { remedy: 'ninguna', jira: 'SISUPAC-9211 y ERA-4170', tickets: ['SISUPAC-9211', 'ERA-4170'] } };
 const form = (o = {}, saved = null, check = CHECK) => escalateForm({ issue: issue(o), dests: DESTINATIONS, open: OPEN_TICKETS, check, saved });
 const reqs = (v, o) => requirementsHtml({ mode: 'escalate', ...v }, { issue: issue(o), dests: DESTINATIONS });
@@ -26,9 +25,21 @@ test('el asistente: el aspecto de Resolver, los pasos de cada flujo y sin texto 
   assert.doesNotMatch(html, /data-pick|<select|Cómo se envía|Por SIGLO ·|Para que llegue bien|\(recomendado\)|Aún no se envía/);
 });
 
-test('paso 1: elegir el flujo, con los tickets que encontró la recurrencia en Jira; sin antecedentes ni búsqueda', () => {
+test('antes del asistente, lo que ya cumple y la búsqueda de recurrencias en Jira', () => {
+  const html = searchHtml('INC1', CHECK);
+  assert.match(html, /<div class="rb rb-search" role="alertdialog"[^>]*aria-busy="true">/);
+  assert.match(html, /<span class="rb-icon ok">/);
+  assert.deepEqual([...html.matchAll(/<li class="ok">.*?<span>([^<]+)<\/span>/g)].map((m) => m[1]), ['Situación inicial', 'Recurrencia', 'Antecedentes', 'Análisis']);
+  assert.doesNotMatch(html, /Recurrencia en Jira|lab-btn/);   // ni la fila de Jira ni botones: se busca sola
+  assert.match(html, /<div class="rv-loader" data-loader>/);
+  // con los criterios del equipo: SGA por centro, SISU por módulo
+  assert.deepEqual([...searchPhases({ center: '100497' }).matchAll(/<\/i>([^<]+)/g)].map((m) => m[1]), ['Mismo centro · 100497', 'Resumen parecido']);
+  assert.match(searchPhases({ sisu: true }), /<\/i>Mismo módulo</);
+});
+
+test('paso 1: elegir el flujo, con los tickets que encontró la búsqueda en Jira; sin antecedentes', () => {
   const html = form();
-  assert.match(html, /<b>¿Lo unes a un ticket abierto\?<\/b><small class="iss-esc-from">Jira · 28\/10 10:30 · ANA<\/small>/);
+  assert.match(html, /<b>¿Lo unes a un ticket abierto\?<\/b><\/div>/);
   assert.deepEqual([...html.matchAll(/name="linked" value="([^"]+)"/g)].map((m) => m[1]), ['SISUPAC-9211', 'ERA-4170', 'other']);
   assert.match(html, /5 issues esperando/);   // del catálogo de abiertos
   assert.match(html, /value="ERA-4170" \/><span><b class="iss-mono">ERA-4170<\/b><\/span>/);   // sin datos: solo la clave
@@ -189,9 +200,4 @@ test('sin las notas del método, el mismo aviso que Resolver, con su título y s
   assert.match(html, /<span>¿Es mayor incidente\?<\/span><small>Falta/);
   assert.match(html, /data-escalate-chat>Completar con ayuda de la IA/);
   assert.match(resolveBlocked('INC1', { notes: [], missing: [] }), /Aún no se puede resolver[\s\S]*data-resolve-chat>/);   // Resolver, como estaba
-  // falta la búsqueda en Jira: se busca con la IA; si es lo único que falta, sin el otro botón
-  const jira = (missing) => resolveBlocked('INC1', { notes: [], missing }, { title: 'x', chat: 'data-escalate-chat', jira: 'data-escalate-jira' });
-  assert.match(jira(['Análisis', 'Recurrencia en Jira']), /data-escalate-chat>Completar con ayuda de la IA[\s\S]*data-escalate-jira>Buscar en Jira con la IA/);
-  assert.doesNotMatch(jira(['Recurrencia en Jira']), /data-escalate-chat/);
-  assert.doesNotMatch(jira(['Análisis']), /data-escalate-jira/);
 });

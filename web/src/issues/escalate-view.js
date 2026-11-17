@@ -5,7 +5,7 @@
 import { onEscape } from '../ui/dialog.js';
 import { esc } from '../ui/html.js';
 import { BACK_ARROW, NEXT_ARROW, slideStep, flashEmpty, fadeOut as fade, runPhases } from '../ui/wizard.js';
-import { escalateForm, requirementsHtml, linkedText, summaryHtml, filesHtml, ticketHtml, doneHtml, closePhases } from './escalate-form.js';
+import { escalateForm, requirementsHtml, linkedText, summaryHtml, filesHtml, ticketHtml, doneHtml, closePhases, searchHtml, searchPhases } from './escalate-form.js';
 import { resolveBlocked, noteMeter, localShort } from './resolve-form.js';
 import { stepMissing, stepWarning, resumeStep, resultTicket, targetOf, titleOf, nextOf, prevOf, LAST, FEED, FLOWS } from './escalate.js';
 import { syncEditor, setEditorText, toText, insertChip, removeChips } from './tag-editor.js';
@@ -247,8 +247,6 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
     if (!f) {
       // el aviso de notas sin cubrir: de momento solo se avisa; el comando al chat llegará con la resolución asistida
       if (e.target.closest?.('[data-escalate-chat]')) { closeIt?.(); toast?.('Se lanzaría un comando al chat para completar las notas del método.'); }
-      // y la búsqueda en Jira: la skill de la IA que deja lo encontrado en la nota [RECURRENCIA]
-      if (e.target.closest?.('[data-escalate-jira]')) { closeIt?.(); toast?.('Se lanzaría la búsqueda en Jira con la IA: lo que encuentre queda en la nota [RECURRENCIA].'); }
       return;
     }
     const t = e.target;
@@ -366,21 +364,32 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
 
   return {
     // Abrir Escalar sobre la issue abierta: el bridge dice si se puede (las notas del método) y da
-    // mi borrador. Sin las notas, el aviso; si no, el asistente en el paso en el que se quedó.
+    // mi borrador. Sin las notas, el aviso. Con ellas, si se empieza por el paso 1, primero se buscan
+    // las recurrencias en Jira (searchHtml) y luego el asistente; si se retoma más adelante, directo.
     // onClose: lo que cierra la ventana (Escape, el aviso).
     async open(theIssue, link, onClose) {
       await saving;   // lo que se guardaba al cerrar, antes de leer el borrador
       const start = await api.startEscalate(theIssue.id);
       opened = theIssue.id; issue = theIssue; check = start.check; closeIt = onClose; files = []; lastImage = 0; done = null;
-      const blocked = start.check.missing.length > 0;
-      root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${blocked
-        ? resolveBlocked(issue.id, start.check, { title: 'Aún no se puede escalar', chat: 'data-escalate-chat', jira: 'data-escalate-jira' })
-        : escalateForm({ issue, dests, open: tickets, check: start.check, saved: start.draft, link })}</div>`);
       offEscape = onEscape(onClose);
-      if (blocked) { root.querySelector('.rb-foot .lab-btn').focus(); return; }
+      if (start.check.missing.length) {
+        root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${resolveBlocked(issue.id, start.check, { title: 'Aún no se puede escalar', chat: 'data-escalate-chat' })}</div>`);
+        root.querySelector('[data-escalate-chat]').focus();
+        return;
+      }
+      const resume = resumeStep(start.draft, ctx());
+      const formHtml = () => escalateForm({ issue, dests, open: tickets, check: start.check, saved: start.draft, link });
+      if (resume === 1) {
+        root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${searchHtml(issue.id, start.check)}</div>`);
+        const box = root.querySelector('.rb-search');
+        const alive = () => opened === theIssue.id && box.isConnected;
+        await runPhases(box.querySelector('[data-loader]'), 'Buscando recurrencias en Jira', searchPhases(issue), { alive, track });
+        await fadeOut(box);
+        if (!alive()) return;
+        box.outerHTML = formHtml();
+      } else root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${formHtml()}</div>`);
       const f = form();
       syncFoot(f);
-      const resume = resumeStep(start.draft, ctx());
       if (resume > 1) goStep(f, resume); else f.querySelector('[name="linked"]:checked, [name="linked"]')?.focus();
     },
     close,
