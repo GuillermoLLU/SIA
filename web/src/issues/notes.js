@@ -80,14 +80,14 @@ export const noteCount = (feed) => feed.filter((e) => e.kind === 'note').length;
 
 // Al abrirla, desplegadas las últimas notas (y el motivo de un traspaso
 // reciente); las anteriores, plegadas a su primera frase.
-export const OPEN_LAST = 2;
+const OPEN_LAST = 2;
 const foldable = (e) => e.kind === 'note' || (e.type === 'transferred' && e.text);
 export const defaultOpen = (feed, n = OPEN_LAST) => new Set(feed.filter(foldable).slice(-n).map((e) => e.key));
 export const isFoldable = foldable;
 
 // Una nota la edita quien la escribió, durante las 24 h siguientes (la misma
 // regla que el bridge, server/issues/notes.js; aquí solo decide si se enseña el botón).
-export const EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
+const EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
 export const canEditNote = (e, meId, now) => e.kind === 'note' && e.src === 'sia' && !!meId && e.byId === meId && now.getTime() - ms(e.at) <= EDIT_WINDOW_MS;
 
 // En la caja de escribir, Intro envía; Mayús+Intro salta de línea.
