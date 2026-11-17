@@ -69,7 +69,7 @@ export const visPickHtml = (v) => `${ICON[v]}<span>${VISIBILITY[v].label}</span>
 // (si hay), el texto, el botón de etiquetas y Enviar; encima, sus dos menús y,
 // con Pública, el aviso de que aún no llega al centro.
 export const noteFormHtml = () => `<form class="nt-form" data-note-form data-visibility="internal" data-tag="" novalidate>
-    <p class="nt-public" data-public-hint hidden>${ICON.public}La verá el centro cuando SIA escriba en Remedy; de momento se guarda en SIA como pública.</p>
+    <p class="nt-public" data-public-hint hidden>${ICON.public}La verá el centro cuando SIA envíe por SIGLO; de momento se guarda en SIA como pública.</p>
     <div class="nt-menu" data-vis-menu role="menu" hidden>${VISIBILITIES.map((v) => `<button type="button" role="menuitemradio" data-set-vis="${v}" aria-checked="${v === 'internal'}">${ICON[v]}<b>${VISIBILITY[v].label}</b><small>${VISIBILITY[v].hint}</small></button>`).join('')}</div>
     <div class="nt-menu nt-tags" data-tag-menu role="menu" hidden>${NOTE_TAGS.map((t) => `<button type="button" role="menuitemradio" data-set-tag="${t.code}" aria-checked="false"><span>${esc(t.label)}</span><code>${t.code}</code></button>`).join('')}</div>
     <div class="nt-bar">

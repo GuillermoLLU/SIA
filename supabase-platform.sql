@@ -211,7 +211,7 @@ update platform.issue_events e set note_id = n.id from platform.issue_notes n
   where e.action = 'transferred' and e.note_id is null and n.issue_id = e.issue_id and n.kind = 'transfer' and n.author is not distinct from e.actor and n.created_at = e.happened_at;
 create index if not exists issue_notes_issue on platform.issue_notes (issue_id, created_at);
 -- Quién ve cada nota (`visibility`): 'private', solo quien la escribió; 'internal', todo
--- Issues; 'public', también el centro (cuando SIA escriba en Remedy; hasta entonces se
+-- Issues; 'public', también el centro (cuando SIA envíe por SIGLO; hasta entonces se
 -- queda en SIA marcada como pública). `tag`: la etiqueta del método del equipo, la
 -- misma que en Remedy (ANALISIS, DIAGNOSTICO, CALLOK…), opcional. Las notas de antes, internas.
 alter table platform.issue_notes add column if not exists visibility text not null default 'internal';

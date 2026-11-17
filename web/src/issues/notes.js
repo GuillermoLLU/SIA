@@ -3,7 +3,7 @@
 // en una sola conversación de la más antigua a la más reciente.
 //
 // Cada nota de SIA dice quién la ve (privada: solo quien la escribió; interna:
-// el equipo; pública: también el centro, cuando SIA escriba en Remedy) y puede
+// el equipo; pública: también el centro, cuando SIA envíe por SIGLO) y puede
 // llevar una etiqueta del método del equipo, la misma que se pone en Remedy
 // delante de la nota («[ANALISIS] …»). Las de Remedy traen su etiqueta en el
 // texto; su visibilidad no viene en la foto, así que no se dice.
