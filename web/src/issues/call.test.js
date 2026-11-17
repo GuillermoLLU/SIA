@@ -41,6 +41,7 @@ test('la ventana: el teléfono propuesto (escapado) con de dónde sale; «Guarda
   assert.match(html, /<h3>Llamada al centro<\/h3><span>INC1<\/span>/);
   assert.match(html, /name="phone" type="tel"[^>]*value="\+34 &lt;600&gt;"/);
   assert.match(html, /El de contacto que dejó el centro\./);
+  assert.match(html, /<p class="iss-act-note">Queda en el Seguimiento de la issue en SIA\. Aún no llega a Remedy: irá por SIGLO cuando lo conectemos\.<\/p>/);
   assert.match(html, /<footer><button type="submit" class="lab-btn primary" name="outcome" value="answered" disabled>Guardar llamada<\/button><button type="submit" class="lab-btn" name="outcome" value="noanswer" disabled>No responden<\/button>/, 'con «+34 <600>» no hay teléfono válido');
   assert.match(callForm('INC1', { phone: '+34 600 000 000', from: 'last' }), /value="noanswer" >No responden/);
   assert.doesNotMatch(callForm('INC1'), /<small>El de/);

@@ -73,7 +73,8 @@ test('una llamada: un hito con el teléfono, quién llamó y a qué número; lo 
   ] });
   const k = noteItemHtml(ko, { now });
   assert.match(k, /<li class="iss-feed-item nt-ev nt-call ko" data-note-key="r0"><span class="nt-ev-ic" aria-hidden="true"><svg/);
-  assert.match(k, /<b>CESARHD<\/b> llamó al centro, sin respuesta<span class="nt-phone">\+90 212 555 0143<\/span><\/span>/);
+  assert.match(k, /<b>CESARHD<\/b> intentó ponerse en contacto sin éxito con el número<span class="nt-phone">\+90 212 555 0143<\/span><\/span>/);
+  assert.match(noteItemHtml({ ...ko, text: '' }, { now }), /<b>CESARHD<\/b> intentó ponerse en contacto sin éxito<\/span>/, 'sin número, sin «con el número»');
   assert.doesNotMatch(k, /nt-box|nt-tag/, 'sin respuesta y sin más: solo la línea, sin ficha de etiqueta');
   const o = noteItemHtml(ok, { now });
   assert.match(o, /nt-call ok" data-note-key="r1">/);

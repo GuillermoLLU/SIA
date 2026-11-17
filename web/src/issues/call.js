@@ -2,7 +2,9 @@
 // issues-view.js). Se apunta el teléfono y lo que se habló («Guardar llamada»)
 // o solo el teléfono si no respondieron («No responden»). Queda como una nota
 // interna con la etiqueta de llamada de Remedy (CALLOK o CALLKO) y el teléfono
-// delante, que es como la pinta Seguimiento (notes.js: callOf).
+// delante, que es como la pinta Seguimiento (notes.js: callOf) y como el equipo
+// la escribe en Remedy («[CALLKO] +90 212 555 0143»). Aún no llega a Remedy:
+// irá por SIGLO cuando lo conectemos, como Resolver, Escalar o Reclamar.
 import { esc } from '../ui/html.js';
 import { callOf, isPhone } from './notes.js';
 
@@ -35,6 +37,7 @@ export const callForm = (issueId, { phone = '', from = null } = {}) => `<form cl
     <header><h3>Llamada al centro</h3><span>${esc(issueId)}</span></header>
     <label class="iss-field" for="iss-f-phone"><span>Teléfono</span><input id="iss-f-phone" name="phone" type="tel" inputmode="tel" autocomplete="off" placeholder="+34 600 000 000" value="${esc(phone)}" />${from ? `<small>${FROM[from]}</small>` : ''}</label>
     <label class="iss-field" for="iss-f-comment"><span>Lo que se habló</span><textarea id="iss-f-comment" name="comment" rows="5"></textarea><small>Si no responden, no hace falta: pulsa «No responden» y queda el intento.</small></label>
+    <p class="iss-act-note">Queda en el Seguimiento de la issue en SIA. Aún no llega a Remedy: irá por SIGLO cuando lo conectemos.</p>
     <p class="iss-act-err" hidden></p>
     <footer><button type="submit" class="lab-btn primary" name="outcome" value="answered" disabled>Guardar llamada</button><button type="submit" class="lab-btn" name="outcome" value="noanswer" ${isPhone(phone) ? '' : 'disabled'}>No responden</button><button type="button" class="lab-btn" data-act-cancel>Cancelar</button></footer>
   </form>`;

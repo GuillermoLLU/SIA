@@ -63,12 +63,13 @@ const moveHtml = (e, { open, now }) => {
     </div></li>`;
 };
 
-// Una llamada al centro: un hito con el teléfono (en negro si se habló, en
-// naranja si no hubo respuesta), quién llamó y a qué número; lo hablado, debajo,
-// en su caja plegable. Sin nada que contar, solo la línea.
+// Una llamada al centro: un hito con el teléfono (en negro si se habló; en rojo
+// y tachado si no respondieron: «intentó ponerse en contacto sin éxito con el
+// número…»), quién llamó y a qué número; lo hablado, debajo, en su caja
+// plegable. Sin nada que contar, solo la línea.
 const editHtml = (e, meId, now) => `${canEditNote(e, meId, now) ? `<button type="button" class="iss-feed-edit" data-edit-note="${esc(e.key)}">Editar</button>` : ''}${e.edited ? `<small>editada ${whenLabel(e.edited, now)}</small>` : ''}`;
 const callHtml = (e, c, { open, meId, now }) => `<li class="iss-feed-item nt-ev nt-call ${c.answered ? 'ok' : 'ko'}${open ? ' open' : ''}" data-note-key="${esc(e.key)}"><span class="nt-ev-ic" aria-hidden="true">${c.answered ? PHONE : PHONE_OFF}</span><div class="iss-feed-body">
-      <header><span class="iss-feed-did">${who(e.by)} ${c.answered ? 'habló con el centro' : 'llamó al centro, sin respuesta'}${c.phone ? `<span class="nt-phone">${esc(c.phone)}</span>` : ''}</span>${editHtml(e, meId, now)}<time>${whenLabel(e.at, now)}</time></header>
+      <header><span class="iss-feed-did">${who(e.by)} ${c.answered ? 'habló con el centro' : `intentó ponerse en contacto sin éxito${c.phone ? ' con el número' : ''}`}${c.phone ? `<span class="nt-phone">${esc(c.phone)}</span>` : ''}</span>${editHtml(e, meId, now)}<time>${whenLabel(e.at, now)}</time></header>
       ${c.said ? boxHtml({ label: c.answered ? 'Lo hablado' : 'Nota', visibility: e.visibility, text: c.said }, open) : ''}
     </div></li>`;
 

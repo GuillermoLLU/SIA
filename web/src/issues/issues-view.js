@@ -375,7 +375,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       await api.addNote(opened, note.body, { visibility: note.visibility, tag: note.tag });
       closeAction();
       await notes.refresh();
-      toast?.(answered ? 'Llamada registrada en Seguimiento.' : 'Llamada sin respuesta registrada en Seguimiento.');
+      toast?.(`${answered ? 'Llamada registrada' : 'Intento de llamada registrado'} en Seguimiento. Aún no llega a Remedy: irá por SIGLO cuando lo conectemos.`);
     } catch (e2) { fail(e2.message); }
   };
   const upload = async (file) => {
