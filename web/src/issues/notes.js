@@ -78,6 +78,19 @@ export const notesFeed = ({ worklog = [], timeline = [] } = {}) => {
 };
 export const noteCount = (feed) => feed.filter((e) => e.kind === 'note').length;
 
+// Una llamada al centro es una nota con su etiqueta (CALLOK: atendida; CALLKO:
+// sin respuesta), como la marca el equipo en Remedy. Delante va el teléfono
+// («+90 212 555 0143», «49890x3»…) y después, lo que se habló.
+// → { answered, phone, said } o null si no es una llamada.
+const CALLS = { CALLOK: true, CALLKO: false };
+const PHONE = /^\s*(\+?\d[\d\s().-]{3,}\d(?:\s?x\s?\d+)?)(?=\s|$)/;
+export const callOf = (e) => {
+  if (e?.kind !== 'note' || !(e.tag in CALLS)) return null;
+  const m = String(e.text || '').match(PHONE);
+  return { answered: CALLS[e.tag], phone: m ? m[1].trim() : null, said: (m ? e.text.slice(m[0].length) : e.text || '').trim() };
+};
+export const isCallTag = (tag) => tag in CALLS;
+
 // Una nota la edita quien la escribió, durante las 24 h siguientes (la misma
 // regla que el bridge, server/issues/notes.js; aquí solo decide si se enseña el botón).
 const EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;

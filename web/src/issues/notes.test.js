@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { notesFeed, noteCount, firstSentence, splitTag, tagLabel, canEditNote, sendsNote, NOTE_TAGS } from './notes.js';
+import { notesFeed, noteCount, callOf, isCallTag, firstSentence, splitTag, tagLabel, canEditNote, sendsNote, NOTE_TAGS } from './notes.js';
 
 const WORKLOG = [
   { at: '2026-10-12 12:25', who: 'robot.siglo', text: 'Buenas, no podemos entrar en RFID Warehouse.' },
@@ -65,4 +65,17 @@ test('en la caja, Intro envía y Mayús+Intro salta de línea', () => {
   assert.equal(sendsNote({ key: 'Enter', shiftKey: false }), true);
   assert.equal(sendsNote({ key: 'Enter', shiftKey: true }), false);
   assert.equal(sendsNote({ key: 'a', shiftKey: false }), false);
+});
+
+test('una llamada: la nota con CALLOK (atendida) o CALLKO (sin respuesta); delante, el teléfono, y después lo hablado', () => {
+  const call = (tag, text) => callOf({ kind: 'note', tag, text });
+  assert.deepEqual(call('CALLOK', '+90 212 555 0143 Hablamos con Mehmet. Confirma que escanean.'), { answered: true, phone: '+90 212 555 0143', said: 'Hablamos con Mehmet. Confirma que escanean.' });
+  assert.deepEqual(call('CALLKO', '+90 212 555 0143'), { answered: false, phone: '+90 212 555 0143', said: '' });
+  assert.deepEqual(call('CALLKO', '49890x3'), { answered: false, phone: '49890x3', said: '' }, 'con extensión');
+  assert.deepEqual(call('CALLOK', '+522214109146 Informamos de que reclamen al ISP1'), { answered: true, phone: '+522214109146', said: 'Informamos de que reclamen al ISP1' });
+  assert.deepEqual(call('CALLOK', 'Sin número: el jefe de turno confirma.'), { answered: true, phone: null, said: 'Sin número: el jefe de turno confirma.' });
+  assert.deepEqual(call('CALLOK', '12 usuarios afectados'), { answered: true, phone: null, said: '12 usuarios afectados' }, 'un número corto no es un teléfono');
+  assert.equal(callOf({ kind: 'note', tag: 'ANALISIS', text: '+90 212 555 0143' }), null);
+  assert.equal(callOf({ kind: 'move', type: 'claimed' }), null);
+  assert.deepEqual([isCallTag('CALLOK'), isCallTag('CALLKO'), isCallTag('ACT'), isCallTag(null)], [true, true, false, false]);
 });

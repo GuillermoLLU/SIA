@@ -1,14 +1,15 @@
-// La pestaña Seguimiento de una issue, en HTML (sin E/S; el cableado, notes-view.js).
-// Una conversación de la más antigua a la más reciente: cada nota con su autor,
-// su etiqueta (una ficha junto al nombre), su hora y su caja, plegada a una
-// línea (la primera frase y quién la ve) que se despliega entera al pulsarla; los movimientos (cogida,
-// devuelta, traspasada, asignada), como un hito en la misma línea de tiempo: su
-// icono en el sitio del avatar y una frase. Abajo, la barra de escribir: quién la verá (menú), la
-// etiqueta (menú) y Enviar.
+// La pestaña Seguimiento de una issue, en HTML (sin E/S; el cableado,
+// notes-view.js). Una conversación de la más antigua a la más reciente: cada
+// nota con su autor, su etiqueta (una ficha junto al nombre), su hora y su caja,
+// plegada a una línea (la primera frase y quién la ve) que se despliega entera
+// al pulsarla; los movimientos (cogida, devuelta, traspasada, asignada) y las
+// llamadas al centro, como un hito en la misma línea de tiempo: su icono en el
+// sitio del avatar y una frase. Abajo, la barra de escribir: quién la verá
+// (menú), la etiqueta (menú) y Enviar.
 import { esc } from '../ui/html.js';
 import { initials } from '../ui/initials.js';
 import { whenLabel } from './format.js';
-import { VISIBILITY, VISIBILITIES, NOTE_TAGS, tagLabel, firstSentence, canEditNote, notesFeed, noteCount } from './notes.js';
+import { VISIBILITY, VISIBILITIES, NOTE_TAGS, tagLabel, firstSentence, canEditNote, callOf, notesFeed, noteCount } from './notes.js';
 
 const svg = (paths) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
 const ICON = {
@@ -47,6 +48,10 @@ const boxHtml = ({ label = null, visibility, text }, open) => (open
   ? `<div class="iss-feed-text nt-box" data-note-fold role="button" tabindex="0" aria-expanded="true">${label ? `<div class="nt-top">${labelHtml(label)}${visHtml(visibility)}</div>` : visHtml(visibility)}<div class="nt-text">${esc(text)}</div><i class="nt-chev">${CHEV}</i></div>`
   : `<div class="iss-feed-text nt-box nt-folded" data-note-fold role="button" tabindex="0" aria-expanded="false">${labelHtml(label)}<span class="nt-first">${esc(firstSentence(text))}</span>${visHtml(visibility)}<i class="nt-chev">${CHEV}</i></div>`);
 
+// Las llamadas: el teléfono (atendida) o el teléfono tachado (sin respuesta)
+const PHONE = svg('<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>');
+const PHONE_OFF = svg('<path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"/><line x1="23" y1="1" x2="1" y2="23"/>');
+
 // Un movimiento: un hito en la línea de tiempo (su icono en el sitio del
 // avatar) con su frase y su hora; el motivo de un traspaso, debajo, en su caja
 // plegable, como una nota.
@@ -58,12 +63,23 @@ const moveHtml = (e, { open, now }) => {
     </div></li>`;
 };
 
-// Una entrada de la conversación: una nota (de Remedy o de SIA) o un movimiento.
+// Una llamada al centro: un hito con el teléfono (en negro si se habló, en
+// naranja si no hubo respuesta), quién llamó y a qué número; lo hablado, debajo,
+// en su caja plegable. Sin nada que contar, solo la línea.
+const editHtml = (e, meId, now) => `${canEditNote(e, meId, now) ? `<button type="button" class="iss-feed-edit" data-edit-note="${esc(e.key)}">Editar</button>` : ''}${e.edited ? `<small>editada ${whenLabel(e.edited, now)}</small>` : ''}`;
+const callHtml = (e, c, { open, meId, now }) => `<li class="iss-feed-item nt-ev nt-call ${c.answered ? 'ok' : 'ko'}${open ? ' open' : ''}" data-note-key="${esc(e.key)}"><span class="nt-ev-ic" aria-hidden="true">${c.answered ? PHONE : PHONE_OFF}</span><div class="iss-feed-body">
+      <header><span class="iss-feed-did">${who(e.by)} ${c.answered ? 'habló con el centro' : 'llamó al centro, sin respuesta'}${c.phone ? `<span class="nt-phone">${esc(c.phone)}</span>` : ''}</span>${editHtml(e, meId, now)}<time>${whenLabel(e.at, now)}</time></header>
+      ${c.said ? boxHtml({ label: c.answered ? 'Lo hablado' : 'Nota', visibility: e.visibility, text: c.said }, open) : ''}
+    </div></li>`;
+
+// Una entrada de la conversación: una nota (de Remedy o de SIA), una llamada o un movimiento.
 export const noteItemHtml = (e, { open = false, meId = null, now = new Date() } = {}) => {
   if (e.kind === 'move') return moveHtml(e, { open, now });
-  const edit = canEditNote(e, meId, now) ? `<button type="button" class="iss-feed-edit" data-edit-note="${esc(e.key)}">Editar</button>` : '';
+  const call = callOf(e);
+  if (call) return callHtml(e, call, { open, meId, now });
+  const edit = editHtml(e, meId, now);
   return `<li class="iss-feed-item nt-item v-${e.visibility || 'none'}${open ? ' open' : ''}" data-note-key="${esc(e.key)}">${avatar(e.by)}<div class="iss-feed-body">
-      <header><span class="iss-feed-did">${who(e.by)}${tagHtml(e.tag)}</span>${edit}${e.edited ? `<small>editada ${whenLabel(e.edited, now)}</small>` : ''}<time>${whenLabel(e.at, now)}</time></header>
+      <header><span class="iss-feed-did">${who(e.by)}${tagHtml(e.tag)}</span>${edit}<time>${whenLabel(e.at, now)}</time></header>
       ${boxHtml({ visibility: e.visibility, text: e.text }, open)}
     </div></li>`;
 };

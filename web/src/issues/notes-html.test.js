@@ -59,6 +59,24 @@ test('los movimientos, un hito en la línea de tiempo con su icono y su frase; e
   assert.match(noteItemHtml(transfer, { now, open: true }), /nt-ev strong open".*<div class="nt-text">Lleva &lt;dos&gt; llamadas\. Y más\.<\/div>/s);
 });
 
+test('una llamada: un hito con el teléfono, quién llamó y a qué número; lo hablado, en su caja plegable; sin nada más, solo la línea', () => {
+  const [ko, ok] = notesFeed({ worklog: [
+    { at: '2026-10-22 13:20', who: 'CESARHD', text: '[CALLKO] +90 212 555 0143' },
+    { at: '2026-10-22 13:45', who: 'CESARHD', text: '[CALLOK] +90 212 555 0143 Hablamos con <Mehmet>. Confirma que escanean.' },
+  ] });
+  const k = noteItemHtml(ko, { now });
+  assert.match(k, /<li class="iss-feed-item nt-ev nt-call ko" data-note-key="r0"><span class="nt-ev-ic" aria-hidden="true"><svg/);
+  assert.match(k, /<b>CESARHD<\/b> llamó al centro, sin respuesta<span class="nt-phone">\+90 212 555 0143<\/span><\/span>/);
+  assert.doesNotMatch(k, /nt-box|nt-tag/, 'sin respuesta y sin más: solo la línea, sin ficha de etiqueta');
+  const o = noteItemHtml(ok, { now });
+  assert.match(o, /nt-call ok" data-note-key="r1">/);
+  assert.match(o, /<b>CESARHD<\/b> habló con el centro<span class="nt-phone">\+90 212 555 0143<\/span>/);
+  assert.match(o, /nt-folded"[^>]*><span class="iss-feed-label">Lo hablado<\/span><span class="nt-first">Hablamos con &lt;Mehmet&gt;…<\/span>/);
+  const mine = noteItemHtml(sia({ tag: 'CALLOK', text: '+34 600 000 000' }), { now, meId: 'u1' });
+  assert.match(mine, /nt-call ok/);
+  assert.match(mine, /data-edit-note="n7">Editar/, 'la propia se edita también');
+});
+
 test('«Editar» solo en mis notas de SIA de las últimas 24 h; el editor, con el texto escapado', () => {
   assert.match(noteItemHtml(sia(), { meId: 'u1', now }), /data-edit-note="n7">Editar/);
   assert.doesNotMatch(noteItemHtml(sia(), { meId: 'u2', now }), /data-edit-note/);

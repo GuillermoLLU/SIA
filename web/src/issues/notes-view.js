@@ -5,7 +5,7 @@
 // desde otro sitio (refresh, como Reclamar respuesta).
 //
 // deps: root · api (addNote, editNote, timeline) · toast · me ({ id })
-import { notesFeed, noteCount, sendsNote, tagLabel } from './notes.js';
+import { notesFeed, noteCount, sendsNote, tagLabel, isCallTag } from './notes.js';
 import { notesListHtml, noteItemHtml, noteEditorHtml, notesTab, visPickHtml } from './notes-html.js';
 
 const GROW_MAX_PX = 160; // lo que crece la caja de escribir antes de hacer scroll
@@ -80,6 +80,7 @@ export const createNotes = ({ root, api, toast, me }) => {
     chip.hidden = !tag;
     chip.querySelector('[data-tag-name]').textContent = tag ? tagLabel(tag) : '';
     f.querySelectorAll('[data-set-tag]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.setTag === tag)));
+    f.note.placeholder = isCallTag(tag) ? 'El teléfono y lo que se habló…' : 'Escribe una nota…'; // una llamada: así se lee bien
   };
   const grow = (ta) => { ta.style.height = 'auto'; ta.style.height = `${Math.min(ta.scrollHeight, GROW_MAX_PX)}px`; };
   const sync = (f) => { f.querySelector('[type=submit]').disabled = !f.note.value.trim(); };
@@ -107,9 +108,10 @@ export const createNotes = ({ root, api, toast, me }) => {
     const e = entryOf(key);
     if (!e) return;
     if (!open.has(key)) { open.add(key); paintOne(key); }
-    const box = root.querySelector(`[data-notes-list] [data-note-key="${CSS.escape(key)}"] [data-note-fold]`);
-    if (!box) return;
-    box.outerHTML = noteEditorHtml(e.text);
+    const li = root.querySelector(`[data-notes-list] [data-note-key="${CSS.escape(key)}"]`);
+    const box = li?.querySelector('[data-note-fold]');
+    if (box) box.outerHTML = noteEditorHtml(e.text);
+    else if (li) li.querySelector('.iss-feed-body').insertAdjacentHTML('beforeend', noteEditorHtml(e.text)); // una llamada sin nada que contar no tiene caja
     const ta = root.querySelector(`[data-note-key="${CSS.escape(key)}"] [data-note-edit] textarea`);
     ta.closest('[data-note-edit]').scrollIntoView({ block: 'nearest' }); // con Guardar y Cancelar a la vista
     ta.focus({ preventScroll: true });
