@@ -12,7 +12,7 @@ import { pressStartedIn } from '../ui/dom.js';
 import { pickClick, openPicker, closePickers } from '../ui/picker.js';
 import { workScreen, releaseDialogHtml } from './work-screen.js';
 import { createNotes } from './notes-view.js';
-import { ACTIONS, actionForm, readAction, isComplete, chaseNote, chaseTarget } from './actions.js';
+import { actionForm, readAction, isComplete, chaseNote, chaseTarget } from './actions.js';
 import { createResolver } from './resolve-view.js';
 import { knowsOrigin, originOf } from './origin.js';
 import { crossfade } from '../ui/crossfade.js';
@@ -319,7 +319,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   const switchTransfer = (form, mode) => {
     closePickers(root);
     form.elements.mode.value = mode;
-    form.querySelectorAll('[data-transfer-mode]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.transferMode === mode)));
+    form.querySelectorAll('[data-transfer-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.transferMode === mode)));
     form.querySelectorAll('[data-transfer-pane]').forEach((p) => { p.hidden = p.dataset.transferPane !== mode; });
     form.querySelector('.iss-act-err').hidden = true;
     syncSubmit(form);
@@ -363,18 +363,15 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       closeAction();
       return toast?.(values.mode === 'link'
         ? `Unida a ${values.ticket}: pasa a Pendiente (proveedor), sin otro escalado. Aún no se envía a Remedy.`
-        : `Escalada a ${values.destName}: ${rootCause ? 'queda registrada la causa raíz y sigue Resuelta' : 'pasa a Pendiente (proveedor) y se avisa al centro'}.${values.todo.length ? ` Añádele ${values.todo.join(' y ')} en «Notas internas».` : ''} Aún no se envía a Remedy.`);
+        : `Escalada a ${values.destName}: ${rootCause ? 'queda registrada la causa raíz y sigue Resuelta' : 'pasa a Pendiente (proveedor) y se avisa al centro'}.${values.todo.length ? ` Añádele ${values.todo.join(' y ')} en Seguimiento.` : ''} Aún no se envía a Remedy.`);
     }
+    // lo que queda: reclamar respuesta, que se anota en Seguimiento
     form.querySelector('[type=submit]').disabled = true;
     try {
-      if (key === 'chase') {
-        await api.addNote(opened, chaseNote(issue, values.message));
-        closeAction();
-        await notes.refresh();
-        return toast?.(`Reclamación ${chaseTarget(issue)} anotada en el histórico. Aún no le llega: irá por SIGLO cuando lo conectemos.`);
-      }
+      await api.addNote(opened, chaseNote(issue, values.message));
       closeAction();
-      toast?.(`${ACTIONS[key].label}: preparado, pero aún no se envía a Remedy (falta conectar SIGLO).`);
+      await notes.refresh();
+      toast?.(`Reclamación ${chaseTarget(issue)} anotada en Seguimiento. Aún no le llega: irá por SIGLO cuando lo conectemos.`);
     } catch (e2) { fail(e2.message); }
   });
   // Traspasar: a un compañero, la base la mueve y se vuelve a la mesa; a otro equipo, queda como

@@ -448,7 +448,7 @@
 .tr-seg button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; font: inherit; font-size: 13px; color: var(--text-low); background: none; border: 0; cursor: pointer; transition: color .15s ease, background-color .15s ease; }
 .tr-seg button + button { border-left: 1px solid var(--border); }
 .tr-seg button:hover { color: var(--text); }
-.tr-seg button[aria-selected="true"] { color: var(--surface); background: var(--text); cursor: default; }
+.tr-seg button[aria-pressed="true"] { color: var(--surface); background: var(--text); cursor: default; }
 .tr-seg i { display: inline-flex; width: 16px; height: 16px; }
 .tr-seg svg { width: 100%; height: 100%; }
 .iss-act-form [data-transfer-pane][hidden] { display: none; }

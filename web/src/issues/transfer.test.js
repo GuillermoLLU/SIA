@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { transferForm, readTransfer, transferNote, TRANSFER_MODES } from './transfer.js';
+import { transferForm, readTransfer, transferNote } from './transfer.js';
 import { TEAMS } from './transfer-mock.js';
 
 const teams = [
@@ -8,17 +8,19 @@ const teams = [
   { id: 'teleco', name: 'Teleco <red>', group: 'Otros equipos' },
 ];
 
-test('dos opciones: a un compañero o a otro equipo', () => {
-  assert.deepEqual(Object.keys(TRANSFER_MODES), ['person', 'team']);
-  assert.deepEqual(Object.values(TRANSFER_MODES).map((m) => m.label), ['A un compañero', 'A otro equipo']);
+test('dos opciones arriba: a un compañero o a otro equipo, como botones que se pulsan', () => {
+  const html = transferForm('INC1');
+  assert.deepEqual([...html.matchAll(/data-transfer-mode="(\w+)" aria-pressed="\w+"><i>.*?<\/i>([^<]+)<\/button>/g)].map((m) => [m[1], m[2]]),
+    [['person', 'A un compañero'], ['team', 'A otro equipo']]);
+  assert.match(html, /class="tr-seg" role="group" aria-label="A quién se traspasa"/);
 });
 
 test('la ventana se abre en «A un compañero»: su selector a la vista y el de equipo oculto', () => {
   const html = transferForm('INC1', { people: [{ id: 'u1', name: 'Ana <x>' }], teams });
   assert.match(html, /<h3>Traspasar la issue<\/h3><span>INC1<\/span>/);
   assert.match(html, /<input type="hidden" name="mode" value="person">/);
-  assert.match(html, /data-transfer-mode="person" aria-selected="true"/);
-  assert.match(html, /data-transfer-mode="team" aria-selected="false"/);
+  assert.match(html, /data-transfer-mode="person" aria-pressed="true"/);
+  assert.match(html, /data-transfer-mode="team" aria-pressed="false"/);
   assert.match(html, /data-transfer-pane="person">/);
   assert.match(html, /data-transfer-pane="team" hidden>/);
   assert.match(html, /<li role="option" data-pick-opt="u1" aria-selected="false">Ana &lt;x&gt;<\/li>/);

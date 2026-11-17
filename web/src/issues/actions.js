@@ -69,7 +69,7 @@ export const actionsFor = (issue, mine) => [
   ...(mine && issue.status !== 'PENDING' ? ['release'] : []),
 ];
 
-// «Reclamar respuesta» aún no llega al tercero: queda en el histórico como nota, con a quién y qué.
+// «Reclamar respuesta» aún no llega al tercero: queda en Seguimiento como nota, con a quién y qué.
 // chaseTarget: «a Proveedor», o «al tercero» si el motivo no dice a quién.
 export const chaseTarget = (issue) => { const third = thirdOf(issue); return third ? `a ${third}` : 'al tercero'; };
 export const chaseNote = (issue, message) => `Reclamado ${chaseTarget(issue)}: ${message}`;

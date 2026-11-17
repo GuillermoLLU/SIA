@@ -9,7 +9,7 @@ const now = new Date('2026-10-01T12:00:00');
 
 test('la pantalla: tres pestañas (Detalle, Notas y Relacionadas), Detalle por defecto, sin análisis de la IA y el texto escapado', () => {
   const html = workScreen({ issue: issue(), sameCenter: [], now, mine: false });
-  assert.deepEqual([...html.matchAll(/data-wtab="([a-z]+)"/g)].map((m) => m[1]), ['detail', 'notes', 'related'], 'Seguimiento y Notas internas, en una sola: Notas');
+  assert.deepEqual([...html.matchAll(/data-wtab="([a-z]+)"/g)].map((m) => m[1]), ['detail', 'notes', 'related'], 'las notas de Remedy y las del equipo, en una sola: Seguimiento');
   assert.match(html, /data-wtab="detail" aria-selected="true"/);
   assert.match(html, /data-wtab="notes" aria-selected="false">Seguimiento</);
   assert.doesNotMatch(html, /Análisis de la IA|data-wpanel="ai"|data-wpanel="remedy"|data-wpanel="trail"/);

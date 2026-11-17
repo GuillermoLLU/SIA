@@ -10,7 +10,7 @@ import { pickerHtml, peoplePicker } from '../ui/picker.js';
 
 const PERSON = svg('<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>', { hidden: true });
 const TEAM = svg('<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>', { hidden: true });
-export const TRANSFER_MODES = {
+const MODES = {
   person: { label: 'A un compañero', icon: PERSON },
   team: { label: 'A otro equipo', icon: TEAM },
 };
@@ -28,7 +28,7 @@ export const transferForm = (issueId, { people = [], empty = '', teams = [], mod
   return `<form class="iss-act-form" data-act-form="transfer" novalidate>
     <header><h3>Traspasar la issue</h3><span>${esc(issueId)}</span></header>
     <input type="hidden" name="mode" value="${on}">
-    <div class="tr-seg" role="tablist" aria-label="A quién se traspasa">${Object.entries(TRANSFER_MODES).map(([m, t]) => `<button type="button" role="tab" data-transfer-mode="${m}" aria-selected="${m === on}"><i>${t.icon}</i>${t.label}</button>`).join('')}</div>
+    <div class="tr-seg" role="group" aria-label="A quién se traspasa">${Object.entries(MODES).map(([m, t]) => `<button type="button" data-transfer-mode="${m}" aria-pressed="${m === on}"><i>${t.icon}</i>${t.label}</button>`).join('')}</div>
     ${pane('person', `<span>Compañero</span>${peoplePicker({ id: 'iss-f-to', name: 'to', people, empty: empty || 'No hay más personas en Issues' })}`)}
     ${pane('team', `<span>Equipo</span>${pickerHtml({ id: 'iss-f-team', name: 'team', placeholder: 'Elige el equipo', groups: teamGroups(teams) })}`)}
     <label class="iss-field" for="iss-f-comment"><span>Motivo</span><textarea id="iss-f-comment" name="comment" rows="5"></textarea></label>
