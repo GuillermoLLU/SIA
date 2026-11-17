@@ -206,6 +206,22 @@
 .iss-work-h .iss-actions { justify-self: end; }
 @media (max-width: 800px) { .iss-work-h { grid-template-columns: minmax(0, 1fr); } .iss-work-h .iss-actions { justify-self: start; } }
 .iss-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+/* «Otras acciones»: lo que no es Resolver ni Escalar, en un menú bajo el botón; hablar con el
+   centro arriba y, tras una línea, soltarla (traspasar, devolver) */
+.iss-more { position: relative; display: inline-flex; }
+.iss-more > .lab-btn { display: inline-flex; align-items: center; gap: 6px; }
+.iss-more > .lab-btn svg { width: 14px; height: 14px; transition: transform .15s ease; }
+.iss-more > .lab-btn[aria-expanded="true"] { background: var(--border); }
+.iss-more > .lab-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
+.iss-more-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; display: flex; flex-direction: column; min-width: 280px; padding: 6px; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0, 0, 0, .12); animation: nt-menu-in .14s ease both; }
+.iss-more-menu[hidden] { display: none; }
+.iss-more-menu button { display: grid; grid-template-columns: 16px 1fr; gap: 0 10px; align-items: center; padding: 9px 10px; font: inherit; font-size: 12.5px; text-align: left; color: var(--text); background: none; border: 0; cursor: pointer; }
+.iss-more-menu button svg { width: 15px; height: 15px; }
+.iss-more-menu button b { font-weight: 600; }
+.iss-more-menu button small { grid-column: 2; font-size: 11.5px; color: var(--text-low); }
+.iss-more-menu button:hover, .iss-more-menu button:focus-visible { background: color-mix(in srgb, var(--text) 5%, transparent); outline: none; }
+.iss-more-menu hr { margin: 4px 0; border: 0; border-top: 1px solid var(--border); }
+@media (prefers-reduced-motion: reduce) { .iss-more > .lab-btn svg { transition: none; } .iss-more-menu { animation: none; } }
 .iss-work { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(360px, 1fr); grid-template-rows: minmax(0, 1fr); gap: 16px; flex: 1; min-height: 480px; }
 .iss-work-main { gap: 0; padding: 0; min-height: 0; }
 .iss-wtabs { display: flex; gap: 24px; padding: 0 22px; border-bottom: 1px solid var(--border); }

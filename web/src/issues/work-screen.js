@@ -6,12 +6,12 @@
 // asistida por IA (issue-chat.js), que vive mientras la issue esté abierta y
 // se puede ampliar a toda la pantalla de trabajo.
 // Las parecidas, por conectar: solo su hueco.
-import { esc } from '../ui/html.js';
+import { esc, svg } from '../ui/html.js';
 import { STATUS_ES, SEVERITY_ES, when, whenIso, whenLabel, newestFirst, age, pendingSince, stillInfo, escalatedLabel } from './format.js';
 import { item } from './parts.js';
 import { waitHtml } from '../ui/wait.js';
-import { actionsFor } from './actions.js';
-import { notesPanelHtml, notesTab, notesCountOf } from './notes-html.js';
+import { actionsFor, CENTRE_ACTIONS } from './actions.js';
+import { notesPanelHtml, notesTab, notesCountOf, PHONE } from './notes-html.js';
 
 const WORK_TABS = [
   { key: 'detail', label: 'Detalle' },
@@ -50,19 +50,37 @@ export const assistWaitHtml = () => `<div class="ai-start">${waitHtml('Iniciando
 export const releaseDialogHtml = (id, text) => `<div class="iss-dlg-issue"><span class="iss-dlg-code">${esc(id)}</span><span class="iss-dlg-text">${esc(text || '')}</span></div>
   <p class="iss-dlg-p">Volverá a la cola y podrá cogerla cualquier compañero.</p>`;
 
-// Los botones de las acciones (actions.js actionsFor): la primera, la principal
+// La cabecera: a la vista, Resolver (la principal) y Escalar; el resto de sus acciones
+// (actions.js actionsFor), en «Otras acciones»: un menú bajo el botón con lo de hablar con el
+// centro y, separado, lo de soltarla (traspasar o devolver). Lo abre y cierra issues-view.js.
+const MAIN = ['resolve', 'escalate'];
 const ACTION_BUTTON = {
   resolve: '<button class="lab-btn primary" data-act="resolve">Resolver</button>',
   escalate: '<button class="lab-btn" data-act="escalate">Escalar</button>',
-  call: '<button class="lab-btn" data-act="call">Llamada</button>',
-  transfer: '<button class="lab-btn" data-act="transfer">Traspasar</button>',
-  release: '<button class="lab-btn" data-release>Devolver a la cola</button>',
+};
+const icon = (paths) => svg(paths, { width: 2, hidden: true });
+const HANDOFF_PATHS = '<path d="M17 3l4 4-4 4"/><path d="M3 7h18"/><path d="M7 21l-4-4 4-4"/><path d="M21 17H3"/>';
+const MORE_ITEM = {
+  call: { label: 'Llamada', hint: 'Registrar una llamada con el centro', icon: PHONE },
+  contact: { label: 'Contactar con el centro', hint: 'Escribirle tus dudas como nota pública', icon: icon('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>') },
+  transfer: { label: 'Traspasar', hint: 'A un compañero o a otro equipo', icon: icon(HANDOFF_PATHS) },
+  release: { label: 'Devolver a la cola', hint: 'Que la coja otro compañero', icon: icon('<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>') },
+};
+const CHEV = icon('<path d="M6 9l6 6 6-6"/>');
+const moreItem = (key) => { const m = MORE_ITEM[key]; return `<button type="button" ${key === 'release' ? 'data-release' : `data-act="${key}"`}>${m.icon}<b>${m.label}</b><small>${m.hint}</small></button>`; };
+const moreMenu = (keys) => {
+  const groups = [keys.filter((k) => CENTRE_ACTIONS.includes(k)), keys.filter((k) => !CENTRE_ACTIONS.includes(k))].filter((g) => g.length);
+  return `<div class="iss-more"><button type="button" class="lab-btn" data-more aria-expanded="false" aria-controls="iss-more-menu">Otras acciones${CHEV}</button><div class="iss-more-menu" id="iss-more-menu" hidden>${groups.map((g) => g.map(moreItem).join('')).join('<hr>')}</div></div>`;
+};
+const headerActions = (i, mine) => {
+  const acts = actionsFor(i, mine);
+  return `${acts.filter((k) => MAIN.includes(k)).map((k) => ACTION_BUTTON[k]).join('')}${moreMenu(acts.filter((k) => !MAIN.includes(k)))}`;
 };
 
 // Pendiente de un tercero no hay nada que resolver con la IA: en lugar del chat, sus dos acciones,
 // grandes (y fuera de la cabecera, para no repetirlas)
 const BELL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>';
-const HANDOFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3l4 4-4 4"/><path d="M3 7h18"/><path d="M7 21l-4-4 4-4"/><path d="M21 17H3"/></svg>';
+const HANDOFF = svg(HANDOFF_PATHS, { width: 1.6, hidden: true });
 // En la cabecera, donde irían Resolver y compañía: que ya está escalada, a quién y desde cuándo
 const escalatedTag = (i) => `<span class="iss-escalated" title="Pendiente de un tercero: resolver, escalar o devolverla no tiene sentido hasta que responda">${BELL}<b>${esc(escalatedLabel(i))}</b><span>desde el ${when(pendingSince(i))}</span></span>`;
 // Sus acciones (actionsFor), grandes. En «Reclamar», a modo de aviso, los días que lleva parada
@@ -79,7 +97,7 @@ export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, meI
   <header class="iss-work-h">
     <button class="lab-btn primary" data-back>Volver al panel</button>
     <h2 title="${esc(i.text)}">${esc(i.text)}</h2>
-    <div class="iss-actions">${i.status === 'PENDING' ? `${escalatedTag(i)}${ACTION_BUTTON.call}` : actionsFor(i, mine).map((key) => ACTION_BUTTON[key]).join('')}</div>
+    <div class="iss-actions">${i.status === 'PENDING' ? `${escalatedTag(i)}${moreMenu(CENTRE_ACTIONS)}` : headerActions(i, mine)}</div>
   </header>
 
   <div class="iss-work">

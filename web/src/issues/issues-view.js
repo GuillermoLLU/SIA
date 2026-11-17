@@ -12,7 +12,7 @@ import { pressStartedIn } from '../ui/dom.js';
 import { pickClick, openPicker, closePickers } from '../ui/picker.js';
 import { workScreen, releaseDialogHtml } from './work-screen.js';
 import { createNotes } from './notes-view.js';
-import { actionForm, readAction, isComplete, chaseNote, chaseTarget } from './actions.js';
+import { actionForm, readAction, isComplete, chaseNote, chaseTarget, contactNote } from './actions.js';
 import { createResolver } from './resolve-view.js';
 import { knowsOrigin, originOf } from './origin.js';
 import { crossfade } from '../ui/crossfade.js';
@@ -206,9 +206,29 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     if (b) { b.title = wide ? 'Volver al tamaño normal' : 'Ampliar el chat'; b.setAttribute('aria-label', b.title); }
   };
 
+  // «Otras acciones»: el menú bajo el botón de la cabecera. Otro clic (también en una de sus
+  // acciones, que además se abre) o Escape lo cierra.
+  let offMore = null;
+  const closeMore = () => {
+    const btn = root.querySelector('[data-more][aria-expanded="true"]');
+    if (btn) { btn.setAttribute('aria-expanded', 'false'); btn.nextElementSibling.hidden = true; }
+    offMore?.(); offMore = null;
+  };
+  const toggleMore = (btn) => {
+    const open = btn.getAttribute('aria-expanded') === 'true';
+    closeMore();
+    if (open) return;
+    btn.setAttribute('aria-expanded', 'true');
+    btn.nextElementSibling.hidden = false;
+    offMore = onEscape(closeMore);
+  };
+
   root.addEventListener('click', async (e) => {
     const t = e.target;
     if (pickClick(root, t)) return;
+    const more = t.closest('[data-more]');
+    if (more) return toggleMore(more);
+    closeMore();
     const fold = t.closest('[data-keys-toggle]');
     if (fold) return foldKeys(fold.getAttribute('aria-expanded') === 'true');
     if (t.closest('[data-chat-expand]')) return widenChat(!root.querySelector('.iss-work-page')?.classList.contains('chat-wide'));
@@ -365,9 +385,17 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
         ? `Unida a ${values.ticket}: pasa a Pendiente (proveedor), sin otro escalado. Aún no se envía a Remedy.`
         : `Escalada a ${values.destName}: ${rootCause ? 'queda registrada la causa raíz y sigue Resuelta' : 'pasa a Pendiente (proveedor) y se avisa al centro'}.${values.todo.length ? ` Añádele ${values.todo.join(' y ')} en Seguimiento.` : ''} Aún no se envía a Remedy.`);
     }
-    // lo que queda: reclamar respuesta, que se anota en Seguimiento
     form.querySelector('[type=submit]').disabled = true;
     try {
+      // contactar con el centro: nota pública en Seguimiento; lo que hará con SIGLO, en el aviso
+      if (key === 'contact') {
+        const note = contactNote(values.message);
+        await api.addNote(opened, note.body, { visibility: note.visibility });
+        closeAction();
+        await notes.refresh();
+        return toast?.('Mensaje al centro en Seguimiento. Cuando conectemos SIGLO, le llegará y la issue pasará a Pendiente (cliente).');
+      }
+      // lo que queda: reclamar respuesta, que se anota en Seguimiento
       await api.addNote(opened, chaseNote(issue, values.message));
       closeAction();
       await notes.refresh();

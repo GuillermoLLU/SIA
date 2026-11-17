@@ -1,8 +1,10 @@
-// Las acciones sobre una issue (resolver, escalar, llamar al centro, traspasar, reclamar al tercero): su
-// formulario, qué hace falta para enviarlo y cuáles tiene cada issue según su estado.
-// Resolver, escalar y reclamar irán a Remedy por SIGLO y, de momento, no se envían (la
-// reclamación queda como nota interna). Traspasar, a un compañero se queda en SIA (la base
-// de la instancia) y a otro equipo queda como nota (transfer.js).
+// Las acciones sobre una issue (resolver, escalar, llamar al centro, escribirle, traspasar,
+// reclamar al tercero): su formulario, qué hace falta para enviarlo y cuáles tiene cada issue
+// según su estado.
+// Resolver, escalar, reclamar y escribir al centro irán a Remedy por SIGLO y, de momento, no se
+// envían (la reclamación queda como nota interna; el mensaje al centro, como nota pública).
+// Traspasar, a un compañero se queda en SIA (la base de la instancia) y a otro equipo queda como
+// nota (transfer.js).
 // Las notas se escriben en la pestaña Seguimiento.
 import { esc } from '../ui/html.js';
 import { thirdOf } from './format.js';
@@ -27,6 +29,13 @@ export const ACTIONS = {
   call: {
     label: 'Llamada',
   },
+  // escribir al centro (dudas del proceso): queda como nota pública en Seguimiento
+  contact: {
+    label: 'Contactar con el centro', title: 'Contactar con el centro', ok: 'Enviar al centro',
+    fields: [
+      { name: 'message', label: 'Mensaje al centro', kind: 'text', required: true, rows: 7, hint: 'Queda en Seguimiento como nota pública: la verá el centro.' },
+    ],
+  },
   // la ventana es propia (transfer.js): a un compañero o a otro equipo, con su motivo
   transfer: {
     label: 'Traspasar',
@@ -34,6 +43,7 @@ export const ACTIONS = {
   // insistir a quien la tiene parada (proveedor, cliente, el equipo al que se escaló)
   chase: {
     label: 'Reclamar respuesta', title: 'Reclamar respuesta', ok: 'Reclamar',
+    notice: 'Aún no se envía a Remedy: irá por SIGLO cuando lo conectemos.',
     fields: [
       { name: 'message', label: 'Qué le reclamas', kind: 'text', required: true },
     ],
@@ -44,7 +54,7 @@ const field = (f) => {
   const id = `iss-f-${f.name}`;
   const label = `<span>${f.label}${f.required ? '' : ' <i>(opcional)</i>'}</span>`;
   const hint = f.hint ? `<small>${f.hint}</small>` : '';
-  const input = f.kind === 'text' ? `<textarea id="${id}" name="${f.name}" rows="5"></textarea>` : `<input id="${id}" name="${f.name}" />`;
+  const input = f.kind === 'text' ? `<textarea id="${id}" name="${f.name}" rows="${f.rows || 5}"></textarea>` : `<input id="${id}" name="${f.name}" />`;
   return `<label class="iss-field" for="${id}">${label}${input}${hint}</label>`;
 };
 
@@ -53,18 +63,21 @@ export const actionForm = (key, issueId) => {
   return `<form class="iss-act-form" data-act-form="${key}" novalidate>
     <header><h3>${a.title}</h3><span>${esc(issueId)}</span></header>
     ${a.fields.map(field).join('')}
-    <p class="iss-act-note">Aún no se envía a Remedy: irá por SIGLO cuando lo conectemos.</p>
+    ${a.notice ? `<p class="iss-act-note">${a.notice}</p>` : ''}
     <p class="iss-act-err" hidden></p>
     <footer><button type="button" class="lab-btn" data-act-cancel>Cancelar</button><button type="submit" class="lab-btn primary" disabled>${a.ok}</button></footer>
   </form>`;
 };
 
+// Hablar con el centro (llamarle o escribirle) vale en cualquier estado; en una pendiente va
+// aparte, en la cabecera, junto a a quién se escaló (work-screen.js).
+export const CENTRE_ACTIONS = ['call', 'contact'];
+
 // Qué se puede hacer con una issue: pendiente de un tercero, reclamarle respuesta; si no, resolverla,
-// escalarla o llamar al centro (pendiente, la llamada va aparte, en la cabecera: work-screen.js).
-// Traspasarla a un compañero o devolverla a la cola, solo si es de uno (cogida en SIA): la base no
-// mueve una issue que no tienes. Traspasar no mira el tope de en curso.
+// escalarla o hablar con el centro. Traspasarla o devolverla a la cola, solo si es de uno (cogida
+// en SIA): la base no mueve una issue que no tienes. Traspasar no mira el tope de en curso.
 export const actionsFor = (issue, mine) => [
-  ...(issue.status === 'PENDING' ? ['chase'] : ['resolve', 'escalate', 'call']),
+  ...(issue.status === 'PENDING' ? ['chase'] : ['resolve', 'escalate', ...CENTRE_ACTIONS]),
   ...(mine ? ['transfer'] : []),
   ...(mine && issue.status !== 'PENDING' ? ['release'] : []),
 ];
@@ -73,6 +86,10 @@ export const actionsFor = (issue, mine) => [
 // chaseTarget: «a Proveedor», o «al tercero» si el motivo no dice a quién.
 export const chaseTarget = (issue) => { const third = thirdOf(issue); return third ? `a ${third}` : 'al tercero'; };
 export const chaseNote = (issue, message) => `Reclamado ${chaseTarget(issue)}: ${message}`;
+
+// «Contactar con el centro» aún no le llega: lo escrito queda como nota pública en Seguimiento.
+// Cuando SIA envíe por SIGLO, le llegará y la issue pasará a Pendiente (cliente).
+export const contactNote = (message) => ({ body: message, visibility: 'public' });
 
 // ¿Están todos los obligatorios? Mientras no, el botón de enviar sigue apagado.
 export const isComplete = (key, values) => !readAction(key, values).missing;

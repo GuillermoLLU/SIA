@@ -79,17 +79,24 @@ test('la primera línea de una nota, recortada a 90; el arranque de la resoluci�
 test('la cabecera de la issue: volver al panel, el título en una línea con su title, y las acciones', () => {
   const html = workScreen({ issue: issue({ text: 'Cola <llena>' }), sameCenter: [], now, mine: true });
   assert.match(html, /<header class="iss-work-h">\s*<button class="lab-btn primary" data-back>Volver al panel<\/button>\s*<h2 title="Cola &lt;llena&gt;">Cola &lt;llena&gt;<\/h2>/);
-  assert.match(html, /data-act="resolve">Resolver<[\s\S]*data-act="escalate">Escalar<[\s\S]*data-act="call">Llamada<[\s\S]*data-act="transfer">Traspasar<[\s\S]*data-release>Devolver a la cola</);
+  assert.match(html, /<div class="iss-actions"><button class="lab-btn primary" data-act="resolve">Resolver<\/button><button class="lab-btn" data-act="escalate">Escalar<\/button><div class="iss-more">/, 'a la vista, Resolver y Escalar');
+  assert.match(html, /data-more aria-expanded="false" aria-controls="iss-more-menu">Otras acciones<svg/);
+  const menu = html.match(/<div class="iss-more-menu" id="iss-more-menu" hidden>([\s\S]*?)<\/div><\/div>/)[1];
+  assert.deepEqual([...menu.matchAll(/<b>([^<]+)<\/b>/g)].map((m) => m[1]), ['Llamada', 'Contactar con el centro', 'Traspasar', 'Devolver a la cola'], 'el resto, en «Otras acciones»');
+  assert.match(menu, /data-act="contact">[\s\S]*Escribirle tus dudas como nota pública<\/small><\/button><hr><button type="button" data-act="transfer">/, 'hablar con el centro, y tras una línea, soltarla');
+  assert.match(menu, /data-release>/);
   assert.doesNotMatch(html, /Mi mesa|iss-state/);
   const notMine = workScreen({ issue: issue(), sameCenter: [], now, mine: false });
-  assert.doesNotMatch(notMine, /data-act="transfer"|data-release/, 'sin cogerla en SIA no se traspasa ni se devuelve');
+  assert.doesNotMatch(notMine, /data-act="transfer"|data-release|<hr>/, 'sin cogerla en SIA no se traspasa ni se devuelve');
+  assert.match(notMine, /data-act="call">[\s\S]*data-act="contact">/);
 });
 
 test('una issue pendiente de un tercero: en lugar del chat, reclamarle y traspasar, grandes', () => {
   const html = workScreen({ issue: issue({ status: 'PENDING' }), sameCenter: [], now, mine: true });
   assert.match(html, /iss-pending-acts[\s\S]*data-act="chase">[\s\S]*Reclamar respuesta<\/span><em class="iss-big-still \w+">\d+ días? sin moverse<\/em>[\s\S]*data-act="transfer">[\s\S]*Traspasar/);
   assert.doesNotMatch(html, /data-act="resolve"|data-act="escalate"|data-release|iss-chat-body/);
-  assert.match(html, /iss-escalated[\s\S]*data-act="call">Llamada</, 'pendiente: a quién se escaló y, al lado, Llamada');
+  assert.match(html, /iss-escalated[\s\S]*<div class="iss-more">[\s\S]*data-act="call">[\s\S]*data-act="contact">[\s\S]*<\/div><\/div><\/div>/, 'pendiente: a quién se escaló y, al lado, hablar con el centro en «Otras acciones»');
+  assert.equal((html.match(/data-act="transfer"/g) || []).length, 1, 'Traspasar, solo el grande');
   assert.match(html, /<div class="iss-actions"><span class="iss-escalated"[\s\S]*Escalada[\s\S]*desde el/, 'en la cabecera, que ya está escalada y desde cuándo');
   const notMine = workScreen({ issue: issue({ status: 'PENDING' }), sameCenter: [], now, mine: false });
   assert.match(notMine, /data-act="chase"/);
