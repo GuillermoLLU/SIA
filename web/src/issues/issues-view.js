@@ -58,7 +58,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   const followTabs = (team) => {
     const done = team.filter(jiraDone).length;
     return `<div class="iss-follow" role="tablist" aria-label="De quién">${[['mine', 'Mías'], ['team', 'Equipo']].map(([k, label]) =>
-      `<button type="button" role="tab" data-follow="${k}" aria-selected="${follow === k}">${label}${k === 'team' && done ? `<i title="${done} con el Jira resuelto: hay que cerrarlas">${done}</i>` : ''}</button>`).join('')}</div>`;
+      `<button type="button" role="tab" data-follow="${k}" aria-selected="${follow === k}">${label}${k === 'team' && done ? `<i title="${done} con el Jira resuelto: se cierran solas">${done}</i>` : ''}</button>`).join('')}</div>`;
   };
 
   const kpi = (label, value, hint) => `<div class="iss-kpi" title="${hint}"><span>${label}</span><b>${value}</b><small>${hint}</small></div>`;

@@ -16,7 +16,7 @@ export const handed = (t) => (t ? `<span class="iss-handed"><span class="iss-tag
 // Una pendiente de terceros: los días sin moverse, bien a la vista y con su color (format.js stillLevel).
 // Si su Jira ya está resuelto, lo que toca es cerrarla.
 const still = (i, now) => {
-  if (jiraDone(i)) return `<span class="iss-still done" title="Su Jira está resuelto${i.jira.at ? ` desde el ${when(i.jira.at)}` : ''}: ciérrala"><b>Cerrar</b> Jira resuelto</span>`;
+  if (jiraDone(i)) return `<span class="iss-still done" title="Su Jira está resuelto${i.jira.at ? ` desde el ${when(i.jira.at)}` : ''}: se cierra sola (en Remedy, cuando conectemos SIGLO)"><b>Cerrada</b> Jira resuelto</span>`;
   const s = stillInfo(i, now);
   return `<span class="iss-still ${s.level}" title="Sin moverse desde el ${when(i.modified)}"><b>${s.label}</b> sin moverse</span>`;
 };

@@ -29,13 +29,13 @@ test('Seguimiento: los días sin moverse, en su color y con la fecha al pasar po
   assert.match(item(issue({ status: 'PENDING', modified: '2026-10-28 11:00' }), 'waiting', now), /iss-still ok"[^>]*><b>1 día<\/b>/);
 });
 
-test('Seguimiento: con Jira, su clave y estado en lugar del motivo; resuelto, «Cerrar»', () => {
+test('Seguimiento: con Jira, su clave y estado en lugar del motivo; resuelto, «Cerrada»: se cierra sola', () => {
   const open = item(issue({ status: 'PENDING', reason: 'THIRD_PARTY_VENDOR_ACTION_REQD', modified: '2026-10-22 09:00', jira: { key: 'SISUPAC-1', state: 'open' } }), 'waiting', now);
   assert.match(open, /<span class="iss-jira open" title="Jira Abierto">SISUPAC-1<i>Abierto<\/i><\/span>/);
   assert.doesNotMatch(open, /iss-reason/);
   assert.match(open, /<b>7 días<\/b> sin moverse/);
   const done = item(issue({ status: 'PENDING', modified: '2026-10-22 09:00', jira: { key: 'SISUPAC-1', state: 'resolved', at: '2026-10-29 08:00' } }), 'waiting', now);
-  assert.match(done, /<span class="iss-still done" title="Su Jira está resuelto desde el 29\/10 08:00: ciérrala"><b>Cerrar<\/b> Jira resuelto<\/span>/);
+  assert.match(done, /<span class="iss-still done" title="Su Jira está resuelto desde el 29\/10 08:00: se cierra sola \(en Remedy, cuando conectemos SIGLO\)"><b>Cerrada<\/b> Jira resuelto<\/span>/);
   assert.doesNotMatch(done, /sin moverse/);
 });
 
