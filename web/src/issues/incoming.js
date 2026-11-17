@@ -1,5 +1,5 @@
 // Atender la llamada de un centro desde el panel (dominio y HTML, sin E/S; el
-// cableado, incoming-view.js). Arriba en la columna derecha, una tarjeta para
+// cableado, incoming-view.js). En la columna derecha, bajo «Hoy», una tarjeta para
 // buscar la incidencia por su número (sea de quien sea); al elegirla, una
 // ventana con su detalle, para atender bien la llamada, y lo que se habló.
 // Solo deja registro: no se resuelve, no se coge ni se mueve. La llamada queda
