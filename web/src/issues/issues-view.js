@@ -21,6 +21,8 @@ import { readEscalate, createEscalateDrafts } from './escalate.js';
 import { escalateForm, escalateLive } from './escalate-form.js';
 import { DESTINATIONS, OPEN_TICKETS } from './escalate-mock.js';
 import { callForm, callReady, callNote, suggestedPhone } from './call.js';
+import { transferForm, readTransfer, transferNote } from './transfer.js';
+import { TEAMS } from './transfer-mock.js';
 import { createIncoming } from './incoming-view.js';
 import { incomingCardHtml } from './incoming.js';
 
@@ -232,6 +234,8 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       }
       const wt = t.closest('[data-wtab]');
       if (wt) return showTab(wt.dataset.wtab);
+      const mode = t.closest('[data-transfer-mode]');
+      if (mode) return switchTransfer(mode.closest('form'), mode.dataset.transferMode);
       const act = t.closest('[data-act]');
       if (act) {
         if (act.disabled) return;   // un segundo clic mientras se abre: un solo modal
@@ -301,12 +305,24 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     const empty = key === 'transfer' ? `Nadie más tiene el conocimiento de ${originOf(issue)}` : '';
     // la llamada: su ventana (call.js), con el teléfono de la última llamada o el de contacto del centro
     const suggested = key === 'call' ? suggestedPhone(notes.entries(), issue?.notes) : null;
-    const modal = key === 'escalate' ? escalateModal() : key === 'call' ? callForm(opened, suggested) : actionForm(key, opened, people, empty);
+    const modal = key === 'escalate' ? escalateModal()
+      : key === 'call' ? callForm(opened, suggested)
+      : key === 'transfer' ? transferForm(opened, { people, empty, teams: TEAMS })
+      : actionForm(key, opened);
     root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${modal}</div>`);
     const first = key === 'escalate' ? '#iss-f-dest' : key === 'call' ? (suggested.phone ? '#iss-f-comment' : '#iss-f-phone') : '.iss-act-form textarea, .iss-act-form input:not([type=hidden]), .iss-act-form select';
     root.querySelector(first)?.focus();
     // Escape: con la lista del selector abierta la cierra; si no, cierra el modal
     offEscape = onEscape(() => (openPicker(root) ? closePickers(root) : closeAction()));
+  };
+  // Traspasar: «A un compañero» o «A otro equipo» cambia el formulario en el sitio; el motivo se queda.
+  const switchTransfer = (form, mode) => {
+    closePickers(root);
+    form.elements.mode.value = mode;
+    form.querySelectorAll('[data-transfer-mode]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.transferMode === mode)));
+    form.querySelectorAll('[data-transfer-pane]').forEach((p) => { p.hidden = p.dataset.transferPane !== mode; });
+    form.querySelector('.iss-act-err').hidden = true;
+    syncSubmit(form);
   };
   // El botón de enviar, apagado hasta que estén todos los campos obligatorios.
   // Resolver (por pasos) y Escalar (no bloquea) llevan su propia validación: aquí, los demás.
@@ -321,6 +337,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       form.querySelector('[value="noanswer"]').disabled = !ready.noAnswer;
       return;
     }
+    if (key === 'transfer') { form.querySelector('[type=submit]').disabled = !!readTransfer(values, TEAMS).missing; return; }
     form.querySelector('[type=submit]').disabled = !isComplete(key, values);
   };
   root.addEventListener('input', (e) => {
@@ -334,6 +351,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     const key = form.dataset.actForm;
     if (key === 'resolve') return;   // lo atiende resolve-view.js
     if (key === 'call') return saveCall(form, e.submitter?.value === 'answered');
+    if (key === 'transfer') return saveTransfer(form);
     const raw = Object.fromEntries(new FormData(form));
     const { missing, values } = key === 'escalate' ? readEscalate(raw, DESTINATIONS) : readAction(key, raw);
     const err = form.querySelector('.iss-act-err');
@@ -349,13 +367,6 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     }
     form.querySelector('[type=submit]').disabled = true;
     try {
-      if (key === 'transfer') {
-        const who = people.find((p) => p.id === values.to)?.name || 'un compañero';
-        await api.transfer(opened, values.to, values.comment);
-        closeAction();
-        await loadDesk();
-        return toast?.(`Traspasada a ${who}.`);
-      }
       if (key === 'chase') {
         await api.addNote(opened, chaseNote(issue, values.message));
         closeAction();
@@ -366,6 +377,29 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       toast?.(`${ACTIONS[key].label}: preparado, pero aún no se envía a Remedy (falta conectar SIGLO).`);
     } catch (e2) { fail(e2.message); }
   });
+  // Traspasar: a un compañero, la base la mueve y se vuelve a la mesa; a otro equipo, queda como
+  // nota interna en Seguimiento hasta que SIGLO la lleve a Remedy (los equipos son de prueba).
+  const saveTransfer = async (form) => {
+    const { missing, values } = readTransfer(Object.fromEntries(new FormData(form)), TEAMS);
+    const err = form.querySelector('.iss-act-err');
+    const btn = form.querySelector('[type=submit]');
+    const fail = (text) => { err.textContent = text; err.hidden = false; btn.disabled = false; };
+    if (missing) return fail(`Falta: ${missing}.`);
+    btn.disabled = true;
+    try {
+      if (values.mode === 'person') {
+        const who = people.find((p) => p.id === values.to)?.name || 'un compañero';
+        await api.transfer(opened, values.to, values.comment);
+        closeAction();
+        await loadDesk();
+        return toast?.(`Traspasada a ${who}.`);
+      }
+      await api.addNote(opened, transferNote(values));
+      closeAction();
+      await notes.refresh();
+      toast?.(`Traspaso a ${values.teamName} anotado en Seguimiento. Aún no llega a Remedy: irá por SIGLO cuando lo conectemos.`);
+    } catch (e2) { fail(e2.message); }
+  };
   // Registrar la llamada: una nota interna con su etiqueta de llamada (call.js), que Seguimiento pinta como un hito.
   const saveCall = async (form, answered) => {
     const values = Object.fromEntries(new FormData(form));

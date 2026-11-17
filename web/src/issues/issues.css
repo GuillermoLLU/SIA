@@ -443,6 +443,15 @@
 /* la llamada: «Guardar llamada» va primero en el código (es el que manda Intro) y se ve a la derecha; Cancelar, a la izquierda */
 .iss-call footer { flex-direction: row-reverse; justify-content: flex-start; }
 .iss-call footer [data-act-cancel] { margin-right: auto; }
+/* Traspasar: «A un compañero | A otro equipo» arriba; la elegida, en negro. Cambia el formulario en el sitio. */
+.tr-seg { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--border); }
+.tr-seg button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; font: inherit; font-size: 13px; color: var(--text-low); background: none; border: 0; cursor: pointer; transition: color .15s ease, background-color .15s ease; }
+.tr-seg button + button { border-left: 1px solid var(--border); }
+.tr-seg button:hover { color: var(--text); }
+.tr-seg button[aria-selected="true"] { color: var(--surface); background: var(--text); cursor: default; }
+.tr-seg i { display: inline-flex; width: 16px; height: 16px; }
+.tr-seg svg { width: 100%; height: 100%; }
+.iss-act-form [data-transfer-pane][hidden] { display: none; }
 /* Resolver: cinco pasos, uno a la vista. El modal tiene siempre el mismo tamaño y no se
    desplaza: lo que no cabe se desplaza dentro de su campo (o del borrador). */
 .rv { width: min(1120px, 100vw - 32px); height: min(800px, 100vh - 32px); gap: 0; padding: 0; }

@@ -1,10 +1,10 @@
 // Las acciones sobre una issue (resolver, escalar, llamar al centro, traspasar, reclamar al tercero): su
 // formulario, qué hace falta para enviarlo y cuáles tiene cada issue según su estado.
-// Traspasar se queda en SIA (la base de la instancia); resolver, escalar y reclamar irán a
-// Remedy por SIGLO y, de momento, no se envían (la reclamación queda como nota interna).
+// Resolver, escalar y reclamar irán a Remedy por SIGLO y, de momento, no se envían (la
+// reclamación queda como nota interna). Traspasar, a un compañero se queda en SIA (la base
+// de la instancia) y a otro equipo queda como nota (transfer.js).
 // Las notas se escriben en la pestaña Seguimiento.
 import { esc } from '../ui/html.js';
-import { peoplePicker } from '../ui/picker.js';
 import { thirdOf } from './format.js';
 
 export const ACTIONS = {
@@ -27,12 +27,9 @@ export const ACTIONS = {
   call: {
     label: 'Llamada',
   },
+  // la ventana es propia (transfer.js): a un compañero o a otro equipo, con su motivo
   transfer: {
-    label: 'Traspasar', title: 'Traspasar a un compañero', ok: 'Traspasar', local: true,
-    fields: [
-      { name: 'to', label: 'Compañero', kind: 'person', required: true },
-      { name: 'comment', label: 'Motivo', kind: 'text', required: true },
-    ],
+    label: 'Traspasar',
   },
   // insistir a quien la tiene parada (proveedor, cliente, el equipo al que se escaló)
   chase: {
@@ -43,27 +40,20 @@ export const ACTIONS = {
   },
 };
 
-// El selector de persona es el propio de la app (ui/picker.js); abrir,
-// elegir y cerrar lo lleva la vista (issues-view.js).
-// empty: lo que dice sin nadie a quien elegir (p. ej. nadie más con el conocimiento de su origen)
-const picker = (f, people, empty) => peoplePicker({ name: f.name, id: `iss-f-${f.name}`, people, empty: empty || 'No hay más personas en Issues' });
-
-const field = (f, people, empty) => {
+const field = (f) => {
   const id = `iss-f-${f.name}`;
   const label = `<span>${f.label}${f.required ? '' : ' <i>(opcional)</i>'}</span>`;
   const hint = f.hint ? `<small>${f.hint}</small>` : '';
-  // el selector no va dentro de un <label>: un clic en su lista rebotaría al botón
-  if (f.kind === 'person') return `<div class="iss-field">${label}${picker(f, people, empty)}${hint}</div>`;
   const input = f.kind === 'text' ? `<textarea id="${id}" name="${f.name}" rows="5"></textarea>` : `<input id="${id}" name="${f.name}" />`;
   return `<label class="iss-field" for="${id}">${label}${input}${hint}</label>`;
 };
 
-export const actionForm = (key, issueId, people = [], empty = '') => {
+export const actionForm = (key, issueId) => {
   const a = ACTIONS[key];
   return `<form class="iss-act-form" data-act-form="${key}" novalidate>
     <header><h3>${a.title}</h3><span>${esc(issueId)}</span></header>
-    ${a.fields.map((f) => field(f, people, empty)).join('')}
-    ${a.local ? '' : '<p class="iss-act-note">Aún no se envía a Remedy: irá por SIGLO cuando lo conectemos.</p>'}
+    ${a.fields.map(field).join('')}
+    <p class="iss-act-note">Aún no se envía a Remedy: irá por SIGLO cuando lo conectemos.</p>
     <p class="iss-act-err" hidden></p>
     <footer><button type="button" class="lab-btn" data-act-cancel>Cancelar</button><button type="submit" class="lab-btn primary" disabled>${a.ok}</button></footer>
   </form>`;

@@ -26,22 +26,17 @@ test('reclamar al tercero: el mensaje es obligatorio', () => {
 
 test('obligatorios: el primero que falte', () => {
   assert.deepEqual(readAction('resolve', { note: 'Se relanzó', what: '  ' }), { missing: '¿Qué ha ocurrido?' });
-  assert.deepEqual(readAction('transfer', { to: 'u1' }), { missing: 'Motivo' });
-  assert.deepEqual(readAction('transfer', { to: 'u1', comment: ' Lleva dos llamadas. ' }), { values: { to: 'u1', comment: 'Lleva dos llamadas.' } });
 });
 
 test('el botón de enviar empieza apagado y solo se enciende con todos los obligatorios', () => {
-  assert.match(actionForm('transfer', 'INC1'), /type="submit"[^>]*disabled/);
-  assert.equal(isComplete('transfer', { to: 'u1', comment: '  ' }), false);
-  assert.equal(isComplete('transfer', { to: '', comment: 'motivo' }), false);
-  assert.equal(isComplete('transfer', { to: 'u1', comment: 'motivo' }), true);
+  assert.match(actionForm('chase', 'INC1'), /type="submit"[^>]*disabled/);
+  assert.equal(isComplete('chase', { message: '  ' }), false);
+  assert.equal(isComplete('chase', { message: '¿Hay novedades?' }), true);
 });
 
-test('traspasar: el equipo en el selector propio, escapado; se queda en SIA, sin el aviso de Remedy', () => {
-  const html = actionForm('transfer', 'INC1', [{ id: 'u1', name: 'Ana <x>' }]);
-  assert.match(html, /<input type="hidden" name="to" value="">/);
-  assert.match(html, /<li role="option" data-pick-opt="u1" aria-selected="false">Ana &lt;x&gt;<\/li>/);
-  assert.match(actionForm('transfer', 'INC1', []), /data-pick-btn[^>]*disabled[^>]*>.*No hay más personas en Issues/);
-  assert.doesNotMatch(html, /Aún no se envía a Remedy/);
-  assert.match(actionForm('resolve', 'INC1'), /Aún no se envía a Remedy/);
+test('reclamar: su ventana, con el aviso de que aún no llega a Remedy', () => {
+  const html = actionForm('chase', 'INC<1>');
+  assert.match(html, /<h3>Reclamar respuesta<\/h3><span>INC&lt;1&gt;<\/span>/);
+  assert.match(html, /<textarea id="iss-f-message" name="message" rows="5"><\/textarea>/);
+  assert.match(html, /Aún no se envía a Remedy/);
 });
