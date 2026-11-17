@@ -351,14 +351,14 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   };
   // Reasignar un escalado de otro (#136), desde Seguimiento · Equipo o al abrirlo: a quien tiene el
   // conocimiento de su origen, sin su dueño, con la ventana de Traspasar solo a un compañero
-  // (transfer.js). La primera opción, «A mí»: pasa a mi mesa de verdad (api.take); a otro, de momento, de
+  // (transfer.js). La primera opción, yo («Nombre (a mí)»): pasa a mi mesa de verdad (api.take); a otro, de momento, de
   // prueba (la base aún no mueve la issue de una persona a otra).
   let reassigning = null;
   const openReassign = async (id) => {
     const e = data?.escalations?.items.find((x) => x.id === id) || { ...issue, owner: issue?.claimedBy?.name || issue?.assignee || '' };
     reassigning = id;
     people = [
-      ...(knowsOrigin(me?.groups, e) && e.owner !== me?.name ? [{ id: me.id, name: 'A mí' }] : []),
+      ...(knowsOrigin(me?.groups, e) && e.owner !== me?.name ? [{ id: me.id, name: `${me.name} (a mí)` }] : []),
       ...(await api.teammates()).filter((p) => knowsOrigin(p.groups, e) && p.name !== e.owner),
     ];
     closeAction();
