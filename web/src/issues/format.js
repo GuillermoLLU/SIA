@@ -43,7 +43,8 @@ export const LISTS = [
 // (escalations.js del bridge). Las que tienen el Jira resuelto piden cerrarse: arriba.
 export const JIRA_ES = { open: 'Abierto', resolved: 'Resuelto', discarded: 'Descartado' };
 export const jiraDone = (i) => i.jira?.state === 'resolved';
-export const closeFirst = (list) => [...list].sort((a, b) => jiraDone(b) - jiraDone(a));
+// las que tienen el Jira resuelto se cierran solas: en Seguimiento ya no salen
+export const stillOpen = (list) => list.filter((i) => !jiraDone(i));
 // mis pendientes con el Jira que les toca, si lo tienen
 export const withJira = (items, escalations) => {
   const jira = new Map(escalations.map((e) => [e.id, e.jira]));

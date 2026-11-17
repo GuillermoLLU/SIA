@@ -29,22 +29,19 @@ test('Seguimiento: los días sin moverse, en su color y con la fecha al pasar po
   assert.match(item(issue({ status: 'PENDING', modified: '2026-10-28 11:00' }), 'waiting', now), /iss-still ok"[^>]*><b>1 día<\/b>/);
 });
 
-test('Seguimiento: con Jira, su clave y estado en lugar del motivo; resuelto, «Cerrada»: se cierra sola', () => {
+test('Seguimiento: con Jira, su clave y estado en lugar del motivo', () => {
   const open = item(issue({ status: 'PENDING', reason: 'THIRD_PARTY_VENDOR_ACTION_REQD', modified: '2026-10-22 09:00', jira: { key: 'SISUPAC-1', state: 'open' } }), 'waiting', now);
   assert.match(open, /<span class="iss-jira open" title="Jira Abierto">SISUPAC-1<i>Abierto<\/i><\/span>/);
   assert.doesNotMatch(open, /iss-reason/);
   assert.match(open, /<b>7 días<\/b> sin moverse/);
-  const done = item(issue({ status: 'PENDING', modified: '2026-10-22 09:00', jira: { key: 'SISUPAC-1', state: 'resolved', at: '2026-10-29 08:00' } }), 'waiting', now);
-  assert.match(done, /<span class="iss-still done" title="Su Jira está resuelto desde el 29\/10 08:00: se cierra sola \(en Remedy, cuando conectemos SIGLO\)"><b>Cerrada<\/b> · Jira resuelto<\/span>/);
-  assert.doesNotMatch(done, /sin moverse/);
 });
 
-test('escalado del equipo: dueño, el Jira enlazado y, si es de otro, Asumir y Reasignar', () => {
+test('escalado del equipo: dueño, el Jira enlazado y, si es de otro, Pasar a mi mesa y Reasignar', () => {
   const e = (o) => issue({ status: 'PENDING', modified: '2026-10-28 11:00', owner: 'Luis <x>', mine: false, jira: { key: 'SISUPAC-1', state: 'open', url: 'https://jira/browse/SISUPAC-1' }, ...o });
   const other = teamItem(e(), now);
   assert.match(other, /<span class="iss-owner">Luis &lt;x&gt;<\/span>/);
   assert.match(other, /<div class="iss-esc-acts"><a href="https:\/\/jira\/browse\/SISUPAC-1" target="_blank" rel="noopener" title="Abrir SISUPAC-1 en Jira">Jira ↗<\/a>/);
-  assert.match(other, /data-esc-take="INC1">Asumir<\/button><button type="button" data-esc-reassign="INC1">Reasignar/);
+  assert.match(other, /data-esc-take="INC1">Pasar a mi mesa<\/button><button type="button" data-esc-reassign="INC1">Reasignar/);
   const mine = teamItem(e({ mine: true, jira: { key: 'SISUPAC-1', state: 'open' } }), now);
   assert.match(mine, /<span class="iss-owner mine">Tuya<\/span>/);
   assert.doesNotMatch(mine, /iss-esc-acts/);

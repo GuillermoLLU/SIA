@@ -38,7 +38,7 @@ export const ACTIONS = {
   },
   // quedarse con una escalada de otra persona (un compañero de vacaciones): pasa a mi mesa como mía
   take: {
-    label: 'Asumir',
+    label: 'Pasar a mi mesa',
   },
   // abrir un WAR-ROOM si una crítica es bloqueante: de momento no hace nada, solo lo avisa (issues-view.js)
   warroom: {

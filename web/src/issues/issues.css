@@ -182,22 +182,19 @@
 .iss-still.slow b { color: color-mix(in srgb, var(--iss-high) 85%, var(--text)); }
 .iss-still.late { color: var(--iss-high); background: color-mix(in srgb, var(--iss-high) 12%, transparent); }
 .iss-still.late b { color: var(--iss-high); }
-.iss-still.done { color: var(--iss-ok); background: color-mix(in srgb, var(--iss-ok) 10%, transparent); }
-.iss-still.done b { color: var(--iss-ok); }
 
 /* Seguimiento: lo mío o lo del equipo, como el selector de idioma de Resolver pero en pequeño */
 .iss-follow { display: inline-flex; border: 1px solid var(--border); }
 .iss-follow button { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border: 0; background: var(--surface); color: var(--text-low); font: 600 11px var(--font-ui); letter-spacing: .04em; text-transform: uppercase; cursor: pointer; transition: color var(--motion-state), background var(--motion-state); }
 .iss-follow button:hover { color: var(--text); }
 .iss-follow button[aria-selected="true"] { color: var(--surface); background: var(--accent); }
-.iss-follow i { min-width: 16px; padding: 0 4px; font-style: normal; line-height: 16px; text-align: center; color: var(--surface); background: var(--iss-ok); }
 /* un escalado del equipo: la fila y, debajo, sus acciones, discretas hasta pasar por encima */
 .iss-esc-row { position: relative; border-bottom: 1px solid var(--border); }
 .iss-esc-row:last-child { border-bottom: 0; }
 .iss-esc-row .iss-item { width: 100%; border-bottom: 0; }   /* todo el ancho, como en «Mías»: los días, a la derecha */
 /* debajo de los días, sus acciones, solo al pasar por la fila (o al llegar con el teclado) */
-.iss-esc-acts { position: absolute; right: 8px; bottom: 9px; display: flex; gap: 6px; opacity: 0; pointer-events: none; transition: opacity .15s ease; }
-.iss-esc-row:hover .iss-esc-acts, .iss-esc-acts:focus-within { opacity: 1; pointer-events: auto; }
+.iss-esc-acts { position: absolute; right: 8px; bottom: 9px; display: flex; gap: 6px; opacity: 0; transform: translateY(4px); filter: blur(2px); pointer-events: none; transition: opacity .28s cubic-bezier(.2, .7, .2, 1), transform .28s cubic-bezier(.2, .7, .2, 1), filter .28s ease; }
+.iss-esc-row:hover .iss-esc-acts, .iss-esc-acts:focus-within { opacity: 1; transform: none; filter: none; pointer-events: auto; }
 .iss-esc-acts :is(a, button) { display: inline-flex; align-items: center; height: 22px; padding: 0 10px; font: inherit; font-size: 11.5px; font-weight: 600; color: var(--text); text-decoration: none; background: var(--surface); border: 1px solid var(--border); cursor: pointer; }
 .iss-esc-acts :is(a, button):hover { border-color: var(--text); }
 .iss-esc-acts [data-esc-take] { color: var(--surface); background: var(--text); border-color: var(--text); }

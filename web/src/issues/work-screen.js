@@ -47,9 +47,9 @@ export const assistHtml = (error = null) => `<div class="ai-start">
 export const assistWaitHtml = () => `<div class="ai-start">${waitHtml('Iniciando agente…', { hidden: false })}</div>`;
 
 // El cuerpo del diálogo de confirmación al devolver a la cola.
-// Confirmar antes de asumirla: de quién es ahora y que pasa a tu mesa.
+// Confirmar antes de pasarla a tu mesa: de quién es ahora.
 export const takeDialogHtml = (id, text, owner) => `<div class="iss-dlg-issue"><span class="iss-dlg-code">${esc(id)}</span><span class="iss-dlg-text">${esc(text || '')}</span></div>
-  <p class="iss-dlg-p">${owner ? `Ahora la tiene <b>${esc(owner)}</b>. ` : ''}Pasa a tu mesa como tuya y en su Seguimiento queda que la asumiste.</p>`;
+  <p class="iss-dlg-p">${owner ? `Ahora la tiene <b>${esc(owner)}</b>. ` : ''}Pasará a tu mesa como tuya; en su Seguimiento queda de quién era.</p>`;
 export const releaseDialogHtml = (id, text) => `<div class="iss-dlg-issue"><span class="iss-dlg-code">${esc(id)}</span><span class="iss-dlg-text">${esc(text || '')}</span></div>
   <p class="iss-dlg-p">Volverá a la cola y podrá cogerla cualquier compañero.</p>`;
 
@@ -97,7 +97,7 @@ const escalatedTag = (i) => `<span class="iss-escalated" title="Pendiente de un 
 const BIG_ACTION = {
   chase: (i, now) => { const s = stillInfo(i, now); return `<button class="iss-big-act primary" data-act="chase">${BELL}<span>Reclamar respuesta</span><em class="iss-big-still ${s.level}">${s.label} sin moverse</em></button>`; },
   transfer: () => `<button class="iss-big-act" data-act="transfer">${HANDOFF}<span>Traspasar</span></button>`,
-  // la de otra persona, en el sitio de Traspasar: la asumo (pasa a mi mesa como mía)
+  // la de otra persona, en el sitio de Traspasar: pasarla a mi mesa, como mía
   take: () => `<button class="iss-big-act" data-act="take">${TAKE}<span>${ACTIONS.take.label}</span></button>`,
 };
 const pendingActs = (i, now, mine) => `<aside class="iss-card iss-pending-acts" aria-label="Qué hacer con ella">

@@ -31,7 +31,7 @@ const MOVE = {
   claimed: { icon: icon('<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><polyline points="17 11 19 13 23 9"/>'), say: (e) => `${who(e.by)} cogió la issue` },
   released: { icon: icon('<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>'), say: (e) => `${who(e.by)} la devolvió a la cola` },
   transferred: { strong: true, icon: icon('<path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/>'), say: (e) => `${who(e.by)} la traspasó a ${who(e.to)}` },
-  taken: { strong: true, icon: icon('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6"/><path d="M22 11h-6"/>'), say: (e) => `${who(e.by)} la asumió${e.from ? ` · la tenía ${who(e.from)}` : ''}` },
+  taken: { strong: true, icon: icon('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6"/><path d="M22 11h-6"/>'), say: (e) => `${who(e.by)} la pasó a su mesa${e.from ? ` · la tenía ${who(e.from)}` : ''}` },
   assigned: { strong: true, icon: icon('<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/>'), say: (e) => `${who(e.by)} se la asignó a ${who(e.to)} desde el Backlog` },
 };
 

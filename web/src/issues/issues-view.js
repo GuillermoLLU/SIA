@@ -5,7 +5,7 @@
 // (work-screen.js). La mesa se refresca sola.
 import './issues.css';
 import { esc } from '../ui/html.js';
-import { LISTS, snapshotInfo, duration, weekBars, whenLabel, jiraDone, closeFirst, withJira } from './format.js';
+import { LISTS, snapshotInfo, duration, weekBars, whenLabel, stillOpen, withJira } from './format.js';
 import { item, teamItem, REFRESH_ICON } from './parts.js';
 import { onEscape } from '../ui/dialog.js';
 import { pressStartedIn } from '../ui/dom.js';
@@ -54,12 +54,9 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   // La fecha de los datos es también el botón de cargar otra foto.
   const snapButton = ({ date, stale }) => fileLabel(`iss-date${stale ? ' stale' : ''}`, `${date}${stale ? REFRESH_ICON : ''}`, stale ? 'Datos de Remedy sin actualizar: pulsa para cargar un CSV nuevo. Lo medido en SIA sí es de hoy.' : 'Datos de Remedy: pulsa para cargar otro CSV');
 
-  // Seguimiento: lo mío o lo del equipo. En «Equipo», cuántos tienen el Jira resuelto y piden cerrarse.
-  const followTabs = (team) => {
-    const done = team.filter(jiraDone).length;
-    return `<div class="iss-follow" role="tablist" aria-label="De quién">${[['mine', 'Mías'], ['team', 'Equipo']].map(([k, label]) =>
-      `<button type="button" role="tab" data-follow="${k}" aria-selected="${follow === k}">${label}${k === 'team' && done ? `<i title="${done} con el Jira resuelto: se cierran solas">${done}</i>` : ''}</button>`).join('')}</div>`;
-  };
+  // Seguimiento: lo mío o lo del equipo.
+  const followTabs = () => `<div class="iss-follow" role="tablist" aria-label="De quién">${[['mine', 'Mías'], ['team', 'Equipo']].map(([k, label]) =>
+    `<button type="button" role="tab" data-follow="${k}" aria-selected="${follow === k}">${label}</button>`).join('')}</div>`;
 
   const kpi = (label, value, hint) => `<div class="iss-kpi" title="${hint}"><span>${label}</span><b>${value}</b><small>${hint}</small></div>`;
 
@@ -81,11 +78,14 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     const { today, history, next } = data;
     const lists = LISTS.map((l) => ({ ...l, items: data.desk.filter(l.test).sort(l.sort) }));
     const count = (key) => lists.find((l) => l.key === key).items.length;
-    const team = data.escalations.items;
-    // Seguimiento: lo mío (con su Jira, si lo tiene) o los escalados de todo el equipo
+    // Seguimiento: lo mío (con su Jira, si lo tiene) o los escalados de todo el equipo; las que tienen
+    // el Jira resuelto se cierran solas y no salen
+    const team = stillOpen(data.escalations.items);
+    const mineWaiting = stillOpen(withJira(lists.find((l) => l.key === 'waiting').items, data.escalations.items));
+    const waiting = follow === 'team' ? team : mineWaiting;
     const shown = (l) => (l.key !== 'waiting' ? l.items.slice(0, 12).map((i) => item(i, l.key, now))
       : follow === 'team' ? team.map((e) => teamItem(e, now))
-        : closeFirst(withJira(l.items, team)).slice(0, 12).map((i) => item(i, l.key, now)));
+        : mineWaiting.slice(0, 12).map((i) => item(i, l.key, now)));
     const used = history.weeks.some((w) => w.sga + w.sisu);
     root.innerHTML = `<div class="iss-page iss-desk-page">
       <div class="iss-desk">
@@ -99,7 +99,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
           </div>
         <div class="iss-cols">
           ${lists.map((l) => `<section class="iss-card iss-col" data-list="${l.key}">
-            <div class="iss-card-h"><h3${l.hint ? ` title="${l.hint}"` : ''}>${l.label}</h3>${l.key === 'waiting' ? followTabs(team) : ''}<span>${l.key === 'waiting' && follow === 'team' ? team.length : l.items.length}</span>${l.key === 'waiting' ? `<button type="button" class="iss-refresh" data-refresh title="Volver a leer la mesa y mirar los Jira">${REFRESH_ICON}Refrescar</button>` : ''}</div>
+            <div class="iss-card-h"><h3${l.hint ? ` title="${l.hint}"` : ''}>${l.label}</h3>${l.key === 'waiting' ? followTabs() : ''}<span>${l.key === 'waiting' ? waiting.length : l.items.length}</span>${l.key === 'waiting' ? `<button type="button" class="iss-refresh" data-refresh title="Volver a leer la mesa y mirar los Jira">${REFRESH_ICON}Refrescar</button>` : ''}</div>
             <div class="iss-items">${shown(l).join('') || `<p class="iss-empty">${l.key === 'waiting' && follow === 'team' ? 'Nadie del equipo espera a un Jira.' : l.empty}</p>`}</div>
             ${l.key === 'waiting' && follow === 'team' ? `<p class="iss-foot">Jira de prueba · ${data.escalations.checkedAt ? `mirado ${whenLabel(data.escalations.checkedAt, now)}` : 'aún sin mirar'} · se mira cada 30 min y al refrescar</p>` : ''}
           </section>`).join('')}
@@ -262,7 +262,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       const fol = t.closest('[data-follow]');
       if (fol) { follow = fol.dataset.follow; return renderDesk(); }
       // Coger o reasignar el escalado de otro (de momento, de prueba: la base aún no mueve la issue de otro)
-      // asumir el escalado de otro, desde Seguimiento · Equipo
+      // pasar a mi mesa el escalado de otro, desde Seguimiento · Equipo
       const grab = t.closest('[data-esc-take]');
       if (grab) {
         const e = data.escalations.items.find((x) => x.id === grab.dataset.escTake);
@@ -332,17 +332,17 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     toast?.(`${mode === 'link' ? `Unida a ${target}` : `Escalada a ${target}${rootCause ? ' por la causa raíz' : ''}`}. De momento no sale hacia Remedy (falta conectar SIGLO).`);
   } });
 
-  // Asumir una issue de otra persona (o de nadie en SIA): se confirma y pasa a mi mesa (la base mira
+  // Pasar a mi mesa una issue de otra persona (o de nadie en SIA): se confirma (la base mira
   // el origen). → true si se la ha quedado.
   const takeIssue = async (id, text, owner) => {
-    const ok = !dialogs || await dialogs.open({ title: 'Asumir la issue', centered: true, okLabel: 'Asumir', bodyHTML: takeDialogHtml(id, text, owner) });
+    const ok = !dialogs || await dialogs.open({ title: 'Pasar a tu mesa', centered: true, okLabel: 'Pasar a mi mesa', bodyHTML: takeDialogHtml(id, text, owner) });
     if (!ok) return false;
     await api.take(id);
     return true;
   };
 
   const openAction = async (key) => {
-    // la escalada de otra persona, abierta: la asumo y se vuelve a abrir, ya mía
+    // la escalada de otra persona, abierta: la paso a mi mesa y se vuelve a abrir, ya mía
     if (key === 'take') {
       if (await takeIssue(opened, issue?.text, issue?.claimedBy?.name || issue?.assignee)) { await openIssue(opened); toast?.('Ya está en tu mesa.'); }
       return;
