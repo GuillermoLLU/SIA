@@ -97,7 +97,7 @@ test('avisos que se pueden pasar por alto: se sigue, pero avisando, como en Reso
   // unir: la recurrencia en Jira tiene que haberlo encontrado (da igual mayúsculas o prefijos)
   assert.equal(warn(1, { mode: 'link', linked: 'other', linkedOther: 'itd: sisupac-9211' }), null);
   assert.match(warn(1, { mode: 'link', linked: 'other', linkedOther: 'ITD: ERA-4170' }).text, /^¿ERA-4170 es el mismo problema\?$/);
-  assert.equal(warn(1, { mode: 'link', linked: 'SISUPAC-9211' }, { found: [] }).ok, 'Actualizar igualmente');
+  assert.equal(warn(1, { mode: 'link', linked: 'SISUPAC-9211' }, { found: [] }).ok, 'Unir igualmente');
   assert.equal(warn(1, {}), null);   // seguir sin ticket no avisa
   // el motivo, muy breve
   assert.equal(warn(3, { reason: 'Va lento' }).title, 'Motivo muy breve');

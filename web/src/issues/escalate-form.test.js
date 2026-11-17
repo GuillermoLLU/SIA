@@ -19,9 +19,13 @@ test('el asistente: el aspecto de Resolver, los pasos de cada flujo y sin texto 
   const html = form();
   assert.match(html, /<form class="iss-act-form rv iss-esc" data-act-form="escalate" data-step="1"/);
   assert.match(html, /<h3>Escalar incidencia<\/h3><span class="rv-id">INC000027698079<\/span>/);
-  assert.deepEqual(steps(html), ['Coincidencias', 'A quién', 'Motivo', 'Requisitos', 'Resumen']);
-  assert.deepEqual(steps(form({ vendorTicket: 'SISUPAC-9211' })), ['Coincidencias', 'Actualizar escalado']);   // al unir, dos
-  assert.match(form({ vendorTicket: 'SISUPAC-9211' }), /data-step-mark="6" class="last"><i>2<\/i><span>Actualizar escalado/);
+  // la decisión del principio (unir o nuevo) no es un paso: la barra no la lleva y empieza oculta
+  assert.match(html, /<ol class="rv-steps" hidden>/);
+  assert.deepEqual(steps(html), ['A quién', 'Motivo', 'Requisitos', 'Resumen']);
+  assert.deepEqual([...html.matchAll(/data-step-mark="(\d)"[^>]*><i>(\d)<\/i>/g)].filter((m) => m[1] !== '6').map((m) => m[2]), ['1', '2', '3', '4'], 'numerados del 1 al 4');
+  assert.doesNotMatch(html, /data-step-mark="1"|aria-current/);
+  assert.deepEqual(steps(form({ vendorTicket: 'SISUPAC-9211' })), ['Actualizar escalado']);   // al unir, solo el comentario
+  assert.match(form({ vendorTicket: 'SISUPAC-9211' }), /data-step-mark="6" class="last"><i>1<\/i><span>Actualizar escalado/);
   assert.match(html, /<input type="hidden" name="mode" value="escalate" \/>/);
   // fuera: el desplegable de destinos, «Cómo se envía» y los textos de relleno
   assert.doesNotMatch(html, /data-pick|<select|Cómo se envía|Por SIGLO ·|Para que llegue bien|\(recomendado\)|Aún no se envía/);
@@ -36,16 +40,16 @@ test('al abrir por el paso 1, la búsqueda de escalados del mismo problema va de
   assert.match(searchPhases({ sisu: true }), /<\/i>Mismo módulo</);
 });
 
-test('paso 1: las coincidencias, con la pregunta, por qué ha salido cada una y abrirla en Jira', () => {
+test('al abrir: arriba el buscador de tickets de Jira y debajo las coincidencias, con por qué ha salido cada una', () => {
   const html = form();
-  assert.match(html, /<b>¿Alguno es el mismo problema\?<\/b><\/div>/);
-  assert.deepEqual([...html.matchAll(/name="linked" value="([^"]+)"/g)].map((m) => m[1]), ['SISUPAC-9211', 'ITSMECOM-5804475', 'other']);
+  assert.match(html, /<section class="rv-step rv-step-one iss-esc-pick" data-rstep="1">\s*<div class="iss-esc-find">\s*<input type="radio" class="iss-sr" name="linked" value="other"[^>]*\/>\s*<i><svg[\s\S]*?<\/i>\s*<input name="linkedOther"[^>]*placeholder="Busca un ticket de Jira: PROYECTO-número o INC…" aria-label="Buscar un ticket de Jira"/, 'el buscador, lo primero');
+  assert.match(html, /<\/div>\s*<div class="rv-cap"><b>¿Alguno es el mismo problema\?<\/b><\/div>\s*<div class="rv-text">\s*<fieldset class="iss-esc-open">/, 'debajo, las coincidencias');
+  assert.deepEqual([...html.matchAll(/name="linked" value="([^"]+)"/g)].map((m) => m[1]), ['other', 'SISUPAC-9211', 'ITSMECOM-5804475']);
   assert.match(html, /5 issues esperando/);
   assert.match(html, /<span class="iss-esc-why"><small>Mismo centro · Resumen parecido<\/small><button type="button" class="rv-link" data-jira-open="SISUPAC-9211">Abrir en Jira<\/button><\/span>/);
   assert.doesNotMatch(html, /data-esc-ai|<h4>Antecedentes|INC000027778368/);   // la del otro centro no sale
-  assert.match(html, /<b>Otro escalado<\/b>/);
+  assert.doesNotMatch(html, /<b>Otro escalado<\/b>|data-esc-new/, 'ni la tarjeta de otro escalado ni un segundo botón');
   assert.match(form({}, null, []), /Ningún escalado del mismo problema/);
-  assert.match(html, /data-esc-new hidden>No, nuevo escalado</);
 });
 
 test('la búsqueda: en SGA por centro, en SISU por módulo; no sale de la nota [RECURRENCIA]', () => {

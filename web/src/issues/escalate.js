@@ -126,7 +126,7 @@ export const priorityLabel = (id) => JIRA_PRIORITIES.find((p) => p.id === id)?.l
 export const stepWarning = (n, v, { dests, issue, found = [] }) => {
   if (n === 1 && v.mode === 'link') {
     const ticket = ticketCheck(linkedRaw(v)).value;
-    return found.some((o) => o.ticket === ticket) ? null : { title: 'No está entre las coincidencias', ok: 'Actualizar igualmente',
+    return found.some((o) => o.ticket === ticket) ? null : { title: 'No está entre las coincidencias', ok: 'Unir igualmente',
       text: `¿${ticket} es el mismo problema?` };
   }
   if (n === 3 && noteQuality(v.reason).level === 'low') {

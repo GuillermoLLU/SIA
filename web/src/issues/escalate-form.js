@@ -58,6 +58,7 @@ const foundCard = (o, v, dests) => card('linked', o.ticket, v.linked === o.ticke
 
 // Una opción que se elige pulsando la tarjeta entera; el radio no se ve.
 const card = (name, value, checked, body, cls = '') => `<label class="iss-esc-card${cls}"><input type="radio" class="iss-sr" name="${name}" value="${esc(value)}"${checked ? ' checked' : ''} />${body}</label>`;
+const SEARCH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>';
 const INFO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/></svg>';
 
 // Paso 2: los destinos por nivel y canal, como el selector de idioma de Resolver: un botón por
@@ -172,9 +173,11 @@ export const closePhases = (v, rootCause) => phasesHtml(v.mode === 'link'
   : ['Creando el escalado', 'Registrando en Remedy', 'Avisando al centro', ...(rootCause ? [] : ['Pasando a Pendiente (proveedor)'])]);
 
 // La barra lleva los pasos de los dos flujos; la vista enseña los del elegido (FLOWS) y marca su último.
+// La barra de pasos: la decisión del principio (unir o nuevo, el 1) no es un paso, así que no sale y
+// el nuevo escalado se numera del 1 al 4. Al abrir no se ve; la enseña escalate-view.js en el flujo elegido.
 const stepper = (mode) => {
   const flow = FLOWS[mode === 'link' ? 'link' : 'escalate'];
-  return `<ol class="rv-steps">${STEPS.map((s) => `<li data-step-mark="${s.n}"${s.n === flow.at(-1) ? ' class="last"' : ''}${s.n === 1 ? ' aria-current="step"' : ''}${flow.includes(s.n) ? '' : ' hidden'}><i>${s.n === FEED ? 2 : s.n}</i><span>${s.title}</span></li>`).join('')}</ol>`;
+  return `<ol class="rv-steps" hidden>${STEPS.filter((s) => s.n !== 1).map((s) => `<li data-step-mark="${s.n}"${s.n === flow.at(-1) ? ' class="last"' : ''}${flow.includes(s.n) ? '' : ' hidden'}><i>${s.n === FEED ? 1 : s.n - 1}</i><span>${s.title}</span></li>`).join('')}</ol>`;
 };
 const FILE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>';
 
@@ -191,12 +194,17 @@ export const escalateForm = ({ issue, dests, found = [], check, saved = null, li
     <input type="hidden" name="step" value="1" />
     <input type="hidden" name="mode" value="${v.mode === 'link' ? 'link' : 'escalate'}" />
     <div class="rv-body">
-      <section class="rv-step rv-step-one" data-rstep="1">
+      <section class="rv-step rv-step-one iss-esc-pick" data-rstep="1">
+        <div class="iss-esc-find">
+          <input type="radio" class="iss-sr" name="linked" value="other" tabindex="-1" aria-hidden="true"${v.linked === 'other' ? ' checked' : ''} />
+          <i>${SEARCH}</i>
+          <input name="linkedOther" class="iss-mono" value="${esc(v.linkedOther || '')}" placeholder="Busca un ticket de Jira: PROYECTO-número o INC…" aria-label="Buscar un ticket de Jira" autocomplete="off" spellcheck="false" />
+          <span data-esc-linked>${linkedText(v.linkedOther)}</span>
+        </div>
         <div class="rv-cap"><b>¿Alguno es el mismo problema?</b></div>
         <div class="rv-text">
           <fieldset class="iss-esc-open">
             ${found.length ? found.map((o) => foundCard(o, v, dests)).join('') : '<p class="iss-esc-none">Ningún escalado del mismo problema</p>'}
-            ${card('linked', 'other', v.linked === 'other', `<b>Otro escalado</b><input name="linkedOther" class="iss-mono" value="${esc(v.linkedOther || '')}" placeholder="PROYECTO-número o INC…" aria-label="Otro escalado" /><span data-esc-linked>${linkedText(v.linkedOther)}</span>`)}
           </fieldset>
         </div>
       </section>
@@ -249,7 +257,6 @@ export const escalateForm = ({ issue, dests, found = [], check, saved = null, li
     <footer>
       <small class="iss-autosave" data-autosave>${saved?.at ? `Borrador guardado ${localShort(saved.at)}` : 'El borrador se guarda solo mientras escribes'}</small>
       <button type="button" class="lab-btn rv-back" data-step-back hidden>Atrás</button>
-      <button type="button" class="lab-btn rv-next" data-esc-new hidden>No, nuevo escalado</button>
       <button type="button" class="lab-btn rv-next" data-step-next>${STEPS[1].title}</button>
       <button type="button" class="lab-btn primary rv-next" data-esc-preview hidden>Ver el escalado</button>
       <button type="submit" class="lab-btn primary rv-next" data-confirm-send hidden>Crear escalado</button>

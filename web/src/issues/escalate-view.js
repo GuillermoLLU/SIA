@@ -44,14 +44,13 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
 
   /* ── Los pasos ── */
   const isLink = (f) => f.elements.mode.value === 'link';
-  // El pie y la barra según el flujo y el paso. En el 1, con un ticket elegido, «Actualizar escalado» y, al
-  // lado, «Nuevo escalado»; sin ticket, solo el nuevo. La barra enseña los pasos del flujo (FLOWS).
-  // Al actualizar, el botón dice eso mismo. En el resumen, primero «Ver el ticket» y, con el borrador a la vista,
-  // «Escalar» (como Resolver).
+  // El ticket al que se une: una de las coincidencias o el que se escribe en el buscador ('' sin ninguno)
+  const chosen = (f) => { const v = values(f); return (v.linked === 'other' ? v.linkedOther ?? '' : v.linked ?? '').trim(); };
+  // El pie y la barra según el flujo y el paso. Al abrir (el 1) no es un paso: sin barra y un solo botón,
+  // «Nuevo escalado» o, con un ticket elegido, «Unir al ticket». La barra enseña los pasos del nuevo
+  // escalado (FLOWS); al unir solo queda el comentario, sin barra. En el resumen, primero «Ver el ticket»
+  // y, con el borrador a la vista, «Escalar» (como Resolver).
   const flowOf = (f) => FLOWS[isLink(f) ? 'link' : 'escalate'];
-  // En el paso 1, las dos respuestas («No, nuevo escalado» y «Sí, actualizar escalado») si hay
-  // coincidencias o se ha elegido uno; sin ninguna, solo «No».
-  const answers = (f) => found.length > 0 || isLink(f);
   // Hasta dónde se ha llegado avanzando con los botones (o hasta donde se dejó el borrador): la barra
   // solo lleva ahí. Así no se salta la decisión del paso 1 ni lo que aún no se ha hecho.
   const reachedOf = (f) => Number(f.dataset.reached || 1);
@@ -65,11 +64,11 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
       m.classList.toggle('last', k === flow.at(-1));
     });
     lockSteps(f, (k) => reached(f, k));
+    f.querySelector('.rv-steps').hidden = n === 1 || link || viewing;
     const next = f.querySelector('[data-step-next]'), send = f.querySelector('[data-confirm-send]');
-    const to = nextOf(mode, n), both = n === 1 && answers(f);
+    const to = nextOf(mode, n);
     next.hidden = !to;
-    if (to) next.innerHTML = `${n === 1 ? (both ? 'Sí, actualizar escalado' : 'No, nuevo escalado') : titleOf(to)}${NEXT_ARROW}`;
-    f.querySelector('[data-esc-new]').hidden = !both;
+    if (to) next.innerHTML = `${n === 1 ? (link ? 'Unir al ticket' : 'Nuevo escalado') : titleOf(to)}${NEXT_ARROW}`;
     f.querySelector('[data-esc-preview]').hidden = !(n === LAST && !viewing);
     send.hidden = !((n === LAST && viewing) || n === FEED);
     send.textContent = n === FEED ? titleOf(FEED) : 'Crear escalado';
@@ -84,7 +83,6 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
     const box = f.querySelector('[data-esc-ticket]');
     box.hidden = !on;
     if (on) box.innerHTML = ticketHtml(values(f), { ...ctx(), check, files });
-    f.querySelector('.rv-steps').hidden = on;
     syncFoot(f);
     if (on) f.querySelector('[data-confirm-send]').focus({ preventScroll: true });
   };
@@ -103,7 +101,7 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
       m.classList.toggle('done', flow.indexOf(k) > -1 && flow.indexOf(k) < flow.indexOf(n));
       if (k === n) m.setAttribute('aria-current', 'step'); else m.removeAttribute('aria-current');
     });
-    if (n === 1 && f.querySelector('[name="linked"]:checked')) f.elements.mode.value = 'link';   // de vuelta al 1 con un ticket elegido: se puede unir
+    if (n === 1 && chosen(f)) f.elements.mode.value = 'link';   // de vuelta al 1 con un ticket elegido: se puede unir
     if (n === FEED) f.querySelector('[data-esc-feed-ticket]').textContent = targetOf(values(f), dests);
     const back = f.querySelector('[data-step-back]');
     back.hidden = n === 1;
@@ -121,7 +119,7 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
   const flashMissing = (f, { field, text }) => {
     if (LIST[field]) return flashEmpty(f.querySelector(LIST[field]), f.querySelector('.rv-body'), text);
     const el = field === 'reason' ? editor(f) : f.elements[field];   // el motivo se escribe en su editor
-    flashEmpty(el, el.closest('.iss-field, .iss-esc-open'), text);
+    flashEmpty(el, el.closest('.iss-field, .iss-esc-open, .iss-esc-find'), text);
   };
   // → true si el paso n está completo; si no, lo señala
   const complete = (f, n) => {
@@ -142,18 +140,11 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
     f.elements.mode.value = mode;
     syncFoot(f);
   };
+  // En el 1, «Nuevo escalado» va al paso de a quién y «Unir al ticket», al comentario.
   const stepNext = async (f) => {
     const n = Number(f.dataset.step);
-    // «Sí, actualizar escalado» sin haber elegido ninguno: se pide, como cualquier campo que falta
-    if (n === 1 && answers(f) && !isLink(f)) return flashMissing(f, { field: 'linked', text: 'Elige el escalado para seguir' });
     const to = nextOf(f.elements.mode.value, n);
     if (to && complete(f, n) && await confirmed(f, n)) moveTo(f, to);
-  };
-  // «Nuevo escalado» con un ticket elegido: se suelta el ticket elegido y se sigue por el escalado.
-  const startNew = (f) => {
-    f.querySelectorAll('[name="linked"]').forEach((r) => { r.checked = false; });
-    setMode(f, 'escalate');
-    moveTo(f, 2);
   };
   // Pulsar un paso de arriba (o una fila del resumen): hacia atrás, siempre; hacia delante, solo hasta
   // donde ya se llegó (reached) y si lo de por medio sigue completo (si no, se para ahí y lo señala).
@@ -279,7 +270,14 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
     const drop = t.closest('[data-file-drop]');
     if (drop) return dropFile(f, Number(drop.dataset.fileDrop));
     if (t.closest('[data-step-next]')) return stepNext(f);
-    if (t.closest('[data-esc-new]')) return startNew(f);
+    // una coincidencia ya elegida se suelta pulsándola otra vez (el radio no se desmarca solo); el clic
+    // que la tarjeta pasa a su radio no cuenta: es el mismo
+    const card = !t.matches('[name="linked"]') && t.closest('.iss-esc-open .iss-esc-card');
+    if (card) {
+      const r = card.querySelector('[name="linked"]');
+      if (r.checked) { e.preventDefault(); r.checked = false; r.dispatchEvent(new Event('input', { bubbles: true })); }
+      return;
+    }
     const mark = t.closest('[data-step-mark], [data-go]');
     if (mark) return jumpTo(f, Number(mark.dataset.stepMark ?? mark.dataset.go));
     if (t.closest('[data-esc-preview]')) return showTicket(f, true);
@@ -350,8 +348,14 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
     const f = inForm(e);
     if (!f || e.target.matches('[data-esc-files]')) return;
     const t = e.target;
-    if (t.name === 'linked') setMode(f, 'link');   // elegir un ticket es unirla a él
-    if (t.name === 'linkedOther') f.querySelector('[data-esc-linked]').innerHTML = linkedText(t.value);
+    // Elegir una coincidencia vacía el buscador; escribir en el buscador suelta la coincidencia. Con un
+    // ticket, unir; sin ninguno, nuevo escalado.
+    if (t.name === 'linked' && t.value !== 'other') { f.elements.linkedOther.value = ''; f.querySelector('[data-esc-linked]').innerHTML = ''; }
+    if (t.name === 'linkedOther') {
+      f.querySelector('[name="linked"][value="other"]').checked = !!t.value.trim();
+      f.querySelector('[data-esc-linked]').innerHTML = linkedText(t.value);
+    }
+    if (t.name === 'linked' || t.name === 'linkedOther') setMode(f, chosen(f) ? 'link' : 'escalate');
     if (t.name === 'dest' || t.name === 'destOther') syncDest(f);
     if (t.name === 'dest' && t.value === 'other') f.elements.destOther.focus();   // fuera del mapa: a escribir su nombre
     if (t.matches('[data-min]')) syncMins(f);
@@ -364,12 +368,6 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
     showErr(f, null);
     clearTimeout(autosave);
     autosave = setTimeout(() => { autosave = null; saveNow(f); }, AUTOSAVE_MS);
-  });
-  // Escribir en «Otro ticket» lo elige, sin buscar su tarjeta.
-  root.addEventListener('focusin', (e) => {
-    if (e.target.name !== 'linkedOther' || !inForm(e)) return;
-    const radio = e.target.closest('label').querySelector('[name="linked"]');
-    if (!radio.checked) { radio.checked = true; radio.dispatchEvent(new Event('input', { bubbles: true })); }
   });
 
   // Cerrar: lo pendiente de guardar se guarda, y se para lo que estuviera en marcha. Si ya se había
