@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { escalateForm, requirementsHtml, summaryHtml, filesHtml, ticketHtml, doneHtml, closePhases, linkedText, startValues, withoutLevel, searchingHtml, ticketDetailHtml } from './escalate-form.js';
+import { escalateForm, requirementsHtml, draftPhases, filesHtml, ticketHtml, doneHtml, closePhases, linkedText, startValues, withoutLevel, searchingHtml, ticketDetailHtml } from './escalate-form.js';
 import { findEscalations } from './escalate.js';
 import { resolveBlocked } from './resolve-form.js';
 import { DESTINATIONS, OPEN_TICKETS } from './escalate-mock.js';
@@ -152,18 +152,12 @@ test('paso 4: la prioridad en tarjetas con su explicación aparte, lo mínimo en
   assert.match(reqs({ dest: 'maestros' }), /No pide nada más/);   // N2 por IOP con incidencia de Remedy
 });
 
-test('paso 5: el resumen como el de Resolver: las notas de Remedy y lo de cada paso, con su calidad', () => {
-  const html = summaryHtml({ mode: 'escalate', dest: 'sisupac', reason: 'Timeouts', jiraPriority: 'CRITICAL', mins: 'form,logs', sent: 'no sale' },
-    { issue: issue(), dests: DESTINATIONS, check: CHECK, files: [{ name: 'a.zip', size: 1 }] });
-  assert.deepEqual([...html.matchAll(/<b>([^<]+)<\/b>/g)].map((m) => m[1]), ['Notas del método', 'A quién', 'Motivo', 'Requisitos']);
-  assert.match(html, /<div class="rv-sum-note"><span class="rv-sum-h"><b>Notas del método<\/b><em data-level="ok">Completas<\/em><\/span><span class="rv-sum-x">Situación inicial · Recurrencia · Antecedentes · Análisis<\/span>/);   // en una fila: ya comprobadas al entrar
-  assert.deepEqual([...html.matchAll(/data-go="(\d)"/g)].map((m) => m[1]), ['2', '3', '4']);
-  assert.match(html, /<b>Motivo<\/b><em data-level="low">Muy corta<\/em><small><svg[^]*?<\/svg>1 archivo<\/small><\/span><span class="rv-sum-x">Timeouts</);   // en la etiqueta, como las imágenes en Resolver
-  assert.match(html, /Prioridad del Jira: Crítico · Lo mínimo: 2 de 3 confirmado</);
-  assert.doesNotMatch(html, /no sale/);   // abre una herramienta: la evidencia no cuenta
-  // a todo el ancho, sin la columna de opciones de Resolver: lo que pasa al escalar, bajo el título
-  assert.match(form(), /<section class="rv-gen-sum iss-esc-review" data-esc-review>\s*<h4>Lo que has escrito<\/h4>\s*<ol data-summary><\/ol>/);
-  assert.doesNotMatch(form(), /rv-gen-opts/);
+test('paso 5: como «Generar informe» de Resolver, SIA redacta el borrador y sale directamente, sin el listado intermedio', () => {
+  const phases = (h) => [...h.matchAll(/<\/i>([^<]+)/g)].map((m) => m[1]);
+  assert.deepEqual(phases(draftPhases(false)), ['Leyendo todo lo que has escrito', 'Formateando y mejorando el texto', 'Preparando el borrador del escalado']);
+  assert.deepEqual(phases(draftPhases(true)), ['Leyendo todo lo que has escrito', 'Formateando y mejorando el texto', 'Unificando archivos', 'Preparando el borrador del escalado']);
+  assert.doesNotMatch(form(), /data-esc-review|Lo que has escrito|data-summary|data-esc-preview|Ver el escalado/);
+  assert.match(form(), /<section class="rv-step rv-step-one" data-rstep="5" hidden>[\s\S]*?data-esc-ticket hidden>[\s\S]*?<div class="ld" data-loader hidden>/, 'el borrador y el proceso, en el paso');
 });
 
 test('antes de escalar, el borrador del ticket, como el informe de Resolver: lo escrito, las notas y los adjuntos', () => {
@@ -184,7 +178,6 @@ test('antes de escalar, el borrador del ticket, como el informe de Resolver: lo 
   // el análisis no se repite si el motivo ya es la nota de análisis
   const same = ticketHtml({ mode: 'escalate', dest: 'sisupac', reason: ANALYSIS.text }, { issue: issue(), dests: DESTINATIONS, check: CHECK });
   assert.doesNotMatch(same, /<h5>Análisis<\/h5>/);
-  assert.match(form(), /data-esc-preview hidden>Ver el escalado</);
   assert.match(form(), /data-confirm-send hidden>Crear escalado</);   // como «Actualizar escalado» en el otro flujo
 });
 

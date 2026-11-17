@@ -5,7 +5,7 @@
 import { onEscape } from '../ui/dialog.js';
 import { esc } from '../ui/html.js';
 import { BACK_ARROW, NEXT_ARROW, slideStep, lockSteps, flashEmpty, fadeOut as fade, runPhases } from '../ui/wizard.js';
-import { escalateForm, requirementsHtml, linkedText, summaryHtml, filesHtml, ticketHtml, doneHtml, closePhases, searchingHtml, ticketDetailHtml } from './escalate-form.js';
+import { escalateForm, requirementsHtml, linkedText, filesHtml, ticketHtml, doneHtml, closePhases, draftPhases, searchingHtml, ticketDetailHtml } from './escalate-form.js';
 import { resolveBlocked, noteMeter, localShort } from './resolve-form.js';
 import { stepMissing, stepWarning, resumeStep, resultTicket, targetOf, titleOf, nextOf, prevOf, findEscalations, LAST, FEED, FLOWS } from './escalate.js';
 import { syncEditor, setEditorText, toText, insertChip, removeChips } from './tag-editor.js';
@@ -48,8 +48,8 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
   const chosen = (f) => { const v = values(f); return (v.linked === 'other' ? v.linkedOther ?? '' : v.linked ?? '').trim(); };
   // El pie y la barra según el flujo y el paso. Al abrir (el 1) no es un paso: sin barra y un solo botón,
   // «Nuevo escalado» o, con un ticket elegido, «Unir al ticket». La barra enseña los pasos del nuevo
-  // escalado (FLOWS); al unir solo queda el comentario, sin barra. En el resumen, primero «Ver el ticket»
-  // y, con el borrador a la vista, «Escalar» (como Resolver).
+  // escalado (FLOWS); al unir solo queda el comentario, sin barra. En el resumen, SIA redacta el
+  // borrador (prepareDraft) y, con él a la vista, «Crear escalado» (como Resolver).
   const flowOf = (f) => FLOWS[isLink(f) ? 'link' : 'escalate'];
   // Hasta dónde se ha llegado avanzando con los botones (o hasta donde se dejó el borrador): la barra
   // solo lleva ahí. Así no se salta la decisión del paso 1 ni lo que aún no se ha hecho.
@@ -64,22 +64,20 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
       m.classList.toggle('last', k === flow.at(-1));
     });
     lockSteps(f, (k) => reached(f, k));
-    f.querySelector('.rv-steps').hidden = n === 1 || link || viewing;
+    f.querySelector('.rv-steps').hidden = n === 1 || link || viewing || 'preparing' in f.dataset;
     const next = f.querySelector('[data-step-next]'), send = f.querySelector('[data-confirm-send]');
     const to = nextOf(mode, n);
     next.hidden = !to;
     // al abrir no se avanza de paso, se empieza algo: sin flecha
     if (to) next.innerHTML = n === 1 ? (link ? 'Unir al ticket' : 'Nuevo escalado') : `${titleOf(to)}${NEXT_ARROW}`;
-    f.querySelector('[data-esc-preview]').hidden = !(n === LAST && !viewing);
     send.hidden = !((n === LAST && viewing) || n === FEED);
     send.textContent = n === FEED ? titleOf(FEED) : 'Crear escalado';
-    if (n > 1) f.querySelector('[data-step-back]').innerHTML = `${BACK_ARROW}${titleOf(viewing ? LAST - 1 : prevOf(mode, n))}`;   // a la izquierda, adónde se vuelve
+    if (n > 1) f.querySelector('[data-step-back]').innerHTML = `${BACK_ARROW}${titleOf(prevOf(mode, n))}`;   // a la izquierda, adónde se vuelve
   };
   // El borrador del ticket ocupa el paso, con su título centrado y sin la barra de pasos, como el
-  // informe de Resolver; volver lo quita y deja el resumen.
+  // informe de Resolver; al salir del paso se quita.
   const showTicket = (f, on) => {
     if (on) f.dataset.viewing = ''; else delete f.dataset.viewing;
-    f.querySelector('[data-esc-review]').hidden = on;
     f.querySelector('[data-esc-cap]').hidden = !on;
     const box = f.querySelector('[data-esc-ticket]');
     box.hidden = !on;
@@ -107,13 +105,29 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
     const back = f.querySelector('[data-step-back]');
     back.hidden = n === 1;
     syncFoot(f);
-    if (n === LAST) f.querySelector('[data-summary]').innerHTML = summaryHtml(values(f), { ...ctx(), check, files });
+    if (n === LAST) prepareDraft(f);
     f.querySelector('.rv-body').scrollTop = 0;
     // sin desplazar: enfocar mientras entra deslizándose se vería como un salto
-    (n === LAST ? f.querySelector('[data-esc-preview]') : f.querySelector(`[data-rstep="${n}"] :is(.rv-ed, textarea, input:checked, input:not([type=hidden]):not([type=file]))`))?.focus({ preventScroll: true });
+    if (n !== LAST) f.querySelector(`[data-rstep="${n}"] :is(.rv-ed, textarea, input:checked, input:not([type=hidden]):not([type=file]))`)?.focus({ preventScroll: true });
     f.querySelector('.rv-body').scrollLeft = 0;
   };
   const moveTo = (f, n) => { goStep(f, n); saveNow(f); };
+  // Al llegar al resumen, como «Generar informe» de Resolver: el proceso en el centro (SIA lee lo
+  // escrito, lo mejora y prepara el borrador; de momento, un simulacro) y, al acabar, el borrador del
+  // escalado, directamente. Mientras, ni la barra ni «Atrás»: no se cambia de paso a medias.
+  const prepareDraft = async (f) => {
+    f.dataset.preparing = '';
+    syncFoot(f);
+    const back = f.querySelector('[data-step-back]'), loader = f.querySelector('[data-loader]');
+    back.hidden = true;
+    loader.hidden = false;
+    await runPhases(loader, 'Redactando el escalado', draftPhases(files.length > 0), { alive: () => f.isConnected, track });
+    await fadeOut(loader);
+    if (!f.isConnected) return;
+    delete f.dataset.preparing;
+    back.hidden = false;
+    showTicket(f, true);
+  };
   // Lo que falta (stepMissing): en un campo de texto, el aviso en su centro, como en Resolver; en una
   // lista (el ticket, el equipo, lo mínimo), en el centro del paso.
   const LIST = { linked: '.iss-esc-open', dest: '[data-rstep="2"] .rv-text', mins: '[data-mins-box]' };
@@ -188,7 +202,7 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
   const submit = async (f) => {
     const n = Number(f.dataset.step), link = isLink(f);
     if (link ? n !== FEED : n < LAST) return stepNext(f);   // Intro en un paso: siguiente
-    if (!link && !('viewing' in f.dataset)) return showTicket(f, true);   // primero, el borrador del ticket
+    if (!link && !('viewing' in f.dataset)) return;   // aún redactando el borrador: sale solo
     const send = f.querySelector('[data-confirm-send]');
     if (send.disabled) return;   // un segundo clic mientras se envía
     send.disabled = true;
@@ -197,14 +211,13 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
     if (autosave) { clearTimeout(autosave); autosave = null; saveNow(f); }
     const work = (async () => { await saving; await api.escalate(id, fields); })();
     work.catch(() => {});
-    const review = f.querySelector('[data-esc-review]');
     for (const b of f.querySelectorAll('footer .lab-btn')) b.hidden = true;
     f.querySelector('.rv-steps').hidden = true;
     // se va el borrador del ticket; al unir no se ha pasado por el resumen: se va el comentario y las
     // fases salen en el sitio del último
     await Promise.all((link ? [f.querySelector(`[data-rstep="${FEED}"]`)] : [f.querySelector('[data-esc-ticket]'), f.querySelector('[data-esc-cap]')]).map(fadeOut));
     if (!f.isConnected) return;
-    if (link) { review.hidden = true; f.querySelector(`[data-rstep="${LAST}"]`).hidden = false; }
+    if (link) f.querySelector(`[data-rstep="${LAST}"]`).hidden = false;
     const loader = f.querySelector('[data-loader]');
     loader.hidden = false;
     try {
@@ -213,10 +226,15 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
       if (!f.isConnected) return;
       clearTimeout(timer);
       loader.hidden = true;
-      f.querySelector('.rv-steps').hidden = false;
       send.disabled = false;
-      goStep(f, link ? FEED : LAST);   // de vuelta al resumen (o al comentario, al unir)
-      review.hidden = false;
+      // de vuelta al borrador, con lo retocado (o al comentario, al unir)
+      if (link) goStep(f, FEED);
+      else {
+        f.querySelector('[data-esc-ticket]').hidden = false;
+        f.querySelector('[data-esc-cap]').hidden = false;
+        f.querySelector('[data-step-back]').hidden = false;
+        syncFoot(f);
+      }
       return showErr(f, err.message);
     }
     if (!f.isConnected) return;
@@ -313,11 +331,10 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
       if (r.checked) { e.preventDefault(); r.checked = false; r.dispatchEvent(new Event('input', { bubbles: true })); }
       return;
     }
-    const mark = t.closest('[data-step-mark], [data-go]');
-    if (mark) return jumpTo(f, Number(mark.dataset.stepMark ?? mark.dataset.go));
-    if (t.closest('[data-esc-preview]')) return showTicket(f, true);
-    // desde el borrador del ticket, «atrás» vuelve al resumen
-    if (t.closest('[data-step-back]')) return 'viewing' in f.dataset ? showTicket(f, false) : moveTo(f, prevOf(f.elements.mode.value, Number(f.dataset.step)));
+    const mark = t.closest('[data-step-mark]');
+    if (mark) return jumpTo(f, Number(mark.dataset.stepMark));
+    // desde el borrador del escalado, «atrás» vuelve a los requisitos
+    if (t.closest('[data-step-back]')) return moveTo(f, prevOf(f.elements.mode.value, Number(f.dataset.step)));
     if (t.closest('[data-restore-note]')) {
       const ed = editor(f);
       setEditorText(ed, f.querySelector('[data-restore-note]').dataset.original);

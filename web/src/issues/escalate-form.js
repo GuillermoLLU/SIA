@@ -1,19 +1,18 @@
 // Escalar, por pasos y uno solo a la vista, con el aspecto de Resolver (las clases rv-*):
-// 1) las coincidencias: si alguna es el mismo problema, se actualiza ese escalado con un comentario
-// (y acaba ahí); si no, se crea uno nuevo por los demás; 2) a quién, del catálogo;
-// 3) el motivo, que empieza con la nota [ANALISIS] de Remedy, con sus archivos; 4) lo que pide el
-// destino (prioridad del Jira, lo mínimo y la evidencia); y 5) el resumen, como el de Resolver.
+// 1) al abrir, unir a un ticket (se actualiza ese escalado con un comentario y acaba ahí) o un nuevo
+// escalado por los demás; 2) a quién, del catálogo; 3) el motivo, que empieza con la nota [ANALISIS]
+// de Remedy, con sus archivos; 4) lo que pide el destino (prioridad del Jira, lo mínimo y la
+// evidencia); y 5) el resumen: como «Generar informe» de Resolver, SIA lo redacta y queda el borrador.
 // Al acabar se queda con el escalado a la vista. No se pasa de paso sin lo obligatorio (escalate.js).
 // Sin las notas del método no se abre: el mismo aviso que Resolver (resolveBlocked). La vista
 // (escalate-view.js) vuelve a pintar lo que depende de lo escrito: requirementsHtml, linkedText,
-// summaryHtml, filesHtml y doneHtml.
+// filesHtml y doneHtml.
 import { esc } from '../ui/html.js';
 import { BACK_ARROW } from '../ui/wizard.js';
 import { loaderHtml, phasesHtml } from '../ui/loader.js';
 import { when } from './format.js';
 import { ticketCheck, JIRA_PRIORITIES, jiraPriority, opensTicket, destOf, minimumsOf, checkedMins, priorityLabel, feedComment, STEPS, LAST, FEED, FLOWS } from './escalate.js';
 import { doneMark, noteMeter, localShort, issueRef, CHECK, MISSING } from './resolve-form.js';
-import { noteQuality } from './quality.js';
 import { toHtml, imageTag } from './tag-editor.js';
 
 // [título, quién va, si el título ya dice el nivel]: entonces el botón no lo repite.
@@ -130,29 +129,9 @@ export const filesHtml = (files) => {
   return `${images}${others ? `<ul class="rv-extras">${others}</ul>` : ''}`;
 };
 
-// Paso 5: lo escrito, como «Lo que has escrito» de Resolver: las notas del método que trae Remedy
-// y lo de cada paso, con su calidad; pulsar uno de los pasos vuelve a él.
-const EXCERPT = 180;
-const excerpt = (s) => { const t = String(s ?? '').replace(/\s+/g, ' ').trim(); return t.length > EXCERPT ? `${t.slice(0, EXCERPT - 1).trimEnd()}…` : t; };
-// files: cuántos archivos lleva, en la etiqueta del título (como las imágenes en Resolver).
-const item = ({ n, title, text, q, files = 0 }) => {
-  const head = `<span class="rv-sum-h"><b>${title}</b>${q ? `<em data-level="${q.level}">${q.label}</em>` : ''}${files ? `<small>${FILE_ICON}${files} ${files === 1 ? 'archivo' : 'archivos'}</small>` : ''}</span><span class="rv-sum-x">${esc(excerpt(text))}</span>`;
-  return `<li>${n ? `<button type="button" data-go="${n}" title="Volver a ${title}">${head}</button>` : `<div class="rv-sum-note">${head}</div>`}</li>`;
-};
-export const summaryHtml = (v, { issue, dests, check, files = [] }) => {
-  const dest = destOf(v, dests), mins = minimumsOf(issue, dest), checked = checkedMins(v);
-  const reqs = [
-    dest?.opens === 'jira' && `Prioridad del Jira: ${priorityLabel(v.jiraPriority)}`,
-    mins.length && `Lo mínimo: ${mins.filter((m) => checked.includes(m.key)).length} de ${mins.length} confirmado`,
-    !opensTicket(dest) && v.sent,
-  ].filter(Boolean).join(' · ');
-  return [
-    { title: 'Notas del método', text: check.notes.map((x) => x.label).join(' · '), q: { level: 'ok', label: 'Completas' } },   // ya comprobadas al entrar
-    { n: 2, title: 'A quién', text: dest?.name || v.destOther },
-    { n: 3, title: 'Motivo', text: v.reason, q: noteQuality(v.reason), files: files.length },
-    { n: 4, title: 'Requisitos', text: reqs || 'No pide nada más' },
-  ].map(item).join('');
-};
+// Paso 5, al llegar, como «Generar informe» de Resolver: SIA lee lo escrito, lo mejora y prepara el
+// borrador del escalado (de momento, un simulacro); después, el borrador, directamente.
+export const draftPhases = (hasFiles) => phasesHtml(['Leyendo todo lo que has escrito', 'Formateando y mejorando el texto', ...(hasFiles ? ['Unificando archivos'] : []), 'Preparando el borrador del escalado']);
 
 // Antes de escalar, el borrador de lo que se abre, como el «Borrador del informe» de Resolver: con lo
 // escrito en cada paso, las notas que necesita el destino y los adjuntos. Se puede retocar (de momento no sale de SIA).
@@ -265,10 +244,6 @@ export const escalateForm = ({ issue, dests, found = [], check, saved = null, li
       <section class="rv-step rv-step-one" data-rstep="${LAST}" hidden>
         <div class="rv-cap rv-cap-center rv-cap-final" data-esc-cap hidden><b>Borrador del escalado</b></div>
         <div class="rv-text">
-          <section class="rv-gen-sum iss-esc-review" data-esc-review>
-            <h4>Lo que has escrito</h4>
-            <ol data-summary></ol>
-          </section>
           <div class="rv-review" data-esc-ticket hidden></div>
           ${loaderHtml({ title: '' }).replace('data-loader>', 'data-loader hidden>')}
           <div class="iss-esc-done" data-esc-done hidden></div>
@@ -280,7 +255,6 @@ export const escalateForm = ({ issue, dests, found = [], check, saved = null, li
       <small class="iss-autosave" data-autosave>${saved?.at ? `Borrador guardado ${localShort(saved.at)}` : 'El borrador se guarda solo mientras escribes'}</small>
       <button type="button" class="lab-btn rv-back" data-step-back hidden>Atrás</button>
       <button type="button" class="lab-btn primary rv-next" data-step-next>${STEPS[1].title}</button>
-      <button type="button" class="lab-btn primary rv-next" data-esc-preview hidden>Ver el escalado</button>
       <button type="submit" class="lab-btn primary rv-next" data-confirm-send hidden>Crear escalado</button>
       <button type="button" class="lab-btn primary rv-next" data-esc-close hidden>Cerrar</button>
     </footer>
