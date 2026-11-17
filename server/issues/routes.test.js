@@ -181,6 +181,12 @@ test('ids raros: 404; devolver: a la base, sin leer la foto', async () => {
   assert.equal(loads.n, 0);
 });
 
+test('asignármela: a la base, con el origen de la foto (la base comprueba que lo conozco)', async () => {
+  const { call, calls } = setup();
+  assert.deepEqual((await call('POST', ['INC1', 'take'])).body, { ok: true });
+  assert.deepEqual(calls.at(-1), ['platform_take_issue', { p_issue: 'INC1', p_origin: 'SGA' }]);
+});
+
 test('GET /teammates: el equipo de Issues sin mí, sin leer la foto; un fallo de la base, con su estado', async () => {
   const { call, loads } = setup();
   assert.deepEqual((await call('GET', ['teammates'])).body, { teammates: [{ id: 'u-luis', name: 'Luis' }] });

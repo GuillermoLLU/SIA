@@ -70,12 +70,12 @@ const ms = (at) => new Date(String(at || '').replace(' ', 'T')).getTime() || 0;
 // más antigua a la más reciente. Cada entrada lleva su clave (key) para
 // recordar si está abierta.
 //   nota       → { key, kind: 'note', src: 'remedy' | 'sia', at, by, text, tag, visibility, id?, byId?, edited? }
-//   movimiento → { key, kind: 'move', type, at, by, to, text? }  (text: el motivo de un traspaso)
+//   movimiento → { key, kind: 'move', type, at, by, from, to, text? }  (text: el motivo de un traspaso)
 export const notesFeed = ({ worklog = [], timeline = [] } = {}) => {
   const remedy = (worklog || []).map((w, k) => ({ key: `r${k}`, kind: 'note', src: 'remedy', at: w.at, by: w.who, visibility: null, ...splitTag(w.text) }));
   const sia = timeline.map((t, k) => (t.type === 'note'
     ? { key: `n${t.id}`, kind: 'note', src: 'sia', at: t.at, by: t.by, byId: t.byId, id: t.id, text: t.text, tag: t.tag ?? null, visibility: t.visibility || 'internal', edited: t.edited ?? null }
-    : { key: `m${k}`, kind: 'move', type: t.type, at: t.at, by: t.by, to: t.to ?? null, text: t.text ?? null }));
+    : { key: `m${k}`, kind: 'move', type: t.type, at: t.at, by: t.by, from: t.from ?? null, to: t.to ?? null, text: t.text ?? null }));
   return [...remedy, ...sia].map((e, i) => [e, i]).sort(([a, i], [b, j]) => ms(a.at) - ms(b.at) || i - j).map(([e]) => e);
 };
 export const noteCount = (feed) => feed.filter((e) => e.kind === 'note').length;

@@ -39,12 +39,12 @@ test('Seguimiento: con Jira, su clave y estado en lugar del motivo; resuelto, «
   assert.doesNotMatch(done, /sin moverse/);
 });
 
-test('escalado del equipo: dueño, el Jira enlazado y, si es de otro, Coger y Reasignar', () => {
+test('escalado del equipo: dueño, el Jira enlazado y, si es de otro, Asignármela y Reasignar', () => {
   const e = (o) => issue({ status: 'PENDING', modified: '2026-10-28 11:00', owner: 'Luis <x>', mine: false, jira: { key: 'SISUPAC-1', state: 'open', url: 'https://jira/browse/SISUPAC-1' }, ...o });
   const other = teamItem(e(), now);
   assert.match(other, /<span class="iss-owner">Luis &lt;x&gt;<\/span>/);
   assert.match(other, /<a href="https:\/\/jira\/browse\/SISUPAC-1" target="_blank" rel="noopener">Abrir SISUPAC-1 ↗<\/a>/);
-  assert.match(other, /data-esc-take="INC1">Coger<\/button><button type="button" data-esc-reassign="INC1">Reasignar/);
+  assert.match(other, /data-esc-take="INC1">Asignármela<\/button><button type="button" data-esc-reassign="INC1">Reasignar/);
   const mine = teamItem(e({ mine: true, jira: { key: 'SISUPAC-1', state: 'open' } }), now);
   assert.match(mine, /<span class="iss-owner mine">Tuya<\/span>/);
   assert.doesNotMatch(mine, /iss-esc-acts/);

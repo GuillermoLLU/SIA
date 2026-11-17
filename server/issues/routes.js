@@ -15,6 +15,7 @@
 //   POST /next          → { id }  (en el orden de la regla de la persona; null: no queda ninguna libre;
 //                                409 con el tope de en curso)
 //   POST /:id/release   → { ok }  (devolverla a la cola)
+//   POST /:id/take      → { ok }  (quedarse con una que tiene otra persona o nadie en SIA)
 //   GET  /:id/resolve   → { check, draft }  (abrir Resolver: lo que hay en Remedy y lo
 //                         que falta, resolve.js, y mi borrador, drafts.js, o null)
 //   POST /:id/resolve   { note, what, how, prevent, lang } → { ok, sent: false }
@@ -57,6 +58,7 @@ export const issuesRoutes = (issues, { json, readBody }) => async (req, res, [id
     if (id === 'next' && !action && req.method === 'POST') return json(res, 200, { id: await issues.next(who) });
     if (!ISSUE_ID.test(id || '')) return json(res, 404, { error: 'No existe.' });
     if (action === 'release' && req.method === 'POST') { await issues.release(who, id); return json(res, 200, { ok: true }); }
+    if (action === 'take' && req.method === 'POST') { await issues.take(who, id); return json(res, 200, { ok: true }); }
     if (action === 'resolve' && !part) {
       if (req.method === 'GET') return json(res, 200, await issues.startResolve(who, id));
       if (req.method === 'POST') return json(res, 200, await issues.resolve(who, id, await readBody(req)));

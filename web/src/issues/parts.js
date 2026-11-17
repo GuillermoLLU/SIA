@@ -37,12 +37,12 @@ export const item = (i, key, now) => {
   </button>`;
 };
 
-// Un escalado del equipo: la fila y, debajo, lo que se puede hacer con él. La de otro
-// se coge o se reasigna (y se le avisa); el Jira se abre si hay base de Jira en Conexiones.
+// Un escalado del equipo: la fila y, debajo, lo que se puede hacer con él. La de otro me la
+// asigno (pasa a mi mesa) o se reasigna; el Jira se abre si hay base de Jira en Conexiones.
 export const teamItem = (e, now) => {
   const acts = [
     e.jira.url ? `<a href="${esc(e.jira.url)}" target="_blank" rel="noopener">Abrir ${esc(e.jira.key)} ↗</a>` : '',
-    e.mine ? '' : `<button type="button" data-esc-take="${esc(e.id)}">Coger</button><button type="button" data-esc-reassign="${esc(e.id)}">Reasignar</button>`,
+    e.mine ? '' : `<button type="button" data-esc-take="${esc(e.id)}">Asignármela</button><button type="button" data-esc-reassign="${esc(e.id)}">Reasignar</button>`,
   ].join('');
   return `<div class="iss-esc-row">${item(e, 'team', now)}${acts ? `<div class="iss-esc-acts">${acts}</div>` : ''}</div>`;
 };

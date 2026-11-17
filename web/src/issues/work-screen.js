@@ -47,6 +47,9 @@ export const assistHtml = (error = null) => `<div class="ai-start">
 export const assistWaitHtml = () => `<div class="ai-start">${waitHtml('Iniciando agente…', { hidden: false })}</div>`;
 
 // El cuerpo del diálogo de confirmación al devolver a la cola.
+// Confirmar antes de quedársela: de quién es ahora y que pasa a tu mesa.
+export const takeDialogHtml = (id, text, owner) => `<div class="iss-dlg-issue"><span class="iss-dlg-code">${esc(id)}</span><span class="iss-dlg-text">${esc(text || '')}</span></div>
+  <p class="iss-dlg-p">${owner ? `Ahora la tiene <b>${esc(owner)}</b>. ` : ''}Pasa a tu mesa como tuya y en su Seguimiento queda que te la asignaste.</p>`;
 export const releaseDialogHtml = (id, text) => `<div class="iss-dlg-issue"><span class="iss-dlg-code">${esc(id)}</span><span class="iss-dlg-text">${esc(text || '')}</span></div>
   <p class="iss-dlg-p">Volverá a la cola y podrá cogerla cualquier compañero.</p>`;
 
@@ -86,6 +89,7 @@ const headerActions = (i, mine) => {
 // grandes (y fuera de la cabecera, para no repetirlas)
 const BELL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>';
 const HANDOFF = svg(HANDOFF_PATHS, { width: 1.6, hidden: true });
+const TAKE = svg('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6"/><path d="M22 11h-6"/>', { width: 1.6, hidden: true });
 // En la cabecera, donde irían Resolver y compañía: que ya está escalada, a quién y desde cuándo
 const escalatedTag = (i) => `<span class="iss-escalated" title="Pendiente de un tercero: resolver, escalar o devolverla no tiene sentido hasta que responda">${BELL}<b>${esc(escalatedLabel(i))}</b><span>desde el ${when(pendingSince(i))}</span></span>`;
 // Sus acciones (actionsFor), grandes. En «Reclamar», a modo de aviso, los días que lleva parada
@@ -93,6 +97,8 @@ const escalatedTag = (i) => `<span class="iss-escalated" title="Pendiente de un 
 const BIG_ACTION = {
   chase: (i, now) => { const s = stillInfo(i, now); return `<button class="iss-big-act primary" data-act="chase">${BELL}<span>Reclamar respuesta</span><em class="iss-big-still ${s.level}">${s.label} sin moverse</em></button>`; },
   transfer: () => `<button class="iss-big-act" data-act="transfer">${HANDOFF}<span>Traspasar</span></button>`,
+  // la de otra persona, en el sitio de Traspasar: me la quedo (pasa a mi mesa como mía)
+  take: () => `<button class="iss-big-act" data-act="take">${TAKE}<span>${ACTIONS.take.label}</span></button>`,
 };
 const pendingActs = (i, now, mine) => `<aside class="iss-card iss-pending-acts" aria-label="Qué hacer con ella">
       ${actionsFor(i, mine).map((key) => BIG_ACTION[key](i, now)).join('')}

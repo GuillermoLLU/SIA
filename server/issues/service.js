@@ -112,6 +112,8 @@ export const createIssuesService = ({ source, platform, drafts, jira = NO_JIRA, 
       return (await platform.rpc(jwt, 'platform_claim_next_issue', { p_candidates: candidates.slice(0, 500) })) || null;
     },
     release: ({ accessToken: jwt }, id) => platform.rpc(jwt, 'platform_release_issue', { p_issue: id }),
+    // quedarse con una que tiene otra persona (o nadie) en SIA: pasa a mi mesa; la base mira el origen
+    take: ({ accessToken: jwt }, id) => platform.rpc(jwt, 'platform_take_issue', { p_issue: id, ...originArg(source.load().issues, id) }),
     // a un compañero de Issues; el motivo queda como nota del traspaso
     // con el origen de la issue: la base solo la deja pasar a quien tiene ese conocimiento
     transfer: ({ accessToken: jwt }, id, { to, comment }) =>

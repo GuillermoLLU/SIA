@@ -36,6 +36,10 @@ export const ACTIONS = {
       { name: 'message', label: 'Mensaje al centro', kind: 'text', required: true, rows: 7, hint: 'Queda en Seguimiento como nota pública: la verá el centro.' },
     ],
   },
+  // quedarse con una escalada de otra persona (un compañero de vacaciones): pasa a mi mesa como mía
+  take: {
+    label: 'Asignármela',
+  },
   // abrir un WAR-ROOM si una crítica es bloqueante: de momento no hace nada, solo lo avisa (issues-view.js)
   warroom: {
     label: 'Abrir WAR-ROOM',
@@ -80,9 +84,10 @@ export const CENTRE_ACTIONS = ['call', 'contact'];
 // Qué se puede hacer con una issue: pendiente de un tercero, reclamarle respuesta; si no, resolverla,
 // escalarla, hablar con el centro y, solo si es crítica, abrir un WAR-ROOM (en una alta o menos no
 // aplica nunca). Traspasarla o devolverla a la cola, solo si es de uno (cogida en SIA): la base no
-// mueve una issue que no tienes. Traspasar no mira el tope de en curso.
+// mueve una issue que no tienes. Traspasar no mira el tope de en curso. Una escalada que no es mía me la
+// puedo asignar (p. ej., la de un compañero de vacaciones).
 export const actionsFor = (issue, mine) => [
-  ...(issue.status === 'PENDING' ? ['chase'] : ['resolve', 'escalate', ...CENTRE_ACTIONS]),
+  ...(issue.status === 'PENDING' ? ['chase', ...(mine ? [] : ['take'])] : ['resolve', 'escalate', ...CENTRE_ACTIONS]),
   ...(issue.status !== 'PENDING' && issue.priority === 'CRITICAL' ? ['warroom'] : []),
   ...(mine ? ['transfer'] : []),
   ...(mine && issue.status !== 'PENDING' ? ['release'] : []),
