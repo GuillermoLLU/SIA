@@ -9,10 +9,10 @@ export const EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
 // Quién ve una nota: privada (solo quien la escribió), interna (el equipo) o
 // pública (también el centro, cuando SIA envíe por SIGLO; hasta entonces se
 // queda en SIA). Sin decirlo, interna.
-export const VISIBILITIES = ['private', 'internal', 'public'];
+const VISIBILITIES = ['private', 'internal', 'public'];
 // Las etiquetas del método del equipo, las mismas que pone en Remedy delante de
 // la nota («[ANALISIS] …»). Opcionales.
-export const NOTE_TAGS = ['SITUACION INICIAL', 'ANTECEDENTES', 'ANALISIS', 'DIAGNOSTICO', 'ACT', 'INF', 'ESCALADO', 'CALLOK', 'CALLKO', 'SERVREST', 'RESOLUCION'];
+const NOTE_TAGS = ['SITUACION INICIAL', 'ANTECEDENTES', 'ANALISIS', 'DIAGNOSTICO', 'ACT', 'INF', 'ESCALADO', 'CALLOK', 'CALLKO', 'SERVREST', 'RESOLUCION'];
 
 // Lo que llega para añadir una nota → { body, visibility, tag } o { error }.
 export const noteInput = ({ body, visibility = 'internal', tag = null } = {}) => {

@@ -6,6 +6,7 @@
 // icono en el sitio del avatar y una frase. Abajo, la barra de escribir: quién la verá (menú), la
 // etiqueta (menú) y Enviar.
 import { esc } from '../ui/html.js';
+import { initials } from '../ui/initials.js';
 import { whenLabel } from './format.js';
 import { VISIBILITY, VISIBILITIES, NOTE_TAGS, tagLabel, firstSentence, canEditNote, notesFeed, noteCount } from './notes.js';
 
@@ -21,7 +22,6 @@ const SEND = svg('<path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>');
 const CROSS = svg('<path d="M6 6l12 12M18 6L6 18"/>');
 
 // Quién: un avatar con sus iniciales (sin nombre, un interrogante).
-const initials = (name) => (name || '').trim().split(/[\s.]+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('') || '?';
 const avatar = (name) => `<span class="iss-avatar${name ? '' : ' unknown'}" aria-hidden="true">${esc(initials(name))}</span>`;
 const who = (name) => `<b>${esc(name || 'Alguien')}</b>`;
 // Los movimientos: su icono y su frase. Asignar y traspasar (cambia quién la
