@@ -11,6 +11,7 @@ import { resolveDraft, checkResolve, OPEN } from './resolve.js';
 import { timeline } from './timeline.js';
 import { editProblem } from './notes.js';
 import { forGroups, originArg } from './origin.js';
+import { searchIssues } from './search.js';
 
 const WEEKS = 12;
 
@@ -115,6 +116,11 @@ export const createIssuesService = ({ source, platform, drafts, now = () => new 
         sameCenter: issue.center ? issues.filter((i) => i.center === issue.center && i.id !== id).map(brief) : [],
         timeline: await timelineOf(jwt, id),
       };
+    },
+    // buscar issues por su número, sea de quien sea (atender la llamada de un centro, search.js)
+    async search({ accessToken: jwt }, q) {
+      const { issues, claims } = await snapshot(jwt);
+      return searchIssues(issues, claims, q);
     },
     // una issue de la foto, por id (el chat de una issue)
     find: (id) => source.load().issues.find((i) => i.id === id) || null,

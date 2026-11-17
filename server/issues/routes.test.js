@@ -125,6 +125,16 @@ test('traspasar: a la base con el compañero, el motivo limpio y el origen de la
   assert.equal(loads.n, 0);
 });
 
+test('GET /search: por su número, sea de quien sea, con quién la tiene en SIA; con menos de cuatro cifras, nada', async () => {
+  const issues = [issue('INC000027680016'), issue('INC000027680871')];
+  const { call } = setup([{ issue_id: 'INC000027680016', user_id: 'u-luis', user_name: 'Luis', claimed_at: '2026-10-04T09:00:00Z' }], { issues });
+  const { status, body } = await call('GET', ['search'], undefined, 'q=0016');
+  assert.equal(status, 200);
+  assert.deepEqual(body.results.map((r) => [r.id, r.holder]), [['INC000027680016', 'Luis']], 'una que no es mía también');
+  assert.deepEqual((await call('GET', ['search'], undefined, 'q=276')).body, { results: [] });
+  assert.deepEqual((await call('GET', ['search'])).body, { results: [] });
+});
+
 test('notas: añadir devuelve el id; vacía, 400; el histórico, aparte', async () => {
   const { call, calls } = setup();
   assert.deepEqual((await call('POST', ['INC1', 'notes'], { body: ' El centro confirma. ' })).body, { id: 9 });

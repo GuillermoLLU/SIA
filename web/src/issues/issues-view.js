@@ -21,6 +21,8 @@ import { readEscalate, createEscalateDrafts } from './escalate.js';
 import { escalateForm, escalateLive } from './escalate-form.js';
 import { DESTINATIONS, OPEN_TICKETS } from './escalate-mock.js';
 import { callForm, callReady, callNote, suggestedPhone } from './call.js';
+import { createIncoming } from './incoming-view.js';
+import { incomingCardHtml } from './incoming.js';
 
 const GOAL = { min: 15, max: 20 }; // resueltas por turno, lo que dice el equipo
 const REFRESH_MS = 15000;
@@ -38,6 +40,8 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   const closeChat = () => { chat?.dispose(); chat = null; };
   // la pestaña Seguimiento (las notas) vive en su módulo (notes-view.js): plegar, escribir, editar
   const notes = createNotes({ root, api, toast, me });
+  // «Llamada de un centro» en el panel: buscar la incidencia y dejar nota de la llamada (incoming-view.js)
+  const incoming = createIncoming({ root, api, toast });
   // el tooltip de «Traspasada» se saca al body: al repintar, fuera, o se quedaría flotando
   const hideTip = mountTips(root);
 
@@ -86,6 +90,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
         </div>
         </div>
         <aside class="iss-rail">
+        ${incomingCardHtml()}
         <section class="iss-card iss-today">
           <div class="iss-card-h"><h3>Hoy</h3>${snapButton(snapshotInfo(data.taken, now))}</div>
           <div class="iss-big"><b>${today.resolved}</b><span>resueltas · objetivo ${GOAL.min}–${GOAL.max}<br>${today.sga} de SGA · ${today.sisu} de SISU</span></div>
@@ -137,9 +142,10 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   };
   // La mesa al día sin que se note: solo si se está viendo y sin un selector abierto.
   const refreshQuietly = () => {
-    if (!onDesk || picking || openPicker(root)) return;
+    const still = () => !onDesk || picking || openPicker(root) || incoming.busy(); // ni con el buscador de llamadas en uso
+    if (still()) return;
     api.desk().then((d) => {
-      if (!onDesk || picking || openPicker(root)) return;
+      if (still()) return;
       const before = now;
       const changed = JSON.stringify(d) !== JSON.stringify(data); // igual y en el mismo minuto, no se toca: nada que parpadee
       data = d; now = new Date();
@@ -408,6 +414,6 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
 
   return {
     show: () => showDesk().catch((err) => { root.innerHTML = `<div class="iss-page"><p class="iss-empty">No se pudieron cargar las issues: ${esc(err.message)}</p></div>`; }),
-    dispose: () => { resolver.dispose(); notes.dispose(); clearInterval(refresher); window.removeEventListener('focus', picked); closeChat(); },
+    dispose: () => { resolver.dispose(); notes.dispose(); incoming.dispose(); clearInterval(refresher); window.removeEventListener('focus', picked); closeChat(); },
   };
 };

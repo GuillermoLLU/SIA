@@ -1,7 +1,7 @@
 /* Vista Issues: la mesa de cada persona, a todo lo ancho. A la izquierda, sus
    cifras y el seguimiento; a la derecha, asignar, su día y su histórico.
    Al abrir una issue, la pantalla de trabajo con su chat al lado. */
-.iss-view {
+.iss-view, .inc-modal { /* la ventana de una llamada va fuera de la vista (en body): sus colores, también */
   --iss-crit: var(--danger);
   --iss-high: var(--warning);
   --iss-ok: var(--success);
@@ -38,6 +38,49 @@
 .iss-main { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 24px; container-type: inline-size; }
 .iss-rail { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
 .iss-rail .iss-card { padding: 16px 20px; gap: 12px; }
+/* «Llamada de un centro» (incoming.js): su buscador y, debajo, lo que se encuentra mientras se escribe */
+.inc-ic { display: inline-flex; width: 16px; height: 16px; flex: none; }
+.inc-ic svg { width: 100%; height: 100%; }
+.inc-card { position: relative; z-index: 2; gap: 10px; }
+.inc-card .iss-card-h h3 { display: inline-flex; align-items: center; gap: 8px; }
+.inc-help { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--text-low); }
+.inc-search { position: relative; display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 10px; background: var(--bg); border: 1px solid var(--border); transition: border-color var(--motion-state); }
+.inc-search:focus-within { border-color: var(--text); }
+.inc-search input { flex: 1; min-width: 0; height: 100%; font: inherit; font-size: 13.5px; color: var(--text); background: none; border: 0; outline: none; }
+.inc-search input::-webkit-search-cancel-button { cursor: pointer; }
+.inc-hits { position: absolute; left: -1px; right: -1px; top: calc(100% + 4px); z-index: 30; display: flex; flex-direction: column; padding: 6px; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 14px 40px rgba(0, 0, 0, .14); animation: nt-menu-in .14s ease both; }
+.inc-hits[hidden] { display: none; }
+.inc-hit { display: grid; gap: 2px; width: 100%; padding: 8px 10px; font: inherit; text-align: left; color: var(--text); background: none; border: 0; cursor: pointer; }
+.inc-hit:hover, .inc-hit[aria-selected="true"] { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.inc-id { font: 600 12.5px var(--font-mono); }
+.inc-id u { text-decoration: none; background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.inc-t { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inc-hit small { font-size: 11.5px; color: var(--text-low); }
+.inc-none { margin: 0; padding: 8px 10px; font-size: 12.5px; color: var(--text-low); }
+/* la ventana: el detalle arriba (con su propio scroll) y lo que se habló abajo, siempre a la vista */
+.iss-act-form.inc-form { width: min(780px, 100%); max-height: calc(100vh - 32px); gap: 0; padding: 0; }
+.inc-form > header { flex: none; padding: 18px 22px 14px; border-bottom: 1px solid var(--border); }
+.inc-form > header h3 { display: inline-flex; align-items: center; gap: 8px; }
+.inc-form > header a { margin-left: auto; font: 12px var(--font-mono); color: var(--text); text-decoration: none; }
+.inc-form > header a:hover { text-decoration: underline; }
+.inc-body { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 16px 22px 18px; scrollbar-width: thin; }
+.inc-body > * { flex: none; } /* hace scroll: lo de dentro no se encoge */
+.inc-title { margin: 0 0 4px; font-size: 15px; font-weight: 650; line-height: 1.35; }
+.inc-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0 0 6px; }
+.inc-facts > div { min-width: 0; padding: 7px 10px; background: color-mix(in srgb, var(--bg) 60%, var(--surface)); }
+.inc-facts dt { font-size: 11px; color: var(--text-low); }
+.inc-facts dd { margin: 1px 0 0; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inc-facts dd small { font-weight: 400; color: var(--text-low); }
+.inc-facts .k-sev.CRITICAL dd { color: var(--iss-crit); }
+.inc-facts .k-sev.HIGH dd { color: var(--iss-high); }
+.inc-facts .k-origin dd { color: var(--accent); }
+.inc-facts .k-origin.sisu dd { color: var(--iss-sisu); }
+.inc-said { max-height: 140px; overflow-y: auto; font-size: 13px; }
+.inc-recent { margin-top: 2px; }
+.inc-call { flex: none; display: flex; flex-direction: column; gap: 12px; padding: 16px 22px 4px; border-top: 1px solid var(--border); background: color-mix(in srgb, var(--bg) 35%, var(--surface)); }
+.inc-call .iss-field textarea { min-height: 84px; }
+.inc-form > footer { flex: none; padding: 12px 22px 18px; background: color-mix(in srgb, var(--bg) 35%, var(--surface)); }
+.inc-form > footer [data-incoming-cancel] { margin-right: auto; }
 
 /* de cuándo son los datos, junto al título de su día: en rojo si no están al día, y se pulsa para cargar otros */
 .iss-date { margin-left: auto; font-size: 12px; color: var(--text-low); white-space: nowrap; cursor: pointer; transition: color var(--motion-state); }
@@ -379,9 +422,9 @@
 .iss-chat-start[hidden] { display: none; }
 .iss-modal { position: fixed; inset: 0; z-index: 50; display: grid; place-items: safe center; padding: 16px; overflow-y: auto; background: rgba(0, 0, 0, .32); }
 .iss-act-form { width: min(560px, 100%); display: flex; flex-direction: column; gap: 14px; padding: 20px 22px; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 18px 50px rgba(0, 0, 0, .25); color: var(--text); }
-.iss-act-form header { display: flex; align-items: baseline; gap: 12px; }
+.iss-act-form > header { display: flex; align-items: baseline; gap: 12px; } /* la cabecera de la ventana, no las de lo que lleve dentro (notas) */
 .iss-act-form h3 { margin: 0; font-size: 16px; font-weight: 650; }
-.iss-act-form header span { margin-left: auto; font-family: var(--font-mono); font-size: 12px; color: var(--text-low); }
+.iss-act-form > header > span { margin-left: auto; font-family: var(--font-mono); font-size: 12px; color: var(--text-low); }
 .iss-field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
 .iss-field > span { font-weight: 600; }
 .iss-field i { font-style: normal; font-weight: 400; color: var(--text-low); }
@@ -717,11 +760,12 @@ a.rv-id:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
   .iss-enter .iss-kpis > :nth-child(3) { animation-delay: 80ms; }
   .iss-enter .iss-kpis > :nth-child(4) { animation-delay: 120ms; }
   .iss-enter .iss-kpis > :nth-child(5) { animation-delay: 160ms; }
-  .iss-enter .iss-rail > :nth-child(1) { animation-delay: 200ms; }
+  .iss-enter .iss-rail > :nth-child(1) { animation-delay: 180ms; }
+  .iss-enter .iss-rail > :nth-child(2) { animation-delay: 220ms; }
   .iss-enter .iss-cols > :nth-child(1) { animation-delay: 240ms; }
   .iss-enter .iss-cols > :nth-child(2) { animation-delay: 290ms; }
   .iss-enter .iss-cols > :nth-child(3) { animation-delay: 340ms; }
-  .iss-enter .iss-rail > :nth-child(2) { animation-delay: 390ms; }
+  .iss-enter .iss-rail > :nth-child(3) { animation-delay: 390ms; }
   .iss-enter .iss-weeks { animation: iss-rise 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) 450ms both; }
   .iss-enter .iss-progress i { transform-origin: left; animation: iss-fill 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) 300ms both; }
   @keyframes iss-rise { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }

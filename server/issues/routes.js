@@ -8,6 +8,8 @@
 //                         (timeline: su histórico en SIA, movimientos y notas por orden)
 //   GET  /:id/timeline  → { timeline }
 //   GET  /teammates     → { teammates: [{ id, name, groups }] }  (el equipo de Issues, sin mí; groups: sus proyectos)
+//   GET  /search?q=     → { results }  (por su número de Remedy, sea de quien sea: atender la
+//                         llamada de un centro; search.js)
 //   POST /next          → { id }  (en el orden de la regla de la persona; null: no queda ninguna libre;
 //                                409 con el tope de en curso)
 //   POST /:id/release   → { ok }  (devolverla a la cola)
@@ -43,6 +45,7 @@ export const issuesRoutes = (issues, { json, readBody }) => async (req, res, [id
     }
     if (!id && req.method === 'GET') return json(res, 200, await issues.desk(who));
     if (id === 'teammates' && !action && req.method === 'GET') return json(res, 200, { teammates: await issues.teammates(who) });
+    if (id === 'search' && !action && req.method === 'GET') return json(res, 200, { results: await issues.search(who, query.get('q') || '') });
     if (id === 'next' && !action && req.method === 'POST') return json(res, 200, { id: await issues.next(who) });
     if (!ISSUE_ID.test(id || '')) return json(res, 404, { error: 'No existe.' });
     if (action === 'release' && req.method === 'POST') { await issues.release(who, id); return json(res, 200, { ok: true }); }
