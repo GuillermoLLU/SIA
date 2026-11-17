@@ -3,7 +3,7 @@
 // entran las barras: la de arriba baja y el dock sube desde abajo. Se hace con
 // clases en <body>: `booting` desde que carga la página, `asking` cuando toca el
 // campo y `ready` cuando tocan las barras (y se quita `booting`). Si al cargar ya
-// hay un chat vivo (vuelve la terminal), o el bridge no contesta, no hay
+// hay un chat vivo (vuelve la conversación), o el bridge no contesta, no hay
 // portada que esperar y entran al momento. Si se abre en otra vista (la mesa…),
 // entran primero las barras, sin esperar a los datos, y después la vista
 // (revealDesk). Y si quien arranca lleva el ratón a la zona del dock, abajo, no

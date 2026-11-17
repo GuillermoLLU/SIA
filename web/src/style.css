@@ -463,6 +463,28 @@ body.top-nav #settings-modal[hidden] .settings-modal { transform: scale(.98); op
 .conn-card .token-list li { background: var(--surface); }
 .conn-card .token-list .token-empty { padding: 0; border: 0; margin: 0; background: transparent; color: var(--text-low); }
 
+/* Proveedores IA (settings/providers-view.js): el estado de la cuenta de Copilot, lo gastado y el
+   login por código */
+.conn-head .conn-sub { margin: 2px 0 0; font-size: 12.5px; color: var(--text-low); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conn-head .conn-sub.bad { color: #f25f5c; }
+.conn-head > div { flex: 1; min-width: 0; }
+.conn-badge { flex: none; padding: 3px 9px; border: 1px solid var(--border); font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-low); }
+.conn-badge:empty { display: none; }
+.conn-badge.ok { color: #178329; border-color: color-mix(in srgb, #178329 45%, transparent); }
+.conn-badge.bad { color: #f25f5c; border-color: color-mix(in srgb, #f25f5c 45%, transparent); }
+.conn-usage { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--text-low); }
+.conn-usage[hidden] { display: none; }
+.conn-bar { flex: 0 0 140px; height: 6px; background: color-mix(in srgb, var(--text) 10%, transparent); overflow: hidden; }
+.conn-bar i { display: block; height: 100%; width: var(--used, 0%); background: var(--accent); }
+.conn-bar.high i { background: #f25f5c; }
+.conn-actions { display: flex; align-items: center; gap: 10px; }
+.conn-flow { padding: 12px 14px; border: 1px dashed var(--border); }
+.conn-flow[hidden] { display: none; }
+.conn-steps { margin: 0; padding-left: 20px; font-size: 12.5px; line-height: 1.6; color: var(--text); }
+.conn-steps a { color: var(--text); }
+.conn-code { display: inline-flex; align-items: center; gap: 10px; margin: 8px 0 10px; }
+.conn-code b { font: 700 20px/1 var(--font-mono); letter-spacing: .12em; padding: 9px 14px; border: 1px solid var(--border); background: var(--surface); color: var(--text); user-select: all; }
+
 /* ── Configuración: la columna de enlaces, a modo de guía telefónica ── */
 /* Va sobre lo demás, pegada a la derecha: al crecer, lo de debajo se difumina sin moverse */
 .settings-links {
@@ -628,29 +650,27 @@ body.top-nav #settings-modal[hidden] .settings-modal { transform: scale(.98); op
   overflow: hidden; background: var(--bg);
 }
 
-/* ── La barra del chat: Skills (y adjuntos) a la derecha y Cerrar chat;
-   solo se ve con el chat en marcha ──────────────────────────────── */
-.chat-bar {
-  display: flex; align-items: center; gap: 4px;
-  height: 42px; padding: 0 8px;
-  border-bottom: 1px solid var(--border);
+/* Arrastrando ficheros sobre el chat (chat/uploads.js): un velo y, en medio, la zona de «suelta aquí» */
+#view-chat, .iss-chat-body { position: relative; }
+.drop-zone {
+  position: absolute; inset: 0; z-index: 25;
+  display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+  animation: drop-in .15s ease-out;
 }
-.chat-bar[hidden] { display: none; }
-.chat-bar-spacer { flex: 1; min-width: 12px; }
-.chat-bar-btn {
-  display: inline-flex; align-items: center; gap: 7px;
-  height: 30px; padding: 0 10px; flex-shrink: 0;
-  border: 1px solid var(--border); border-radius: 0;
-  background: transparent; color: var(--text-low);
-  font-size: 12.5px; cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease;
+.drop-zone[hidden] { display: none; }
+.drop-zone > * { pointer-events: none; } /* el arrastre no entra ni sale por los hijos */
+.drop-zone-box {
+  width: min(420px, 80%); padding: 40px 24px;
+  display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center;
+  border: 2px dashed var(--text); background: color-mix(in srgb, var(--surface) 88%, transparent);
+  color: var(--text); font-size: 13px;
 }
-.chat-bar-btn:hover { color: var(--text); border-color: var(--accent); }
-.chat-bar-btn svg { flex-shrink: 0; }
-.chat-bar-btn .kbd {
-  padding: 0 5px; border: 1px solid var(--border); border-radius: 0;
-  font-size: 10px; color: var(--text-low);
-}
+.drop-zone-box svg { width: 40px; height: 40px; margin-bottom: 10px; }
+.drop-zone-box b { font-size: 16px; font-weight: 650; }
+.drop-zone-box span { color: var(--text-low); }
+@keyframes drop-in { from { opacity: 0; } }
 
 /* Chat abierto en otro dispositivo: aviso centrado con el botón de traerlo */
 .handoff {
@@ -660,80 +680,25 @@ body.top-nav #settings-modal[hidden] .settings-modal { transform: scale(.98); op
 }
 .handoff p { margin: 0; font: 14px var(--font-ui); color: var(--text-low); }
 
-/* ── Chat body: terminal + panel de assets ─────────────────── */
-.chat-body { flex: 1; min-height: 0; display: flex; }
+/* ── Los chats (chat-view.js): un panel por sesión, con la portada o la conversación ── */
+/* overscroll-behavior: al llegar al final del hilo, el gesto no se propaga a la página */
+.chat-stack { flex: 1; min-height: 0; position: relative; overscroll-behavior: contain; }
+.chat-pane { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--bg); }
+.chat-pane[hidden] { display: none; }
 
-.assets-panel {
-  width: 198px; flex-shrink: 0;
-  display: flex; flex-direction: column;
-  border-left: 1px solid var(--border);
-  background: var(--surface);
-}
-.assets-panel[hidden] { display: none; }
-.assets-head {
-  display: flex; align-items: center;
-  padding: 12px 12px 8px;
-  font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
-  color: var(--text-low);
-}
-.assets-close {
-  margin-left: auto; width: 22px; height: 22px;
-  border: 0; border-radius: 0; background: transparent;
-  color: var(--text-low); font-size: 15px; line-height: 1; cursor: pointer;
-}
-.assets-close:hover { background: var(--border); color: var(--text); }
-.assets-list {
-  flex: 1; overflow-y: auto;
-  padding: 0 10px 12px;
-  display: flex; flex-direction: column; gap: 10px;
-}
-.asset-item {
-  border: 1px solid var(--border); border-radius: 0;
-  overflow: hidden; background: var(--bg);
-}
-.asset-item img {
-  display: block; width: 100%; height: 88px;
-  object-fit: cover; cursor: zoom-in;
-}
-.asset-file {
-  display: flex; align-items: center; justify-content: center;
-  height: 56px; cursor: pointer;
-}
-.asset-file .ext {
-  padding: 3px 10px;
-  border: 1px solid var(--border); border-radius: 0;
-  font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
-  color: var(--text-low); font-family: var(--font-mono);
-}
-.asset-file:hover .ext { color: var(--accent); border-color: var(--accent); }
-.asset-meta {
-  display: flex; align-items: center; gap: 6px;
-  padding: 6px 8px;
-  font-size: 10.5px; color: var(--text-low);
-}
-.asset-meta .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.asset-insert {
-  border: 0; background: transparent; padding: 0;
-  color: var(--text-low); cursor: pointer; font-size: 13px;
-}
-.asset-insert:hover { color: var(--accent); }
-
-/* ── Terminal stack (one pane per session) ─────────────────── */
-/* overscroll-behavior: al llegar al final del historial, el gesto no se
-   propaga a la página */
-.term-stack { flex: 1; min-height: 0; position: relative; overscroll-behavior: contain; }
-.term-pane {
-  position: absolute; inset: 0;
-  padding: 12px 18px;
-  background: var(--bg);
-}
-.term-pane[hidden] { display: none; }
-.term-host { height: 100%; }
-.term-host[hidden] { display: none; }
-
-/* El hueco de la portada del Chat dentro del panel (la portada es absoluta) */
-.ai-hero-host { height: 100%; }
+/* El hueco de la portada del Chat dentro del panel (la portada es absoluta). Al abrir el chat se
+   va subiendo y desvaneciéndose por encima de la conversación, que entra debajo (conversation.css) */
+.ai-hero-host { flex: 1; position: relative; }
 .ai-hero-host[hidden] { display: none; }
+.ai-hero-host.leaving { position: absolute; inset: 0; z-index: 2; pointer-events: none; animation: hero-out .4s ease both; }
+/* se va en fundido: la conversación entra detrás con el suyo (conversation.css: cv-enter) */
+@keyframes hero-out { to { opacity: 0; } }
+/* mientras el agente arranca (.waiting): el saludo y lo escrito se difuminan y queda el aviso */
+.ai-hero-host.waiting :is(.ai-hero-hi, .ai-ask) { opacity: 0; filter: blur(8px); transition: opacity .45s ease, filter .45s ease; }
+.ai-hero-host.waiting .ai-ask { pointer-events: none; }
+/* …y el aviso ocupa el centro de la portada (la caja está centrada: su mitad es la de la pantalla) */
+.ai-hero-host.waiting .ai-wait { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); }
+@media (prefers-reduced-motion: reduce) { .ai-hero-host.leaving { animation: none; opacity: 0; } }
 
 /* ── Arranque del chat de una issue: un botón centrado y, debajo, por qué no
    se puede ─────────────────────────────────────────────────────────────── */
@@ -787,6 +752,14 @@ body:not(.ready) .ai-hero-box { animation: ai-in 0.55s cubic-bezier(0.2, 0.7, 0.
 .ai-ask textarea:disabled { opacity: 0.5; }
 .ai-hero-err { margin: 0; font-size: 12.5px; line-height: 1.5; color: #f25f5c; text-align: center; }
 
+/* ── El aviso de que el agente arranca (ui/wait.js): un giro negro fino y una línea sutil al lado.
+   En la portada del Chat va bajo el campo; en el chat de una issue, en el sitio del botón ── */
+.ai-wait { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; font: 500 13px/1 var(--font-ui); color: var(--text-low); letter-spacing: .04em; text-transform: uppercase; animation: ai-in .4s ease .2s both; }
+.ai-wait[hidden] { display: none; }
+/* el giro: un anillo negro fino con un cuarto abierto, que gira suave */
+.ai-wait-spin { flex: none; width: 44px; height: 44px; border: 3px solid var(--text); border-right-color: transparent; border-radius: 50%; animation: spin 1s cubic-bezier(.45, .05, .55, .95) infinite; }
+@media (prefers-reduced-motion: reduce) { .ai-wait { animation: none; } .ai-hero-host.waiting :is(.ai-hero-hi, .ai-ask) { transition: none; } }
+
 /* El arranque (app/intro.js), por fases: mientras `booting`, el dock espera abajo, fuera de la
    pantalla, y el campo de la portada no se ve; con `asking` aparece el campo; con `ready` el dock
    sube (con su transición). La barra de arriba baja y después aparece lo que lleva; una sola vez,
@@ -805,12 +778,6 @@ body.booting .ai-ask { opacity: 0; transition: opacity 0.6s ease; }
 body.booting.asking .ai-ask { opacity: 1; }
 body.ready .ai-ask { transition: opacity 0.6s ease; } /* si la barra se adelanta, el campo aparece con ella, no de golpe */
 @media (prefers-reduced-motion: reduce) { .ai-hero-bg i, .ai-hero-box { animation: none; } body.ready .sidebar, body.ready .ai-ask { transition: none; } body.ready :is(.top-brand, .topbar, .top-user, .top-brand > *) { animation: none; } }
-
-/* xterm fills its pane */
-.xterm { height: 100%; }
-.xterm-viewport { overscroll-behavior: contain; }
-.xterm-viewport::-webkit-scrollbar { width: 10px; }
-.xterm-viewport::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 0; }
 
 /* ── Aviso de actualización (banner superior) ── */
 

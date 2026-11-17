@@ -37,32 +37,7 @@
 
       <!-- ── Vista CHAT ── -->
       <div class="window view" id="view-chat">
-        <div class="chat-bar" id="chat-bar" hidden>
-          <span class="chat-bar-spacer"></span>
-          <button class="chat-bar-btn" id="assets-btn" title="Adjuntos compartidos en este chat" hidden>
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-            <span class="count"></span>
-          </button>
-          <button class="chat-bar-btn" id="skills-btn" title="Aplicar una skill al chat (⌘K)">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-            <span>Skills</span>
-            <span class="kbd">⌘K</span>
-          </button>
-          <button class="chat-bar-btn" id="chat-close" title="Cerrar este chat y empezar otro">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-            <span>Cerrar chat</span>
-          </button>
-        </div>
-        <div class="chat-body">
-          <div class="term-stack" id="term-stack"></div>
-          <aside class="assets-panel" id="assets-panel" hidden>
-            <header class="assets-head">
-              <span>Adjuntos</span>
-              <button class="assets-close" id="assets-close" title="Ocultar panel">×</button>
-            </header>
-            <div class="assets-list" id="assets-list"></div>
-          </aside>
-        </div>
+        <div class="chat-stack" id="chat-stack"></div>
       </div>
 
       <!-- ── Vista LABORATORIO: el editor de una skill, a pantalla completa (el catálogo vive en Configuración → Skills) ── -->
@@ -123,6 +98,7 @@
               <!-- Lo primero que se ve: una caja por sección -->
               <div class="settings-boxes" id="settings-home">
                 <button type="button" class="settings-box" data-pane="conexiones"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22v-5M9 8V2M15 8V2M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/></svg><span>Conexiones</span></button>
+                <button type="button" class="settings-box" data-pane="proveedores"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/><path d="M5 2l.6 1.6L7 4l-1.4.6L5 6l-.6-1.4L3 4l1.4-.4z"/></svg><span>Proveedores IA</span></button>
                 <button type="button" class="settings-box" data-pane="seguridad"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg><span>Seguridad</span></button>
                 <!-- solo con la vista people (main.js): la gestión del equipo -->
                 <button type="button" class="settings-box" data-pane="equipo" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8"/><path d="M18.5 14.2a6.5 6.5 0 0 1 3 5.8"/></svg><span>Equipo</span></button>
@@ -194,6 +170,32 @@
                     <button class="lab-btn primary" id="gh-save">Añadir</button>
                   </div>
                   <div class="settings-status" id="gh-status"></div>
+                </section>
+              </div>
+              <!-- Proveedores IA (settings/providers-view.js): la cuenta de Copilot con la que corren los chats.
+                   No es la clave de GitHub de Conexiones, que es para los repositorios -->
+              <div class="settings-pane conn-pane" data-pane="proveedores" hidden>
+                <section class="conn-card" id="provider-copilot">
+                  <header class="conn-head">
+                    <span class="conn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.6 12.1c0-3.5 2.9-5.9 6.4-5.9s6.4 2.4 6.4 5.9v2.5c0 2.3-2.9 4.1-6.4 4.1s-6.4-1.8-6.4-4.1z"/><path d="M9.8 12.3v2.4M14.2 12.3v2.4"/></svg></span>
+                    <div><h3>Copilot</h3><p class="conn-sub" id="copilot-auth-status">Comprobando la sesión…</p></div>
+                    <span class="conn-badge" id="copilot-auth-badge"></span>
+                  </header>
+                  <div class="conn-usage" id="copilot-auth-usage" hidden><div class="conn-bar"><i></i></div><span></span></div>
+                  <p class="settings-hint">Es la cuenta con la que Copilot usa la IA en los chats. La clave de GitHub de Conexiones es aparte: sirve para los repositorios y Copilot nunca la toma como suya.</p>
+                  <div class="conn-actions">
+                    <button class="lab-btn primary" id="copilot-login">Iniciar sesión</button>
+                    <button class="lab-btn" id="copilot-logout" hidden>Cerrar sesión</button>
+                  </div>
+                  <div class="conn-flow" id="copilot-login-flow" hidden>
+                    <ol class="conn-steps"><li>Copia este código:</li></ol>
+                    <div class="conn-code"><b id="copilot-login-code">····-····</b><button class="lab-btn" id="copilot-login-copy">Copiar</button></div>
+                    <ol class="conn-steps" start="2">
+                      <li>Pégalo en GitHub y autoriza a Copilot: <a href="#" id="copilot-login-url" target="_blank" rel="noopener">abrir github.com/login/device</a>.</li>
+                      <li>Vuelve aquí: SIA lo detecta solo.</li>
+                    </ol>
+                    <div class="settings-row"><button class="lab-btn" id="copilot-login-cancel">Cancelar</button></div>
+                  </div>
                 </section>
               </div>
               <div class="settings-pane conn-pane" data-pane="seguridad" hidden>

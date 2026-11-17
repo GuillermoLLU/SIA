@@ -222,19 +222,66 @@
 .iss-send:disabled { opacity: .45; cursor: default; }
 .iss-send:not(:disabled):hover { filter: brightness(1.08); }
 .iss-side { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
-.iss-keys { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; padding: 14px; }
-.iss-keys > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 8px 10px; background: color-mix(in srgb, var(--bg) 60%, var(--surface)); }
-.iss-keys span { font-size: 11px; color: var(--text-low); }
-.iss-keys b { font-size: 14px; font-weight: 650; color: var(--text); font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.iss-keys small { font-size: 11px; color: var(--text-low); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* el cuadro de datos: desplegado, las cajas; plegado (.folded, al arrancar el chat), solo su resumen en una
+   línea. Se pliega deslizando (las filas de la rejilla a 0) y, con el chat ampliado, se recoge entero (max-height, issues-view.js) */
+.iss-keys { gap: 0; padding: 0; overflow: hidden; transition: max-height .4s cubic-bezier(.4, 0, .2, 1), opacity .25s ease, margin-bottom .4s cubic-bezier(.4, 0, .2, 1); }
+.iss-keys-fold { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .35s cubic-bezier(.4, 0, .2, 1); }
+.iss-keys-fold > .iss-keys-grid { min-height: 0; overflow: hidden; transition: opacity .2s ease .1s, padding-bottom .35s cubic-bezier(.4, 0, .2, 1); }
+.iss-keys.folded .iss-keys-fold { grid-template-rows: 0fr; }
+.iss-keys.folded .iss-keys-grid { opacity: 0; padding-bottom: 0; transition-delay: 0s; } /* sin su relleno de abajo, que si no se queda (el alto a 0 no lo quita) */
+.iss-keys-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; padding: 0 14px 14px; }
+.iss-keys-toggle { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; border: 0; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: padding .35s cubic-bezier(.4, 0, .2, 1); }
+.iss-keys.folded .iss-keys-toggle { padding: 7px 14px; } /* plegado, la línea más baja */
+.iss-side:has(.iss-keys.folded) { gap: 8px; } /* y más pegada al chat, que gana ese alto */
+.iss-side { transition: gap .35s cubic-bezier(.4, 0, .2, 1); }
+.iss-keys-toggle:hover { background: color-mix(in srgb, var(--text) 3%, transparent); }
+/* plegado: cuatro datos («Crit.: Media», «Origen: SGA», «Centro: 101020», «Remedy: INC…»), etiqueta corta en gris y valor en negrita */
+.iss-keys-sum { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 18px; min-width: 0; font-size: 12.5px; }
+.iss-keys-sum > span { display: inline-flex; align-items: baseline; gap: 5px; white-space: nowrap; }
+.iss-keys-sum i { font-style: normal; font-size: 11px; color: var(--text-low); }
+.iss-keys-sum i::after { content: ':'; }
+.iss-keys-sum b { font-weight: 650; }
+.iss-keys-chev { flex: none; margin-left: auto; color: var(--text-low); transition: transform var(--motion-state); }
+.iss-keys.folded .iss-keys-chev { transform: rotate(-90deg); }
+.iss-keys-title { font-size: 11px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; color: var(--text-low); }
+/* desplegado, el título (las cajas ya dicen todo); plegado, el resumen en su lugar, cada uno entrando en fundido */
+.iss-keys:not(.folded) .iss-keys-sum, .iss-keys.folded .iss-keys-title { display: none; }
+.iss-keys-sum, .iss-keys-title { animation: iss-show .3s ease both; }
+.iss-keys-sum .k-sev.CRITICAL { color: var(--iss-crit); }
+.iss-keys-sum .k-sev.HIGH { color: var(--iss-high); }
+.iss-keys-sum .k-origin { color: var(--accent); }
+.iss-keys-sum .k-origin.sisu { color: var(--iss-sisu); }
+.iss-keys-grid > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 8px 10px; background: color-mix(in srgb, var(--bg) 60%, var(--surface)); }
+.iss-keys-grid span { font-size: 11px; color: var(--text-low); }
+.iss-keys-grid b { font-size: 14px; font-weight: 650; color: var(--text); font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iss-keys-grid small { font-size: 11px; color: var(--text-low); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iss-keys a { color: var(--accent); text-decoration: none; }
 .iss-keys a:hover { text-decoration: underline; }
 /* color solo donde dice algo: criticidad alta o crítica, y el origen */
-.iss-keys .k-sev.CRITICAL b, .iss-keys .k-sev.CRITICAL small { color: var(--iss-crit); }
-.iss-keys .k-sev.HIGH b { color: var(--iss-high); }
-.iss-keys .k-origin b { color: var(--accent); }
-.iss-keys .k-origin.sisu b { color: var(--iss-sisu); }
-.iss-chat { flex: 1; min-height: 0; }
+.iss-keys-grid .k-sev.CRITICAL b, .iss-keys-grid .k-sev.CRITICAL small { color: var(--iss-crit); }
+.iss-keys-grid .k-sev.HIGH b { color: var(--iss-high); }
+.iss-keys-grid .k-origin b { color: var(--accent); }
+.iss-keys-grid .k-origin.sisu b { color: var(--iss-sisu); }
+.iss-chat { position: relative; flex: 1; min-height: 0; gap: 0; padding: 0; overflow: hidden; }
+/* ampliar el chat: arriba a la derecha; con .chat-wide en la página, el detalle se encoge a nada (su columna
+   a 0fr, fundiéndose) y los datos se recogen: el chat ocupa toda la zona de trabajo */
+.iss-chat-expand { position: absolute; top: 10px; right: 10px; z-index: 5; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: 1px solid var(--border); background: var(--surface); color: var(--text-low); cursor: pointer; transition: color var(--motion-state), border-color var(--motion-state); }
+.iss-chat-expand:hover { color: var(--text); border-color: var(--text); }
+.iss-work { transition: grid-template-columns .4s cubic-bezier(.4, 0, .2, 1), gap .4s cubic-bezier(.4, 0, .2, 1); }
+.iss-work-main { overflow: hidden; transition: opacity .3s ease, border-color .3s ease; }
+.iss-work-page.chat-wide .iss-work { grid-template-columns: minmax(0, 0fr) minmax(360px, 1fr); gap: 0; }
+.iss-work-page.chat-wide .iss-work-main { opacity: 0; border-color: transparent; pointer-events: none; }
+.iss-work-page.chat-wide .iss-work-main > * { min-width: 560px; } /* mientras se encoge, el detalle no se recoloca: se va tal cual */
+.iss-work-page.chat-wide .iss-keys { opacity: 0; margin-bottom: -16px; pointer-events: none; }
+/* al arrancar el chat, el aviso se va en fundido (hero-out, style.css) mientras entra la conversación */
+.iss-chat-start.leaving { position: absolute; inset: 0; pointer-events: none; animation: hero-out .4s ease both; } /* fuera del flujo: la conversación ocupa ya todo el alto */
+@media (prefers-reduced-motion: reduce) { .iss-keys, .iss-keys-fold, .iss-keys-grid, .iss-work, .iss-work-main { transition: none; } .iss-keys-sum, .iss-keys-title { animation: none; } .iss-chat-start.leaving { animation: none; opacity: 0; } }
+/* la conversación del chat de la issue (issue-chat.js), de borde a borde del cuadro */
+.iss-chat-conv { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.iss-chat-conv[hidden] { display: none; }
+.iss-chat-conv .cv { padding: 48px 16px calc(var(--dock-h, 140px) + 12px); } /* arriba, el sitio del botón de ampliar */
+.iss-chat-conv .cv-dock { padding: 14px 12px 0; }
+.iss-chat-conv .cv-foot { padding-bottom: 10px; }
 /* pendiente de un tercero: en la cabecera, que ya está escalada, a quién y desde cuándo */
 .iss-escalated { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px; font-size: 12.5px; color: var(--iss-high); background: color-mix(in srgb, var(--iss-high) 10%, transparent); border: 1px solid color-mix(in srgb, var(--iss-high) 35%, transparent); white-space: nowrap; }
 .iss-escalated svg { width: 15px; height: 15px; }
@@ -255,9 +302,8 @@
 /* naranja, no rojo: es un aviso, no un error (más intenso cuanto más lleva parada) */
 .iss-big-still.slow { background: color-mix(in srgb, var(--iss-high) 80%, var(--accent)); }
 .iss-big-still.late { background: var(--iss-high); }
-.iss-chat-body { flex: 1; min-height: 0; display: flex; flex-direction: column; margin: 0 -8px -8px; }
-.iss-chat-body .term-host { flex: 1; min-height: 0; height: auto; padding: 6px; background: var(--bg); }
-.iss-chat-start { flex: 1; display: flex; flex-direction: column; gap: 14px; padding: 8px; overflow-y: auto; }
+.iss-chat-body { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.iss-chat-start { flex: 1; display: flex; flex-direction: column; gap: 14px; padding: 24px; overflow-y: auto; }
 .iss-chat-start[hidden] { display: none; }
 .iss-modal { position: fixed; inset: 0; z-index: 50; display: grid; place-items: safe center; padding: 16px; overflow-y: auto; background: rgba(0, 0, 0, .32); }
 .iss-act-form { width: min(560px, 100%); display: flex; flex-direction: column; gap: 14px; padding: 20px 22px; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 18px 50px rgba(0, 0, 0, .25); color: var(--text); }
@@ -404,26 +450,12 @@ a.rv-id:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .rv-extras li small { color: var(--text-low); font-variant-numeric: tabular-nums; }
 .rv-extras li .rv-img-x { position: static; opacity: 1; width: 20px; height: 20px; font-size: 13px; }
 /* lo que se va (las opciones, el proceso) se difumina antes de desaparecer */
-.rv-gen.leaving, .rv-loader.leaving, .rv-review.leaving, .rv-cap.leaving, .rv-warn.leaving { opacity: 0; filter: blur(6px); transition: opacity .3s ease, filter .3s ease; }
-/* Redactando: el giro y las fases, que se van marcando */
-.rv-loader { margin: auto; display: flex; flex-direction: column; align-items: center; gap: 28px; animation: rv-fade-in .45s ease both; }
-.rv-loader-title { margin: 0 0 -8px; font-size: 18px; font-weight: 650; }
+.rv-gen.leaving, .ld.leaving, .rv-review.leaving, .rv-cap.leaving, .rv-warn.leaving { opacity: 0; filter: blur(6px); transition: opacity .3s ease, filter .3s ease; }
+/* Redactando y Resolviendo: el proceso compartido (ui/loader.js) */
 /* el borrador y su título entran con un fundido, en el sitio del proceso que se va */
 @keyframes rv-fade-in { from { opacity: 0; filter: blur(6px); } }
 .rv-review:not([hidden]), .rv-cap-final { animation: rv-fade-in .5s ease both; }
-.rv-spin { width: 56px; height: 56px; border: 4px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
-/* las fases, en negro sobre blanco como el resto del DS: la hecha con su ✓, la actual latiendo, las que faltan en gris */
-/* la lista tiene un ancho fijo y el texto pesa siempre igual (solo cambia el color): nada se mueve entre fases */
-.rv-phases { display: flex; flex-direction: column; gap: 14px; width: max-content; margin: 0; padding: 0; list-style: none; font-size: 15px; line-height: 22px; font-weight: 500; color: var(--text-low); }   /* ancho el de la fase más larga: centrada bajo el giro y fija entre fases */
-.rv-phases li { display: flex; align-items: center; gap: 14px; white-space: nowrap; transition: color .3s ease; }
-.rv-phases li i { display: grid; place-items: center; width: 22px; height: 22px; font-size: 0; border: 1.5px solid var(--border); border-radius: 50%; transition: background .3s ease, border-color .3s ease; }
-.rv-phases li.doing { color: var(--text); }
-.rv-phases li.doing i { border-color: var(--accent); background: var(--accent); animation: rv-pulse 1s ease-in-out infinite; }
-.rv-phases li.done { color: var(--text); }
-.rv-phases li.done i { color: var(--text); border-color: var(--text); }
-.rv-phases li.done i::before { content: '✓'; font-size: 12px; font-weight: 700; }
-@keyframes rv-pulse { 50% { transform: scale(1.25); } }
-@media (prefers-reduced-motion: reduce) { .rv-gen, .rv-loader, .rv-review, .rv-cap-final { animation: none; } .rv-phases li.doing i { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .rv-gen, .rv-review, .rv-cap-final { animation: none; } }
 /* el borrador del informe: el mensaje al centro, con «Descargar PDF» encima a la derecha */
 .rv-rtools { display: flex; align-items: center; justify-content: flex-end; gap: 16px; flex: none; }
 .rv-rtools small { font-size: 12px; color: var(--text-low); }
@@ -622,7 +654,7 @@ a.rv-id:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
   /* Una issue al abrirla: sus cajas, de arriba abajo; dentro de cada una, su contenido
      asoma justo después (los botones de la cabecera, de izquierda a derecha). */
   .iss-opening :where(.iss-work-h, .iss-work-main, .iss-keys, .iss-chat, .iss-pending-acts) { animation: ai-in 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
-  .iss-opening :where(.iss-work-h > .lab-btn, .iss-work-h h2, .iss-actions > *, .iss-wtabs, .iss-wpanel, .iss-keys > *) { animation: iss-show 0.4s ease both; }
+  .iss-opening :where(.iss-work-h > .lab-btn, .iss-work-h h2, .iss-actions > *, .iss-wtabs, .iss-wpanel, .iss-keys-grid > *) { animation: iss-show 0.4s ease both; }
   .iss-opening .iss-work-h > :is(.lab-btn, h2) { animation-delay: 60ms; }
   .iss-opening .iss-actions > :nth-child(1) { animation-delay: 60ms; }
   .iss-opening .iss-actions > :nth-child(2) { animation-delay: 120ms; }
@@ -632,8 +664,8 @@ a.rv-id:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
   .iss-opening .iss-wtabs { animation-delay: 260ms; }
   .iss-opening .iss-wpanel { animation-delay: 320ms; }
   .iss-opening .iss-keys { animation-delay: 240ms; }
-  .iss-opening .iss-keys > * { animation-delay: 340ms; }
-  .iss-opening .iss-keys > :nth-child(n+5) { animation-delay: 400ms; }
+  .iss-opening .iss-keys-grid > * { animation-delay: 340ms; }
+  .iss-opening .iss-keys-grid > :nth-child(n+5) { animation-delay: 400ms; }
   .iss-opening :is(.iss-chat, .iss-pending-acts) { animation-delay: 320ms; }
 }
 @keyframes iss-show { from { opacity: 0; } }

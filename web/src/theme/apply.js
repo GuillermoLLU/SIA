@@ -1,7 +1,6 @@
-// Aplicar un tema: las variables CSS de la interfaz, el tema de las
-// terminales y una copia en localStorage con la que las pantallas de arranque
-// (candado, inicio de sesión) salen ya con sus colores, antes de
-// que exista la app.
+// Aplicar un tema: las variables CSS de la interfaz y una copia en
+// localStorage con la que las pantallas de arranque (candado, inicio de
+// sesión) salen ya con sus colores, antes de que exista la app.
 import { themeById, toggledTheme } from './themes.js';
 
 const THEME_KEY = 'sia-theme';
@@ -26,15 +25,14 @@ export const paintCachedTheme = () => {
   } catch { /* sin copia: colores por defecto */ }
 };
 
-// El tema en marcha: aplicarlo y el botón claro/oscuro. onTerm(term) recibe el tema de las terminales.
-export const createThemeController = ({ toggleEl, onTerm }) => {
+// El tema en marcha: aplicarlo y el botón claro/oscuro.
+export const mountTheme = ({ toggleEl }) => {
   const root = document.documentElement;
   let currentId = themeById(localStorage.getItem(THEME_KEY)).id;
   const apply = (id) => {
     const t = themeById(id);
     currentId = t.id;
     paintVars(root, t.ui);
-    onTerm(t.term); // el tema solo cambia colores; la fuente es siempre la misma
     localStorage.setItem(THEME_KEY, t.id);
     localStorage.setItem(UI_KEY, JSON.stringify(t.ui));
     const next = t.dark ? 'Modo claro' : 'Modo oscuro';
@@ -44,5 +42,4 @@ export const createThemeController = ({ toggleEl, onTerm }) => {
   };
   toggleEl.addEventListener('click', () => apply(toggledTheme(currentId).id));
   apply(currentId);
-  return { current: () => themeById(currentId) };
 };

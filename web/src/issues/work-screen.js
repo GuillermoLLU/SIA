@@ -1,12 +1,15 @@
 // La pantalla de trabajo de una issue. A la izquierda, en pestañas: el
 // detalle de la issue (por defecto), las notas de trabajo de Remedy, las
 // relacionadas y su histórico en SIA (por dónde ha pasado y las notas
-// internas del equipo). A la derecha, sus datos clave y debajo la resolución
-// asistida por IA (issue-chat.js), que vive mientras la issue esté abierta.
+// internas del equipo). A la derecha, sus datos clave (un cuadro que se pliega
+// a una línea de resumen cuando arranca el chat) y debajo la resolución
+// asistida por IA (issue-chat.js), que vive mientras la issue esté abierta y
+// se puede ampliar a toda la pantalla de trabajo.
 // Las parecidas, por conectar: solo su hueco.
 import { esc } from '../ui/html.js';
 import { STATUS_ES, SEVERITY_ES, when, whenIso, whenLabel, newestFirst, age, pendingSince, stillInfo, escalatedLabel } from './format.js';
 import { item } from './parts.js';
+import { waitHtml } from '../ui/wait.js';
 import { actionsFor } from './actions.js';
 
 const WORK_TABS = [
@@ -69,12 +72,18 @@ export const trailHtml = (timeline = [], now = new Date(), meId = null) => (time
   ? `<ol class="iss-trail-list">${newestFirst(timeline).map((t) => trailItem(t, meId, now)).join('')}</ol>`
   : '<p class="iss-empty">Nadie la ha movido ni anotado en SIA todavía.</p>');
 
+const CHEVRON = '<svg class="iss-keys-chev" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
+const EXPAND = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>';
+
 // El arranque de la resolución asistida: solo el botón; si no se puede, el
 // motivo debajo y el botón apagado.
 export const assistHtml = (error = null) => `<div class="ai-start">
     <button class="lab-btn primary ai-start-go" data-assist ${error ? 'disabled' : ''}>Iniciar resolución asistida por IA</button>
     ${error ? `<p class="ai-start-hint">${esc(error)}</p>` : ''}
   </div>`;
+
+// …y, pulsado, el aviso de que el agente arranca (ui/wait.js), en su sitio
+export const assistWaitHtml = () => `<div class="ai-start">${waitHtml('Iniciando agente…', { hidden: false })}</div>`;
 
 // En el campo de nota, Intro envía; Mayús+Intro salta de línea.
 export const sendsNote = (e) => e.key === 'Enter' && !e.shiftKey;
@@ -170,6 +179,12 @@ export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, meI
 
     <div class="iss-side">
     <section class="iss-card iss-keys" aria-label="Datos clave">
+      <button type="button" class="iss-keys-toggle" data-keys-toggle aria-expanded="true" title="Plegar o desplegar los datos">
+        <span class="iss-keys-title">Datos de la issue</span>
+        <span class="iss-keys-sum"><span><i>Crit.</i><b class="k-sev ${esc(i.priority)}">${esc(SEVERITY_ES[i.priority] || i.priority)}</b></span><span><i>Origen</i><b class="k-origin${i.sisu ? ' sisu' : ''}">${i.sisu ? 'SISU' : 'SGA'}</b></span><span><i>Centro</i><b class="iss-code">${esc(i.center || '—')}</b></span><span><i>Remedy</i><b>${esc(i.id)}</b></span></span>
+        ${CHEVRON}
+      </button>
+      <div class="iss-keys-fold"><div class="iss-keys-grid">
       <div class="k-sev ${esc(i.priority)}"><span>Criticidad</span><b>${esc(SEVERITY_ES[i.priority] || i.priority)}</b><small>${i.prio ? 'priorizada por negocio' : '&nbsp;'}</small></div>
       <div class="k-origin${i.sisu ? ' sisu' : ''}"><span>Origen</span><b>${i.sisu ? 'SISU' : 'SGA'}</b><small>&nbsp;</small></div>
       <div class="k-center"><span>Centro</span><b class="iss-code">${esc(i.center || '—')}</b><small>&nbsp;</small></div>
@@ -178,8 +193,10 @@ export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, meI
       <div class="k-claimed"><span>Asignada</span><b>${i.claimedBy?.at ? whenIso(i.claimedBy.at) : '—'}</b><small>${i.claimedBy ? `en SIA, ${esc(i.claimedBy.name)}` : 'nadie la ha cogido en SIA'}</small></div>
       <div class="k-open"><span>Abierta</span><b>${age(i.reported, now)}</b><small>desde que se creó</small></div>
       <div class="k-moved"><span>Último movimiento</span><b>${i.modified ? `hace ${age(i.modified, now)}` : '—'}</b><small>${when(i.modified)}</small></div>
+      </div></div>
     </section>
     ${i.status === 'PENDING' ? pendingActs(i, now, mine) : `<aside class="iss-card iss-chat" aria-label="Resolución asistida por IA">
+      <button type="button" class="iss-chat-expand" data-chat-expand title="Ampliar el chat" aria-label="Ampliar el chat">${EXPAND}</button>
       <div class="iss-chat-body"></div>
     </aside>`}
     </div>

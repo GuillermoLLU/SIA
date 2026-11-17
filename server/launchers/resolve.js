@@ -1,8 +1,8 @@
-// Resuelve un comando a su ruta ejecutable REAL. En Windows los CLIs
-// instalados por npm (claude, copilot) son shims `.cmd`; buscar el nombre
-// pelado encontraba el wrapper sh sin extensión (existe también) y luego
-// pty.spawn fallaba con «File not found», porque ConPTY/CreateProcess NO
-// aplica PATHEXT. Aquí se prueban las extensiones de PATHEXT, que tienen
+// Dónde está el CLI y cómo se lanza. Resuelve un comando a su ruta ejecutable
+// REAL: en Windows los CLIs instalados por npm (copilot) son shims `.cmd`;
+// buscar el nombre pelado encontraba el wrapper sh sin extensión (existe
+// también) y luego lanzarlo fallaba con «File not found», porque CreateProcess
+// NO aplica PATHEXT. Aquí se prueban las extensiones de PATHEXT, que tienen
 // PRIORIDAD sobre el fichero sin extensión; fuera de Windows solo vale la
 // forma literal. Devuelve la ruta completa o null.
 import fs from 'node:fs';
@@ -31,3 +31,9 @@ export const createResolver = ({ isWin, env = process.env, isFile = (p) => fs.st
   };
   return { resolve, which: (cmd) => !!resolve(cmd) };
 };
+
+// Qué se lanza de verdad. En Windows un shim .cmd/.bat no lo ejecuta
+// CreateProcess por sí solo (no corre batch), así que va a través de
+// cmd.exe /c, igual que hace la terminal de VS Code.
+export const spawnSpec = (exe, args, { isWin, comspec = 'cmd.exe' }) =>
+  (isWin && /\.(cmd|bat)$/i.test(exe) ? { cmd: comspec, args: ['/c', exe, ...args] } : { cmd: exe, args });
