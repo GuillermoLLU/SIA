@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { ACTIONS, actionForm, readAction, isComplete, actionsFor, chaseNote, chaseTarget } from './actions.js';
 
 test('las acciones (las notas van en el histórico)', () => {
-  assert.deepEqual(Object.keys(ACTIONS), ['resolve', 'escalate', 'transfer', 'chase']);
+  assert.deepEqual(Object.keys(ACTIONS), ['resolve', 'escalate', 'transfer', 'reassign', 'chase']);
 });
 
 test('actionsFor: pendiente de un tercero, reclamarle; traspasar y devolver, solo si es mía en SIA', () => {

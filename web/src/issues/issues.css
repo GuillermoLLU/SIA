@@ -116,6 +116,14 @@
 .iss-when { margin-left: auto; font-variant-numeric: tabular-nums; }
 .iss-text { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iss-reason { padding: 0 6px; border: 1px solid var(--border); font-size: 11px; }
+/* el Jira al que espera (#136): la clave y su estado; resuelto, en verde (hay que cerrarla) */
+.iss-jira { display: inline-flex; gap: 6px; padding: 0 6px; border: 1px solid var(--border); font-size: 11px; font-variant-numeric: tabular-nums; }
+.iss-jira i { font-style: normal; color: var(--text-low); }
+.iss-jira.resolved { border-color: var(--iss-ok); color: var(--iss-ok); }
+.iss-jira.resolved i { color: inherit; font-weight: 600; }
+.iss-jira.discarded i { text-decoration: line-through; }
+.iss-owner { font-size: 11px; font-weight: 600; color: var(--text); }
+.iss-owner.mine { color: var(--accent); }
 /* los días sin moverse de una pendiente: a la derecha del todo y centrado en la altura de la fila (las dos líneas), con la cifra grande;
    naranja, como el aviso de la issue: más intenso cuanto más lleva parada */
 .iss-item:has(.iss-still) { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 14px; }
@@ -126,6 +134,23 @@
 .iss-still.slow b { color: color-mix(in srgb, var(--iss-high) 85%, var(--text)); }
 .iss-still.late { color: var(--iss-high); background: color-mix(in srgb, var(--iss-high) 12%, transparent); }
 .iss-still.late b { color: var(--iss-high); }
+.iss-still.done { color: var(--iss-ok); background: color-mix(in srgb, var(--iss-ok) 10%, transparent); }
+.iss-still.done b { color: var(--iss-ok); }
+
+/* Seguimiento: lo mío o lo del equipo, como el selector de idioma de Resolver pero en pequeño */
+.iss-follow { display: inline-flex; border: 1px solid var(--border); }
+.iss-follow button { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border: 0; background: var(--surface); color: var(--text-low); font: 600 11px var(--font-ui); letter-spacing: .04em; text-transform: uppercase; cursor: pointer; transition: color var(--motion-state), background var(--motion-state); }
+.iss-follow button:hover { color: var(--text); }
+.iss-follow button[aria-selected="true"] { color: var(--surface); background: var(--accent); }
+.iss-follow i { min-width: 16px; padding: 0 4px; font-style: normal; line-height: 16px; text-align: center; color: var(--surface); background: var(--iss-ok); }
+/* un escalado del equipo: la fila y, debajo, sus acciones, discretas hasta pasar por encima */
+.iss-esc-row { border-bottom: 1px solid var(--border); }
+.iss-esc-row:last-child { border-bottom: 0; }
+.iss-esc-row .iss-item { border-bottom: 0; }
+.iss-esc-acts { display: flex; gap: 14px; padding: 0 8px 10px; font-size: 12px; }
+.iss-esc-acts a, .iss-esc-acts button { padding: 0; border: 0; background: none; font: inherit; color: var(--text-low); text-decoration: none; cursor: pointer; }
+.iss-esc-row:hover .iss-esc-acts a, .iss-esc-row:hover .iss-esc-acts button { color: var(--text); }
+.iss-esc-acts a:hover, .iss-esc-acts button:hover { text-decoration: underline; }
 /* refrescar la mesa, en la cabecera de Seguimiento */
 .iss-card-h .iss-refresh { display: inline-flex; align-items: center; gap: 6px; height: 26px; margin-left: 4px; padding: 0 10px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: 600 11px var(--font-ui); letter-spacing: .04em; text-transform: uppercase; cursor: pointer; }
 .iss-card-h .iss-refresh:hover:not(:disabled) { border-color: var(--text); }

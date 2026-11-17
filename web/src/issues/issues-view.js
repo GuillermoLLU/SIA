@@ -5,8 +5,8 @@
 // (work-screen.js). La mesa se refresca sola.
 import './issues.css';
 import { esc } from '../ui/html.js';
-import { LISTS, snapshotInfo, duration, weekBars } from './format.js';
-import { item, REFRESH_ICON } from './parts.js';
+import { LISTS, snapshotInfo, duration, weekBars, whenLabel, jiraDone, closeFirst, withJira } from './format.js';
+import { item, teamItem, REFRESH_ICON } from './parts.js';
 import { onEscape } from '../ui/dialog.js';
 import { pressStartedIn } from '../ui/dom.js';
 import { pickClick, openPicker, closePickers } from '../ui/picker.js';
@@ -33,6 +33,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   const failed = (text) => (toast?.error || toast)?.(text);   // lo que falla, en rojo
   let data = null, now = new Date(), opened = null, onDesk = false, workTab = 'detail', chat = null, loading = false, picking = false;
   let issue = null; // la issue abierta: Escalar mira su criticidad, su estado y su ticket
+  let follow = 'mine'; // Seguimiento: 'mine' (lo mío) o 'team' (los escalados de todo el equipo)
   const closeChat = () => { chat?.dispose(); chat = null; };
   // el tooltip de «Traspasada» se saca al body: al repintar, fuera, o se quedaría flotando
   const hideTip = mountTips(root);
@@ -42,6 +43,13 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   const loadButton = (label) => fileLabel('iss-load', label);
   // La fecha de los datos es también el botón de cargar otra foto.
   const snapButton = ({ date, stale }) => fileLabel(`iss-date${stale ? ' stale' : ''}`, `${date}${stale ? REFRESH_ICON : ''}`, stale ? 'Datos de Remedy sin actualizar: pulsa para cargar un CSV nuevo. Lo medido en SIA sí es de hoy.' : 'Datos de Remedy: pulsa para cargar otro CSV');
+
+  // Seguimiento: lo mío o lo del equipo. En «Equipo», cuántos tienen el Jira resuelto y piden cerrarse.
+  const followTabs = (team) => {
+    const done = team.filter(jiraDone).length;
+    return `<div class="iss-follow" role="tablist" aria-label="De quién">${[['mine', 'Mías'], ['team', 'Equipo']].map(([k, label]) =>
+      `<button type="button" role="tab" data-follow="${k}" aria-selected="${follow === k}">${label}${k === 'team' && done ? `<i title="${done} con el Jira resuelto: hay que cerrarlas">${done}</i>` : ''}</button>`).join('')}</div>`;
+  };
 
   const kpi = (label, value, hint) => `<div class="iss-kpi" title="${hint}"><span>${label}</span><b>${value}</b><small>${hint}</small></div>`;
 
@@ -63,6 +71,11 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     const { today, history, next } = data;
     const lists = LISTS.map((l) => ({ ...l, items: data.desk.filter(l.test).sort(l.sort) }));
     const count = (key) => lists.find((l) => l.key === key).items.length;
+    const team = data.escalations.items;
+    // Seguimiento: lo mío (con su Jira, si lo tiene) o los escalados de todo el equipo
+    const shown = (l) => (l.key !== 'waiting' ? l.items.slice(0, 12).map((i) => item(i, l.key, now))
+      : follow === 'team' ? team.map((e) => teamItem(e, now))
+        : closeFirst(withJira(l.items, team)).slice(0, 12).map((i) => item(i, l.key, now)));
     const used = history.weeks.some((w) => w.sga + w.sisu);
     root.innerHTML = `<div class="iss-page iss-desk-page">
       <div class="iss-desk">
@@ -76,8 +89,9 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
           </div>
         <div class="iss-cols">
           ${lists.map((l) => `<section class="iss-card iss-col" data-list="${l.key}">
-            <div class="iss-card-h"><h3>${l.label}</h3><span>${l.items.length}</span>${l.key === 'waiting' ? `<button type="button" class="iss-refresh" data-refresh title="Volver a leer la mesa">${REFRESH_ICON}Refrescar</button>` : ''}</div>
-            <div class="iss-items">${l.items.slice(0, 12).map((i) => item(i, l.key, now)).join('') || `<p class="iss-empty">${l.empty}</p>`}</div>
+            <div class="iss-card-h"><h3${l.hint ? ` title="${l.hint}"` : ''}>${l.label}</h3>${l.key === 'waiting' ? followTabs(team) : ''}<span>${l.key === 'waiting' && follow === 'team' ? team.length : l.items.length}</span>${l.key === 'waiting' ? `<button type="button" class="iss-refresh" data-refresh title="Volver a leer la mesa y mirar los Jira">${REFRESH_ICON}Refrescar</button>` : ''}</div>
+            <div class="iss-items">${shown(l).join('') || `<p class="iss-empty">${l.key === 'waiting' && follow === 'team' ? 'Nadie del equipo espera a un Jira.' : l.empty}</p>`}</div>
+            ${l.key === 'waiting' && follow === 'team' ? `<p class="iss-foot">Jira de prueba · ${data.escalations.checkedAt ? `mirado ${whenLabel(data.escalations.checkedAt, now)}` : 'aún sin mirar'} · se mira cada 30 min y al refrescar</p>` : ''}
           </section>`).join('')}
         </div>
         </div>
@@ -130,11 +144,12 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     now = new Date();
     renderDesk();
   };
-  // La mesa al día sin que se note: solo si se está viendo y sin un selector abierto.
+  // La mesa al día sin que se note: solo si se está viendo y sin un selector ni una ventana abiertos.
+  const busy = () => !onDesk || picking || openPicker(root) || root.querySelector('.iss-modal');
   const refreshQuietly = () => {
-    if (!onDesk || picking || openPicker(root)) return;
+    if (busy()) return;
     api.desk().then((d) => {
-      if (!onDesk || picking || openPicker(root)) return;
+      if (busy()) return;
       const before = now;
       const changed = JSON.stringify(d) !== JSON.stringify(data); // igual y en el mismo minuto, no se toca: nada que parpadee
       data = d; now = new Date();
@@ -210,9 +225,22 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       if (refresh) {
         refresh.disabled = true;
         refresh.classList.add('busy');
-        try { await loadDesk(); } finally { refresh.disabled = false; refresh.classList.remove('busy'); }   // si falla, se puede volver a intentar
-        return toast?.('Mesa al día');
+        try { await api.checkJira(); await loadDesk(); } finally { refresh.disabled = false; refresh.classList.remove('busy'); }   // si falla, se puede volver a intentar
+        return toast?.('Mesa y Jira al día');
       }
+      const fol = t.closest('[data-follow]');
+      if (fol) { follow = fol.dataset.follow; return renderDesk(); }
+      // Coger o reasignar el escalado de otro (de momento, de prueba: la base aún no mueve la issue de otro)
+      const grab = t.closest('[data-esc-take]');
+      if (grab) {
+        const e = data.escalations.items.find((x) => x.id === grab.dataset.escTake);
+        const ok = !dialogs || await dialogs.open({ title: 'Coger la issue', centered: true, okLabel: 'Coger',
+          bodyHTML: `<p>${esc(e.id)} la tiene <b>${esc(e.owner || 'nadie')}</b>. Pasa a tu mesa y se le avisa.</p><p class="iss-act-note">De prueba: aún no se mueve.</p>` });
+        if (ok) toast?.(`Coger ${e.id}: preparado, pero aún no se mueve (de prueba).`);
+        return;
+      }
+      const reas = t.closest('[data-esc-reassign]');
+      if (reas) return openReassign(reas.dataset.escReassign);
       const take = t.closest('[data-take]');
       if (take) {
         take.disabled = true;
@@ -286,6 +314,16 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     form.querySelector('[name="mode"][value="link"]').checked = true;
     refreshEscalate(form);
   });
+
+  // Reasignar un escalado de otro, desde la mesa: a quien tiene el conocimiento de su origen, sin su dueño
+  const openReassign = async (id) => {
+    const e = data.escalations.items.find((x) => x.id === id);
+    people = (await api.teammates()).filter((p) => knowsOrigin(p.groups, e) && p.name !== e.owner);
+    closeAction();
+    root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${actionForm('reassign', id, people, `Nadie más tiene el conocimiento de ${originOf(e)}`)}</div>`);
+    root.querySelector('.iss-act-form textarea')?.focus();
+    offEscape = onEscape(() => (openPicker(root) ? closePickers(root) : closeAction()));
+  };
 
   const openAction = async (key) => {
     closeAction();
@@ -380,6 +418,10 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       return toast?.(values.mode === 'link'
         ? `Unida a ${values.ticket}: pasa a Pendiente (proveedor), sin otro escalado. Aún no se envía a Remedy.`
         : `Escalada a ${values.destName}: ${rootCause ? 'queda registrada la causa raíz y sigue Resuelta' : 'pasa a Pendiente (proveedor) y se avisa al centro'}.${values.todo.length ? ` Añádele ${values.todo.join(' y ')} en «Notas internas».` : ''} Aún no se envía a Remedy.`);
+    }
+    if (key === 'reassign') {
+      closeAction();
+      return toast?.(`Reasignar a ${people.find((p) => p.id === values.to)?.name || 'un compañero'}: preparado, pero aún no se mueve (de prueba).`);
     }
     form.querySelector('[type=submit]').disabled = true;
     try {

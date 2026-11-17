@@ -1,9 +1,11 @@
 // /api/issues (vista Issues; la exige el bridge, que ya ha resuelto la sesión:
 // `who` = { user, accessToken }).
-//   GET  /              → { taken, free, next, maxDoing, canTake, desk, today, history }
+//   GET  /              → { taken, free, next, maxDoing, canTake, desk, today, history, escalations }
 //                         (free: lo que queda sin coger que puede llevar, de sus orígenes)
 //                         (next: la que tocaría ahora; desk: mis issues, en breve;
 //                          history: lo medido en SIA, 12 semanas)
+//                         (escalations: { checkedAt, items }, los escalados del equipo con su Jira)
+//   POST /escalations/check → { checkedAt }  (mirar los Jira ahora, sin esperar a la media hora)
 //   GET  /:id           → { issue, sameCenter, timeline }
 //                         (timeline: su histórico en SIA, movimientos y notas por orden)
 //   GET  /:id/timeline  → { timeline }
@@ -41,6 +43,7 @@ export const issuesRoutes = (issues, { json, readBody }) => async (req, res, [id
     }
     if (!id && req.method === 'GET') return json(res, 200, await issues.desk(who));
     if (id === 'teammates' && !action && req.method === 'GET') return json(res, 200, { teammates: await issues.teammates(who) });
+    if (id === 'escalations' && action === 'check' && req.method === 'POST') return json(res, 200, await issues.checkJira());
     if (id === 'next' && !action && req.method === 'POST') return json(res, 200, { id: await issues.next(who) });
     if (!ISSUE_ID.test(id || '')) return json(res, 404, { error: 'No existe.' });
     if (action === 'release' && req.method === 'POST') { await issues.release(who, id); return json(res, 200, { ok: true }); }

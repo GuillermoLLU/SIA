@@ -11,12 +11,17 @@ import { resolveDraft, checkResolve, OPEN } from './resolve.js';
 import { timeline } from './timeline.js';
 import { editProblem } from './notes.js';
 import { forGroups, originArg } from './origin.js';
+import { teamEscalations } from './escalations.js';
 
 const WEEKS = 12;
 
+// jira: el vigía de Jira (jira-watch.js), con lo último que sabe de los escalados;
+// jiraUrl(): la base de Jira de la persona, para enlazar cada ticket.
 // now: el reloj (inyectable en pruebas). «Ahora» es ahora: la foto de Remedy
 // solo dice de cuándo son los datos (taken); lo medido en SIA se mide a día de hoy.
-export const createIssuesService = ({ source, platform, drafts, now = () => new Date() }) => {
+const NO_JIRA = { states: () => new Map(), checkedAt: () => null, check: async () => {} };
+
+export const createIssuesService = ({ source, platform, drafts, jira = NO_JIRA, jiraUrl = () => '', now = () => new Date() }) => {
   // la foto, lo cogido en SIA y las reglas de priorización
   const snapshot = async (jwt) => {
     const { taken, issues } = source.load();
@@ -55,7 +60,8 @@ export const createIssuesService = ({ source, platform, drafts, now = () => new 
   };
 
   return {
-    // → { taken, free, next, maxDoing, canTake, desk, today, history }
+    // → { taken, free, next, maxDoing, canTake, desk, today, history, escalations }
+    // (escalations: los del equipo con su Jira y cuándo se miró Jira, escalations.js)
     async desk({ user, accessToken: jwt }) {
       const snap = await snapshot(jwt);
       const { taken, issues, claims, now } = snap;
@@ -73,7 +79,13 @@ export const createIssuesService = ({ source, platform, drafts, now = () => new 
         desk: desk.map(brief),
         today: today(desk, dayKey(now)),
         history: history(events, new Map(issues.map((i) => [i.id, i])), now, WEEKS),
+        escalations: { checkedAt: jira.checkedAt(), items: teamEscalations(issues, claims, jira.states(), user, jiraUrl()) },
       };
+    },
+    // mirar Jira ahora (Refrescar), sin esperar a la media hora → { checkedAt }
+    async checkJira() {
+      await jira.check();
+      return { checkedAt: jira.checkedAt() };
     },
     // el equipo de Issues, sin mí, con sus proyectos (a quién se puede traspasar según el origen)
     async teammates({ user, accessToken: jwt }) {

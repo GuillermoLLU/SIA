@@ -6,6 +6,8 @@ export const createIssuesApi = (api) => {
   const id = (x) => encodeURIComponent(x);
   return {
     desk: () => api('/issues'),
+    // mirar los Jira de los escalados del equipo ahora, sin esperar a la media hora
+    checkJira: () => api('/issues/escalations/check', { method: 'POST', body: {} }),
     next: () => api('/issues/next', { method: 'POST', body: {} }),
     teammates: async () => (await api('/issues/teammates')).teammates,
     get: (issueId) => api(`/issues/${id(issueId)}`),

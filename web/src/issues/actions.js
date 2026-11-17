@@ -30,6 +30,15 @@ export const ACTIONS = {
       { name: 'comment', label: 'Motivo', kind: 'text', required: true },
     ],
   },
+  // un escalado de otro, desde el seguimiento del equipo (#136); de momento, de prueba
+  reassign: {
+    label: 'Reasignar', title: 'Reasignar a un compañero', ok: 'Reasignar',
+    note: 'Se avisa a quien la tiene. De prueba: aún no se mueve.',
+    fields: [
+      { name: 'to', label: 'Compañero', kind: 'person', required: true },
+      { name: 'comment', label: 'Motivo', kind: 'text', required: true },
+    ],
+  },
   // insistir a quien la tiene parada (proveedor, cliente, el equipo al que se escaló)
   chase: {
     label: 'Reclamar respuesta', title: 'Reclamar respuesta', ok: 'Reclamar',
@@ -59,7 +68,7 @@ export const actionForm = (key, issueId, people = [], empty = '') => {
   return `<form class="iss-act-form" data-act-form="${key}" novalidate>
     <header><h3>${a.title}</h3><span>${esc(issueId)}</span></header>
     ${a.fields.map((f) => field(f, people, empty)).join('')}
-    ${a.local ? '' : '<p class="iss-act-note">Aún no se envía a Remedy: irá por SIGLO cuando lo conectemos.</p>'}
+    ${a.local ? '' : `<p class="iss-act-note">${a.note || 'Aún no se envía a Remedy: irá por SIGLO cuando lo conectemos.'}</p>`}
     <p class="iss-act-err" hidden></p>
     <footer><button type="button" class="lab-btn" data-act-cancel>Cancelar</button><button type="submit" class="lab-btn primary" disabled>${a.ok}</button></footer>
   </form>`;

@@ -7,6 +7,7 @@
 // notas, ticket, ámbito, operación) van públicas para probarse una a una.
 import { readTitle } from './themes.js';
 import { entries } from '../shared/remedy-entries.js';
+import { jiraKey } from '../shared/jira.js';
 import { fold, norm, key, toCode } from './text.js';
 import { OPEN_STATES, DONE_STATES, CANCELLED, PENDING } from './states.js';
 
@@ -50,13 +51,12 @@ export const operationOf = (tier2) => {
 // («TEC: …») y la primera clave Jira que aparezca (SGAEWMSAP-7037).
 const VENDOR_TYPES = new Set(['TEC', 'ITD', 'ITS', 'OPE', 'DFT', 'IOP', 'MAE', 'TGW', 'KNAPP', 'JIRA', 'SGE', 'MI']);
 const VPREFIX = /^\s*([A-Za-z]{2,6})\s*:/;
-const JIRA = /\b([A-Z][A-Z0-9]{2,12})-(\d{1,7})\b/;
 export const vendorOf = (text) => {
   const v = (text || '').trim();
-  const prefix = VPREFIX.exec(v), jira = JIRA.exec(v);
+  const prefix = VPREFIX.exec(v), jira = jiraKey(v);
   let type = prefix ? prefix[1].toUpperCase() : jira ? 'JIRA' : v ? 'OTRO' : '';
   if (type && !VENDOR_TYPES.has(type)) type = 'OTRO';
-  return { type, project: jira ? jira[1] : '', key: jira ? `${jira[1]}-${jira[2]}` : '' };
+  return { type, project: jira?.project || '', key: jira?.key || '' };
 };
 
 

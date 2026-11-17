@@ -55,6 +55,8 @@ import { updatesRoutes } from './updates/routes.js';
 import { createIssuesSource } from './issues/source.js';
 import { createIssuesService } from './issues/service.js';
 import { issuesRoutes } from './issues/routes.js';
+import { createJiraWatch } from './issues/jira-watch.js';
+import { createJiraMock } from './issues/jira-mock.js';
 import { createBacklogService } from './backlog/service.js';
 import { createWsAuth } from './chats/ws-auth.js';
 import { backlogRoutes } from './backlog/routes.js';
@@ -131,7 +133,10 @@ export const startBridge = async ({ env = process.env } = {}) => {
   try { drafts = createResolveDrafts({ DatabaseSync, file: path.join(workspace.issuesDir, 'borradores.sqlite'), fs }); }
   catch (e) { console.warn(`[sia] no se pudo abrir la BBDD de borradores de Resolver: ${e.message}`); }
   const issuesSource = createIssuesSource(workspace.issuesDir); // la foto, una sola para Issues y Backlog
-  const issues = createIssuesService({ source: issuesSource, platform, drafts });
+  // los Jira de los escalados del equipo, cada media hora (de momento, un Jira de prueba)
+  const jiraWatch = createJiraWatch({ source: issuesSource, jira: createJiraMock({ file: path.join(workspace.issuesDir, 'jira-prueba.json'), fs }), log: console.warn });
+  jiraWatch.start();
+  const issues = createIssuesService({ source: issuesSource, platform, drafts, jira: jiraWatch, jiraUrl: () => config.read().jira?.baseUrl || '' });
   const backlog = createBacklogService({ source: issuesSource, platform });
   const wsAuth = createWsAuth({ auth, isLoopback });   // quién entra por el socket de los chats
   // la cuenta de Copilot (Configuración → Proveedores IA): la suya, sin ninguna clave de GitHub en el entorno;
