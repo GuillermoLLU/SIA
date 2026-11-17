@@ -25,7 +25,20 @@ test('Resumen: la corona (lo abierto ahora que se abrió hasta el final del peri
   // el Resumen lleva la corona de Foto de hoy, por fechas (sus selectores, en la barra de arriba): lo abierto ahora que se
   // abrió hasta el final del periodo (aquí llega a hoy: todo lo abierto), que no filtra: al pincharla, lleva a Backlog;
   // lo demás de Foto de hoy (el backlog de ahora, quién tiene qué, la sábana), en Backlog
-  assert.doesNotMatch(html, /mt-hoy-picks|aria-label="SISU o SGA"/);
+  assert.doesNotMatch(html, /mt-hoy-picks|data-only="(ss|pr):/);
+  // la corona, con su selector SISU / SGA (los dos, de partida): es el filtro de toda la página (S.f.ss)
+  assert.match(ring(html), /<div class="mt-seg mt-seg-sm mt-dn-sys" role="group" aria-label="SISU o SGA"><button class="mt-seg-b mt-on" data-ring-sys="0" aria-pressed="true"[^>]*>SISU<\/button><button class="mt-seg-b mt-on" data-ring-sys="1" aria-pressed="true"[^>]*>SGA<\/button><\/div>/);
+  const totalOf = (h) => Number(ring(h).match(/<tr class="mt-dn-sum"[^>]*><th>Incidencias<\/th><td class="mt-num"><b>(\d+)<\/b>/)?.[1] ?? 0);
+  const open0 = m.today().filter((i) => m.OPEN[i] && m.SIDE[i] === 0);
+  for (const k of [0, 1]) {
+    m.S.f.ss = new Set([k]); m.refilter();
+    const n = open0.filter((i) => m.DIMS.ss.get(i) === k).length, h2 = tabs.render('resumen', m.rows());
+    assert.ok(m.rows().every((i) => m.DIMS.ss.get(i) === k));   // toda la página, no solo la corona
+    if (n) assert.equal(totalOf(h2), n); else assert.ok(!/mt-dn-sum/.test(ring(h2)) || totalOf(h2) === 0);
+    assert.match(ring(h2), new RegExp(`data-ring-sys="${k}" aria-pressed="true"`));
+    assert.match(ring(h2), new RegExp(`data-ring-sys="${1 - k}" aria-pressed="false"`));
+    delete m.S.f.ss; m.refilter();
+  }
   assert.match(html, /<h3 data-tip="Lo abierto ahora que se abrió hasta el final del periodo elegido \(también antes de él\), por su estado\.">En qué estado está<\/h3><div/);
   // la corona no filtra: la tarjeta entera lleva a Backlog
   assert.doesNotMatch(ring(html), /data-f2?="sit:/);
@@ -62,7 +75,7 @@ test('Resumen: la corona (lo abierto ahora que se abrió hasta el final del peri
   assert.doesNotMatch(html, /mt-res-bar|data-preset|data-calendar|data-res-pop/);
   const cards = [...html.matchAll(/<section class="mt-card mt-(s\d+)[^"]*"[^>]*><h3[^>]*>([^<]*)<\/h3>/g)].map((x) => [x[1], x[2]]);
   // todo en una pantalla: arriba, la corona, A vigilar y el último mes del periodo; debajo, Mes a mes
-  assert.deepEqual(cards.slice(0, 3), [['s4', 'En qué estado está'], ['s3', 'A vigilar'], ['s12', 'Mes a mes']]);
+  assert.deepEqual(cards.slice(0, 4), [['s4', 'En qué estado está'], ['s3', 'A vigilar'], ['s5', 'Abiertas por prioridad'], ['s12', 'Mes a mes']]);
   assert.match(html, /<h3[^>]*>mar <small class="mt-mut">· el último mes del periodo<\/small><\/h3>/);
   assert.ok(html.indexOf('>A vigilar</h3>') < html.indexOf('el último mes del periodo') && html.indexOf('el último mes del periodo') < html.indexOf('>Mes a mes</h3>'));
   assert.doesNotMatch(html, /Evolución del backlog|class="mt-ask"/);   // sin la evolución ni la pregunta de arriba
@@ -76,6 +89,12 @@ test('Resumen: la corona (lo abierto ahora que se abrió hasta el final del peri
   assert.equal(kpiOf(last, '%IQA'), '—');
   assert.equal(kpiOf(last, 'Uso de la IA'), pct(iaStats(mar, m.C).share, 1));
   for (const x of ['% dentro de SLA']) assert.match(last, new RegExp(`>${x}</div>`));
+  // debajo, en su propia tarjeta (en la misma columna), lo abierto de la corona por prioridad, en barras horizontales;
+  // un clic en una filtra toda la página por esa prioridad
+  assert.match(html, /<div class="mt-s5 mt-stackcol"><section class="mt-card mt-s5 +mt-go-card" data-go="slaq"[\s\S]*?<\/section><section class="mt-card mt-s5 [^"]*"><h3[^>]*>Abiertas por prioridad<\/h3><div class="mt-hb mt-lm-prio">/);
+  const openP = m.today().filter((i) => m.OPEN[i] && m.SIDE[i] === 0 && m.C.rep[i] < m.S.d1);
+  const prio = [...last.matchAll(/data-f="pr:(\d+)"[^>]*><span class="mt-hb-x">([^<]*)<\/span>[\s\S]*?<span class="mt-hb-v">([^<]*)<\/span>/g)].map((x) => [Number(x[1]), x[2], Number(x[3])]);
+  assert.deepEqual(prio, m.PRIOS.map((p) => [p, m.DIMS.pr.label(p), openP.filter((i) => m.C.pr[i] === p).length]));
   assert.match(tabs.render('historico', m.rows()), /<svg viewBox="0 0 1240 250" class="mt-svg">/);
   // la tarjeta entera lleva al Histórico con estas mismas fechas, en la vista del backlog
   // la evolución ya no lleva al Histórico (no está en ninguna vista)

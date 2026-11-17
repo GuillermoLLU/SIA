@@ -88,6 +88,7 @@
 .mt-view td.mt-mm-mo { vertical-align: middle; font-weight: 600; }
 .mt-stackcol { display: flex; flex-direction: column; gap: 16px; min-width: 0; } .mt-stackcol > .mt-card { flex: 0 0 auto; }
 .mt-mm-total { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 0 0 6px; font-size: 13px; color: var(--mt-low); } .mt-mm-total b { color: var(--text); } .mt-mm-total .mt-sw { margin-right: 5px; }
+.mt-dn-sys { margin: 0 0 8px; }
 .mt-svg .mt-mm-off { opacity: .35; }
 .mt-svg .mt-mm-n { font-size: 13px; font-weight: 600; fill: var(--text); }
 .mt-svg .mt-mm-t { font-size: 12px; font-weight: 600; fill: var(--mt-low); } .mt-svg .mt-mm-t.good { fill: var(--mt-good); } .mt-svg .mt-mm-t.bad { fill: var(--mt-bad); }

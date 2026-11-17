@@ -82,8 +82,8 @@ test('SISU o SGA y la prioridad: en la barra de arriba, comunes a todas las pest
   const bar = tabsOf(m0).picks();
   assert.ok(bar.startsWith('<div class="mt-seg mt-seg-sm" role="group" aria-label="SISU o SGA">'));
   assert.match(bar, /<div class="mt-seg mt-seg-sm" role="group" aria-label="Prioridad">/);
-  // ya no van dentro de ninguna pestaña
-  for (const tab of ['hoy', 'resumen', 'modulos']) assert.doesNotMatch(tabsOf(m0).render(tab, m0.rows()), /aria-label="SISU o SGA"|aria-label="Prioridad"/, tab);
+  // ya no van dentro de ninguna pestaña (la corona lleva su propio SISU / SGA, que no es un filtro: data-ring-sys)
+  for (const tab of ['hoy', 'resumen', 'modulos']) assert.doesNotMatch(tabsOf(m0).render(tab, m0.rows()), /data-only="(ss|pr):|aria-label="Prioridad"/, tab);
   const picks = (h) => [...h.matchAll(/<button class="mt-seg-b ([^"]*)" data-only="([^"]*)"[^>]*>([^<]*)(?:<small>(\d+)<\/small>)?<\/button>/g)].map((x) => [x[3], x[2], x[1].includes('mt-on'), x[4] ?? null]);
   const pr = (p) => `pr:${m0.DI.prio.indexOf(p)}`;
   // de cada prioridad, lo abierto ahora (Indra: solo la media)

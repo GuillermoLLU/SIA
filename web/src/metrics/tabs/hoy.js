@@ -33,6 +33,11 @@ export const stateCard = (t) => {
   ].map(([cls, label, sits, tip]) => ({ cls, label, sits, tip, f: sits.map((k) => `sit:${k}`).join('|') }));
   // (lo sin técnico de las búsquedas del equipo ya es de Indra: model.js, SEARCH_OWNER)
   // pick: un clic en un estado filtra
+  // el selector SISU / SGA de la corona: el filtro de toda la página (S.f.ss; sin él, los dos marcados)
+  const sysBar = () => {
+    const on = m.S.f.ss?.size ? [...m.S.f.ss] : [0, 1];
+    return `<div class="mt-seg mt-seg-sm mt-dn-sys" role="group" aria-label="SISU o SGA">${[0, 1].map((k) => `<button class="mt-seg-b ${on.includes(k) ? 'mt-on' : ''}" data-ring-sys="${k}" aria-pressed="${on.includes(k)}" data-tip="Clic para ${on.includes(k) ? 'quitarlo' : 'añadirlo'} (siempre queda uno).">${DIMS.ss.label(k)}</button>`).join('')}</div>`;
+  };
   const haveNow = (P, pick = true) => {
     const ks = CO(), one = ks.length === 1;
     const total = (k) => P[k].length, share = (v, k) => (total(k) ? pct(v / total(k)) : '—');
@@ -56,7 +61,7 @@ export const stateCard = (t) => {
     const about = upTo ? `Lo abierto ahora que se abrió hasta el final del periodo elegido (también antes de él), por su estado.${pick ? ' Clic en uno para filtrar.' : ''}`
       : 'Lo abierto, por su estado. Clic en uno para filtrar.';
     const none = upTo && P.every((l) => !l.length);
-    return ch.card('En qué estado está', (none ? '<p class="mt-none-open">Sin incidencias abiertas</p>' : haveNow(P, pick)) + toEscalated, { span: CMP() ? 's12' : 's4', ...(upTo ? { tip: about } : { sub: about }), go });
+    return ch.card('En qué estado está', (upTo ? sysBar() : '') + (none ? '<p class="mt-none-open">Sin incidencias abiertas</p>' : haveNow(P, pick)) + toEscalated, { span: CMP() ? 's12' : 's4', ...(upTo ? { tip: about } : { sub: about }), go });
   };
 };
 

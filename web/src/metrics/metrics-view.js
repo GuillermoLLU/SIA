@@ -194,7 +194,7 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     renderPeriod();
     renderSides();
     $('[data-qco]').innerHTML = tsys() ? companyPick(m) : '';
-    $('[data-picks]').innerHTML = tabs.picks();   // SISU o SGA y la prioridad: comunes a todas las pestañas
+    $('[data-picks]').innerHTML = face === 'servicio' ? '' : tabs.picks();   // SISU o SGA y la prioridad: en Servicio, no (la corona lleva su SISU / SGA)
     $('[data-cmp]').innerHTML = NO_TSYS_TABS.includes(tab) ? '' : comparePop(m, ui, tsys());
     $('[data-q]').hidden = !(searching || S.q);
     $('[data-count]').innerHTML = `<b>${num(A.length)}</b> incidencias`;
@@ -557,7 +557,7 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
       if (searching) $('[data-q]').focus();
       return;
     }
-    const t = e.target.closest('[data-tab],[data-go],[data-rm],[data-exp],[data-sort],[data-evo],[data-evo-step],[data-qco],[data-cli-f],[data-times-mode],[data-times-by],[data-sla-mode],[data-mod-mode],[data-sla-side],[data-res-pop],[data-res-clear],[data-flk],[data-shk],[data-jc],[data-jc-clear],[data-esc-mode],[data-esc-nojira],[data-esc-by],[data-only],[data-reset-filters],[data-kf],[data-f2],[data-f]');
+    const t = e.target.closest('[data-tab],[data-go],[data-rm],[data-exp],[data-sort],[data-evo],[data-evo-step],[data-qco],[data-cli-f],[data-times-mode],[data-times-by],[data-sla-mode],[data-mod-mode],[data-sla-side],[data-res-pop],[data-res-clear],[data-flk],[data-shk],[data-jc],[data-jc-clear],[data-esc-mode],[data-esc-nojira],[data-esc-by],[data-only],[data-reset-filters],[data-kf],[data-ring-sys],[data-f2],[data-f]');
     // la cabecera de una columna: ordenar la tabla por ella (table-sort.js; las que ya filtran u ordenan van por su lado)
     const colTh = !t && e.target.closest('th[data-colsort]');
     if (colTh) { toggleTableSort(colTh, ui.colSort); render(); return; }
@@ -610,6 +610,11 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     else if (d.escNojira != null) { ui.escNoJira = !ui.escNoJira; if (ui.escNoJira) ui.jiraPick = []; }   // y filtrar por las Sin Jira (sin proyecto)
     // un selector: solo ese valor de la dimensión («dim:clave») o, sin clave («dim:»), todos (sin filtro)
     // con Ctrl (o Cmd), sumarlo o quitarlo (view.js, pickOnly)
+    else if (d.ringSys != null) {   // la corona: SISU / SGA, el filtro de toda la página; cada uno se pone o se quita (siempre queda uno; los dos, sin filtro)
+      const k = Number(d.ringSys), on = S.f.ss?.size ? [...S.f.ss] : [0, 1];
+      const next = on.includes(k) ? (on.length > 1 ? on.filter((x) => x !== k) : on) : [...on, k];
+      if (next.length === 2) delete S.f.ss; else S.f.ss = new Set(next);
+    }
     else if (d.only != null) { const [dim, k] = d.only.split(':'); pickOnly(S.f, dim, k === '' ? null : Number(k), e.ctrlKey || e.metaKey); }
     else if (d.rm) { const [dim, k] = filterKey(d.rm); S.f[dim].delete(k); }
     else if (d.resetFilters != null) { clearFilters(S, ui); const q = $('[data-q]'); q.value = ''; searching = false; }   // «Quitar filtros»

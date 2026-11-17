@@ -90,9 +90,10 @@ export const resumenTab = (t) => {
   // El último mes del periodo (el más reciente; si el periodo acaba a mitad de mes, sus días dentro de él), de lo
   // recibido en él con los filtros de arriba (A): incidencias, MTTR, % dentro de SLA, %IQA y uso de la IA. Comparando,
   // de cada lado. La tarjeta entera lleva a SLA y calidad.
-  const lastMonthCard = (A) => {
-    const mo = m.monthAt(S.d1 - 1), a = Math.max(m.minuteOf(mo), S.d0);
-    const F = bySide(A.filter((i) => C.rep[i] >= a && C.rep[i] < S.d1)).map(figures), of = (k, f = (x) => x) => F.map((x) => f(x[k]));
+  // P: lo abierto de la corona (lo abierto ahora que se abrió hasta el final del periodo), para Abiertas por prioridad
+  const lastMonthCard = (A, P) => {
+    const mo = m.monthAt(S.d1 - 1), a = Math.max(m.minuteOf(mo), S.d0), L = bySide(A.filter((i) => C.rep[i] >= a && C.rep[i] < S.d1));
+    const F = L.map(figures), of = (k, f = (x) => x) => F.map((x) => f(x[k]));
     const o = (x) => ({ val, tip: true, ...x });
     const body = kpis(
       kpiCo('Incidencias', of('inc', (x) => ({ n: x.n, v: x.n })), opt(num), o({ note: 'Las que entraron en el mes.' })),
@@ -100,9 +101,19 @@ export const resumenTab = (t) => {
       kpiCo('% dentro de SLA', of('sla'), opt(pct), o({ better: 'high', note: 'De lo recibido en el mes, lo que se empezó (paso a En curso) dentro del plazo de su prioridad.' })),
       kpiCo('%IQA', of('iqa'), () => '—', o({ better: 'high', note: IQA_NOTE })),
       kpiCo('Uso de la IA', of('ia'), opt((v) => pct(v, 1)), o({ better: 'high', note: 'De lo recibido en el mes, lo que tiene alguna marca de IA (en TAGS o en las notas).' })));
+    // debajo, lo abierto (lo de la corona) de cada prioridad, en barras horizontales (comparando, una por lado); un clic
+    // en una filtra toda la página por esa prioridad
+    const ks = CO(), per = m.PRIOS.map((p) => [m.DIMS.pr.label(p), ks.map((k) => P[k].filter((i) => C.pr[i] === p).length), p]);
+    const max = Math.max(1, ...per.flatMap(([, v]) => v));
+    const prio = `<div class="mt-hb mt-lm-prio">${per.map(([label, v, p]) => `<div class="mt-hb-row mt-clk${m.anySel('pr') && !m.isSel('pr', p) ? ' mt-off' : ''}" data-f="pr:${p}" data-tip="${esc(`${label}: ${v.map(num).join(' · ')} abiertas
+Clic para filtrar toda la página por esta prioridad.`)}"><span class="mt-hb-x">${esc(label)}</span>
+      <span class="mt-hb-track">${ks.map((k, s) => `<i class="mt-c${k}" style="width:${(v[s] / max * 100).toFixed(1)}%"></i>`).join('')}</span>
+      <span class="mt-hb-v">${v.map(num).join(' · ')}</span></div>`).join('')}</div>`;
     const when = rangeLabel(m, [a, Math.min(S.d1, m.END_D)]);
-    return card(`${esc(m.monthName(mo))} <small class="mt-mut">· el último mes del periodo</small>`, body,
-      { span: CMP() ? 's6' : 's5', tip: `Lo recibido en el mes más reciente del periodo elegido (${when}), con los filtros de arriba.`, go: { tab: 'slaq', label: 'SLA y calidad' } });
+    // dos tarjetas, una debajo de otra: las cifras (lleva a SLA y calidad) y, debajo, por prioridad
+    return `<div class="${CMP() ? 'mt-s6' : 'mt-s5'} mt-stackcol">${card(`${esc(m.monthName(mo))} <small class="mt-mut">· el último mes del periodo</small>`, body,
+      { span: CMP() ? 's6' : 's5', tip: `Lo recibido en el mes más reciente del periodo elegido (${when}), con los filtros de arriba.`, go: { tab: 'slaq', label: 'SLA y calidad' } })}${
+      card('Abiertas por prioridad', prio, { span: CMP() ? 's6' : 's5', tip: 'Lo abierto ahora que se abrió hasta el final del periodo (lo de la corona), por prioridad. Clic en una barra para filtrar toda la página.' })}</div>`;
   };
 
   // Mes a mes (la pestaña, debajo de la corona): los KPIs de Del periodo, una fila cada uno y una columna por cada mes del
@@ -355,6 +366,6 @@ export const resumenTab = (t) => {
     // todo en una pantalla: arriba, la corona, A vigilar y la evolución (más estrecha); debajo, Mes a mes. Comparando,
     // la corona a todo el ancho y, debajo, A vigilar y la evolución, a medias
     // sin la pregunta de arriba; a la derecha, el último mes del periodo (lleva a SLA y calidad)
-    return grid(stateOf(P, { upTo: true, links: false, pick: false, go: { tab: 'backlog', label: 'Backlog' } }), watchCard(P), lastMonthCard(A), monthCard());
+    return grid(stateOf(P, { upTo: true, links: false, pick: false, go: { tab: 'backlog', label: 'Backlog' } }), watchCard(P), lastMonthCard(A, P), monthCard());
   };
 };
