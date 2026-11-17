@@ -52,7 +52,8 @@ export const releaseDialogHtml = (id, text) => `<div class="iss-dlg-issue"><span
 
 // La cabecera: a la vista, Resolver (la principal) y Escalar; el resto de sus acciones
 // (actions.js actionsFor), en «Otras acciones»: un menú bajo el botón con lo de hablar con el
-// centro y, separado, lo de soltarla (traspasar o devolver). Lo abre y cierra issues-view.js.
+// centro, abrir un WAR-ROOM y, separado, lo de soltarla (traspasar o devolver). Lo abre y cierra
+// issues-view.js.
 const MAIN = ['resolve', 'escalate'];
 const ACTION_BUTTON = {
   resolve: '<button class="lab-btn primary" data-act="resolve">Resolver</button>',
@@ -64,13 +65,16 @@ const HANDOFF_PATHS = '<path d="M17 3l4 4-4 4"/><path d="M3 7h18"/><path d="M7 2
 const MORE_ITEM = {
   call: { label: ACTIONS.call.label, hint: 'Registrar una llamada con el centro', icon: PHONE },
   contact: { label: ACTIONS.contact.label, hint: 'Escribirle tus dudas como nota pública', icon: icon('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>') },
+  warroom: { label: ACTIONS.warroom.label, hint: 'Si la issue es bloqueante', icon: icon('<path d="M7 18v-6a5 5 0 1 1 10 0v6"/><path d="M5 21a1 1 0 0 1-1-1v-1a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v1a1 1 0 0 1-1 1z"/><path d="M21 12h1"/><path d="M18.5 4.5 18 5"/><path d="M2 12h1"/><path d="M12 2v1"/><path d="m4.929 4.929.707.707"/><path d="M12 12v6"/>') },
   transfer: { label: ACTIONS.transfer.label, hint: 'A un compañero o a otro equipo', icon: icon(HANDOFF_PATHS) },
   release: { label: 'Devolver a la cola', hint: 'Que la coja otro compañero', icon: icon('<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>') },
 };
 const CHEV = icon('<path d="M6 9l6 6 6-6"/>');
 const moreItem = (key) => { const m = MORE_ITEM[key]; return `<button type="button" ${key === 'release' ? 'data-release' : `data-act="${key}"`}>${m.icon}<b>${m.label}</b><small>${m.hint}</small></button>`; };
+// en grupos, separados por una línea: hablar con el centro, el WAR-ROOM y soltarla
+const MORE_GROUPS = [CENTRE_ACTIONS, ['warroom'], ['transfer', 'release']];
 const moreMenu = (keys) => {
-  const groups = [keys.filter((k) => CENTRE_ACTIONS.includes(k)), keys.filter((k) => !CENTRE_ACTIONS.includes(k))].filter((g) => g.length);
+  const groups = MORE_GROUPS.map((g) => keys.filter((k) => g.includes(k))).filter((g) => g.length);
   return `<div class="iss-more"><button type="button" class="lab-btn" data-more aria-expanded="false" aria-controls="iss-more-menu">Otras acciones${CHEV}</button><div class="iss-more-menu" id="iss-more-menu" hidden>${groups.map((g) => g.map(moreItem).join('')).join('<hr>')}</div></div>`;
 };
 const headerActions = (i, mine) => {

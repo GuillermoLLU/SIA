@@ -82,13 +82,13 @@ test('la cabecera de la issue: volver al panel, el título en una línea con su 
   assert.match(html, /<div class="iss-actions"><button class="lab-btn primary" data-act="resolve">Resolver<\/button><button class="lab-btn" data-act="escalate">Escalar<\/button><div class="iss-more">/, 'a la vista, Resolver y Escalar');
   assert.match(html, /data-more aria-expanded="false" aria-controls="iss-more-menu">Otras acciones<svg/);
   const menu = html.match(/<div class="iss-more-menu" id="iss-more-menu" hidden>([\s\S]*?)<\/div><\/div>/)[1];
-  assert.deepEqual([...menu.matchAll(/<b>([^<]+)<\/b>/g)].map((m) => m[1]), ['Llamada', 'Contactar con el centro', 'Traspasar', 'Devolver a la cola'], 'el resto, en «Otras acciones»');
-  assert.match(menu, /data-act="contact">[\s\S]*Escribirle tus dudas como nota pública<\/small><\/button><hr><button type="button" data-act="transfer">/, 'hablar con el centro, y tras una línea, soltarla');
+  assert.deepEqual([...menu.matchAll(/<b>([^<]+)<\/b>/g)].map((m) => m[1]), ['Llamada', 'Contactar con el centro', 'Abrir WAR-ROOM', 'Traspasar', 'Devolver a la cola'], 'el resto, en «Otras acciones»');
+  assert.match(menu, /Escribirle tus dudas como nota pública<\/small><\/button><hr><button type="button" data-act="warroom">[\s\S]*<b>Abrir WAR-ROOM<\/b><small>Si la issue es bloqueante<\/small><\/button><hr><button type="button" data-act="transfer">/, 'hablar con el centro, el WAR-ROOM y soltarla, separados por una línea');
   assert.match(menu, /data-release>/);
   assert.doesNotMatch(html, /Mi mesa|iss-state/);
   const notMine = workScreen({ issue: issue(), sameCenter: [], now, mine: false });
-  assert.doesNotMatch(notMine, /data-act="transfer"|data-release|<hr>/, 'sin cogerla en SIA no se traspasa ni se devuelve');
-  assert.match(notMine, /data-act="call">[\s\S]*data-act="contact">/);
+  assert.doesNotMatch(notMine, /data-act="transfer"|data-release/, 'sin cogerla en SIA no se traspasa ni se devuelve');
+  assert.match(notMine, /data-act="call">[\s\S]*data-act="contact">[\s\S]*<\/button><hr><button type="button" data-act="warroom">[\s\S]*<\/button><\/div><\/div>/, 'sin la línea de soltarla');
 });
 
 test('una issue pendiente de un tercero: en lugar del chat, reclamarle y traspasar, grandes', () => {
@@ -97,6 +97,7 @@ test('una issue pendiente de un tercero: en lugar del chat, reclamarle y traspas
   assert.doesNotMatch(html, /data-act="resolve"|data-act="escalate"|data-release|iss-chat-body/);
   assert.match(html, /iss-escalated[\s\S]*<div class="iss-more">[\s\S]*data-act="call">[\s\S]*data-act="contact">[\s\S]*<\/div><\/div><\/div>/, 'pendiente: a quién se escaló y, al lado, hablar con el centro en «Otras acciones»');
   assert.equal((html.match(/data-act="transfer"/g) || []).length, 1, 'Traspasar, solo el grande');
+  assert.doesNotMatch(html, /data-act="warroom"/, 'pendiente de un tercero, sin WAR-ROOM');
   assert.match(html, /<div class="iss-actions"><span class="iss-escalated"[\s\S]*Escalada[\s\S]*desde el/, 'en la cabecera, que ya está escalada y desde cuándo');
   const notMine = workScreen({ issue: issue({ status: 'PENDING' }), sameCenter: [], now, mine: false });
   assert.match(notMine, /data-act="chase"/);

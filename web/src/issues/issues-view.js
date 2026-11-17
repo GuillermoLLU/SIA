@@ -318,6 +318,8 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   });
 
   const openAction = async (key) => {
+    // Abrir WAR-ROOM: aún no hace nada; solo lo avisa
+    if (key === 'warroom') return toast?.('Abrir WAR-ROOM aún no está disponible: llegará más adelante.');
     closeAction();
     if (key === 'resolve') return resolver.open(opened, issue?.link || null, closeAction);
     // traspasar: solo a quien tiene el conocimiento de su origen (SGA, SISU)
