@@ -68,7 +68,8 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
     const next = f.querySelector('[data-step-next]'), send = f.querySelector('[data-confirm-send]');
     const to = nextOf(mode, n);
     next.hidden = !to;
-    if (to) next.innerHTML = `${n === 1 ? (link ? 'Unir al ticket' : 'Nuevo escalado') : titleOf(to)}${NEXT_ARROW}`;
+    // al abrir no se avanza de paso, se empieza algo: sin flecha
+    if (to) next.innerHTML = n === 1 ? (link ? 'Unir al ticket' : 'Nuevo escalado') : `${titleOf(to)}${NEXT_ARROW}`;
     f.querySelector('[data-esc-preview]').hidden = !(n === LAST && !viewing);
     send.hidden = !((n === LAST && viewing) || n === FEED);
     send.textContent = n === FEED ? titleOf(FEED) : 'Crear escalado';
