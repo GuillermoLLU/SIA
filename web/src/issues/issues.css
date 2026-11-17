@@ -195,10 +195,22 @@
 .iss-esc-row { border-bottom: 1px solid var(--border); }
 .iss-esc-row:last-child { border-bottom: 0; }
 .iss-esc-row .iss-item { width: 100%; border-bottom: 0; }   /* todo el ancho, como en «Mías»: los días, a la derecha */
-.iss-esc-acts { display: flex; gap: 14px; padding: 0 8px 10px; font-size: 12px; }
-.iss-esc-acts a, .iss-esc-acts button { padding: 0; border: 0; background: none; font: inherit; color: var(--text-low); text-decoration: none; cursor: pointer; }
-.iss-esc-row:hover .iss-esc-acts a, .iss-esc-row:hover .iss-esc-acts button { color: var(--text); }
-.iss-esc-acts a:hover, .iss-esc-acts button:hover { text-decoration: underline; }
+/* «⋮» de cada fila del equipo: asoma al pasar por encima (o con el teclado, o con su menú abierto) en el
+   margen derecho, sin mover los días: la lista gana 12px por la derecha y la fila los guarda de margen */
+.iss-items:has(.iss-esc-row) { margin-right: -20px; }
+.iss-esc-row { position: relative; padding-right: 12px; }
+.iss-esc-more { position: absolute; top: 50%; right: -2px; translate: 0 -50%; }
+.iss-esc-dots { display: grid; place-items: center; width: 18px; height: 34px; padding: 0; color: var(--text-low); background: none; border: 0; cursor: pointer; opacity: 0; transform: translateX(6px); transition: opacity .18s ease, transform .18s ease, color var(--motion-state), background var(--motion-state); }
+.iss-esc-dots svg { width: 16px; height: 16px; }
+.iss-esc-row:hover .iss-esc-dots, .iss-esc-dots:focus-visible, .iss-esc-dots[aria-expanded="true"] { opacity: 1; transform: none; }
+.iss-esc-dots:hover, .iss-esc-dots[aria-expanded="true"] { color: var(--text); background: color-mix(in srgb, var(--text) 6%, transparent); }
+.iss-esc-more .iss-more-menu { right: 0; min-width: 260px; }
+.iss-esc-more .iss-more-menu a { display: grid; grid-template-columns: 16px 1fr; gap: 0 10px; align-items: center; padding: 9px 10px; font-size: 12.5px; color: var(--text); text-decoration: none; }
+.iss-esc-more .iss-more-menu a svg { width: 15px; height: 15px; }
+.iss-esc-more .iss-more-menu a b { font-weight: 600; }
+.iss-esc-more .iss-more-menu a small { grid-column: 2; font-size: 11.5px; color: var(--text-low); }
+.iss-esc-more .iss-more-menu a:hover, .iss-esc-more .iss-more-menu a:focus-visible { background: color-mix(in srgb, var(--text) 5%, transparent); outline: none; }
+@media (prefers-reduced-motion: reduce) { .iss-esc-dots { transition: none; transform: none; } }
 /* refrescar la mesa, en la cabecera de Seguimiento */
 .iss-card-h .iss-refresh { display: inline-flex; align-items: center; gap: 6px; height: 26px; margin-left: 4px; padding: 0 10px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: 600 11px var(--font-ui); letter-spacing: .04em; text-transform: uppercase; cursor: pointer; }
 .iss-card-h .iss-refresh:hover:not(:disabled) { border-color: var(--text); }

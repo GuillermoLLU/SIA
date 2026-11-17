@@ -43,10 +43,14 @@ test('escalado del equipo: dueño, el Jira enlazado y, si es de otro, Asignárme
   const e = (o) => issue({ status: 'PENDING', modified: '2026-10-28 11:00', owner: 'Luis <x>', mine: false, jira: { key: 'SISUPAC-1', state: 'open', url: 'https://jira/browse/SISUPAC-1' }, ...o });
   const other = teamItem(e(), now);
   assert.match(other, /<span class="iss-owner">Luis &lt;x&gt;<\/span>/);
-  assert.match(other, /<a href="https:\/\/jira\/browse\/SISUPAC-1" target="_blank" rel="noopener">Abrir SISUPAC-1 ↗<\/a>/);
-  assert.match(other, /data-esc-take="INC1">Asignármela<\/button><button type="button" data-esc-reassign="INC1">Reasignar/);
+  // «⋮» a la derecha, con su menú (el de «Otras acciones»): asignármela, reasignar y el Jira
+  assert.match(other, /<div class="iss-esc-more"><button type="button" class="iss-esc-dots" data-more aria-expanded="false" aria-controls="iss-esc-menu-INC1" aria-label="Acciones de INC1"><svg/);
+  assert.deepEqual([...other.matchAll(/<b>([^<]+)<\/b><small>([^<]+)<\/small>/g)].map((m) => `${m[1]} · ${m[2]}`), ['Asignármela · Pasa a tu mesa como tuya', 'Reasignar · A otro compañero', 'Abrir en Jira · SISUPAC-1']);
+  assert.match(other, /<div class="iss-more-menu" id="iss-esc-menu-INC1" hidden><button type="button" data-esc-take="INC1">/);
+  assert.match(other, /<a href="https:\/\/jira\/browse\/SISUPAC-1" target="_blank" rel="noopener">/);
   const mine = teamItem(e({ mine: true, jira: { key: 'SISUPAC-1', state: 'open' } }), now);
   assert.match(mine, /<span class="iss-owner mine">Tuya<\/span>/);
-  assert.doesNotMatch(mine, /iss-esc-acts/);
+  assert.doesNotMatch(mine, /iss-esc-more|data-more/, 'la mía sin Jira enlazado: nada que hacer, sin «⋮»');
+  assert.match(teamItem(e({ mine: true }), now), /data-more[\s\S]*Abrir en Jira/, 'con Jira enlazado, sí: para abrirlo');
   assert.match(teamItem(e({ owner: '' }), now), /Sin dueño/);
 });
