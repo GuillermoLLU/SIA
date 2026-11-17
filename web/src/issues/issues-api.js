@@ -1,6 +1,6 @@
 // Cliente de /api/issues: mi mesa, coger la siguiente, el detalle, devolverla,
 // traspasarla, las notas y el histórico en SIA, el equipo (para traspasar), el
-// borrador de Resolver y cargar el CSV de la foto. `api`: el cliente del bridge (ui/api.js).
+// borrador de Resolver, Escalar y cargar el CSV de la foto. `api`: el cliente del bridge (ui/api.js).
 
 export const createIssuesApi = (api) => {
   const id = (x) => encodeURIComponent(x);
@@ -20,6 +20,10 @@ export const createIssuesApi = (api) => {
     saveDraftFile: (issueId, file) => api(`/issues/${id(issueId)}/draft/file`, { method: 'PUT', body: file }),
     draftFile: (issueId, n) => api(`/issues/${id(issueId)}/draft/file/${n}`),
     dropDraftFile: (issueId, n) => api(`/issues/${id(issueId)}/draft/file/${n}`, { method: 'DELETE' }),
+    // Escalar: abrirlo ({ check, draft }), confirmarlo y su borrador; el bridge comprueba las notas
+    startEscalate: (issueId) => api(`/issues/${id(issueId)}/escalate`),
+    escalate: (issueId, fields) => api(`/issues/${id(issueId)}/escalate`, { method: 'POST', body: fields }),
+    saveEscalateDraft: (issueId, fields) => api(`/issues/${id(issueId)}/escalate/draft`, { method: 'PUT', body: fields }),
     transfer: (issueId, to, comment) => api(`/issues/${id(issueId)}/transfer`, { method: 'POST', body: { to, comment } }),
     // visibility: 'private' | 'internal' (sin decirlo) | 'public' · tag: una etiqueta del método o null
     addNote: (issueId, body, { visibility, tag } = {}) => api(`/issues/${id(issueId)}/notes`, { method: 'POST', body: { body, visibility, tag } }),

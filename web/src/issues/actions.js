@@ -21,7 +21,7 @@ export const ACTIONS = {
       { name: 'prevent', label: '¿Qué se hará para que no se repita?', kind: 'text', required: true },
     ],
   },
-  // el formulario es propio (escalate-form.js) y se lee con readEscalate
+  // el asistente es propio (escalate-form.js y escalate-view.js), con sus pasos en escalate.js
   escalate: {
     label: 'Escalar',
   },

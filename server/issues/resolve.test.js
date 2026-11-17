@@ -5,6 +5,7 @@ import { resolveDraft, checkResolve } from './resolve.js';
 const n = (at, text, who = 'ANA') => ({ at, who, text });
 const worklog = [
   n('2026-10-28 10:00', '[SITUACION INICIAL] No sale la ola'),
+  n('2026-10-28 10:10', '[RECURRENCIA] Remedy: ninguna'),
   n('2026-10-28 10:20', '[ANTECEDENTES] Sin antecedentes'),
   n('2026-10-28 10:30', '[ANÁLISIS] Revisamos la cola'),
   n('2026-10-28 11:00', '[DIAGN�STICO] Cola bloqueada'),
@@ -18,7 +19,7 @@ test('qué ocurrió sale del último diagnóstico, con o sin tilde; [RESOLUTION]
   assert.deepEqual(r.draft.what, { value: 'Cola bloqueada por un bulto', from: 'diagnóstico (28/10 11:05, ANA)' });
   assert.equal(r.draft.how, null);
   assert.equal(r.resolution, null);
-  assert.deepEqual(r.notes.map((x) => Boolean(x.note)), [true, true, true, true, false]);
+  assert.deepEqual(r.notes.map((x) => Boolean(x.note)), [true, true, true, true, true, false]);
   assert.deepEqual(r.warnings, []);
   assert.deepEqual(r.missing, []);
 });
@@ -31,12 +32,12 @@ test('con la nota de resolución escrita, no se vuelve a pedir y empieza «Cómo
 
 test('lo que falta en Remedy para la nota de cierre: las notas (en críticas, también sus dos) y la categoría', () => {
   const r = resolveDraft(issue({ category: '', priority: 'CRITICAL', worklog: worklog.slice(0, 1) }));
-  assert.deepEqual(r.missing, ['Antecedentes', 'Análisis', 'Diagnóstico', '¿Es mayor incidente?', 'Servicio restablecido', 'Categoría']);
+  assert.deepEqual(r.missing, ['¿Es mayor incidente?', 'Recurrencia', 'Antecedentes', 'Análisis', 'Diagnóstico', 'Servicio restablecido', 'Categoría']);
   assert.deepEqual(r.warnings, []);
   assert.deepEqual(resolveDraft(issue({ category: '' })).missing, ['Categoría']);
-  assert.equal(r.notes.length, 7);
+  assert.equal(r.notes.length, 8);
   assert.deepEqual(resolveDraft(issue()).missing, []);
-  assert.deepEqual(resolveDraft({ priority: 'LOW', category: 'x' }).notes.length, 5);
+  assert.deepEqual(resolveDraft({ priority: 'LOW', category: 'x' }).notes.length, 6);
 });
 
 test('con ticket de proveedor, recuerda avisar de que se ha resuelto', () => {
@@ -44,7 +45,7 @@ test('con ticket de proveedor, recuerda avisar de que se ha resuelto', () => {
 });
 
 // Confirmar: el bridge no se fía de la web (se puede tocar en devtools)
-const ALL = [...worklog.slice(0, 5)];
+const ALL = [...worklog.slice(0, 6)];
 const OK = { note: 'Se relanza', what: 'Se paró', how: 'Se relanzó', prevent: 'Corrección pedida', lang: 'es' };
 const rejects = (fn, status, message) => assert.throws(fn, (e) => e.status === status && (!message || message.test(e.message)));
 
@@ -58,7 +59,7 @@ test('confirmar: resuelta o cerrada, no; aunque el botón se fuerce', () => {
 });
 
 test('confirmar: sin las notas o sin la categoría no se resuelve, aunque se salte el paso 1', () => {
-  rejects(() => checkResolve(issue({ worklog: ALL.slice(0, 3) }), OK), 409, /faltan en Remedy: Diagnóstico\./);
+  rejects(() => checkResolve(issue({ worklog: ALL.slice(0, 4) }), OK), 409, /faltan en Remedy: Diagnóstico\./);
   rejects(() => checkResolve(issue({ worklog: ALL, category: '' }), OK), 409, /Categoría/);
   rejects(() => checkResolve(issue({ worklog: ALL, priority: 'CRITICAL' }), OK), 409, /¿Es mayor incidente\?, Servicio restablecido/);
   rejects(() => checkResolve({ status: 'ASSIGNED', category: 'x' }, OK), 409);   // foto sin WORKLOG_DETAIL

@@ -11,6 +11,7 @@ import { esc } from '../ui/html.js';
 import { loaderHtml } from '../ui/loader.js';
 import { ACTIONS } from './actions.js';
 import { toHtml, imageTag, TAG } from './tag-editor.js';
+import { FULL, noteQuality } from './quality.js';
 
 // Los idiomas del mensaje al centro
 const LANGS = [{ key: 'es', label: 'Español' }, { key: 'en', label: 'English' }];
@@ -41,7 +42,7 @@ export const resumeStep = (r, saved) => {
 };
 
 // «2026-10-27 09:12» → «27/10 09:12», como en el resto de SIA
-const short = (at) => `${at.slice(8, 10)}/${at.slice(5, 7)} ${at.slice(11, 16)}`;
+export const short = (at) => `${at.slice(8, 10)}/${at.slice(5, 7)} ${at.slice(11, 16)}`;
 
 // Las imágenes: hasta MAX_IMAGES por resolución, de hasta MAX_FILE cada una (de momento no salen de SIA).
 export const MAX_FILE = 15 * 1024 * 1024;
@@ -66,23 +67,13 @@ export const imagesDock = (images = [], name = null, total = images.length) => `
       ${total < MAX_IMAGES ? `<label class="rv-dock-add"><input type="file" accept="image/*" multiple data-file${name ? ` data-for="${name}"` : ''} />${ADD_ICON}<span>${images.length ? 'Otra imagen' : 'Imágenes'}</span><small>Pulsa, pega o arrastra</small></label>` : ''}
     </aside>`;
 
-// Cuánto cuenta un texto: se llena con lo escrito hasta lo que suele ocupar uno completo
-// (`full` caracteres: la nota interna, 400; cada pregunta al centro, 250). Las fichas de imagen no cuentan.
-export const FULL = { note: 400, what: 250, how: 250, prevent: 250 };
-export const noteQuality = (text, full = FULL.note) => {
-  const len = String(text ?? '').replace(TAG, '').trim().length;
-  const pct = Math.min(100, Math.round(len / full * 100));
-  const [low, mid] = [full * 0.15, full * 0.45];
-  // level: cómo se pinta (low en rojo, mid en naranja, good en amarillo, ok en verde)
-  return { pct, label: !len ? 'Sin escribir' : len < low ? 'Muy corta' : len < mid ? 'Corta' : len < full ? 'Bien' : 'Completa', level: len < low ? 'low' : len < mid ? 'mid' : len < full ? 'good' : 'ok' };
-};
 // La barra se llena en caliente con lo escrito, y debajo, a la derecha y en pequeño, la palabra; todo del color del estado.
 export const noteMeter = (text, name = 'note') => { const q = noteQuality(text, FULL[name]); return `<div class="rv-meter" data-meter="${name}" data-level="${q.level}" aria-hidden="true"><div class="rv-meter-bar"><i style="width:${q.pct}%"></i></div><span>${q.label}</span></div>`; };
 
 // La marca de la nota que ya estaba en Remedy. Mientras no se toca, dice quién y cuándo;
 // en cuanto se cambia, pasa a ser el botón que la restaura (el mismo elemento, mismo tono).
 const UNDO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7v6h6"/><path d="M3 13a9 9 0 1 0 3-7.3L3 8"/></svg>';
-const doneMark = ({ at, who, text }, changed = false) => `<button type="button" class="rv-done${changed ? ' changed' : ''}" data-restore-note data-original="${esc(text)}"${changed ? '' : ' disabled'}><span data-done>${CHECK}Se completó el ${short(at)} por ${esc(who)}</span><span data-restore>${UNDO}Restaurar la nota de ${esc(who)}</span></button>`;
+export const doneMark = ({ at, who, text }, changed = false) => `<button type="button" class="rv-done${changed ? ' changed' : ''}" data-restore-note data-original="${esc(text)}"${changed ? '' : ' disabled'}><span data-done>${CHECK}Se completó el ${short(at)} por ${esc(who)}</span><span data-restore>${UNDO}Restaurar la nota de ${esc(who)}</span></button>`;
 
 // Un campo: el editor (tag-editor.js) y el campo oculto que lleva su texto al formulario.
 const area = (name, d, saved) => { const v = saved?.[name] ?? d?.value ?? ''; return `<div class="rv-ed" contenteditable="plaintext-only" id="iss-f-${name}" data-ed="${name}" role="textbox" aria-multiline="true">${toHtml(v)}</div><input type="hidden" name="${name}" value="${esc(v)}" />`; };
@@ -178,22 +169,23 @@ const questionStep = (q, d, saved, images) => { const v = saved?.[q.name] ?? d?.
 
 // Con puntos del procedimiento sin cubrir en Remedy no se abre el asistente: un
 // aviso con lo que hay y lo que falta, y la IA para ayudar a completarlo.
-const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
-const MISSING = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg>';
+export const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+export const MISSING = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg>';
 const ALERT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>';
 // La Resolución no es un punto previo: se escribe en el asistente, así que aquí no sale.
-const point = (n) => `<li class="${n.note ? 'ok' : 'no'}"><i>${n.note ? CHECK : MISSING}</i><span>${n.label}</span><small>${n.note ? `${short(n.note.at)} · ${esc(n.note.who)}` : 'Falta'}</small></li>`;
-export const resolveBlocked = (issueId, r) => `<div class="rb" role="alertdialog" aria-labelledby="rb-title">
+const notePoint = (n) => `<li class="${n.note ? 'ok' : 'no'}"><i>${n.note ? CHECK : MISSING}</i><span>${n.label}</span><small>${n.note ? `${short(n.note.at)} · ${esc(n.note.who)}` : 'Falta'}</small></li>`;
+// Escalar enseña el mismo aviso con su título y su botón (`chat`: el atributo que lo distingue).
+export const resolveBlocked = (issueId, r, { title = 'Aún no se puede resolver', chat = 'data-resolve-chat' } = {}) => `<div class="rb" role="alertdialog" aria-labelledby="rb-title">
     <div class="rb-head">
       <span class="rb-icon">${ALERT}</span>
       <div>
-        <h3 id="rb-title">Aún no se puede resolver</h3>
+        <h3 id="rb-title">${title}</h3>
         <p><b>${esc(issueId)}</b></p>
       </div>
     </div>
-    <ul class="rb-list">${r.notes.filter((n) => n.key !== 'resolution').map(point).join('')}${r.missing.includes('Categoría') ? `<li class="no"><i>${MISSING}</i><span>Categoría de la issue</span><small>Falta</small></li>` : ''}</ul>
+    <ul class="rb-list">${r.notes.filter((n) => n.key !== 'resolution').map(notePoint).join('')}${r.missing.includes('Categoría') ? `<li class="no"><i>${MISSING}</i><span>Categoría de la issue</span><small>Falta</small></li>` : ''}</ul>
     <footer class="rb-foot">
-      <button type="button" class="lab-btn primary" data-resolve-chat>Completar con ayuda de la IA</button>
+      <button type="button" class="lab-btn primary" ${chat}>Completar con ayuda de la IA</button>
     </footer>
   </div>`;
 
@@ -216,7 +208,7 @@ const steps = () => {
 };
 
 // El identificador, bajo el título y en pequeño; si la issue tiene enlace, lleva a su ticket.
-const issueRef = (issueId, link) => (link
+export const issueRef = (issueId, link) => (link
   ? `<a class="rv-id" href="${esc(link)}" target="_blank" rel="noopener" title="Abrir el ticket">${esc(issueId)}</a>`
   : `<span class="rv-id">${esc(issueId)}</span>`);
 

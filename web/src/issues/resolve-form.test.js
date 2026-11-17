@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveForm, resolveBlocked, resumeStep, stepMissing, imagesDock, sectionImages, noteQuality, noteMeter, FULL, summaryHtml, phasesHtml, closePhasesHtml, reportHtml, localShort } from './resolve-form.js';
+import { resolveForm, resolveBlocked, resumeStep, stepMissing, imagesDock, sectionImages, noteMeter, summaryHtml, phasesHtml, closePhasesHtml, reportHtml, localShort } from './resolve-form.js';
 import { imageTag } from './tag-editor.js';
 // lo que manda el bridge al abrir Resolver
 import { resolveDraft } from '../../../server/issues/resolve.js';
@@ -130,16 +130,8 @@ test('el muelle de imágenes: miniatura si la hay, [imagenN] para el texto, quit
   assert.equal(localShort(new Date(2026, 0, 5, 7, 3).toISOString()), '05/01 07:03');
 });
 
-test('cuánto cuenta la nota: la barra se llena con lo escrito, sin contar las imágenes', () => {
-  assert.deepEqual(noteQuality(''), { pct: 0, label: 'Sin escribir', level: 'low' });
-  // cada pregunta al centro cuenta hasta 250: la misma escala, más corta
-  assert.deepEqual(noteQuality('x'.repeat(250), FULL.what), { pct: 100, label: 'Completa', level: 'ok' });
-  assert.deepEqual([noteQuality('x'.repeat(30), FULL.how).label, noteQuality('x'.repeat(100), FULL.how).label, noteQuality('x'.repeat(200), FULL.how).label], ['Muy corta', 'Corta', 'Bien']);
+test('la barra de la nota: se llena con lo escrito (quality.js), del color de su nivel', () => {
   assert.match(noteMeter('x'.repeat(125), 'what'), /data-meter="what" data-level="good"[^>]*><div class="rv-meter-bar"><i style="width:50%">/);
-  assert.deepEqual(noteQuality('Relanzada [imagen1]'), { pct: 2, label: 'Muy corta', level: 'low' });
-  assert.deepEqual([noteQuality('x'.repeat(100)).label, noteQuality('x'.repeat(100)).level], ['Corta', 'mid']);
-  assert.deepEqual(noteQuality('x'.repeat(200)), { pct: 50, label: 'Bien', level: 'good' });
-  assert.deepEqual(noteQuality('x'.repeat(900)), { pct: 100, label: 'Completa', level: 'ok' });
   assert.equal(noteMeter('x'.repeat(200)), '<div class="rv-meter" data-meter="note" data-level="good" aria-hidden="true"><div class="rv-meter-bar"><i style="width:50%"></i></div><span>Bien</span></div>');
   // en el paso 1, bajo el campo, con lo que haya guardado
   const html = resolveForm('INC1', resolveDraft({ priority: 'HIGH', category: 'x', worklog: ALL }), { at: new Date().toISOString(), note: 'x'.repeat(200) });
