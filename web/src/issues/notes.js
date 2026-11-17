@@ -16,8 +16,8 @@ export const VISIBILITY = {
 };
 export const VISIBILITIES = ['private', 'internal', 'public'];
 
-// Las etiquetas que se pueden poner (las mismas que valida el bridge,
-// server/issues/notes.js), con su nombre.
+// Las etiquetas que se pueden poner desde la barra de Seguimiento (el bridge
+// valida estas y las de llamada, server/issues/notes.js), con su nombre.
 export const NOTE_TAGS = [
   { code: 'SITUACION INICIAL', label: 'Situación inicial' },
   { code: 'ANTECEDENTES', label: 'Antecedentes' },
@@ -26,13 +26,12 @@ export const NOTE_TAGS = [
   { code: 'ACT', label: 'Actuación' },
   { code: 'INF', label: 'Información' },
   { code: 'ESCALADO', label: 'Escalado' },
-  { code: 'CALLOK', label: 'Llamada atendida' },
-  { code: 'CALLKO', label: 'Llamada sin respuesta' },
   { code: 'SERVREST', label: 'Servicio restablecido' },
   { code: 'RESOLUCION', label: 'Resolución' },
 ];
-// las de Remedy que no se ofrecen al escribir, pero se leen
-const READ_ONLY = { RESOLUTION: 'Resolución', REAP: 'Reapertura', TOOLS: 'Herramientas', 'MAJOR INCIDENT': 'Incidente mayor' };
+// las que no se ofrecen en la barra, pero se leen: las de llamada (se registran
+// con el botón «Llamada» de la issue, call.js) y otras de Remedy
+const READ_ONLY = { CALLOK: 'Llamada atendida', CALLKO: 'Llamada sin respuesta', RESOLUTION: 'Resolución', REAP: 'Reapertura', TOOLS: 'Herramientas', 'MAJOR INCIDENT': 'Incidente mayor' };
 
 // La etiqueta como se guarda: en mayúsculas y sin tildes («Análisis» → «ANALISIS»).
 const code = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
@@ -83,13 +82,16 @@ export const noteCount = (feed) => feed.filter((e) => e.kind === 'note').length;
 // («+90 212 555 0143», «49890x3»…) y después, lo que se habló.
 // → { answered, phone, said } o null si no es una llamada.
 const CALLS = { CALLOK: true, CALLKO: false };
-const PHONE = /^\s*(\+?\d[\d\s().-]{3,}\d(?:\s?x\s?\d+)?)(?=\s|$)/;
+// un teléfono: al menos cinco cifras, con prefijo, espacios, guiones o una extensión
+const PHONE = String.raw`\+?\d[\d\s().-]{3,}\d(?:\s?x\s?\d+)?`;
+const LEADING_PHONE = new RegExp(`^\\s*(${PHONE})(?=\\s|$)`);
+const WHOLE_PHONE = new RegExp(`^${PHONE}$`);
+export const isPhone = (s) => WHOLE_PHONE.test(String(s ?? '').trim());
 export const callOf = (e) => {
   if (e?.kind !== 'note' || !(e.tag in CALLS)) return null;
-  const m = String(e.text || '').match(PHONE);
+  const m = String(e.text || '').match(LEADING_PHONE);
   return { answered: CALLS[e.tag], phone: m ? m[1].trim() : null, said: (m ? e.text.slice(m[0].length) : e.text || '').trim() };
 };
-export const isCallTag = (tag) => tag in CALLS;
 
 // Una nota la edita quien la escribió, durante las 24 h siguientes (la misma
 // regla que el bridge, server/issues/notes.js; aquí solo decide si se enseña el botón).

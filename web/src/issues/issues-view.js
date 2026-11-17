@@ -20,6 +20,7 @@ import { mountTips } from './tip.js';
 import { readEscalate, createEscalateDrafts } from './escalate.js';
 import { escalateForm, escalateLive } from './escalate-form.js';
 import { DESTINATIONS, OPEN_TICKETS } from './escalate-mock.js';
+import { callForm, callReady, callNote, suggestedPhone } from './call.js';
 
 const GOAL = { min: 15, max: 20 }; // resueltas por turno, lo que dice el equipo
 const REFRESH_MS = 15000;
@@ -292,14 +293,30 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     // traspasar: solo a quien tiene el conocimiento de su origen (SGA, SISU)
     if (key === 'transfer') people = (await api.teammates()).filter((p) => knowsOrigin(p.groups, issue));
     const empty = key === 'transfer' ? `Nadie más tiene el conocimiento de ${originOf(issue)}` : '';
-    root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${key === 'escalate' ? escalateModal() : actionForm(key, opened, people, empty)}</div>`);
-    root.querySelector(key === 'escalate' ? '#iss-f-dest' : '.iss-act-form textarea, .iss-act-form input:not([type=hidden]), .iss-act-form select')?.focus();
+    // la llamada: su ventana (call.js), con el teléfono de la última llamada o el de contacto del centro
+    const suggested = key === 'call' ? suggestedPhone(notes.entries(), issue?.notes) : null;
+    const modal = key === 'escalate' ? escalateModal() : key === 'call' ? callForm(opened, suggested) : actionForm(key, opened, people, empty);
+    root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${modal}</div>`);
+    const first = key === 'escalate' ? '#iss-f-dest' : key === 'call' ? (suggested.phone ? '#iss-f-comment' : '#iss-f-phone') : '.iss-act-form textarea, .iss-act-form input:not([type=hidden]), .iss-act-form select';
+    root.querySelector(first)?.focus();
     // Escape: con la lista del selector abierta la cierra; si no, cierra el modal
     offEscape = onEscape(() => (openPicker(root) ? closePickers(root) : closeAction()));
   };
   // El botón de enviar, apagado hasta que estén todos los campos obligatorios.
   // Resolver (por pasos) y Escalar (no bloquea) llevan su propia validación: aquí, los demás.
-  const syncSubmit = (form) => { if (['resolve', 'escalate'].includes(form.dataset.actForm)) return; form.querySelector('[type=submit]').disabled = !isComplete(form.dataset.actForm, Object.fromEntries(new FormData(form))); };
+  // La llamada lleva dos: «Guardar llamada» (teléfono y lo hablado) y «No responden» (solo el teléfono).
+  const syncSubmit = (form) => {
+    const key = form.dataset.actForm;
+    if (['resolve', 'escalate'].includes(key)) return;
+    const values = Object.fromEntries(new FormData(form));
+    if (key === 'call') {
+      const ready = callReady(values);
+      form.querySelector('[value="answered"]').disabled = !ready.answered;
+      form.querySelector('[value="noanswer"]').disabled = !ready.noAnswer;
+      return;
+    }
+    form.querySelector('[type=submit]').disabled = !isComplete(key, values);
+  };
   root.addEventListener('input', (e) => {
     const form = e.target.closest('[data-act-form]');
     if (form) syncSubmit(form);
@@ -310,6 +327,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     e.preventDefault();
     const key = form.dataset.actForm;
     if (key === 'resolve') return;   // lo atiende resolve-view.js
+    if (key === 'call') return saveCall(form, e.submitter?.value === 'answered');
     const raw = Object.fromEntries(new FormData(form));
     const { missing, values } = key === 'escalate' ? readEscalate(raw, DESTINATIONS) : readAction(key, raw);
     const err = form.querySelector('.iss-act-err');
@@ -342,6 +360,24 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       toast?.(`${ACTIONS[key].label}: preparado, pero aún no se envía a Remedy (falta conectar SIGLO).`);
     } catch (e2) { fail(e2.message); }
   });
+  // Registrar la llamada: una nota interna con su etiqueta de llamada (call.js), que Seguimiento pinta como un hito.
+  const saveCall = async (form, answered) => {
+    const values = Object.fromEntries(new FormData(form));
+    const ready = callReady(values);
+    const err = form.querySelector('.iss-act-err');
+    const buttons = [...form.querySelectorAll('[type=submit]')];
+    const fail = (text) => { err.textContent = text; err.hidden = false; syncSubmit(form); };
+    if (!ready.noAnswer) return fail('Falta: el teléfono, con al menos cinco cifras.');
+    if (answered && !ready.answered) return fail('Falta: lo que se habló.');
+    buttons.forEach((b) => { b.disabled = true; });
+    try {
+      const note = callNote({ ...values, answered });
+      await api.addNote(opened, note.body, { visibility: note.visibility, tag: note.tag });
+      closeAction();
+      await notes.refresh();
+      toast?.(answered ? 'Llamada registrada en Seguimiento.' : 'Llamada sin respuesta registrada en Seguimiento.');
+    } catch (e2) { fail(e2.message); }
+  };
   const upload = async (file) => {
     if (!file) return;
     loading = true;

@@ -5,7 +5,7 @@
 // desde otro sitio (refresh, como Reclamar respuesta).
 //
 // deps: root · api (addNote, editNote, timeline) · toast · me ({ id })
-import { notesFeed, noteCount, sendsNote, tagLabel, isCallTag } from './notes.js';
+import { notesFeed, noteCount, sendsNote, tagLabel } from './notes.js';
 import { notesListHtml, noteItemHtml, noteEditorHtml, notesTab, visPickHtml } from './notes-html.js';
 
 const GROW_MAX_PX = 160; // lo que crece la caja de escribir antes de hacer scroll
@@ -80,7 +80,6 @@ export const createNotes = ({ root, api, toast, me }) => {
     chip.hidden = !tag;
     chip.querySelector('[data-tag-name]').textContent = tag ? tagLabel(tag) : '';
     f.querySelectorAll('[data-set-tag]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.setTag === tag)));
-    f.note.placeholder = isCallTag(tag) ? 'El teléfono y lo que se habló…' : 'Escribe una nota…'; // una llamada: así se lee bien
   };
   const grow = (ta) => { ta.style.height = 'auto'; ta.style.height = `${Math.min(ta.scrollHeight, GROW_MAX_PX)}px`; };
   const sync = (f) => { f.querySelector('[type=submit]').disabled = !f.note.value.trim(); };
@@ -177,6 +176,8 @@ export const createNotes = ({ root, api, toast, me }) => {
 
   return {
     attach, refresh,
+    // la conversación que se enseña (para proponer el teléfono de una llamada, call.js)
+    entries: () => feed,
     // al enseñar la pestaña: abajo del todo, en lo último
     shown: toEnd,
     dispose: () => {

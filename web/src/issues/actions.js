@@ -1,4 +1,4 @@
-// Las acciones sobre una issue (resolver, escalar, traspasar, reclamar al tercero): su
+// Las acciones sobre una issue (resolver, escalar, llamar al centro, traspasar, reclamar al tercero): su
 // formulario, qué hace falta para enviarlo y cuáles tiene cada issue según su estado.
 // Traspasar se queda en SIA (la base de la instancia); resolver, escalar y reclamar irán a
 // Remedy por SIGLO y, de momento, no se envían (la reclamación queda como nota interna).
@@ -22,6 +22,10 @@ export const ACTIONS = {
   // el formulario es propio (escalate-form.js) y se lee con readEscalate
   escalate: {
     label: 'Escalar',
+  },
+  // la ventana es propia (call.js): el teléfono y lo que se habló; queda como nota
+  call: {
+    label: 'Llamada',
   },
   transfer: {
     label: 'Traspasar', title: 'Traspasar a un compañero', ok: 'Traspasar', local: true,
@@ -65,11 +69,12 @@ export const actionForm = (key, issueId, people = [], empty = '') => {
   </form>`;
 };
 
-// Qué se puede hacer con una issue: pendiente de un tercero, reclamarle respuesta; si no, resolverla
-// o escalarla. Traspasarla a un compañero o devolverla a la cola, solo si es de uno (cogida en SIA):
-// la base no mueve una issue que no tienes. Traspasar no mira el tope de en curso.
+// Qué se puede hacer con una issue: pendiente de un tercero, reclamarle respuesta; si no, resolverla,
+// escalarla o llamar al centro (pendiente, la llamada va aparte, en la cabecera: work-screen.js).
+// Traspasarla a un compañero o devolverla a la cola, solo si es de uno (cogida en SIA): la base no
+// mueve una issue que no tienes. Traspasar no mira el tope de en curso.
 export const actionsFor = (issue, mine) => [
-  ...(issue.status === 'PENDING' ? ['chase'] : ['resolve', 'escalate']),
+  ...(issue.status === 'PENDING' ? ['chase'] : ['resolve', 'escalate', 'call']),
   ...(mine ? ['transfer'] : []),
   ...(mine && issue.status !== 'PENDING' ? ['release'] : []),
 ];

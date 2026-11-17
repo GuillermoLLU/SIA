@@ -2,15 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ACTIONS, actionForm, readAction, isComplete, actionsFor, chaseNote, chaseTarget } from './actions.js';
 
-test('las acciones (las notas van en el histórico)', () => {
-  assert.deepEqual(Object.keys(ACTIONS), ['resolve', 'escalate', 'transfer', 'chase']);
+test('las acciones (las notas van en Seguimiento; la llamada, también como nota)', () => {
+  assert.deepEqual(Object.keys(ACTIONS), ['resolve', 'escalate', 'call', 'transfer', 'chase']);
 });
 
 test('actionsFor: pendiente de un tercero, reclamarle; traspasar y devolver, solo si es mía en SIA', () => {
   assert.deepEqual(actionsFor({ status: 'PENDING' }, true), ['chase', 'transfer']);
   assert.deepEqual(actionsFor({ status: 'PENDING' }, false), ['chase'], 'asignada en Remedy pero sin coger en SIA: la base no deja traspasarla');
-  assert.deepEqual(actionsFor({ status: 'IN_PROGRESS' }, true), ['resolve', 'escalate', 'transfer', 'release']);
-  assert.deepEqual(actionsFor({ status: 'ASSIGNED' }, false), ['resolve', 'escalate']);
+  assert.deepEqual(actionsFor({ status: 'IN_PROGRESS' }, true), ['resolve', 'escalate', 'call', 'transfer', 'release']);
+  assert.deepEqual(actionsFor({ status: 'ASSIGNED' }, false), ['resolve', 'escalate', 'call'], 'llamar al centro, aunque no sea mía');
 });
 
 test('reclamar respuesta: la nota dice a quién se reclama; si el motivo no lo dice, «al tercero»', () => {

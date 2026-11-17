@@ -391,6 +391,9 @@
 .iss-act-note { margin: 0; padding: 8px 10px; font-size: 12px; color: var(--text-low); background: color-mix(in srgb, var(--bg) 60%, var(--surface)); border: 1px dashed var(--border); }
 .iss-act-err { margin: 0; font-size: 12.5px; color: var(--iss-crit); }
 .iss-act-form footer { display: flex; justify-content: flex-end; gap: 8px; }
+/* la llamada: «Guardar llamada» va primero en el código (es el que manda Intro) y se ve a la derecha; Cancelar, a la izquierda */
+.iss-call footer { flex-direction: row-reverse; justify-content: flex-start; }
+.iss-call footer [data-act-cancel] { margin-right: auto; }
 /* Resolver: cinco pasos, uno a la vista. El modal tiene siempre el mismo tamaño y no se
    desplaza: lo que no cabe se desplaza dentro de su campo (o del borrador). */
 .rv { width: min(1120px, 100vw - 32px); height: min(800px, 100vh - 32px); gap: 0; padding: 0; }

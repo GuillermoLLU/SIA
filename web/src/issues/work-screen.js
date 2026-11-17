@@ -54,6 +54,7 @@ export const releaseDialogHtml = (id, text) => `<div class="iss-dlg-issue"><span
 const ACTION_BUTTON = {
   resolve: '<button class="lab-btn primary" data-act="resolve">Resolver</button>',
   escalate: '<button class="lab-btn" data-act="escalate">Escalar</button>',
+  call: '<button class="lab-btn" data-act="call">Llamada</button>',
   transfer: '<button class="lab-btn" data-act="transfer">Traspasar</button>',
   release: '<button class="lab-btn" data-release>Devolver a la cola</button>',
 };
@@ -78,7 +79,7 @@ export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, meI
   <header class="iss-work-h">
     <button class="lab-btn primary" data-back>Volver al panel</button>
     <h2 title="${esc(i.text)}">${esc(i.text)}</h2>
-    <div class="iss-actions">${i.status === 'PENDING' ? escalatedTag(i) : actionsFor(i, mine).map((key) => ACTION_BUTTON[key]).join('')}</div>
+    <div class="iss-actions">${i.status === 'PENDING' ? `${escalatedTag(i)}${ACTION_BUTTON.call}` : actionsFor(i, mine).map((key) => ACTION_BUTTON[key]).join('')}</div>
   </header>
 
   <div class="iss-work">
