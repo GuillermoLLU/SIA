@@ -197,7 +197,7 @@
 .iss-esc-row:hover .iss-esc-acts, .iss-esc-acts:focus-within { opacity: 1; transform: none; filter: none; pointer-events: auto; }
 .iss-esc-acts :is(a, button) { display: inline-flex; align-items: center; height: 22px; padding: 0 10px; font: inherit; font-size: 11.5px; font-weight: 600; color: var(--text); text-decoration: none; background: var(--surface); border: 1px solid var(--border); cursor: pointer; }
 .iss-esc-acts :is(a, button):hover { border-color: var(--text); }
-.iss-esc-acts [data-esc-take] { color: var(--surface); background: var(--text); border-color: var(--text); }
+.iss-esc-acts button { color: var(--surface); background: var(--text); border-color: var(--text); }   /* un solo botón por fila: el principal */
 @media (prefers-reduced-motion: reduce) { .iss-esc-acts { transition: none; } }
 /* refrescar la mesa, en la cabecera de Seguimiento */
 .iss-card-h .iss-refresh { display: inline-flex; align-items: center; gap: 6px; height: 26px; margin-left: 4px; padding: 0 10px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: 600 11px var(--font-ui); letter-spacing: .04em; text-transform: uppercase; cursor: pointer; }

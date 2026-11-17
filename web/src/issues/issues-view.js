@@ -6,11 +6,11 @@
 import './issues.css';
 import { esc } from '../ui/html.js';
 import { LISTS, snapshotInfo, duration, weekBars, whenLabel, stillOpen, withJira } from './format.js';
-import { item, teamItem, REFRESH_ICON } from './parts.js';
+import { item, teamItem, mineWaitingItem, REFRESH_ICON } from './parts.js';
 import { onEscape } from '../ui/dialog.js';
 import { pressStartedIn } from '../ui/dom.js';
 import { pickClick, openPicker, closePickers } from '../ui/picker.js';
-import { workScreen, releaseDialogHtml, takeDialogHtml } from './work-screen.js';
+import { workScreen, releaseDialogHtml } from './work-screen.js';
 import { createNotes } from './notes-view.js';
 import { actionForm, readAction, isComplete, chaseNote, chaseTarget, contactNote } from './actions.js';
 import { createResolver } from './resolve-view.js';
@@ -85,7 +85,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     const waiting = follow === 'team' ? team : mineWaiting;
     const shown = (l) => (l.key !== 'waiting' ? l.items.slice(0, 12).map((i) => item(i, l.key, now))
       : follow === 'team' ? team.map((e) => teamItem(e, now))
-        : mineWaiting.slice(0, 12).map((i) => item(i, l.key, now)));
+        : mineWaiting.slice(0, 12).map((i) => mineWaitingItem(i, now)));
     const used = history.weeks.some((w) => w.sga + w.sisu);
     root.innerHTML = `<div class="iss-page iss-desk-page">
       <div class="iss-desk">
@@ -261,17 +261,11 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       }
       const fol = t.closest('[data-follow]');
       if (fol) { follow = fol.dataset.follow; return renderDesk(); }
-      // Coger o reasignar el escalado de otro (de momento, de prueba: la base aún no mueve la issue de otro)
-      // pasar a mi mesa el escalado de otro, desde Seguimiento · Equipo
-      const grab = t.closest('[data-esc-take]');
-      if (grab) {
-        const e = data.escalations.items.find((x) => x.id === grab.dataset.escTake);
-        grab.disabled = true;
-        try { if (await takeIssue(e.id, e.text, e.owner)) { await loadDesk(); toast?.(`${e.id} ya está en tu mesa.`); } } finally { grab.disabled = false; }
-        return;
-      }
+      // Seguimiento: reasignar el escalado de otro (Equipo) o traspasar uno mío (Mías), sin abrirlo
       const reas = t.closest('[data-esc-reassign]');
       if (reas) return openReassign(reas.dataset.escReassign);
+      const handOff = t.closest('[data-desk-transfer]');
+      if (handOff) { opened = handOff.dataset.deskTransfer; issue = data.desk.find((d) => d.id === opened); return openAction('transfer'); }
 
       const take = t.closest('[data-take]');
       if (take) {
@@ -332,21 +326,9 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     toast?.(`${mode === 'link' ? `Unida a ${target}` : `Escalada a ${target}${rootCause ? ' por la causa raíz' : ''}`}. De momento no sale hacia Remedy (falta conectar SIGLO).`);
   } });
 
-  // Pasar a mi mesa una issue de otra persona (o de nadie en SIA): se confirma (la base mira
-  // el origen). → true si se la ha quedado.
-  const takeIssue = async (id, text, owner) => {
-    const ok = !dialogs || await dialogs.open({ title: 'Pasar a tu mesa', centered: true, okLabel: 'Pasar a mi mesa', bodyHTML: takeDialogHtml(id, text, owner) });
-    if (!ok) return false;
-    await api.take(id);
-    return true;
-  };
-
   const openAction = async (key) => {
-    // la escalada de otra persona, abierta: la paso a mi mesa y se vuelve a abrir, ya mía
-    if (key === 'take') {
-      if (await takeIssue(opened, issue?.text, issue?.claimedBy?.name || issue?.assignee)) { await openIssue(opened); toast?.('Ya está en tu mesa.'); }
-      return;
-    }
+    // la escalada de otra persona, abierta: reasignarla (también a mí)
+    if (key === 'reassign') return openReassign(opened);
     // Abrir WAR-ROOM: aún no hace nada; solo lo avisa
     if (key === 'warroom') return toast?.('Abrir WAR-ROOM aún no está disponible: llegará más adelante.');
     closeAction();
@@ -367,11 +349,18 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     // Escape: con la lista del selector abierta la cierra; si no, cierra el modal
     offEscape = onEscape(() => (openPicker(root) ? closePickers(root) : closeAction()));
   };
-  // Reasignar un escalado de otro, desde la mesa (#136): a quien tiene el conocimiento de su origen, sin
-  // su dueño, con la ventana de Traspasar solo a un compañero (transfer.js). De momento, de prueba.
+  // Reasignar un escalado de otro (#136), desde Seguimiento · Equipo o al abrirlo: a quien tiene el
+  // conocimiento de su origen, sin su dueño, con la ventana de Traspasar solo a un compañero
+  // (transfer.js). La primera opción, «A mí»: pasa a mi mesa de verdad (api.take); a otro, de momento, de
+  // prueba (la base aún no mueve la issue de una persona a otra).
+  let reassigning = null;
   const openReassign = async (id) => {
-    const e = data.escalations.items.find((x) => x.id === id);
-    people = (await api.teammates()).filter((p) => knowsOrigin(p.groups, e) && p.name !== e.owner);
+    const e = data?.escalations?.items.find((x) => x.id === id) || { ...issue, owner: issue?.claimedBy?.name || issue?.assignee || '' };
+    reassigning = id;
+    people = [
+      ...(knowsOrigin(me?.groups, e) && e.owner !== me?.name ? [{ id: me.id, name: 'A mí' }] : []),
+      ...(await api.teammates()).filter((p) => knowsOrigin(p.groups, e) && p.name !== e.owner),
+    ];
     closeAction();
     root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${reassignForm(id, { people, empty: `Nadie más tiene el conocimiento de ${originOf(e)}` })}</div>`);
     root.querySelector('.iss-act-form textarea')?.focus();
@@ -460,13 +449,27 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       toast?.(`Traspaso a ${values.teamName} anotado en Seguimiento. Aún no llega a Remedy: irá por SIGLO cuando lo conectemos.`);
     } catch (e2) { fail(e2.message); }
   };
-  // Reasignar: de momento, de prueba (la base aún no mueve la issue de otra persona): se avisa y no se mueve.
-  const reassign = (form) => {
+  // Reasignar: a mí, pasa a mi mesa (y el motivo queda como nota en su Seguimiento) y, si estaba
+  // abierta, se vuelve a abrir ya mía; a otra persona, de momento, de prueba: se avisa y no se mueve.
+  const reassign = async (form) => {
     const { missing, values } = readTransfer(Object.fromEntries(new FormData(form)), TEAMS);
     const err = form.querySelector('.iss-act-err');
-    if (missing) { err.textContent = `Falta: ${missing}.`; err.hidden = false; return; }
-    closeAction();
-    toast?.(`Reasignar a ${people.find((p) => p.id === values.to)?.name || 'un compañero'}: preparado, pero aún no se mueve (de prueba).`);
+    const btn = form.querySelector('[type=submit]');
+    const fail = (text) => { err.textContent = text; err.hidden = false; btn.disabled = false; };
+    if (missing) return fail(`Falta: ${missing}.`);
+    const id = reassigning;
+    if (values.to !== me?.id) {
+      closeAction();
+      return toast?.(`Reasignar a ${people.find((p) => p.id === values.to)?.name || 'un compañero'}: preparado, pero aún no se mueve (de prueba).`);
+    }
+    btn.disabled = true;
+    try {
+      await api.take(id);
+      await api.addNote(id, values.comment);
+      closeAction();
+      if (onDesk) await loadDesk(); else await openIssue(id);
+      toast?.(`${id} ya está en tu mesa.`);
+    } catch (e2) { fail(e2.message); }
   };
   // Registrar la llamada: una nota interna con su etiqueta de llamada (call.js), que Seguimiento pinta como un hito.
   const saveCall = async (form, answered) => {

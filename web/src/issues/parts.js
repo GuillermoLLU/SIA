@@ -36,12 +36,15 @@ export const item = (i, key, now) => {
   </button>`;
 };
 
-// Un escalado del equipo: la fila y, bajo sus días, lo que se puede hacer con él, solo al pasar por
-// encima. La de otro la paso a mi mesa o se reasigna; el Jira se abre si hay base de Jira.
+// Un escalado del equipo: la fila y, bajo sus días, su botón, solo al pasar por encima: la de otro se
+// reasigna (también a mí, que la paso a mi mesa); el Jira se abre si hay base de Jira.
+// Una de las mías en Seguimiento: la fila y, bajo sus días, «Traspasar», solo al pasar por encima y si
+// la tengo cogida en SIA (la base no traspasa una que no tienes).
+export const mineWaitingItem = (i, now) => `<div class="iss-esc-row">${item(i, 'waiting', now)}${i.claimed ? `<div class="iss-esc-acts"><button type="button" data-desk-transfer="${esc(i.id)}">Traspasar</button></div>` : ''}</div>`;
 export const teamItem = (e, now) => {
   const acts = [
     e.jira.url ? `<a href="${esc(e.jira.url)}" target="_blank" rel="noopener" title="Abrir ${esc(e.jira.key)} en Jira">Jira ↗</a>` : '',
-    e.mine ? '' : `<button type="button" data-esc-take="${esc(e.id)}">Pasar a mi mesa</button><button type="button" data-esc-reassign="${esc(e.id)}">Reasignar</button>`,
+    e.mine ? '' : `<button type="button" data-esc-reassign="${esc(e.id)}">Reasignar</button>`,
   ].join('');
   return `<div class="iss-esc-row">${item(e, 'team', now)}${acts ? `<div class="iss-esc-acts">${acts}</div>` : ''}</div>`;
 };

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { item, handed, teamItem } from './parts.js';
+import { mineWaitingItem, item, handed, teamItem } from './parts.js';
 
 const now = new Date('2026-10-29T12:00:00');
 const issue = (o = {}) => ({ id: 'INC1', center: '100', text: 'PDA <x>', priority: 'HIGH', status: 'ASSIGNED', reason: '', sisu: false, reported: '2026-10-29 10:00', modified: '', resolved: '', ...o });
@@ -36,14 +36,21 @@ test('Seguimiento: con Jira, su clave y estado en lugar del motivo', () => {
   assert.match(open, /<b>7 días<\/b> sin moverse/);
 });
 
-test('escalado del equipo: dueño, el Jira enlazado y, si es de otro, Pasar a mi mesa y Reasignar', () => {
+test('escalado del equipo: dueño, el Jira enlazado y, si es de otro, Reasignar (un solo botón)', () => {
   const e = (o) => issue({ status: 'PENDING', modified: '2026-10-28 11:00', owner: 'Luis <x>', mine: false, jira: { key: 'SISUPAC-1', state: 'open', url: 'https://jira/browse/SISUPAC-1' }, ...o });
   const other = teamItem(e(), now);
   assert.match(other, /<span class="iss-owner">Luis &lt;x&gt;<\/span>/);
   assert.match(other, /<div class="iss-esc-acts"><a href="https:\/\/jira\/browse\/SISUPAC-1" target="_blank" rel="noopener" title="Abrir SISUPAC-1 en Jira">Jira ↗<\/a>/);
-  assert.match(other, /data-esc-take="INC1">Pasar a mi mesa<\/button><button type="button" data-esc-reassign="INC1">Reasignar/);
+  assert.match(other, /<button type="button" data-esc-reassign="INC1">Reasignar<\/button><\/div>/);
+  assert.doesNotMatch(other, /data-esc-take/);
   const mine = teamItem(e({ mine: true, jira: { key: 'SISUPAC-1', state: 'open' } }), now);
   assert.match(mine, /<span class="iss-owner mine">Tuya<\/span>/);
   assert.doesNotMatch(mine, /iss-esc-acts/);
   assert.match(teamItem(e({ owner: '' }), now), /Sin dueño/);
+});
+
+test('Seguimiento · Mías: «Traspasar» bajo los días, solo si la tengo cogida en SIA', () => {
+  const mine = (o) => mineWaitingItem(issue({ status: 'PENDING', modified: '2026-10-28 11:00', ...o }), now);
+  assert.match(mine({ claimed: true }), /^<div class="iss-esc-row"><button class="iss-item" data-id="INC1">[\s\S]*<div class="iss-esc-acts"><button type="button" data-desk-transfer="INC1">Traspasar<\/button><\/div><\/div>$/);
+  assert.doesNotMatch(mine({ claimed: false }), /data-desk-transfer/, 'asignada en Remedy sin cogerla en SIA: la base no la traspasa');
 });
