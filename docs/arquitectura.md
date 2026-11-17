@@ -25,7 +25,7 @@ API y su vista:
 | `app/` | Descubrir el bridge, la navegación (`nav.js`, puro: qué iconos lleva el dock de cada persona, cómo va la barra de arriba, con qué vista se abre y a cuál se vuelve desde el Chat), qué vista se ve (`views.js`), la barra de arriba, el dock, el selector de Métricas y la relectura de permisos (`perms.js`) |
 | `auth/` | Inicio de sesión y la sesión en el navegador |
 | `chat/` | El chat: su arranque (`start.js`: Claude, conocimiento autónomo y todo lo accesible), protocolo con el bridge, reconciliación entre dispositivos, terminal y adjuntos |
-| `issues/` | La mesa de issues de cada persona, la pantalla de trabajo de una issue (con su chat, o Reclamar respuesta y Traspasar si espera a un tercero), Resolver (`resolve-view.js`, con el editor de fichas de imagen `tag-editor.js`) y el origen SGA/SISU de cada issue (`origin.js`, el espejo del del bridge) |
+| `issues/` | La mesa de issues de cada persona, la pantalla de trabajo de una issue (con su chat, o Reclamar respuesta y Traspasar si espera a un tercero), Resolver (`resolve-view.js`) y Escalar (`escalate-view.js`, con su dominio en `escalate.js` y el catálogo de prueba en `escalate-mock.js`), los dos con el editor de fichas de imagen (`tag-editor.js`, que se arrastran con `chip-drag.js`) y la calidad de lo escrito (`quality.js`), y el origen SGA/SISU de cada issue (`origin.js`, el espejo del del bridge) |
 | `backlog/` | Backlog: la cola del equipo entera para quien reparte (tarjetas que filtran, orden por regla, buscador, panel lateral con asignar), el editor de reglas de priorización (`rule-editor.js`, chips) en Configuración → Priorización (`rules-view.js`); una vista sobre el dominio de Issues |
 | `metrics/` | Métricas: reglas (`rules.js`) y cálculo por pestaña en módulos puros; el HTML de cada pestaña en `metrics/tabs/` |
 | `work/` | Equipo soporte: una vista sobre el dominio de Métricas |
@@ -33,7 +33,7 @@ API y su vista:
 | `knowledge/`, `projects/` | Conocimiento asignado y la sección Administración de Configuración |
 | `lab/`, `links/`, `skills/` | Laboratorio de skills, Enlaces (la columna de Configuración y su formulario) y la paleta ⌘K |
 | `settings/`, `lock/`, `theme/` | Configuración (sus cajas por sección y su cabecera, `head.js`), candado y temas |
-| `ui/` | Lo común: `api.js` (el único cliente HTTP), diálogos, toast, html, tiempo, el selector (`picker.js`), la entrada en cascada de una vista (`enter.js`) y el aviso de lo que falta para la red del cliente (`net-warning.js`, `net-warning-view.js`: certificados y VPN; lo usan el inicio de sesión y Métricas) |
+| `ui/` | Lo común: `api.js` (el único cliente HTTP), diálogos, toast, html, tiempo, el selector (`picker.js`), las piezas de los asistentes por pasos (`wizard.js`: cómo entra un paso, el aviso de lo que falta y el cierre por fases), la entrada en cascada de una vista (`enter.js`) y el aviso de lo que falta para la red del cliente (`net-warning.js`, `net-warning-view.js`: certificados y VPN; lo usan el inicio de sesión y Métricas) |
 
 ### `server/` — el bridge local
 

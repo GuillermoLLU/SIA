@@ -91,8 +91,7 @@ export const requirementsHtml = (v, { issue, dests }) => {
 
 // Los archivos del motivo (de momento solo se listan, como «Otros archivos» de Resolver: no salen de SIA).
 // Las imágenes, como en Resolver: su miniatura con su [imagenN], que se arrastra al texto para
-// colocarla (los manejadores de las fichas son los de resolve-view.js, para cualquier .rv-ed de la
-// vista); los demás archivos, en lista. files: [{ name, size, n?, url? }] (n y url, solo las imágenes).
+// colocarla (chip-drag.js); los demás archivos, en lista. files: [{ name, size, n?, url? }] (n y url, solo las imágenes).
 export const filesHtml = (files) => {
   const drop = (x, i) => `<button type="button" class="rv-img-x" data-file-drop="${i}" aria-label="Quitar ${esc(x.name)}">×</button>`;
   const images = files.map((x, i) => (x.n ? `<figure class="rv-img" draggable="true" data-img="${x.n}" title="${esc(x.name)} · ${kb(x.size)}. Arrástrala al texto para colocarla"><img src="${esc(x.url)}" alt="" /><figcaption>${imageTag(x.n)}</figcaption>${drop(x, i)}</figure>` : '')).join('');

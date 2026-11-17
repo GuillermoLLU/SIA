@@ -9,6 +9,7 @@ import { escalateForm, requirementsHtml, linkedText, summaryHtml, filesHtml, tic
 import { resolveBlocked, noteMeter, localShort } from './resolve-form.js';
 import { stepMissing, stepWarning, resumeStep, resultTicket, targetOf, STEPS, LAST } from './escalate.js';
 import { syncEditor, setEditorText, toText, insertChip, removeChips } from './tag-editor.js';
+import { hasFiles } from './chip-drag.js';
 
 const AUTOSAVE_MS = 800;   // el mismo que Resolver
 
@@ -294,7 +295,6 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
   });
   // Arrastrar archivos sobre el motivo, como en Resolver: el modal se marca como destino (.rv.over) y
   // lo soltado va a la lista. Sin que siga hasta la página, que los rechaza fuera de los asistentes.
-  const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
   const dropZone = (e) => hasFiles(e) && e.target.closest?.('[data-act-form="escalate"][data-step="3"]');
   root.addEventListener('dragover', (e) => {
     const z = dropZone(e);

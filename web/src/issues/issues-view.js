@@ -13,6 +13,7 @@ import { pickClick, openPicker, closePickers } from '../ui/picker.js';
 import { workScreen, trailHtml, trailTab, releaseDialogHtml, sendsNote, noteEditorHtml } from './work-screen.js';
 import { ACTIONS, actionForm, readAction, isComplete, chaseNote, chaseTarget } from './actions.js';
 import { createResolver } from './resolve-view.js';
+import { mountChipDrag } from './chip-drag.js';
 import { knowsOrigin, originOf } from './origin.js';
 import { crossfade } from '../ui/crossfade.js';
 import { mountTips } from './tip.js';
@@ -226,6 +227,8 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   let people = [], offEscape = null;
   const closeAction = () => { resolver.close(); escalator.close(); root.querySelector('.iss-modal')?.remove(); offEscape?.(); offEscape = null; };
   // Resolver vive en su módulo (resolve-view.js); al resolver, la ventana ya se ha ido y la mesa se pone al día con un cruce.
+  // Las fichas [imagenN] se mueven igual en los editores de Resolver y de Escalar (chip-drag.js).
+  const chipDrag = mountChipDrag(root);
   const resolver = createResolver(root, { api, dialogs, toast, onResolved: async () => {
     const fresh = await api.desk().catch(() => null);
     closeAction();
@@ -381,6 +384,6 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
 
   return {
     show: () => showDesk().catch((err) => { root.innerHTML = `<div class="iss-page"><p class="iss-empty">No se pudieron cargar las issues: ${esc(err.message)}</p></div>`; }),
-    dispose: () => { resolver.dispose(); escalator.close(); clearInterval(refresher); window.removeEventListener('focus', picked); closeChat(); },
+    dispose: () => { resolver.dispose(); escalator.close(); chipDrag.dispose(); clearInterval(refresher); window.removeEventListener('focus', picked); closeChat(); },
   };
 };

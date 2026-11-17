@@ -1,6 +1,6 @@
 // Resolver una issue: el asistente de cinco pasos encima de la pantalla de trabajo (resolve-form.js
-// pinta; aquí el cableado). Guarda el borrador solo (texto e imágenes) en la BBDD local, mueve las
-// fichas [imagenN] por el texto, simula de momento la redacción de la IA y el cierre, y al acabar
+// pinta; aquí el cableado). Guarda el borrador solo (texto e imágenes) en la BBDD local (las fichas
+// [imagenN] se mueven por el texto con chip-drag.js), simula de momento la redacción de la IA y el cierre, y al acabar
 // avisa a la mesa (onResolved). Lo que no es de Resolver (la mesa, la issue, Escalar, Traspasar)
 // sigue en issues-view.js.
 import { esc } from '../ui/html.js';
@@ -9,7 +9,8 @@ import { BACK_ARROW, NEXT_ARROW, slideStep, flashEmpty, fadeOut as fade, runPhas
 import { readAction } from './actions.js';
 import { resolveForm, resolveBlocked, resumeStep, stepMissing, STEPS, LAST, MAX_FILE, MAX_IMAGES, imagesDock, sectionImages, noteMeter, phasesHtml, closePhasesHtml, reportHtml, summaryHtml, localShort } from './resolve-form.js';
 import { noteQuality, FULL } from './quality.js';
-import { syncEditor, setEditorText, toText, insertChip, removeChips, rangeAtPoint, imageTag } from './tag-editor.js';
+import { syncEditor, setEditorText, toText, insertChip, removeChips } from './tag-editor.js';
+import { hasFiles } from './chip-drag.js';
 
 const AUTOSAVE_MS = 800;
 
@@ -19,7 +20,6 @@ const base64 = (file) => new Promise((ok, ko) => {
   r.onerror = () => ko(r.error);
   r.readAsDataURL(file);
 });
-const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
 
 // root: la vista de Issues (los listeners van ahí, acotados al formulario de Resolver).
 // api: issues-api.js; dialogs: ui/dialog.js; toast: el aviso de la app;
@@ -200,24 +200,6 @@ export const createResolver = (root, { api, dialogs, toast, onResolved }) => {
   const dropZone = (e) => e.target.closest?.(`[data-act-form="resolve"]:not([data-step="${LAST}"])`);
   const stepField = (f) => f.querySelector('[data-rstep]:not([hidden]) [data-images]')?.dataset.for || null;
 
-  /* ── Mover una ficha: arrastrarla (desde el texto o desde el muelle) y soltarla en el punto del
-     texto. Mientras se arrastra, el origen se atenúa y una línea del color de la ficha marca en
-     vivo dónde caerá; sin la copia de la ficha pegada al ratón. ── */
-  let dragChip = null;
-  const ghost = new Image(); ghost.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-  const noDragImage = (e) => e.dataTransfer.setDragImage(ghost, 0, 0);
-  const caret = document.createElement('i');
-  caret.className = 'rv-caret';
-  caret.hidden = true;
-  document.body.append(caret);
-  const showCaret = (ed, range) => {
-    let r = range?.getBoundingClientRect();
-    if (!r || (!r.height && !r.width)) { const b = ed.getBoundingClientRect(); r = { left: b.left + 10, top: b.top + 8, height: 20 }; }   // editor vacío: al principio
-    Object.assign(caret.style, { left: `${r.left}px`, top: `${r.top}px`, height: `${r.height || 20}px` });
-    caret.hidden = false;
-  };
-  const hideCaret = () => { caret.hidden = true; };
-
   /* ── El último paso, en tres estados: las opciones y «Generar informe»; el simulacro de la IA
      (las fases se marcan una a una); y el informe, para revisar y resolver. ── */
   let generating = null;
@@ -383,51 +365,22 @@ export const createResolver = (root, { api, dialogs, toast, onResolved }) => {
     e.preventDefault();
     addImages(f, files, e.target.closest?.('.rv-ed')?.dataset.ed || null);
   });
-  // Arrastrar: una ficha del texto o una miniatura del muelle, con su [imagenN] como dato
-  root.addEventListener('dragstart', (e) => {
-    const chip = e.target.closest?.('.rv-chip'), fig = e.target.closest?.('[data-img]');
-    const src = chip || fig;
-    if (!src) return;
-    dragChip = chip;
-    src.classList.add('dragging');
-    noDragImage(e);
-    e.dataTransfer.setData('text/plain', imageTag(Number(chip ? chip.dataset.n : fig.dataset.img)));
-    e.dataTransfer.effectAllowed = chip ? 'move' : 'copy';
-  });
-  root.addEventListener('dragend', (e) => { e.target.closest?.('.rv-chip, [data-img]')?.classList.remove('dragging'); dragChip = null; hideCaret(); });
+  // Imágenes arrastradas sobre el modal: el muelle se marca como destino y van al campo del paso. Las
+  // fichas [imagenN] que se mueven por el texto las lleva chip-drag.js, para toda la vista.
   root.addEventListener('dragover', (e) => {
-    const ed = e.target.closest?.('.rv-ed');
-    if (ed && !hasFiles(e)) {   // una ficha sobre el texto: la línea dice dónde caerá
-      e.preventDefault();
-      e.dataTransfer.dropEffect = dragChip ? 'move' : 'copy';
-      return showCaret(ed, rangeAtPoint(document, e.clientX, e.clientY));
-    }
-    hideCaret();
-    const z = hasFiles(e) && dropZone(e);   // imágenes sobre el modal: el muelle se marca como destino
+    const z = hasFiles(e) && dropZone(e);
     if (z) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; z.classList.add('over'); }
   });
   root.addEventListener('dragleave', (e) => {
-    const ed = e.target.closest?.('.rv-ed');
-    if (ed && !ed.contains(e.relatedTarget)) hideCaret();
     const z = dropZone(e);
     if (z && !z.contains(e.relatedTarget)) z.classList.remove('over');
   });
   root.addEventListener('drop', (e) => {
-    hideCaret();
     const z = hasFiles(e) && dropZone(e);
-    if (z) {
-      e.preventDefault();
-      z.classList.remove('over');
-      return addImages(z, e.dataTransfer.files, stepField(z));
-    }
-    const ed = e.target.closest?.('.rv-ed');
-    const m = !hasFiles(e) && ed && (e.dataTransfer?.getData('text/plain') || '').match(/^\[imagen(\d+)\]$/);
-    if (!m) return;
+    if (!z) return;
     e.preventDefault();
-    const range = rangeAtPoint(document, e.clientX, e.clientY);
-    if (dragChip?.isConnected) { if (range && dragChip.contains(range.startContainer)) { dragChip.classList.remove('dragging'); return; } dragChip.remove(); }
-    insertChip(ed, Number(m[1]), range);
-    dragChip = null;
+    z.classList.remove('over');
+    addImages(z, e.dataTransfer.files, stepField(z));
   });
   // Fuera del modal el navegador no abre ni descarga lo que se suelte (en toda la página).
   const ignoreDrop = (e) => {
@@ -462,6 +415,6 @@ export const createResolver = (root, { api, dialogs, toast, onResolved }) => {
       loadThumbs(f);
     },
     close,
-    dispose: () => { close(); caret.remove(); document.removeEventListener('dragover', ignoreDrop); document.removeEventListener('drop', ignoreDrop); },
+    dispose: () => { close(); document.removeEventListener('dragover', ignoreDrop); document.removeEventListener('drop', ignoreDrop); },
   };
 };

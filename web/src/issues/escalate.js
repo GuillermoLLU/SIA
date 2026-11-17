@@ -36,7 +36,7 @@ export const jiraPriority = (priority) => (priority === 'CRITICAL' ? 'CRITICAL' 
 
 // N3 de desarrollo: el asunto del chat obligatorio si se ha llamado.
 export const n3Subject = (issue, dest) => `N3 - "${dest?.project || 'MÓDULO'}" - ${issue.id} - ${issue.center || 'Almacén afectado'}`;
-export const isDev = (dest) => dest?.level === 'N3' && dest.via === 'SIGLO';
+const isDev = (dest) => dest?.level === 'N3' && dest.via === 'SIGLO';
 
 // El destino deja rastro en una herramienta (SIGLO o IOP abren su ticket). Si
 // no (correo, fuera del mapa), conviene dejar la evidencia de cómo se escaló.
