@@ -235,11 +235,15 @@
 .nt-folded .nt-vis { align-self: center; }
 .nt-folded .nt-chev { top: 50%; margin-top: -7px; transform: rotate(-90deg); }
 .nt-first { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
-/* los movimientos (cogida, devuelta…), una línea fina entre las notas */
-.nt-move { display: flex; align-items: center; gap: 10px; margin: 2px 0 16px 40px; font-size: 11.5px; color: var(--text-low); }
-.nt-move::before, .nt-move::after { content: ''; flex: 1; height: 1px; background: var(--border); }
-.nt-move span { flex: none; max-width: 80%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.nt-warn { color: var(--iss-high); }
+/* los movimientos (cogida, devuelta, traspasada, asignada): un hito en la línea de tiempo,
+   su icono en un círculo en el sitio del avatar; asignar y traspasar, en negro; coger y devolver, en gris */
+.nt-ev-ic { position: relative; z-index: 1; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; color: var(--text-low); background: var(--surface); border: 1.5px solid var(--border); }
+.nt-ev-ic svg { width: 14px; height: 14px; }
+.nt-ev.strong .nt-ev-ic { color: var(--text); border-color: var(--text); }
+/* sin las notas de Remedy en la foto: el aviso, una línea fina arriba */
+.nt-warn { display: flex; align-items: center; gap: 10px; margin: 0 0 16px 40px; font-size: 11.5px; color: var(--iss-high); }
+.nt-warn::before, .nt-warn::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.nt-warn span { flex: none; max-width: 80%; }
 .nt-empty { padding: 40px 0; text-align: center; color: var(--text-low); }
 .nt-item .iss-note-edit { margin-top: 8px; }
 /* la barra de escribir: quién la verá (menú), la etiqueta elegida, el texto, las etiquetas (menú) y Enviar */

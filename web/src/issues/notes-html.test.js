@@ -33,16 +33,23 @@ test('las de Remedy dicen de dónde vienen y no quién las ve; sin etiqueta ni v
   assert.match(html, /aria-expanded="true"><div class="nt-text">No podemos entrar\.<\/div>/);
 });
 
-test('los movimientos, una línea fina; el motivo de un traspaso, como nota interna de quien traspasó', () => {
-  const [claimed, transfer] = notesFeed({ timeline: [
+test('los movimientos, un hito en la línea de tiempo con su icono y su frase; el motivo de un traspaso, en su caja plegable', () => {
+  const [assigned, claimed, released, transfer] = notesFeed({ timeline: [
+    { at: '2026-10-22T05:00:00Z', type: 'assigned', by: 'Ana', to: 'Luis' },
     { at: '2026-10-22T06:00:00Z', type: 'claimed', by: 'Ana', to: 'Ana' },
-    { at: '2026-10-22T07:00:00Z', type: 'transferred', by: 'Ana', to: 'Luis <x>', text: 'Lleva <dos> llamadas.' },
+    { at: '2026-10-22T06:30:00Z', type: 'released', by: null },
+    { at: '2026-10-22T07:00:00Z', type: 'transferred', by: 'Ana', to: 'Luis <x>', text: 'Lleva <dos> llamadas. Y más.' },
   ] });
-  assert.match(noteItemHtml(claimed, { now }), /^<li class="nt-move" data-note-key="m0"><span>Ana cogió la issue · (HOY|22\/10) \d\d:00<\/span><\/li>$/);
-  const html = noteItemHtml(transfer, { open: true, now });
-  assert.match(html, /<b>Ana<\/b> traspasó la issue a <b>Luis &lt;x&gt;<\/b>/);
-  assert.match(html, /<span class="iss-feed-label">Motivo del traspaso<\/span><span class="nt-vis">.*Interna/s);
-  assert.match(html, /<div class="nt-text">Lleva &lt;dos&gt; llamadas\.<\/div>/);
+  assert.match(noteItemHtml(assigned, { now }), /<li class="iss-feed-item nt-ev strong" data-note-key="m0"><span class="nt-ev-ic" aria-hidden="true"><svg/);
+  assert.match(noteItemHtml(assigned, { now }), /<b>Ana<\/b> se la asignó a <b>Luis<\/b> desde el Backlog<\/span><time>/);
+  assert.match(noteItemHtml(claimed, { now }), /<li class="iss-feed-item nt-ev" data-note-key="m1">.*<b>Ana<\/b> cogió la issue/s, 'coger, sin marcar');
+  assert.match(noteItemHtml(released, { now }), /<b>Alguien<\/b> la devolvió a la cola/);
+  assert.doesNotMatch(noteItemHtml(claimed, { now }), /nt-box/, 'sin motivo, sin caja');
+  const folded = noteItemHtml(transfer, { now });
+  assert.match(folded, /nt-ev strong" data-note-key="m3">/);
+  assert.match(folded, /<b>Ana<\/b> la traspasó a <b>Luis &lt;x&gt;<\/b>/);
+  assert.match(folded, /nt-folded"[^>]*><span class="iss-feed-label">Motivo<\/span><span class="nt-first">Lleva &lt;dos&gt; llamadas…<\/span><i class="nt-chev">/, 'plegado, como una nota y sin decir quién lo ve');
+  assert.match(noteItemHtml(transfer, { now, open: true }), /nt-ev strong open".*<div class="nt-text">Lleva &lt;dos&gt; llamadas\. Y más\.<\/div>/s);
 });
 
 test('«Editar» solo en mis notas de SIA de las últimas 24 h; el editor, con el texto escapado', () => {
@@ -56,7 +63,7 @@ test('«Editar» solo en mis notas de SIA de las últimas 24 h; el editor, con e
 test('la conversación: con el aviso si la foto no trae las de Remedy; vacía, lo dice', () => {
   const feed = [sia()];
   assert.match(notesListHtml(feed, { open: new Set(['n7']), now }), /nt-item v-internal open"/);
-  assert.match(notesListHtml(feed, { now, remedyMissing: true }), /^<li class="nt-move nt-warn"><span>La foto cargada no trae las notas de Remedy/);
+  assert.match(notesListHtml(feed, { now, remedyMissing: true }), /^<li class="nt-warn"><span>La foto cargada no trae las notas de Remedy/);
   assert.equal(notesListHtml([], { now }), '<li class="nt-empty">Todavía no hay notas.</li>');
 });
 

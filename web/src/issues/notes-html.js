@@ -1,12 +1,13 @@
 // La pestaña Notas de una issue, en HTML (sin E/S; el cableado, notes-view.js).
 // Una conversación de la más antigua a la más reciente: cada nota con su autor,
 // su hora y su caja, plegada a una línea (la etiqueta, la primera frase y
-// quién la ve) que se despliega entera al pulsarla; los movimientos, como una línea fina
-// entre las notas. Abajo, la barra de escribir: quién la verá (menú), la
+// quién la ve) que se despliega entera al pulsarla; los movimientos (cogida,
+// devuelta, traspasada, asignada), como un hito en la misma línea de tiempo: su
+// icono en el sitio del avatar y una frase. Abajo, la barra de escribir: quién la verá (menú), la
 // etiqueta (menú) y Enviar.
 import { esc } from '../ui/html.js';
 import { whenLabel } from './format.js';
-import { VISIBILITY, VISIBILITIES, NOTE_TAGS, tagLabel, firstSentence, canEditNote, isFoldable, notesFeed, noteCount } from './notes.js';
+import { VISIBILITY, VISIBILITIES, NOTE_TAGS, tagLabel, firstSentence, canEditNote, notesFeed, noteCount } from './notes.js';
 
 const svg = (paths) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
 const ICON = {
@@ -23,12 +24,13 @@ const CROSS = svg('<path d="M6 6l12 12M18 6L6 18"/>');
 const initials = (name) => (name || '').trim().split(/[\s.]+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('') || '?';
 const avatar = (name) => `<span class="iss-avatar${name ? '' : ' unknown'}" aria-hidden="true">${esc(initials(name))}</span>`;
 const who = (name) => `<b>${esc(name || 'Alguien')}</b>`;
-// Los movimientos, en una frase
-const DID = {
-  claimed: (t) => `${esc(t.by || 'Alguien')} cogió la issue`,
-  released: (t) => `${esc(t.by || 'Alguien')} devolvió la issue a la cola`,
-  transferred: (t) => `${esc(t.by || 'Alguien')} traspasó la issue a ${esc(t.to || 'alguien')}`,
-  assigned: (t) => `${esc(t.by || 'Alguien')} asignó la issue a ${esc(t.to || 'alguien')} desde el Backlog`,
+// Los movimientos: su icono y su frase. Asignar y traspasar (cambia quién la
+// lleva por decisión de otro) van marcados; coger y devolver, más suaves.
+const MOVE = {
+  claimed: { icon: svg('<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><polyline points="17 11 19 13 23 9"/>'), say: (e) => `${who(e.by)} cogió la issue` },
+  released: { icon: svg('<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>'), say: (e) => `${who(e.by)} la devolvió a la cola` },
+  transferred: { strong: true, icon: svg('<path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/>'), say: (e) => `${who(e.by)} la traspasó a ${who(e.to)}` },
+  assigned: { strong: true, icon: svg('<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/>'), say: (e) => `${who(e.by)} se la asignó a ${who(e.to)} desde el Backlog` },
 };
 
 // Quién la ve (las de Remedy no lo dicen) y su etiqueta
@@ -42,23 +44,30 @@ const boxHtml = ({ tag, visibility, text }, open) => (open
   ? `<div class="iss-feed-text nt-box" data-note-fold role="button" tabindex="0" aria-expanded="true">${tag || visibility ? `<div class="nt-top">${labelHtml(tag)}${visHtml(visibility)}</div>` : ''}<div class="nt-text">${esc(text)}</div><i class="nt-chev">${CHEV}</i></div>`
   : `<div class="iss-feed-text nt-box nt-folded" data-note-fold role="button" tabindex="0" aria-expanded="false">${labelHtml(tag)}<span class="nt-first">${esc(firstSentence(text))}</span>${visHtml(visibility)}<i class="nt-chev">${CHEV}</i></div>`);
 
-// Una entrada de la conversación. El motivo de un traspaso va como una nota de
-// quien traspasó (interna); los demás movimientos, como una línea fina.
+// Un movimiento: un hito en la línea de tiempo (su icono en el sitio del
+// avatar) con su frase y su hora; el motivo de un traspaso, debajo, en su caja
+// plegable, como una nota.
+const moveHtml = (e, { open, now }) => {
+  const m = MOVE[e.type] || { icon: '', say: (x) => esc(x.type) };
+  return `<li class="iss-feed-item nt-ev${m.strong ? ' strong' : ''}${open ? ' open' : ''}" data-note-key="${esc(e.key)}"><span class="nt-ev-ic" aria-hidden="true">${m.icon}</span><div class="iss-feed-body">
+      <header><span class="iss-feed-did">${m.say(e)}</span><time>${whenLabel(e.at, now)}</time></header>
+      ${e.text ? boxHtml({ tag: 'Motivo', visibility: null, text: e.text }, open) : ''}
+    </div></li>`;
+};
+
+// Una entrada de la conversación: una nota (de Remedy o de SIA) o un movimiento.
 export const noteItemHtml = (e, { open = false, meId = null, now = new Date() } = {}) => {
-  if (!isFoldable(e)) return `<li class="nt-move" data-note-key="${esc(e.key)}"><span>${(DID[e.type] || ((x) => esc(x.type)))(e)} · ${whenLabel(e.at, now)}</span></li>`;
-  const motive = e.kind === 'move';
-  const did = motive ? `${who(e.by)} traspasó la issue a ${who(e.to)}` : `${who(e.by)}${e.src === 'remedy' ? ' <small>desde Remedy</small>' : ''}`;
+  if (e.kind === 'move') return moveHtml(e, { open, now });
   const edit = canEditNote(e, meId, now) ? `<button type="button" class="iss-feed-edit" data-edit-note="${esc(e.key)}">Editar</button>` : '';
-  const box = boxHtml(motive ? { tag: 'Motivo del traspaso', visibility: 'internal', text: e.text } : e, open);
-  return `<li class="iss-feed-item nt-item v-${e.visibility || (motive ? 'internal' : 'none')}${open ? ' open' : ''}" data-note-key="${esc(e.key)}">${avatar(e.by)}<div class="iss-feed-body">
-      <header><span class="iss-feed-did">${did}</span>${edit}${e.edited ? `<small>editada ${whenLabel(e.edited, now)}</small>` : ''}<time>${whenLabel(e.at, now)}</time></header>
-      ${box}
+  return `<li class="iss-feed-item nt-item v-${e.visibility || 'none'}${open ? ' open' : ''}" data-note-key="${esc(e.key)}">${avatar(e.by)}<div class="iss-feed-body">
+      <header><span class="iss-feed-did">${who(e.by)}${e.src === 'remedy' ? ' <small>desde Remedy</small>' : ''}</span>${edit}${e.edited ? `<small>editada ${whenLabel(e.edited, now)}</small>` : ''}<time>${whenLabel(e.at, now)}</time></header>
+      ${boxHtml(e, open)}
     </div></li>`;
 };
 
 // La conversación entera. remedyMissing: la foto no trae las notas de Remedy (se avisa arriba).
 export const notesListHtml = (feed, { open = new Set(), meId = null, now = new Date(), remedyMissing = false } = {}) => [
-  remedyMissing ? '<li class="nt-move nt-warn"><span>La foto cargada no trae las notas de Remedy: carga un CSV nuevo de la consulta.</span></li>' : '',
+  remedyMissing ? '<li class="nt-warn"><span>La foto cargada no trae las notas de Remedy: carga un CSV nuevo de la consulta.</span></li>' : '',
   ...feed.map((e) => noteItemHtml(e, { open: open.has(e.key), meId, now })),
   feed.length ? '' : '<li class="nt-empty">Todavía no hay notas.</li>',
 ].join('');

@@ -78,11 +78,6 @@ export const notesFeed = ({ worklog = [], timeline = [] } = {}) => {
 };
 export const noteCount = (feed) => feed.filter((e) => e.kind === 'note').length;
 
-// Se pliegan las notas y el motivo de un traspaso; todo empieza plegado (a su
-// primera frase) y cada una se despliega a mano.
-const foldable = (e) => e.kind === 'note' || (e.type === 'transferred' && e.text);
-export const isFoldable = foldable;
-
 // Una nota la edita quien la escribió, durante las 24 h siguientes (la misma
 // regla que el bridge, server/issues/notes.js; aquí solo decide si se enseña el botón).
 const EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
