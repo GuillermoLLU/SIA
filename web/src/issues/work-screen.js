@@ -1,7 +1,7 @@
 // La pantalla de trabajo de una issue. A la izquierda, en pestañas: el
-// detalle de la issue (por defecto), las notas de trabajo de Remedy, las
-// relacionadas y su histórico en SIA (por dónde ha pasado y las notas
-// internas del equipo). A la derecha, sus datos clave (un cuadro que se pliega
+// detalle de la issue (por defecto), sus notas (las de Remedy y las del equipo
+// en SIA, con sus movimientos, en una sola conversación: notes-html.js) y las
+// relacionadas. A la derecha, sus datos clave (un cuadro que se pliega
 // a una línea de resumen cuando arranca el chat) y debajo la resolución
 // asistida por IA (issue-chat.js), que vive mientras la issue esté abierta y
 // se puede ampliar a toda la pantalla de trabajo.
@@ -11,22 +11,18 @@ import { STATUS_ES, SEVERITY_ES, when, whenIso, whenLabel, newestFirst, age, pen
 import { item } from './parts.js';
 import { waitHtml } from '../ui/wait.js';
 import { actionsFor } from './actions.js';
+import { notesPanelHtml, notesTab, notesCountOf } from './notes-html.js';
 
 const WORK_TABS = [
   { key: 'detail', label: 'Detalle' },
-  { key: 'remedy', label: 'Seguimiento' },
-  { key: 'trail', label: 'Notas internas' },
+  { key: 'notes', label: 'Notas' },
   { key: 'related', label: 'Relacionadas' },
 ];
 
-// El histórico en SIA: lo que da el bridge en `timeline` (movimientos y notas,
-// de la más antigua a la más nueva), pintado al revés, lo reciente arriba. Va
-// aparte para poder refrescarlo al añadir o editar una nota.
-export const trailTab = (n) => `${WORK_TABS.find((t) => t.key === 'trail').label}${n ? `<span>${n}</span>` : ''}`;
-// Las notas de trabajo de Remedy (worklog de la foto): quién, cuándo y qué,
-// la más reciente arriba y abierta; el resto, plegadas con su primera línea,
-// y se abren al pulsar la tarjeta. Sin la columna en la foto (cargada antes
-// de leerla), se pide un CSV nuevo.
+// Las notas de trabajo de Remedy (worklog de la foto) en tarjetas: quién,
+// cuándo y qué, la más reciente arriba y abierta; el resto, plegadas con su
+// primera línea. La usa el panel del Backlog (en la issue van en Notas). Sin la
+// columna en la foto (cargada antes de leerla), se pide un CSV nuevo.
 export const firstLine = (text) => { const l = String(text).trim().split('\n')[0]; return l.length > 90 ? `${l.slice(0, 90)}…` : l; };
 export const worklogHtml = (worklog, now = new Date()) => {
   if (!worklog) return '<p class="iss-empty">La foto cargada no trae las notas de Remedy: carga un CSV nuevo de la consulta.</p>';
@@ -36,41 +32,6 @@ export const worklogHtml = (worklog, now = new Date()) => {
       <p>${esc(n.text)}</p>
     </details>`).join('')}</div>`;
 };
-
-// Quién: un avatar con sus iniciales (sin nombre, un interrogante).
-const initials = (name) => (name || '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('') || '?';
-const avatar = (name) => `<span class="iss-avatar${name ? '' : ' unknown'}" aria-hidden="true">${esc(initials(name))}</span>`;
-const who = (name) => `<b>${esc(name || 'Alguien')}</b>`;
-
-// Cada entrada del feed: avatar, cabecera (quién hizo qué, y la hora) y, si
-// lo hay, el texto (la nota o el motivo del traspaso) como comentario.
-const DID = {
-  claimed: (t) => `${who(t.by)} cogió la issue`,
-  released: (t) => `${who(t.by)} devolvió la issue a la cola`,
-  transferred: (t) => `${who(t.by)} traspasó la issue a ${who(t.to)}`,
-  assigned: (t) => `${who(t.by)} asignó la issue a ${who(t.to)} desde el Backlog`,
-  note: (t) => `${who(t.by)} escribió una nota`,
-};
-// Una nota la edita quien la escribió, durante las 24 h siguientes (la misma
-// regla que el bridge, server/issues/notes.js; aquí solo decide si se enseña el botón).
-export const EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
-export const canEditNote = (t, meId, now) => t.type === 'note' && !!meId && t.byId === meId && now.getTime() - new Date(t.at).getTime() <= EDIT_WINDOW_MS;
-
-const trailItem = (t, meId, now) => `<li class="iss-feed-item" data-entry="${t.type === 'note' ? esc(String(t.id)) : ''}">${avatar(t.by)}<div class="iss-feed-body">
-      <header><span class="iss-feed-did">${(DID[t.type] || ((x) => esc(x.type)))(t)}</span>${canEditNote(t, meId, now) ? `<button type="button" class="iss-feed-edit" data-edit-note="${esc(String(t.id))}">Editar</button>` : ''}${t.edited ? `<small>editada ${whenLabel(t.edited, now)}</small>` : ''}<time>${whenLabel(t.at, now)}</time></header>
-      ${t.text ? `<div class="iss-feed-text" data-note-text>${t.type === 'transferred' ? '<span class="iss-feed-label">Motivo</span>' : ''}${esc(t.text)}</div>` : ''}
-    </div></li>`;
-
-// El editor de una nota, en el sitio de su texto: Intro guarda, Escape cancela.
-export const noteEditorHtml = (text) => `<form class="iss-note-edit" data-note-edit novalidate>
-    <textarea name="note" rows="3" aria-label="Editar la nota">${esc(text)}</textarea>
-    <footer><button type="button" class="lab-btn" data-edit-cancel>Cancelar</button><button type="submit" class="lab-btn primary">Guardar</button></footer>
-  </form>`;
-// Lo más reciente arriba; cada entrada con su cuándo («HOY 13:05» o «22/10 12:06»).
-// meId: quién mira, para ofrecer «Editar» solo en sus notas recientes.
-export const trailHtml = (timeline = [], now = new Date(), meId = null) => (timeline.length
-  ? `<ol class="iss-trail-list">${newestFirst(timeline).map((t) => trailItem(t, meId, now)).join('')}</ol>`
-  : '<p class="iss-empty">Nadie la ha movido ni anotado en SIA todavía.</p>');
 
 const CHEVRON = '<svg class="iss-keys-chev" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
 const EXPAND = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>';
@@ -84,16 +45,6 @@ export const assistHtml = (error = null) => `<div class="ai-start">
 
 // …y, pulsado, el aviso de que el agente arranca (ui/wait.js), en su sitio
 export const assistWaitHtml = () => `<div class="ai-start">${waitHtml('Iniciando agente…', { hidden: false })}</div>`;
-
-// En el campo de nota, Intro envía; Mayús+Intro salta de línea.
-export const sendsNote = (e) => e.key === 'Enter' && !e.shiftKey;
-
-// Escribir una nota interna, al pie del histórico. Enviar se enciende con texto.
-const SEND = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>';
-export const noteFormHtml = () => `<form class="iss-note-form" data-note-form novalidate>
-    <textarea name="note" rows="1" placeholder="Escribe una nota interna para el equipo…" aria-label="Nota interna"></textarea>
-    <button type="submit" class="iss-send" aria-label="Enviar" title="Enviar (Intro)" disabled>${SEND}</button>
-  </form>`;
 
 // El cuerpo del diálogo de confirmación al devolver a la cola.
 export const releaseDialogHtml = (id, text) => `<div class="iss-dlg-issue"><span class="iss-dlg-code">${esc(id)}</span><span class="iss-dlg-text">${esc(text || '')}</span></div>
@@ -133,7 +84,7 @@ export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, meI
   <div class="iss-work">
     <section class="iss-card iss-work-main">
       <div class="iss-wtabs" role="tablist">
-        ${WORK_TABS.map((t) => `<button role="tab" data-wtab="${t.key}" aria-selected="${t.key === tab}">${t.key === 'trail' ? trailTab(timeline.length) : t.label}${t.key === 'related' && sameCenter.length ? `<span>${sameCenter.length}</span>` : ''}${t.key === 'remedy' && i.worklog?.length ? `<span>${i.worklog.length}</span>` : ''}</button>`).join('')}
+        ${WORK_TABS.map((t) => `<button role="tab" data-wtab="${t.key}" aria-selected="${t.key === tab}">${t.key === 'notes' ? notesTab(notesCountOf({ worklog: i.worklog, timeline })) : t.label}${t.key === 'related' && sameCenter.length ? `<span>${sameCenter.length}</span>` : ''}</button>`).join('')}
       </div>
 
       <div class="iss-wpanel" data-wpanel="detail"${tab === 'detail' ? '' : ' hidden'}>
@@ -157,15 +108,8 @@ export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, meI
         </div>
       </div>
 
-      <div class="iss-wpanel" data-wpanel="remedy"${tab === 'remedy' ? '' : ' hidden'}>
-        <p class="iss-trail-hint">Lo que se ha ido anotando en Remedy sobre esta issue</p>
-        ${worklogHtml(i.worklog, now)}
-      </div>
-
-      <div class="iss-wpanel iss-trail-panel" data-wpanel="trail"${tab === 'trail' ? '' : ' hidden'}>
-        <p class="iss-trail-hint">Por quién ha pasado esta issue y las notas internas del equipo</p>
-        <div class="iss-trail-scroll" data-trail>${trailHtml(timeline, now, meId)}</div>
-        ${noteFormHtml()}
+      <div class="iss-wpanel nt-panel" data-wpanel="notes"${tab === 'notes' ? '' : ' hidden'}>
+        ${notesPanelHtml({ worklog: i.worklog, timeline, meId, now })}
       </div>
       <div class="iss-wpanel" data-wpanel="related"${tab === 'related' ? '' : ' hidden'}>
         ${i.related ? `<h4 class="iss-sub">Enlazadas en Remedy</h4><p class="iss-linked">${i.related.split('|').map((x) => `<span>${esc(x.trim())}</span>`).join('')}</p>` : ''}

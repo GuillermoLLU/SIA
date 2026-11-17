@@ -10,7 +10,8 @@ import { item, REFRESH_ICON } from './parts.js';
 import { onEscape } from '../ui/dialog.js';
 import { pressStartedIn } from '../ui/dom.js';
 import { pickClick, openPicker, closePickers } from '../ui/picker.js';
-import { workScreen, trailHtml, trailTab, releaseDialogHtml, sendsNote, noteEditorHtml } from './work-screen.js';
+import { workScreen, releaseDialogHtml } from './work-screen.js';
+import { createNotes } from './notes-view.js';
 import { ACTIONS, actionForm, readAction, isComplete, chaseNote, chaseTarget } from './actions.js';
 import { createResolver } from './resolve-view.js';
 import { knowsOrigin, originOf } from './origin.js';
@@ -34,6 +35,8 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   let data = null, now = new Date(), opened = null, onDesk = false, workTab = 'detail', chat = null, loading = false, picking = false;
   let issue = null; // la issue abierta: Escalar mira su criticidad, su estado y su ticket
   const closeChat = () => { chat?.dispose(); chat = null; };
+  // la pestaña Notas vive en su módulo (notes-view.js): plegar, escribir, editar
+  const notes = createNotes({ root, api, toast, me });
   // el tooltip de «Traspasada» se saca al body: al repintar, fuera, o se quedaría flotando
   const hideTip = mountTips(root);
 
@@ -116,9 +119,10 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     closeAction();
     hideTip();
     now = new Date(); // el histórico y las edades, a la hora de abrirla
+    notes.attach(i, timeline);
     root.innerHTML = workScreen({ issue: i, sameCenter, timeline, now, mine, meId: me?.id, tab: workTab });
     animateEnter(root.querySelector('.iss-work-page'), 'iss-opening', ISSUE_ENTER_MS);
-    if (workTab === 'trail') scrollTrailToStart();
+    if (workTab === 'notes') notes.shown();
     const chatHost = root.querySelector('.iss-chat-body');   // pendiente de un tercero no hay chat
     chatHost?.addEventListener('chat-open', () => foldKeys(true)); // con el chat en marcha, los datos se pliegan a su resumen
     chat = chatHost ? openChat?.(chatHost, i) || null : null;
@@ -162,14 +166,12 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   };
   const openIssue = async (id) => renderIssue(await api.get(id));
 
-  // El histórico va con lo más reciente arriba: al enseñarlo, arriba del todo.
-  const scrollTrailToStart = () => { const box = root.querySelector('[data-trail]'); if (box) box.scrollTop = 0; };
   // Las pestañas de la pantalla de trabajo.
   const showTab = (key) => {
     workTab = key;
     root.querySelectorAll('[data-wtab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.wtab === key)));
     root.querySelectorAll('[data-wpanel]').forEach((p) => { p.hidden = p.dataset.wpanel !== key; });
-    if (key === 'trail') scrollTrailToStart();
+    if (key === 'notes') notes.shown(); // las notas van como una conversación: abajo, en lo último
   };
   // Pulsar el fondo cierra la ventana de una acción; soltar fuera tras seleccionar texto dentro, no.
   const pressedInModal = pressStartedIn(root, (t) => !!t.closest('.iss-modal > *'));
@@ -230,9 +232,6 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
         try { return await openAction(act.dataset.act); } finally { act.disabled = false; }
       }
       if (t.closest('[data-act-cancel]') || (t.classList.contains('iss-modal') && !pressedInModal())) return closeAction();
-      const ed = t.closest('[data-edit-note]');
-      if (ed) return openNoteEditor(ed.dataset.editNote);
-      if (t.closest('[data-edit-cancel]')) return refreshTrail();
       const r = t.closest('[data-id]');
       if (r) return openIssue(r.dataset.id);
       if (t.closest('[data-back]')) { renderDesk(); root.scrollTop = 0; return; }
@@ -298,71 +297,14 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     // Escape: con la lista del selector abierta la cierra; si no, cierra el modal
     offEscape = onEscape(() => (openPicker(root) ? closePickers(root) : closeAction()));
   };
-  // Tras añadir una nota, el histórico se repinta en su sitio.
-  const refreshTrail = async () => {
-    const items = await api.timeline(opened);
-    const box = root.querySelector('[data-trail]');
-    if (box) box.innerHTML = trailHtml(items, new Date(), me?.id);
-    scrollTrailToStart();
-    const tab = root.querySelector('[data-wtab="trail"]');
-    if (tab) tab.innerHTML = trailTab(items.length);
-  };
   // El botón de enviar, apagado hasta que estén todos los campos obligatorios.
   // Resolver (por pasos) y Escalar (no bloquea) llevan su propia validación: aquí, los demás.
   const syncSubmit = (form) => { if (['resolve', 'escalate'].includes(form.dataset.actForm)) return; form.querySelector('[type=submit]').disabled = !isComplete(form.dataset.actForm, Object.fromEntries(new FormData(form))); };
   root.addEventListener('input', (e) => {
     const form = e.target.closest('[data-act-form]');
-    if (form) return syncSubmit(form);
-    const nf = e.target.closest('[data-note-form]');
-    if (nf) nf.querySelector('[type=submit]').disabled = !nf.note.value.trim();
-  });
-  // Editar una nota propia: el editor ocupa el sitio del texto; Guardar manda
-  // el cambio y se repinta el histórico; Cancelar o Escape lo deja como estaba.
-  const openNoteEditor = (noteId) => {
-    const item = root.querySelector(`[data-entry="${noteId}"]`);
-    const text = item?.querySelector('[data-note-text]');
-    if (!text) return;
-    text.outerHTML = noteEditorHtml(text.textContent);
-    const ta = item.querySelector('[data-note-edit] textarea');
-    ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
-  };
-  const saveNote = async (form) => {
-    const body = form.note.value.trim();
-    if (!body) return;
-    const noteId = Number(form.closest('[data-entry]').dataset.entry);
-    form.querySelector('[type=submit]').disabled = true;
-    try { await api.editNote(opened, noteId, body); await refreshTrail(); toast?.('Nota editada.'); }
-    catch (err) { toast?.(err.message); form.querySelector('[type=submit]').disabled = false; }
-  };
-  // La nota interna, desde el pie del histórico: se guarda, se repinta y se
-  // baja hasta ella.
-  const sendNote = async (form) => {
-    const text = form.note.value.trim();
-    if (!text) return;
-    const btn = form.querySelector('[type=submit]');
-    btn.disabled = true;
-    try {
-      await api.addNote(opened, text);
-      form.note.value = '';
-      await refreshTrail();
-      toast?.('Nota añadida.');
-    } catch (err) { toast?.(err.message); btn.disabled = false; }
-  };
-  root.addEventListener('keydown', (e) => {
-    if (e.target.matches('[data-note-edit] textarea')) {
-      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); return refreshTrail(); }
-      if (sendsNote(e)) { e.preventDefault(); return saveNote(e.target.closest('[data-note-edit]')); }
-      return;
-    }
-    if (!e.target.matches('[data-note-form] textarea') || !sendsNote(e)) return;
-    e.preventDefault();
-    sendNote(e.target.closest('[data-note-form]'));
+    if (form) syncSubmit(form);
   });
   root.addEventListener('submit', async (e) => {
-    const ne = e.target.closest('[data-note-edit]');
-    if (ne) { e.preventDefault(); return saveNote(ne); }
-    const nf = e.target.closest('[data-note-form]');
-    if (nf) { e.preventDefault(); return sendNote(nf); }
     const form = e.target.closest('[data-act-form]');
     if (!form) return;
     e.preventDefault();
@@ -393,7 +335,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       if (key === 'chase') {
         await api.addNote(opened, chaseNote(issue, values.message));
         closeAction();
-        await refreshTrail();
+        await notes.refresh();
         return toast?.(`Reclamación ${chaseTarget(issue)} anotada en el histórico. Aún no le llega: irá por SIGLO cuando lo conectemos.`);
       }
       closeAction();
@@ -430,6 +372,6 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
 
   return {
     show: () => showDesk().catch((err) => { root.innerHTML = `<div class="iss-page"><p class="iss-empty">No se pudieron cargar las issues: ${esc(err.message)}</p></div>`; }),
-    dispose: () => { resolver.dispose(); clearInterval(refresher); window.removeEventListener('focus', picked); closeChat(); },
+    dispose: () => { resolver.dispose(); notes.dispose(); clearInterval(refresher); window.removeEventListener('focus', picked); closeChat(); },
   };
 };

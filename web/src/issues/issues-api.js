@@ -19,7 +19,8 @@ export const createIssuesApi = (api) => {
     draftFile: (issueId, n) => api(`/issues/${id(issueId)}/draft/file/${n}`),
     dropDraftFile: (issueId, n) => api(`/issues/${id(issueId)}/draft/file/${n}`, { method: 'DELETE' }),
     transfer: (issueId, to, comment) => api(`/issues/${id(issueId)}/transfer`, { method: 'POST', body: { to, comment } }),
-    addNote: (issueId, body) => api(`/issues/${id(issueId)}/notes`, { method: 'POST', body: { body } }),
+    // visibility: 'private' | 'internal' (sin decirlo) | 'public' · tag: una etiqueta del método o null
+    addNote: (issueId, body, { visibility, tag } = {}) => api(`/issues/${id(issueId)}/notes`, { method: 'POST', body: { body, visibility, tag } }),
     editNote: (issueId, noteId, body) => api(`/issues/${id(issueId)}/notes/${id(noteId)}`, { method: 'PUT', body: { body } }),
     timeline: async (issueId) => (await api(`/issues/${id(issueId)}/timeline`)).timeline,
     // el fichero tal cual: el bridge lo lee en streaming
