@@ -58,6 +58,9 @@ export const firstSentence = (text) => {
   const more = t.slice(t.indexOf(head) + head.length).trim().length > 0;
   return more ? `${head.replace(/[\s.!?:;,]+$/, '')}…` : head;
 };
+// ¿Queda algo después de su primera frase? Si no, plegada ya se lee entera (y no se despliega
+// si además cabe en su línea: eso solo se sabe en pantalla, notes-fit.js).
+export const hasMore = (text) => firstSentence(text) !== String(text || '').trim();
 
 // Cuándo, en milisegundos: vale para la fecha ISO de la base y para la «YYYY-MM-DD HH:MM» de Remedy.
 const ms = (at) => new Date(String(at || '').replace(' ', 'T')).getTime() || 0;

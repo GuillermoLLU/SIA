@@ -8,6 +8,7 @@ import { onEscape } from '../ui/dialog.js';
 import { pressStartedIn } from '../ui/dom.js';
 import { MIN_DIGITS, digitsOf, hitsHtml, recentOf, recentHtml, incomingModalHtml } from './incoming.js';
 import { callReady, callNote } from './call.js';
+import { fitNotes } from './notes-fit.js';
 
 // ¿Se puede guardar? El teléfono desde el que llaman y lo que se habló (como una llamada atendida)
 const ready = (values) => callReady(values).answered;
@@ -49,7 +50,7 @@ export const createIncoming = ({ root, api, toast }) => {
     offEscape?.(); offEscape = null;
     modal?.remove(); modal = null;
   };
-  const paintRecent = () => { const ol = modal?.querySelector('[data-incoming-recent]'); if (ol) ol.innerHTML = recentHtml(recent, { open }); };
+  const paintRecent = () => { const ol = modal?.querySelector('[data-incoming-recent]'); if (ol) ol.innerHTML = recentHtml(recent, { open }); fitNotes(ol); };
   const openIssue = async (id) => {
     hide();
     let got;
@@ -63,6 +64,7 @@ export const createIncoming = ({ root, api, toast }) => {
     modal = document.body.lastElementChild;
     modal.dataset.issue = got.issue.id;
     wireModal(modal);
+    fitNotes(modal.querySelector('[data-incoming-recent]')); // las de una frase que caben, sin desplegar
     modal.querySelector('#inc-f-phone').focus();
     offEscape = onEscape(close);
   };

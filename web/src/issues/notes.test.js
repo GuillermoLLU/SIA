@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { notesFeed, noteCount, callOf, firstSentence, splitTag, tagLabel, canEditNote, sendsNote, NOTE_TAGS } from './notes.js';
+import { notesFeed, noteCount, callOf, firstSentence, hasMore, splitTag, tagLabel, canEditNote, sendsNote, NOTE_TAGS } from './notes.js';
 
 const WORKLOG = [
   { at: '2026-10-12 12:25', who: 'robot.siglo', text: 'Buenas, no podemos entrar en RFID Warehouse.' },
@@ -77,4 +77,13 @@ test('una llamada: la nota con CALLOK (atendida) o CALLKO (sin respuesta); delan
   assert.deepEqual(call('CALLOK', '12 usuarios afectados'), { answered: true, phone: null, said: '12 usuarios afectados' }, 'un número corto no es un teléfono');
   assert.equal(callOf({ kind: 'note', tag: 'ANALISIS', text: '+90 212 555 0143' }), null);
   assert.equal(callOf({ kind: 'move', type: 'claimed' }), null);
+});
+
+test('hasMore: si queda algo después de la primera frase (si no, plegada ya se lee entera)', () => {
+  assert.equal(hasMore('Una sola frase.'), false);
+  assert.equal(hasMore('  Llamar mañana a las 9:00 a Mehmet.  '), false);
+  assert.equal(hasMore('Sin punto final'), false);
+  assert.equal(hasMore(''), false);
+  assert.equal(hasMore('Primera frase. Segunda.'), true);
+  assert.equal(hasMore('Primera línea\nsegunda línea'), true);
 });

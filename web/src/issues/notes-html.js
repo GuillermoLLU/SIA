@@ -9,7 +9,7 @@
 import { esc, svg } from '../ui/html.js';
 import { initials } from '../ui/initials.js';
 import { whenLabel } from './format.js';
-import { VISIBILITY, VISIBILITIES, NOTE_TAGS, tagLabel, firstSentence, canEditNote, callOf, notesFeed, noteCount } from './notes.js';
+import { VISIBILITY, VISIBILITIES, NOTE_TAGS, tagLabel, firstSentence, hasMore, canEditNote, callOf, notesFeed, noteCount } from './notes.js';
 
 const icon = (paths) => svg(paths, { width: 2, hidden: true });
 const ICON = {
@@ -43,10 +43,12 @@ const labelHtml = (label) => (label ? `<span class="iss-feed-label">${esc(label)
 // La caja de una nota. Desplegada: el texto entero, con quién la ve a la
 // derecha de su primera línea (y, en la del motivo de un traspaso, su título
 // encima); plegada: todo en una línea, con la primera frase. (Sin espacios entre etiquetas: la caja respeta los saltos de
-// línea del texto.)
+// línea del texto.) La de una sola frase lleva nt-short: si cabe en su línea, no
+// se despliega (notes-fit.js lo mide en pantalla).
+const foldedClass = (text) => `iss-feed-text nt-box nt-folded${hasMore(text) ? '' : ' nt-short'}`;
 const boxHtml = ({ label = null, visibility, text }, open) => (open
   ? `<div class="iss-feed-text nt-box" data-note-fold role="button" tabindex="0" aria-expanded="true">${label ? `<div class="nt-top">${labelHtml(label)}${visHtml(visibility)}</div>` : visHtml(visibility)}<div class="nt-text">${esc(text)}</div><i class="nt-chev">${CHEV}</i></div>`
-  : `<div class="iss-feed-text nt-box nt-folded" data-note-fold role="button" tabindex="0" aria-expanded="false">${labelHtml(label)}<span class="nt-first">${esc(firstSentence(text))}</span>${visHtml(visibility)}<i class="nt-chev">${CHEV}</i></div>`);
+  : `<div class="${foldedClass(text)}" data-note-fold role="button" tabindex="0" aria-expanded="false">${labelHtml(label)}<span class="nt-first">${esc(firstSentence(text))}</span>${visHtml(visibility)}<i class="nt-chev">${CHEV}</i></div>`);
 
 // Las llamadas: el teléfono (atendida) o el teléfono tachado (sin respuesta)
 export const PHONE = icon('<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>');
@@ -75,7 +77,7 @@ const callBoxHtml = (c, visibility, open) => {
   if (!phone && !said) return '';
   return open
     ? `<div class="iss-feed-text nt-box" data-note-fold role="button" tabindex="0" aria-expanded="true">${visHtml(visibility)}<div class="nt-text">${phone}${esc(said)}</div><i class="nt-chev">${CHEV}</i></div>`
-    : `<div class="iss-feed-text nt-box nt-folded" data-note-fold role="button" tabindex="0" aria-expanded="false">${phone}<span class="nt-first">${esc(firstSentence(said))}</span>${visHtml(visibility)}<i class="nt-chev">${CHEV}</i></div>`;
+    : `<div class="${foldedClass(said)}" data-note-fold role="button" tabindex="0" aria-expanded="false">${phone}<span class="nt-first">${esc(firstSentence(said))}</span>${visHtml(visibility)}<i class="nt-chev">${CHEV}</i></div>`;
 };
 const callHtml = (e, c, { open, meId, now }) => `<li class="iss-feed-item nt-ev nt-call ${c.answered ? 'ok' : 'ko'}${open ? ' open' : ''}" data-note-key="${esc(e.key)}"><span class="nt-ev-ic" aria-hidden="true">${c.answered ? PHONE : PHONE_OFF}</span><div class="iss-feed-body">
       <header><span class="iss-feed-did">${who(e.by)}<span class="nt-tag" title="${esc(tagLabel(e.tag))}">${esc(e.tag)}</span></span>${editHtml(e, meId, now)}<time>${whenLabel(e.at, now)}</time></header>

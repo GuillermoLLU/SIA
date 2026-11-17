@@ -7,6 +7,7 @@
 // deps: root · api (addNote, editNote, timeline) · toast · me ({ id })
 import { notesFeed, noteCount, sendsNote, tagLabel } from './notes.js';
 import { notesListHtml, noteItemHtml, noteEditorHtml, notesTab, visPickHtml } from './notes-html.js';
+import { fitNotes } from './notes-fit.js';
 
 const GROW_MAX_PX = 160; // lo que crece la caja de escribir antes de hacer scroll
 
@@ -16,16 +17,27 @@ export const createNotes = ({ root, api, toast, me }) => {
   const ctx = () => ({ open, meId: me?.id ?? null, now: new Date(), remedyMissing: !issue?.worklog });
   const entryOf = (key) => feed.find((e) => e.key === key) || null;
   const toEnd = () => { const s = $('[data-notes-scroll]'); if (s) s.scrollTop = s.scrollHeight; };
+  // Las de una frase que caben en su línea, sin desplegar (notes-fit.js). Se vuelve a
+  // medir si la lista cambia de ancho (la ventana, el chat ampliado, la pestaña al enseñarse).
+  let watched = null;
+  const resized = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => fit());
+  const fit = () => {
+    const list = $('[data-notes-list]');
+    if (list && list !== watched) { resized?.disconnect(); resized?.observe(list); watched = list; }
+    fitNotes(list);
+  };
   const paint = () => {
     const list = $('[data-notes-list]');
     if (list) list.innerHTML = notesListHtml(feed, ctx());
     const tab = $('[data-wtab="notes"]');
     if (tab) tab.innerHTML = notesTab(noteCount(feed));
+    fit();
   };
   const paintOne = (key) => {
     const li = root.querySelector(`[data-notes-list] [data-note-key="${CSS.escape(key)}"]`);
     const e = entryOf(key);
     if (li && e) li.outerHTML = noteItemHtml(e, { ...ctx(), open: open.has(key) });
+    fit();
   };
 
   // La issue que se enseña (work-screen.js ya la ha pintado con las mismas reglas)
@@ -178,9 +190,10 @@ export const createNotes = ({ root, api, toast, me }) => {
     attach, refresh,
     // la conversación que se enseña (para proponer el teléfono de una llamada, call.js)
     entries: () => feed,
-    // al enseñar la pestaña: abajo del todo, en lo último
-    shown: toEnd,
+    // al enseñar la pestaña: abajo del todo, en lo último (y medidas las de una frase)
+    shown: () => { fit(); toEnd(); },
     dispose: () => {
+      resized?.disconnect();
       root.removeEventListener('click', onClick);
       root.removeEventListener('keydown', onKey);
       root.removeEventListener('input', onInput);

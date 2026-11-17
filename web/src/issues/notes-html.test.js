@@ -74,7 +74,7 @@ test('una llamada: como la nota del técnico, con el teléfono en el sitio del a
   const k = noteItemHtml(ko, { now });
   assert.match(k, /<li class="iss-feed-item nt-ev nt-call ko" data-note-key="r0"><span class="nt-ev-ic" aria-hidden="true"><svg/);
   assert.match(k, /<span class="iss-feed-did"><b>CESARHD<\/b><span class="nt-tag" title="Llamada sin respuesta">CALLKO<\/span><\/span>/);
-  assert.match(k, /nt-folded"[^>]*><span class="nt-phone">\+90 212 555 0143<\/span><span class="nt-first">No responden\.<\/span>/, 'de Remedy, sin texto: «No responden.»');
+  assert.match(k, /nt-folded nt-short"[^>]*><span class="nt-phone">\+90 212 555 0143<\/span><span class="nt-first">No responden\.<\/span>/, 'de Remedy, sin texto: «No responden.» (una frase: si cabe, no se despliega)');
   const o = noteItemHtml(ok, { now });
   assert.match(o, /nt-call ok" data-note-key="r1">/);
   assert.match(o, /<b>CESARHD<\/b><span class="nt-tag" title="Llamada atendida">CALLOK<\/span>/);
@@ -124,4 +124,10 @@ test('la pestaña y su panel: el número de notas y todo plegado', () => {
   assert.doesNotMatch(html, / open"/, 'ninguna desplegada, tampoco la última');
   assert.match(html, /data-notes-scroll/);
   assert.match(html, /data-note-form/);
+});
+
+test('plegada, la de una sola frase lleva nt-short (si cabe en su línea no se despliega); la que sigue, no', () => {
+  assert.match(noteItemHtml(sia({ text: 'Llamar mañana a Mehmet.' }), { now }), /class="iss-feed-text nt-box nt-folded nt-short" data-note-fold/);
+  assert.match(noteItemHtml(sia({ text: 'Primera frase. Y otra.' }), { now }), /class="iss-feed-text nt-box nt-folded" data-note-fold/);
+  assert.doesNotMatch(noteItemHtml(sia({ text: 'Llamar mañana a Mehmet.' }), { now, open: true }), /nt-short/, 'desplegada, no');
 });

@@ -302,6 +302,9 @@
 .nt-folded .nt-vis { align-self: center; }
 .nt-folded .nt-chev { top: 50%; margin-top: -7px; transform: rotate(-90deg); }
 .nt-first { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+/* la de una frase que cabe en su línea: no hay nada más que ver (notes-fit.js) */
+.nt-whole { cursor: default; }
+.nt-whole .nt-chev { display: none; }
 /* los movimientos (cogida, devuelta, traspasada, asignada): un hito en la línea de tiempo,
    su icono en un círculo en el sitio del avatar; asignar y traspasar, en negro; coger y devolver, en gris */
 .nt-ev-ic { position: relative; z-index: 1; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; color: var(--text-low); background: var(--surface); border: 1.5px solid var(--border); }
