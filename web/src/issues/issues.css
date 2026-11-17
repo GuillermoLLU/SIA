@@ -677,7 +677,9 @@ a.rv-id:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .iss-esc-dest:has(:checked) { z-index: 1; border-color: var(--accent); background: var(--accent); }
 .iss-esc-dest:has(:checked) .iss-esc-seg { font-weight: 600; color: var(--surface); }
 .iss-esc-dest:has(.iss-sr:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; z-index: 2; }
-.iss-esc-info { position: absolute; top: 50%; right: 8px; translate: 0 -50%; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; color: var(--text-low); background: none; border: 0; cursor: pointer; }
+.iss-esc-info { position: absolute; top: 50%; right: 8px; translate: 0 -50%; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; color: var(--text-low); background: none; border: 0; cursor: pointer; opacity: 0; transition: opacity .15s ease, color var(--motion-state); }
+/* la ayuda de cada destino, solo al pasar por encima (o al llegar con el teclado): todas a la vez hacían ruido */
+.iss-esc-dest:hover .iss-esc-info, .iss-esc-dest:has(:focus-visible) .iss-esc-info { opacity: 1; }
 .iss-esc-info:hover { color: var(--text); }
 .iss-esc-dest:has(:checked) .iss-esc-info { color: var(--surface); }
 /* el nombre del equipo de fuera del mapa, en su misma fila: el hueco está siempre, el campo sale al elegirlo */
