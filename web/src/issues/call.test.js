@@ -19,9 +19,10 @@ test('la nota que la registra: interna, con su etiqueta de llamada y el teléfon
   const ok = callNote({ phone: ' +34 600 000 000 ', comment: ' Confirma que ya escanean. ', answered: true });
   assert.deepEqual(ok, { body: '+34 600 000 000 Confirma que ya escanean.', tag: 'CALLOK', visibility: 'internal' });
   const ko = callNote({ phone: '+34 600 000 000', answered: false });
-  assert.deepEqual(ko, { body: '+34 600 000 000', tag: 'CALLKO', visibility: 'internal' });
+  assert.deepEqual(ko, { body: '+34 600 000 000 Intentamos contactar con el centro y no responden.', tag: 'CALLKO', visibility: 'internal' }, 'sin respuesta: lo que escribiría el técnico');
+  assert.equal(callNote({ phone: '+34 600 000 000', comment: 'Buzón de voz, dejo mensaje.', answered: false }).body, '+34 600 000 000 Buzón de voz, dejo mensaje.');
   assert.deepEqual(callOf({ kind: 'note', text: ok.body, tag: ok.tag }), { answered: true, phone: '+34 600 000 000', said: 'Confirma que ya escanean.' });
-  assert.deepEqual(callOf({ kind: 'note', text: ko.body, tag: ko.tag }), { answered: false, phone: '+34 600 000 000', said: '' });
+  assert.deepEqual(callOf({ kind: 'note', text: ko.body, tag: ko.tag }), { answered: false, phone: '+34 600 000 000', said: 'Intentamos contactar con el centro y no responden.' });
 });
 
 test('el teléfono propuesto: el de la última llamada; si no hay, el de contacto del centro; si no, ninguno', () => {

@@ -66,21 +66,22 @@ test('una nota sin texto (de Remedy, solo su etiqueta) se queda en su línea: au
   assert.doesNotMatch(html, /nt-box|data-note-fold/);
 });
 
-test('una llamada: un hito con el teléfono, quién llamó y a qué número; lo hablado, en su caja plegable; sin nada más, solo la línea', () => {
+test('una llamada: como la nota del técnico, con el teléfono en el sitio del avatar y su etiqueta de Remedy (CALLOK, CALLKO); en la caja, el número y lo escrito', () => {
   const [ko, ok] = notesFeed({ worklog: [
     { at: '2026-10-22 13:20', who: 'CESARHD', text: '[CALLKO] +90 212 555 0143' },
     { at: '2026-10-22 13:45', who: 'CESARHD', text: '[CALLOK] +90 212 555 0143 Hablamos con <Mehmet>. Confirma que escanean.' },
   ] });
   const k = noteItemHtml(ko, { now });
   assert.match(k, /<li class="iss-feed-item nt-ev nt-call ko" data-note-key="r0"><span class="nt-ev-ic" aria-hidden="true"><svg/);
-  assert.match(k, /<b>CESARHD<\/b> intentó ponerse en contacto sin éxito con el número<span class="nt-phone">\+90 212 555 0143<\/span><\/span>/);
-  assert.match(noteItemHtml({ ...ko, text: '' }, { now }), /<b>CESARHD<\/b> intentó ponerse en contacto sin éxito<\/span>/, 'sin número, sin «con el número»');
-  assert.doesNotMatch(k, /nt-box|nt-tag/, 'sin respuesta y sin más: solo la línea, sin ficha de etiqueta');
+  assert.match(k, /<span class="iss-feed-did"><b>CESARHD<\/b><span class="nt-tag" title="Llamada sin respuesta">CALLKO<\/span><\/span>/);
+  assert.match(k, /nt-folded"[^>]*><span class="nt-phone">\+90 212 555 0143<\/span><span class="nt-first">No responden\.<\/span>/, 'de Remedy, sin texto: «No responden.»');
   const o = noteItemHtml(ok, { now });
   assert.match(o, /nt-call ok" data-note-key="r1">/);
-  assert.match(o, /<b>CESARHD<\/b> habló con el centro<span class="nt-phone">\+90 212 555 0143<\/span>/);
-  assert.match(o, /nt-folded"[^>]*><span class="iss-feed-label">Lo hablado<\/span><span class="nt-first">Hablamos con &lt;Mehmet&gt;…<\/span>/);
-  const mine = noteItemHtml(sia({ tag: 'CALLOK', text: '+34 600 000 000' }), { now, meId: 'u1' });
+  assert.match(o, /<b>CESARHD<\/b><span class="nt-tag" title="Llamada atendida">CALLOK<\/span>/);
+  assert.match(o, /nt-folded"[^>]*><span class="nt-phone">\+90 212 555 0143<\/span><span class="nt-first">Hablamos con &lt;Mehmet&gt;…<\/span>/);
+  assert.match(noteItemHtml(ok, { now, open: true }), /<div class="nt-text"><span class="nt-phone">\+90 212 555 0143<\/span>Hablamos con &lt;Mehmet&gt;\. Confirma que escanean\.<\/div>/);
+  assert.doesNotMatch(k + o, /habló con el centro|sin éxito|Lo hablado/, 'nada de frases del sistema');
+  const mine = noteItemHtml(sia({ tag: 'CALLOK', text: '+34 600 000 000 Confirma.' }), { now, meId: 'u1' });
   assert.match(mine, /nt-call ok/);
   assert.match(mine, /data-edit-note="n7">Editar/, 'la propia se edita también');
 });

@@ -63,14 +63,23 @@ const moveHtml = (e, { open, now }) => {
     </div></li>`;
 };
 
-// Una llamada al centro: un hito con el teléfono (en negro si se habló; en rojo
-// y tachado si no respondieron: «intentó ponerse en contacto sin éxito con el
-// número…»), quién llamó y a qué número; lo hablado, debajo, en su caja
-// plegable. Sin nada que contar, solo la línea.
+// Una llamada al centro: como la nota del técnico que la hizo, con el teléfono
+// en el sitio del avatar (en negro si se habló; en rojo y tachado si no
+// respondieron) y su etiqueta de Remedy tal cual (CALLOK o CALLKO), que es el
+// estándar con el que el equipo las informa. En su caja, el número y lo que
+// escribió; una de Remedy sin respuesta y sin texto dice «No responden.».
 const editHtml = (e, meId, now) => `${canEditNote(e, meId, now) ? `<button type="button" class="iss-feed-edit" data-edit-note="${esc(e.key)}">Editar</button>` : ''}${e.edited ? `<small>editada ${whenLabel(e.edited, now)}</small>` : ''}`;
+const callBoxHtml = (c, visibility, open) => {
+  const said = c.said || (c.answered ? '' : 'No responden.');
+  const phone = c.phone ? `<span class="nt-phone">${esc(c.phone)}</span>` : '';
+  if (!phone && !said) return '';
+  return open
+    ? `<div class="iss-feed-text nt-box" data-note-fold role="button" tabindex="0" aria-expanded="true">${visHtml(visibility)}<div class="nt-text">${phone}${esc(said)}</div><i class="nt-chev">${CHEV}</i></div>`
+    : `<div class="iss-feed-text nt-box nt-folded" data-note-fold role="button" tabindex="0" aria-expanded="false">${phone}<span class="nt-first">${esc(firstSentence(said))}</span>${visHtml(visibility)}<i class="nt-chev">${CHEV}</i></div>`;
+};
 const callHtml = (e, c, { open, meId, now }) => `<li class="iss-feed-item nt-ev nt-call ${c.answered ? 'ok' : 'ko'}${open ? ' open' : ''}" data-note-key="${esc(e.key)}"><span class="nt-ev-ic" aria-hidden="true">${c.answered ? PHONE : PHONE_OFF}</span><div class="iss-feed-body">
-      <header><span class="iss-feed-did">${who(e.by)} ${c.answered ? 'habló con el centro' : `intentó ponerse en contacto sin éxito${c.phone ? ' con el número' : ''}`}${c.phone ? `<span class="nt-phone">${esc(c.phone)}</span>` : ''}</span>${editHtml(e, meId, now)}<time>${whenLabel(e.at, now)}</time></header>
-      ${c.said ? boxHtml({ label: c.answered ? 'Lo hablado' : 'Nota', visibility: e.visibility, text: c.said }, open) : ''}
+      <header><span class="iss-feed-did">${who(e.by)}<span class="nt-tag" title="${esc(tagLabel(e.tag))}">${esc(e.tag)}</span></span>${editHtml(e, meId, now)}<time>${whenLabel(e.at, now)}</time></header>
+      ${callBoxHtml(c, e.visibility, open)}
     </div></li>`;
 
 // Una entrada de la conversación: una nota (de Remedy o de SIA), una llamada o un

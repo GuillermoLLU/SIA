@@ -13,8 +13,10 @@ import { callOf, isPhone } from './notes.js';
 export const callReady = ({ phone = '', comment = '' } = {}) => ({ answered: isPhone(phone) && !!String(comment).trim(), noAnswer: isPhone(phone) });
 
 // La nota que la registra
+// (sin respuesta y sin nada más, lo que escribiría el técnico: «Intentamos contactar…»)
+const NO_ANSWER = 'Intentamos contactar con el centro y no responden.';
 export const callNote = ({ phone, comment = '', answered }) => ({
-  body: `${String(phone).trim()} ${String(comment).trim()}`.trim(),
+  body: `${String(phone).trim()} ${String(comment).trim() || (answered ? '' : NO_ANSWER)}`.trim(),
   tag: answered ? 'CALLOK' : 'CALLKO',
   visibility: 'internal',
 });
