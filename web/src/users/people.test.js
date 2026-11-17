@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { viewsText, initials, knOf, filterChips, matchesFilter, validFilter, listRows, roleName, toggled, ruleOf, basicRule, personDraft, draftWithRole, draftWithView, draftWithRule, personPatch, hasChanges } from './people.js';
+import { viewsText, knOf, filterChips, matchesFilter, validFilter, listRows, roleName, toggled, ruleOf, basicRule, personDraft, draftWithRole, draftWithView, draftWithRule, personPatch, hasChanges } from './people.js';
 
 const person = (o) => ({ id: 'u1', name: 'Ana López', email: 'ana@x.com', active: true, role_id: 'r1', knowledge: [{ groups: [{ id: 'g1' }] }], ...o });
 
@@ -10,9 +10,7 @@ test('viewsText: las vistas en una frase, el Chat como una más', () => {
   assert.equal(viewsText(['chat', 'links', 'lab']), 'Chat, Enlaces rápidos y Laboratorio');
 });
 
-test('initials y knOf', () => {
-  assert.equal(initials('Ana María López'), 'AM');
-  assert.equal(initials('  '), '?');
+test('knOf', () => {
   assert.deepEqual(knOf(person()), ['g1']);
   assert.deepEqual(knOf({}), []);
 });

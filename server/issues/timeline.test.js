@@ -23,6 +23,7 @@ test('cada entrada con lo que la pantalla necesita', () => {
   assert.deepEqual(claimed, { at: '2026-10-29T08:00:00+00:00', type: 'claimed', by: 'Ana', from: null, to: 'Ana' });
   assert.deepEqual(transferred, { at: '2026-10-29T09:00:00+00:00', type: 'transferred', by: 'Ana', from: 'Ana', to: 'Luis', text: 'Lleva dos llamadas.' });
   assert.equal(note.edited, '2026-10-29T10:30:00+00:00');
+  assert.deepEqual([note.visibility, note.tag], ['internal', null]); // las de antes: internas y sin etiqueta
   assert.equal(note.byId, 'u2');
 });
 
@@ -50,4 +51,9 @@ test('dos traspasos de la misma persona en el mismo instante: el primero lleva e
   assert.equal(t.filter((x) => x.type === 'transferred' && x.text === 'uno').length, 1);
   assert.equal(t.filter((x) => x.type === 'note').length, 1);
   assert.equal(events[0].text, undefined);
+});
+
+test('cada nota lleva su visibilidad y su etiqueta', () => {
+  const [n] = timeline([], [{ id: 3, author_id: 'u1', author_name: 'Ana', kind: 'note', body: 'Llamar mañana', visibility: 'private', tag: 'CALLKO', created_at: '2026-10-29T10:00:00+00:00', edited_at: null }]);
+  assert.deepEqual([n.visibility, n.tag], ['private', 'CALLKO']);
 });

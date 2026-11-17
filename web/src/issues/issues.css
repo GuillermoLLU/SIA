@@ -1,7 +1,7 @@
 /* Vista Issues: la mesa de cada persona, a todo lo ancho. A la izquierda, sus
    cifras y el seguimiento; a la derecha, asignar, su día y su histórico.
    Al abrir una issue, la pantalla de trabajo con su chat al lado. */
-.iss-view {
+.iss-view, .inc-modal { /* la ventana de una llamada va fuera de la vista (en body): sus colores, también */
   --iss-crit: var(--danger);
   --iss-high: var(--warning);
   --iss-ok: var(--success);
@@ -38,6 +38,54 @@
 .iss-main { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 24px; container-type: inline-size; }
 .iss-rail { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
 .iss-rail .iss-card { padding: 16px 20px; gap: 12px; }
+/* «Llamada de un centro» (incoming.js): su buscador y, debajo, lo que se encuentra mientras se escribe */
+.inc-ic { display: inline-flex; width: 16px; height: 16px; flex: none; }
+.inc-ic svg { width: 100%; height: 100%; }
+.inc-card { position: relative; z-index: 2; gap: 10px; }
+.inc-card .iss-card-h h3 { display: inline-flex; align-items: center; gap: 8px; }
+.inc-help { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--text-low); }
+.inc-search { position: relative; display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 10px; background: var(--bg); border: 1px solid var(--border); transition: border-color var(--motion-state); }
+.inc-search:focus-within { border-color: var(--text); }
+.inc-search input { flex: 1; min-width: 0; height: 100%; font: inherit; font-size: 13.5px; color: var(--text); background: none; border: 0; outline: none; }
+.inc-search input::-webkit-search-cancel-button { cursor: pointer; }
+.inc-hits { position: absolute; left: -1px; right: -1px; top: calc(100% + 4px); z-index: 30; display: flex; flex-direction: column; padding: 6px; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 14px 40px rgba(0, 0, 0, .14); animation: nt-menu-in .14s ease both; }
+.inc-hits[hidden] { display: none; }
+.inc-hit { display: grid; gap: 2px; width: 100%; padding: 8px 10px; font: inherit; text-align: left; color: var(--text); background: none; border: 0; cursor: pointer; }
+.inc-hit:hover, .inc-hit[aria-selected="true"] { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.inc-id { font: 600 12.5px var(--font-mono); }
+.inc-id u { text-decoration: none; background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.inc-t { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inc-hit small { font-size: 11.5px; color: var(--text-low); }
+.inc-none { margin: 0; padding: 8px 10px; font-size: 12.5px; color: var(--text-low); }
+/* la ventana, ancha: el detalle a la izquierda; a la derecha, como en Seguimiento, las últimas notas
+   (con su scroll) y debajo, siempre a la vista, el teléfono y lo que se habló */
+.iss-act-form.inc-form { width: min(1440px, 100%); height: min(860px, calc(100vh - 32px)); gap: 0; padding: 0; }
+.inc-form > header { flex: none; padding: 18px 22px 14px; border-bottom: 1px solid var(--border); }
+.inc-form > header h3 { display: inline-flex; align-items: center; gap: 8px; }
+.inc-form > header a { margin-left: auto; font: 12px var(--font-mono); color: var(--text); text-decoration: none; }
+.inc-form > header a:hover { text-decoration: underline; }
+.inc-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.inc-col { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 18px 22px 20px; scrollbar-width: thin; }
+.inc-col > * { flex: none; } /* hace scroll: lo de dentro no se encoge */
+.inc-side { min-height: 0; display: flex; flex-direction: column; border-left: 1px solid var(--border); }
+.inc-notes { flex: 1; }
+.inc-notes > .iss-sub { margin-top: 0; }
+.inc-title { margin: 0 0 4px; font-size: 15px; font-weight: 650; line-height: 1.35; }
+.inc-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0 0 6px; }
+.inc-facts > div { min-width: 0; padding: 7px 10px; background: color-mix(in srgb, var(--bg) 60%, var(--surface)); }
+.inc-facts dt { font-size: 11px; color: var(--text-low); }
+.inc-facts dd { margin: 1px 0 0; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inc-facts dd small { font-weight: 400; color: var(--text-low); }
+.inc-facts .k-sev.CRITICAL dd { color: var(--iss-crit); }
+.inc-facts .k-sev.HIGH dd { color: var(--iss-high); }
+.inc-facts .k-origin dd { color: var(--accent); }
+.inc-facts .k-origin.sisu dd { color: var(--iss-sisu); }
+.inc-said { font-size: 13px; }
+.inc-recent { margin-top: 2px; }
+.inc-call { flex: none; display: flex; flex-direction: column; gap: 12px; padding: 16px 22px 18px; border-top: 1px solid var(--border); background: color-mix(in srgb, var(--bg) 35%, var(--surface)); }
+.inc-call .iss-field textarea { min-height: 96px; }
+.inc-call footer { display: flex; justify-content: flex-end; gap: 8px; }
+.inc-call footer [data-incoming-cancel] { margin-right: auto; }
 
 /* de cuándo son los datos, junto al título de su día: en rojo si no están al día, y se pulsa para cargar otros */
 .iss-date { margin-left: auto; font-size: 12px; color: var(--text-low); white-space: nowrap; cursor: pointer; transition: color var(--motion-state); }
@@ -158,6 +206,22 @@
 .iss-work-h .iss-actions { justify-self: end; }
 @media (max-width: 800px) { .iss-work-h { grid-template-columns: minmax(0, 1fr); } .iss-work-h .iss-actions { justify-self: start; } }
 .iss-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+/* «Otras acciones»: lo que no es Resolver ni Escalar, en un menú bajo el botón; hablar con el
+   centro arriba y, tras una línea, soltarla (traspasar, devolver) */
+.iss-more { position: relative; display: inline-flex; }
+.iss-more > .lab-btn { display: inline-flex; align-items: center; gap: 6px; }
+.iss-more > .lab-btn svg { width: 14px; height: 14px; transition: transform .15s ease; }
+.iss-more > .lab-btn[aria-expanded="true"] { background: var(--border); }
+.iss-more > .lab-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
+.iss-more-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; display: flex; flex-direction: column; min-width: 280px; padding: 6px; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0, 0, 0, .12); animation: nt-menu-in .14s ease both; }
+.iss-more-menu[hidden] { display: none; }
+.iss-more-menu button { display: grid; grid-template-columns: 16px 1fr; gap: 0 10px; align-items: center; padding: 9px 10px; font: inherit; font-size: 12.5px; text-align: left; color: var(--text); background: none; border: 0; cursor: pointer; }
+.iss-more-menu button svg { width: 15px; height: 15px; }
+.iss-more-menu button b { font-weight: 600; }
+.iss-more-menu button small { grid-column: 2; font-size: 11.5px; color: var(--text-low); }
+.iss-more-menu button:hover, .iss-more-menu button:focus-visible { background: color-mix(in srgb, var(--text) 5%, transparent); outline: none; }
+.iss-more-menu hr { margin: 4px 0; border: 0; border-top: 1px solid var(--border); }
+@media (prefers-reduced-motion: reduce) { .iss-more > .lab-btn svg { transition: none; } .iss-more-menu { animation: none; } }
 .iss-work { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(360px, 1fr); grid-template-rows: minmax(0, 1fr); gap: 16px; flex: 1; min-height: 480px; }
 .iss-work-main { gap: 0; padding: 0; min-height: 0; }
 .iss-wtabs { display: flex; gap: 24px; padding: 0 22px; border-bottom: 1px solid var(--border); }
@@ -190,11 +254,10 @@
 .iss-kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .iss-tl { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 13px; }
 .iss-tl time { display: inline-block; width: 96px; color: var(--text-low); font-variant-numeric: tabular-nums; }
-.iss-trail-panel { overflow: hidden; gap: 10px; }
-/* la nota pequeña a la derecha que explica una pestaña (histórico y notas de Remedy) */
-.iss-trail-hint { align-self: flex-end; max-width: 60%; margin: 0; padding: 7px 12px; font-size: 11.5px; line-height: 1.45; color: var(--text-low); text-align: right; background: color-mix(in srgb, var(--accent) 6%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border)); border-right: 3px solid var(--accent); }
-.iss-trail-scroll { flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px; }
-.iss-trail-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; font-size: 13px; }
+/* Notas (notes-html.js): una conversación de la más antigua a la más reciente y, abajo, la barra de escribir */
+.iss-wpanel.nt-panel { padding: 0; gap: 0; overflow: hidden; }
+.nt-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 22px 8px; scrollbar-width: thin; }
+.nt-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; font-size: 13px; }
 /* cada entrada: avatar a la izquierda, conectados por una línea fina */
 .iss-feed-item { position: relative; display: grid; grid-template-columns: 28px 1fr; gap: 0 12px; padding: 0 0 14px; }
 .iss-feed-item:not(:last-child)::before { content: ""; position: absolute; left: 13px; top: 30px; bottom: 0; width: 2px; background: var(--border); }
@@ -215,12 +278,88 @@
 .iss-note-edit { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 .iss-note-edit textarea { width: 100%; padding: 10px 12px; font: inherit; font-size: 13px; line-height: 1.5; color: var(--text); background: var(--bg); border: 1px solid var(--accent); border-radius: 4px; outline: none; resize: vertical; }
 .iss-note-edit footer { display: flex; justify-content: flex-end; gap: 8px; }
-.iss-note-form { display: flex; gap: 8px; align-items: flex-end; padding-top: 12px; border-top: 1px solid var(--border); }
-.iss-note-form textarea { flex: 1; min-height: 40px; max-height: 160px; padding: 10px 12px; font: inherit; font-size: 13px; line-height: 1.45; color: var(--text); background: var(--bg); border: 1px solid var(--border); outline: none; resize: none; }
-.iss-note-form textarea:focus { border-color: var(--accent); }
 .iss-send { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; flex: none; color: var(--surface); background: var(--accent); border: 0; cursor: pointer; }
 .iss-send:disabled { opacity: .45; cursor: default; }
 .iss-send:not(:disabled):hover { filter: brightness(1.08); }
+/* la etiqueta de una nota, una ficha junto al nombre (como la de la barra de escribir) */
+.nt-tag { display: inline-block; margin-left: 10px; padding: 3px 8px; font-size: 10.5px; font-weight: 600; line-height: 1.2; letter-spacing: .06em; text-transform: uppercase; color: var(--text); background: color-mix(in srgb, var(--text) 8%, transparent); vertical-align: 1px; }
+/* la caja de cada nota: quién la ve, en su borde (pública: negro; privada: discontinuo); se pliega a una línea */
+.nt-box { position: relative; padding-right: 38px; cursor: pointer; }
+.nt-box:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.v-public > .iss-feed-body > .nt-box { background: var(--surface); border-color: var(--text); }
+.v-private > .iss-feed-body > .nt-box { background: none; border-style: dashed; }
+.nt-top { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; white-space: nowrap; }
+.nt-box > .nt-vis { float: right; margin: 2px 0 2px 16px; } /* desplegada, a la derecha de la primera línea: el texto la rodea */
+.nt-top .iss-feed-label { margin: 0; }
+.nt-vis { flex: none; display: inline-flex; align-items: center; gap: 5px; margin-left: auto; font-size: 11px; color: var(--text-low); white-space: nowrap; }
+.nt-vis svg { width: 13px; height: 13px; }
+.v-public .nt-vis { color: var(--text); font-weight: 600; }
+.nt-chev { position: absolute; top: 11px; right: 12px; display: inline-flex; width: 14px; height: 14px; color: var(--text-low); transition: transform .2s ease, color var(--motion-state); }
+.nt-chev svg { width: 100%; height: 100%; }
+.nt-box:hover .nt-chev { color: var(--text); }
+.nt-folded { display: flex; align-items: baseline; gap: 10px; padding-top: 8px; padding-bottom: 8px; white-space: nowrap; }
+.nt-folded .iss-feed-label { flex: none; margin: 0; }
+.nt-folded .nt-vis { align-self: center; }
+.nt-folded .nt-chev { top: 50%; margin-top: -7px; transform: rotate(-90deg); }
+.nt-first { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+/* la de una frase que cabe en su línea: no hay nada más que ver (notes-fit.js) */
+.nt-whole { cursor: default; }
+.nt-whole .nt-chev { display: none; }
+/* los movimientos (cogida, devuelta, traspasada, asignada): un hito en la línea de tiempo,
+   su icono en un círculo en el sitio del avatar; asignar y traspasar, en negro; coger y devolver, en gris */
+.nt-ev-ic { position: relative; z-index: 1; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; color: var(--text-low); background: var(--surface); border: 1.5px solid var(--border); }
+.nt-ev-ic svg { width: 14px; height: 14px; }
+.nt-ev.strong .nt-ev-ic { color: var(--text); border-color: var(--text); }
+/* las llamadas al centro: como la nota de un técnico, con el teléfono en el sitio del avatar; atendida, en
+   negro; sin respuesta, en rojo (el teléfono y su etiqueta CALLKO); el número, en letra fija al principio de la caja */
+.nt-call.ok .nt-ev-ic { color: var(--text); border-color: var(--text); }
+.nt-call.ko .nt-ev-ic { color: var(--iss-crit); border-color: var(--iss-crit); }
+.nt-call.ko .nt-tag { color: var(--iss-crit); background: color-mix(in srgb, var(--iss-crit) 12%, transparent); }
+.nt-phone { flex: none; margin-right: 10px; font: 12.5px var(--font-mono); color: var(--text); white-space: nowrap; }
+/* sin las notas de Remedy en la foto: el aviso, una línea fina arriba */
+.nt-warn { display: flex; align-items: center; gap: 10px; margin: 0 0 16px 40px; font-size: 11.5px; color: var(--iss-high); }
+.nt-warn::before, .nt-warn::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.nt-warn span { flex: none; max-width: 80%; }
+.nt-empty { padding: 40px 0; text-align: center; color: var(--text-low); }
+.nt-item .iss-note-edit { margin-top: 8px; }
+/* la barra de escribir: quién la verá (menú), la etiqueta elegida, el texto, las etiquetas (menú) y Enviar */
+.nt-form { position: relative; flex: none; margin: 6px 22px 18px; }
+.nt-bar { display: flex; align-items: stretch; border: 1px solid var(--text); background: var(--surface); }
+.nt-pick { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px 0 12px; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--text); background: color-mix(in srgb, var(--text) 5%, transparent); border: 0; border-right: 1px solid var(--border); cursor: pointer; }
+.nt-pick svg { width: 14px; height: 14px; }
+.nt-pick .nt-pick-chev { display: inline-flex; width: 12px; height: 12px; color: var(--text-low); transition: transform .2s ease; }
+.nt-pick .nt-pick-chev svg { width: 100%; height: 100%; }
+.nt-pick[aria-expanded="true"] .nt-pick-chev { transform: rotate(180deg); }
+.nt-form.is-public .nt-pick { color: var(--surface); background: var(--text); }
+.nt-form.is-public .nt-pick .nt-pick-chev { color: inherit; }
+.nt-chip { flex: none; align-self: center; display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; padding: 4px 4px 4px 8px; font-size: 10.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text); background: color-mix(in srgb, var(--text) 7%, transparent); }
+.nt-chip[hidden] { display: none; }
+.nt-chip button { display: inline-flex; width: 16px; height: 16px; padding: 3px; color: var(--text-low); background: none; border: 0; cursor: pointer; }
+.nt-chip button:hover { color: var(--text); }
+.nt-chip svg { width: 100%; height: 100%; }
+.nt-bar textarea { flex: 1; min-width: 0; min-height: 42px; max-height: 160px; padding: 11px 12px; font: inherit; font-size: 13px; line-height: 1.5; color: var(--text); background: none; border: 0; outline: none; resize: none; }
+.nt-tagbtn { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 40px; padding: 0; color: var(--text-low); background: none; border: 0; cursor: pointer; }
+.nt-tagbtn:hover, .nt-tagbtn[aria-expanded="true"] { color: var(--text); }
+.nt-tagbtn svg { width: 16px; height: 16px; }
+.nt-bar .iss-send { width: 44px; height: auto; min-height: 42px; }
+.nt-public { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; font-size: 11.5px; color: var(--iss-high); }
+.nt-public[hidden] { display: none; }
+.nt-public svg { flex: none; width: 13px; height: 13px; }
+/* los menús, encima de la barra: quién la verá a la izquierda, las etiquetas a la derecha */
+.nt-menu { position: absolute; left: 0; bottom: calc(100% + 6px); z-index: 20; display: flex; flex-direction: column; min-width: 230px; padding: 6px; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0, 0, 0, .12); animation: nt-menu-in .14s ease both; }
+.nt-menu[hidden] { display: none; }
+@keyframes nt-menu-in { from { opacity: 0; transform: translateY(4px); } }
+.nt-menu button { display: grid; grid-template-columns: 16px 1fr; gap: 0 10px; align-items: center; padding: 8px 10px; font: inherit; font-size: 12.5px; text-align: left; color: var(--text); background: none; border: 0; cursor: pointer; }
+.nt-menu button svg { width: 15px; height: 15px; }
+.nt-menu button b { font-weight: 600; }
+.nt-menu button small { grid-column: 2; font-size: 11.5px; color: var(--text-low); }
+.nt-menu button:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.nt-menu button[aria-checked="true"] { background: color-mix(in srgb, var(--text) 8%, transparent); }
+/* las etiquetas: su nombre y, a la derecha, el código con el que va en Remedy */
+.nt-tags { left: auto; right: 44px; min-width: 250px; max-height: min(420px, 60vh); overflow-y: auto; }
+.nt-tags button { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 7px 10px; }
+.nt-tags code { font: 10.5px var(--font-mono); color: var(--text-low); }
+@media (prefers-reduced-motion: reduce) { .nt-chev, .nt-pick-chev, .nt-menu { transition: none; animation: none; } }
 .iss-side { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
 /* el cuadro de datos: desplegado, las cajas; plegado (.folded, al arrancar el chat), solo su resumen en una
    línea. Se pliega deslizando (las filas de la rejilla a 0) y, con el chat ampliado, se recoge entero (max-height, issues-view.js) */
@@ -307,9 +446,9 @@
 .iss-chat-start[hidden] { display: none; }
 .iss-modal { position: fixed; inset: 0; z-index: 50; display: grid; place-items: safe center; padding: 16px; overflow-y: auto; background: rgba(0, 0, 0, .32); }
 .iss-act-form { width: min(560px, 100%); display: flex; flex-direction: column; gap: 14px; padding: 20px 22px; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 18px 50px rgba(0, 0, 0, .25); color: var(--text); }
-.iss-act-form header { display: flex; align-items: baseline; gap: 12px; }
+.iss-act-form > header { display: flex; align-items: baseline; gap: 12px; } /* la cabecera de la ventana, no las de lo que lleve dentro (notas) */
 .iss-act-form h3 { margin: 0; font-size: 16px; font-weight: 650; }
-.iss-act-form header span { margin-left: auto; font-family: var(--font-mono); font-size: 12px; color: var(--text-low); }
+.iss-act-form > header > span { margin-left: auto; font-family: var(--font-mono); font-size: 12px; color: var(--text-low); }
 .iss-field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
 .iss-field > span { font-weight: 600; }
 .iss-field i { font-style: normal; font-weight: 400; color: var(--text-low); }
@@ -320,6 +459,18 @@
 .iss-act-note { margin: 0; padding: 8px 10px; font-size: 12px; color: var(--text-low); background: color-mix(in srgb, var(--bg) 60%, var(--surface)); border: 1px dashed var(--border); }
 .iss-act-err { margin: 0; font-size: 12.5px; color: var(--iss-crit); }
 .iss-act-form footer { display: flex; justify-content: flex-end; gap: 8px; }
+/* la llamada: «Guardar llamada» va primero en el código (es el que manda Intro) y se ve a la derecha; Cancelar, a la izquierda */
+.iss-call footer { flex-direction: row-reverse; justify-content: flex-start; }
+.iss-call footer [data-act-cancel] { margin-right: auto; }
+/* Traspasar: «A un compañero | A otro equipo» arriba; la elegida, en negro. Cambia el formulario en el sitio. */
+.tr-seg { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--border); }
+.tr-seg button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; font: inherit; font-size: 13px; color: var(--text-low); background: none; border: 0; cursor: pointer; transition: color .15s ease, background-color .15s ease; }
+.tr-seg button + button { border-left: 1px solid var(--border); }
+.tr-seg button:hover { color: var(--text); }
+.tr-seg button[aria-pressed="true"] { color: var(--surface); background: var(--text); cursor: default; }
+.tr-seg i { display: inline-flex; width: 16px; height: 16px; }
+.tr-seg svg { width: 100%; height: 100%; }
+.iss-act-form [data-transfer-pane][hidden] { display: none; }
 /* Resolver: cinco pasos, uno a la vista. El modal tiene siempre el mismo tamaño y no se
    desplaza: lo que no cabe se desplaza dentro de su campo (o del borrador). */
 .rv { width: min(1120px, 100vw - 32px); height: min(800px, 100vh - 32px); gap: 0; padding: 0; }
@@ -760,11 +911,12 @@ a.rv-id:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
   .iss-enter .iss-kpis > :nth-child(3) { animation-delay: 80ms; }
   .iss-enter .iss-kpis > :nth-child(4) { animation-delay: 120ms; }
   .iss-enter .iss-kpis > :nth-child(5) { animation-delay: 160ms; }
-  .iss-enter .iss-rail > :nth-child(1) { animation-delay: 200ms; }
+  .iss-enter .iss-rail > :nth-child(1) { animation-delay: 180ms; }
+  .iss-enter .iss-rail > :nth-child(2) { animation-delay: 220ms; }
   .iss-enter .iss-cols > :nth-child(1) { animation-delay: 240ms; }
   .iss-enter .iss-cols > :nth-child(2) { animation-delay: 290ms; }
   .iss-enter .iss-cols > :nth-child(3) { animation-delay: 340ms; }
-  .iss-enter .iss-rail > :nth-child(2) { animation-delay: 390ms; }
+  .iss-enter .iss-rail > :nth-child(3) { animation-delay: 390ms; }
   .iss-enter .iss-weeks { animation: iss-rise 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) 450ms both; }
   .iss-enter .iss-progress i { transform-origin: left; animation: iss-fill 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) 300ms both; }
   @keyframes iss-rise { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }

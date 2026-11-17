@@ -10,8 +10,9 @@ import { item, REFRESH_ICON } from './parts.js';
 import { onEscape } from '../ui/dialog.js';
 import { pressStartedIn } from '../ui/dom.js';
 import { pickClick, openPicker, closePickers } from '../ui/picker.js';
-import { workScreen, trailHtml, trailTab, releaseDialogHtml, sendsNote, noteEditorHtml } from './work-screen.js';
-import { ACTIONS, actionForm, readAction, isComplete, chaseNote, chaseTarget } from './actions.js';
+import { workScreen, releaseDialogHtml } from './work-screen.js';
+import { createNotes } from './notes-view.js';
+import { actionForm, readAction, isComplete, chaseNote, chaseTarget, contactNote } from './actions.js';
 import { createResolver } from './resolve-view.js';
 import { mountChipDrag } from './chip-drag.js';
 import { knowsOrigin, originOf } from './origin.js';
@@ -19,6 +20,11 @@ import { crossfade } from '../ui/crossfade.js';
 import { mountTips } from './tip.js';
 import { createEscalator } from './escalate-view.js';
 import { DESTINATIONS, OPEN_TICKETS } from './escalate-mock.js';
+import { callForm, callReady, callNote, suggestedPhone } from './call.js';
+import { transferForm, readTransfer, transferNote } from './transfer.js';
+import { TEAMS } from './transfer-mock.js';
+import { createIncoming } from './incoming-view.js';
+import { incomingCardHtml } from './incoming.js';
 
 const GOAL = { min: 15, max: 20 }; // resueltas por turno, lo que dice el equipo
 const REFRESH_MS = 15000;
@@ -34,6 +40,10 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   let data = null, now = new Date(), opened = null, onDesk = false, workTab = 'detail', chat = null, loading = false, picking = false;
   let issue = null; // la issue abierta: Escalar mira su criticidad, su estado y su ticket
   const closeChat = () => { chat?.dispose(); chat = null; };
+  // la pestaña Seguimiento (las notas) vive en su módulo (notes-view.js): plegar, escribir, editar
+  const notes = createNotes({ root, api, toast, me });
+  // «Llamada de un centro» en el panel: buscar la incidencia y dejar nota de la llamada (incoming-view.js)
+  const incoming = createIncoming({ root, api, toast });
   // el tooltip de «Traspasada» se saca al body: al repintar, fuera, o se quedaría flotando
   const hideTip = mountTips(root);
 
@@ -90,6 +100,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
           <button class="iss-take" data-take ${next && data.canTake ? '' : 'disabled'}>Asignar siguiente issue</button>
           ${data.canTake ? '' : '<p class="iss-foot iss-full"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 2.4 17.5A2 2 0 0 0 4.1 20.5h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>No puedes tener más en curso</p>'}
         </section>
+        ${incomingCardHtml()}
         <section class="iss-card iss-hist">
           <div class="iss-card-h"><h3>Histórico semanal</h3><span class="iss-legend"><i></i>SGA <i class="sisu"></i>SISU</span></div>
           ${weeksChart(history.weeks)}
@@ -116,9 +127,10 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     closeAction();
     hideTip();
     now = new Date(); // el histórico y las edades, a la hora de abrirla
+    notes.attach(i, timeline);
     root.innerHTML = workScreen({ issue: i, sameCenter, timeline, now, mine, meId: me?.id, tab: workTab });
     animateEnter(root.querySelector('.iss-work-page'), 'iss-opening', ISSUE_ENTER_MS);
-    if (workTab === 'trail') scrollTrailToStart();
+    if (workTab === 'notes') notes.shown();
     const chatHost = root.querySelector('.iss-chat-body');   // pendiente de un tercero no hay chat
     chatHost?.addEventListener('chat-open', () => foldKeys(true)); // con el chat en marcha, los datos se pliegan a su resumen
     chat = chatHost ? openChat?.(chatHost, i) || null : null;
@@ -132,9 +144,10 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   };
   // La mesa al día sin que se note: solo si se está viendo y sin un selector abierto.
   const refreshQuietly = () => {
-    if (!onDesk || picking || openPicker(root)) return;
+    const still = () => !onDesk || picking || openPicker(root) || incoming.busy(); // ni con el buscador de llamadas en uso
+    if (still()) return;
     api.desk().then((d) => {
-      if (!onDesk || picking || openPicker(root)) return;
+      if (still()) return;
       const before = now;
       const changed = JSON.stringify(d) !== JSON.stringify(data); // igual y en el mismo minuto, no se toca: nada que parpadee
       data = d; now = new Date();
@@ -162,14 +175,12 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   };
   const openIssue = async (id) => renderIssue(await api.get(id));
 
-  // El histórico va con lo más reciente arriba: al enseñarlo, arriba del todo.
-  const scrollTrailToStart = () => { const box = root.querySelector('[data-trail]'); if (box) box.scrollTop = 0; };
   // Las pestañas de la pantalla de trabajo.
   const showTab = (key) => {
     workTab = key;
     root.querySelectorAll('[data-wtab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.wtab === key)));
     root.querySelectorAll('[data-wpanel]').forEach((p) => { p.hidden = p.dataset.wpanel !== key; });
-    if (key === 'trail') scrollTrailToStart();
+    if (key === 'notes') notes.shown(); // las notas van como una conversación: abajo, en lo último
   };
   // Pulsar el fondo cierra la ventana de una acción; soltar fuera tras seleccionar texto dentro, no.
   const pressedInModal = pressStartedIn(root, (t) => !!t.closest('.iss-modal > *'));
@@ -195,9 +206,29 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     if (b) { b.title = wide ? 'Volver al tamaño normal' : 'Ampliar el chat'; b.setAttribute('aria-label', b.title); }
   };
 
+  // «Otras acciones»: el menú bajo el botón de la cabecera. Otro clic (también en una de sus
+  // acciones, que además se abre) o Escape lo cierra.
+  let offMore = null;
+  const closeMore = () => {
+    const btn = root.querySelector('[data-more][aria-expanded="true"]');
+    if (btn) { btn.setAttribute('aria-expanded', 'false'); btn.nextElementSibling.hidden = true; }
+    offMore?.(); offMore = null;
+  };
+  const toggleMore = (btn) => {
+    const open = btn.getAttribute('aria-expanded') === 'true';
+    closeMore();
+    if (open) return;
+    btn.setAttribute('aria-expanded', 'true');
+    btn.nextElementSibling.hidden = false;
+    offMore = onEscape(closeMore);
+  };
+
   root.addEventListener('click', async (e) => {
     const t = e.target;
     if (pickClick(root, t)) return;
+    const more = t.closest('[data-more]');
+    if (more) return toggleMore(more);
+    closeMore();
     const fold = t.closest('[data-keys-toggle]');
     if (fold) return foldKeys(fold.getAttribute('aria-expanded') === 'true');
     if (t.closest('[data-chat-expand]')) return widenChat(!root.querySelector('.iss-work-page')?.classList.contains('chat-wide'));
@@ -223,6 +254,8 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       }
       const wt = t.closest('[data-wtab]');
       if (wt) return showTab(wt.dataset.wtab);
+      const mode = t.closest('[data-transfer-mode]');
+      if (mode) return switchTransfer(mode.closest('form'), mode.dataset.transferMode);
       const act = t.closest('[data-act]');
       if (act) {
         if (act.disabled) return;   // un segundo clic mientras se abre: un solo modal
@@ -230,9 +263,6 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
         try { return await openAction(act.dataset.act); } finally { act.disabled = false; }
       }
       if (t.closest('[data-act-cancel]') || (t.classList.contains('iss-modal') && !pressedInModal())) return closeAction();
-      const ed = t.closest('[data-edit-note]');
-      if (ed) return openNoteEditor(ed.dataset.editNote);
-      if (t.closest('[data-edit-cancel]')) return refreshTrail();
       const r = t.closest('[data-id]');
       if (r) return openIssue(r.dataset.id);
       if (t.closest('[data-back]')) { renderDesk(); root.scrollTop = 0; return; }
@@ -274,6 +304,8 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   } });
 
   const openAction = async (key) => {
+    // Abrir WAR-ROOM: aún no hace nada; solo lo avisa
+    if (key === 'warroom') return toast?.('Abrir WAR-ROOM aún no está disponible: llegará más adelante.');
     closeAction();
     if (key === 'resolve') return resolver.open(opened, issue?.link || null, closeAction);
     // Escape: con la lista del selector abierta la cierra; si no, cierra la ventana
@@ -281,81 +313,54 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     // traspasar: solo a quien tiene el conocimiento de su origen (SGA, SISU)
     if (key === 'transfer') people = (await api.teammates()).filter((p) => knowsOrigin(p.groups, issue));
     const empty = key === 'transfer' ? `Nadie más tiene el conocimiento de ${originOf(issue)}` : '';
-    root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${actionForm(key, opened, people, empty)}</div>`);
-    root.querySelector('.iss-act-form textarea, .iss-act-form input:not([type=hidden]), .iss-act-form select')?.focus();
+    // la llamada: su ventana (call.js), con el teléfono de la última llamada o el de contacto del centro
+    const suggested = key === 'call' ? suggestedPhone(notes.entries(), issue?.notes) : null;
+    const modal = key === 'call' ? callForm(opened, suggested)
+      : key === 'transfer' ? transferForm(opened, { people, empty, teams: TEAMS })
+      : actionForm(key, opened);
+    root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${modal}</div>`);
+    const first = key === 'call' ? (suggested.phone ? '#iss-f-comment' : '#iss-f-phone') : '.iss-act-form textarea, .iss-act-form input:not([type=hidden]), .iss-act-form select';
+    root.querySelector(first)?.focus();
     // Escape: con la lista del selector abierta la cierra; si no, cierra el modal
     offEscape = onEscape(() => (openPicker(root) ? closePickers(root) : closeAction()));
   };
-  // Tras añadir una nota, el histórico se repinta en su sitio.
-  const refreshTrail = async () => {
-    const items = await api.timeline(opened);
-    const box = root.querySelector('[data-trail]');
-    if (box) box.innerHTML = trailHtml(items, new Date(), me?.id);
-    scrollTrailToStart();
-    const tab = root.querySelector('[data-wtab="trail"]');
-    if (tab) tab.innerHTML = trailTab(items.length);
+  // Traspasar: «A un compañero» o «A otro equipo» cambia el formulario en el sitio; el motivo se queda.
+  const switchTransfer = (form, mode) => {
+    closePickers(root);
+    form.elements.mode.value = mode;
+    form.querySelectorAll('[data-transfer-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.transferMode === mode)));
+    form.querySelectorAll('[data-transfer-pane]').forEach((p) => { p.hidden = p.dataset.transferPane !== mode; });
+    form.querySelector('.iss-act-err').hidden = true;
+    syncSubmit(form);
   };
   // El botón de enviar, apagado hasta que estén todos los campos obligatorios.
   // Resolver y Escalar (por pasos) llevan su propia validación: aquí, los demás.
-  const syncSubmit = (form) => { if (['resolve', 'escalate'].includes(form.dataset.actForm)) return; form.querySelector('[type=submit]').disabled = !isComplete(form.dataset.actForm, Object.fromEntries(new FormData(form))); };
-  root.addEventListener('input', (e) => {
-    const form = e.target.closest('[data-act-form]');
-    if (form) return syncSubmit(form);
-    const nf = e.target.closest('[data-note-form]');
-    if (nf) nf.querySelector('[type=submit]').disabled = !nf.note.value.trim();
-  });
-  // Editar una nota propia: el editor ocupa el sitio del texto; Guardar manda
-  // el cambio y se repinta el histórico; Cancelar o Escape lo deja como estaba.
-  const openNoteEditor = (noteId) => {
-    const item = root.querySelector(`[data-entry="${noteId}"]`);
-    const text = item?.querySelector('[data-note-text]');
-    if (!text) return;
-    text.outerHTML = noteEditorHtml(text.textContent);
-    const ta = item.querySelector('[data-note-edit] textarea');
-    ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
-  };
-  const saveNote = async (form) => {
-    const body = form.note.value.trim();
-    if (!body) return;
-    const noteId = Number(form.closest('[data-entry]').dataset.entry);
-    form.querySelector('[type=submit]').disabled = true;
-    try { await api.editNote(opened, noteId, body); await refreshTrail(); toast?.('Nota editada.'); }
-    catch (err) { toast?.(err.message); form.querySelector('[type=submit]').disabled = false; }
-  };
-  // La nota interna, desde el pie del histórico: se guarda, se repinta y se
-  // baja hasta ella.
-  const sendNote = async (form) => {
-    const text = form.note.value.trim();
-    if (!text) return;
-    const btn = form.querySelector('[type=submit]');
-    btn.disabled = true;
-    try {
-      await api.addNote(opened, text);
-      form.note.value = '';
-      await refreshTrail();
-      toast?.('Nota añadida.');
-    } catch (err) { toast?.(err.message); btn.disabled = false; }
-  };
-  root.addEventListener('keydown', (e) => {
-    if (e.target.matches('[data-note-edit] textarea')) {
-      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); return refreshTrail(); }
-      if (sendsNote(e)) { e.preventDefault(); return saveNote(e.target.closest('[data-note-edit]')); }
+  // La llamada lleva dos: «Guardar llamada» (teléfono y lo hablado) y «No responden» (solo el teléfono).
+  const syncSubmit = (form) => {
+    const key = form.dataset.actForm;
+    if (['resolve', 'escalate'].includes(key)) return;
+    const values = Object.fromEntries(new FormData(form));
+    if (key === 'call') {
+      const ready = callReady(values);
+      form.querySelector('[value="answered"]').disabled = !ready.answered;
+      form.querySelector('[value="noanswer"]').disabled = !ready.noAnswer;
       return;
     }
-    if (!e.target.matches('[data-note-form] textarea') || !sendsNote(e)) return;
-    e.preventDefault();
-    sendNote(e.target.closest('[data-note-form]'));
+    if (key === 'transfer') { form.querySelector('[type=submit]').disabled = !!readTransfer(values, TEAMS).missing; return; }
+    form.querySelector('[type=submit]').disabled = !isComplete(key, values);
+  };
+  root.addEventListener('input', (e) => {
+    const form = e.target.closest('[data-act-form]');
+    if (form) syncSubmit(form);
   });
   root.addEventListener('submit', async (e) => {
-    const ne = e.target.closest('[data-note-edit]');
-    if (ne) { e.preventDefault(); return saveNote(ne); }
-    const nf = e.target.closest('[data-note-form]');
-    if (nf) { e.preventDefault(); return sendNote(nf); }
     const form = e.target.closest('[data-act-form]');
     if (!form) return;
     e.preventDefault();
     const key = form.dataset.actForm;
     if (key === 'resolve' || key === 'escalate') return;   // lo atienden resolve-view.js y escalate-view.js
+    if (key === 'call') return saveCall(form, e.submitter?.value === 'answered');
+    if (key === 'transfer') return saveTransfer(form);
     const raw = Object.fromEntries(new FormData(form));
     const { missing, values } = readAction(key, raw);
     const err = form.querySelector('.iss-act-err');
@@ -363,23 +368,62 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     if (missing) return fail(`Falta: ${missing}.`);
     form.querySelector('[type=submit]').disabled = true;
     try {
-      if (key === 'transfer') {
+      // contactar con el centro: nota pública en Seguimiento; lo que hará con SIGLO, en el aviso
+      if (key === 'contact') {
+        const note = contactNote(values.message);
+        await api.addNote(opened, note.body, { visibility: note.visibility });
+        closeAction();
+        await notes.refresh();
+        return toast?.('Mensaje al centro en Seguimiento. Cuando conectemos SIGLO, le llegará y la issue pasará a Pendiente (cliente).');
+      }
+      // lo que queda: reclamar respuesta, que se anota en Seguimiento
+      await api.addNote(opened, chaseNote(issue, values.message));
+      closeAction();
+      await notes.refresh();
+      toast?.(`Reclamación ${chaseTarget(issue)} anotada en Seguimiento. Aún no le llega: irá por SIGLO cuando lo conectemos.`);
+    } catch (e2) { fail(e2.message); }
+  });
+  // Traspasar: a un compañero, la base la mueve y se vuelve a la mesa; a otro equipo, queda como
+  // nota interna en Seguimiento hasta que SIGLO la lleve a Remedy (los equipos son de prueba).
+  const saveTransfer = async (form) => {
+    const { missing, values } = readTransfer(Object.fromEntries(new FormData(form)), TEAMS);
+    const err = form.querySelector('.iss-act-err');
+    const btn = form.querySelector('[type=submit]');
+    const fail = (text) => { err.textContent = text; err.hidden = false; btn.disabled = false; };
+    if (missing) return fail(`Falta: ${missing}.`);
+    btn.disabled = true;
+    try {
+      if (values.mode === 'person') {
         const who = people.find((p) => p.id === values.to)?.name || 'un compañero';
         await api.transfer(opened, values.to, values.comment);
         closeAction();
         await loadDesk();
         return toast?.(`Traspasada a ${who}.`);
       }
-      if (key === 'chase') {
-        await api.addNote(opened, chaseNote(issue, values.message));
-        closeAction();
-        await refreshTrail();
-        return toast?.(`Reclamación ${chaseTarget(issue)} anotada en el histórico. Aún no le llega: irá por SIGLO cuando lo conectemos.`);
-      }
+      await api.addNote(opened, transferNote(values));
       closeAction();
-      toast?.(`${ACTIONS[key].label}: preparado, pero aún no se envía a Remedy (falta conectar SIGLO).`);
+      await notes.refresh();
+      toast?.(`Traspaso a ${values.teamName} anotado en Seguimiento. Aún no llega a Remedy: irá por SIGLO cuando lo conectemos.`);
     } catch (e2) { fail(e2.message); }
-  });
+  };
+  // Registrar la llamada: una nota interna con su etiqueta de llamada (call.js), que Seguimiento pinta como un hito.
+  const saveCall = async (form, answered) => {
+    const values = Object.fromEntries(new FormData(form));
+    const ready = callReady(values);
+    const err = form.querySelector('.iss-act-err');
+    const buttons = [...form.querySelectorAll('[type=submit]')];
+    const fail = (text) => { err.textContent = text; err.hidden = false; syncSubmit(form); };
+    if (!ready.noAnswer) return fail('Falta: el teléfono, con al menos cinco cifras.');
+    if (answered && !ready.answered) return fail('Falta: lo que se habló.');
+    buttons.forEach((b) => { b.disabled = true; });
+    try {
+      const note = callNote({ ...values, answered });
+      await api.addNote(opened, note.body, { visibility: note.visibility, tag: note.tag });
+      closeAction();
+      await notes.refresh();
+      toast?.(`${answered ? 'Llamada registrada' : 'Intento de llamada registrado'} en Seguimiento. Aún no llega a Remedy: irá por SIGLO cuando lo conectemos.`);
+    } catch (e2) { fail(e2.message); }
+  };
   const upload = async (file) => {
     if (!file) return;
     loading = true;
@@ -410,6 +454,6 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
 
   return {
     show: () => showDesk().catch((err) => { root.innerHTML = `<div class="iss-page"><p class="iss-empty">No se pudieron cargar las issues: ${esc(err.message)}</p></div>`; }),
-    dispose: () => { resolver.dispose(); escalator.close(); chipDrag.dispose(); clearInterval(refresher); window.removeEventListener('focus', picked); closeChat(); },
+    dispose: () => { resolver.dispose(); escalator.close(); chipDrag.dispose(); notes.dispose(); incoming.dispose(); clearInterval(refresher); window.removeEventListener('focus', picked); closeChat(); },
   };
 };

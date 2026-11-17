@@ -128,12 +128,28 @@ test('traspasar: a la base con el compañero, el motivo limpio y el origen de la
   assert.equal(loads.n, 0);
 });
 
+test('GET /search: por su número, sea de quien sea, con quién la tiene en SIA; con menos de cuatro cifras, nada', async () => {
+  const issues = [issue('INC000027680016'), issue('INC000027680871')];
+  const { call } = setup([{ issue_id: 'INC000027680016', user_id: 'u-luis', user_name: 'Luis', claimed_at: '2026-10-04T09:00:00Z' }], { issues });
+  const { status, body } = await call('GET', ['search'], undefined, 'q=0016');
+  assert.equal(status, 200);
+  assert.deepEqual(body.results.map((r) => [r.id, r.holder]), [['INC000027680016', 'Luis']], 'una que no es mía también');
+  assert.deepEqual((await call('GET', ['search'], undefined, 'q=276')).body, { results: [] });
+  assert.deepEqual((await call('GET', ['search'])).body, { results: [] });
+});
+
 test('notas: añadir devuelve el id; vacía, 400; el histórico, aparte', async () => {
   const { call, calls } = setup();
   assert.deepEqual((await call('POST', ['INC1', 'notes'], { body: ' El centro confirma. ' })).body, { id: 9 });
-  assert.deepEqual(calls.at(-1), ['platform_add_issue_note', { p_issue: 'INC1', p_body: 'El centro confirma.' }]);
+  assert.deepEqual(calls.at(-1), ['platform_add_issue_note', { p_issue: 'INC1', p_body: 'El centro confirma.', p_visibility: 'internal', p_tag: null }]);
+  await call('POST', ['INC1', 'notes'], { body: 'Os escribimos.', visibility: 'public', tag: 'ESCALADO' });
+  assert.deepEqual(calls.at(-1), ['platform_add_issue_note', { p_issue: 'INC1', p_body: 'Os escribimos.', p_visibility: 'public', p_tag: 'ESCALADO' }]);
+  const n = calls.length;
   assert.equal((await call('POST', ['INC1', 'notes'], { body: '   ' })).status, 400);
   assert.equal((await call('POST', ['INC1', 'notes'], {})).status, 400);
+  assert.equal((await call('POST', ['INC1', 'notes'], { body: 'x', visibility: 'secreta' })).status, 400);
+  assert.equal((await call('POST', ['INC1', 'notes'], { body: 'x', tag: 'OTRA' })).status, 400);
+  assert.equal(calls.length, n, 'lo que no vale no llega a la base');
   const { body } = await call('GET', ['INC1', 'timeline']);
   assert.deepEqual(body.timeline.map((t) => t.type), ['note', 'note', 'note', 'claimed']);
   assert.deepEqual((await call('GET', ['INC2', 'timeline'])).body, { timeline: [] });
