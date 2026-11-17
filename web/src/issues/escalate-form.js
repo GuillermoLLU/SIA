@@ -11,7 +11,7 @@ import { esc } from '../ui/html.js';
 import { loaderHtml, phasesHtml } from '../ui/loader.js';
 import { when } from './format.js';
 import { ticketCheck, JIRA_PRIORITIES, jiraPriority, opensTicket, destOf, minimumsOf, checkedMins, priorityLabel, feedComment, STEPS, LAST, FEED, FLOWS } from './escalate.js';
-import { doneMark, noteMeter, localShort, issueRef, notePoint, CHECK, MISSING } from './resolve-form.js';
+import { doneMark, noteMeter, localShort, issueRef, CHECK, MISSING } from './resolve-form.js';
 import { noteQuality } from './quality.js';
 import { toHtml, imageTag } from './tag-editor.js';
 
@@ -44,20 +44,10 @@ export const startValues = ({ issue, open, check, saved }) => {
     ...(fromPhoto ? (listed ? { linked: fromPhoto } : { linked: 'other', linkedOther: fromPhoto }) : {}) };
 };
 
-// Antes de abrir el asistente, con las notas del método completas: lo que ya cumple y, debajo, la
-// búsqueda de escalados del mismo problema (de momento, de prueba), con las fases del cierre. Al
-// acabar se abre el paso 1 con las coincidencias. El mismo aspecto que el aviso de lo que falta (resolveBlocked).
-export const searchHtml = (issueId, check) => `<div class="rb rb-search" role="alertdialog" aria-labelledby="rb-title" aria-busy="true">
-    <div class="rb-head">
-      <span class="rb-icon ok">${CHECK}</span>
-      <div>
-        <h3 id="rb-title">Escalar incidencia</h3>
-        <p><b>${esc(issueId)}</b></p>
-      </div>
-    </div>
-    <ul class="rb-list">${check.notes.map(notePoint).join('')}</ul>
-    ${loaderHtml({ title: '' })}
-  </div>`;
+// Al abrir por el paso 1, con las notas del método completas: el modal ya abierto y, en su cuerpo,
+// antes que nada, la búsqueda de escalados del mismo problema (de momento, de prueba) con el cargador
+// común y sus fases. Al acabar entran los pasos (escalate-view.js).
+export const searchingHtml = () => `<div class="iss-esc-searching">${loaderHtml({ title: '' })}</div>`;
 // Lo que se busca, con los criterios del equipo: en SGA, el mismo centro; en SISU, el mismo módulo.
 export const searchPhases = (issue) => phasesHtml([issue.sisu ? 'Mismo módulo' : `Mismo centro · ${issue.center || '—'}`, 'Resumen parecido']);
 

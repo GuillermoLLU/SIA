@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { escalateForm, requirementsHtml, summaryHtml, filesHtml, ticketHtml, doneHtml, closePhases, linkedText, startValues, withoutLevel, searchHtml, searchPhases } from './escalate-form.js';
+import { escalateForm, requirementsHtml, summaryHtml, filesHtml, ticketHtml, doneHtml, closePhases, linkedText, startValues, withoutLevel, searchingHtml, searchPhases } from './escalate-form.js';
 import { findEscalations } from './escalate.js';
 import { resolveBlocked } from './resolve-form.js';
 import { DESTINATIONS, OPEN_TICKETS } from './escalate-mock.js';
@@ -27,13 +27,10 @@ test('el asistente: el aspecto de Resolver, los pasos de cada flujo y sin texto 
   assert.doesNotMatch(html, /data-pick|<select|Cómo se envía|Por SIGLO ·|Para que llegue bien|\(recomendado\)|Aún no se envía/);
 });
 
-test('antes del asistente, lo que ya cumple y la búsqueda de escalados del mismo problema', () => {
-  const html = searchHtml('INC1', CHECK);
-  assert.match(html, /<div class="rb rb-search" role="alertdialog"[^>]*aria-busy="true">/);
-  assert.match(html, /<span class="rb-icon ok">/);
-  assert.deepEqual([...html.matchAll(/<li class="ok">.*?<span>([^<]+)<\/span>/g)].map((m) => m[1]), ['Situación inicial', 'Recurrencia', 'Antecedentes', 'Análisis']);
-  assert.doesNotMatch(html, /Recurrencia en Jira|lab-btn/);   // ni la fila de Jira ni botones: se busca sola
-  assert.match(html, /<div class="ld" data-loader>/);   // el cargador común (ui/loader.js)
+test('al abrir por el paso 1, la búsqueda de escalados del mismo problema va dentro del modal, con el cargador común', () => {
+  const html = searchingHtml();
+  assert.match(html, /^<div class="iss-esc-searching"><div class="ld" data-loader>/);   // el cargador común (ui/loader.js)
+  assert.doesNotMatch(html, /rb-list|rb-icon|lab-btn/, 'sin los puntos ya cumplidos ni botones: se busca sola');
   // con los criterios del equipo: SGA por centro, SISU por módulo
   assert.deepEqual([...searchPhases({ center: '100497' }).matchAll(/<\/i>([^<]+)/g)].map((m) => m[1]), ['Mismo centro · 100497', 'Resumen parecido']);
   assert.match(searchPhases({ sisu: true }), /<\/i>Mismo módulo</);

@@ -5,7 +5,7 @@
 import { onEscape } from '../ui/dialog.js';
 import { esc } from '../ui/html.js';
 import { BACK_ARROW, NEXT_ARROW, slideStep, lockSteps, flashEmpty, fadeOut as fade, runPhases } from '../ui/wizard.js';
-import { escalateForm, requirementsHtml, linkedText, summaryHtml, filesHtml, ticketHtml, doneHtml, closePhases, searchHtml, searchPhases } from './escalate-form.js';
+import { escalateForm, requirementsHtml, linkedText, summaryHtml, filesHtml, ticketHtml, doneHtml, closePhases, searchingHtml, searchPhases } from './escalate-form.js';
 import { resolveBlocked, noteMeter, localShort } from './resolve-form.js';
 import { stepMissing, stepWarning, resumeStep, resultTicket, targetOf, titleOf, nextOf, prevOf, findEscalations, LAST, FEED, FLOWS } from './escalate.js';
 import { syncEditor, setEditorText, toText, insertChip, removeChips } from './tag-editor.js';
@@ -381,10 +381,29 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
     if (done) { const d = done; done = null; onEscalated(d.target, d.mode); }
   };
 
+  // Empezar por el paso 1: el modal ya está abierto y en su cuerpo, antes que nada, se buscan los
+  // escalados del mismo problema (searchingHtml); mientras, la barra de pasos, el paso y los botones
+  // no se ven (.searching). Al acabar, el cargador se difumina y entran (.arriving).
+  const ARRIVE_MS = 450;   // lo que tardan en entrar (issues.css)
+  const searchFirst = async (f, id) => {
+    f.classList.add('searching');
+    f.setAttribute('aria-busy', 'true');
+    f.querySelector('.rv-body').insertAdjacentHTML('afterbegin', searchingHtml());
+    const box = f.querySelector('.iss-esc-searching');
+    const loader = box.querySelector('[data-loader]');
+    await runPhases(loader, 'Buscando escalados del mismo problema', searchPhases(issue), { alive: () => opened === id && f.isConnected, track });
+    await fadeOut(loader);
+    if (!f.isConnected) return;
+    box.remove();
+    f.removeAttribute('aria-busy');
+    f.classList.replace('searching', 'arriving');
+    setTimeout(() => f.classList.remove('arriving'), ARRIVE_MS);
+  };
+
   return {
     // Abrir Escalar sobre la issue abierta: el bridge dice si se puede (las notas del método) y da
-    // mi borrador. Sin las notas, el aviso. Con ellas, si se empieza por el paso 1, primero se buscan
-    // las recurrencias en Jira (searchHtml) y luego el asistente; si se retoma más adelante, directo.
+    // mi borrador. Sin las notas, el aviso. Con ellas, el modal; si se empieza por el paso 1, en él
+    // primero se buscan los escalados del mismo problema (searchFirst); si se retoma más adelante, directo.
     // onClose: lo que cierra la ventana (Escape, el aviso).
     async open(theIssue, link, onClose) {
       await saving;   // lo que se guardaba al cerrar, antes de leer el borrador
@@ -397,19 +416,12 @@ export const createEscalator = (root, { api, dialogs, toast, dests, tickets, onE
         return;
       }
       const resume = resumeStep(start.draft, ctx());
-      const formHtml = () => escalateForm({ issue, dests, found, check: start.check, saved: start.draft, link });
-      if (resume === 1) {
-        root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${searchHtml(issue.id, start.check)}</div>`);
-        const box = root.querySelector('.rb-search');
-        const alive = () => opened === theIssue.id && box.isConnected;
-        await runPhases(box.querySelector('[data-loader]'), 'Buscando escalados del mismo problema', searchPhases(issue), { alive, track });
-        await fadeOut(box);
-        if (!alive()) return;
-        box.outerHTML = formHtml();
-      } else root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${formHtml()}</div>`);
+      root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${escalateForm({ issue, dests, found, check: start.check, saved: start.draft, link })}</div>`);
       const f = form();
       syncFoot(f);
-      if (resume > 1) goStep(f, resume); else f.querySelector('[name="linked"]:checked, [name="linked"]')?.focus();
+      if (resume > 1) return goStep(f, resume);
+      await searchFirst(f, theIssue.id);
+      if (f.isConnected) f.querySelector('[name="linked"]:checked, [name="linked"]')?.focus();
     },
     close,
   };

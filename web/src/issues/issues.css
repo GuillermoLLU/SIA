@@ -589,10 +589,12 @@ a.rv-id:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .rb-foot .lab-btn { height: 48px; padding: 0 32px; font-size: 14px; }
 /* Escalar con todo lo que pide: lo que cumple y, debajo, la búsqueda de recurrencias en Jira */
 .rb-icon.ok { color: var(--iss-ok); background: color-mix(in srgb, var(--iss-ok) 14%, transparent); }
-.rb-search .ld { margin: 4px 0 0; gap: 20px; }
-.rb-search .ld-title { font-size: 16px; }
-.rb-search .ld-spin { width: 40px; height: 40px; border-width: 3px; }
-.rb-search .ld-phases { font-size: 14px; gap: 10px; }
+/* Escalar, al abrir por el paso 1: el modal ya abierto y, en su cuerpo, la búsqueda de escalados del
+   mismo problema; la barra de pasos, el paso y los botones entran al acabar (escalate-view.js) */
+.iss-esc.searching :is(.rv-steps, .rv-body > .rv-step, footer) { visibility: hidden; }
+.iss-esc-searching { position: absolute; inset: 0; display: flex; }
+.iss-esc.arriving :is(.rv-steps, .rv-body > .rv-step:not([hidden]), footer) { animation: rv-fade-in .45s ease both; }
+@media (prefers-reduced-motion: reduce) { .iss-esc.arriving :is(.rv-steps, .rv-body > .rv-step, footer) { animation: none; } }
 @media (prefers-reduced-motion: reduce) { .rb { animation: none; } }
 .iss-mono, .iss-esc code { font-family: var(--font-mono); font-size: 12.5px; }
 .iss-esc [hidden] { display: none !important; }
