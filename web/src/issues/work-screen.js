@@ -15,7 +15,7 @@ import { notesPanelHtml, notesTab, notesCountOf } from './notes-html.js';
 
 const WORK_TABS = [
   { key: 'detail', label: 'Detalle' },
-  { key: 'notes', label: 'Notas' },
+  { key: 'notes', label: 'Seguimiento' },
   { key: 'related', label: 'Relacionadas' },
 ];
 

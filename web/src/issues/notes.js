@@ -1,4 +1,4 @@
-// La pestaña Notas de una issue (dominio, sin E/S): las notas de trabajo de
+// La pestaña Seguimiento de una issue (dominio, sin E/S): las notas de trabajo de
 // Remedy, las notas del equipo en SIA y sus movimientos (cogida, traspasada…),
 // en una sola conversación de la más antigua a la más reciente.
 //

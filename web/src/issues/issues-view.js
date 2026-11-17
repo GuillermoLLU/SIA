@@ -35,7 +35,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   let data = null, now = new Date(), opened = null, onDesk = false, workTab = 'detail', chat = null, loading = false, picking = false;
   let issue = null; // la issue abierta: Escalar mira su criticidad, su estado y su ticket
   const closeChat = () => { chat?.dispose(); chat = null; };
-  // la pestaña Notas vive en su módulo (notes-view.js): plegar, escribir, editar
+  // la pestaña Seguimiento (las notas) vive en su módulo (notes-view.js): plegar, escribir, editar
   const notes = createNotes({ root, api, toast, me });
   // el tooltip de «Traspasada» se saca al body: al repintar, fuera, o se quedaría flotando
   const hideTip = mountTips(root);

@@ -1,4 +1,4 @@
-// La pestaña Notas de una issue, en HTML (sin E/S; el cableado, notes-view.js).
+// La pestaña Seguimiento de una issue, en HTML (sin E/S; el cableado, notes-view.js).
 // Una conversación de la más antigua a la más reciente: cada nota con su autor,
 // su etiqueta (una ficha junto al nombre), su hora y su caja, plegada a una
 // línea (la primera frase y quién la ve) que se despliega entera al pulsarla; los movimientos (cogida,
@@ -99,8 +99,8 @@ export const noteEditorHtml = (text) => `<form class="iss-note-edit" data-note-e
     <footer><button type="button" class="lab-btn" data-edit-cancel>Cancelar</button><button type="submit" class="lab-btn primary">Guardar</button></footer>
   </form>`;
 
-// La pestaña («Notas» y cuántas hay) y su panel, con todo plegado.
-export const notesTab = (n) => `Notas${n ? `<span>${n}</span>` : ''}`;
+// La pestaña («Seguimiento» y cuántas notas hay) y su panel, con todo plegado.
+export const notesTab = (n) => `Seguimiento${n ? `<span>${n}</span>` : ''}`;
 export const notesPanelHtml = ({ worklog, timeline = [], meId = null, now = new Date() }) => {
   const feed = notesFeed({ worklog, timeline });
   return `<div class="nt-scroll" data-notes-scroll><ol class="nt-list" data-notes-list>${notesListHtml(feed, { meId, now, remedyMissing: !worklog })}</ol></div>

@@ -11,7 +11,7 @@ test('la pantalla: tres pestañas (Detalle, Notas y Relacionadas), Detalle por d
   const html = workScreen({ issue: issue(), sameCenter: [], now, mine: false });
   assert.deepEqual([...html.matchAll(/data-wtab="([a-z]+)"/g)].map((m) => m[1]), ['detail', 'notes', 'related'], 'Seguimiento y Notas internas, en una sola: Notas');
   assert.match(html, /data-wtab="detail" aria-selected="true"/);
-  assert.match(html, /data-wtab="notes" aria-selected="false">Notas</);
+  assert.match(html, /data-wtab="notes" aria-selected="false">Seguimiento</);
   assert.doesNotMatch(html, /Análisis de la IA|data-wpanel="ai"|data-wpanel="remedy"|data-wpanel="trail"/);
   assert.match(html, /data-wpanel="notes" hidden/);
   assert.match(html, /La foto cargada no trae las notas de Remedy/, 'sin la columna de notas, se avisa en Notas');
@@ -30,7 +30,7 @@ test('Notas: las de Remedy y las de SIA juntas, con su número en la pestaña; a
   const wl = [{ at: '2026-10-01 09:30', who: 'robot.siglo', text: 'No entra. Gracias.' }];
   const timeline = [{ at: '2026-10-01T08:00:00+00:00', type: 'claimed', by: 'Ana', to: 'Ana' }, { at: '2026-10-01T10:00:00+00:00', type: 'note', id: 4, by: 'Ana', byId: 'u1', text: 'Revisado.', visibility: 'internal', tag: null }];
   const html = workScreen({ issue: issue({ worklog: wl }), sameCenter: [], timeline, now, mine: false, tab: 'notes' });
-  assert.match(html, /data-wtab="notes" aria-selected="true">Notas<span>2<\/span>/, 'cuenta las notas, no los movimientos');
+  assert.match(html, /data-wtab="notes" aria-selected="true">Seguimiento<span>2<\/span>/, 'cuenta las notas, no los movimientos');
   assert.match(html, /data-wpanel="notes">/);
   assert.match(html, /data-note-key="r0"/);
   assert.match(html, /data-note-key="n4"/);

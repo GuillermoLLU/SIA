@@ -1,4 +1,4 @@
-// El cableado de la pestaña Notas de una issue (el HTML, notes-html.js; el
+// El cableado de la pestaña Seguimiento de una issue (el HTML, notes-html.js; el
 // dominio, notes.js): plegar y desplegar cada nota, elegir quién la verá y su
 // etiqueta, enviar, y editar la propia. Escucha en la vista de Issues (root),
 // que le dice qué issue se enseña (attach) y le pide repintar tras anotar algo

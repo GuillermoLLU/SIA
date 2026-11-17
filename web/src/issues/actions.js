@@ -2,7 +2,7 @@
 // formulario, qué hace falta para enviarlo y cuáles tiene cada issue según su estado.
 // Traspasar se queda en SIA (la base de la instancia); resolver, escalar y reclamar irán a
 // Remedy por SIGLO y, de momento, no se envían (la reclamación queda como nota interna).
-// Las notas internas se escriben en la pestaña Notas internas.
+// Las notas se escriben en la pestaña Seguimiento.
 import { esc } from '../ui/html.js';
 import { peoplePicker } from '../ui/picker.js';
 import { thirdOf } from './format.js';

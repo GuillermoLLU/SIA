@@ -90,8 +90,8 @@ test('la barra de escribir: interna de serie, sin etiqueta, el aviso de pública
 });
 
 test('la pestaña y su panel: el número de notas y todo plegado', () => {
-  assert.equal(notesTab(0), 'Notas');
-  assert.equal(notesTab(3), 'Notas<span>3</span>');
+  assert.equal(notesTab(0), 'Seguimiento');
+  assert.equal(notesTab(3), 'Seguimiento<span>3</span>');
   const html = notesPanelHtml({ worklog: [{ at: '2026-10-12 12:25', who: 'X', text: 'Uno.' }, { at: '2026-10-13 12:25', who: 'Y', text: 'Dos.' }, { at: '2026-10-14 12:25', who: 'Z', text: 'Tres.' }], now });
   assert.deepEqual([...html.matchAll(/data-note-key="(r\d)"/g)].map((m) => m[1]), ['r0', 'r1', 'r2']);
   assert.doesNotMatch(html, / open"/, 'ninguna desplegada, tampoco la última');
