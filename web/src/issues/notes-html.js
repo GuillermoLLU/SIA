@@ -72,7 +72,9 @@ const callHtml = (e, c, { open, meId, now }) => `<li class="iss-feed-item nt-ev 
       ${c.said ? boxHtml({ label: c.answered ? 'Lo hablado' : 'Nota', visibility: e.visibility, text: c.said }, open) : ''}
     </div></li>`;
 
-// Una entrada de la conversación: una nota (de Remedy o de SIA), una llamada o un movimiento.
+// Una entrada de la conversación: una nota (de Remedy o de SIA), una llamada o un
+// movimiento. Una nota sin texto (de Remedy, solo su etiqueta: «[INCIDENT
+// REOPENED BY A PUBLIC WORK INFO]») se queda en su línea, sin caja.
 export const noteItemHtml = (e, { open = false, meId = null, now = new Date() } = {}) => {
   if (e.kind === 'move') return moveHtml(e, { open, now });
   const call = callOf(e);
@@ -80,7 +82,7 @@ export const noteItemHtml = (e, { open = false, meId = null, now = new Date() } 
   const edit = editHtml(e, meId, now);
   return `<li class="iss-feed-item nt-item v-${e.visibility || 'none'}${open ? ' open' : ''}" data-note-key="${esc(e.key)}">${avatar(e.by)}<div class="iss-feed-body">
       <header><span class="iss-feed-did">${who(e.by)}${tagHtml(e.tag)}</span>${edit}<time>${whenLabel(e.at, now)}</time></header>
-      ${boxHtml({ visibility: e.visibility, text: e.text }, open)}
+      ${String(e.text || '').trim() ? boxHtml({ visibility: e.visibility, text: e.text }, open) : ''}
     </div></li>`;
 };
 

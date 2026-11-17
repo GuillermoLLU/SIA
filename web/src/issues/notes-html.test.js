@@ -59,6 +59,13 @@ test('los movimientos, un hito en la línea de tiempo con su icono y su frase; e
   assert.match(noteItemHtml(transfer, { now, open: true }), /nt-ev strong open".*<div class="nt-text">Lleva &lt;dos&gt; llamadas\. Y más\.<\/div>/s);
 });
 
+test('una nota sin texto (de Remedy, solo su etiqueta) se queda en su línea: autor, etiqueta y hora, sin caja', () => {
+  const [r] = notesFeed({ worklog: [{ at: '2026-10-26 16:59', who: 'Remedy Application Service', text: '[INCIDENT REOPENED BY A PUBLIC WORK INFO]' }] });
+  const html = noteItemHtml(r, { now });
+  assert.match(html, /<b>Remedy Application Service<\/b><span class="nt-tag" title="INCIDENT REOPENED BY A PUBLIC WORK INFO">INCIDENT REOPENED BY A PUBLIC WORK INFO<\/span>/);
+  assert.doesNotMatch(html, /nt-box|data-note-fold/);
+});
+
 test('una llamada: un hito con el teléfono, quién llamó y a qué número; lo hablado, en su caja plegable; sin nada más, solo la línea', () => {
   const [ko, ok] = notesFeed({ worklog: [
     { at: '2026-10-22 13:20', who: 'CESARHD', text: '[CALLKO] +90 212 555 0143' },
