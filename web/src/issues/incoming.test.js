@@ -38,14 +38,17 @@ test('se guarda con lo que se habló; el teléfono es opcional, pero si se pone,
   assert.equal(incomingReady(), false);
 });
 
-test('las últimas notas: las tres más recientes (de Remedy y de SIA, llamadas incluidas; sin movimientos) y cuántas hay', () => {
+test('las últimas notas: las seis más recientes (de Remedy y de SIA, llamadas incluidas; sin movimientos) y cuántas hay', () => {
   const { recent, total } = recentOf(ISSUE, TIMELINE);
-  assert.deepEqual(recent.map((e) => e.key), ['r1', 'r2', 'n9']);
+  assert.deepEqual(recent.map((e) => e.key), ['r0', 'r1', 'r2', 'n9']);
   assert.equal(total, 4);
+  const many = { ...ISSUE, worklog: Array.from({ length: 9 }, (_, k) => ({ at: `2026-11-0${k + 1} 10:00`, who: 'X', text: `Nota ${k}.` })) };
+  assert.deepEqual(recentOf(many).recent.map((e) => e.key), ['r3', 'r4', 'r5', 'r6', 'r7', 'r8']);
+  assert.equal(recentOf(many).total, 9);
   assert.deepEqual(recentOf({ ...ISSUE, worklog: null }), { recent: [], total: 0 });
 });
 
-test('la ventana: el detalle de la issue (escapado), sus últimas notas plegadas y lo que se habló; solo registro', () => {
+test('la ventana: a la izquierda el detalle (escapado), a la derecha sus últimas notas plegadas, abajo lo que se habló; solo registro', () => {
   const { recent, total } = recentOf(ISSUE, TIMELINE);
   const html = incomingModalHtml({ issue: ISSUE, recent, total, now });
   assert.match(html, /<h3><i class="inc-ic">[\s\S]*<\/i>Llamada del centro<\/h3><a href="https:\/\/remedy\/x" target="_blank" rel="noopener" title="Abrir en Remedy">INC000027680016 ↗<\/a>/);
@@ -55,8 +58,11 @@ test('la ventana: el detalle de la issue (escapado), sus últimas notas plegadas
   assert.match(html, /<dt>La lleva<\/dt><dd>CESARHD <small>en Remedy<\/small><\/dd>/);
   assert.match(incomingModalHtml({ issue: { ...ISSUE, claimedBy: { name: 'Ana' } }, now }), /<dt>La lleva<\/dt><dd>Ana <small>en SIA<\/small><\/dd>/);
   assert.match(html, /No &lt;entran&gt;\./);
-  assert.match(html, /Últimas notas <span class="iss-low">· 3 de 4<\/span>/);
-  assert.equal((html.match(/data-note-key="/g) || []).length, 3);
+  assert.match(html, /<div class="inc-col inc-detail">\s*<p class="inc-title">[\s\S]*<\/div>\s*<div class="inc-col inc-notes">\s*<h4 class="iss-sub">Últimas notas <span class="iss-low">· 4<\/span><\/h4>/);
+  assert.equal((html.match(/data-note-key="/g) || []).length, 4);
+  const many = { ...ISSUE, worklog: Array.from({ length: 9 }, (_, k) => ({ at: `2026-11-0${k + 1} 10:00`, who: 'X', text: `Nota ${k}.` })) };
+  assert.match(incomingModalHtml({ issue: many, ...recentOf(many), now }), /Últimas notas <span class="iss-low">· 6 de 9<\/span>/);
+  assert.match(html, /<div class="inc-call">\s*<label class="iss-field inc-phone"[\s\S]*<label class="iss-field inc-said-now"/);
   assert.doesNotMatch(html, / open"/, 'plegadas');
   assert.match(html, /name="phone" type="tel"/);
   assert.match(html, /<textarea id="inc-f-comment" name="comment"/);

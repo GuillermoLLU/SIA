@@ -1,7 +1,8 @@
 // Atender la llamada de un centro desde el panel (dominio y HTML, sin E/S; el
 // cableado, incoming-view.js). En la columna derecha, bajo «Hoy», una tarjeta para
 // buscar la incidencia por su número (sea de quien sea); al elegirla, una
-// ventana con su detalle, para atender bien la llamada, y lo que se habló.
+// ventana ancha con su detalle a la izquierda y sus últimas notas a la derecha,
+// para atender bien la llamada, y abajo el teléfono y lo que se habló.
 // Solo deja registro: no se resuelve, no se coge ni se mueve. La llamada queda
 // como una llamada atendida (CALLOK) en el Seguimiento de la issue (call.js).
 import { esc } from '../ui/html.js';
@@ -50,7 +51,7 @@ export const incomingReady = ({ phone = '', comment = '' } = {}) => !!String(com
 
 // Las últimas notas del Seguimiento (de Remedy y de SIA, llamadas incluidas) que
 // se enseñan en la ventana, plegadas → { recent, total }
-const RECENT = 3;
+const RECENT = 6;
 export const recentOf = (issue, timeline = []) => {
   const notes = notesFeed({ worklog: issue.worklog, timeline }).filter((e) => e.kind === 'note');
   return { recent: notes.slice(-RECENT), total: notes.length };
@@ -64,6 +65,7 @@ export const incomingModalHtml = ({ issue: i, recent = [], total = 0, now = new 
   <form class="iss-act-form inc-form" data-incoming-form novalidate>
     <header><h3><i class="inc-ic">${PHONE}</i>Llamada del centro</h3>${i.link ? `<a href="${esc(i.link)}" target="_blank" rel="noopener" title="Abrir en Remedy">${esc(i.id)} ↗</a>` : `<span>${esc(i.id)}</span>`}</header>
     <div class="inc-body">
+     <div class="inc-col inc-detail">
       <p class="inc-title">${esc(i.text)}</p>
       <dl class="inc-facts">
         ${fact('Criticidad', `${esc(SEVERITY_ES[i.priority] || i.priority || '—')}${i.prio ? ' <small>priorizada</small>' : ''}`, `k-sev ${esc(i.priority || '')}`)}
@@ -75,12 +77,15 @@ export const incomingModalHtml = ({ issue: i, recent = [], total = 0, now = new 
       </dl>
       <h4 class="iss-sub">Lo que dice el centro</h4>
       <div class="iss-notes inc-said">${esc(i.notes || 'Sin descripción.')}</div>
-      <h4 class="iss-sub">Últimas notas <span class="iss-low">· ${recent.length} de ${total}</span></h4>
+     </div>
+     <div class="inc-col inc-notes">
+      <h4 class="iss-sub">Últimas notas <span class="iss-low">· ${recent.length < total ? `${recent.length} de ${total}` : total}</span></h4>
       ${recent.length ? `<ol class="nt-list inc-recent" data-incoming-recent>${recentHtml(recent, { now })}</ol>` : '<p class="inc-none">Todavía no hay notas.</p>'}
+     </div>
     </div>
     <div class="inc-call">
-      <label class="iss-field" for="inc-f-phone"><span>Teléfono <i>(opcional)</i></span><input id="inc-f-phone" name="phone" type="tel" inputmode="tel" autocomplete="off" placeholder="El número desde el que llaman" /></label>
-      <label class="iss-field" for="inc-f-comment"><span>Lo que se habló</span><textarea id="inc-f-comment" name="comment" rows="4" placeholder="Qué pide el centro y qué le has dicho…"></textarea></label>
+      <label class="iss-field inc-phone" for="inc-f-phone"><span>Teléfono <i>(opcional)</i></span><input id="inc-f-phone" name="phone" type="tel" inputmode="tel" autocomplete="off" placeholder="El número desde el que llaman" /></label>
+      <label class="iss-field inc-said-now" for="inc-f-comment"><span>Lo que se habló</span><textarea id="inc-f-comment" name="comment" rows="3" placeholder="Qué pide el centro y qué le has dicho…"></textarea></label>
       <p class="iss-act-note">Solo queda registrada la llamada en el Seguimiento de la issue: no se resuelve, no se coge ni se mueve. Aún no llega a Remedy: irá por SIGLO cuando lo conectemos.</p>
       <p class="iss-act-err" hidden></p>
     </div>
