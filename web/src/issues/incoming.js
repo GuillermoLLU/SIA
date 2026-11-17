@@ -6,15 +6,13 @@
 // se habló.
 // Solo deja registro: no se resuelve, no se coge ni se mueve. La llamada queda
 // como una llamada atendida (CALLOK) en el Seguimiento de la issue (call.js).
-import { esc } from '../ui/html.js';
+import { esc, svg } from '../ui/html.js';
 import { STATUS_ES, SEVERITY_ES, when, age } from './format.js';
 import { originOf } from './origin.js';
-import { notesFeed, isPhone } from './notes.js';
-import { noteItemHtml } from './notes-html.js';
+import { notesFeed } from './notes.js';
+import { noteItemHtml, PHONE } from './notes-html.js';
 
-const svg = (paths) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
-const PHONE = svg('<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>');
-const SEARCH = svg('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>');
+const SEARCH = svg('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>', { width: 2, hidden: true });
 
 // Las cifras que se buscan (lo mismo que el bridge, server/issues/search.js)
 export const MIN_DIGITS = 4;
@@ -47,9 +45,6 @@ export const hitsHtml = (results, q, active = 0) => {
     </button>`).join('');
 };
 
-// ¿Se puede guardar? El teléfono desde el que llaman y lo que se habló.
-export const incomingReady = ({ phone = '', comment = '' } = {}) => isPhone(phone) && !!String(comment).trim();
-
 // Las últimas notas del Seguimiento (de Remedy y de SIA, llamadas incluidas) que
 // se enseñan en la ventana, plegadas → { recent, total }
 const RECENT = 6;
@@ -67,7 +62,7 @@ export const incomingModalHtml = ({ issue: i, recent = [], total = 0, now = new 
   <form class="iss-act-form inc-form" data-incoming-form novalidate>
     <header><h3><i class="inc-ic">${PHONE}</i>Llamada del centro</h3>${i.link ? `<a href="${esc(i.link)}" target="_blank" rel="noopener" title="Abrir en Remedy">${esc(i.id)} ↗</a>` : `<span>${esc(i.id)}</span>`}</header>
     <div class="inc-body">
-     <div class="inc-col inc-detail">
+     <div class="inc-col">
       <p class="inc-title">${esc(i.text)}</p>
       <dl class="inc-facts">
         ${fact('Criticidad', `${esc(SEVERITY_ES[i.priority] || i.priority || '—')}${i.prio ? ' <small>priorizada</small>' : ''}`, `k-sev ${esc(i.priority || '')}`)}
@@ -86,8 +81,8 @@ export const incomingModalHtml = ({ issue: i, recent = [], total = 0, now = new 
        ${recent.length ? `<ol class="nt-list inc-recent" data-incoming-recent>${recentHtml(recent, { now })}</ol>` : '<p class="inc-none">Todavía no hay notas.</p>'}
       </div>
       <div class="inc-call">
-       <label class="iss-field inc-phone" for="inc-f-phone"><span>Teléfono</span><input id="inc-f-phone" name="phone" type="tel" inputmode="tel" autocomplete="off" placeholder="El número desde el que llaman" /></label>
-       <label class="iss-field inc-said-now" for="inc-f-comment"><span>Lo que se habló</span><textarea id="inc-f-comment" name="comment" rows="4" placeholder="Qué pide el centro y qué le has dicho…"></textarea></label>
+       <label class="iss-field" for="inc-f-phone"><span>Teléfono</span><input id="inc-f-phone" name="phone" type="tel" inputmode="tel" autocomplete="off" placeholder="El número desde el que llaman" /></label>
+       <label class="iss-field" for="inc-f-comment"><span>Lo que se habló</span><textarea id="inc-f-comment" name="comment" rows="4" placeholder="Qué pide el centro y qué le has dicho…"></textarea></label>
        <p class="iss-act-err" hidden></p>
        <footer><button type="button" class="lab-btn" data-incoming-cancel>Cancelar</button><button type="submit" class="lab-btn primary" disabled>Guardar llamada</button></footer>
       </div>

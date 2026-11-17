@@ -6,7 +6,7 @@
 // la escribe en Remedy («[CALLKO] +90 212 555 0143»). Aún no llega a Remedy:
 // irá por SIGLO cuando lo conectemos, como Resolver, Escalar o Reclamar.
 import { esc } from '../ui/html.js';
-import { callOf, isPhone } from './notes.js';
+import { callOf, isPhone, PHONE } from './notes.js';
 
 // Qué se puede guardar con lo escrito: una llamada atendida necesita teléfono y
 // lo que se habló; una sin respuesta, solo el teléfono.
@@ -23,7 +23,7 @@ export const callNote = ({ phone, comment = '', answered }) => ({
 
 // El teléfono que se propone: el de la última llamada de la issue; si no hay,
 // el de contacto que deja el centro en su descripción («Contact Phone: …»).
-const CONTACT = /contact\s*phone\s*:?\s*(\+?\d[\d\s().-]{3,}\d)/i;
+const CONTACT = new RegExp(String.raw`contact\s*phone\s*:?\s*(${PHONE})`, 'i');
 export const suggestedPhone = (feed = [], notes = '') => {
   const last = [...feed].reverse().map(callOf).find((c) => c?.phone);
   if (last) return { phone: last.phone, from: 'last' };

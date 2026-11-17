@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { incomingCardHtml, hitsHtml, incomingReady, recentOf, incomingModalHtml, digitsOf } from './incoming.js';
+import { incomingCardHtml, hitsHtml, recentOf, incomingModalHtml, digitsOf } from './incoming.js';
 
 const ISSUE = { id: 'INC000027680016', text: 'ECOM ZARA <TR 3> - Error RFID', priority: 'HIGH', prio: true, sisu: false, center: '101020', status: 'IN_PROGRESS', reported: '2026-11-12 12:25', notes: 'Contact Phone: 0537\nNo <entran>.', link: 'https://remedy/x', assignee: 'CESARHD', claimedBy: null,
   worklog: [
@@ -30,14 +30,6 @@ test('los resultados: el número con lo buscado resaltado, el título y centro, 
   assert.equal(hitsHtml([], 'INC 9999'), '<p class="inc-none">Ninguna incidencia con «9999» en la foto.</p>');
 });
 
-test('se guarda con el teléfono desde el que llaman y lo que se habló', () => {
-  assert.equal(incomingReady({ phone: '+34 600 000 000', comment: 'Pregunta.' }), true);
-  assert.equal(incomingReady({ comment: 'Pregunta cuándo estará.' }), false, 'sin teléfono, no');
-  assert.equal(incomingReady({ phone: '12', comment: 'Pregunta.' }), false);
-  assert.equal(incomingReady({ phone: '+34 600 000 000', comment: '  ' }), false);
-  assert.equal(incomingReady(), false);
-});
-
 test('las últimas notas: las seis más recientes (de Remedy y de SIA, llamadas incluidas; sin movimientos) y cuántas hay', () => {
   const { recent, total } = recentOf(ISSUE, TIMELINE);
   assert.deepEqual(recent.map((e) => e.key), ['r0', 'r1', 'r2', 'n9']);
@@ -58,11 +50,11 @@ test('la ventana: a la izquierda el detalle (escapado); a la derecha sus última
   assert.match(html, /<dt>La lleva<\/dt><dd>CESARHD <small>en Remedy<\/small><\/dd>/);
   assert.match(incomingModalHtml({ issue: { ...ISSUE, claimedBy: { name: 'Ana' } }, now }), /<dt>La lleva<\/dt><dd>Ana <small>en SIA<\/small><\/dd>/);
   assert.match(html, /No &lt;entran&gt;\./);
-  assert.match(html, /<div class="inc-col inc-detail">\s*<p class="inc-title">[\s\S]*<\/div>\s*<div class="inc-side">\s*<div class="inc-col inc-notes">\s*<h4 class="iss-sub">Últimas notas <span class="iss-low">· 4<\/span><\/h4>/);
+  assert.match(html, /<div class="inc-col">\s*<p class="inc-title">[\s\S]*<\/div>\s*<div class="inc-side">\s*<div class="inc-col inc-notes">\s*<h4 class="iss-sub">Últimas notas <span class="iss-low">· 4<\/span><\/h4>/);
   assert.equal((html.match(/data-note-key="/g) || []).length, 4);
   const many = { ...ISSUE, worklog: Array.from({ length: 9 }, (_, k) => ({ at: `2026-11-0${k + 1} 10:00`, who: 'X', text: `Nota ${k}.` })) };
   assert.match(incomingModalHtml({ issue: many, ...recentOf(many), now }), /Últimas notas <span class="iss-low">· 6 de 9<\/span>/);
-  assert.match(html, /<div class="inc-side">[\s\S]*<div class="inc-col inc-notes">[\s\S]*<\/ol>\s*<\/div>\s*<div class="inc-call">\s*<label class="iss-field inc-phone"[\s\S]*<label class="iss-field inc-said-now"[\s\S]*Guardar llamada<\/button><\/footer>\s*<\/div>\s*<\/div>/, 'lo que se habló, en la columna de las notas, debajo');
+  assert.match(html, /<div class="inc-side">[\s\S]*<div class="inc-col inc-notes">[\s\S]*<\/ol>\s*<\/div>\s*<div class="inc-call">\s*<label class="iss-field" for="inc-f-phone"[\s\S]*<label class="iss-field" for="inc-f-comment"[\s\S]*Guardar llamada<\/button><\/footer>\s*<\/div>\s*<\/div>/, 'lo que se habló, en la columna de las notas, debajo');
   assert.doesNotMatch(html, / open"/, 'plegadas');
   assert.match(html, /name="phone" type="tel"/);
   assert.match(html, /<textarea id="inc-f-comment" name="comment"/);

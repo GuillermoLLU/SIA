@@ -5,14 +5,18 @@
 //
 // deps: root (la vista de Issues) · api (search, get, addNote) · toast
 import { onEscape } from '../ui/dialog.js';
-import { MIN_DIGITS, digitsOf, hitsHtml, incomingReady, recentOf, recentHtml, incomingModalHtml } from './incoming.js';
-import { callNote } from './call.js';
+import { pressStartedIn } from '../ui/dom.js';
+import { MIN_DIGITS, digitsOf, hitsHtml, recentOf, recentHtml, incomingModalHtml } from './incoming.js';
+import { callReady, callNote } from './call.js';
+
+// ¿Se puede guardar? El teléfono desde el que llaman y lo que se habló (como una llamada atendida)
+const ready = (values) => callReady(values).answered;
 
 const SEARCH_MS = 180; // lo que se espera a que deje de escribir antes de buscar
 
 export const createIncoming = ({ root, api, toast }) => {
   let results = [], active = 0, timer = 0, asked = 0;
-  let modal = null, offEscape = null, pressedInside = false;
+  let modal = null, offEscape = null;
   let recent = [], open = new Set();
   const input = () => root.querySelector('[data-incoming-q]');
   const hits = () => root.querySelector('[data-incoming-hits]');
@@ -52,9 +56,8 @@ export const createIncoming = ({ root, api, toast }) => {
     try { got = await api.get(id); } catch (err) { return toast?.(err.message); }
     if (!got?.issue) return toast?.('Esa incidencia ya no está en la foto.');
     close();
-    const latest = recentOf(got.issue, got.timeline);
-    recent = latest.recent;
-    const { total } = latest;
+    let total;
+    ({ recent, total } = recentOf(got.issue, got.timeline));
     open = new Set();
     document.body.insertAdjacentHTML('beforeend', incomingModalHtml({ issue: got.issue, recent, total }));
     modal = document.body.lastElementChild;
@@ -67,7 +70,7 @@ export const createIncoming = ({ root, api, toast }) => {
     const values = Object.fromEntries(new FormData(form));
     const err = form.querySelector('.iss-act-err');
     const btn = form.querySelector('[type=submit]');
-    if (!incomingReady(values)) { err.textContent = !String(values.phone || '').trim() ? 'Falta: el teléfono.' : !values.comment?.trim() ? 'Falta: lo que se habló.' : 'Ese teléfono no parece un número.'; err.hidden = false; return; }
+    if (!ready(values)) { err.textContent = !String(values.phone || '').trim() ? 'Falta: el teléfono.' : !values.comment?.trim() ? 'Falta: lo que se habló.' : 'Ese teléfono no parece un número.'; err.hidden = false; return; }
     btn.disabled = true;
     const id = modal.dataset.issue;
     try {
@@ -81,9 +84,9 @@ export const createIncoming = ({ root, api, toast }) => {
   };
   const wireModal = (m) => {
     const form = m.querySelector('[data-incoming-form]');
-    m.addEventListener('mousedown', (e) => { pressedInside = !!e.target.closest('.inc-form'); });
+    const pressedInside = pressStartedIn(m, (t) => !!t.closest('.inc-form'));
     m.addEventListener('click', (e) => {
-      if (e.target === m && !pressedInside) return close(); // el fondo cierra (no si se soltó fuera tras seleccionar dentro)
+      if (e.target === m && !pressedInside()) return close(); // el fondo cierra (no si se soltó fuera tras seleccionar dentro)
       if (e.target.closest('[data-incoming-cancel]')) return close();
       const fold = e.target.closest('[data-note-fold]');
       if (fold) { const key = fold.closest('[data-note-key]').dataset.noteKey; if (open.has(key)) open.delete(key); else open.add(key); paintRecent(); }
@@ -92,7 +95,7 @@ export const createIncoming = ({ root, api, toast }) => {
       if (e.target.matches('[data-note-fold]') && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.target.click(); }
     });
     form.addEventListener('input', () => {
-      form.querySelector('[type=submit]').disabled = !incomingReady(Object.fromEntries(new FormData(form)));
+      form.querySelector('[type=submit]').disabled = !ready(Object.fromEntries(new FormData(form)));
       form.querySelector('.iss-act-err').hidden = true;
     });
     form.addEventListener('submit', (e) => { e.preventDefault(); save(form); });

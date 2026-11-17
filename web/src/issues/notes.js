@@ -83,7 +83,7 @@ export const noteCount = (feed) => feed.filter((e) => e.kind === 'note').length;
 // → { answered, phone, said } o null si no es una llamada.
 const CALLS = { CALLOK: true, CALLKO: false };
 // un teléfono: al menos cinco cifras, con prefijo, espacios, guiones o una extensión
-const PHONE = String.raw`\+?\d[\d\s().-]{3,}\d(?:\s?x\s?\d+)?`;
+export const PHONE = String.raw`\+?\d[\d\s().-]{3,}\d(?:\s?x\s?\d+)?`;
 const LEADING_PHONE = new RegExp(`^\\s*(${PHONE})(?=\\s|$)`);
 const WHOLE_PHONE = new RegExp(`^${PHONE}$`);
 export const isPhone = (s) => WHOLE_PHONE.test(String(s ?? '').trim());
