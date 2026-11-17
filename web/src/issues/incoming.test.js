@@ -48,7 +48,7 @@ test('las últimas notas: las seis más recientes (de Remedy y de SIA, llamadas 
   assert.deepEqual(recentOf({ ...ISSUE, worklog: null }), { recent: [], total: 0 });
 });
 
-test('la ventana: a la izquierda el detalle (escapado), a la derecha sus últimas notas plegadas, abajo lo que se habló; solo registro', () => {
+test('la ventana: a la izquierda el detalle (escapado); a la derecha sus últimas notas plegadas y, debajo, lo que se habló; solo registro', () => {
   const { recent, total } = recentOf(ISSUE, TIMELINE);
   const html = incomingModalHtml({ issue: ISSUE, recent, total, now });
   assert.match(html, /<h3><i class="inc-ic">[\s\S]*<\/i>Llamada del centro<\/h3><a href="https:\/\/remedy\/x" target="_blank" rel="noopener" title="Abrir en Remedy">INC000027680016 ↗<\/a>/);
@@ -58,11 +58,11 @@ test('la ventana: a la izquierda el detalle (escapado), a la derecha sus última
   assert.match(html, /<dt>La lleva<\/dt><dd>CESARHD <small>en Remedy<\/small><\/dd>/);
   assert.match(incomingModalHtml({ issue: { ...ISSUE, claimedBy: { name: 'Ana' } }, now }), /<dt>La lleva<\/dt><dd>Ana <small>en SIA<\/small><\/dd>/);
   assert.match(html, /No &lt;entran&gt;\./);
-  assert.match(html, /<div class="inc-col inc-detail">\s*<p class="inc-title">[\s\S]*<\/div>\s*<div class="inc-col inc-notes">\s*<h4 class="iss-sub">Últimas notas <span class="iss-low">· 4<\/span><\/h4>/);
+  assert.match(html, /<div class="inc-col inc-detail">\s*<p class="inc-title">[\s\S]*<\/div>\s*<div class="inc-side">\s*<div class="inc-col inc-notes">\s*<h4 class="iss-sub">Últimas notas <span class="iss-low">· 4<\/span><\/h4>/);
   assert.equal((html.match(/data-note-key="/g) || []).length, 4);
   const many = { ...ISSUE, worklog: Array.from({ length: 9 }, (_, k) => ({ at: `2026-11-0${k + 1} 10:00`, who: 'X', text: `Nota ${k}.` })) };
   assert.match(incomingModalHtml({ issue: many, ...recentOf(many), now }), /Últimas notas <span class="iss-low">· 6 de 9<\/span>/);
-  assert.match(html, /<div class="inc-call">\s*<label class="iss-field inc-phone"[\s\S]*<label class="iss-field inc-said-now"/);
+  assert.match(html, /<div class="inc-side">[\s\S]*<div class="inc-col inc-notes">[\s\S]*<\/ol>\s*<\/div>\s*<div class="inc-call">\s*<label class="iss-field inc-phone"[\s\S]*<label class="iss-field inc-said-now"[\s\S]*Guardar llamada<\/button><\/footer>\s*<\/div>\s*<\/div>/, 'lo que se habló, en la columna de las notas, debajo');
   assert.doesNotMatch(html, / open"/, 'plegadas');
   assert.match(html, /name="phone" type="tel"/);
   assert.match(html, /<textarea id="inc-f-comment" name="comment"/);

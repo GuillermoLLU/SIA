@@ -1,8 +1,9 @@
 // Atender la llamada de un centro desde el panel (dominio y HTML, sin E/S; el
 // cableado, incoming-view.js). En la columna derecha, bajo «Hoy», una tarjeta para
 // buscar la incidencia por su número (sea de quien sea); al elegirla, una
-// ventana ancha con su detalle a la izquierda y sus últimas notas a la derecha,
-// para atender bien la llamada, y abajo el teléfono y lo que se habló.
+// ventana ancha: a la izquierda su detalle, para atender bien la llamada; a la
+// derecha, como en Seguimiento, sus últimas notas y debajo el teléfono y lo que
+// se habló.
 // Solo deja registro: no se resuelve, no se coge ni se mueve. La llamada queda
 // como una llamada atendida (CALLOK) en el Seguimiento de la issue (call.js).
 import { esc } from '../ui/html.js';
@@ -57,7 +58,8 @@ export const recentOf = (issue, timeline = []) => {
   return { recent: notes.slice(-RECENT), total: notes.length };
 };
 
-// La ventana: el detalle de la issue para atender la llamada y, abajo, lo que se habló.
+// La ventana: el detalle de la issue a la izquierda y, a la derecha, sus últimas
+// notas con lo que se habló debajo.
 // recent y total: las últimas notas y cuántas hay (recentOf)
 const fact = (label, value, cls = '') => `<div class="${cls}"><dt>${label}</dt><dd>${value}</dd></div>`;
 export const recentHtml = (recent, { open = new Set(), now = new Date() } = {}) => recent.map((e) => noteItemHtml(e, { open: open.has(e.key), now })).join('');
@@ -78,17 +80,19 @@ export const incomingModalHtml = ({ issue: i, recent = [], total = 0, now = new 
       <h4 class="iss-sub">Lo que dice el centro</h4>
       <div class="iss-notes inc-said">${esc(i.notes || 'Sin descripción.')}</div>
      </div>
-     <div class="inc-col inc-notes">
-      <h4 class="iss-sub">Últimas notas <span class="iss-low">· ${recent.length < total ? `${recent.length} de ${total}` : total}</span></h4>
-      ${recent.length ? `<ol class="nt-list inc-recent" data-incoming-recent>${recentHtml(recent, { now })}</ol>` : '<p class="inc-none">Todavía no hay notas.</p>'}
+     <div class="inc-side">
+      <div class="inc-col inc-notes">
+       <h4 class="iss-sub">Últimas notas <span class="iss-low">· ${recent.length < total ? `${recent.length} de ${total}` : total}</span></h4>
+       ${recent.length ? `<ol class="nt-list inc-recent" data-incoming-recent>${recentHtml(recent, { now })}</ol>` : '<p class="inc-none">Todavía no hay notas.</p>'}
+      </div>
+      <div class="inc-call">
+       <label class="iss-field inc-phone" for="inc-f-phone"><span>Teléfono <i>(opcional)</i></span><input id="inc-f-phone" name="phone" type="tel" inputmode="tel" autocomplete="off" placeholder="El número desde el que llaman" /></label>
+       <label class="iss-field inc-said-now" for="inc-f-comment"><span>Lo que se habló</span><textarea id="inc-f-comment" name="comment" rows="4" placeholder="Qué pide el centro y qué le has dicho…"></textarea></label>
+       <p class="iss-act-note">Solo queda registrada la llamada en el Seguimiento de la issue: no se resuelve, no se coge ni se mueve. Aún no llega a Remedy: irá por SIGLO cuando lo conectemos.</p>
+       <p class="iss-act-err" hidden></p>
+       <footer><button type="button" class="lab-btn" data-incoming-cancel>Cancelar</button><button type="submit" class="lab-btn primary" disabled>Guardar llamada</button></footer>
+      </div>
      </div>
     </div>
-    <div class="inc-call">
-      <label class="iss-field inc-phone" for="inc-f-phone"><span>Teléfono <i>(opcional)</i></span><input id="inc-f-phone" name="phone" type="tel" inputmode="tel" autocomplete="off" placeholder="El número desde el que llaman" /></label>
-      <label class="iss-field inc-said-now" for="inc-f-comment"><span>Lo que se habló</span><textarea id="inc-f-comment" name="comment" rows="3" placeholder="Qué pide el centro y qué le has dicho…"></textarea></label>
-      <p class="iss-act-note">Solo queda registrada la llamada en el Seguimiento de la issue: no se resuelve, no se coge ni se mueve. Aún no llega a Remedy: irá por SIGLO cuando lo conectemos.</p>
-      <p class="iss-act-err" hidden></p>
-    </div>
-    <footer><button type="button" class="lab-btn" data-incoming-cancel>Cancelar</button><button type="submit" class="lab-btn primary" disabled>Guardar llamada</button></footer>
   </form>
 </div>`;
