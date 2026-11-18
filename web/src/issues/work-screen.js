@@ -7,7 +7,7 @@
 // se puede ampliar a toda la pantalla de trabajo.
 // Las parecidas, por conectar: solo su hueco.
 import { esc, svg } from '../ui/html.js';
-import { STATUS_ES, SEVERITY_ES, when, whenIso, whenLabel, newestFirst, age, pendingSince, stillInfo, escalatedLabel } from './format.js';
+import { STATUS_ES, SEVERITY_ES, when, whenIso, whenLabel, newestFirst, age, pendingSince, stillInfo, escalatedLabel, statusInfo } from './format.js';
 import { item } from './parts.js';
 import { waitHtml } from '../ui/wait.js';
 import { ACTIONS, actionsFor, CENTRE_ACTIONS } from './actions.js';
@@ -31,6 +31,13 @@ export const worklogHtml = (worklog, now = new Date()) => {
       <summary><b>${esc(n.who)}</b><span class="iss-wl-peek">${esc(firstLine(n.text))}</span><time>${whenLabel(n.at, now)}</time></summary>
       <p>${esc(n.text)}</p>
     </details>`).join('')}</div>`;
+};
+
+// Su estado ahora (Asignada, En curso, Pendiente…), el primero de sus datos: desde cuándo y,
+// si está pendiente, a quién espera (y entonces, para que quepa, sin «desde el»).
+const statusBox = (i) => {
+  const s = statusInfo(i);
+  return `<div class="k-status"><span>Estado</span><b>${esc(s.label)}</b><small>${s.waitsFor ? `${esc(s.waitsFor)} · ` : 'desde el '}${when(s.since)}</small></div>`;
 };
 
 const CHEVRON = '<svg class="iss-keys-chev" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
@@ -155,6 +162,7 @@ export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, meI
         ${CHEVRON}
       </button>
       <div class="iss-keys-fold"><div class="iss-keys-grid">
+      ${statusBox(i)}
       <div class="k-sev ${esc(i.priority)}"><span>Criticidad</span><b>${esc(SEVERITY_ES[i.priority] || i.priority)}</b><small>${i.prio ? 'priorizada por negocio' : '&nbsp;'}</small></div>
       <div class="k-origin${i.sisu ? ' sisu' : ''}"><span>Origen</span><b>${i.sisu ? 'SISU' : 'SGA'}</b><small>&nbsp;</small></div>
       <div class="k-center"><span>Centro</span><b class="iss-code">${esc(i.center || '—')}</b><small>&nbsp;</small></div>

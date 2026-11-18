@@ -89,6 +89,14 @@ export const age = (s, now) => duration((now - new Date(s.replace(' ', 'T'))) / 
 // (Seguimiento enseña sus días sin moverse, stillInfo).
 export const since = (i, key, now) => (key === 'resolved' ? when(i.resolved) : `hace ${age(i.reported, now)}`);
 
+// El estado de una issue en sus datos: cómo se dice, desde cuándo (su último cambio de estado en
+// Remedy o, sin historial, desde que se creó) y, si está pendiente, a quién espera (su motivo).
+export const statusInfo = (i) => ({
+  label: STATUS_ES[i.status] || i.status || '—',
+  since: (i.changes || []).at(-1)?.[0] || i.reported,
+  waitsFor: i.status === 'PENDING' ? REASON_ES[i.reason] || '' : '',
+});
+
 // Desde cuándo espera a un tercero: el último paso a Pendiente del historial de Remedy
 // (changes: [[fecha, de, a]]); sin él, su último cambio.
 export const pendingSince = (i) => {

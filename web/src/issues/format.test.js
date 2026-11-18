@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LISTS, when, whenIso, whenLabel, newestFirst, snapshotInfo, age, stamp, duration, since, weekBars, stillDays, stillLevel, stillInfo, pendingSince, thirdOf, escalatedLabel, stillOpen, withJira, jiraDone } from './format.js';
+import { LISTS, when, whenIso, whenLabel, newestFirst, snapshotInfo, age, stamp, duration, since, weekBars, stillDays, stillLevel, stillInfo, pendingSince, thirdOf, escalatedLabel, stillOpen, withJira, jiraDone, statusInfo } from './format.js';
 
 const NOW = new Date('2026-10-04T11:44:00');
 
@@ -115,4 +115,12 @@ test('Seguimiento: las que tienen el Jira resuelto se cierran solas y no salen; 
 test('Seguimiento: mis pendientes con el Jira que les toca', () => {
   const got = withJira([{ id: 'INC1' }, { id: 'INC2' }], [{ id: 'INC2', jira: { key: 'SISUPAC-1', state: 'open' } }]);
   assert.deepEqual(got, [{ id: 'INC1' }, { id: 'INC2', jira: { key: 'SISUPAC-1', state: 'open' } }]);
+});
+
+test('el estado en los datos de la issue: cómo se dice, desde su último cambio y, pendiente, a quién espera', () => {
+  const changes = [['2026-10-01 10:00', '', 'Assigned'], ['2026-10-02 09:30', 'Assigned', 'In Progress']];
+  assert.deepEqual(statusInfo({ status: 'IN_PROGRESS', changes, reported: '2026-10-01 10:00' }), { label: 'En curso', since: '2026-10-02 09:30', waitsFor: '' });
+  assert.deepEqual(statusInfo({ status: 'PENDING', reason: 'THIRD_PARTY_VENDOR_ACTION_REQD', changes, reported: '2026-10-01 10:00' }).waitsFor, 'Proveedor');
+  assert.deepEqual(statusInfo({ status: 'ASSIGNED', changes: [], reported: '2026-10-01 10:00' }), { label: 'Asignada', since: '2026-10-01 10:00', waitsFor: '' });
+  assert.equal(statusInfo({ status: 'Algo nuevo', reported: '2026-10-01 10:00' }).label, 'Algo nuevo');
 });
