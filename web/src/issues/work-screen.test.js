@@ -115,3 +115,10 @@ test('la cabecera de una pendiente: a quién está escalada, desde que pasó a P
   assert.match(html, /<em class="iss-big-still late">11 días sin moverse<\/em>/, 'siete días o más: hay que mirarla');
   assert.match(workScreen({ issue: { ...pending, reason: 'ESCALATED_ACCORDING_TO_PROCEDURE' }, sameCenter: [], now, mine: true }), /<b>Escalada<\/b>/);
 });
+
+test('datos de la issue: el primero, su estado ahora, desde cuándo y, si está pendiente, a quién espera', () => {
+  const grid = (i) => workScreen({ issue: issue(i), sameCenter: [], now, mine: false }).split('iss-keys-grid">')[1];
+  assert.match(grid({}), /^\s*<div class="k-status"><span>Estado<\/span><b>Asignada<\/b><small>desde el 01\/10 10:00<\/small><\/div>\s*<div class="k-sev/);
+  assert.match(grid({ status: 'PENDING', reason: 'THIRD_PARTY_VENDOR_ACTION_REQD', changes: [['2026-10-01 11:30', 'In Progress', 'Pending']] }),
+    /<b>Pendiente<\/b><small>Proveedor · 01\/10 11:30<\/small>/);
+});
