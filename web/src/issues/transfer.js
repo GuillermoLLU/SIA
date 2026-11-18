@@ -22,20 +22,26 @@ const teamGroups = (teams) => [...new Set(teams.map((t) => t.group))]
 
 // La ventana. people: los compañeros que conocen su origen; empty: lo que dice el
 // selector sin nadie; teams: los equipos; mode: la opción con la que se abre.
-export const transferForm = (issueId, { people = [], empty = '', teams = [], mode = 'person' } = {}) => {
+// act, title, ok y modes: para usarla también al reasignar (reassignForm), con una sola opción y sin
+// las de arriba.
+export const transferForm = (issueId, { people = [], empty = '', teams = [], mode = 'person', act = 'transfer', title = 'Traspasar la issue', ok = 'Traspasar', modes = Object.keys(MODES) } = {}) => {
   const on = modeOf(mode);
-  const pane = (m, html) => `<div class="iss-field" data-transfer-pane="${m}"${m === on ? '' : ' hidden'}>${html}</div>`;
-  return `<form class="iss-act-form" data-act-form="transfer" novalidate>
-    <header><h3>Traspasar la issue</h3><span>${esc(issueId)}</span></header>
+  const pane = (m, html) => (modes.includes(m) ? `<div class="iss-field" data-transfer-pane="${m}"${m === on ? '' : ' hidden'}>${html}</div>` : '');
+  return `<form class="iss-act-form" data-act-form="${act}" novalidate>
+    <header><h3>${title}</h3><span>${esc(issueId)}</span></header>
     <input type="hidden" name="mode" value="${on}">
-    <div class="tr-seg" role="group" aria-label="A quién se traspasa">${Object.entries(MODES).map(([m, t]) => `<button type="button" data-transfer-mode="${m}" aria-pressed="${m === on}"><i>${t.icon}</i>${t.label}</button>`).join('')}</div>
+    ${modes.length > 1 ? `<div class="tr-seg" role="group" aria-label="A quién se traspasa">${modes.map((m) => `<button type="button" data-transfer-mode="${m}" aria-pressed="${m === on}"><i>${MODES[m].icon}</i>${MODES[m].label}</button>`).join('')}</div>` : ''}
     ${pane('person', `<span>Compañero</span>${peoplePicker({ id: 'iss-f-to', name: 'to', people, empty: empty || 'No hay más personas en Issues' })}`)}
     ${pane('team', `<span>Equipo</span>${pickerHtml({ id: 'iss-f-team', name: 'team', placeholder: 'Elige el equipo', groups: teamGroups(teams) })}`)}
     <label class="iss-field" for="iss-f-comment"><span>Motivo</span><textarea id="iss-f-comment" name="comment" rows="5"></textarea></label>
     <p class="iss-act-err" hidden></p>
-    <footer><button type="button" class="lab-btn" data-act-cancel>Cancelar</button><button type="submit" class="lab-btn primary" disabled>Traspasar</button></footer>
+    <footer><button type="button" class="lab-btn" data-act-cancel>Cancelar</button><button type="submit" class="lab-btn primary" disabled>${ok}</button></footer>
   </form>`;
 };
+
+// Reasignar el escalado de otro compañero, desde el seguimiento del equipo (#136): la ventana de
+// Traspasar, solo a un compañero. De momento, de prueba: no se mueve (issues-view.js).
+export const reassignForm = (issueId, { people = [], empty = '' } = {}) => transferForm(issueId, { people, empty, act: 'reassign', title: 'Reasignar a un compañero', ok: 'Reasignar', modes: ['person'] });
 
 // Lo escrito → los valores según la opción, o lo primero que falta:
 //   { values: { mode: 'person', to, comment } }

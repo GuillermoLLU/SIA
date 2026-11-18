@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LISTS, when, whenIso, whenLabel, newestFirst, snapshotInfo, age, stamp, duration, since, weekBars, stillDays, stillLevel, stillInfo, pendingSince, thirdOf, escalatedLabel } from './format.js';
+import { LISTS, when, whenIso, whenLabel, newestFirst, snapshotInfo, age, stamp, duration, since, weekBars, stillDays, stillLevel, stillInfo, pendingSince, thirdOf, escalatedLabel, stillOpen, withJira, jiraDone } from './format.js';
 
 const NOW = new Date('2026-10-04T11:44:00');
 
@@ -103,4 +103,16 @@ test('stillInfo: los días sin moverse, con su nivel y en singular o plural', ()
   assert.deepEqual(stillInfo({ modified: '2026-10-28 11:00' }, now), { days: 1, level: 'ok', label: '1 día' });
   assert.deepEqual(stillInfo({ modified: '2026-10-26 12:00' }, now), { days: 3, level: 'slow', label: '3 días' });
   assert.deepEqual(stillInfo({ modified: '2026-10-22 09:00' }, now), { days: 7, level: 'late', label: '7 días' });
+});
+
+test('Seguimiento: las que tienen el Jira resuelto se cierran solas y no salen; el resto, en su orden', () => {
+  const list = [{ id: 'a' }, { id: 'b', jira: { state: 'open' } }, { id: 'c', jira: { state: 'resolved' } }, { id: 'd', jira: { state: 'discarded' } }];
+  assert.deepEqual(stillOpen(list).map((i) => i.id), ['a', 'b', 'd']);
+  assert.equal(jiraDone({ jira: { state: 'resolved' } }), true);
+  assert.equal(jiraDone({}), false);
+});
+
+test('Seguimiento: mis pendientes con el Jira que les toca', () => {
+  const got = withJira([{ id: 'INC1' }, { id: 'INC2' }], [{ id: 'INC2', jira: { key: 'SISUPAC-1', state: 'open' } }]);
+  assert.deepEqual(got, [{ id: 'INC1' }, { id: 'INC2', jira: { key: 'SISUPAC-1', state: 'open' } }]);
 });

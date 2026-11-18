@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { ACTIONS, actionForm, readAction, isComplete, actionsFor, chaseNote, chaseTarget, contactNote, CENTRE_ACTIONS } from './actions.js';
 
 test('las acciones (las notas van en Seguimiento; la llamada, también como nota)', () => {
-  assert.deepEqual(Object.keys(ACTIONS), ['resolve', 'escalate', 'call', 'contact', 'warroom', 'transfer', 'chase']);
+  assert.deepEqual(Object.keys(ACTIONS), ['resolve', 'escalate', 'call', 'contact', 'reassign', 'warroom', 'transfer', 'chase']);
 });
 
 test('actionsFor: pendiente de un tercero, reclamarle; traspasar y devolver, solo si es mía en SIA', () => {
   assert.deepEqual(actionsFor({ status: 'PENDING' }, true), ['chase', 'transfer']);
-  assert.deepEqual(actionsFor({ status: 'PENDING' }, false), ['chase'], 'asignada en Remedy pero sin coger en SIA: la base no deja traspasarla');
+  assert.deepEqual(actionsFor({ status: 'PENDING' }, false), ['chase', 'reassign'], 'de otra persona: no se traspasa, se reasigna (también a mí)');
   assert.deepEqual(actionsFor({ status: 'IN_PROGRESS', priority: 'HIGH' }, true), ['resolve', 'escalate', 'call', 'contact', 'transfer', 'release']);
   assert.deepEqual(actionsFor({ status: 'ASSIGNED', priority: 'HIGH' }, false), ['resolve', 'escalate', 'call', 'contact'], 'hablar con el centro, aunque no sea mía');
   assert.deepEqual(actionsFor({ status: 'IN_PROGRESS', priority: 'CRITICAL' }, true), ['resolve', 'escalate', 'call', 'contact', 'warroom', 'transfer', 'release'], 'una crítica: también abrir un WAR-ROOM');

@@ -5,8 +5,8 @@
 // (work-screen.js). La mesa se refresca sola.
 import './issues.css';
 import { esc } from '../ui/html.js';
-import { LISTS, snapshotInfo, duration, weekBars } from './format.js';
-import { item, REFRESH_ICON } from './parts.js';
+import { LISTS, snapshotInfo, duration, weekBars, whenLabel, stillOpen, withJira } from './format.js';
+import { item, teamItem, mineWaitingItem, REFRESH_ICON } from './parts.js';
 import { onEscape } from '../ui/dialog.js';
 import { pressStartedIn } from '../ui/dom.js';
 import { pickClick, openPicker, closePickers } from '../ui/picker.js';
@@ -21,7 +21,7 @@ import { mountTips } from './tip.js';
 import { createEscalator } from './escalate-view.js';
 import { DESTINATIONS, OPEN_TICKETS } from './escalate-mock.js';
 import { callForm, callReady, callNote, suggestedPhone } from './call.js';
-import { transferForm, readTransfer, transferNote } from './transfer.js';
+import { transferForm, reassignForm, readTransfer, transferNote } from './transfer.js';
 import { TEAMS } from './transfer-mock.js';
 import { createIncoming } from './incoming-view.js';
 import { incomingCardHtml } from './incoming.js';
@@ -39,6 +39,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   const failed = (text) => (toast?.error || toast)?.(text);   // lo que falla, en rojo
   let data = null, now = new Date(), opened = null, onDesk = false, workTab = 'detail', chat = null, loading = false, picking = false;
   let issue = null; // la issue abierta: Escalar mira su criticidad, su estado y su ticket
+  let follow = 'mine'; // Seguimiento: 'mine' (lo mío) o 'team' (los escalados de todo el equipo)
   const closeChat = () => { chat?.dispose(); chat = null; };
   // la pestaña Seguimiento (las notas) vive en su módulo (notes-view.js): plegar, escribir, editar
   const notes = createNotes({ root, api, toast, me });
@@ -52,6 +53,10 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   const loadButton = (label) => fileLabel('iss-load', label);
   // La fecha de los datos es también el botón de cargar otra foto.
   const snapButton = ({ date, stale }) => fileLabel(`iss-date${stale ? ' stale' : ''}`, `${date}${stale ? REFRESH_ICON : ''}`, stale ? 'Datos de Remedy sin actualizar: pulsa para cargar un CSV nuevo. Lo medido en SIA sí es de hoy.' : 'Datos de Remedy: pulsa para cargar otro CSV');
+
+  // Seguimiento: lo mío o lo del equipo.
+  const followTabs = () => `<div class="iss-follow" role="tablist" aria-label="De quién">${[['mine', 'Mías'], ['team', 'Equipo']].map(([k, label]) =>
+    `<button type="button" role="tab" data-follow="${k}" aria-selected="${follow === k}">${label}</button>`).join('')}</div>`;
 
   const kpi = (label, value, hint) => `<div class="iss-kpi" title="${hint}"><span>${label}</span><b>${value}</b><small>${hint}</small></div>`;
 
@@ -73,6 +78,14 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     const { today, history, next } = data;
     const lists = LISTS.map((l) => ({ ...l, items: data.desk.filter(l.test).sort(l.sort) }));
     const count = (key) => lists.find((l) => l.key === key).items.length;
+    // Seguimiento: lo mío (con su Jira, si lo tiene) o los escalados de todo el equipo; las que tienen
+    // el Jira resuelto se cierran solas y no salen
+    const team = stillOpen(data.escalations.items);
+    const mineWaiting = stillOpen(withJira(lists.find((l) => l.key === 'waiting').items, data.escalations.items));
+    const waiting = follow === 'team' ? team : mineWaiting;
+    const shown = (l) => (l.key !== 'waiting' ? l.items.slice(0, 12).map((i) => item(i, l.key, now))
+      : follow === 'team' ? team.map((e) => teamItem(e, now))
+        : mineWaiting.slice(0, 12).map((i) => mineWaitingItem(i, now)));
     const used = history.weeks.some((w) => w.sga + w.sisu);
     root.innerHTML = `<div class="iss-page iss-desk-page">
       <div class="iss-desk">
@@ -86,8 +99,9 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
           </div>
         <div class="iss-cols">
           ${lists.map((l) => `<section class="iss-card iss-col" data-list="${l.key}">
-            <div class="iss-card-h"><h3>${l.label}</h3><span>${l.items.length}</span>${l.key === 'waiting' ? `<button type="button" class="iss-refresh" data-refresh title="Volver a leer la mesa">${REFRESH_ICON}Refrescar</button>` : ''}</div>
-            <div class="iss-items">${l.items.slice(0, 12).map((i) => item(i, l.key, now)).join('') || `<p class="iss-empty">${l.empty}</p>`}</div>
+            <div class="iss-card-h"><h3${l.hint ? ` title="${l.hint}"` : ''}>${l.label}</h3>${l.key === 'waiting' ? followTabs() : ''}<span>${l.key === 'waiting' ? waiting.length : l.items.length}</span>${l.key === 'waiting' ? `<button type="button" class="iss-refresh" data-refresh title="Volver a leer la mesa y mirar los Jira">${REFRESH_ICON}Refrescar</button>` : ''}</div>
+            <div class="iss-items">${shown(l).join('') || `<p class="iss-empty">${l.key === 'waiting' && follow === 'team' ? 'Nadie del equipo espera a un Jira.' : l.empty}</p>`}</div>
+            ${l.key === 'waiting' && follow === 'team' ? `<p class="iss-foot">Jira de prueba · ${data.escalations.checkedAt ? `mirado ${whenLabel(data.escalations.checkedAt, now)}` : 'aún sin mirar'} · se mira cada 30 min y al refrescar</p>` : ''}
           </section>`).join('')}
         </div>
         </div>
@@ -144,7 +158,8 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   };
   // La mesa al día sin que se note: solo si se está viendo y sin un selector abierto.
   const refreshQuietly = () => {
-    const still = () => !onDesk || picking || openPicker(root) || incoming.busy(); // ni con el buscador de llamadas en uso
+    // ni con una ventana abierta ni con el buscador de llamadas en uso
+    const still = () => !onDesk || picking || openPicker(root) || root.querySelector('.iss-modal') || incoming.busy();
     if (still()) return;
     api.desk().then((d) => {
       if (still()) return;
@@ -241,9 +256,17 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       if (refresh) {
         refresh.disabled = true;
         refresh.classList.add('busy');
-        try { await loadDesk(); } finally { refresh.disabled = false; refresh.classList.remove('busy'); }   // si falla, se puede volver a intentar
-        return toast?.('Mesa al día');
+        try { await api.checkJira(); await loadDesk(); } finally { refresh.disabled = false; refresh.classList.remove('busy'); }   // si falla, se puede volver a intentar
+        return toast?.('Mesa y Jira al día');
       }
+      const fol = t.closest('[data-follow]');
+      if (fol) { follow = fol.dataset.follow; return renderDesk(); }
+      // Seguimiento: reasignar el escalado de otro (Equipo) o traspasar uno mío (Mías), sin abrirlo
+      const reas = t.closest('[data-esc-reassign]');
+      if (reas) return openReassign(reas.dataset.escReassign);
+      const handOff = t.closest('[data-desk-transfer]');
+      if (handOff) { opened = handOff.dataset.deskTransfer; issue = data.desk.find((d) => d.id === opened); return openAction('transfer'); }
+
       const take = t.closest('[data-take]');
       if (take) {
         take.disabled = true;
@@ -304,6 +327,8 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   } });
 
   const openAction = async (key) => {
+    // la escalada de otra persona, abierta: reasignarla (también a mí)
+    if (key === 'reassign') return openReassign(opened);
     // Abrir WAR-ROOM: aún no hace nada; solo lo avisa
     if (key === 'warroom') return toast?.('Abrir WAR-ROOM aún no está disponible: llegará más adelante.');
     closeAction();
@@ -322,6 +347,23 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     const first = key === 'call' ? (suggested.phone ? '#iss-f-comment' : '#iss-f-phone') : '.iss-act-form textarea, .iss-act-form input:not([type=hidden]), .iss-act-form select';
     root.querySelector(first)?.focus();
     // Escape: con la lista del selector abierta la cierra; si no, cierra el modal
+    offEscape = onEscape(() => (openPicker(root) ? closePickers(root) : closeAction()));
+  };
+  // Reasignar un escalado de otro (#136), desde Seguimiento · Equipo o al abrirlo: a quien tiene el
+  // conocimiento de su origen, sin su dueño, con la ventana de Traspasar solo a un compañero
+  // (transfer.js). La primera opción, yo («Nombre (a mí)»): pasa a mi mesa de verdad (api.take); a otro, de momento, de
+  // prueba (la base aún no mueve la issue de una persona a otra).
+  let reassigning = null;
+  const openReassign = async (id) => {
+    const e = data?.escalations?.items.find((x) => x.id === id) || { ...issue, owner: issue?.claimedBy?.name || issue?.assignee || '' };
+    reassigning = id;
+    people = [
+      ...(knowsOrigin(me?.groups, e) && e.owner !== me?.name ? [{ id: me.id, name: `${me.name} (a mí)` }] : []),
+      ...(await api.teammates()).filter((p) => knowsOrigin(p.groups, e) && p.name !== e.owner),
+    ];
+    closeAction();
+    root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${reassignForm(id, { people, empty: `Nadie más tiene el conocimiento de ${originOf(e)}` })}</div>`);
+    root.querySelector('.iss-act-form textarea')?.focus();
     offEscape = onEscape(() => (openPicker(root) ? closePickers(root) : closeAction()));
   };
   // Traspasar: «A un compañero» o «A otro equipo» cambia el formulario en el sitio; el motivo se queda.
@@ -346,7 +388,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       form.querySelector('[value="noanswer"]').disabled = !ready.noAnswer;
       return;
     }
-    if (key === 'transfer') { form.querySelector('[type=submit]').disabled = !!readTransfer(values, TEAMS).missing; return; }
+    if (key === 'transfer' || key === 'reassign') { form.querySelector('[type=submit]').disabled = !!readTransfer(values, TEAMS).missing; return; }
     form.querySelector('[type=submit]').disabled = !isComplete(key, values);
   };
   root.addEventListener('input', (e) => {
@@ -361,6 +403,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     if (key === 'resolve' || key === 'escalate') return;   // lo atienden resolve-view.js y escalate-view.js
     if (key === 'call') return saveCall(form, e.submitter?.value === 'answered');
     if (key === 'transfer') return saveTransfer(form);
+    if (key === 'reassign') return reassign(form);
     const raw = Object.fromEntries(new FormData(form));
     const { missing, values } = readAction(key, raw);
     const err = form.querySelector('.iss-act-err');
@@ -404,6 +447,28 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       closeAction();
       await notes.refresh();
       toast?.(`Traspaso a ${values.teamName} anotado en Seguimiento. Aún no llega a Remedy: irá por SIGLO cuando lo conectemos.`);
+    } catch (e2) { fail(e2.message); }
+  };
+  // Reasignar: a mí, pasa a mi mesa (y el motivo queda como nota en su Seguimiento) y, si estaba
+  // abierta, se vuelve a abrir ya mía; a otra persona, de momento, de prueba: se avisa y no se mueve.
+  const reassign = async (form) => {
+    const { missing, values } = readTransfer(Object.fromEntries(new FormData(form)), TEAMS);
+    const err = form.querySelector('.iss-act-err');
+    const btn = form.querySelector('[type=submit]');
+    const fail = (text) => { err.textContent = text; err.hidden = false; btn.disabled = false; };
+    if (missing) return fail(`Falta: ${missing}.`);
+    const id = reassigning;
+    if (values.to !== me?.id) {
+      closeAction();
+      return toast?.(`Reasignar a ${people.find((p) => p.id === values.to)?.name || 'un compañero'}: preparado, pero aún no se mueve (de prueba).`);
+    }
+    btn.disabled = true;
+    try {
+      await api.take(id);
+      await api.addNote(id, values.comment);
+      closeAction();
+      if (onDesk) await loadDesk(); else await openIssue(id);
+      toast?.(`${id} ya está en tu mesa.`);
     } catch (e2) { fail(e2.message); }
   };
   // Registrar la llamada: una nota interna con su etiqueta de llamada (call.js), que Seguimiento pinta como un hito.

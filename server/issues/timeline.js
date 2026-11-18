@@ -3,7 +3,7 @@
 // lista por orden de tiempo. Lo que la base devuelve en platform_issue_events y
 // platform_issue_notes, unido para que la pantalla lo pinte de una vez.
 //
-//   movimiento → { at, type: 'claimed' | 'released' | 'transferred', by, from, to, text? }
+//   movimiento → { at, type: 'claimed' | 'released' | 'transferred' | 'assigned' | 'taken', by, from, to, text? }
 //   nota       → { at, type: 'note', id, kind: 'note' | 'transfer', by, byId, text, edited,
 //                  visibility: 'private' | 'internal' | 'public', tag (ANALISIS, CALLOK… o null) }
 // El motivo de un traspaso (la nota 'transfer' escrita en el mismo instante por

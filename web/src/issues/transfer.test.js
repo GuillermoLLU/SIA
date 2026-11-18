@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { transferForm, readTransfer, transferNote } from './transfer.js';
+import { transferForm, reassignForm, readTransfer, transferNote } from './transfer.js';
 import { TEAMS } from './transfer-mock.js';
 
 const teams = [
@@ -67,4 +67,14 @@ test('la nota del traspaso a otro equipo', () => {
 test('los equipos de prueba: ids únicos, cada uno con su nombre y su grupo', () => {
   assert.equal(new Set(TEAMS.map((t) => t.id)).size, TEAMS.length);
   assert.ok(TEAMS.every((t) => t.name && t.group));
+});
+
+test('reasignar el escalado de otro: la ventana de Traspasar, solo a un compañero y sin las opciones de arriba', () => {
+  const html = reassignForm('INC9', { people: [{ id: 'u2', name: 'César' }], empty: 'Nadie más tiene el conocimiento de SGA' });
+  assert.match(html, /<form class="iss-act-form" data-act-form="reassign" novalidate>\s*<header><h3>Reasignar a un compañero<\/h3><span>INC9<\/span><\/header>/);
+  assert.doesNotMatch(html, /tr-seg|data-transfer-mode|data-transfer-pane="team"|Equipo/);
+  assert.match(html, /data-transfer-pane="person">/);
+  assert.match(html, /data-pick-opt="u2"[^>]*>César</);
+  assert.match(html, /type="submit"[^>]*disabled>Reasignar</);
+  assert.deepEqual(readTransfer({ mode: 'person', to: 'u2', comment: ' Lo lleva él ' }), { values: { mode: 'person', to: 'u2', comment: 'Lo lleva él' } });
 });

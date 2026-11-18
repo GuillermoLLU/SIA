@@ -93,6 +93,8 @@ const escalatedTag = (i) => `<span class="iss-escalated" title="Pendiente de un 
 const BIG_ACTION = {
   chase: (i, now) => { const s = stillInfo(i, now); return `<button class="iss-big-act primary" data-act="chase">${BELL}<span>Reclamar respuesta</span><em class="iss-big-still ${s.level}">${s.label} sin moverse</em></button>`; },
   transfer: () => `<button class="iss-big-act" data-act="transfer">${HANDOFF}<span>Traspasar</span></button>`,
+  // la de otra persona, en el sitio de Traspasar: reasignarla (también a mí, a mi mesa)
+  reassign: () => `<button class="iss-big-act" data-act="reassign">${HANDOFF}<span>${ACTIONS.reassign.label}</span></button>`,
 };
 const pendingActs = (i, now, mine) => `<aside class="iss-card iss-pending-acts" aria-label="Qué hacer con ella">
       ${actionsFor(i, mine).map((key) => BIG_ACTION[key](i, now)).join('')}

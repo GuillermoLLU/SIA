@@ -9,7 +9,7 @@ const issue = (id, o = {}) => ({ id, center: '100', text: id, priority: 'HIGH', 
 const ISSUES = [issue('INC1'), issue('INC2', { prio: true }), issue('INC3', { assignee: 'ANA LOPEZ GARCIA', status: 'PENDING' })];
 const WHO = { user: { id: 'u-ana', name: 'Ana López' }, accessToken: 'jwt' };
 
-const setup = (claims = [], { issues = ISSUES, broken, transfers = [], rules = [], who = WHO } = {}) => {
+const setup = (claims = [], { issues = ISSUES, broken, transfers = [], rules = [], who = WHO, jira, jiraUrl } = {}) => {
   const calls = [];
   const platform = {
     rpc: async (jwt, fn, args) => {
@@ -48,7 +48,7 @@ const setup = (claims = [], { issues = ISSUES, broken, transfers = [], rules = [
     setEscalate: (u, i, f) => { store.set(`esc:${u}/${i}`, f); return 'at'; },
     dropEscalate: (u, i) => { store.delete(`esc:${u}/${i}`); },
   };
-  const route = issuesRoutes(createIssuesService({ source, platform, drafts: broken === undefined ? drafts : broken, now: () => new Date('2026-10-04T12:00:00Z') }), { json: (res, status, body) => Object.assign(res, { status, body }), readBody: async (req) => req.body || {} });
+  const route = issuesRoutes(createIssuesService({ source, platform, drafts: broken === undefined ? drafts : broken, jira, jiraUrl, now: () => new Date('2026-10-04T12:00:00Z') }), { json: (res, status, body) => Object.assign(res, { status, body }), readBody: async (req) => req.body || {} });
   const call = async (method, path, body, query = '') => {
     const res = {}, req = { method, body, setEncoding() {}, resume() {}, [Symbol.asyncIterator]: async function* () { yield body; } };
     await route(req, res, path, who, new URLSearchParams(query)); return res;
@@ -181,6 +181,12 @@ test('ids raros: 404; devolver: a la base, sin leer la foto', async () => {
   assert.equal(loads.n, 0);
 });
 
+test('asignármela: a la base, con el origen de la foto (la base comprueba que lo conozco)', async () => {
+  const { call, calls } = setup();
+  assert.deepEqual((await call('POST', ['INC1', 'take'])).body, { ok: true });
+  assert.deepEqual(calls.at(-1), ['platform_take_issue', { p_issue: 'INC1', p_origin: 'SGA' }]);
+});
+
 test('GET /teammates: el equipo de Issues sin mí, sin leer la foto; un fallo de la base, con su estado', async () => {
   const { call, loads } = setup();
   assert.deepEqual((await call('GET', ['teammates'])).body, { teammates: [{ id: 'u-luis', name: 'Luis' }] });
@@ -188,6 +194,29 @@ test('GET /teammates: el equipo de Issues sin mí, sin leer la foto; un fallo de
   const broken = issuesRoutes({ desk: async () => { throw Object.assign(new Error('sin red'), { status: 503 }); } }, { json: (res, status, body) => Object.assign(res, { status, body }), readBody: async () => ({}) });
   const res = {}; await broken({ method: 'GET' }, res, [], WHO);
   assert.deepEqual([res.status, res.body], [503, { error: 'sin red' }]);
+});
+
+test('GET /: los escalados del equipo, de todos, con el estado de su Jira y cuándo se miró', async () => {
+  const issues = [...ISSUES, issue('INC4', { status: 'PENDING', vendorTicket: 'TEC: SISUPAC-9211', assignee: 'LUIS PEREZ' }), issue('INC5', { status: 'PENDING', vendorTicket: 'SISUPAC-9300' })];
+  const jira = { states: () => new Map([['SISUPAC-9300', { state: 'resolved', at: '2026-10-04 08:00' }]]), checkedAt: () => '2026-10-04T10:30:00.000Z', check: async () => {} };
+  const { body } = await setup([{ issue_id: 'INC5', user_id: 'u-luis', user_name: 'Luis' }], { issues, jira, jiraUrl: () => 'https://jira.ejemplo' }).call('GET', []);
+  assert.equal(body.escalations.checkedAt, '2026-10-04T10:30:00.000Z');
+  assert.deepEqual(body.escalations.items.map((e) => [e.id, e.owner, e.mine, e.jira.key, e.jira.state]),
+    [['INC5', 'Luis', false, 'SISUPAC-9300', 'resolved'], ['INC4', 'LUIS PEREZ', false, 'SISUPAC-9211', 'open']]);
+  assert.equal(body.escalations.items[0].jira.url, 'https://jira.ejemplo/browse/SISUPAC-9300');
+});
+
+test('GET /: sin vigía de Jira, los escalados salen abiertos y sin mirar', async () => {
+  const { body } = await setup([], { issues: [issue('INC4', { status: 'PENDING', vendorTicket: 'SISUPAC-1' })] }).call('GET', []);
+  assert.deepEqual(body.escalations, { checkedAt: null, items: [body.escalations.items[0]] });
+  assert.equal(body.escalations.items[0].jira.state, 'open');
+});
+
+test('POST /escalations/check: mira los Jira ahora y dice cuándo', async () => {
+  let checks = 0;
+  const jira = { states: () => new Map(), checkedAt: () => (checks ? '2026-10-04T12:00:00.000Z' : null), check: async () => { checks++; } };
+  const { body } = await setup([], { jira }).call('POST', ['escalations', 'check'], {});
+  assert.deepEqual([checks, body], [1, { checkedAt: '2026-10-04T12:00:00.000Z' }]);
 });
 
 test('POST /csv: carga el cuerpo con el nombre del fichero; sin nombre .csv, 400', async () => {

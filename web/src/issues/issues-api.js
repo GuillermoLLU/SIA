@@ -6,12 +6,15 @@ export const createIssuesApi = (api) => {
   const id = (x) => encodeURIComponent(x);
   return {
     desk: () => api('/issues'),
+    // mirar los Jira de los escalados del equipo ahora, sin esperar a la media hora
+    checkJira: () => api('/issues/escalations/check', { method: 'POST', body: {} }),
     next: () => api('/issues/next', { method: 'POST', body: {} }),
     teammates: async () => (await api('/issues/teammates')).teammates,
     // por su número de Remedy, sea de quien sea (atender la llamada de un centro)
     search: async (q) => (await api(`/issues/search?q=${encodeURIComponent(q)}`)).results,
     get: (issueId) => api(`/issues/${id(issueId)}`),
     release: (issueId) => api(`/issues/${id(issueId)}/release`, { method: 'POST', body: {} }),
+    take: (issueId) => api(`/issues/${id(issueId)}/take`, { method: 'POST', body: {} }),
     // Resolver: abrirlo ({ check, draft }) y confirmarlo; el bridge lo comprueba todo
     startResolve: (issueId) => api(`/issues/${id(issueId)}/resolve`),
     resolve: (issueId, fields) => api(`/issues/${id(issueId)}/resolve`, { method: 'POST', body: fields }),

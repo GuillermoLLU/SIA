@@ -343,6 +343,26 @@ select t_as(:U2);
 select assert_eq((select action from public.platform_my_issue_events(now() - interval '1 day') where issue_id = 'INC3'), 'received', 'para quien la recibe cuenta como recibida');
 select assert_eq((select count(*) from public.platform_my_transfers() where issue_id = 'INC3'), 0::bigint, 'y no es un traspaso');
 select t_as(:AD);
+-- quedarse con una issue que tiene otra persona (un compañero de vacaciones): pasa a la mesa de quien se la queda
+select t_as(:U1);
+select expect_error($$select public.platform_take_issue('INC3')$$, 'sin la vista Issues no se la queda');
+select t_as(:U2);
+select expect_error($$select public.platform_take_issue('INC3')$$, 'la propia no: ya es suya');
+select t_as(:AD);
+select public.platform_take_issue('INC3');
+select assert_eq((select user_name from public.platform_issue_claims() where issue_id = 'INC3'), 'Admin', 'quedársela: ahora es suya');
+select assert_eq((select string_agg(action || ':' || coalesce(actor_name, '-') || ':' || coalesce(from_name, '-') || ':' || coalesce(to_name, '-'), ',' order by happened_at, id) from public.platform_issue_events('INC3')),
+  'assigned:Admin:-:agente.dos,taken:Admin:agente.dos:Admin', 'en el histórico, de quién la tomó');
+select assert_eq((select action from public.platform_my_issue_events(now() - interval '1 day') where issue_id = 'INC3'), 'received', 'para quien se la queda cuenta como recibida');
+select assert_eq((select count(*) from public.platform_my_transfers() where issue_id = 'INC3'), 0::bigint, 'y no es un traspaso');
+select t_as(:U2);
+select assert_eq((select string_agg(action, ',' order by happened_at) from public.platform_my_issue_events(now() - interval '1 day') where issue_id = 'INC3'), 'received,handed', 'para quien la tenía deja de ser suya');
+select expect_error($$select public.platform_take_issue('INC3', 'SISU')$$, 'sin el conocimiento de su origen, no');
+-- una que nadie tiene en SIA (solo su responsable en Remedy), también
+select public.platform_take_issue('INC4', 'SGA');
+select assert_eq((select string_agg(action || ':' || coalesce(from_name, '-') || ':' || coalesce(to_name, '-'), ',') from public.platform_issue_events('INC4')), 'taken:-:agente.dos', 'sin nadie que la tuviera');
+select public.platform_release_issue('INC4');
+select t_as(:AD);
 select expect_error($$select public.platform_save_rule(null, 'Urgencias', array[]::text[])$$, 'una regla necesita criterios');
 select expect_error($$select public.platform_save_rule(null, 'Urgencias', array['nope'])$$, 'del catálogo');
 select expect_error($$select public.platform_save_rule(null, 'Urgencias', array['age', 'age'])$$, 'sin repetir');

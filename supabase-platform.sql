@@ -182,7 +182,7 @@ create table if not exists platform.issue_claims (
 create table if not exists platform.issue_events (
   id           bigint generated always as identity primary key,
   issue_id     text not null check (issue_id ~ '^INC[0-9]+$'),
-  action       text not null check (action in ('claimed', 'released', 'transferred', 'assigned')),
+  action       text not null check (action in ('claimed', 'released', 'transferred', 'assigned', 'taken')),
   actor        uuid references platform.users (id) on delete set null,      -- quién lo hizo
   from_user    uuid references platform.users (id) on delete set null,      -- quién la tenía
   to_user      uuid references platform.users (id) on delete set null,      -- quién la tiene ahora
@@ -241,9 +241,9 @@ alter table platform.roles add constraint roles_rule_fk foreign key (rule_id) re
 alter table platform.users drop constraint if exists users_rule_fk;
 alter table platform.users add constraint users_rule_fk foreign key (rule_id) references platform.priority_rules (id) on delete set null;
 
--- la acción 'assigned' llegó después: la restricción de las bases ya montadas se renueva
+-- las acciones 'assigned' y 'taken' (quedársela) llegaron después: la restricción de las bases ya montadas se renueva
 alter table platform.issue_events drop constraint if exists issue_events_action_check;
-alter table platform.issue_events add constraint issue_events_action_check check (action in ('claimed', 'released', 'transferred', 'assigned'));
+alter table platform.issue_events add constraint issue_events_action_check check (action in ('claimed', 'released', 'transferred', 'assigned', 'taken'));
 -- La regla básica, la del equipo, de serie (si no está ya)
 insert into platform.priority_rules (name, criteria, builtin)
   select 'Regla básica', array['recent', 'prio', 'month', 'severity', 'age'], true
@@ -854,6 +854,28 @@ begin
   insert into platform.issue_events (issue_id, action, actor, from_user, to_user, note_id) values (p_issue, 'transferred', v_me, v_me, p_to, v_note);
 end $$;
 
+-- Quedarse con una issue que tiene otra persona (desde Seguimiento · Equipo o al abrir una escalada que
+-- no es tuya; p. ej., un compañero de vacaciones): pasa a tu mesa como tuya, la tenga alguien en SIA o
+-- nadie (solo su responsable en Remedy). En el histórico queda de quién la tomaste ('taken'); para ti
+-- cuenta como recibida y para quien la tenía, como entregada.
+-- p_origin: el origen de la issue (SGA, SISU); hace falta su conocimiento.
+create or replace function public.platform_take_issue(p_issue text, p_origin text default null) returns void
+language plpgsql security definer set search_path = '' as $$
+declare v_me uuid := platform.require_view('issues'); v_from uuid;
+begin
+  perform platform.require_origin(v_me, p_origin);
+  select c.user_id into v_from from platform.issue_claims c where c.issue_id = p_issue for update;
+  if v_from = v_me then raise exception 'Esa issue ya es tuya.' using errcode = '22023'; end if;
+  if v_from is not null then
+    update platform.issue_claims set user_id = v_me, claimed_at = now() where issue_id = p_issue;
+  else
+    insert into platform.issue_claims (issue_id, user_id) values (p_issue, v_me);
+  end if;
+  insert into platform.issue_events (issue_id, action, actor, from_user, to_user) values (p_issue, 'taken', v_me, v_from, v_me);
+exception
+  when check_violation then raise exception 'Esa issue no vale.' using errcode = '23514';
+end $$;
+
 -- Lo que me han traspasado y aún tengo: de quién viene, cuándo y el motivo
 -- (la nota 'transfer' que se escribió en el mismo instante). Para marcarlas
 -- en la mesa. Una issue devuelta o traspasada de nuevo ya no sale.
@@ -1033,7 +1055,8 @@ end $$;
 
 -- Mi historial en SIA desde una fecha (con él se miden las métricas de cada
 -- persona): claimed (la cogí), released (la devolví), received (me la
--- traspasaron: desde entonces es mía) y handed (la traspasé: dejó de serlo).
+-- traspasaron, me la asignaron o me la quedé: desde entonces es mía) y handed
+-- (la traspasé o se la quedó otra persona: dejó de serlo).
 drop function if exists public.platform_my_issue_events(timestamptz);
 create function public.platform_my_issue_events(p_since timestamptz)
 returns table (issue_id text, action text, happened_at timestamptz)
@@ -1044,13 +1067,13 @@ begin
   return query
     select e.issue_id,
       case when e.action = 'assigned' then 'received'  -- asignada desde el Backlog: mía desde entonces, como un traspaso recibido
-           when e.action <> 'transferred' then e.action when e.to_user = v_me then 'received' else 'handed' end,
+           when e.action not in ('transferred', 'taken') then e.action when e.to_user = v_me then 'received' else 'handed' end,
       e.happened_at
     from platform.issue_events e
     where e.happened_at >= p_since
       and ((e.action = 'claimed' and e.to_user = v_me) or (e.action = 'released' and e.from_user = v_me)
         or (e.action = 'assigned' and e.to_user = v_me)
-        or (e.action = 'transferred' and (e.to_user = v_me or e.from_user = v_me)))
+        or (e.action in ('transferred', 'taken') and (e.to_user = v_me or e.from_user = v_me)))
     order by e.happened_at, e.id;
 end $$;
 

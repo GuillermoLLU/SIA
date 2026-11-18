@@ -33,11 +33,23 @@ export const escalatedLabel = (issue) => {
 export const LISTS = [
   { key: 'doing', label: 'En curso', empty: 'Nada en curso. Coge la siguiente.', test: (i) => i.status === 'ASSIGNED' || i.status === 'IN_PROGRESS',
     sort: (a, b) => a.reported.localeCompare(b.reported) },
-  { key: 'waiting', label: 'Seguimiento · pendientes de terceros', empty: 'Nada esperando a otros.', test: (i) => i.status === 'PENDING',
+  { key: 'waiting', label: 'Seguimiento', hint: 'Pendientes de terceros: lo tuyo o los escalados de todo el equipo', empty: 'Nada esperando a otros.', test: (i) => i.status === 'PENDING',
     sort: (a, b) => a.modified.localeCompare(b.modified) },
   { key: 'resolved', label: 'Resueltas recientes', empty: 'Aún no hay resueltas.', test: (i) => i.status === 'RESOLVED',
     sort: (a, b) => b.resolved.localeCompare(a.resolved) },
 ];
+
+// Seguimiento de lo mío o del equipo (#136): los escalados de todos con su Jira
+// (escalations.js del bridge). Las que tienen el Jira resuelto piden cerrarse: arriba.
+export const JIRA_ES = { open: 'Abierto', resolved: 'Resuelto', discarded: 'Descartado' };
+export const jiraDone = (i) => i.jira?.state === 'resolved';
+// las que tienen el Jira resuelto se cierran solas: en Seguimiento ya no salen
+export const stillOpen = (list) => list.filter((i) => !jiraDone(i));
+// mis pendientes con el Jira que les toca, si lo tienen
+export const withJira = (items, escalations) => {
+  const jira = new Map(escalations.map((e) => [e.id, e.jira]));
+  return items.map((i) => (jira.has(i.id) ? { ...i, jira: jira.get(i.id) } : i));
+};
 
 // Una fecha como las de las issues: «YYYY-MM-DD HH:MM», hora local.
 const pad = (n) => String(n).padStart(2, '0');
