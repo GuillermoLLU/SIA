@@ -335,8 +335,11 @@ fn descomprimiendo(desde: std::time::SystemTime) -> Option<PathBuf> {
         .map(|(_, out)| out)
 }
 
-// El NSIS en silencio. Primero descomprime SIA en su carpeta temporal y luego lo copia a la de
-// destino: cada fase es la mitad de la barra, según lo que ya ocupa frente a lo que ocupará SIA.
+// El NSIS en silencio. Al actualizar, primero desinstala la versión anterior (la carpeta se
+// vacía); después descomprime SIA en su carpeta temporal y lo copia a la de destino, donde los
+// últimos MB tardan (el antivirus revisa cada fichero). La barra va por fases que no vuelven
+// atrás: quitando 0-15 %, preparando hasta 45 %, copiando hasta 97 % y terminando. Dentro de
+// cada una, según lo que ya ocupa cada carpeta frente a lo que ocupará SIA.
 #[cfg(windows)]
 #[tauri::command]
 async fn instalar(app: AppHandle, carpeta: String) -> Result<(), String> {
@@ -344,34 +347,47 @@ async fn instalar(app: AppHandle, carpeta: String) -> Result<(), String> {
     if !nsis.exists() {
         return Err("No se encuentra el instalador de SIA.".into());
     }
+    let actualizar = instalado().is_some();
     let hecho = Arc::new(AtomicBool::new(false));
     {
         let (app, hecho, dir, total) = (app.clone(), hecho.clone(), PathBuf::from(&carpeta), p.bytes.max(1) as f64);
         let desde = std::time::SystemTime::now() - Duration::from_secs(2);
+        let antes = if actualizar { tamano(&dir) as f64 } else { 0.0 };
         std::thread::spawn(move || {
             let mut temp: Option<PathBuf> = None;
+            let (mut fase, mut max) = (if antes > 0.0 { 0 } else { 1 }, 0u32);
+            let inicio = if antes > 0.0 { 15.0 } else { 0.0 };   // al actualizar, preparando empieza en 15 %
+            // una medida por segundo y solo de la carpeta que toca: medir más a menudo compite con
+            // el NSIS copiando. Entre medida y medida, la ventana avanza la barra poco a poco.
             while !hecho.load(Ordering::Relaxed) {
-                if temp.is_none() {
+                if fase < 2 && temp.is_none() {
                     temp = descomprimiendo(desde);
                 }
-                let fuera = temp.as_deref().map(tamano).unwrap_or(0) as f64 / total;
-                // al actualizar, la carpeta de destino tiene la versión anterior hasta que se
-                // desinstala: solo cuenta cuando ya está todo descomprimido
-                let copiado = if fuera >= 0.98 { tamano(&dir) as f64 / total } else { 0.0 };
-                let pct = (50.0 * fuera.min(1.0) + 49.0 * copiado.min(1.0)) as u32;
-                let fase = match pct {
-                    0..=49 => "preparando",
-                    50..=97 => "copiando",
-                    _ => "terminando",
-                };
-                let _ = app.emit("progreso", Progreso { pct, fase });
-                std::thread::sleep(Duration::from_millis(300));
+                let pct = match fase {
+                    0 if temp.is_none() => 15.0 * (1.0 - (tamano(&dir) as f64 / antes).min(1.0)),
+                    0 | 1 => {
+                        // la carpeta temporal ya está y, entera, pasa a copiar
+                        let fuera = temp.as_deref().map(tamano).unwrap_or(0) as f64 / total;
+                        fase = if fuera >= 0.98 { 2 } else { 1 };
+                        inicio + (45.0 - inicio) * fuera.min(1.0)
+                    }
+                    2 => {
+                        // casi todo llega de golpe; los últimos MB, despacio: tienen su tramo
+                        let dentro = tamano(&dir) as f64 / total;
+                        if dentro >= 0.995 { fase = 3; }
+                        if dentro < 0.93 { 45.0 + 40.0 * dentro / 0.93 } else { 85.0 + 12.0 * ((dentro - 0.93) / 0.065).min(1.0) }
+                    }
+                    _ => 97.0,
+                } as u32;
+                max = max.max(pct);
+                let nombre = ["quitando", "preparando", "copiando", "terminando"][fase];
+                let _ = app.emit("progreso", Progreso { pct: max, fase: nombre });
+                std::thread::sleep(Duration::from_millis(1000));
             }
         });
     }
     // Al actualizar, el NSIS usa la carpeta registrada: con /D= sale con el código 2. Al instalar,
     // /D= va el último y sin comillas, aunque la ruta tenga espacios: así lo lee NSIS.
-    let actualizar = instalado().is_some();
     let res = tauri::async_runtime::spawn_blocking(move || {
         let mut cmd = Command::new(&nsis);
         cmd.raw_arg("/S");

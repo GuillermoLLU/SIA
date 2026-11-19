@@ -14,7 +14,8 @@ const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 
 const TITLE = { welcome: 'Bienvenida', checks: 'Comprobaciones', folder: 'Carpeta', install: () => (S.mode === 'update' ? 'Actualización' : 'Instalación'), done: 'Listo' };
 const title = (id) => (typeof TITLE[id] === 'function' ? TITLE[id]() : TITLE[id]);
-const FASE = { cerrando: 'Cerrando SIA', preparando: 'Preparando', copiando: 'Copiando archivos', terminando: 'Terminando' };
+const FASE = { cerrando: 'Cerrando SIA', quitando: 'Quitando la versión anterior', preparando: 'Preparando', copiando: 'Copiando archivos', terminando: 'Terminando' };
+const CAP = { cerrando: 15, quitando: 15, preparando: 45, copiando: 97, terminando: 99 };   // hasta dónde llega cada fase (src-tauri: instalar)
 
 // S: lo que dice Rust al abrir (estado) más lo que elige la persona
 let S, flow, cur, timers = [], busy = false;
@@ -119,15 +120,20 @@ const ENTER = {
   },
   async install(el) {
     const bar = $('[data-bar]', el), pct = $('[data-pct]', el), now = $('[data-now]', el);
-    let shown = '', top = 0;
+    let shown = '', top = 0, cap = 0;
     const paint = (p, fase) => {
       top = Math.max(top, p);   // nunca hacia atrás
-      bar.style.width = `${top}%`; pct.textContent = `${top} %`;
+      bar.style.width = `${top}%`; pct.textContent = `${Math.floor(top)} %`;
+      if (CAP[fase]) cap = CAP[fase];
       const label = FASE[fase] || fase;
       if (label && label !== shown) { shown = label; now.innerHTML = `<span>${esc(label)}</span>`; }
     };
-    paint(0, S.mode === 'update' && S.abierto ? 'cerrando' : 'preparando');
+    paint(0, S.mode === 'update' ? (S.abierto ? 'cerrando' : 'quitando') : 'preparando');
     const off = await listen('progreso', (e) => paint(e.payload.pct, e.payload.fase));
+    // en los tramos lentos (el antivirus revisando, la versión anterior borrándose) la barra sigue
+    // avanzando poco a poco dentro de su fase, sin pasarse de ella
+    const creep = setInterval(() => { if (top < cap - 0.5) paint(top + 0.06, ''); }, 250);
+    timers.push(creep);
     busy = true;
     try {
       await invoke('instalar', { carpeta: S.carpeta });
@@ -140,6 +146,7 @@ const ENTER = {
       cancel.hidden = false;
     } finally {
       busy = false;
+      clearInterval(creep);
       off();
     }
   },
@@ -298,10 +305,10 @@ function finish() {
   if (act) {
     act.innerHTML = (kind === 'guide' ? '<button class="btn link" data-guide>Abrir la guía ↗</button>' : '')
       + (kind === 'login' ? '<button class="btn sm primary" data-login>Iniciar sesión ↗</button>' : '')
-      + '<button class="btn sm" data-recheck>Volver a comprobar</button>';
+      + (kind === 'login' ? '' : '<button class="btn sm" data-recheck>Volver a comprobar</button>');   // tras iniciar sesión se comprueba sola
     $('[data-guide]', act)?.addEventListener('click', () => invoke('abrir_guia', { url: S.certs.guia }).catch(() => {}));
     $('[data-login]', act)?.addEventListener('click', login);
-    $('[data-recheck]', act).addEventListener('click', refresh);
+    $('[data-recheck]', act)?.addEventListener('click', refresh);
   }
   renderFoot();
 }
