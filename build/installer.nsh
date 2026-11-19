@@ -144,17 +144,23 @@ FunctionEnd
 ; salida a un fichero; SiaPoll mira cada 250 ms si ha terminado y, con la
 ; respuesta en $1, sigue con el paso siguiente (SiaStepDone).
 ;   certs → copilot (comprobar) → copilot-install (si falta) → session → done
+; «Iniciar sesión» lanza otro: login, en su ventana y a la vista; al acabar, session.
 Function SiaLaunch
   Pop $0
   StrCpy $SiaOut "$PLUGINSDIR\sia-check.txt"
   Delete $SiaOut
   StrCpy $R7 `/c $0 > "$SiaOut" 2>&1`
+  StrCpy $R6 0                      ; oculto (SW_HIDE)
+  ${If} $SiaStep == "login"
+    StrCpy $R7 `/c $0`              ; el inicio de sesión, a la vista y con lo que dice Copilot
+    StrCpy $R6 1                    ; SW_SHOWNORMAL
+  ${EndIf}
   StrCpy $R8 "$SYSDIR\cmd.exe"
   StrCpy $R9 $PLUGINSDIR
   ; SHELLEXECUTEINFO con SEE_MASK_NOCLOSEPROCESS (0x40) para tener el proceso y SEE_MASK_FLAG_NO_UI
-  ; (0x400) para que Windows no saque diálogos de error: si falla, la página lo dice. Oculto (SW_HIDE).
+  ; (0x400) para que Windows no saque diálogos de error: si falla, la página lo dice. Oculto, salvo login.
   ; La versión W, explícita: con la A solo le llegaría la primera letra de cada texto.
-  System::Call '*(&l4, i 0x440, p $HWNDPARENT, t "open", t R8, t R7, t R9, i 0, p, p, t, p, i, p, p) p .r1'
+  System::Call '*(&l4, i 0x440, p $HWNDPARENT, t "open", t R8, t R7, t R9, i R6, p, p, t, p, i, p, p) p .r1'
   System::Call 'shell32::ShellExecuteExW(p r1) i .r2'
   StrCpy $SiaProc 0
   ${If} $2 != 0
@@ -184,8 +190,8 @@ Function SiaAbort
 FunctionEnd
 
 ; La respuesta en $1: la línea «SIA-…» de la salida, o "" si no hay. Cada paso
-; tiene un tiempo máximo (en vueltas de 250 ms): instalar, 10 min; lo demás,
-; 1 min. Si se pasa, se corta y $SiaLate queda a 1.
+; tiene un tiempo máximo (en vueltas de 250 ms): instalar, 10 min; iniciar
+; sesión, 5 min; lo demás, 1 min. Si se pasa, se corta y $SiaLate queda a 1.
 Function SiaPoll
   StrCpy $SiaLate 0
   ${If} $SiaProc != 0
@@ -193,6 +199,8 @@ Function SiaPoll
     StrCpy $2 240
     ${If} $SiaStep == "copilot-install"
       StrCpy $2 2400
+    ${ElseIf} $SiaStep == "login"
+      StrCpy $2 1200
     ${EndIf}
     System::Call 'kernel32::WaitForSingleObject(p $SiaProc, i 0) i .r0'
     ${If} $0 == 258        ; WAIT_TIMEOUT: sigue en marcha
@@ -323,6 +331,11 @@ FunctionEnd
 
 ; Un paso ha terminado, con su respuesta en $1 (o "" si no la hubo).
 Function SiaStepDone
+  ; terminado el inicio de sesión (o cerrada su ventana), se comprueba sin pulsar nada
+  ${If} $SiaStep == "login"
+    Call SiaSessionStart
+    Return
+  ${EndIf}
   ${If} $SiaStep == "session"
     ; sin respuesta (o tarde), unknown: no se sabe, y se deja seguir con confirmación
     StrCpy $SiaSession "unknown"
@@ -461,7 +474,7 @@ Function SiaFinish
     ${If} $SiaSession == "unknown"
       StrCpy $0 "Pulsa «Volver a comprobar» o sigue sin ella."
     ${Else}
-      StrCpy $0 "Inicia sesión con tu cuenta de Inditex y pulsa «Volver a comprobar»."
+      StrCpy $0 "Inicia sesión con tu cuenta de Inditex."
       StrCpy $2 "2"
     ${EndIf}
   ${EndIf}
@@ -472,8 +485,7 @@ Function SiaFinish
       ShowWindow $SiaGuide ${SW_SHOW}
       ShowWindow $SiaRetry ${SW_SHOW}
     ${ElseIf} $2 == "2"
-      ShowWindow $SiaLoginBtn ${SW_SHOW}
-      ShowWindow $SiaRetry ${SW_SHOW}
+      ShowWindow $SiaLoginBtn ${SW_SHOW}   ; solo: al acabar el inicio de sesión se comprueba sin pulsar nada
     ${Else}
       ShowWindow $SiaRetryAlone ${SW_SHOW}
     ${EndIf}
@@ -518,10 +530,18 @@ Function SiaOpenGuide
 FunctionEnd
 
 ; El inicio de sesión de Copilot, en su propia ventana: abre el navegador y se
-; cierra al completarlo. Después, «Volver a comprobar».
+; cierra al completarlo. Mientras, la página espera; después, comprueba la sesión.
 Function SiaOpenLogin
   Pop $0
-  ExecShell "open" "$SYSDIR\cmd.exe" `/c call "$PLUGINSDIR\copilot-cli.cmd" -Login` SW_SHOWNORMAL
+  ShowWindow $SiaHelp ${SW_HIDE}
+  ShowWindow $SiaLoginBtn ${SW_HIDE}
+  Push 0
+  Call SiaButtons
+  ${SiaShow} $SiaSessionStatus "Esperando el inicio de sesión en el navegador…" 5F6368
+  Call SiaPaint
+  StrCpy $SiaStep "login"
+  Push `${SIA_COPILOT_CMD} -Login`
+  Call SiaLaunch
 FunctionEnd
 
 Function SiaChecksShow
@@ -584,7 +604,7 @@ Function SiaChecksShow
     ${NSD_CreateLabel} 37u 92u 0 0 ""
     Pop $SiaGuide
   ${EndIf}
-  ${NSD_CreateButton} 37u 92u 110u 16u "Iniciar sesión  ↗"
+  ${NSD_CreateButton} 95u 92u 110u 16u "Iniciar sesión  ↗"
   Pop $SiaLoginBtn
   ${NSD_OnClick} $SiaLoginBtn SiaOpenLogin
   ShowWindow $SiaLoginBtn ${SW_HIDE}

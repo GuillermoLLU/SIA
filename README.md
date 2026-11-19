@@ -46,7 +46,7 @@ sitios:
 - en el instalador de Windows, en la página «Comprobaciones previas», los
   certificados: sin ellos no deja seguir (si no se pueden comprobar, avisa y
   deja seguir con confirmación). En la primera instalación comprueba también
-  Copilot CLI;
+  Copilot CLI y que tenga una sesión iniciada;
 - en la app, al pulsar la S: si falta algo, en lugar del formulario sale un
   aviso corto (qué falta y la guía) con «Reintentar», que vuelve a
   comprobar de verdad, relee los certificados del sistema y deja pasar al
