@@ -1,0 +1,12 @@
+{
+  "name": "sia-setup",
+  "private": true,
+  "description": "SIA Setup: el instalador de SIA con su aspecto (#143)",
+  "scripts": {
+    "tauri": "tauri",
+    "build": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

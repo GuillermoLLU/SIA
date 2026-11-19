@@ -1,0 +1,19 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "SIA Setup",
+  "version": "0.1.0",
+  "identifier": "com.itx.sia.setup",
+  "build": {
+    "frontendDist": "../maqueta"
+  },
+  "app": {
+    "windows": [
+      { "title": "SIA", "width": 900, "height": 700, "resizable": false, "center": true }
+    ],
+    "security": { "csp": null }
+  },
+  "bundle": {
+    "active": false,
+    "icon": ["icons/icon.ico", "icons/icon.png"]
+  }
+}
