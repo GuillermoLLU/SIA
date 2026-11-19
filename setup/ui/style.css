@@ -157,6 +157,8 @@ button { font: inherit; color: inherit; }
 .quiet { padding: 0 6px; font-size: 13px; color: var(--text-low); background: none; border: 0; cursor: pointer; transition: color var(--motion-state); }
 .quiet:hover { color: var(--text); }
 .foot .spacer { margin-right: auto; }
+/* quién hace SIA, discreto: pequeño, en la esquina de abajo a la izquierda */
+.brand { flex: none; height: 18px; width: auto; margin-right: 28px; opacity: .85; user-select: none; }
 
 /* Confirmar al salir */
 .veil { position: absolute; inset: 0; z-index: 10; display: grid; place-items: center; background: rgba(0, 0, 0, .28); animation: fade .2s ease both; }
