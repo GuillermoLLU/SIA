@@ -17,13 +17,24 @@ use std::os::windows::process::CommandExt;
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
-// Lo que se instala: el NSIS de SIA y lo que ocupa SIA instalado, para la barra de progreso.
+// Lo que se instala: el NSIS de SIA y lo que ocupa SIA instalado, para la barra de progreso, más
+// los certificados que hay que comprobar y su guía (de sia-instance.json, como el NSIS).
 // Va en payload/ junto al .exe (o donde diga SIA_SETUP_PAYLOAD, para probar).
 #[derive(Deserialize)]
 struct Paquete {
     version: String,
     bytes: u64,
     nsis: String,
+    #[serde(default)]
+    certs: Certs,
+}
+
+#[derive(Deserialize, Serialize, Default, Clone)]
+struct Certs {
+    #[serde(default)]
+    guia: String,
+    #[serde(default)]
+    requeridos: Vec<String>,
 }
 
 fn payload_dir() -> PathBuf {
@@ -57,6 +68,7 @@ struct Estado {
     instalado: Option<Instalado>,
     abierto: bool,
     carpeta: String,
+    certs: Certs,
 }
 
 #[derive(Serialize, Clone)]
@@ -147,7 +159,148 @@ fn estado() -> Result<Estado, String> {
         instalado: instalado(),
         abierto: sia_abierto(),
         carpeta: carpeta_propuesta(),
+        certs: p.certs,
     })
+}
+
+// ── Comprobaciones previas: las mismas que el NSIS (build/installer.nsh) ─────────────────────
+// Cada una contesta una línea «SIA-…» que la ventana interpreta. copilot-cli.cmd es el mismo
+// fichero que usa el NSIS: se incluye al compilar y se escribe en una carpeta temporal.
+
+// La comprobación de certificados: lee los almacenes de Windows con .NET (sin la unidad Cert:,
+// que no existe si se abre desde PowerShell 7). Los nombres llegan en SIA_CERTS, separados por |.
+// Responde SIA-OK, SIA-FALTAN:<los que faltan o han caducado> o SIA-ERROR.
+#[cfg(windows)]
+const CERTS_PS: &str = "try { $all=@(); foreach($l in 'CurrentUser','LocalMachine'){ foreach($n in 'Root','CertificateAuthority'){ $st=New-Object System.Security.Cryptography.X509Certificates.X509Store($n,$l); $st.Open('ReadOnly'); $all+=$st.Certificates; $st.Close() } }; $now=[DateTime]::Now; $m=@(); foreach($n in $env:SIA_CERTS.Split('|')){ $ok=$false; foreach($c in $all){ if($c.NotAfter -gt $now -and $c.Subject -match ('(^|, )CN=' + [regex]::Escape($n) + '(,|$)')){ $ok=$true } }; if(-not $ok){ $m+=$n } }; if($m.Count){ 'SIA-FALTAN:' + ($m -join ', ') } else { 'SIA-OK' } } catch { 'SIA-ERROR' }";
+
+#[cfg(windows)]
+const COPILOT_CLI: &str = include_str!("../../../build/copilot-cli.cmd");
+
+// La comprobación en marcha (su proceso y su paso), para poder cortarla al cancelar
+#[derive(Default)]
+struct EnCurso(std::sync::Mutex<Option<(u32, String)>>);
+
+#[derive(Serialize)]
+struct Comprobado {
+    respuesta: String, // la línea «SIA-…», o "" si no la hubo
+    tarde: bool,       // se pasó de su tiempo y se cortó
+}
+
+// La respuesta «SIA-…»: desde «SIA-» hasta el final de su línea, que puede traer avisos delante
+fn respuesta(salida: &str) -> String {
+    salida
+        .find("SIA-")
+        .map(|i| salida[i..].lines().next().unwrap_or("").trim().to_string())
+        .unwrap_or_default()
+}
+
+#[cfg(windows)]
+fn matar(pid: u32) {
+    let _ = Command::new("taskkill")
+        .args(["/PID", &pid.to_string(), "/T", "/F"])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output();
+}
+
+#[cfg(windows)]
+#[tauri::command]
+async fn comprobar(estado: tauri::State<'_, EnCurso>, paso: String) -> Result<Comprobado, String> {
+    use std::io::Read;
+    use std::process::Stdio;
+    let cli = std::env::temp_dir().join("sia-setup").join("copilot-cli.cmd");
+    if paso != "certs" {
+        std::fs::create_dir_all(cli.parent().unwrap()).map_err(|e| e.to_string())?;
+        std::fs::write(&cli, COPILOT_CLI).map_err(|e| e.to_string())?;
+    }
+    let cli_arg = |extra: &str| format!(r#"/c call "{}"{extra}"#, cli.display());
+    let mut cmd;
+    match paso.as_str() {
+        "certs" => {
+            let (p, _) = paquete()?;
+            cmd = Command::new("powershell.exe");
+            cmd.args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", CERTS_PS])
+                .env("SIA_CERTS", p.certs.requeridos.join("|"));
+        }
+        "copilot" | "copilot-install" | "session" | "login" => {
+            let extra = match paso.as_str() {
+                "copilot-install" => " -Install",
+                "session" => " -Session",
+                "login" => " -Login",
+                _ => "",
+            };
+            cmd = Command::new("cmd.exe");
+            cmd.raw_arg(cli_arg(extra));
+        }
+        _ => return Err(format!("Comprobación desconocida: {paso}")),
+    }
+    // instalar, 10 min; iniciar sesión, 5 min; lo demás, 1 min (como el NSIS)
+    let max = Duration::from_secs(match paso.as_str() {
+        "copilot-install" => 600,
+        "login" => 300,
+        _ => 60,
+    });
+    // el inicio de sesión, en su propia ventana y a la vista; lo demás, oculto y con su salida
+    if paso == "login" {
+        const CREATE_NEW_CONSOLE: u32 = 0x0000_0010;
+        cmd.creation_flags(CREATE_NEW_CONSOLE);
+    } else {
+        cmd.creation_flags(CREATE_NO_WINDOW).stdout(Stdio::piped()).stderr(Stdio::null());
+    }
+    let mut child = cmd.spawn().map_err(|e| e.to_string())?;
+    *estado.0.lock().unwrap() = Some((child.id(), paso.clone()));
+    let lector = child.stdout.take().map(|mut out| {
+        std::thread::spawn(move || {
+            let mut s = Vec::new();
+            let _ = out.read_to_end(&mut s);
+            String::from_utf8_lossy(&s).into_owned()
+        })
+    });
+    let inicio = std::time::Instant::now();
+    let mut tarde = false;
+    loop {
+        if child.try_wait().map_err(|e| e.to_string())?.is_some() {
+            break;
+        }
+        if inicio.elapsed() > max {
+            matar(child.id());
+            let _ = child.wait();
+            tarde = true;
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+    *estado.0.lock().unwrap() = None;
+    let salida = lector.and_then(|h| h.join().ok()).unwrap_or_default();
+    Ok(Comprobado { respuesta: if tarde { String::new() } else { respuesta(&salida) }, tarde })
+}
+
+#[cfg(not(windows))]
+#[tauri::command]
+async fn comprobar(_paso: String) -> Result<Comprobado, String> {
+    Err("En Mac aún no comprueba.".into())
+}
+
+// Cancelar corta la comprobación en marcha, pero no a WinGet instalando: cortarlo a mitad deja
+// su registro roto (8A150054). Si se cancela instalando, Copilot CLI termina de instalarse solo.
+#[tauri::command]
+fn cortar(estado: tauri::State<'_, EnCurso>) {
+    if let Some((pid, paso)) = estado.0.lock().unwrap().take() {
+        if paso != "copilot-install" {
+            #[cfg(windows)]
+            matar(pid);
+            #[cfg(not(windows))]
+            let _ = pid;
+        }
+    }
+}
+
+#[tauri::command]
+fn abrir_guia(url: String) -> Result<(), String> {
+    if !url.starts_with("https://") {
+        return Err("La guía no es una dirección web.".into());
+    }
+    let prog = if cfg!(windows) { "explorer.exe" } else { "open" };
+    Command::new(prog).arg(&url).spawn().map(|_| ()).map_err(|e| e.to_string())
 }
 
 // Si la carpeta elegida no se llama SIA, se instala en una SIA dentro de ella
@@ -255,7 +408,16 @@ fn abrir_sia(carpeta: String) -> Result<(), String> {
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![estado, elegir_carpeta, instalar, abrir_sia])
+        .manage(EnCurso::default())
+        .invoke_handler(tauri::generate_handler![
+            estado,
+            elegir_carpeta,
+            instalar,
+            abrir_sia,
+            comprobar,
+            cortar,
+            abrir_guia
+        ])
         .run(tauri::generate_context!())
         .expect("no se pudo abrir SIA Setup");
 }

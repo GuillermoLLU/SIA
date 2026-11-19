@@ -1,5 +1,6 @@
 // SIA Setup: los pasos del instalador. El aspecto sale de la maqueta (setup/maqueta) y lo que se
-// instala lo hace Rust (src-tauri/src/main.rs): este fichero solo pinta y pide.
+// instala y se comprueba lo hace Rust (src-tauri/src/main.rs): este fichero solo pinta y pide.
+// Las comprobaciones previas siguen las del NSIS (build/installer.nsh): mismos pasos, textos y reglas.
 const { invoke } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
 const appWin = window.__TAURI__.window.getCurrentWindow();
@@ -11,16 +12,15 @@ const FOLDER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strok
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
-// Al actualizar solo aparecen los pasos que tocan (TC-02 de la #143)
-const FLOWS = { install: ['welcome', 'checks', 'folder', 'install', 'done'], update: ['welcome', 'install', 'done'] };
 const TITLE = { welcome: 'Bienvenida', checks: 'Comprobaciones', folder: 'Carpeta', install: () => (S.mode === 'update' ? 'Actualización' : 'Instalación'), done: 'Listo' };
 const title = (id) => (typeof TITLE[id] === 'function' ? TITLE[id]() : TITLE[id]);
 const FASE = { cerrando: 'Cerrando SIA', preparando: 'Preparando', copiando: 'Copiando archivos', terminando: 'Terminando' };
 
 // S: lo que dice Rust al abrir (estado) más lo que elige la persona
-let S, flow, cur, ck, timers = [], busy = false;
+let S, flow, cur, timers = [], busy = false;
 const later = (fn, ms) => timers.push(setTimeout(fn, ms));
 const stopTimers = () => { timers.forEach(clearTimeout); timers = []; };
+const hasCerts = () => S.certs.requeridos.length > 0;
 
 const stage = $('.stage'), stepsEl = $('.steps'), next = $('[data-next]'), back = $('[data-back]'), cancel = $('[data-cancel]');
 
@@ -34,7 +34,7 @@ const VIEWS = {
   checks: () => `
     <h2 class="cap">Comprobaciones</h2>
     <ul class="cks">
-      ${ck.map((c) => `<li class="ck" data-ck="${c.id}" data-state="${c.state}"><i class="ck-ic" aria-hidden="true"></i><div class="ck-txt"><b>${c.name}</b></div><div class="ck-act"></div></li>`).join('')}
+      ${rows().map((id) => `<li class="ck" data-ck="${id}" data-state="wait"><i class="ck-ic" aria-hidden="true"></i><div class="ck-txt"><b>${ROW[id]}</b></div><div class="ck-act"></div></li>`).join('')}
     </ul>
     <div class="cks-foot" data-cks-foot></div>`,
   folder: () => `
@@ -77,6 +77,7 @@ function slide(prevEl, el, fwd) {
 function go(i) {
   const prev = cur, prevEl = $('.step:not(.out-fwd):not(.out-back)', stage);
   stopTimers();
+  K.run++;   // lo que siga llegando de unas comprobaciones anteriores ya no se pinta
   cur = i;
   const id = flow[cur], el = document.createElement('section');
   el.className = 'step'; el.dataset.step = id; el.innerHTML = VIEWS[id]();
@@ -88,22 +89,23 @@ function go(i) {
 }
 
 function renderFoot() {
-  const id = flow[cur], nid = flow[cur + 1];
+  const id = flow[cur], nid = flow[cur + 1], checking = id === 'checks' && K.step !== 'done';
   back.hidden = cur === 0 || id === 'install' || id === 'done';
+  back.disabled = checking;
   $('[data-spacer]').hidden = !back.hidden;
   cancel.hidden = id === 'install' || id === 'done';
   next.hidden = id === 'install';
-  next.disabled = id === 'checks' && !ck.every((c) => c.state === 'ok');
+  next.disabled = id === 'checks' && !canGoOn();
   next.innerHTML = id === 'done' ? 'Terminar'
     : nid === 'install' ? (S.mode === 'update' ? 'Actualizar' : 'Instalar')
     : `${title(nid)}${NEXT_ARROW}`;
 }
 
 const ENTER = {
-  checks(el) {
-    for (const c of ck) paintCheck(el, c);
-    const todo = ck.filter((c) => c.state !== 'ok');
-    if (todo.length) runChecks(el, todo);
+  checks() {
+    // como el NSIS: cada vez que se entra en la página se comprueba todo de nuevo
+    Object.assign(K, { certs: 'ok', missing: '', certsOk: false, copilot: 'ok', code: '', copilotOk: false, session: 'ok', who: '', sessionOk: false });
+    later(refresh, 50);
   },
   folder(el) {
     $('[data-pick]', el).onclick = async () => {
@@ -119,7 +121,7 @@ const ENTER = {
     const bar = $('[data-bar]', el), pct = $('[data-pct]', el), now = $('[data-now]', el);
     let shown = '', top = 0;
     const paint = (p, fase) => {
-      top = Math.max(top, p);   // nunca hacia atrás: al actualizar, la carpeta primero se vacía
+      top = Math.max(top, p);   // nunca hacia atrás
       bar.style.width = `${top}%`; pct.textContent = `${top} %`;
       const label = FASE[fase] || fase;
       if (label && label !== shown) { shown = label; now.innerHTML = `<span>${esc(label)}</span>`; }
@@ -143,61 +145,226 @@ const ENTER = {
   },
 };
 
-// ── Comprobaciones ───────────────────────────────────────────────────────
-// Aún simuladas: el siguiente paso es llamar a las de la #118 (certificados y Copilot CLI).
-function newChecks() {
-  return [
-    { id: 'certs', name: 'Certificados del cliente', state: 'wait' },
-    { id: 'copilot', name: 'Copilot CLI', state: 'wait' },
-  ];
-}
+// ── Comprobaciones previas ───────────────────────────────────────────────
+// Certificados del cliente (si sia-instance.json exige alguno) y, en la primera instalación,
+// Copilot CLI (si falta, se instala con WinGet) y su sesión. Al volver a comprobar, lo que ya
+// salió bien se queda con su ✔ y no se repite. Lo que no se ha podido comprobar deja seguir
+// con confirmación; lo que falta, no.
+const ROW = { certs: 'Certificados del cliente', copilot: 'Copilot CLI', session: 'Sesión de Copilot' };
+const rows = () => [...(hasCerts() ? ['certs'] : []), ...(S.mode === 'install' ? ['copilot', 'session'] : [])];
+const K = { run: 0, step: 'done' };
 
-function paintCheck(el, c) {
-  const row = $(`[data-ck="${c.id}"]`, el);
+const check = (paso) => invoke('comprobar', { paso }).catch(() => ({ respuesta: '', tarde: false }));
+const rowEl = (id) => $(`.step[data-step="checks"]:not(.out-fwd):not(.out-back) [data-ck="${id}"]`);
+
+// state: wait (gris), run (girando), ok (✔ verde), warn (falta: rojo, no deja seguir), unk (no se sabe: ámbar)
+function setRow(id, state, sub = '') {
+  const row = rowEl(id);
   if (!row) return;
-  row.dataset.state = c.state;
+  row.dataset.state = state;
   const txt = $('.ck-txt', row);
   txt.querySelector('.ck-sub')?.remove();
-  if (c.sub) txt.insertAdjacentHTML('beforeend', `<span class="ck-sub">${esc(c.sub)}</span>`);
+  if (sub) txt.insertAdjacentHTML('beforeend', `<span class="ck-sub">${esc(sub)}</span>`);
+  $('.ck-act', row).innerHTML = '';
+}
+
+async function refresh() {
+  const run = K.run;
+  K.step = 'running';
+  for (const r of $$('.ck-act')) r.innerHTML = '';
+  const foot = $('[data-cks-foot]'); if (foot) foot.textContent = '';
+  renderFoot();
+  if (hasCerts() && !K.certsOk) {
+    K.missing = '';
+    setRow('certs', 'run', 'Comprobando…');
+    const { respuesta } = await check('certs');
+    if (run !== K.run) return;
+    K.certs = 'unknown';
+    if (respuesta === 'SIA-OK') {
+      K.certs = 'ok'; K.certsOk = true;
+      setRow('certs', 'ok', 'Instalados');
+    } else if (respuesta.startsWith('SIA-FALTAN:')) {
+      K.missing = respuesta.slice(11); K.certs = 'missing';
+      setRow('certs', 'warn', `Faltan: ${K.missing}`);
+    } else {
+      setRow('certs', 'unk', 'No se han podido comprobar');
+    }
+  }
+  await copilotStart(run);
+}
+
+// K.copilot ← ok | falta | sin-winget | politica | descarga | tiempo | error | unknown, y K.code
+// ← el código de WinGet si es otro fallo
+function readCopilot({ respuesta, tarde }, installing) {
+  K.copilot = installing && tarde ? 'tiempo' : 'unknown';   // no termina de instalarse: casi siempre, la red
+  K.code = '';
+  if (respuesta.startsWith('SIA-COPILOT:')) {
+    K.copilot = respuesta.slice(12);
+    if (K.copilot.startsWith('error:')) { K.code = K.copilot.slice(6); K.copilot = 'error'; }
+  }
+}
+
+const COPILOT_TEXT = {
+  ok: ['ok', 'Instalado'],
+  'sin-winget': ['warn', 'Falta WinGet para instalarlo'],
+  politica: ['warn', 'El equipo no permite instalarlo'],
+  descarga: ['warn', 'No se ha podido descargar'],
+  tiempo: ['warn', 'No termina de instalarse'],
+  error: ['warn', 'No se ha podido instalar'],
+};
+
+async function copilotStart(run) {
+  if (K.copilotOk) return sessionStart(run);
+  K.copilot = 'ok'; K.code = '';
+  if (S.mode !== 'install') return finish();
+  setRow('copilot', 'run', 'Comprobando…');
+  readCopilot(await check('copilot'), false);
+  if (run !== K.run) return;
+  if (K.copilot === 'falta') {
+    setRow('copilot', 'run', 'Instalando con WinGet…');
+    readCopilot(await check('copilot-install'), true);
+    if (run !== K.run) return;
+  }
+  if (K.copilot === 'ok') K.copilotOk = true;
+  const [state, sub] = COPILOT_TEXT[K.copilot] || ['unk', 'No se ha podido comprobar'];
+  if (!COPILOT_TEXT[K.copilot]) K.copilot = 'unknown';
+  setRow('copilot', state, sub);
+  await sessionStart(run);
+}
+
+// La sesión de Copilot: en la primera instalación, con Copilot CLI ya bien. Si Copilot CLI no
+// está, no hay sesión que mirar.
+async function sessionStart(run) {
+  K.session = 'ok';
+  if (S.mode !== 'install' || K.copilot !== 'ok' || K.sessionOk) {
+    if (S.mode === 'install' && !K.sessionOk) setRow('session', 'wait');
+    return finish();
+  }
+  setRow('session', 'run', 'Comprobando…');
+  const { respuesta } = await check('session');
+  if (run !== K.run) return;
+  let v = respuesta.startsWith('SIA-SESION:') ? respuesta.slice(11) : 'unknown';
+  if (v.startsWith('ok:')) { K.who = v.slice(3); v = 'ok'; }   // se dice cuál, para que se vea si es la de Inditex
+  K.session = v;
+  if (v === 'ok') {
+    K.sessionOk = true;
+    setRow('session', 'ok', K.who ? `Iniciada: ${K.who}` : 'Iniciada');
+  } else if (v === 'sin-sesion') {
+    setRow('session', 'warn', 'Falta iniciar sesión');
+  } else {
+    K.session = 'unknown';
+    setRow('session', 'unk', 'No se ha podido comprobar');
+  }
+  finish();
+}
+
+// Siguiente: sin certificados no; en la primera instalación, tampoco si Copilot CLI no está y no
+// se ha podido instalar, ni sin sesión de Copilot (lo que no se ha podido comprobar, sí)
+function canGoOn() {
+  if (K.step !== 'done') return false;
+  if (K.certs === 'missing') return false;
+  if (S.mode === 'install' && K.copilot !== 'ok' && K.copilot !== 'unknown') return false;
+  if (S.mode === 'install' && K.session !== 'ok' && K.session !== 'unknown') return false;
+  return true;
+}
+
+// Todo comprobado. Falta algo (o no se sabe): qué hacer, en la fila que toca, con la guía o el
+// inicio de sesión si sirven y «Volver a comprobar». Lo de los certificados primero.
+function finish() {
+  K.step = 'done';
+  const dl = K.copilot === 'tiempo' ? 'descarga' : K.copilot;
+  let help = '', kind = 'retry', at = null;
+  if (K.certs !== 'ok') {
+    at = 'certs';
+    const conn = S.mode === 'install' && dl === 'descarga' ? ', revisa la conexión' : '';   // si Copilot CLI tampoco se ha podido descargar
+    if (S.certs.guia) { help = `Instálalos con la guía${conn} y pulsa «Volver a comprobar».`; kind = 'guide'; }
+    else help = `Pide a soporte la guía, instálalos${conn} y pulsa «Volver a comprobar».`;
+  } else if (S.mode === 'install' && K.copilot !== 'ok') {
+    at = 'copilot';
+    help = K.copilot === 'sin-winget' ? 'Instala «Instalador de aplicación» desde Microsoft Store y pulsa «Volver a comprobar».'
+      : K.copilot === 'politica' ? 'Pide a soporte que lo instale y pulsa «Volver a comprobar».'
+      : dl === 'descarga' ? 'Revisa la conexión y la VPN y pulsa «Volver a comprobar».'
+      : K.copilot === 'unknown' ? 'Pulsa «Volver a comprobar» o sigue sin él.'
+      : K.code ? `Pulsa «Volver a comprobar». Si sigue, pide ayuda a soporte (código ${K.code}).`
+      : 'Pulsa «Volver a comprobar» y, si sigue, pide ayuda a soporte.';
+  } else if (S.mode === 'install' && K.session !== 'ok') {
+    at = 'session';
+    if (K.session === 'unknown') help = 'Pulsa «Volver a comprobar» o sigue sin ella.';
+    else { help = 'Inicia sesión con tu cuenta de Inditex.'; kind = 'login'; }
+  }
+  const foot = $('.step[data-step="checks"]:not(.out-fwd):not(.out-back) [data-cks-foot]');
+  if (foot) foot.textContent = help;
+  const act = at && rowEl(at) && $('.ck-act', rowEl(at));
+  if (act) {
+    act.innerHTML = (kind === 'guide' ? '<button class="btn link" data-guide>Abrir la guía ↗</button>' : '')
+      + (kind === 'login' ? '<button class="btn sm primary" data-login>Iniciar sesión ↗</button>' : '')
+      + '<button class="btn sm" data-recheck>Volver a comprobar</button>';
+    $('[data-guide]', act)?.addEventListener('click', () => invoke('abrir_guia', { url: S.certs.guia }).catch(() => {}));
+    $('[data-login]', act)?.addEventListener('click', login);
+    $('[data-recheck]', act).addEventListener('click', refresh);
+  }
   renderFoot();
 }
 
-function runChecks(el, list) {
-  const set = (c, patch) => { Object.assign(c, patch); paintCheck(el, c); };
-  let at = 0;
-  for (const c of list) {
-    later(() => set(c, { state: 'run', sub: 'Comprobando…' }), at);
-    at += 700;
-    later(() => set(c, { state: 'ok', sub: 'Simulada' }), at);
-    at += 150;
-  }
+// El inicio de sesión de Copilot, en su propia ventana: abre el navegador y se cierra al
+// completarlo. Mientras, la página espera; después, comprueba la sesión sin pulsar nada.
+async function login() {
+  const run = K.run;
+  K.step = 'login';
+  const foot = $('[data-cks-foot]'); if (foot) foot.textContent = '';
+  setRow('session', 'run', 'Esperando el inicio de sesión en el navegador…');
+  renderFoot();
+  await check('login');
+  if (run !== K.run) return;
+  await sessionStart(run);
+}
+
+// Lo que no se ha podido comprobar se avisa (en un solo aviso) y se sigue si se acepta
+function unknownsText() {
+  const t = [];
+  if (K.certs === 'unknown') t.push('No se han podido comprobar los certificados del cliente. Si faltan, con la VPN no podrás iniciar sesión hasta instalarlos.');
+  if (S.mode === 'install' && K.copilot === 'unknown') t.push('No se ha podido comprobar Copilot CLI. Sin él, el chat de Copilot de SIA no funcionará hasta instalarlo.');
+  if (S.mode === 'install' && K.session === 'unknown') t.push('No se ha podido comprobar la sesión de Copilot. Sin ella, el chat de Copilot de SIA no funcionará hasta iniciarla.');
+  return t.join('\n\n');
 }
 
 // ── Botones de la ventana ────────────────────────────────────────────────
 async function onNext() {
-  if (flow[cur] === 'done') {
+  const id = flow[cur];
+  if (id === 'done') {
     if ($('[data-launch]').checked) await invoke('abrir_sia', { carpeta: S.carpeta }).catch(() => {});
     closeWin();
     return;
+  }
+  if (id === 'checks') {
+    if (!canGoOn()) return;
+    const warn = unknownsText();
+    if (warn) { ask('¿Seguir sin comprobarlo?', warn, 'Seguir', () => go(cur + 1)); return; }
   }
   go(cur + 1);
 }
 next.onclick = onNext;
 back.onclick = () => go(cur - 1);
-cancel.onclick = () => ask();
+cancel.onclick = () => askLeave();
 $$('[data-min]').forEach((b) => { b.onclick = () => appWin.minimize(); });
-$$('[data-close]').forEach((b) => { b.onclick = () => (busy ? null : flow[cur] === 'done' ? closeWin() : ask()); });
+$$('[data-close]').forEach((b) => { b.onclick = () => (busy ? null : flow[cur] === 'done' ? closeWin() : askLeave()); });
 
-function ask() {
-  $('[data-ask-text]').textContent = S.mode === 'update' ? `Se queda la versión ${S.instalado.version}.` : 'SIA no quedará instalado.';
+let onLeave = null;
+function ask(head, text, ok, fn) {
+  $('#ask-t').textContent = head;
+  $('[data-ask-text]').textContent = text;
+  $('[data-leave]').textContent = ok;
+  onLeave = fn;
   $('[data-veil]').hidden = false;
   $('[data-stay]').focus();
 }
+const askLeave = () => ask('¿Salir de la instalación?', S.mode === 'update' ? `Se queda la versión ${S.instalado.version}.` : 'SIA no quedará instalado.', 'Salir', closeWin);
 $('[data-stay]').onclick = () => { $('[data-veil]').hidden = true; };
-$('[data-leave]').onclick = () => closeWin();
+$('[data-leave]').onclick = () => { $('[data-veil]').hidden = true; onLeave?.(); };
 
-function closeWin() {
+async function closeWin() {
   stopTimers();
+  await invoke('cortar').catch(() => {});
   $('.win').classList.add('closing');
   setTimeout(() => appWin.close(), reduced() ? 0 : 250);
 }
@@ -208,6 +375,10 @@ function closeWin() {
   if (S.instalado) S.carpeta = S.instalado.carpeta;
   $('.win').dataset.os = S.sistema;
   $('[data-tb-title]').textContent = S.mode === 'update' ? 'Actualización' : 'Instalación';
-  flow = FLOWS[S.mode]; ck = newChecks();
+  // solo los pasos que tocan (TC-02 de la #143): al actualizar, las comprobaciones solo si hay
+  // certificados que mirar, y sin carpeta
+  flow = S.mode === 'update'
+    ? ['welcome', ...(hasCerts() ? ['checks'] : []), 'install', 'done']
+    : ['welcome', 'checks', 'folder', 'install', 'done'];
   go(0);
 })();

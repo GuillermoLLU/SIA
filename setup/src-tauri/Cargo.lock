@@ -2977,6 +2977,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
+ "tokio",
  "winreg 0.55.0",
 ]
 
