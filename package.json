@@ -3,7 +3,7 @@
   "productName": "SIA",
   "version": "1.1.0",
   "description": "Sistema de IA para equipos: chat con IA, conocimiento y skills",
-  "author": "Minsait",
+  "author": "Indra Group",
   "type": "module",
   "main": "electron/main.js",
   "scripts": {
