@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SIA Setup · maqueta (#143)</title>
+<!-- Maqueta del instalador con el aspecto de SIA (#143): solo HTML, CSS y JS, sin instalar nada.
+     Las ideas salen del asistente de Resolver (web/src/issues/issues.css y web/src/ui/wizard.js):
+     el indicador de pasos, la entrada y salida de cada paso y el botón que nombra el siguiente.
+     La barra de arriba es de la maqueta, no del instalador: cambia el escenario. -->
+<style>
+:root {
+  /* el tema claro de SIA (web/src/style.css) */
+  --bg: #f7f7f7;
+  --surface: #ffffff;
+  --border: #e3e3e3;
+  --text: #000000;
+  --text-low: #757575;
+  --accent: #000000;
+  --focus: #0170e9;
+  --danger: #c93b3a;
+  --success: #178329;
+  --font-ui: "Helvetica Now Text SW10", "Helvetica Neue", Helvetica, Arial, "Noto Sans", sans-serif;
+  --motion-state: .2s linear;
+  --ease-step: cubic-bezier(.22, 1, .36, 1);
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
+body { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; font-family: var(--font-ui); color: var(--text); background: #d9dcdf; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* ── Barra de la maqueta ─────────────────────────────────────────────── */
+.mock { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; max-width: 760px; padding: 10px 14px; font-size: 12px; color: #333; background: rgba(255, 255, 255, .7); border: 1px dashed #9aa0a6; }
+.mock b { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #5f6368; }
+.mock label { display: inline-flex; align-items: center; gap: 6px; }
+.mock fieldset { display: inline-flex; gap: 2px; margin: 0; padding: 0; border: 0; }
+.mock fieldset button { padding: 4px 8px; background: none; border: 1px solid transparent; cursor: pointer; }
+.mock fieldset button[aria-pressed="true"] { background: #fff; border-color: #9aa0a6; }
+.mock-reset { margin-left: auto; padding: 4px 10px; background: #fff; border: 1px solid #9aa0a6; cursor: pointer; }
+.mock-toast { min-height: 18px; font-size: 12px; color: #333; }
+
+/* ── La ventana ──────────────────────────────────────────────────────── */
+.win { position: relative; display: flex; flex-direction: column; width: 760px; height: 500px; overflow: hidden; background: var(--surface); border: 1px solid rgba(0, 0, 0, .18); border-radius: 8px; box-shadow: 0 24px 60px rgba(0, 0, 0, .25); }
+.win.closing { animation: win-out .25s ease both; }
+@keyframes win-out { to { opacity: 0; transform: scale(.97); } }
+
+.tb { flex: none; display: flex; align-items: center; height: 36px; padding: 0 0 0 16px; font-size: 12px; color: var(--text-low); -webkit-app-region: drag; user-select: none; }
+.tb-title { display: flex; align-items: center; gap: 8px; }
+.tb-title b { font-size: 13px; font-weight: 700; letter-spacing: .06em; color: var(--text); }
+.tb-ctl { display: flex; margin-left: auto; -webkit-app-region: no-drag; }
+.tb-ctl button { display: grid; place-items: center; width: 46px; height: 36px; background: none; border: 0; color: var(--text); cursor: pointer; transition: background var(--motion-state); }
+.tb-ctl button:hover { background: rgba(0, 0, 0, .06); }
+.tb-ctl [data-close]:hover { color: #fff; background: #c42b1c; }
+.tb-ctl svg { width: 10px; height: 10px; }
+.tb-lights { display: none; gap: 8px; margin-right: 14px; -webkit-app-region: no-drag; }
+.tb-lights button { width: 12px; height: 12px; padding: 0; border: 0; border-radius: 50%; cursor: pointer; }
+.tb-lights button:nth-child(1) { background: #ff5f57; }
+.tb-lights button:nth-child(2) { background: #febc2e; }
+.tb-lights button:nth-child(3) { background: #d0d0d0; cursor: default; }
+/* en Mac, los semáforos a la izquierda y el título centrado */
+.win[data-os="mac"] { border-radius: 10px; }
+.win[data-os="mac"] .tb { justify-content: center; padding: 0 16px; }
+.win[data-os="mac"] .tb-lights { display: flex; position: absolute; left: 14px; }
+.win[data-os="mac"] .tb-ctl { display: none; }
+
+/* El indicador de pasos, como el de Resolver: el actual en negro, los hechos con ✓ verde */
+.steps { flex: none; display: flex; align-items: center; margin: 0; padding: 14px 40px 18px; list-style: none; border-bottom: 1px solid var(--border); }
+.steps li { display: flex; flex: 1 1 auto; align-items: center; gap: 10px; min-width: 0; font-size: 13px; color: var(--text-low); }
+.steps li:last-child { flex: none; }
+.steps li::after { content: ''; flex: 1; height: 1px; margin: 0 14px; background: var(--border); transition: background .3s ease; }
+.steps li:last-child::after { display: none; }
+.steps i { flex: none; display: grid; place-items: center; width: 28px; height: 28px; font-size: 12px; font-style: normal; font-weight: 650; color: var(--text-low); border: 1.5px solid var(--border); border-radius: 50%; transition: background var(--motion-state), color var(--motion-state), border-color var(--motion-state); }
+.steps span { white-space: nowrap; font-weight: 500; transition: color var(--motion-state); }
+.steps li[aria-current] { color: var(--text); }
+.steps li[aria-current] i { color: var(--surface); background: var(--accent); border-color: var(--accent); }
+.steps li.done { color: var(--text); }
+.steps li.done i { font-size: 0; color: var(--surface); background: var(--success); border-color: var(--success); }
+.steps li.done i::before { content: '✓'; font-size: 13px; }
+.steps li.done::after { background: var(--success); }
+
+/* Los pasos: el nuevo entra por un lado mientras el anterior sale por el otro */
+.stage { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+.step { position: absolute; inset: 0; display: flex; flex-direction: column; padding: 28px 40px 0; }
+.step.in-fwd { animation: in-fwd .6s var(--ease-step) both; }
+.step.in-back { animation: in-back .6s var(--ease-step) both; }
+.step.out-fwd { animation: out-fwd .6s var(--ease-step) both; pointer-events: none; }
+.step.out-back { animation: out-back .6s var(--ease-step) both; pointer-events: none; }
+@keyframes in-fwd { from { transform: translateX(calc(100% + 40px)); } }
+@keyframes in-back { from { transform: translateX(calc(-100% - 40px)); } }
+@keyframes out-fwd { to { transform: translateX(calc(-100% - 40px)); } }
+@keyframes out-back { to { transform: translateX(calc(100% + 40px)); } }
+.cap { margin: 0 0 18px; font-size: 16px; font-weight: 650; }
+
+/* Bienvenida */
+.hello { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding-bottom: 28px; text-align: center; }
+.hello-mark { font-size: 64px; line-height: 1; font-weight: 700; letter-spacing: .08em; animation: rise .8s var(--ease-step) both; }
+.hello-ver { font-size: 13px; color: var(--text-low); animation: rise .8s var(--ease-step) .1s both; }
+.hello-ver em { font-style: normal; color: var(--text); font-weight: 600; }
+.hello-note { margin-top: 14px; padding: 8px 14px; font-size: 13px; color: var(--text); background: var(--bg); border: 1px solid var(--border); animation: rise .8s var(--ease-step) .2s both; }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+
+/* Comprobaciones */
+.cks { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; border: 1px solid var(--border); }
+.ck { display: flex; align-items: center; gap: 14px; min-height: 64px; padding: 12px 16px; animation: rise .5s var(--ease-step) both; }
+.ck + .ck { border-top: 1px solid var(--border); }
+.ck:nth-child(2) { animation-delay: .08s; }
+.ck-ic { flex: none; position: relative; display: grid; place-items: center; width: 28px; height: 28px; font-size: 14px; font-style: normal; font-weight: 700; color: var(--surface); border: 1.5px solid var(--border); border-radius: 50%; transition: background .25s ease, border-color .25s ease; }
+.ck[data-state="run"] .ck-ic { border-color: var(--border); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+.ck[data-state="ok"] .ck-ic { background: var(--success); border-color: var(--success); animation: pop .35s var(--ease-step); }
+.ck[data-state="ok"] .ck-ic::before { content: '✓'; }
+.ck[data-state="warn"] .ck-ic { background: var(--danger); border-color: var(--danger); animation: pop .35s var(--ease-step); }
+.ck[data-state="warn"] .ck-ic::before { content: '!'; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pop { from { transform: scale(.6); } }
+.ck-txt { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ck-txt b { font-size: 14px; font-weight: 600; }
+.ck-sub { font-size: 12.5px; color: var(--text-low); animation: fade .3s ease both; }
+.ck[data-state="warn"] .ck-sub { color: var(--danger); }
+.ck-bar { display: block; width: 180px; height: 3px; margin-top: 4px; overflow: hidden; background: var(--border); }
+.ck-bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s ease; }
+.ck-act { flex: none; display: flex; align-items: center; gap: 8px; animation: fade .3s ease both; }
+@keyframes fade { from { opacity: 0; } }
+.cks-foot { margin-top: 14px; font-size: 12.5px; color: var(--text-low); animation: fade .3s ease both; }
+
+/* Carpeta */
+.dir { display: flex; align-items: center; gap: 12px; height: 48px; padding: 0 6px 0 14px; background: var(--bg); border: 1px solid var(--border); }
+.dir svg { flex: none; width: 18px; height: 18px; color: var(--text-low); }
+.dir code { flex: 1; min-width: 0; overflow: hidden; font: 13px/1 var(--font-ui); white-space: nowrap; text-overflow: ellipsis; }
+.dir code.changed { animation: fade .4s ease both; }
+.dir-hint { margin-top: 10px; font-size: 12.5px; color: var(--text-low); }
+
+/* Instalando */
+.prog { margin-top: 36px; }
+.prog-top { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; font-size: 13px; }
+.prog-top span { color: var(--text-low); }
+.prog-top b { font-size: 28px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.prog-bar { position: relative; height: 4px; overflow: hidden; background: var(--border); }
+.prog-bar i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--accent); }
+/* un brillo que recorre la barra: aunque un tramo tarde, se ve que sigue vivo */
+.prog-bar i::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .55), transparent); transform: translateX(-100%); animation: shine 1.4s ease-in-out infinite; }
+@keyframes shine { to { transform: translateX(100%); } }
+.prog-now { margin-top: 12px; font-size: 12.5px; color: var(--text-low); }
+.prog-now span { display: inline-block; animation: fade .3s ease both; }
+
+/* Listo */
+.end { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding-bottom: 28px; text-align: center; }
+.end svg { width: 72px; height: 72px; }
+.end circle { fill: none; stroke: var(--success); stroke-width: 3; stroke-dasharray: 220; stroke-dashoffset: 220; animation: draw .7s ease forwards; }
+.end path { fill: none; stroke: var(--success); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 60; stroke-dashoffset: 60; animation: draw .4s ease .55s forwards; }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+.end b { font-size: 16px; line-height: 20px; font-weight: 500; letter-spacing: .4px; text-transform: uppercase; animation: rise .6s var(--ease-step) .5s both; }
+.end span { font-size: 13px; color: var(--text-low); animation: rise .6s var(--ease-step) .6s both; }
+.end label { display: inline-flex; align-items: center; gap: 8px; margin-top: 16px; font-size: 13.5px; cursor: pointer; animation: rise .6s var(--ease-step) .7s both; }
+.end input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+
+/* El pie: Atrás a la izquierda; Cancelar y el botón que nombra el paso siguiente a la derecha */
+.foot { flex: none; display: flex; align-items: center; gap: 12px; padding: 16px 40px 22px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; height: 44px; padding: 0 24px; font-size: 13px; line-height: 20px; letter-spacing: .02em; text-transform: uppercase; background: none; border: 1px solid var(--border); cursor: pointer; transition: background var(--motion-state), color var(--motion-state), border-color var(--motion-state), opacity var(--motion-state); }
+.btn:hover { border-color: var(--accent); }
+.btn svg { width: 16px; height: 16px; }
+.btn.primary { color: var(--surface); background: var(--accent); border-color: var(--accent); }
+.btn.primary:hover { background: #333; }
+.btn:disabled { cursor: default; opacity: .35; }
+.btn.primary:disabled:hover { background: var(--accent); }
+.btn.sm { height: 32px; padding: 0 14px; font-size: 12px; }
+.btn.link { height: auto; padding: 0; text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--focus); border: 0; text-decoration: underline; text-underline-offset: 3px; }
+.btn.link:hover { color: #0157b5; }
+.back { display: inline-flex; align-items: center; gap: 8px; margin-right: auto; padding: 0 8px 0 0; font-size: 13.5px; color: var(--text-low); background: none; border: 0; cursor: pointer; transition: color var(--motion-state); }
+.back:hover { color: var(--text); }
+.back svg { width: 16px; height: 16px; }
+.quiet { padding: 0 6px; font-size: 13px; color: var(--text-low); background: none; border: 0; cursor: pointer; transition: color var(--motion-state); }
+.quiet:hover { color: var(--text); }
+.foot .spacer { margin-right: auto; }
+
+/* Confirmar al salir */
+.veil { position: absolute; inset: 0; z-index: 10; display: grid; place-items: center; background: rgba(0, 0, 0, .28); animation: fade .2s ease both; }
+.ask { width: 360px; padding: 24px; background: var(--surface); box-shadow: 0 14px 40px rgba(0, 0, 0, .2); animation: rise .3s var(--ease-step) both; }
+.ask b { display: block; font-size: 16px; font-weight: 650; }
+.ask p { margin: 8px 0 22px; font-size: 13px; color: var(--text-low); }
+.ask div { display: flex; justify-content: flex-end; gap: 10px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition: none !important; }
+  .ck[data-state="run"] .ck-ic { animation: spin 1.6s linear infinite !important; }
+}
+</style>
+</head>
+<body>
+
+<div class="mock" aria-label="Controles de la maqueta">
+  <b>Maqueta</b>
+  <label>Escenario <fieldset data-mock="mode"><button data-v="install" aria-pressed="true">Primera instalación</button><button data-v="update">Actualización</button></fieldset></label>
+  <label data-only="install">Comprobaciones <fieldset data-mock="checks"><button data-v="ok" aria-pressed="true">Todo bien</button><button data-v="cert">Falta un certificado</button><button data-v="copilot">Copilot sin instalar</button></fieldset></label>
+  <label data-only="update"><input type="checkbox" data-mock-open> SIA abierto</label>
+  <label>Sistema <fieldset data-mock="os"><button data-v="win" aria-pressed="true">Windows</button><button data-v="mac">Mac</button></fieldset></label>
+  <button class="mock-reset" data-mock-reset>Empezar de nuevo</button>
+</div>
+
+<div class="win" data-os="win">
+  <header class="tb">
+    <div class="tb-lights"><button data-close aria-label="Cerrar"></button><button aria-label="Minimizar"></button><button aria-label="Ampliar" disabled></button></div>
+    <div class="tb-title"><b>SIA</b><span data-tb-title>Instalación</span></div>
+    <div class="tb-ctl">
+      <button aria-label="Minimizar"><svg viewBox="0 0 10 10"><path d="M0 5h10" stroke="currentColor"/></svg></button>
+      <button data-close aria-label="Cerrar"><svg viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10" stroke="currentColor"/></svg></button>
+    </div>
+  </header>
+  <ol class="steps" aria-label="Pasos"></ol>
+  <main class="stage"></main>
+  <footer class="foot">
+    <button class="back" data-back><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>Atrás</button>
+    <span class="spacer" data-spacer hidden></span>
+    <button class="quiet" data-cancel>Cancelar</button>
+    <button class="btn primary" data-next></button>
+  </footer>
+  <div class="veil" data-veil hidden>
+    <div class="ask" role="alertdialog" aria-labelledby="ask-t">
+      <b id="ask-t">¿Salir de la instalación?</b>
+      <p data-ask-text>SIA no quedará instalado.</p>
+      <div><button class="btn sm" data-stay>Seguir</button><button class="btn sm primary" data-leave>Salir</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="mock-toast" data-toast></div>
+
+<script>
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const NEXT_ARROW = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>';
+const FOLDER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4l2 2h9A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z"/></svg>';
+const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const VERSION = '1.4.0', OLD_VERSION = '1.3.2', COPILOT = '1.0.105';
+const PATHS = {
+  win: ['C:\\Users\\tecnico\\AppData\\Local\\Programs\\SIA', 'D:\\Herramientas\\SIA'],
+  mac: ['/Applications/SIA.app', '/Users/tecnico/Applications/SIA.app'],
+};
+// Al actualizar solo aparecen los pasos que tocan (TC-02 de la #143)
+const FLOWS = { install: ['welcome', 'checks', 'folder', 'install', 'done'], update: ['welcome', 'install', 'done'] };
+const TITLE = { welcome: 'Bienvenida', checks: 'Comprobaciones', folder: 'Carpeta', install: () => (S.mode === 'update' ? 'Actualización' : 'Instalación'), done: 'Listo' };
+const title = (id) => (typeof TITLE[id] === 'function' ? TITLE[id]() : TITLE[id]);
+
+const S = { mode: 'install', checks: 'ok', open: false, os: 'win' };
+let flow, cur, pathIx, ck, timers = [];
+const later = (fn, ms) => timers.push(setTimeout(fn, ms));
+const stopTimers = () => { timers.forEach(clearTimeout); timers = []; };
+
+const stage = $('.stage'), stepsEl = $('.steps'), next = $('[data-next]'), back = $('[data-back]'), cancel = $('[data-cancel]');
+
+// ── Los pasos ────────────────────────────────────────────────────────────
+const VIEWS = {
+  welcome: () => `
+    <div class="hello">
+      <div class="hello-mark">SIA</div>
+      <div class="hello-ver">${S.mode === 'update' ? `${OLD_VERSION} → <em>${VERSION}</em>` : `Versión ${VERSION}`}</div>
+      ${S.mode === 'update' && S.open ? '<div class="hello-note">SIA está abierto: se cerrará para actualizarlo.</div>' : ''}
+    </div>`,
+  checks: () => `
+    <h2 class="cap">Comprobaciones</h2>
+    <ul class="cks">
+      ${ck.map((c) => `<li class="ck" data-ck="${c.id}" data-state="${c.state}"><i class="ck-ic" aria-hidden="true"></i><div class="ck-txt"><b>${c.name}</b></div><div class="ck-act"></div></li>`).join('')}
+    </ul>
+    <div class="cks-foot" data-cks-foot></div>`,
+  folder: () => `
+    <h2 class="cap">Carpeta</h2>
+    <div class="dir">${FOLDER}<code data-path>${PATHS[S.os][pathIx]}</code><button class="btn sm" data-pick>Cambiar</button></div>
+    <div class="dir-hint">Ocupa unos 420 MB.</div>`,
+  install: () => `
+    <h2 class="cap">${S.mode === 'update' ? 'Actualizando' : 'Instalando'}</h2>
+    <div class="prog">
+      <div class="prog-top"><span>SIA ${VERSION}</span><b data-pct>0 %</b></div>
+      <div class="prog-bar"><i data-bar></i></div>
+      <div class="prog-now" data-now></div>
+    </div>`,
+  done: () => `
+    <div class="end">
+      <svg viewBox="0 0 76 76" aria-hidden="true"><circle cx="38" cy="38" r="34"/><path d="M24 39l10 10 19-21"/></svg>
+      <b>${S.mode === 'update' ? 'SIA actualizado' : 'SIA instalado'}</b>
+      <span>Versión ${VERSION}</span>
+      <label><input type="checkbox" data-launch checked> Abrir SIA</label>
+    </div>`,
+};
+
+function renderSteps() {
+  stepsEl.innerHTML = flow.map((id, i) => `<li${i === cur ? ' aria-current="step"' : ''}${i < cur ? ' class="done"' : ''}><i>${i + 1}</i><span>${title(id)}</span></li>`).join('');
+  stepsEl.setAttribute('aria-label', `Paso ${cur + 1} de ${flow.length}`);
+}
+
+function slide(prevEl, el, fwd) {
+  for (const s of $$('.step', stage)) s.classList.remove('in-fwd', 'in-back', 'out-fwd', 'out-back');
+  if (!prevEl) return;
+  if (reduced()) { prevEl.remove(); return; }
+  void el.offsetWidth;
+  el.classList.add(fwd ? 'in-fwd' : 'in-back');
+  prevEl.classList.add(fwd ? 'out-fwd' : 'out-back');
+  prevEl.addEventListener('animationend', () => prevEl.remove(), { once: true });
+  setTimeout(() => prevEl.remove(), 700);   // por si no llega animationend (ventana oculta, por ejemplo)
+}
+
+function go(i) {
+  const prev = cur, prevEl = $('.step:not(.out-fwd):not(.out-back)', stage);
+  stopTimers();
+  cur = i;
+  const id = flow[cur], el = document.createElement('section');
+  el.className = 'step'; el.dataset.step = id; el.innerHTML = VIEWS[id]();
+  stage.append(el);
+  slide(prevEl, el, prev == null || i > prev);
+  renderSteps();
+  renderFoot();
+  ENTER[id]?.(el);
+}
+
+function renderFoot() {
+  const id = flow[cur], nid = flow[cur + 1];
+  back.hidden = cur === 0 || id === 'install' || id === 'done';
+  $('[data-spacer]').hidden = !back.hidden;
+  cancel.hidden = id === 'install' || id === 'done';
+  next.hidden = id === 'install';
+  next.disabled = id === 'checks' && !ck.every((c) => c.state === 'ok');
+  next.innerHTML = id === 'done' ? 'Terminar'
+    : nid === 'install' ? (S.mode === 'update' ? 'Actualizar' : 'Instalar')
+    : `${title(nid)}${NEXT_ARROW}`;
+}
+
+// ── Lo que pasa al entrar en cada paso ───────────────────────────────────
+const ENTER = {
+  checks(el) {
+    for (const c of ck) paintCheck(el, c);
+    const todo = ck.filter((c) => c.state !== 'ok');
+    if (todo.length) runChecks(el, todo);
+  },
+  folder(el) {
+    $('[data-pick]', el).onclick = () => {
+      pathIx = (pathIx + 1) % 2;
+      const code = $('[data-path]', el);
+      code.classList.remove('changed'); void code.offsetWidth;
+      code.textContent = PATHS[S.os][pathIx]; code.classList.add('changed');
+    };
+  },
+  install(el) {
+    const phases = [
+      ...(S.mode === 'update' && S.open ? [[0, 'Cerrando SIA']] : []),
+      [S.mode === 'update' && S.open ? 8 : 0, 'Copiando archivos'],
+      [78, 'Creando los accesos directos'],
+      [90, S.os === 'mac' ? 'Terminando' : 'Registrando SIA en Windows'],
+    ];
+    const ms = S.mode === 'update' ? 3200 : 4600, t0 = performance.now();
+    const bar = $('[data-bar]', el), pct = $('[data-pct]', el), now = $('[data-now]', el);
+    let shown = '';
+    const tick = () => {
+      const k = Math.min(1, Math.max(0, (performance.now() - t0) / ms)), p = Math.round(100 * (1 - (1 - k) ** 2));
+      bar.style.width = `${p}%`; pct.textContent = `${p} %`;
+      const label = phases.filter(([at]) => p >= at).pop()[1];
+      if (label !== shown) { shown = label; now.innerHTML = `<span>${label}</span>`; }
+      if (k < 1) later(tick, 40);
+      else later(() => go(cur + 1), 500);
+    };
+    tick();
+  },
+};
+
+// ── Comprobaciones simuladas (los mismos estados que el instalador de la #118) ──
+function newChecks() {
+  return [
+    { id: 'certs', name: 'Certificados del cliente', state: 'wait', fixed: false },
+    { id: 'copilot', name: 'Copilot CLI', state: 'wait', fixed: false },
+  ];
+}
+
+function paintCheck(el, c) {
+  const row = $(`[data-ck="${c.id}"]`, el);
+  if (!row) return;
+  row.dataset.state = c.state;
+  const txt = $('.ck-txt', row), act = $('.ck-act', row);
+  txt.querySelector('.ck-sub')?.remove(); txt.querySelector('.ck-bar')?.remove();
+  if (c.sub) txt.insertAdjacentHTML('beforeend', `<span class="ck-sub">${c.sub}</span>`);
+  if (c.bar != null) txt.insertAdjacentHTML('beforeend', `<span class="ck-bar"><i style="width:${c.bar}%"></i></span>`);
+  act.innerHTML = c.state === 'warn'
+    ? '<button class="btn link" data-guide>Abrir la guía ↗</button><button class="btn sm" data-recheck>Volver a comprobar</button>'
+    : '';
+  if (c.state === 'warn') {
+    $('[data-guide]', act).onclick = () => toast('Se abriría la guía de certificados en el navegador');
+    $('[data-recheck]', act).onclick = () => { c.fixed = true; runChecks(el, [c]); };
+  }
+  const warn = ck.some((x) => x.state === 'warn');
+  $('[data-cks-foot]', el).textContent = warn ? 'Corrígelo y pulsa «Volver a comprobar».' : '';
+  renderFoot();
+}
+
+// Una detrás de otra; «Volver a comprobar» solo repite la que falló
+function runChecks(el, list) {
+  const set = (c, patch) => { Object.assign(c, patch); paintCheck(el, c); };
+  let at = 0;
+  for (const c of list) {
+    later(() => set(c, { state: 'run', sub: 'Comprobando…', bar: null }), at);
+    at += 900;
+    if (c.id === 'certs') {
+      later(() => (S.checks === 'cert' && !c.fixed
+        ? set(c, { state: 'warn', sub: 'Falta ITX Root CA' })
+        : set(c, { state: 'ok', sub: 'Instalados' })), at);
+    } else if (S.checks === 'copilot' && !c.fixed) {
+      const how = S.os === 'mac' ? 'Homebrew' : 'WinGet';
+      for (let p = 0; p <= 100; p += 10) later(() => set(c, { state: 'run', sub: `Instalando con ${how}…`, bar: p }), at + p * 28);
+      at += 3000;
+      later(() => { c.fixed = true; set(c, { state: 'ok', sub: `Instalado · ${COPILOT}`, bar: null }); }, at);
+    } else {
+      later(() => set(c, { state: 'ok', sub: COPILOT, bar: null }), at);
+    }
+    at += 200;
+  }
+}
+
+// ── Botones de la ventana ────────────────────────────────────────────────
+next.onclick = () => {
+  if (flow[cur] === 'done') {
+    toast($('[data-launch]').checked ? `Se abriría SIA ${VERSION}` : 'El instalador se cierra');
+    closeWin();
+    return;
+  }
+  go(cur + 1);
+};
+back.onclick = () => go(cur - 1);
+cancel.onclick = () => ask();
+$$('[data-close]').forEach((b) => { b.onclick = () => (flow[cur] === 'done' ? closeWin() : flow[cur] === 'install' ? null : ask()); });
+
+function ask() {
+  $('[data-ask-text]').textContent = S.mode === 'update' ? `Se queda la versión ${OLD_VERSION}.` : 'SIA no quedará instalado.';
+  $('[data-veil]').hidden = false;
+  $('[data-stay]').focus();
+}
+$('[data-stay]').onclick = () => { $('[data-veil]').hidden = true; };
+$('[data-leave]').onclick = () => { $('[data-veil]').hidden = true; toast('Instalación cancelada: no queda nada instalado'); closeWin(); };
+
+function closeWin() {
+  stopTimers();
+  const w = $('.win');
+  w.classList.add('closing');
+  setTimeout(() => { w.classList.remove('closing'); reset(); }, reduced() ? 0 : 900);
+}
+
+// ── Controles de la maqueta ──────────────────────────────────────────────
+let toastT;
+function toast(text) { const t = $('[data-toast]'); t.textContent = `(maqueta) ${text}`; clearTimeout(toastT); toastT = setTimeout(() => { t.textContent = ''; }, 3000); }
+
+for (const fs of $$('[data-mock]')) {
+  fs.onclick = (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    S[fs.dataset.mock] = b.dataset.v;
+    $$('button', fs).forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    reset();
+  };
+}
+$('[data-mock-open]').onchange = (e) => { S.open = e.target.checked; reset(); };
+$('[data-mock-reset]').onclick = () => reset();
+
+function reset() {
+  stopTimers();
+  $('.win').dataset.os = S.os;
+  $$('[data-only]').forEach((x) => { x.hidden = x.dataset.only !== S.mode; });
+  $('[data-tb-title]').textContent = S.mode === 'update' ? 'Actualización' : 'Instalación';
+  $('[data-veil]').hidden = true;
+  flow = FLOWS[S.mode]; cur = null; pathIx = 0; ck = newChecks();
+  stage.innerHTML = '';
+  go(0);
+}
+reset();
+</script>
+</body>
+</html>
