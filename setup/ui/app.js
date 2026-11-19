@@ -357,15 +357,16 @@ $$('[data-min]').forEach((b) => { b.onclick = () => appWin.minimize(); });
 $$('[data-close]').forEach((b) => { b.onclick = () => (busy ? null : flow[cur] === 'done' ? closeWin() : askLeave()); });
 
 let onLeave = null;
-function ask(head, text, ok, fn) {
+function ask(head, text, ok, fn, stay = 'Volver') {
   $('#ask-t').textContent = head;
+  $('[data-stay]').textContent = stay;
   $('[data-ask-text]').textContent = text;
   $('[data-leave]').textContent = ok;
   onLeave = fn;
   $('[data-veil]').hidden = false;
   $('[data-stay]').focus();
 }
-const askLeave = () => ask('¿Salir de la instalación?', S.mode === 'update' ? `Se queda la versión ${S.instalado.version}.` : 'SIA no quedará instalado.', 'Salir', closeWin);
+const askLeave = () => ask('¿Salir de la instalación?', S.mode === 'update' ? `Se queda la versión ${S.instalado.version}.` : 'SIA no quedará instalado.', 'Salir', closeWin, 'Seguir');
 $('[data-stay]').onclick = () => { $('[data-veil]').hidden = true; };
 $('[data-leave]').onclick = () => { $('[data-veil]').hidden = true; onLeave?.(); };
 
