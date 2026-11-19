@@ -432,13 +432,14 @@ async fn instalar(app: AppHandle, carpeta: String) -> Result<(), String> {
         });
     }
     // Al actualizar, el NSIS usa la carpeta registrada: con /D= sale con el código 2. Al instalar,
-    // /D= va el último y sin comillas, aunque la ruta tenga espacios: así lo lee NSIS.
+    // "/D=…" va el último y entre comillas: electron-builder vuelve a leerlo con
+    // StdUtils.GetParameter (multiUser.nsh), que sin comillas corta la ruta en el primer espacio.
     let lanzado = nsis.clone();
     let res = tauri::async_runtime::spawn_blocking(move || {
         let mut cmd = Command::new(&lanzado);
         cmd.raw_arg("/S");
         if !actualizar {
-            cmd.raw_arg(format!("/D={carpeta}"));
+            cmd.raw_arg(format!("\"/D={carpeta}\""));
         }
         cmd.creation_flags(CREATE_NO_WINDOW).status()
     })
