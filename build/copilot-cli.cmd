@@ -11,6 +11,12 @@ rem   SIA-COPILOT:sin-winget      no está y no hay WinGet para instalarlo
 rem   SIA-COPILOT:politica        una política del equipo impide instalarlo
 rem   SIA-COPILOT:descarga        no se ha podido descargar (red, VPN, certificados)
 rem   SIA-COPILOT:error:<código>  cualquier otro fallo de WinGet (winget error <código>)
+rem Con -Session, si Copilot tiene una cuenta activa (en su configuración, sin
+rem leer su token ni conectarse). Si es la de Inditex, de momento, no se
+rem comprueba: se dice cuál es, para que se vea.
+rem   SIA-SESION:ok:<cuenta>      hay una cuenta activa
+rem   SIA-SESION:sin-sesion       no la hay
+rem Con -Login, el inicio de sesión de Copilot en el navegador.
 setlocal EnableExtensions
 
 rem El PATH del instalador es el de cuando se abrió: se le suma el de ahora,
@@ -20,7 +26,14 @@ set "MPATH="
 for /f "skip=2 tokens=2,*" %%a in ('reg query HKCU\Environment /v Path 2^>nul') do set "UPATH=%%b"
 for /f "skip=2 tokens=2,*" %%a in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do set "MPATH=%%b"
 call set "PATH=%PATH%;%UPATH%;%MPATH%"
+rem Copilot usa antes un token de estas variables que su sesión: fuera, para
+rem iniciar la sesión guardada, la que usará SIA.
+set "COPILOT_GITHUB_TOKEN="
+set "GH_TOKEN="
+set "GITHUB_TOKEN="
 
+if /i "%~1"=="-Session" goto session
+if /i "%~1"=="-Login" (copilot login& exit /b 0)
 call :responds && goto ok
 if /i not "%~1"=="-Install" (echo SIA-COPILOT:falta& exit /b 0)
 where winget >nul 2>nul || (echo SIA-COPILOT:sin-winget& exit /b 0)
@@ -60,6 +73,20 @@ exit /b 0
 
 :ok
 echo SIA-COPILOT:ok
+exit /b 0
+
+:session
+set "CHOME=%COPILOT_HOME%"
+if not defined CHOME set "CHOME=%USERPROFILE%\.copilot"
+findstr /c:"\"lastLoggedInUser\"" "%CHOME%\config.json" >nul 2>nul || (echo SIA-SESION:sin-sesion& exit /b 0)
+rem La cuenta: el primer «"login": "…"» después de «"lastLoggedInUser"» (antes
+rem está la lista de todas las que tienen sesión), por su número de línea. Un
+rem login de GitHub no lleva comillas, dos puntos ni espacios.
+set "N="
+set "WHO="
+for /f "delims=:" %%n in ('findstr /n /c:"\"lastLoggedInUser\"" "%CHOME%\config.json"') do set "N=%%n"
+for /f tokens^=1^,3^ delims^=^"^:^  %%a in ('findstr /n /c:"\"login\"" "%CHOME%\config.json"') do if not defined WHO if %%a GTR %N% set "WHO=%%b"
+echo SIA-SESION:ok:%WHO%
 exit /b 0
 
 rem Instala con WinGet por usuario; CODE ← su código de salida en hexadecimal,

@@ -76,3 +76,18 @@ test('un registro roto de Copilot (8A150054): lo desinstala y lo vuelve a instal
   const calls = fs.readFileSync(path.join(dir, 'winget-args'), 'utf8').split(/\r?\n/).filter(Boolean).map((l) => l.trim().split(' ')[0]);
   assert.deepEqual(calls, ['source', 'install', 'uninstall', 'install']);
 });
+
+// -Session: la configuración de Copilot, en COPILOT_HOME, con o sin cuenta activa
+const session = (config) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sia-sesion-'));
+  if (config !== undefined) fs.writeFileSync(path.join(dir, 'config.json'), config);
+  return execFileSync('cmd.exe', ['/d', '/c', SCRIPT, '-Session'], { env: { ...withoutPath, Path: process.env.PATH, COPILOT_HOME: dir }, encoding: 'utf8' }).trim();
+};
+
+test('-Session: con una cuenta activa en la configuración de Copilot, ok con esa cuenta (no otra de las que tienen sesión); sin ella o sin configuración, sin-sesion', { skip }, () => {
+  const config = (o) => `// This file is managed automatically.\r\n${JSON.stringify(o, null, 2).replace(/\n/g, '\r\n')}\r\n`;
+  const users = [{ host: 'https://github.com', login: 'de-otra-empresa', kind: 'githubDotCom' }, { host: 'https://github.com', login: 'tecnico-itx', kind: 'githubDotCom' }];
+  assert.equal(session(config({ loggedInUsers: users, lastLoggedInUser: { host: 'https://github.com', login: 'tecnico-itx' } })), 'SIA-SESION:ok:tecnico-itx');
+  assert.equal(session(config({ firstLaunchAt: '2026-11-19T00:00:00.000Z' })), 'SIA-SESION:sin-sesion');
+  assert.equal(session(), 'SIA-SESION:sin-sesion');
+});
