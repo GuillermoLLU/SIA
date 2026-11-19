@@ -9,6 +9,8 @@
 ; WinGet por usuario (build/copilot-cli.cmd) y, si no se puede, no se sigue. Si
 ; no se ha podido ni comprobar (un equipo que lo restringe), se avisa y se deja
 ; seguir con confirmación, como con los certificados. Al actualizar no se repite.
+; Después, la sesión de Copilot: que tenga una cuenta activa (sin ella no funciona
+; el chat de SIA). Si no, «Iniciar sesión» abre el inicio de sesión de Copilot.
 
 !include "${BUILD_RESOURCES_DIR}\installer-config.nsh"
 
@@ -43,6 +45,11 @@ Var SiaHelpFont
 Var SiaRetryAlone
 Var SiaCertsOk     ; 1: los certificados ya se confirmaron en esta página
 Var SiaCopilotOk   ; 1: Copilot CLI, también
+Var SiaSession     ; ok | sin-sesion | unknown
+Var SiaWho         ; la cuenta activa de Copilot
+Var SiaSessionStatus
+Var SiaSessionOk   ; 1: la sesión de Copilot, también
+Var SiaLoginBtn
 
 ; Primera instalación: SIA no está instalado, ni por usuario ni para todos.
 !macro customInit
@@ -136,7 +143,7 @@ FunctionEnd
 ; y «Atrás» esperan a que terminen. SiaLaunch lanza la línea de comandos con su
 ; salida a un fichero; SiaPoll mira cada 250 ms si ha terminado y, con la
 ; respuesta en $1, sigue con el paso siguiente (SiaStepDone).
-;   certs → copilot (comprobar) → copilot-install (si falta) → done
+;   certs → copilot (comprobar) → copilot-install (si falta) → session → done
 Function SiaLaunch
   Pop $0
   StrCpy $SiaOut "$PLUGINSDIR\sia-check.txt"
@@ -260,6 +267,7 @@ Function SiaRefresh
   ShowWindow $SiaGuide ${SW_HIDE}
   ShowWindow $SiaRetry ${SW_HIDE}
   ShowWindow $SiaRetryAlone ${SW_HIDE}
+  ShowWindow $SiaLoginBtn ${SW_HIDE}
   Push 0
   Call SiaButtons
   ${If} "${SIA_CERTS_REQUIRED}" != ""
@@ -277,7 +285,7 @@ FunctionEnd
 
 Function SiaCopilotStart
   ${If} $SiaCopilotOk == "1"
-    Call SiaFinish
+    Call SiaSessionStart
     Return
   ${EndIf}
   StrCpy $SiaCopilot "ok"
@@ -293,8 +301,57 @@ Function SiaCopilotStart
   Call SiaFinish
 FunctionEnd
 
+; La sesión de Copilot: en la primera instalación, con Copilot CLI ya bien. Si
+; Copilot CLI no está, no hay sesión que mirar.
+Function SiaSessionStart
+  StrCpy $SiaSession "ok"
+  ${If} $SiaFirst != "1"
+  ${OrIf} $SiaCopilot != "ok"
+  ${OrIf} $SiaSessionOk == "1"
+    ${If} $SiaSessionOk != "1"
+      ${NSD_SetText} $SiaSessionStatus ""
+    ${EndIf}
+    Call SiaFinish
+    Return
+  ${EndIf}
+  ${SiaShow} $SiaSessionStatus "Comprobando la sesión de Copilot…" 5F6368
+  Call SiaPaint
+  StrCpy $SiaStep "session"
+  Push `${SIA_COPILOT_CMD} -Session`
+  Call SiaLaunch
+FunctionEnd
+
 ; Un paso ha terminado, con su respuesta en $1 (o "" si no la hubo).
 Function SiaStepDone
+  ${If} $SiaStep == "session"
+    ; sin respuesta (o tarde), unknown: no se sabe, y se deja seguir con confirmación
+    StrCpy $SiaSession "unknown"
+    StrCpy $2 $1 11
+    ${If} $2 == "SIA-SESION:"
+      StrCpy $SiaSession $1 "" 11
+    ${EndIf}
+    ; ok:<cuenta>: se dice cuál, para que se vea si es la de Inditex
+    StrCpy $2 $SiaSession 3
+    ${If} $2 == "ok:"
+      StrCpy $SiaWho $SiaSession "" 3
+      StrCpy $SiaSession "ok"
+    ${EndIf}
+    ${If} $SiaSession == "ok"
+      StrCpy $SiaSessionOk 1
+      ${If} $SiaWho != ""
+        ${SiaShow} $SiaSessionStatus "✔  Sesión de Copilot iniciada: $SiaWho." 1E8E3E
+      ${Else}
+        ${SiaShow} $SiaSessionStatus "✔  Sesión de Copilot iniciada." 1E8E3E
+      ${EndIf}
+    ${ElseIf} $SiaSession == "sin-sesion"
+      ${SiaShow} $SiaSessionStatus "⚠  Falta iniciar sesión en Copilot CLI." B26A00
+    ${Else}
+      StrCpy $SiaSession "unknown"
+      ${SiaShow} $SiaSessionStatus "⚠  No se ha podido comprobar la sesión de Copilot." B26A00
+    ${EndIf}
+    Call SiaFinish
+    Return
+  ${EndIf}
   ${If} $SiaStep == "certs"
     ; $SiaState ← ok | missing | unknown (sin respuesta: no se sabe, y se avisa en lugar de dar el check)
     StrCpy $SiaState "unknown"
@@ -358,7 +415,7 @@ Function SiaStepDone
   ${Else}
     ${SiaShow} $SiaCopilotStatus "⚠  No se ha podido comprobar Copilot CLI." B26A00
   ${EndIf}
-  Call SiaFinish
+  Call SiaSessionStart
 FunctionEnd
 
 ; Todo comprobado. Todo bien: solo los checks. Falta algo (o no se sabe): qué
@@ -399,6 +456,14 @@ Function SiaFinish
     ${Else}
       StrCpy $0 "Pulsa «Volver a comprobar» y, si sigue, pide ayuda a soporte."
     ${EndIf}
+  ${ElseIf} $SiaFirst == "1"
+  ${AndIf} $SiaSession != "ok"
+    ${If} $SiaSession == "unknown"
+      StrCpy $0 "Pulsa «Volver a comprobar» o sigue sin ella."
+    ${Else}
+      StrCpy $0 "Inicia sesión con tu cuenta de Inditex y pulsa «Volver a comprobar»."
+      StrCpy $2 "2"
+    ${EndIf}
   ${EndIf}
   ${If} $0 != ""
     ${NSD_SetText} $SiaHelp $0
@@ -406,18 +471,26 @@ Function SiaFinish
     ${If} $2 == "1"
       ShowWindow $SiaGuide ${SW_SHOW}
       ShowWindow $SiaRetry ${SW_SHOW}
+    ${ElseIf} $2 == "2"
+      ShowWindow $SiaLoginBtn ${SW_SHOW}
+      ShowWindow $SiaRetry ${SW_SHOW}
     ${Else}
       ShowWindow $SiaRetryAlone ${SW_SHOW}
     ${EndIf}
   ${EndIf}
   ; Siguiente: sin certificados no; en la primera instalación, tampoco si Copilot CLI
-  ; no está y no se ha podido instalar (si no se ha podido comprobar, sí)
+  ; no está y no se ha podido instalar, ni sin sesión de Copilot (lo que no se ha
+  ; podido comprobar, sí)
   StrCpy $1 1
   ${If} $SiaState == "missing"
     StrCpy $1 0
   ${ElseIf} $SiaFirst == "1"
   ${AndIf} $SiaCopilot != "ok"
   ${AndIf} $SiaCopilot != "unknown"
+    StrCpy $1 0
+  ${ElseIf} $SiaFirst == "1"
+  ${AndIf} $SiaSession != "ok"
+  ${AndIf} $SiaSession != "unknown"
     StrCpy $1 0
   ${EndIf}
   Push $1
@@ -444,6 +517,13 @@ Function SiaOpenGuide
   ExecShell "open" "${SIA_CERTS_URL}"
 FunctionEnd
 
+; El inicio de sesión de Copilot, en su propia ventana: abre el navegador y se
+; cierra al completarlo. Después, «Volver a comprobar».
+Function SiaOpenLogin
+  Pop $0
+  ExecShell "open" "$SYSDIR\cmd.exe" `/c call "$PLUGINSDIR\copilot-cli.cmd" -Login` SW_SHOWNORMAL
+FunctionEnd
+
 Function SiaChecksShow
   ; sin nada que comprobar (sin certificados exigidos y al actualizar), la página no aparece
   StrCpy $SiaState "ok"
@@ -451,6 +531,9 @@ Function SiaChecksShow
   StrCpy $SiaStep "done"
   StrCpy $SiaCertsOk 0
   StrCpy $SiaCopilotOk 0
+  StrCpy $SiaSession "ok"
+  StrCpy $SiaSessionOk 0
+  StrCpy $SiaWho ""
   ${If} "${SIA_CERTS_REQUIRED}" == ""
   ${AndIf} $SiaFirst != "1"
     Abort
@@ -480,24 +563,35 @@ Function SiaChecksShow
   ${If} $SiaFirst != "1"
     ShowWindow $SiaCopilotStatus ${SW_HIDE}
   ${EndIf}
-  ${NSD_CreateLabel} 0 50u 100% 12u ""
+  ${NSD_CreateLabel} 0 54u 100% 12u ""
+  Pop $SiaSessionStatus
+  ${NSD_AddStyle} $SiaSessionStatus ${SS_CENTER}
+  SendMessage $SiaSessionStatus ${WM_SETFONT} $SiaFont 0
+  ${If} $SiaFirst != "1"
+    ShowWindow $SiaSessionStatus ${SW_HIDE}
+  ${EndIf}
+  ${NSD_CreateLabel} 0 74u 100% 12u ""
   Pop $SiaHelp
   ${NSD_AddStyle} $SiaHelp ${SS_CENTER}
   CreateFont $SiaHelpFont "$(^Font)" 10 400
   SendMessage $SiaHelp ${WM_SETFONT} $SiaHelpFont 0
   SetCtlColors $SiaHelp 5F6368 transparent
   ${If} "${SIA_CERTS_URL}" != ""
-    ${NSD_CreateButton} 37u 68u 110u 16u "Abrir la guía  ↗"
+    ${NSD_CreateButton} 37u 92u 110u 16u "Abrir la guía  ↗"
     Pop $SiaGuide
     ${NSD_OnClick} $SiaGuide SiaOpenGuide
   ${Else}
-    ${NSD_CreateLabel} 37u 68u 0 0 ""
+    ${NSD_CreateLabel} 37u 92u 0 0 ""
     Pop $SiaGuide
   ${EndIf}
-  ${NSD_CreateButton} 153u 68u 110u 16u "Volver a comprobar"
+  ${NSD_CreateButton} 37u 92u 110u 16u "Iniciar sesión  ↗"
+  Pop $SiaLoginBtn
+  ${NSD_OnClick} $SiaLoginBtn SiaOpenLogin
+  ShowWindow $SiaLoginBtn ${SW_HIDE}
+  ${NSD_CreateButton} 153u 92u 110u 16u "Volver a comprobar"
   Pop $SiaRetry
   ${NSD_OnClick} $SiaRetry SiaRecheck
-  ${NSD_CreateButton} 95u 68u 110u 16u "Volver a comprobar"
+  ${NSD_CreateButton} 95u 92u 110u 16u "Volver a comprobar"
   Pop $SiaRetryAlone
   ${NSD_OnClick} $SiaRetryAlone SiaRecheck
   ShowWindow $SiaRetryAlone ${SW_HIDE}
@@ -523,6 +617,11 @@ Function SiaChecksLeave
   ${AndIf} $SiaCopilot != "unknown"
     Abort
   ${EndIf}
+  ${If} $SiaFirst == "1"
+  ${AndIf} $SiaSession != "ok"
+  ${AndIf} $SiaSession != "unknown"
+    Abort
+  ${EndIf}
   StrCpy $0 ""
   ${If} $SiaState == "unknown"
     StrCpy $0 "No se han podido comprobar los certificados del cliente. Si faltan, con la VPN no podrás iniciar sesión hasta instalarlos."
@@ -533,6 +632,13 @@ Function SiaChecksLeave
       StrCpy $0 "$0$\r$\n$\r$\n"
     ${EndIf}
     StrCpy $0 "$0No se ha podido comprobar Copilot CLI. Sin él, el chat de Copilot de SIA no funcionará hasta instalarlo."
+  ${EndIf}
+  ${If} $SiaFirst == "1"
+  ${AndIf} $SiaSession == "unknown"
+    ${If} $0 != ""
+      StrCpy $0 "$0$\r$\n$\r$\n"
+    ${EndIf}
+    StrCpy $0 "$0No se ha podido comprobar la sesión de Copilot. Sin ella, el chat de Copilot de SIA no funcionará hasta iniciarla."
   ${EndIf}
   ${If} $0 != ""
     MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "$0" IDOK +2
