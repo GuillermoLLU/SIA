@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>SIA</title>
+<!-- La ventana real (el mismo marcado que ../ui/index.html, con su CSS y su JS), con simulador.js
+     delante en lugar de Rust. Si cambia ../ui/index.html, cambia esto igual. -->
+<link rel="stylesheet" href="../ui/style.css">
+</head>
+<body>
+<div class="win" data-os="win">
+  <header class="tb" data-tauri-drag-region>
+    <div class="tb-lights"><button data-close aria-label="Cerrar"></button><button data-min aria-label="Minimizar"></button><button aria-label="Ampliar" disabled></button></div>
+    <div class="tb-title" data-tauri-drag-region><b>SIA</b><span data-tb-title></span></div>
+    <div class="tb-ctl">
+      <button data-min aria-label="Minimizar"><svg viewBox="0 0 10 10"><path d="M0 5h10" stroke="currentColor"/></svg></button>
+      <button data-close aria-label="Cerrar"><svg viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10" stroke="currentColor"/></svg></button>
+    </div>
+  </header>
+  <ol class="steps" aria-label="Pasos"></ol>
+  <main class="stage"></main>
+  <footer class="foot">
+    <img class="brand" src="../ui/indra-group.png" alt="Indra Group" draggable="false">
+    <button class="back" data-back><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>Atrás</button>
+    <span class="spacer" data-spacer hidden></span>
+    <button class="quiet" data-cancel>Cancelar</button>
+    <button class="btn primary" data-next></button>
+  </footer>
+  <div class="veil" data-veil hidden>
+    <div class="ask" role="alertdialog" aria-labelledby="ask-t">
+      <b id="ask-t">¿Salir de la instalación?</b>
+      <p data-ask-text></p>
+      <div><button class="btn sm" data-stay>Seguir</button><button class="btn sm primary" data-leave>Salir</button></div>
+    </div>
+  </div>
+</div>
+<script src="simulador.js"></script>
+<script src="../ui/app.js"></script>
+</body>
+</html>

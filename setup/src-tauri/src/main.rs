@@ -18,8 +18,25 @@ use std::os::windows::process::CommandExt;
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 // Lo que se instala: el NSIS de SIA y lo que ocupa SIA instalado, para la barra de progreso, más
-// los certificados que hay que comprobar y su guía (de sia-instance.json, como el NSIS).
-// Va en payload/ junto al .exe (o donde diga SIA_SETUP_PAYLOAD, para probar).
+// los certificados que hay que comprobar y su guía (de sia-instance.json, como el NSIS). Va dentro
+// del .exe: setup/scripts/empaquetar.mjs lo deja en src-tauri/payload/ antes de compilar y
+// build.rs activa `embebido`.
+#[cfg(embebido)]
+const PAQUETE: &str = include_str!("../payload/paquete.json");
+#[cfg(embebido)]
+const NSIS: &[u8] = include_bytes!("../payload/sia-nsis.exe");
+
+// Solo en las compilaciones de desarrollo, para probar: otro paquete (SIA_SETUP_PAYLOAD, una
+// carpeta con paquete.json y su NSIS), otro copilot-cli.cmd (SIA_SETUP_COPILOT_CLI) o un tiempo
+// máximo más corto para cada comprobación (SIA_SETUP_MAX_S). La de producción no las mira.
+fn prueba(var: &str) -> Option<String> {
+    if cfg!(debug_assertions) {
+        std::env::var(var).ok().filter(|v| !v.is_empty())
+    } else {
+        None
+    }
+}
+
 #[derive(Deserialize)]
 struct Paquete {
     version: String,
@@ -37,21 +54,36 @@ struct Certs {
     requeridos: Vec<String>,
 }
 
-fn payload_dir() -> PathBuf {
-    if let Ok(d) = std::env::var("SIA_SETUP_PAYLOAD") {
-        return PathBuf::from(d);
-    }
-    let exe = std::env::current_exe().unwrap_or_default();
-    exe.parent().map(|p| p.join("payload")).unwrap_or_default()
+const SIN_PAQUETE: &str = "No se encuentra lo que hay que instalar.";
+
+fn paquete() -> Result<Paquete, String> {
+    let json = match prueba("SIA_SETUP_PAYLOAD") {
+        Some(dir) => std::fs::read_to_string(Path::new(&dir).join("paquete.json")).map_err(|_| SIN_PAQUETE.to_string())?,
+        #[cfg(embebido)]
+        None => PAQUETE.to_string(),
+        #[cfg(not(embebido))]
+        None => return Err(SIN_PAQUETE.into()),
+    };
+    serde_json::from_str(&json).map_err(|e| e.to_string())
 }
 
-fn paquete() -> Result<(Paquete, PathBuf), String> {
-    let dir = payload_dir();
-    let json = std::fs::read_to_string(dir.join("paquete.json"))
-        .map_err(|_| "No se encuentra lo que hay que instalar.".to_string())?;
-    let p: Paquete = serde_json::from_str(&json).map_err(|e| e.to_string())?;
-    let nsis = dir.join(&p.nsis);
-    Ok((p, nsis))
+// El NSIS, listo para lanzar: el que va dentro del .exe se escribe en una carpeta temporal (y se
+// borra al acabar, con `borrar` a true)
+fn nsis_listo(p: &Paquete) -> Result<(PathBuf, bool), String> {
+    if let Some(dir) = prueba("SIA_SETUP_PAYLOAD") {
+        let nsis = Path::new(&dir).join(&p.nsis);
+        return if nsis.exists() { Ok((nsis, false)) } else { Err("No se encuentra el instalador de SIA.".into()) };
+    }
+    #[cfg(embebido)]
+    {
+        let dir = std::env::temp_dir().join("sia-setup");
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        let nsis = dir.join(format!("sia-{}.exe", p.version));
+        std::fs::write(&nsis, NSIS).map_err(|e| format!("No se pudo preparar la instalación: {e}"))?;
+        Ok((nsis, true))
+    }
+    #[cfg(not(embebido))]
+    Err(SIN_PAQUETE.into())
 }
 
 #[derive(Serialize)]
@@ -151,7 +183,7 @@ fn tamano(dir: &Path) -> u64 {
 
 #[tauri::command]
 fn estado() -> Result<Estado, String> {
-    let (p, _) = paquete()?;
+    let p = paquete()?;
     Ok(Estado {
         sistema: if cfg!(target_os = "macos") { "mac" } else { "win" },
         version: p.version,
@@ -210,13 +242,17 @@ async fn comprobar(estado: tauri::State<'_, EnCurso>, paso: String) -> Result<Co
     let cli = std::env::temp_dir().join("sia-setup").join("copilot-cli.cmd");
     if paso != "certs" {
         std::fs::create_dir_all(cli.parent().unwrap()).map_err(|e| e.to_string())?;
-        std::fs::write(&cli, COPILOT_CLI).map_err(|e| e.to_string())?;
+        let contenido = match prueba("SIA_SETUP_COPILOT_CLI") {
+            Some(otro) => std::fs::read_to_string(otro).map_err(|e| e.to_string())?,
+            None => COPILOT_CLI.to_string(),
+        };
+        std::fs::write(&cli, contenido).map_err(|e| e.to_string())?;
     }
     let cli_arg = |extra: &str| format!(r#"/c call "{}"{extra}"#, cli.display());
     let mut cmd;
     match paso.as_str() {
         "certs" => {
-            let (p, _) = paquete()?;
+            let p = paquete()?;
             cmd = Command::new("powershell.exe");
             cmd.args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", CERTS_PS])
                 .env("SIA_CERTS", p.certs.requeridos.join("|"));
@@ -238,15 +274,26 @@ async fn comprobar(estado: tauri::State<'_, EnCurso>, paso: String) -> Result<Co
         "copilot-install" => 600,
         "login" => 300,
         _ => 60,
-    });
+    })
+    .min(Duration::from_secs(prueba("SIA_SETUP_MAX_S").and_then(|s| s.parse().ok()).unwrap_or(u64::MAX)));
     // el inicio de sesión, en su propia ventana y a la vista; lo demás, oculto y con su salida
     if paso == "login" {
         const CREATE_NEW_CONSOLE: u32 = 0x0000_0010;
         cmd.creation_flags(CREATE_NEW_CONSOLE);
+    } else if paso == "copilot-install" {
+        // WinGet instalando sigue aunque se cierre la ventana (cortarlo deja su registro roto):
+        // fuera del job de la ventana, que se lleva a sus procesos al cerrarse
+        const CREATE_BREAKAWAY_FROM_JOB: u32 = 0x0100_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW | CREATE_BREAKAWAY_FROM_JOB).stdout(Stdio::piped()).stderr(Stdio::null());
     } else {
         cmd.creation_flags(CREATE_NO_WINDOW).stdout(Stdio::piped()).stderr(Stdio::null());
     }
-    let mut child = cmd.spawn().map_err(|e| e.to_string())?;
+    let mut child = match cmd.spawn() {
+        Ok(c) => c,
+        // si el job no deja salir, como siempre
+        Err(_) if paso == "copilot-install" => cmd.creation_flags(CREATE_NO_WINDOW).spawn().map_err(|e| e.to_string())?,
+        Err(e) => return Err(e.to_string()),
+    };
     *estado.0.lock().unwrap() = Some((child.id(), paso.clone()));
     let lector = child.stdout.take().map(|mut out| {
         std::thread::spawn(move || {
@@ -343,10 +390,8 @@ fn descomprimiendo(desde: std::time::SystemTime) -> Option<PathBuf> {
 #[cfg(windows)]
 #[tauri::command]
 async fn instalar(app: AppHandle, carpeta: String) -> Result<(), String> {
-    let (p, nsis) = paquete()?;
-    if !nsis.exists() {
-        return Err("No se encuentra el instalador de SIA.".into());
-    }
+    let p = paquete()?;
+    let (nsis, borrar) = nsis_listo(&p)?;
     let actualizar = instalado().is_some();
     let hecho = Arc::new(AtomicBool::new(false));
     {
@@ -388,8 +433,9 @@ async fn instalar(app: AppHandle, carpeta: String) -> Result<(), String> {
     }
     // Al actualizar, el NSIS usa la carpeta registrada: con /D= sale con el código 2. Al instalar,
     // /D= va el último y sin comillas, aunque la ruta tenga espacios: así lo lee NSIS.
+    let lanzado = nsis.clone();
     let res = tauri::async_runtime::spawn_blocking(move || {
-        let mut cmd = Command::new(&nsis);
+        let mut cmd = Command::new(&lanzado);
         cmd.raw_arg("/S");
         if !actualizar {
             cmd.raw_arg(format!("/D={carpeta}"));
@@ -399,6 +445,9 @@ async fn instalar(app: AppHandle, carpeta: String) -> Result<(), String> {
     .await
     .map_err(|e| e.to_string())?;
     hecho.store(true, Ordering::Relaxed);
+    if borrar {
+        let _ = std::fs::remove_file(&nsis);
+    }
     match res {
         Ok(s) if s.success() => Ok(()),
         Ok(s) => Err(format!("La instalación no ha terminado (código {}).", s.code().unwrap_or(-1))),

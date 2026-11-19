@@ -14,7 +14,8 @@
     "app": "electron .",
     "build:web": "cd web && npm run build",
     "dist": "npm run build:web && electron-builder --mac",
-    "dist:win": "npm run build:web && node scripts/installer-config.mjs && electron-builder --win"
+    "dist:win": "npm run build:web && node scripts/installer-config.mjs && electron-builder --win",
+    "dist:setup": "npm run dist:win && node setup/scripts/empaquetar.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
