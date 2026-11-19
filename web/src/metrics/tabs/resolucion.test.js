@@ -83,8 +83,19 @@ test('Malos escalados: con su motivo, solo los activos, y filtrados por los proy
   d.cols.fl = d.cols.fl.map((x, i) => x | (i === 0 ? 2097152 | 8388608 : i === 3 ? 2097152 | 4194304 : i === 2 ? 2097152 | 4194304 | 8388608 : 0) | (i > 1 ? 131072 : 0));   // las abiertas, escaladas: sus proyectos se eligen
   const m = createModel(d); m.S.sides = [{ company: 0 }, null]; m.refilter();
   const ui = { exp: {}, sort: {}, showSheet: true, escNow: true }, tabs = createTabs(m, createCharts(m, ui), ui);
-  const card = (h) => h.slice(h.indexOf('<h3>Malos escalados</h3>'), h.indexOf('</section>', h.indexOf('<h3>Malos escalados</h3>')));
-  const all = card(tabs.render('escalados', m.rows()));
+  const card = (h) => h.slice(h.indexOf('>Malos escalados</h3>'), h.indexOf('</section>', h.indexOf('>Malos escalados</h3>')));
+  // en la pestaña: a la izquierda, cada cambio de equipo y cuántas (filtra toda la página); a la derecha, sus
+  // incidencias (id y resumen), con scroll
+  const tab = card(tabs.render('escalados', m.rows()));
+  assert.match(tab, /<div class="mt-bad"><div class="mt-bad-list"><table><thead><tr><th>Equipo original → final o dónde se descartó<\/th><th class="mt-num">Incidencias<\/th><\/tr>/);
+  // las que no cambiaron de equipo, desglosadas por el proyecto Jira en que se descartaron
+  assert.match(tab, /<tr class="mt-clk " data-only="mb:-3"[^>]*><td>Descartada en SGA<\/td><td class="mt-num">1<\/td><\/tr>/);
+  assert.match(tab, /<tr class="mt-clk " data-only="mb:-4"[^>]*><td>Descartada en ITS<\/td><td class="mt-num">1<\/td><\/tr>/);
+  assert.match(tab, /<div class="mt-bad-list"><table><thead><tr><th>Incidencia<\/th><th>Resumen<\/th><\/tr><\/thead><tbody>/);
+  assert.equal((tab.match(/<a href="[^"]*" target="_blank" rel="noopener">INC\d{12}<\/a>/g) || []).length, 2);
+  assert.equal(m.DIMS.vh.get(2), 0);
+  // en el informe (Escalados), la tabla entera, con su motivo y sus tiempos
+  const all = card(tabs.render('escalados', m.rows(), { inReport: true }));
   assert.match(all, /<td>Descartado en Jira<\/td>/);
   assert.match(all, /<th[^>]*>Equipo original → final<\/th>/);
   assert.match(all, /<th class="mt-num"[^>]*>THesc<\/th><th class="mt-num"[^>]*>Tesc<\/th><th class="mt-num"[^>]*>Tesc-r<\/th><th class="mt-num"[^>]*>Antigüedad<\/th><th class="mt-num"[^>]*>IDMTTR<\/th><\/tr>/);
@@ -94,7 +105,7 @@ test('Malos escalados: con su motivo, solo los activos, y filtrados por los proy
   assert.doesNotMatch(all, /<td>Cambió de equipo<\/td>/);   // la cerrada
   assert.match(all, /2 incidencias/);
   ui.jiraPick = [2];
-  const one = card(tabs.render('escalados', m.rows()));
+  const one = card(tabs.render('escalados', m.rows(), { inReport: true }));
   assert.doesNotMatch(one, /Descartado en Jira y Cambió de equipo/);
   assert.match(one, /<td>ITS<\/td>/);
   ui.jiraPick = [];
@@ -134,7 +145,7 @@ test('¿Qué escalamos y a quién?, en Activas: una tabla de los proyectos Jira 
   assert.equal((added.match(/class="mt-jc-d ">0 %</g) || []).length, 1);   // solo el proyecto: es el único, igual que la media en el tiempo total; sin THesc ni Tesc, nada
   assert.equal((added.match(/class="mt-jc-row"/g) || []).length, 6);   // la media y el proyecto, en las tres gráficas
   assert.doesNotMatch(html, /Unas veces se escala|Un mismo ticket/);
-  assert.match(html, /<h3>Malos escalados<\/h3>/);
+  assert.match(html, />Malos escalados<\/h3>/);
   const res = tabs.render('resolucion', m.rows());
   assert.doesNotMatch(res, /¿Qué escalamos y a quién\?|Proyectos Jira|Malos escalados/);
   assert.match(res, /¿Qué módulos tardan más\?/);
@@ -163,7 +174,7 @@ test('Escalados, en Histórico (de partida): lo escalado y resuelto del periodo,
   assert.ok(ui.escSheet.list.every((i) => !m.OPEN[i]));
   assert.match(past, /Tiempo total medio/);
   assert.doesNotMatch(past, /Antigüedad media|Tesc-r/);
-  assert.match(past, /Media resol\./);   // los proyectos Jira, con lo que tardan
+  assert.match(past, />MTTR</);   // los proyectos Jira, con lo que tardan
   const pastCard = past.slice(past.indexOf('<table class="mt-sc">'), past.indexOf('</table>', past.indexOf('<table class="mt-sc">')));
   assert.match(pastCard, />Tiempos de escalado</);
   for (const c of ['the', 'tes', 'idm']) assert.match(pastCard, new RegExp(`data-sort="rs-vp:${c}"`), c);
@@ -368,4 +379,29 @@ test('Análisis tiempos, el desglose con su selector: por módulo (de partida) o
   assert.match(ce, new RegExp(`<tr class="mt-clk mt-sel" data-f="ce:${k}">`));
   assert.equal(rows(ce, 'ce').length, exp.length);
   assert.doesNotMatch(ce, /undefined|NaN/);
+});
+
+test('Malos escalados en la pestaña: un renglón por cambio de equipo (original → final), con cuántas, que filtra toda la página', () => {
+  const d = data();
+  open(d, [0, 3]);
+  d.dict.vhops = ['', 'SGA → ITS', 'ITS → SGA'];
+  d.cols.vh = [1, 0, 1, 2, 0];
+  d.cols.fl = d.cols.fl.map((x, i) => x | ([0, 2, 3].includes(i) ? 131072 | 2097152 | 8388608 : 0));
+  const m = createModel(d); m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const ui = { exp: {}, sort: {}, escNow: true }, tabs = createTabs(m, createCharts(m, ui), ui);
+  const bad = m.today().filter((i) => m.OPEN[i] && m.C.fl[i] & 2097152);
+  const html = tabs.render('escalados', m.rows()), card = html.slice(html.indexOf('>Malos escalados</h3>'));
+  const rowsOf = (h) => [...h.slice(h.indexOf('>Malos escalados</h3>')).matchAll(/<tr class="mt-clk ([^"]*)" data-only="([^"]+)"[^>]*><td>([^<]*)<\/td><td class="mt-num">(\d+)<\/td>/g)].map((x) => [x[2], x[3], Number(x[4]), x[1].trim()]);
+  const rows = rowsOf(card).map((r) => r.slice(0, 3));
+  const n = (k) => bad.filter((i) => m.DIMS.mb.get(i) === k).length;
+  const expected = [[1, 'SGA → ITS'], [2, 'ITS → SGA']].filter(([k]) => n(k))
+    .map(([k, l]) => [`mb:${k}`, l, n(k)]).sort((a, b) => b[2] - a[2] || a[1].localeCompare(b[1]));
+  assert.deepEqual(rows, expected);
+  assert.equal(m.DIMS.vh.label(1), 'SGA → ITS');
+  // filtrando por uno, la página entera: solo sus incidencias; en la tabla, ese destacado y los demás siguen (apagados)
+  m.toggle('mb', 1); m.refilter();
+  assert.ok(m.today().every((i) => m.C.vh[i] === 1));
+  const after = rowsOf(tabs.render('escalados', m.rows()));
+  assert.deepEqual(after.map((r) => r.slice(0, 3)), expected);
+  assert.deepEqual(after.map((r) => [r[0], r[3]]), expected.map(([k]) => [k, k === 'mb:1' ? 'mt-sel' : 'mt-off']));
 });

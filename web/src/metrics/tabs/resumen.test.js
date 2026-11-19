@@ -312,7 +312,7 @@ test('Resumen, mes a mes: debajo de la corona, un mes por fila y la media del a�
   assert.deepEqual([...body.matchAll(/<th class="mt-num" data-tip="[^"]+">([^<]*)<\/th>/g)].map((x) => x[1]), ['Abiertas', 'Entrantes', 'Entrantes por día', 'Resueltas por día', 'MTTR', '% dentro de SLA', '%IQA', 'Uso de la IA']);
   assert.match(body, /<th>Mes<\/th>/);
   assert.match(body, /data-tip="Las incidencias que entraron en el mes\. Mejor si baja\.">Entrantes<\/th>/);
-  assert.match(body, /data-tip="[^"]*Mejor si baja\. La media del año fiscal, en verde por debajo de 69 h y en rojo por encima\.">MTTR<\/th>/);
+  assert.match(body, /data-tip="[^"]*Mejor si baja\. La media del año fiscal, en verde por debajo de 2 días 21 h y en rojo por encima\.">MTTR<\/th>/);
   // las filas, un mes cada una (aquí, todo lo cargado: de enero a marzo) y, al final, la media del año fiscal
   assert.deepEqual([...body.matchAll(/<tr[^>]*><td[^>]*>([^<]*)<\/td>/g)].map((x) => x[1]), ['ene', 'feb', 'mar', 'Media año fiscal']);
   assert.match(body, /<tr class="mt-grp mt-fy"><td data-tip="El año fiscal en curso, 01\/02\/2026 – [^"]*">Media año fiscal<\/td>/);
@@ -338,7 +338,8 @@ test('Resumen, mes a mes: debajo de la corona, un mes por fila y la media del a�
   assert.equal(cells(row('ene'))[2].text, d1(jan / 31));
   const resJan = m.today().filter((i) => !m.OPEN[i] && m.C.res[i] >= 0 && m.C.res[i] < m.minuteOf(1)).length;
   assert.equal(cells(row('ene'))[3].text, d1(resJan / 31));
-  const mins = (x) => { const h = Number(x.replace(',', '.').replace(/ (h|min)$/, '')); return /min$/.test(x) ? h : h * 60; };
+  // de «2 días 3 h», «5 h», «1,5 h» o «40 min», a minutos
+  const mins = (x) => [...x.replace(',', '.').matchAll(/([\d.]+) (días?|h|min)/g)].reduce((a, [, v, u]) => a + Number(v) * (u === 'min' ? 1 : u === 'h' ? 60 : 1440), 0);
   assert.equal(avg[4].value, mins(avg[4].text) < 69 * 60 ? 'good' : 'bad');
   // la cifra de cada mes, frente a la media (el MTTR, mejor si baja)
   for (const mo of ['ene', 'feb', 'mar']) {

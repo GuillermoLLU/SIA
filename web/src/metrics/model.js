@@ -142,6 +142,12 @@ export const createModel = (data) => {
     sit: { name: 'Situación', get: situation, label: (k) => SITUATIONS[k] },
     es: { name: 'Escalada', get: (i) => (isEscalated(C, i) ? 1 : 0), label: (k) => (k ? 'Escalada a un tercero' : 'Sin escalar') },
     ss: { name: 'SISU o SGA', get: (i) => (SISU_MODULES.has(DI.module[C.mo[i]]) ? 0 : 1), label: (k) => SYSTEMS[k] },
+    // de un mal escalado, los equipos de Jira por los que pasó, del original al final (0: sin cambio de equipo o aún sin dato)
+    vh: { name: 'Equipo original → final', get: (i) => C.vh?.[i] ?? 0, label: (k) => DI.vhops?.[k] || '(sin cambio de equipo)' },
+    // un mal escalado, por qué: su cambio de equipo (> 0, el de vh); descartado en Jira, en su proyecto (−(proyecto + 2));
+    // sin dato aún de sus equipos (−1); 0, no es un mal escalado
+    mb: { name: 'Mal escalado', get: (i) => (!(C.fl[i] & MISROUTED) ? 0 : C.vh?.[i] > 0 ? C.vh[i] : C.fl[i] & JIRA_DISCARDED ? -(C.vp[i] + 2) : -1),
+      label: (k) => (k > 0 ? DI.vhops?.[k] || '' : k === -1 ? 'Cambió de equipo (sin dato aún de los equipos)' : k < -1 ? `Descartada en ${DI.vproj[-k - 2] || '(sin proyecto Jira)'}` : 'No es un mal escalado') },
     mx: { name: 'Mal escalada', get: (i) => (C.fl[i] & MISROUTED ? 1 : 0), label: (k) => (k ? 'Mal escalada (Jira descartado o de un equipo a otro)' : 'No mal escalada') },
     tu: { name: 'Turno', get: (i) => STYPE[i] % 3, label: (k) => `${SHIFTS[k]} (${SHIFT_HOURS[k]})` },
     we: { name: 'Días', get: (i) => (STYPE[i] < 3 ? 0 : 1), label: (k) => DAYS[k] },
@@ -252,6 +258,27 @@ export const createModel = (data) => {
     const out = [];
     for (let i = 0; i < N; i++) if (!(MASK[i] & ~OUT_SIDE)) out.push(i);
     return (CACHE.pool = out);
+  };
+  // Centrarse en algo sin que lo demás desaparezca: list (lo que pasa los filtros: lo del periodo o, con now, lo de
+  // ahora, se abriera cuando se abriera) con lo que solo deja fuera el filtro de alguna de `dims` (las de las filas de
+  // una tabla), para que esas filas sigan y la elegida se destaque. Lo que se añade es del mismo «universo» que list:
+  // lo que dejan fuera los demás filtros sigue fuera, de los mismos lados y, con keep, lo que lo cumple (lo abierto…).
+  // Sin filtro en esas dimensiones, list tal cual.
+  // S.wideKeep / S.wideNow: los de partida mientras se pinta una vista de lo abierto ahora (tabs: openNow, Backlog)
+  const widen = (list, dims, { now = !!S.wideNow, keep = S.wideKeep || null } = {}) => {
+    let bits = 0;
+    for (const d of dims) { const a = ACTIVE.indexOf(d); if (a >= 0) bits |= 1 << a; }
+    if (!bits) return list;
+    let seen = now ? OUT_PERIOD : 0;
+    const sides = new Set(list.map((i) => SIDE[i])), inList = new Uint8Array(N);
+    if (!list.length) for (let k = 0; k < S.sides.length; k++) if (S.sides[k]) sides.add(k);
+    for (const i of list) { seen |= MASK[i]; inList[i] = 1; }
+    const out = [...list];
+    for (let i = 0; i < N; i++) {
+      if (inList[i] || !(MASK[i] & bits) || MASK[i] & ~(seen | bits) || !sides.has(SIDE[i]) || (keep && !keep(i))) continue;
+      out.push(i);
+    }
+    return out.length === list.length ? list : out.sort((a, b) => a - b);
   };
   // la foto de hoy: las que pasan los filtros sea cual sea su mes de apertura; con anySide, también las de
   // ningún lado (para lo que aún no tiene responsable); sin contar el filtro de la dimensión `skip`, si se indica
@@ -378,7 +405,7 @@ export const createModel = (data) => {
 
   return {
     data, C, DI, N, BASE, SNAP, LASTM, SLA, PRIOS, CRIT, slaLabel, monthAt, monthName, minuteOf, dayName, fullMonth, MIN_D, END_D, START_D, setPeriod, resetPeriod, daily, inPeriod, MONTH, DOW, OPEN, TEAM, SIDE, DIMS, S, STYPE,
-    CMP, CO, NAMES, refilter, rows, pool, today, toggle, isSel, anySel, group, bySide, trend, stats, periodSlots, clock,
+    CMP, CO, NAMES, refilter, rows, pool, today, widen, toggle, isSel, anySel, group, bySide, trend, stats, periodSlots, clock,
     heads, perHead, alone, carry: (list) => carry(list, C, shiftType), shiftWork: (list) => shiftWork(list, C, (i) => OPEN[i], shiftType),
   };
 };

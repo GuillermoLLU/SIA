@@ -6,6 +6,7 @@ import { createTabs } from '../tabs.js';
 import { data } from '../fixture.js';
 import { dur } from '../format.js';
 import { mttrOf } from '../resolution.js';
+import { periodLabel } from '../period.js';
 
 const render = (sides, tab = 'hoy') => {
   const m = createModel(data()); m.S.sides = sides; m.refilter();
@@ -144,37 +145,39 @@ test('entrantes vs atendidas, en Entrantes (ya no en el Histórico), con su sele
   assert.match(all, /<i class="mt-dn-sw mt-fl-bkl"><\/i>Atendidas del backlog/);
 });
 
-test('entrantes vs atendidas: cada serie de lo atendido se enciende y se apaga en la leyenda', () => {
-  const run = (flowOff) => {
+test('entrantes vs atendidas: centrarse en series de lo atendido desde la leyenda; las demás, apagadas pero a la vista', () => {
+  const run = (flowFocus) => {
     const m = createModel(data()); m.S.sides = [{ company: 0 }, null]; m.refilter();
-    const ui = { exp: {}, sort: {}, showSheet: true, evo: 'flow', flowOff }, html = createTabs(m, createCharts(m, ui), ui).render('entrada', m.rows());
+    const ui = { exp: {}, sort: {}, showSheet: true, evo: 'flow', flowFocus }, html = createTabs(m, createCharts(m, ui), ui).render('entrada', m.rows());
     const a = html.indexOf('data-evo="flow"');
     return html.slice(html.lastIndexOf('<section', a), html.indexOf('</section>', a));
   };
-  const on = run(undefined), off = run({ res: true });
-  assert.deepEqual([...on.matchAll(/<button class="mt-fl-tg ([^"]*)" data-flk="(\w+)" aria-pressed="(\w+)"/g)].map((x) => [x[2], x[3]]),
-    [['res', 'true'], ['ven', 'true'], ['cli', 'true']]);
+  const on = run(undefined), off = run(['ven', 'cli']);
+  assert.deepEqual([...on.matchAll(/<button class="mt-fl-tg ([^"]*)" data-flk="(\w+)" aria-pressed="(\w+)"/g)].map((x) => [x[2], x[1].trim(), x[3]]),
+    [['res', '', 'false'], ['ven', '', 'false'], ['cli', '', 'false']]);
   assert.match(on, /<rect class="mt-fl-res" /);
-  // sin resueltas: fuera de la barra y de las cifras; la nota de cada día lo sigue diciendo todo
-  assert.match(off, /<button class="mt-fl-tg mt-off" data-flk="res" aria-pressed="false"/);
-  assert.doesNotMatch(off, /<rect class="mt-fl-res" /);
+  // centrados en proveedor y cliente: las resueltas, apagadas pero en la barra, y fuera de las cifras; la nota de cada
+  // día lo sigue diciendo todo
+  assert.deepEqual([...off.matchAll(/<button class="mt-fl-tg ([^"]*)" data-flk="(\w+)" aria-pressed="(\w+)"/g)].map((x) => [x[2], x[1].trim(), x[3]]),
+    [['res', 'mt-off', 'false'], ['ven', 'mt-sel', 'true'], ['cli', 'mt-sel', 'true']]);
+  assert.match(off, /<rect class="mt-fl-res mt-off" /);
   assert.match(off, /En el periodo, con lo marcado: 3 entrantes · 0 atendidas el día que entraron \(0 %\)/);
   assert.match(off, /Atendidas de las que entraron ese día: 1 \(1 resueltas/);
 });
 
 test('vs atendidas totales: lo del backlog sigue a lo que se mira (sin resueltas, no cuentan las del backlog resueltas)', () => {
-  const run = (flowOff) => {
+  const run = (flowFocus) => {
     const d = data();
     d.cols.eV[0] = [5]; d.cols.eR[0] = [0, 6];   // la crítica de Indra: a proveedor el día 5 y otra vez resuelta el 6
     const m = createModel(d); m.S.sides = [{ company: 0 }, null]; m.refilter();
-    const ui = { exp: {}, sort: {}, showSheet: true, evo: 'flowAll', flowOff }, html = createTabs(m, createCharts(m, ui), ui).render('entrada', m.rows());
+    const ui = { exp: {}, sort: {}, showSheet: true, evo: 'flowAll', flowFocus }, html = createTabs(m, createCharts(m, ui), ui).render('entrada', m.rows());
     const a = html.indexOf('data-evo="flow"');
     return html.slice(html.lastIndexOf('<section', a), html.indexOf('</section>', a));
   };
   assert.match(run(undefined), / · 2 del backlog<\/span>/);
-  assert.match(run({ res: true }), / · 1 del backlog<\/span>/);
-  assert.match(run({ res: true, ven: true }), / · 0 del backlog<\/span>/);
-  assert.match(run({ bkl: true }), / · 0 del backlog<\/span>/);
+  assert.match(run(['ven', 'cli', 'bkl']), / · 1 del backlog<\/span>/);   // sin las resueltas
+  assert.match(run(['cli', 'bkl']), / · 0 del backlog<\/span>/);
+  assert.match(run(['res', 'ven', 'cli']), / · 0 del backlog<\/span>/);   // sin lo del backlog
 });
 
 test('quién tiene qué: abajo del Resumen, justo antes de la sábana', () => {
@@ -256,7 +259,7 @@ test('la pestaña Backlog: la corona del Resumen y, debajo, los meses con abiert
   assert.doesNotMatch(html, /class="mt-ask"/);
   const ring = cut(html, '>En qué estado está</h3>');
   assert.match(ring, /mt-donut/);
-  assert.match(ring, /<tr class="mt-clk" data-f2?="sit:/);
+  assert.match(ring, /<tr class="mt-clk ?" data-f2?="sit:/);
   assert.doesNotMatch(html, /data-go="backlog"/);
   assert.doesNotMatch(html, /¿En qué punto están\?|mt-stock|<h4>A vigilar<small>|Antigüedad media/);
   for (const x of ['Quién tiene qué', 'Sábana de incidencias']) assert.ok(html.includes(`>${x}</h`), x);
@@ -345,7 +348,7 @@ test('Foto de hoy en un informe (Backlog actual): sin la sábana de incidencias'
 test('la sábana ya no se ve en ninguna pestaña; lo que exporta (los tres puntos, Exportar sábana a CSV), sí', () => {
   const m = createModel(data()); m.S.sides = [{ company: 0 }, null]; m.refilter();
   const ui = { exp: {}, sort: {}, escNow: true }, tabs = createTabs(m, createCharts(m, ui), ui);
-  for (const [tab, key] of [['backlog', 'hoySheet'], ['escalados', 'escSheet'], ['resesc', 'escSheet'], ['cliente', 'cliSheet'], ['tiempos', 'timesSheet']]) {
+  for (const [tab, key] of [['backlog', 'hoySheet'], ['escalados', 'escSheet'], ['cliente', 'cliSheet'], ['tiempos', 'timesSheet']]) {
     delete ui[key];
     const html = tabs.render(tab, m.rows());
     assert.doesNotMatch(html, /Sábana de incidencias|data-export/, tab);
@@ -366,4 +369,48 @@ test('Backlog: filtrando por técnico, la evolución del backlog mantiene la esc
   assert.ok(m.today().filter((i) => m.OPEN[i]).length < 3);
   assert.deepEqual(axis(), before);
   delete m.S.f.as; m.refilter();
+});
+
+test('Módulos y focos: sin la pregunta, en secciones (Foco en módulos, en centros y en problemas) y «Abiertas ahora» / «Del periodo» (las fechas, en su tooltip)', () => {
+  const m = createModel(data()); m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui), html = tabs.render('modulos', m.rows());
+  assert.doesNotMatch(html, /class="mt-ask"/);
+  const secs = [...html.matchAll(/<h2 class="mt-sec"[^>]*>([^<]*)</g)].map((x) => x[1]);
+  assert.deepEqual(secs, ['Foco en módulos', 'Foco en centros', 'Foco en problemas']);
+  const at = (x) => html.indexOf(x);
+  // Prioridad × Módulo, lo primero; cada tabla, en su sección
+  assert.ok(at('>Foco en módulos<') < at('mt-hm-title">Prioridad') && at('mt-hm-title">Prioridad') < at('>Módulos</th>'));
+  assert.ok(at('>Foco en centros<') < at('>Centros</th>') && at('>Centros</th>') < at('mt-hm-title">Centro') && at('mt-hm-title">Centro') < at('>Foco en problemas<'));
+  assert.ok(at('>Foco en problemas<') < at('>Problemas</th>'));
+  // el selector dice qué mira cada vista; la del periodo, con sus fechas
+  assert.match(html, /data-mod-mode="now"[^>]*>Abiertas ahora<\/button>/);
+  assert.match(html, /data-mod-mode="past"[^>]*>Del periodo<\/button>/);
+  assert.ok(html.includes(`data-tip="Lo recibido en las fechas de arriba: ${periodLabel(m)}."`));
+});
+
+test('centrarse en algo sin que lo demás desaparezca: el modelo (widen), la corona, las barras y las tablas', () => {
+  const d = data(); for (const i of [0, 1, 3]) { d.cols.st[i] = 2; d.cols.res[i] = -1; }
+  const m = createModel(d); m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const open = () => m.today().filter((i) => m.OPEN[i]);
+  const all = open(), pr = m.C.pr[all[0]];
+  m.toggle('pr', pr); m.refilter();
+  const only = open();
+  assert.ok(only.length < all.length);
+  // widen: lo que solo deja fuera el filtro de prioridad, del mismo universo (abiertas, Indra)
+  assert.deepEqual(m.widen(only, ['pr']), all);
+  assert.equal(m.widen(only, ['mo']), only);   // sin filtro en esa dimensión, tal cual
+  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  // Resumen: Abiertas por prioridad, todas las prioridades con sus cifras; la elegida, destacada; las demás, apagadas
+  const res = tabs.render('resumen', m.rows());
+  const bars = [...res.matchAll(/<div class="mt-hb-row mt-clk( mt-off)?" data-f="pr:(\d+)"[\s\S]*?<span class="mt-hb-v">(\d+)<\/span>/g)].map((x) => [Number(x[2]), !!x[1], Number(x[3])]);
+  assert.deepEqual(bars, m.PRIOS.map((p) => [p, p !== pr, all.filter((i) => m.C.pr[i] === p && m.C.rep[i] < m.S.d1).length]));
+  // Backlog: «Por prioridad y tarjeta», con todas las prioridades; la elegida, mt-sel; las demás, mt-off
+  const bk = tabs.render('backlog', m.rows()), card = bk.slice(bk.indexOf('>Por prioridad y tarjeta</h3>'));
+  assert.match(card, new RegExp(`<tr class="[^"]*mt-sel[^"]*">(?:(?!</tr>)[^])*data-f="pr:${pr}"`));
+  assert.match(card, /<tr class="[^"]*mt-off[^"]*">/);
+  m.toggle('pr', pr);
+  // la corona: con un estado elegido, los demás siguen (apagados)
+  m.S.f.sit = new Set([1, 2]); m.refilter();   // Asignada (sin tocar y devueltas), como al pincharla
+  const ring = tabs.render('backlog', m.rows());
+  assert.match(ring, /<tr class="mt-clk mt-sel" data-f2?="sit:/);
 });

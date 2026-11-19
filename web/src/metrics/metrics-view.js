@@ -56,7 +56,8 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
   // face: la vista elegida en el menú de Métricas (faces.js: servicio, equipo, tecnicas); null, el menú
   let face = null;
   // si la vista deja mirar o comparar con T-Systems; la pestaña Backlog, nunca (solo Indra y sin comparar nada: render)
-  const NO_TSYS_TABS = ['backlog'];
+  // NO_TSYS_TABS: sin T-Systems (solo Indra o personas de Indra); NO_CMP_TABS: además, sin comparar nada
+  const NO_TSYS_TABS = ['backlog', 'modulos', 'escalados'], NO_CMP_TABS = ['backlog'];
   const tsys = () => faceOf(face)?.tsys !== false && !NO_TSYS_TABS.includes(tab);
   // open: el desplegable abierto ('calendar', 'side0' o 'side1'); who: lo escrito en el buscador de
   // personas; searching: la búsqueda abierta
@@ -127,9 +128,19 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
 
   // Periodo: el botón dice qué fechas se miran; su panel (period-panel.js), la rejilla de meses y los campos Desde y
   // Hasta. Elegir en la rejilla lo aplica y lo cierra; una fecha, lo aplica y lo deja abierto.
+  // Las pestañas con «Abiertas ahora» (Módulos y focos, SLAs, Escalados, Análisis tiempos): ahí lo que se ve no depende
+  // de las fechas, así que el botón de las fechas se ve apagado y lo dice; elegir unas fechas pasa a la otra vista (la del
+  // periodo). NOW_MODE: pestaña → la marca de ui que dice si se mira lo abierto ahora.
+  const NOW_MODE = { modulos: 'modNow', sla: 'slaNow', slaq: 'slaNow', escalados: 'escNow', tiempos: 'timesNow' };
+  const nowMode = () => !!NOW_MODE[tab] && !!ui[NOW_MODE[tab]] && !(tab === 'modulos' && face === 'equipo');
+  const toPeriod = () => { if (nowMode()) ui[NOW_MODE[tab]] = false; };
   const renderPeriod = () => {
     $('[data-period]').textContent = periodLabel(m);
     $('[data-cal]').hidden = open !== 'calendar';
+    const b = $('[data-calendar]'), off = nowMode();
+    b.classList.toggle('mt-period-off', off);
+    if (off) b.dataset.tip = 'No aplica: aquí se ve lo abierto ahora, que no depende de las fechas. Elegir unas fechas pasa a ver lo del periodo.';
+    else delete b.dataset.tip;
   };
 
   // Cada lado: el botón dice qué es y lleva su color; la × lo quita (si hay dos). Su desplegable deja
@@ -180,7 +191,7 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
   const render = () => {
     const { S, DIMS } = m;
     // en Backlog no se compara nada (ni con otro lado ni con otro periodo): sin «Comparar» y, si se venía comparando, se quita
-    if (NO_TSYS_TABS.includes(tab)) {
+    if (NO_CMP_TABS.includes(tab)) {
       if (S.sides[1]) ({ sides: S.sides, colors } = withoutSide(S.sides, colors, 1));
       ui.resCmp = null; ui.cmpPick = false;
     }
@@ -195,7 +206,7 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     renderSides();
     $('[data-qco]').innerHTML = tsys() ? companyPick(m) : '';
     $('[data-picks]').innerHTML = face === 'servicio' ? '' : tabs.picks();   // SISU o SGA y la prioridad: en Servicio, no (la corona lleva su SISU / SGA)
-    $('[data-cmp]').innerHTML = NO_TSYS_TABS.includes(tab) ? '' : comparePop(m, ui, tsys());
+    $('[data-cmp]').innerHTML = NO_CMP_TABS.includes(tab) ? '' : comparePop(m, ui, tsys());
     $('[data-q]').hidden = !(searching || S.q);
     $('[data-count]').innerHTML = `<b>${num(A.length)}</b> incidencias`;
     root.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('mt-on', b.dataset.tab === tab));
@@ -211,7 +222,7 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
       teamView.show();
       return;
     }
-    $('[data-main]').innerHTML = tabs.render(tab, A, { face });   // la vista: alguna pestaña cambia con ella (Módulos y focos, en Equipo)
+    $('[data-main]').innerHTML = tabs.render(tab, A, { face, live: true });   // la vista: alguna pestaña cambia con ella (Módulos y focos, en Equipo)
     applyTableSorts($('[data-main]'), tab, ui.colSort);   // y el orden por columnas de cada tabla (table-sort.js)
   };
 
@@ -227,9 +238,9 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
   const openFrame = () => {
     renderFrame();
     // arriba del panel, las fechas rápidas: una lo aplica y lo cierra; con Ctrl (o Cmd), compara con el periodo de ahora
-    panel = mountPeriodPanel($('[data-cal]'), { model: () => m, onPick: (close) => { if (close) closePops(); render(); },
+    panel = mountPeriodPanel($('[data-cal]'), { model: () => m, onPick: (close) => { toPeriod(); if (close) closePops(); render(); },
       head: () => presetPick(m, ui),
-      onPreset: (key, ctrl) => { const r = presetRange(m, key); if (r && pickPreset(m, ui, key, ctrl || ui.cmpPick, r, sideOps)) { ui.cmpPick = false; closePops(); render(); } },
+      onPreset: (key, ctrl) => { const r = presetRange(m, key); if (r && pickPreset(m, ui, key, ctrl || ui.cmpPick, r, sideOps)) { toPeriod(); ui.cmpPick = false; closePops(); render(); } },
       // comparando (ui.cmpPick), un mes: el periodo de ahora frente a ese mes
       onMonth: (k) => { if (!ui.cmpPick) return false; sideOps.off(); ui.resCmp = { a: 'cur', b: `m:${k}` }; ui.cmpPick = false; closePops(); render(); return true; } });
     render();
@@ -382,10 +393,10 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
   // La sábana, a CSV (de la pestaña en la que se está): lo que pasa ahora los filtros y los lados, entero, descargado como
   // fichero (sheet.js). Ya no se ve en las pestañas: se exporta desde los tres puntos (Exportar sábana a CSV), solo en
   // las que la tenían (SHEET_TABS; Equipo soporte, la suya: work-view.js).
-  const SHEET_TABS = ['backlog', 'escalados', 'resesc', 'cliente', 'tiempos'];
+  const SHEET_TABS = ['backlog', 'escalados', 'cliente', 'tiempos', 'sla', 'slaq'];
   const exportSheet = () => {
     // la sábana de la pestaña: la de Escalados o la de Pendiente de cliente, con sus columnas; si no, lo abierto ahora
-    const own = { escalados: [ui.escSheet, 'incidencias-escaladas'], resesc: [ui.escSheet, 'incidencias-escaladas'], slaq: [ui.slaSheet, 'sin-empezar-sla'], cliente: [ui.cliSheet, 'pendientes-de-cliente'], tiempos: [ui.timesSheet, 'incidencias-tiempos'], sla: [ui.slaSheet, 'sin-empezar-sla'], backlog: [ui.hoySheet, 'incidencias-abiertas'] }[tab];
+    const own = { escalados: [ui.escSheet, 'incidencias-escaladas'], slaq: [ui.slaSheet, 'sin-empezar-sla'], cliente: [ui.cliSheet, 'pendientes-de-cliente'], tiempos: [ui.timesSheet, 'incidencias-tiempos'], sla: [ui.slaSheet, 'sin-empezar-sla'], backlog: [ui.hoySheet, 'incidencias-abiertas'] }[tab];
     const list = own ? own[0].list : sheetOf(m);
     if (!list.length) return;
     const file = own ? sheetFile(m, own[1]) : sheetFile(m);
@@ -571,7 +582,7 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
       if (to !== face) { face = to; onlyIndra(); reframe = true; } else if (onlyIndra()) m.refilter();   // Backlog: sin T-Systems
       // Escalados se abre en Activas llegando desde Foto de hoy o desde el enlace de Pendiente (proveedor) de Resumen; si no,
       // en Histórico. Dentro, se cambia con data-esc-mode.
-      if ((tab === 'escalados' || tab === 'resesc') && from !== tab) { ui.escNow = from === 'resumen' || from === 'backlog' || d.escNow != null; ui.escNoJira = false; }
+      if (tab === 'escalados' && from !== tab) { ui.escNow = from === 'resumen' || from === 'backlog' || d.escNow != null; ui.escNoJira = false; }
       if (d.rm) { const [dim, k] = filterKey(d.rm); S.f[dim]?.delete(k); }   // un enlace que quita un filtro al ir (Resumen → Escalados)
       // un enlace con fechas y vista (Resumen → Histórico): esas fechas arriba y esa vista de la evolución
       if (d.period) { const [a, b] = d.period.split(':').map(Number); m.setPeriod(a, b); }
@@ -595,15 +606,19 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     else if (d.resPop != null) { ui.cmpPick = !ui.cmpPick; if (ui.cmpPick) { render(); return togglePop('calendar'); } }
     // y su ×: quita la comparación, sea de periodos o de empresas, o cancela la elección
     else if (d.resClear != null) { if (!ui.cmpPick) { if (S.sides[1]) ({ sides: S.sides, colors } = withoutSide(S.sides, colors, 1)); ui.resCmp = null; } ui.cmpPick = false; }
-    else if (d.flk) { ui.flowOff = { ...ui.flowOff, [d.flk]: !ui.flowOff?.[d.flk] }; }   // y en estas, encender o apagar una serie
+    else if (d.flk) {   // y en estas, centrarse en una serie (otro clic, soltarla; Ctrl+clic, sumarla), como en los filtros
+      const f = ui.flowFocus || [], k = d.flk;
+      ui.flowFocus = e.ctrlKey || e.metaKey ? (f.includes(k) ? f.filter((x) => x !== k) : [...f, k]) : f.includes(k) ? f.filter((x) => x !== k) : [k];
+    }
     // Turnos: clic, solo ese turno; con Ctrl (o Cmd), sumarlo o quitarlo (sin quedarse sin ninguno)
     else if (d.shk != null) {
       const k = Number(d.shk), cur = ui.shifts || [0, 1, 2];
-      if (!(e.ctrlKey || e.metaKey)) ui.shifts = [k];
+      // como los demás filtros: clic, solo ese (otro clic en el único elegido, todos otra vez); Ctrl+clic, sumarlo o quitarlo
+      if (!(e.ctrlKey || e.metaKey)) ui.shifts = cur.length === 1 && cur[0] === k ? [0, 1, 2] : [k];
       else if (!cur.includes(k)) ui.shifts = [...cur, k].sort();
       else if (cur.length > 1) ui.shifts = cur.filter((x) => x !== k);
     }
-    else if (d.jc) { ui.jiraPick = toggleProject(ui.jiraShown, Number(d.jc)); ui.escNoJira = false; }   // Escalados: los proyectos que se comparan y filtran
+    else if (d.jc) { ui.jiraPick = toggleProject(ui.jiraShown, Number(d.jc), e.ctrlKey || e.metaKey); ui.escNoJira = false; }   // Escalados: los proyectos que se comparan y filtran
     else if (d.jcClear != null) ui.jiraPick = [];
     else if (d.escMode) ui.escNow = d.escMode === 'now';   // Escalados: Activas o Histórico
     else if (d.escBy) ui.escBy = d.escBy;   // y su tabla, por proyecto Jira, módulo o centro
@@ -623,7 +638,8 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     // un KPI que filtra (SLAs): sus filtros, todos; si ya estaban todos, los quita
     else if (d.kf) { const ks = d.kf.split('|').map(filterKey), all = ks.every(([dim, k]) => m.isSel(dim, k)); ks.forEach(([dim, k]) => { if (m.isSel(dim, k) === all) m.toggle(dim, k); }); }
     else if (d.f2) pickBoth(S.f, d.f2.split('|').map(filterKey), e.ctrlKey || e.metaKey);   // con Ctrl, si ya estaba, quitarlo
-    else if (d.f) { const [dim, k] = filterKey(d.f); m.toggle(dim, k); }
+    // un filtro de una tabla, una corona, una barra…: clic, centrarse en ese (otro clic, soltarlo); Ctrl+clic, sumarlo o quitarlo
+    else if (d.f) { const [dim, k] = filterKey(d.f); pickOnly(S.f, dim, k, e.ctrlKey || e.metaKey); }
     if (reframe) openFrame(); else render();
   });
   let searchTimer;

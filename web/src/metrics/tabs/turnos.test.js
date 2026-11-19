@@ -51,3 +51,36 @@ test('entrantes frente a atendidas (la pieza): sin los turnos de lo atendido (br
   const ui = { exp: {}, sort: {} }, html = evolutionOf(createCommon(m, createCharts(m, ui), ui)).byShift(m.rows());
   assert.match(html, /Faltan los turnos de lo atendido: reinicia SIA/);
 });
+
+test('Turnos, centrarse sin que lo demás desaparezca: «Turno a turno» con todos los turnos (el elegido, destacado) y el mapa de cuándo llegan', () => {
+  const m = createModel(data()); m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  const rows = (h) => [...h.matchAll(/<tr class="mt-clk ([^"]*)" data-f2="(tu:\d\|we:\d)"><td>[^<]*<span[^>]*>[^<]*<\/span><\/td><td class="mt-num">([^<]*)<\/td>/g)].map((x) => [x[2], x[1].trim(), x[3]]);
+  const before = rows(tabs.render('turnos', m.rows()));
+  assert.equal(before.length, 6);
+  const [k, w] = before.find(([, , n]) => n !== '0' && n !== '—')[0].match(/\d/g).map(Number);
+  m.toggle('tu', k); m.toggle('we', w); m.refilter();
+  const after = rows(tabs.render('turnos', m.rows()));
+  assert.deepEqual(after.map(([f, , n]) => [f, n]), before.map(([f, , n]) => [f, n]));   // las mismas cifras: no desaparecen
+  assert.deepEqual(after.map(([f, c]) => [f, c]), before.map(([f]) => [f, f === `tu:${k}|we:${w}` ? 'mt-sel' : 'mt-off']));
+});
+
+test('Turnos: «Qué se queda para el turno siguiente» y «Prioridad por turno» (también sus cabeceras) filtran; sin «Por día de la semana»; cuándo llegan, con su total', () => {
+  const m = createModel(data()); m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui), html = tabs.render('turnos', m.rows());
+  const cut = (h, t) => { const a = h.indexOf(`>${t}</h3>`); return h.slice(a, h.indexOf('</section>', a)); };
+  assert.deepEqual([...cut(html, '¿Qué se queda para el turno siguiente?').matchAll(/<div class="mt-split mt-clk ?" data-f="(tu:\d)">/g)].map((x) => x[1]), ['tu:0', 'tu:1', 'tu:2']);
+  const prio = cut(html, 'Prioridad por turno');
+  assert.match(prio, /<th class="mt-h mt-clk ?" data-f="tu:\d"/);   // la cabecera de columna
+  assert.match(prio, /<th class="mt-r mt-clk ?" data-f="pr:\d"/);    // y la de fila
+  assert.doesNotMatch(html, /Por día de la semana/);
+  const llegan = cut(html, 'Cuándo llegan las incidencias');
+  assert.match(llegan, /<th class="mt-num">Total<\/th><\/tr><\/thead>/);
+  const totals = [...llegan.matchAll(/<td class="mt-num mt-total">(\d+)<\/td>/g)].map((x) => Number(x[1]));
+  assert.equal(totals.length, 7);
+  assert.equal(totals.reduce((a, b) => a + b, 0), m.rows().length);
+  // con un turno elegido, en «turno siguiente» los demás siguen, apagados
+  m.toggle('tu', 0); m.refilter();
+  const after = cut(tabs.render('turnos', m.rows()), '¿Qué se queda para el turno siguiente?');
+  assert.deepEqual([...after.matchAll(/<div class="mt-split mt-clk ([^"]*)" data-f="(tu:\d)">/g)].map((x) => [x[2], x[1].trim()]), [['tu:0', 'mt-sel'], ['tu:1', 'mt-off'], ['tu:2', 'mt-off']]);
+});

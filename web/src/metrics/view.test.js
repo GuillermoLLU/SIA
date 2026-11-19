@@ -89,11 +89,17 @@ test('Filtros con Ctrl: en un selector, clic deja solo esa y Ctrl+clic la suma o
   pickOnly(f, 'pr', 2, true); assert.equal(f.pr, undefined);             // sin ninguna: todas
   assert.ok(isPicked(f, 'pr', null));
   pickOnly(f, 'pr', 3); pickOnly(f, 'pr', 4); assert.deepEqual([...f.pr], [4]);   // sin Ctrl, solo esa
+  pickOnly(f, 'pr', 4); assert.equal(f.pr, undefined);                    // otro clic en la marcada: la quita
+  pickOnly(f, 'pr', 3); pickOnly(f, 'pr', 4, true); pickOnly(f, 'pr', 3); assert.deepEqual([...f.pr], [4]);   // de varias, quita esa
   pickOnly(f, 'pr', null); assert.equal(f.pr, undefined);
   // celdas de dos
   const g = {};
   pickBoth(g, [['sit', 1], ['age', 0]]); assert.deepEqual([[...g.sit], [...g.age]], [[1], [0]]);
-  pickBoth(g, [['sit', 1], ['age', 0]]); assert.deepEqual([[...g.sit], [...g.age]], [[1], [0]]);   // sin Ctrl, se quedan
-  pickBoth(g, [['sit', 1], ['age', 0]], true); assert.deepEqual(g, {});                           // con Ctrl, fuera
-  pickBoth(g, [['sit', 1], ['age', 0]], true); assert.deepEqual([[...g.sit], [...g.age]], [[1], [0]]);   // no estaban: se suman
+  pickBoth(g, [['sit', 1], ['age', 0]]); assert.deepEqual(g, {});                                  // otro clic: se suelta
+  pickBoth(g, [['sit', 1], ['age', 0]]); pickBoth(g, [['sit', 2], ['age', 1]]);
+  assert.deepEqual([[...g.sit], [...g.age]], [[2], [1]]);                                           // clic en otra: cambia
+  pickBoth(g, [['sit', 1], ['age', 0]], true); assert.deepEqual([[...g.sit], [...g.age]], [[2, 1], [1, 0]]);   // con Ctrl: se suman
+  pickBoth(g, [['sit', 1], ['age', 0]], true); assert.deepEqual([[...g.sit], [...g.age]], [[2], [1]]);          // y se quitan
+  const h = {}; pickBoth(h, [['sit', 1], ['sit', 2]]); assert.deepEqual([...h.sit], [1, 2]);       // dos de la misma (Asignada)
+  pickBoth(h, [['sit', 1], ['sit', 2]]); assert.deepEqual(h, {});
 });

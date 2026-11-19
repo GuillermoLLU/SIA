@@ -12,6 +12,7 @@
 // En el informe Análisis de tiempos (metrics/report.js; { inReport: true }), sin la pregunta ni la sábana y con los dos
 // desgloses, por módulo y por centro, uno detrás de otro.
 import { esc } from '../../ui/html.js';
+import { periodLabel } from '../period.js';
 import { SHEET_COLS, sheetBody } from '../sheet.js';
 import { afterDash } from './escalados.js';
 import { num, pct, dur } from '../format.js';
@@ -26,7 +27,7 @@ export const tiemposTab = (t) => {
   const { m, ch, ui, grid, ask, name } = t;
   const { CMP, CO, OPEN, bySide } = m;
   const past = phasesOf(m), now = phasesNowOf(m);
-  const modes = (on) => `<div class="mt-seg mt-seg-sm" role="group" aria-label="Qué tiempos">${[['now', 'Actual', 'Lo que sigue abierto, a fecha de la última carga: lo que llevan hasta hoy. No depende del periodo.'], ['past', 'Histórico', 'Lo resuelto de lo recibido en el periodo.']]
+  const modes = (on) => `<div class="mt-seg mt-seg-sm" role="group" aria-label="Qué tiempos">${[['now', 'Abiertas ahora', 'Lo que sigue abierto, a fecha de la última carga: lo que llevan hasta hoy. No depende de las fechas de arriba.'], ['past', 'Del periodo', `Lo resuelto de lo recibido en las fechas de arriba: ${periodLabel(m)}.`]]
     .map(([k, l, tip]) => { const a = (k === 'now') === on; return `<button class="mt-seg-b ${a ? 'mt-on' : ''}" data-times-mode="${k}" aria-pressed="${a}" data-tip="${esc(tip)}">${l}</button>`; }).join('')}</div>`;
   const timesCard = (A) => {
     const on = !!ui.timesNow, phases = on ? now : past;

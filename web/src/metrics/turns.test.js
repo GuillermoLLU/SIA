@@ -26,5 +26,5 @@ test('el día en 24 horas y el reloj semanal', () => {
 
 test('qué se queda para el turno siguiente: por turno, sumando laborables y fin de semana', () => {
   const m = model(), rows = carryRows(m, m.bySide(m.rows()), [0]);
-  assert.deepEqual(rows, [{ label: 'Mañana', k: 0, v: [0, 0, 0, 2] }, { label: 'Tarde', k: 0, v: [1, 0, 0, 0] }, { label: 'Noche', k: 0, v: [0, 0, 0, 0] }]);
+  assert.deepEqual(rows, [{ label: 'Mañana', k: 0, f: 'tu:0', v: [0, 0, 0, 2] }, { label: 'Tarde', k: 0, f: 'tu:1', v: [1, 0, 0, 0] }, { label: 'Noche', k: 0, f: 'tu:2', v: [0, 0, 0, 0] }]);
 });

@@ -18,10 +18,10 @@ const ICONS = {
 // La pestaña de Equipo soporte no está en TABS: la monta main.js aparte (team.id), con su propio periodo.
 export const TEAM_TAB = 'equipo';
 
-// labels: el nombre de una pestaña en esa vista, si no es el de siempre (Servicio: Equipo soporte, «Equipo»).
+// labels: el nombre de una pestaña en esa vista, si no es el de siempre.
 export const FACES = [
   { id: 'servicio', label: 'Servicio', tsys: true, note: 'El estado del servicio y frente a T-Systems',
-    tabs: ['resumen', 'backlog', 'entrada', 'modulos', 'resesc', 'slaq', 'ia', 'turnos', TEAM_TAB], labels: { [TEAM_TAB]: 'Equipo' } },
+    tabs: ['resumen', 'backlog', 'entrada', 'modulos', 'resolucion', 'escalados', 'slaq', 'ia', 'turnos'] },   // Equipo soporte, solo en Equipo
   { id: 'equipo', label: 'Equipo', tsys: false, note: 'Qué hace cada técnico',
     tabs: [TEAM_TAB, 'calidad', 'modulos', 'turnos'] },
   { id: 'tecnicas', label: 'Técnicas', tsys: false, note: 'Por qué pasa: escalados, módulos, esperas',
@@ -35,7 +35,7 @@ export const faceOf = (id) => FACES.find((f) => f.id === id) || null;
 export const TAB_ALIAS = { hoy: 'backlog' };
 export const HIDDEN = ['historico'];
 // Pestañas que van juntas en una (tabs.js): en una vista que tiene la de las dos, un enlace a una de ellas lleva a esa.
-export const JOINED = { resesc: ['resolucion', 'escalados'], slaq: ['sla', 'calidad'] };
+export const JOINED = { slaq: ['sla', 'calidad'] };
 
 // Las pestañas de una vista, [clave, nombre], en su orden. team: { id, label } de Equipo soporte (sin él, no sale).
 export const faceTabs = (id, team = null) => {

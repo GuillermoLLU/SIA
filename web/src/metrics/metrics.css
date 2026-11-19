@@ -89,6 +89,16 @@
 .mt-stackcol { display: flex; flex-direction: column; gap: 16px; min-width: 0; } .mt-stackcol > .mt-card { flex: 0 0 auto; }
 .mt-mm-total { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 0 0 6px; font-size: 13px; color: var(--mt-low); } .mt-mm-total b { color: var(--text); } .mt-mm-total .mt-sw { margin-right: 5px; }
 .mt-dn-sys { margin: 0 0 8px; }
+/* el botón de las fechas, en una vista de «Abiertas ahora»: no aplica */
+.mt-period-off { opacity: .45; }
+/* Malos escalados: los cambios de equipo a la izquierda y sus incidencias, con scroll, a la derecha */
+.mt-bad { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.mt-bad-list { max-height: 320px; overflow: auto; border: 1px solid var(--mt-line); }
+.mt-bad-list table { width: 100%; } .mt-bad-list thead th { position: sticky; top: 0; background: var(--surface); }
+.mt-bad-list tr.mt-sel td { font-weight: 650; } .mt-bad-list tr.mt-sel td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+.mt-bad-list tr.mt-off td { opacity: .45; } .mt-bad-list tr.mt-off:hover td { opacity: .8; }
+.mt-bad-list td.mt-subj { max-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; }
+@media (max-width: 1100px) { .mt-bad { grid-template-columns: 1fr; } }
 .mt-svg .mt-mm-off { opacity: .35; }
 .mt-svg .mt-mm-n { font-size: 13px; font-weight: 600; fill: var(--text); }
 .mt-svg .mt-mm-t { font-size: 12px; font-weight: 600; fill: var(--mt-low); } .mt-svg .mt-mm-t.good { fill: var(--mt-good); } .mt-svg .mt-mm-t.bad { fill: var(--mt-bad); }
@@ -199,6 +209,7 @@
 
 /* rejilla y tarjetas */
 .mt-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; }
+.mt-grid + .mt-grid { margin-top: 16px; }   /* las pestañas que van juntas (SLA y calidad): una rejilla tras otra, con aire */
 .mt-card { grid-column: span 6; min-width: 0; padding: 16px 18px; background: var(--mt-card); border: 1px solid var(--mt-line); box-shadow: var(--mt-shadow); }
 .mt-s12 { grid-column: span 12; } .mt-s8 { grid-column: span 8; } .mt-s6 { grid-column: span 6; } .mt-s5 { grid-column: span 5; } .mt-s4 { grid-column: span 4; } .mt-s3 { grid-column: span 3; }
 .mt-card h3 { margin: 0 0 2px; font-size: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--mt-low); }
@@ -469,6 +480,13 @@
 .mt-card h3 small { margin-left: 8px; font-size: 12px; font-weight: 400; letter-spacing: 0; text-transform: none; }
 /* con algo marcado en una ficha, lo no marcado queda apagado (se puede seguir pulsando para añadirlo) */
 .mt-view .mt-sc tr.mt-off th, .mt-view .mt-sc tr.mt-off td { opacity: .42; }
+/* centrarse en una fila (o celda, o parte) sin que lo demás desaparezca: lo elegido, destacado; lo demás, apagado */
+.mt-view tr.mt-off > th, .mt-view tr.mt-off > td, .mt-view td.mt-off { opacity: .42; }
+.mt-view tr.mt-off:hover > th, .mt-view tr.mt-off:hover > td, .mt-view td.mt-off:hover { opacity: .8; }
+.mt-view tr.mt-sel > th.mt-r:first-of-type, .mt-view tr.mt-sel > td:first-child { box-shadow: inset 3px 0 0 var(--accent); font-weight: 650; }
+.mt-view td.mt-sel { outline: 2px solid var(--accent); outline-offset: -2px; }
+.mt-donut circle.mt-off { opacity: .3; }
+.mt-split.mt-off, .mt-view th.mt-off { opacity: .42; } .mt-split.mt-sel .mt-split-l, .mt-view th.mt-sel { font-weight: 650; color: var(--text); }
 .mt-view .mt-sc tr.mt-off:hover th, .mt-view .mt-sc tr.mt-off:hover td { opacity: .8; }
 .mt-view .mt-sc tr.mt-sel th.mt-r { background: var(--mt-sel); box-shadow: inset 3px 0 0 var(--accent); }
 /* ficha con filas que se despliegan (temas → problemas): ▸ despliega, la fila filtra; los hijos, sangrados y en un tono */
@@ -685,7 +703,8 @@ i.mt-pq0 { background: var(--mt-pq0); } i.mt-pq1 { background: var(--mt-pq1); } 
 /* Resumen, entrantes frente a atendidas: cada serie de lo atendido, en la leyenda, se enciende y se apaga con un clic */
 .mt-fl-tg { display: inline-flex; align-items: center; padding: 1px 6px; margin: -1px -6px; font: inherit; color: inherit; background: none; border: 1px solid transparent; cursor: pointer; }
 .mt-fl-tg:hover { border-color: var(--mt-line); background: var(--mt-soft); }
-.mt-fl-tg.mt-off { opacity: .45; text-decoration: line-through; }
+.mt-fl-tg.mt-off { opacity: .45; } .mt-fl-tg.mt-sel { font-weight: 650; border-color: var(--accent); }
+.mt-svg rect.mt-off { opacity: .25; }
 .mt-fl-tg.mt-off i { background: transparent !important; outline: 1.5px solid var(--mt-line); outline-offset: -1.5px; }
 /* Resumen, la sábana de incidencias: la cuenta y el botón de exportar, encima de la tabla */
 .mt-sheet-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; font-size: 13px; }
@@ -767,7 +786,8 @@ i.mt-pq0 { background: var(--mt-pq0); } i.mt-pq1 { background: var(--mt-pq1); } 
 .mt-empty-page .mt-empty { flex: 1 1 auto; justify-content: center; }
 
 /* Escalados: los proyectos Jira que se eligen y sus tiempos, en barras horizontales frente a la media (en gris, con su línea) */
-.mt-jc-opts { display: flex; flex-wrap: wrap; gap: 6px; max-height: 92px; margin-bottom: 14px; overflow-y: auto; }
+/* todos los proyectos a la vista, sin scroll */
+.mt-jc-opts { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
 .mt-jc-opt { padding: 3px 9px; font: inherit; font-size: 12px; color: var(--mt-low); background: none; border: 1px solid var(--mt-line); cursor: pointer; }
 .mt-jc-opt b { font-weight: 600; font-variant-numeric: tabular-nums; }
 .mt-jc-opt:hover:not(:disabled) { color: var(--text); background: var(--mt-soft); }

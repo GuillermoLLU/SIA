@@ -14,15 +14,15 @@ test('las tres vistas, en su orden: Servicio, Equipo y Técnicas; solo Servicio 
 test('cada vista, con sus pestañas y sus nombres', () => {
   // Servicio: el Resumen (con la corona de Foto de hoy, por fechas), Backlog (lo demás de Foto de hoy), las que van
   // juntas y, al final, Equipo soporte con otro nombre, para verlo rápido
-  assert.deepEqual(faceTabs('servicio', TEAM).map(([, l]) => l), ['Resumen', 'Backlog', 'Entrantes', 'Módulos y focos', 'Resolución y escalados',
-    'SLA y calidad', 'Uso de la IA', 'Turnos', 'Equipo']);
-  assert.deepEqual(keys('servicio'), ['resumen', 'backlog', 'entrada', 'modulos', 'resesc', 'slaq', 'ia', 'turnos', 'equipo']);
+  assert.deepEqual(faceTabs('servicio', TEAM).map(([, l]) => l), ['Resumen', 'Backlog', 'Entrantes', 'Módulos y focos', 'Resolución', 'Escalados',
+    'SLA y calidad', 'Uso de la IA', 'Turnos']);   // sin Equipo soporte: está en Equipo
+  assert.deepEqual(keys('servicio'), ['resumen', 'backlog', 'entrada', 'modulos', 'resolucion', 'escalados', 'slaq', 'ia', 'turnos']);
   assert.deepEqual(faceTabs('equipo', TEAM).map(([, l]) => l), ['Equipo soporte', 'Calidad', 'Módulos y focos', 'Turnos']);
   assert.deepEqual(faceTabs('tecnicas', TEAM).map(([, l]) => l), ['Resumen', 'Backlog', 'Entrantes', 'Escalados', 'Módulos y focos',
     'Pendiente de cliente', 'Análisis tiempos', 'Calidad', 'Uso de la IA']);
   // SLA y calidad: SLAs y Calidad (Uso de la IA, aparte)
   assert.deepEqual(JOINED.slaq, ['sla', 'calidad']);
-  assert.deepEqual(JOINED.resesc, ['resolucion', 'escalados']);
+  assert.deepEqual(Object.keys(JOINED), ['slaq']);   // Resolución y Escalados, cada una en su pestaña
 });
 
 test('ninguna pestaña se queda sin vista, salvo el Histórico; Foto de hoy, partida entre el Resumen y Backlog', () => {
@@ -53,10 +53,10 @@ test('un enlace a una pestaña: en la misma vista si la tiene; si no, en la prim
 
 test('a dónde lleva un enlace: Foto de hoy, a Backlog; las que van juntas, a la de las dos; si no, a su vista', () => {
   assert.deepEqual(routeTo('hoy', 'servicio'), ['servicio', 'backlog']);
-  assert.deepEqual(routeTo('escalados', 'servicio'), ['servicio', 'resesc']);
-  assert.deepEqual(routeTo('resolucion', 'servicio'), ['servicio', 'resesc']);
+  assert.deepEqual(routeTo('escalados', 'servicio'), ['servicio', 'escalados']);
+  assert.deepEqual(routeTo('resolucion', 'servicio'), ['servicio', 'resolucion']);
   assert.deepEqual(routeTo('escalados', 'tecnicas'), ['tecnicas', 'escalados']);   // en Técnicas, sola
-  assert.deepEqual(routeTo('resolucion', 'tecnicas'), ['servicio', 'resesc']);     // solo en Servicio, junta
+  assert.deepEqual(routeTo('resolucion', 'tecnicas'), ['servicio', 'resolucion']);   // solo en Servicio
   assert.deepEqual(routeTo('cliente', 'servicio'), ['tecnicas', 'cliente']);
   assert.deepEqual(routeTo('sla', 'servicio'), ['servicio', 'slaq']);
   assert.deepEqual(routeTo('calidad', 'servicio'), ['servicio', 'slaq']);

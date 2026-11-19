@@ -58,9 +58,11 @@ export const variation = (v, base) => {
   return p === 0 ? { text: '0 %', cls: '' } : p > 0 ? { text: `+${p} %`, cls: 'mt-up' } : { text: `−${-p} %`, cls: 'mt-down' };
 };
 
-// Pinchar un proyecto: lo añade o lo quita, sin pasar de JIRA_MAX.
-export const toggleProject = (picked, k) => {
+// Pinchar un proyecto: solo ese (y otro clic en uno ya elegido lo quita); con Ctrl (multi), lo añade o lo quita, sin pasar
+// de JIRA_MAX.
+export const toggleProject = (picked, k, multi = false) => {
   if (picked.includes(k)) return picked.filter((x) => x !== k);
+  if (!multi) return [k];
   return picked.length < JIRA_MAX ? [...picked, k] : picked;
 };
 

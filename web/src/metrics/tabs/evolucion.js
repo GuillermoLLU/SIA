@@ -90,11 +90,14 @@ export const evolutionOf = (t) => {
   // (lo que entró antes). Con los colores de la corona: lo que entra, el de Asignada (donde cae al entrar); las
   // pendientes, los suyos.
   const FLOW = [['res', 'Resueltas', 'mt-fl-res'], ['ven', 'Pendiente (proveedor)', 'mt-dn-prov'], ['cli', 'Pendiente (cliente)', 'mt-dn-cli']];
-  // Cada serie de lo atendido se enciende y se apaga con un clic en su leyenda (ui.flowOff; las entrantes, siempre): lo
-  // apagado no se apila ni cuenta en las cifras del periodo; la nota de cada día sigue diciéndolo todo.
+  // Centrarse en una serie de lo atendido con un clic en su leyenda, como en los demás filtros (ui.flowFocus; las
+  // entrantes, siempre): clic, esa (otro clic, soltarla; en otra, cambiar); Ctrl+clic, sumarla. Las demás no
+  // desaparecen: se ven apagadas y no cuentan en las cifras del periodo; la nota de cada día sigue diciéndolo todo.
+  const focus = () => ui.flowFocus || [];
+  const off = (k) => focus().length > 0 && !focus().includes(k);
   const flowKey = (k, label, cls, tip = '') => {
-    const on = !ui.flowOff?.[k];
-    return `<button class="mt-fl-tg ${on ? '' : 'mt-off'}" data-flk="${k}" aria-pressed="${on}" data-tip="${esc(`${tip}${tip ? '\n' : ''}Clic para ${on ? 'quitarlo' : 'verlo'}.`)}"><i class="mt-dn-sw ${cls}"></i>${label}</button>`;
+    const sel = focus().includes(k);
+    return `<button class="mt-fl-tg ${sel ? 'mt-sel' : off(k) ? 'mt-off' : ''}" data-flk="${k}" aria-pressed="${sel}" data-tip="${esc(`${tip}${tip ? '\n' : ''}Clic: centrarse en esta (otro clic, soltarla). Ctrl+clic: sumarla.`)}"><i class="mt-dn-sw ${cls}"></i>${label}</button>`;
   };
   // kinds: unos tipos de turno (0–2, shifts.js), juntos: lo que entró en esos turnos y lo atendido en el mismo turno
   // en que entró (backlog.js, flowByShift), sin lo del backlog
@@ -103,20 +106,19 @@ export const evolutionOf = (t) => {
     // lo del backlog, solo de los tipos encendidos; la nota del día, con todos
     const [d0, n] = days0(), sum = (a) => a.reduce((s, v) => s + v, 0);
     const raw = kind == null ? flowByDay(m, list, d0, n) : flowByShift(m, list, d0, n, kinds);
-    const picked = kind == null ? flowByDay(m, list, d0, n, FLOW.map(([k]) => k).filter((k) => !ui.flowOff?.[k])).bkl : raw.bkl;
+    const picked = kind == null ? flowByDay(m, list, d0, n, FLOW.map(([k]) => k).filter((k) => !off(k))).bkl : raw.bkl;
     const when = kind == null ? 'el día que entraron' : 'en el turno en que entraron';
     const head = (i) => `${m.dayName(d0 + i * DAY)}${kind == null ? '' : `, ${shiftsName(kinds)}`}`;
-    const shown = (k) => (ui.flowOff?.[k] ? raw[k].map(() => 0) : raw[k]);
-    const fl = { ...raw, res: shown('res'), ven: shown('ven'), cli: shown('cli') };
-    const done = fl.inc.map((_, i) => FLOW.reduce((s, [k]) => s + fl[k][i], 0)), bkl = total && !ui.flowOff?.bkl ? picked : raw.bkl.map(() => 0);
-    const all = (i) => FLOW.reduce((s, [k]) => s + raw[k][i], 0);
-    const f = dayFrame(n, Math.max(...fl.inc, ...done.map((v, i) => v + bkl[i])), (i) => `${head(i)}\nEntraron: ${num(raw.inc[i])}`
+    // se dibujan todas (las de fuera del foco, apagadas); las cifras del periodo, solo las del foco
+    const fl = raw, all = (i) => FLOW.reduce((s, [k]) => s + raw[k][i], 0), drawnBkl = total ? (focus().length ? picked : raw.bkl) : raw.bkl.map(() => 0);
+    const done = fl.inc.map((_, i) => FLOW.reduce((s, [k]) => s + (off(k) ? 0 : fl[k][i]), 0)), bkl = total && !off('bkl') ? picked : raw.bkl.map(() => 0);
+    const f = dayFrame(n, Math.max(...fl.inc, ...fl.inc.map((_, i) => all(i) + drawnBkl[i])), (i) => `${head(i)}\nEntraron: ${num(raw.inc[i])}`
       + `\nAtendidas ${kind == null ? 'de las que entraron ese día' : 'en su turno'}: ${num(all(i))} (${FLOW.map(([k, l]) => `${num(raw[k][i])} ${l.toLowerCase()}`).join(', ')})`
       + (total ? `\nAtendidas del backlog: ${num(raw.bkl[i])}\nEn total: ${num(all(i) + raw.bkl[i])}` : ''));
     const bw = Math.max(1, f.slot * 0.36 - 1);
     const bars = Array.from({ length: n }, (_, i) => f.stack(f.xc(i) - bw - 1, bw, [{ cls: 'mt-dn-asig', v: fl.inc[i] }])
-      + f.stack(f.xc(i) + 1, bw, [...FLOW.map(([k, , cls]) => ({ cls, v: fl[k][i] })), { cls: 'mt-fl-bkl', v: bkl[i] }])).join('');
-    const some = [...FLOW.map(([k]) => k), ...(total ? ['bkl'] : [])].some((k) => ui.flowOff?.[k]);
+      + f.stack(f.xc(i) + 1, bw, [...FLOW.map(([k, , cls]) => ({ cls: off(k) ? `${cls} mt-off` : cls, v: fl[k][i] })), { cls: off('bkl') ? 'mt-fl-bkl mt-off' : 'mt-fl-bkl', v: drawnBkl[i] }])).join('');
+    const some = focus().length > 0;
     const legend = `<div class="mt-legend"><span><i class="mt-dn-sw mt-dn-asig"></i>Entrantes</span>${FLOW.map(([k, l, cls]) => flowKey(k, l, cls)).join('')}
       ${total ? flowKey('bkl', 'Atendidas del backlog', 'mt-fl-bkl', 'Las que entraron antes y ese día se resolvieron o pasaron a Pendiente de proveedor o de cliente (una vez por incidencia y día).') : ''}
       <span class="mt-mut">En el periodo${some ? ', con lo marcado' : ''}: ${num(sum(fl.inc))} entrantes · ${num(sum(done))} atendidas ${when} (${sum(fl.inc) ? pct(sum(done) / sum(fl.inc)) : '—'})${total ? ` · ${num(sum(bkl))} del backlog` : ''}</span></div>`;

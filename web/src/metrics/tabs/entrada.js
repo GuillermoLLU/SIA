@@ -54,7 +54,7 @@ const LEDGER_CMP = {
 };
 
 export const entradaTab = (t) => {
-  const { m, ch, grid, ask, REQ, slaPct, heads, monthRows, prioRows, asRows, shareOf, table, cardsOf, days, topRows, volume, teamNames, headsNote, mixCmp, pairTable } = t;
+  const { m, ch, grid, REQ, slaPct, heads, monthRows, prioRows, asRows, shareOf, table, cardsOf, days, topRows, volume, teamNames, headsNote, mixCmp, pairTable } = t;
   const { C, DI, S, PRIOS, slaLabel, CMP, stats, bySide } = m;
   const { card, kpis, kpiCo, matrix } = ch;
   const evolution = evolutionOf(t);
@@ -91,7 +91,7 @@ export const entradaTab = (t) => {
       ...(CMP() ? [] : [{ head: 'Tarjeta', note: 'Una PRIO cuenta también en su SGA o SISU.' }, ...CARDS.map((c, k) => ({ label: c, test: (i) => cardsOf(i).includes(k), f: `tj:${k}` }))]),
       { head: 'Tipo de operación' }, ...topRows('op', A, 7),
     ];
-    return grid(ask('entrada'),
+    return grid(   // sin la pregunta de arriba
       kpis(kpiCo(`Recibidas${each}`, volume(T), (s) => num(Math.round(s.v)), { val: (s) => Math.round(s.v), note: `abiertas en el periodo${headsNote()}`, names: teamNames() }),
         kpiCo(`Entran al día${each}`, volume(T, d), (s) => dec(s.v), { val: (s) => s.v, note: `de media, en días naturales${headsNote()}`, names: teamNames() }),
         kpiCo(`Resolvemos al día${each}`, volume(closed, d), (s) => dec(s.v), { val: (s) => s.v, note: `de media, todo lo resuelto o cerrado en el periodo${headsNote()}`, names: teamNames() }),

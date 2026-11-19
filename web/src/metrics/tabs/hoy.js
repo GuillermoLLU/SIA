@@ -38,7 +38,10 @@ export const stateCard = (t) => {
     const on = m.S.f.ss?.size ? [...m.S.f.ss] : [0, 1];
     return `<div class="mt-seg mt-seg-sm mt-dn-sys" role="group" aria-label="SISU o SGA">${[0, 1].map((k) => `<button class="mt-seg-b ${on.includes(k) ? 'mt-on' : ''}" data-ring-sys="${k}" aria-pressed="${on.includes(k)}" data-tip="Clic para ${on.includes(k) ? 'quitarlo' : 'añadirlo'} (siempre queda uno).">${DIMS.ss.label(k)}</button>`).join('')}</div>`;
   };
-  const haveNow = (P, pick = true) => {
+  const haveNow = (P0, pick = true) => {
+    // centrarse en un estado sin que los demás desaparezcan: lo de cada lado, con lo que solo deja fuera el filtro de
+    // situación (model.js, widen); el elegido, destacado, y los demás, apagados
+    const P = pick ? P0.map((l) => m.widen(l, ['sit'], { now: true, keep: (i) => m.OPEN[i] && m.C.rep[i] < m.S.d1 })) : P0;
     const ks = CO(), one = ks.length === 1;
     const total = (k) => P[k].length, share = (v, k) => (total(k) ? pct(v / total(k)) : '—');
     const count = P.map((l) => PARTS.map((p) => l.filter((i) => p.sits.includes(DIMS.sit.get(i))).length));
@@ -46,7 +49,7 @@ export const stateCard = (t) => {
     const at = (p, k) => count[k][PARTS.indexOf(p)];
     const rings = ks.map((k) => `<figure class="mt-dn-fig">${one ? '' : `<figcaption>${esc(name(k))}</figcaption>`}${ch.donut(shown.map((p) => ({ ...p, v: at(p, k), f: pick ? p.f : null })), [num(total(k)), 'incidencias'], one ? 116 : 96)}</figure>`).join('');
     const head = one ? '' : `<tr class="mt-dn-head"><th></th>${ks.map((k) => `<th class="mt-num">${esc(name(k))}</th>`).join('')}</tr>`;
-    const row = (p) => `<tr${pick ? ` class="mt-clk" data-f${p.f.includes('|') ? '2' : ''}="${p.f}"` : ''} data-tip="${esc(p.tip)}"><th><i class="mt-dn-sw mt-dn-${p.cls}"></i>${p.label}</th>${ks.map((k) => `<td class="mt-num"><b>${num(at(p, k))}</b><small>${share(at(p, k), k)}</small></td>`).join('')}</tr>`;
+    const row = (p) => `<tr${pick ? ` class="mt-clk ${t.focusCls(p.f)}" data-f${p.f.includes('|') ? '2' : ''}="${p.f}"` : ''} data-tip="${esc(p.tip)}"><th><i class="mt-dn-sw mt-dn-${p.cls}"></i>${p.label}</th>${ks.map((k) => `<td class="mt-num"><b>${num(at(p, k))}</b><small>${share(at(p, k), k)}</small></td>`).join('')}</tr>`;
     const sum = `<tr class="mt-dn-sum" data-tip="Lo abierto ahora, se abriera cuando se abriera."><th>Incidencias</th>${ks.map((k) => `<td class="mt-num"><b>${num(total(k))}</b><small>ahora</small></td>`).join('')}</tr>`;
     return `<div class="mt-dn ${one ? '' : 'mt-dn-cmp'}"><div class="mt-dn-rings">${rings}</div><table class="mt-dn-legend">${head}${shown.map(row).join('')}${sum}</table></div>`;
   };
@@ -113,7 +116,9 @@ export const hoyTab = (t) => {
   // En una gráfica de barras, para que llene el sitio al lado de la corona: una barra por mes (comparando, una por lado,
   // con su color) con sus abiertas encima y, debajo del mes, su MTTR en verde o en rojo; arriba, el total. Comparando, a
   // todo el ancho (la corona va sola en su fila). Al pasar el ratón por un mes, sus cifras.
-  const monthsCard = (all, P) => {
+  const monthsCard = (all0, P0) => {
+    // con un mes elegido, los demás siguen (apagados): lo de ahora con lo que solo deja fuera ese filtro
+    const all = all0.map((l) => m.widen(l, ['mes'], { now: true })), P = P0.map((l) => m.widen(l, ['mes'], { now: true, keep: (i) => OPEN[i] }));
     const cos = CO(), cmp = CMP(), monthOf = (i) => m.monthAt(C.rep[i]), span = cmp ? 's12' : 's4';
     const months = [...new Set(cos.flatMap((k) => P[k].map(monthOf)))].sort((a, b) => a - b);
     if (!months.length) return card('Meses con incidencias abiertas', '<p class="mt-mut mt-small">Nada abierto con estos filtros.</p>', { span, tip: MONTHS_TIP });
@@ -183,7 +188,7 @@ Clic para filtrar por este mes.`)}"/></g>`;
         return [ring, bare ? panel : panel.replace('class="mt-stock ', 'class="mt-stock mt-st-side '),
           sec('Lo pendiente en detalle', 'su situación, lo que conviene vigilar y desde cuándo.'), ...tables];
       })();
-    return [sec('¿Cómo está el backlog ahora?', 'lo abierto a fecha de la última carga, se abriera cuando se abriera.'), ...top,
+    return [bklog ? '' : sec('¿Cómo está el backlog ahora?', 'lo abierto a fecha de la última carga, se abriera cuando se abriera.'), ...top,   // Backlog, sin título
       card('Quién tiene qué', whoCard(), { span: 's12', sub: 'Lo abierto ahora de cada persona. Clic en una persona para ver todas las métricas solo de ella.' }),
       inReport ? '' : sheetCard()];
   };

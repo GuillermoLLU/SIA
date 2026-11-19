@@ -7,23 +7,27 @@ import { perShiftType, byHour, carryRows as carryRowsOf, clockMatrix } from '../
 import { opt } from './common.js';
 
 export const turnosTab = (t) => {
-  const { m, ch, name, grid, ask, noK, slaPct, resAt, startAt, shareOf, cell, table, slices } = t;
+  const { m, ch, name, grid, ask, wide, focusCls, noK, slaPct, resAt, startAt, shareOf, cell, table } = t;
   const { C, S, PRIOS, DOW, STYPE, CMP, CO, stats, bySide } = m;
   const { card, kpis, kpiCo, heat, day, split } = ch;
 
-  // Mapa de calor día de la semana × hora de un instante de cada issue (la apertura, la resolución…).
-  const clockHeat = (list, at, clickable) => {
-    const { hh, max: mx } = clockMatrix(m, list, at);
-    return `<div class="mt-tablewrap"><table class="mt-hm mt-hours"><thead><tr><th></th>${hh[0].map((_, h) => `<th class="${h === 7 || h === 15 || h === 23 ? 'mt-shift' : ''}">${h}</th>`).join('')}</tr></thead><tbody>${hh.map((r, d) => `<tr><th class="mt-r">${DOWS[d]}</th>${r.map((v, h) => {
+  // Mapa de calor día de la semana × hora de un instante de cada issue (la apertura, la resolución…). El de cuándo llegan
+  // (clickable), con el total de cada día a la derecha.
+  // con un día y hora elegidos, los demás siguen (apagados): lo de la tabla con lo que solo deja fuera ese filtro
+  const clockHeat = (list0, at, clickable) => {
+    const list = clickable ? wide(list0, ['dow:0', 'hour:0']) : list0, { hh, max: mx } = clockMatrix(m, list, at);
+    return `<div class="mt-tablewrap"><table class="mt-hm mt-hours"><thead><tr><th></th>${hh[0].map((_, h) => `<th class="${h === 7 || h === 15 || h === 23 ? 'mt-shift' : ''}">${h}</th>`).join('')}${clickable ? '<th class="mt-num">Total</th>' : ''}</tr></thead><tbody>${hh.map((r, d) => `<tr><th class="mt-r">${DOWS[d]}</th>${r.map((v, h) => {
       const a = shade(v, mx);
-      return `<td class="${a > HOT ? 'mt-hot' : ''} ${h === 7 || h === 15 || h === 23 ? 'mt-shift' : ''}" style="--mt-a:${a}%" ${clickable ? `data-f2="dow:${d}|hour:${h}"` : ''} data-tip="${DOWS[d]} ${h}:00–${h}:59\n${num(v)} incidencias">${v || ''}</td>`;
-    }).join('')}</tr>`).join('')}</tbody></table></div>`;
+      return `<td class="${a > HOT ? 'mt-hot' : ''} ${h === 7 || h === 15 || h === 23 ? 'mt-shift' : ''} ${clickable ? focusCls(`dow:${d}|hour:${h}`) : ''}" style="--mt-a:${a}%" ${clickable ? `data-f2="dow:${d}|hour:${h}"` : ''} data-tip="${DOWS[d]} ${h}:00–${h}:59\n${num(v)} incidencias">${v || ''}</td>`;
+    }).join('')}${clickable ? `<td class="mt-num mt-total">${num(r.reduce((x, y) => x + y, 0))}</td>` : ''}</tr>`).join('')}</tbody></table></div>`;
   };
 
   return (A) => {
     const T = bySide(A), ST = T.map(stats), cos = CO(), slots = m.periodSlots();
-    // por tipo de turno (0–2 laborables, 3–5 fin de semana): sus indicadores y el trabajo hecho en él (turns.js)
-    const per = [0, 1].map((k) => (cos.includes(k) ? perShiftType(m, T[k], slots) : null));
+    // por tipo de turno (0–2 laborables, 3–5 fin de semana): sus indicadores y el trabajo hecho en él (turns.js); con un
+    // turno elegido, los demás siguen (apagados)
+    const TW = bySide(wide(A, ['tu:0', 'we:0']));
+    const per = [0, 1].map((k) => (cos.includes(k) ? perShiftType(m, TW[k], slots) : null));
     const TCOLS = [
       ['Entran', (s) => num(s.n), (s) => s.n],
       ['Entran por turno', (s) => opt(dec)(s.perTurn), (s) => s.perTurn, null, 'Media de incidencias que entran en cada turno de este tipo del periodo.'],
@@ -40,7 +44,7 @@ export const turnosTab = (t) => {
     if (S.sides.some((x) => x?.people?.size === 1)) TCOLS.splice(TCOLS.findIndex((d) => d[0] === 'Personas activas'), 1);
     const rowsHtml = DAYS.map((dl, w) => `<tr class="mt-grp"><td colspan="${TCOLS.length + 1}">${dl}</td></tr>${SHIFTS.map((sn, k) => {
       const x = k + 3 * w, st = [per[0]?.[x], per[1]?.[x]].map((y) => y || { n: 0 });
-      return `<tr class="mt-clk" data-f2="tu:${k}|we:${w}"><td>${sn} <span class="mt-mut">· ${SHIFT_HOURS[k]}</span></td>${TCOLS.map((d) => `<td class="mt-num">${cell(st, d)}</td>`).join('')}</tr>`;
+      return `<tr class="mt-clk ${focusCls(`tu:${k}|we:${w}`)}" data-f2="tu:${k}|we:${w}"><td>${sn} <span class="mt-mut">· ${SHIFT_HOURS[k]}</span></td>${TCOLS.map((d) => `<td class="mt-num">${cell(st, d)}</td>`).join('')}</tr>`;
     }).join('')}`).join('');
     // el día en 24 horas: entran, se empiezan y se resuelven, por hora
     const hours = (l, at) => byHour(m, l, at);
@@ -49,7 +53,8 @@ export const turnosTab = (t) => {
       { label: 'Se empiezan', cls: `mt-l-st${k}`, v: hours(T[k], startAt) },
       { label: 'Se resuelven', cls: `mt-l-rs${k}`, v: hours(T[k], resAt) }])}`).join('');
     // qué se queda para el turno siguiente
-    const carryRows = carryRowsOf(m, T, cos);
+    // con un turno elegido, los demás siguen (apagados)
+    const carryRows = carryRowsOf(m, bySide(wide(A, ['tu:0'])), cos);
     // arriba del todo, las cifras por turno; luego, el día en 24 horas, qué se queda para el turno siguiente y la
     // prioridad por turno
     return grid(ask('turnos'),
@@ -61,7 +66,6 @@ export const turnosTab = (t) => {
       card('¿Qué se queda para el turno siguiente?', split(['En su turno', 'En el siguiente', 'Más tarde', 'Sin pasar por En curso'], carryRows), { span: 's12', sub: 'De lo que entra en cada turno, cuándo se empieza. «Sin pasar por En curso»: abiertas sin empezar o cerradas sin ese paso.' }),
       card('Prioridad por turno', heat('pr', 'tu', 4, 3, { skipR: noK, orderR: PRIOS, orderC: [0, 1, 2] }), { span: 's12', sub: 'Incidencias que entran de cada prioridad en cada turno. Clic en una celda para filtrar.' }),
       card('Turno a turno', table('Turno', TCOLS.map((d) => [d[0], d[4]]), rowsHtml), { span: 's12', sub: 'Por el turno en que entra cada incidencia; el trabajo (resueltas, personas, acciones), por el turno en que se hace. Clic en una fila para filtrar. Pasa el ratón por una cabecera para ver cómo se calcula.' }),
-      card('Por día de la semana', slices('Día', DOWS.map((dw, k) => [dw, (i) => DOW[i] === k, `dow:${k}`]), A, ['n', 'sla', 'inShift', 'ip', 'avg'])),
       card('Cuándo llegan las incidencias', clockHeat(A, (i) => C.rep[i], true), { span: 's12', sub: 'Incidencias recibidas por día de la semana y hora. Cuanto más oscuro, más incidencias; las líneas marcan los cambios de turno. Clic en una celda para filtrar.' }),
       card('Cuándo se resuelven', clockHeat(A, resAt, false), { span: 's12', sub: 'Las mismas incidencias, por el día y la hora en que se resolvieron.' }));
   };

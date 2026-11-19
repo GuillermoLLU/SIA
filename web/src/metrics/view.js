@@ -35,21 +35,24 @@ export const togglePerson = (sides, k, p) => {
 // «dim:clave» → [dim, clave]
 export const filterKey = (s) => { const p = s.indexOf(':'); return [s.slice(0, p), Number(s.slice(p + 1))]; };
 
-// Un selector de un filtro (data-only, «dim:clave»; sin clave, todos): clic, solo ese; con Ctrl (o Cmd), sumarlo o, si
-// ya estaba, quitarlo (sin ninguno, todos). f: los filtros (S.f).
+// Un selector de un filtro (data-only, «dim:clave»; sin clave, todos): clic, solo ese (y otro clic en el ya marcado lo
+// quita); con Ctrl (o Cmd), sumarlo o, si ya estaba, quitarlo (sin ninguno, todos). f: los filtros (S.f).
 export const pickOnly = (f, dim, k, multi = false) => {
   if (k == null) { delete f[dim]; return; }
-  if (!multi) { f[dim] = new Set([k]); return; }
+  if (!multi && !f[dim]?.has(k)) { f[dim] = new Set([k]); return; }
   const s = f[dim] || (f[dim] = new Set());
   if (s.has(k)) s.delete(k); else s.add(k);
   if (!s.size) delete f[dim];
 };
-// Una celda que filtra por dos cosas a la vez (data-f2, [[dim, clave]…]): las suma; con Ctrl (o Cmd), si ya estaban
-// todas, las quita.
+// Algo que filtra por varias cosas a la vez (data-f2, [[dim, clave]…]: una celda, un estado de la corona que junta dos
+// situaciones…), como un selector: clic, centrarse en eso (cambia lo de esas dimensiones); otro clic, si ya lo estaba,
+// soltarlo; con Ctrl (o Cmd), sumarlo o, si ya estaba, quitarlo.
 export const pickBoth = (f, keys, multi = false) => {
   const has = ([dim, k]) => !!f[dim]?.has(k);
-  if (multi && keys.every(has)) { for (const [dim, k] of keys) { f[dim].delete(k); if (!f[dim].size) delete f[dim]; } return; }
-  for (const [dim, k] of keys) (f[dim] || (f[dim] = new Set())).add(k);
+  const off = () => { for (const [dim, k] of keys) { f[dim]?.delete(k); if (f[dim] && !f[dim].size) delete f[dim]; } };
+  if (keys.every(has) && (multi || keys.every(([dim]) => f[dim].size === keys.filter(([d]) => d === dim).length))) return off();
+  if (multi) { for (const [dim, k] of keys) (f[dim] || (f[dim] = new Set())).add(k); return; }
+  for (const dim of new Set(keys.map(([d]) => d))) f[dim] = new Set(keys.filter(([d]) => d === dim).map(([, k]) => k));
 };
 // si una opción de un selector está marcada (k null: «todos», sin filtro)
 export const isPicked = (f, dim, k) => (k == null ? !f[dim]?.size : !!f[dim]?.has(k));

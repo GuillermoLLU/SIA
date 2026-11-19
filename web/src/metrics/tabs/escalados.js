@@ -6,10 +6,11 @@
 // Jira, los malos escalados y la sábana. Pinchar proyectos en la comparativa filtra esta pestaña (no las demás): lo de
 // arriba y lo de abajo. No se compara: se ve el primer lado.
 import { esc } from '../../ui/html.js';
+import { periodLabel } from '../period.js';
 import { num, dur, signedDur } from '../format.js';
 import { MISROUTED, JIRA_DISCARDED, JIRA_MOVED } from '../model.js';
 import { escalationTimes, jiraComparison, variation, tescOf, hoursOf, mttrOf, idmttr, idmttrOf, JIRA_MAX } from '../resolution.js';
-import { SHEET_COLS, sheetBody } from '../sheet.js';
+import { SHEET_COLS, sheetBody, incId, remedyUrl } from '../sheet.js';
 
 // lo que cambia de una vista a otra: el nombre del tiempo total y su explicación
 const TOTAL = { now: ['Antigüedad media', 'De la apertura a la última carga.'], past: ['Tiempo total medio', 'De la apertura a la resolución.'] };
@@ -79,7 +80,7 @@ export const escaladosTab = (t) => {
     const which = now ? 'activas' : 'resueltas';
     if (!options.length) return card('Proyectos Jira frente a la media', `<p class="mt-mut mt-small">Nada escalado a Jira${now ? ' y activo' : ''} con estos filtros.</p>`, { span: 's12' });
     const full = picked.length >= JIRA_MAX;
-    const chooser = `<div class="mt-jc-opts">${options.map((o) => { const on = picked.includes(o.k); return `<button class="mt-jc-opt ${on ? 'mt-on' : ''}" data-jc="${o.k}" aria-pressed="${on}" ${!on && full ? 'disabled' : ''} title="${esc(o.label)}: ${num(o.n)} ${which}">${esc(o.label)} <b>${num(o.n)}</b></button>`; }).join('')}</div>`;
+    const chooser = `<div class="mt-jc-opts">${options.map((o) => { const on = picked.includes(o.k); return `<button class="mt-jc-opt ${on ? 'mt-on' : ''}" data-jc="${o.k}" aria-pressed="${on}" title="${esc(o.label)}: ${num(o.n)} ${which}. Clic: solo este (otra vez, quitarlo). Ctrl+clic: añadirlo${full && !on ? ` (ya hay ${JIRA_MAX}: el máximo)` : ''}.">${esc(o.label)} <b>${num(o.n)}</b></button>`; }).join('')}</div>`;
     const panel = ([key, title, help]) => {
       const bars = [{ label: 'Media global', times: global, global: true }, ...shown];
       const max = Math.max(...bars.map((b) => b.times[key].avg || 0)) || 1, at = (v) => (v / max * 100).toFixed(2);
@@ -97,7 +98,7 @@ export const escaladosTab = (t) => {
     };
     const filtering = picked.length ? `<p class="mt-jc-on">Pestaña filtrada por ${picked.length === 1 ? 'este proyecto' : `estos ${picked.length} proyectos`}: las cifras de arriba, los proyectos, los malos escalados y la sábana. <button class="mt-jc-clear" data-jc-clear>Quitar filtro</button></p>` : '';
     return card('Proyectos Jira frente a la media', `${chooser}${filtering}<div class="mt-jc-panels">${compareOf(now).map(panel).join('')}</div>`, { span: 's12',
-      sub: `Los tiempos medios de todo lo escalado a Jira y ${now ? 'aún activo' : 'resuelto'}. Pincha un proyecto para añadir su barra y filtrar por él el resto de la pestaña, hasta ${JIRA_MAX}; otro clic lo quita. Cada gráfica, a su escala, con el tiempo de las incidencias que tienen ese dato.` });
+      sub: `Los tiempos medios de todo lo escalado a Jira y ${now ? 'aún activo' : 'resuelto'}. Pincha un proyecto para ver su barra y filtrar por él el resto de la pestaña; otro clic lo quita. Con Ctrl+clic, se añaden varios, hasta ${JIRA_MAX}. Cada gráfica, a su escala, con el tiempo de las incidencias que tienen ese dato.` });
   };
 
   // cómo se agrupa la tabla de lo escalado: [dimensión, en el selector, título de la tabla, de qué va, de qué es el total]
@@ -105,7 +106,7 @@ export const escaladosTab = (t) => {
     ['mo', 'Módulo', 'Módulos', 'por el módulo de la incidencia.', ''],
     ['ce', 'Centro', 'Centros', 'por el centro que la abrió.', '']];
   // Activas o Histórico (metrics-view.js, data-esc-mode)
-  const modes = (now) => `<div class="mt-seg mt-seg-sm" role="group" aria-label="Qué escalados">${[['now', 'Activas', 'Lo escalado que sigue abierto, a fecha de la última carga: no depende del periodo.'], ['past', 'Histórico', 'Lo escalado y resuelto en el periodo.']]
+  const modes = (now) => `<div class="mt-seg mt-seg-sm" role="group" aria-label="Qué escalados">${[['now', 'Abiertas ahora', 'Lo escalado que sigue abierto, a fecha de la última carga: no depende de las fechas de arriba.'], ['past', 'Del periodo', `Lo escalado y resuelto en las fechas de arriba: ${periodLabel(m)}.`]]
     .map(([k, l, tip]) => { const on = (k === 'now') === now; return `<button class="mt-seg-b ${on ? 'mt-on' : ''}" data-esc-mode="${k}" aria-pressed="${on}" data-tip="${esc(tip)}">${l}</button>`; }).join('')}</div>`;
 
   // A: lo del periodo (en Activas, solo para el MTTR del IDMTTR: lo de la pestaña es lo abierto, sea cual sea el periodo)
@@ -148,14 +149,35 @@ export const escaladosTab = (t) => {
     // pinchar una fila se vean las demás apagadas
     const by = BY.find(([k]) => k === ui.escBy) || BY[0], [dim] = by;
     const byPick = `<div class="mt-esc-by"><span>Agrupar por</span><div class="mt-seg mt-seg-sm" role="group" aria-label="Agrupar lo escalado por">${BY.map(([k, l]) => `<button class="mt-seg-b ${k === dim ? 'mt-on' : ''}" data-esc-by="${k}" aria-pressed="${k === dim}">${l}</button>`).join('')}</div></div>`;
-    const table = ([d, , title, what1, of], pick = '') => card('', pick + scorecard(d, groups,
+    // en la pestaña, con su título: Desglose de tiempos de escalado (en el informe, las tres, sin él)
+    const table = ([d, , title, what1, of], pick = '') => card(inReport ? '' : 'Desglose de tiempos de escalado', pick + scorecard(d, groups,
       // en el informe, cada tabla con todos sus filtros: solo los equipos de Jira marcados (report.js, PICKS)
       { id: `rs-${d}`, rows: pool(inReport ? undefined : d).filter((i) => keep(i) && inPicked(i) && only(i)), skip: noK, extra: withTimes, refLabel: cmp.picked.length ? 'Lo elegido' : `Todo lo escalado${of}`, title,
         n: now ? ['Activas', `Escaladas activas y su parte del total escalado${of}.`] : ['Resueltas', `Escaladas resueltas y su parte del total escalado${of}.`] }),
       { span: 's12', sub: `Lo escalado y ${what}, ${what1}${inReport ? '' : ' Clic en una fila para filtrar.'}` });
     const top = inReport ? [note, bySit, timesKpis(list, A, base, now, noJira), byNoJira, ...BY.map((b) => table(b))]
-      : [ask('escalados'), modes(now), note, bySit, timesKpis(list, A, base, now, noJira), byNoJira, jiraCompare(cmp, now), table(by, byPick)];
+      : [ask('escalados', false), modes(now), note, bySit, timesKpis(list, A, base, now, noJira), byNoJira, jiraCompare(cmp, now), table(by, byPick)];
+    // Malos escalados, en la pestaña: a la izquierda, cada cambio de equipo (original → final) y cuántas, que filtra toda la
+    // página al pincharlo (los que no cambiaron de equipo: descartados en Jira o aún sin dato, juntos); a la derecha, sus
+    // incidencias (id y resumen), en una lista con scroll
+    // Los cambios de equipo, sin su propio filtro: el elegido se destaca y los demás siguen (apagados). Clic: solo ese;
+    // Ctrl+clic: sumarlo o quitarlo (data-only, como los selectores).
+    const badAll = pool('mb').filter((i) => (!now || OPEN[i]) && m.C.fl[i] & MISROUTED && inPicked(i) && only(i));
+    const badTab = () => {
+      if (!badAll.length) return `<p class="mt-mut mt-small">Ningún mal escalado${now ? ' activo' : ''} con estos filtros.</p>`;
+      // cada cambio de equipo y, de los que no cambiaron, en qué proyecto se descartaron (model.js, DIMS.mb)
+      const groups = new Map(), any = m.anySel('mb');
+      for (const i of badAll) { const k = m.DIMS.mb.get(i); groups.set(k, (groups.get(k) || 0) + 1); }
+      const label = (k) => m.DIMS.mb.label(k);
+      const rows = [...groups].sort((a, b) => b[1] - a[1] || label(a[0]).localeCompare(label(b[0])))
+        .map(([k, n]) => `<tr class="mt-clk ${m.isSel('mb', k) ? 'mt-sel' : any ? 'mt-off' : ''}" data-only="mb:${k}" data-tip="${esc(`${label(k)}
+${num(n)} incidencias. Clic: filtrar toda la página por este. Ctrl+clic: sumarlo o quitarlo.`)}"><td>${esc(label(k))}</td><td class="mt-num">${num(n)}</td></tr>`).join('');
+      const list = bad.map((i) => `<tr><td><a href="${remedyUrl(m.C.id[i])}" target="_blank" rel="noopener">${incId(m.C.id[i])}</a></td><td class="mt-subj" data-tip="${esc(m.C.su[i])}">${esc(m.C.su[i])}</td></tr>`).join('');
+      return `<div class="mt-bad"><div class="mt-bad-list"><table><thead><tr><th>Equipo original → final o dónde se descartó</th><th class="mt-num">Incidencias</th></tr></thead><tbody>${rows}</tbody></table></div>
+        <div class="mt-bad-list"><table><thead><tr><th>Incidencia</th><th>Resumen</th></tr></thead><tbody>${list}</tbody></table></div></div>`;
+    };
     return grid(...top,
+      !inReport ? card('Malos escalados', badTab(), { span: 's12', tip: `${now ? 'Incidencias activas' : 'Incidencias del periodo, abiertas o cerradas,'} con algún ticket que se descartó en Jira o pasó de un equipo a otro: se escaló a quien no era. A la izquierda, cada cambio de equipo; clic para filtrar. A la derecha, sus incidencias.` }) :
       card('Malos escalados', sheetBody(m, bad, { ui, id: 'esc-bad', expanded: ui.exp['esc-bad'], more, empty: `Ningún mal escalado${now ? ' activo' : ''} con estos filtros.`, cols: badCols(base, now), exportable: false }),
         { span: 's12', sub: `${now ? 'Incidencias activas' : 'Incidencias del periodo, abiertas o cerradas,'} con algún ticket que se descartó en Jira o pasó de un equipo a otro: se escaló a quien no era. De la más antigua a la más reciente.` }),
       // la sábana ya no se ve: se exporta desde los tres puntos (Exportar sábana a CSV; ui.escSheet); solo con ui.showSheet (los tests)

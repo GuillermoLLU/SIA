@@ -19,7 +19,7 @@ export const TABS = [['resumen', 'Resumen'], ['hoy', 'Foto de hoy'], ['escalados
   ['entrada', 'Entrantes'], ['tiempos', 'Análisis tiempos'], ['calidad', 'Calidad'], ['ia', 'Uso de la IA'], ['historico', 'Histórico'],
   ['sla', 'SLAs'], ['modulos', 'Módulos y focos'], ['resolucion', 'Resolución'], ['turnos', 'Turnos'],
   // juntas, como en la antigua Métricas del servicio (faces.js: Servicio; tabs.js)
-  ['resesc', 'Resolución y escalados'], ['slaq', 'SLA y calidad'], ['backlog', 'Backlog']];
+  ['slaq', 'SLA y calidad'], ['backlog', 'Backlog']];
 export const QUESTIONS = {
   resumen: ['¿Cómo vamos?', 'De un vistazo: en qué estado está lo abierto ahora y, de lo recibido en el periodo, el MTTR, el %IQA y el uso de la IA. El detalle, en cada pestaña.'],
   hoy: ['¿Cómo está hoy?', 'Cómo está el backlog ahora: en qué estado, desde cuándo, de qué y qué conviene vigilar. Lo recibido en el periodo y cómo ha ido el backlog día a día, en el Histórico.'],
@@ -59,17 +59,27 @@ export const createCommon = (m, ch, ui) => {
   const sideLabel = (k) => (m.perHead() && !S.sides[k].people ? `Media de ${COMPANIES[S.sides[k].company]}` : name(k));
   // si una fila con filtro f está marcada (los filtros dobles «a|b» y las filas sin filtro, no)
   const selRow = (f) => !!f && !f.includes('|') && isSel(f.split(':')[0], +f.split(':')[1]);
+  // Centrarse en una fila sin que desaparezcan las demás (model.js, widen): las dimensiones de unos filtros («dim:k» o
+  // «a:1|b:2»), lo de A con las filas que solo deja fuera el filtro de esas dimensiones y la clase de cada fila: la
+  // elegida, destacada (mt-sel); las demás de esa dimensión, apagadas (mt-off)
+  const dimsOf = (fs) => [...new Set(fs.filter(Boolean).flatMap((f) => f.split('|').map((x) => x.split(':')[0])))];
+  const wide = (A, fs) => m.widen(A, dimsOf(fs));
+  const focusCls = (f) => {
+    if (!f) return '';
+    const keys = f.split('|').map((x) => x.split(':')).filter(([d]) => m.anySel(d));
+    return !keys.length ? '' : keys.every(([d, k]) => isSel(d, +k)) ? 'mt-sel' : 'mt-off';
+  };
   // filas de corte, [nombre, prueba, filtro]: por mes de apertura y por prioridad
   const monthRows = () => monthsIn().map((k) => [`${m.monthName(k)}${k === LASTM ? '*' : ''}`, (i) => MONTH[i] === k, `month:${k}`]);
   const prioRows = () => PRIOS.map((p) => [nice(DI.prio[p]), (i) => C.pr[i] === p, `pr:${p}`]);
   const asRows = (rows) => rows.map(([label, test, f]) => ({ label, test, f }));
   // una fila por mes con sus celdas (cells: de las issues del mes); el nombre del mes en `tag`
   // skipEmpty: sin los meses en que no hay ninguna de A
-  const monthBody = (A, cells, tag = 'td', skipEmpty = false) => monthRows().filter(([, t]) => !skipEmpty || A.some(t)).map(([label, t, f]) => `<tr class="mt-clk ${selRow(f) ? 'mt-sel' : ''}" data-f="${f}"><${tag}${tag === 'th' ? ' class="mt-r"' : ''}>${label}</${tag}>${cells(A.filter(t))}</tr>`).join('');
+  const monthBody = (A0, cells, tag = 'td', skipEmpty = false) => { const A = wide(A0, ['month:0']); return monthRows().filter(([, t]) => !skipEmpty || A.some(t)).map(([label, t, f]) => `<tr class="mt-clk ${focusCls(f)}" data-f="${f}"><${tag}${tag === 'th' ? ' class="mt-r"' : ''}>${label}</${tag}>${cells(A.filter(t))}</tr>`).join(''); };
   // filas de una tabla por lado (pair: lo de cada lado de una lista): una por corte y, al final, el total
-  const sideRows = (A, defs, pair, total) => {
-    const T = bySide(A);
-    return [...defs.filter(([, t]) => A.some(t)).map(([label, t, f]) => ({ label, x: pair(T.map((l) => l.filter(t))), cls: `mt-clk ${selRow(f) ? 'mt-sel' : ''}`, attrs: f ? `data-f="${f}"` : '' })),
+  const sideRows = (A0, defs, pair, total) => {
+    const A = wide(A0, defs.map(([, , f]) => f)), T = bySide(A);
+    return [...defs.filter(([, t]) => A.some(t)).map(([label, t, f]) => ({ label, x: pair(T.map((l) => l.filter(t))), cls: `mt-clk ${focusCls(f)}`, attrs: f ? `data-f="${f}"` : '' })),
       { label: total, x: pair(T), cls: 'mt-tot' }];
   };
   const late = lateOf(m), old = isOld(m), escd = escalatedOf(m), solved = solvedOf(m), resAt = resolvedAt(m), startAt = startedAt(m);
@@ -77,8 +87,13 @@ export const createCommon = (m, ch, ui) => {
   const shareOf = (T, test) => T.map((l) => ({ n: l.length, v: share(l, test) }));
 
   const grid = (...parts) => `<div class="mt-grid">${parts.join('')}</div>`;
-  const ask = (tab) => `<p class="mt-ask"><b>${QUESTIONS[tab][0]}</b><span>${QUESTIONS[tab][1]}</span></p>`;
-  const section = (t, small = '') => `<h2 class="mt-sec">${t}${small ? `<small>${small}</small>` : ''}</h2>`;
+  // text: con la explicación detrás de la pregunta (sin ella, solo la pregunta: Resolución, Escalados)
+  // en la pestaña (ui.subTips), la explicación de la pregunta y la de cada sección, en su tooltip
+  const tipOf = (h) => String(h).replace(/<[^>]+>/g, '');
+  const ask = (tab, text = true) => (ui.subTips ? `<p class="mt-ask"><b${text ? ` data-tip="${esc(tipOf(QUESTIONS[tab][1]))}"` : ''}>${QUESTIONS[tab][0]}</b></p>`
+    : `<p class="mt-ask"><b>${QUESTIONS[tab][0]}</b>${text ? `<span>${QUESTIONS[tab][1]}</span>` : ''}</p>`);
+  const section = (t, small = '') => (ui.subTips && small ? `<h2 class="mt-sec" data-tip="${esc(tipOf(small).replace(/^./, (c) => c.toUpperCase()))}">${t}</h2>`
+    : `<h2 class="mt-sec">${t}${small ? `<small>${small}</small>` : ''}</h2>`);
 
   // Tabla de cortes fijos (prioridad, ámbito, turno, día…): una fila por corte; la diferencia entre los lados o el valor del único que se mira.
   const SLICE = {
@@ -92,17 +107,17 @@ export const createCommon = (m, ch, ui) => {
   const colgroup = (groups) => `<colgroup><col class="mt-first">${groups.map(([, n]) => Array.from({ length: n }, (_, j) => `<col${j ? '' : ' class="mt-gsep"'}>`).join('')).join('')}</colgroup>`;
   // heads: [nombre, nota] de cada columna
   const table = (first, heads, rowsHtml, groups) => `<div class="mt-tablewrap"><table ${groups ? 'class="mt-fixed"' : ''}>${groups ? colgroup(groups) : ''}<thead>${groups ? `<tr class="mt-cgrp"><th></th>${groups.map(([l, n]) => `<th colspan="${n}">${l}</th>`).join('')}</tr>` : ''}<tr><th>${first}</th>${heads.map(([l, tip]) => `<th class="mt-num" ${tip ? `data-tip="${esc(tip)}"` : ''}>${l}</th>`).join('')}</tr></thead><tbody>${rowsHtml}</tbody></table></div>`;
-  const slices = (first, defs, A, cols) => table(first, cols.map((c) => [SLICE[c][0], SLICE[c][4]]), defs.map(([label, test, f]) => {
+  const slices = (first, defs, A0, cols) => { const A = wide(A0, defs.map(([, , f]) => f)); return table(first, cols.map((c) => [SLICE[c][0], SLICE[c][4]]), defs.map(([label, test, f]) => {
     const st = bySide(A.filter(test)).map(stats);
-    return `<tr ${f ? `class="mt-clk" data-f${f.includes('|') ? '2' : ''}="${f}"` : ''}><td>${label}</td>${cols.map((c) => `<td class="mt-num">${cell(st, SLICE[c])}</td>`).join('')}</tr>`;
-  }).join(''));
+    return `<tr ${f ? `class="mt-clk ${focusCls(f)}" data-f${f.includes('|') ? '2' : ''}="${f}"` : ''}><td>${label}</td>${cols.map((c) => `<td class="mt-num">${cell(st, SLICE[c])}</td>`).join('')}</tr>`;
+  }).join('')); };
   const cardsOf = (i) => m.DIMS.tj.get(i);
   const CARD_ROWS = () => CARDS.map((c, k) => [c, (i) => cardsOf(i).includes(k), `tj:${k}`]);
   const days = () => m.periodSlots().reduce((a, b) => a + b, 0) / 3;
 
   // filas de una dimensión: las n con más issues en `list` y, si hay más, «Resto» (así la tabla suma el total)
-  const topRows = (dim, list, n) => {
-    const { get, label } = m.DIMS[dim], g = group(dim, list), top = g.slice(0, n), keys = new Set(top.map((x) => x.k));
+  const topRows = (dim, list0, n) => {
+    const list = m.widen(list0, [dim]), { get, label } = m.DIMS[dim], g = group(dim, list), top = g.slice(0, n), keys = new Set(top.map((x) => x.k));
     const rows = top.map((x) => ({ label: label(x.k), test: (i) => get(i) === x.k, f: `${dim}:${x.k}` }));
     return g.length > n ? [...rows, { label: `Resto (${g.length - n})`, test: (i) => !keys.has(get(i)) }] : rows;
   };
@@ -121,7 +136,7 @@ export const createCommon = (m, ch, ui) => {
   // cells(r), las celdas de una fila; lead, la fila de totales (arriba o, con leadAtEnd, abajo); rowAttrs(r) y
   // labelTip, lo que lleva cada fila además de su filtro.
   const sideTable = ({ cls, cols, blocks, cells, lead, leadAtEnd = false, rowAttrs = (r) => (r.f ? `data-f="${r.f}"` : ''), labelTip = false }) => {
-    const body = blocks.map((b) => b.rows.map((r, j) => `<tr class="${r.f ? 'mt-clk' : ''} ${j ? '' : 'mt-gfirst'} ${selRow(r.f) ? 'mt-sel' : ''}" ${rowAttrs(r)}>
+    const body = blocks.map((b) => b.rows.map((r, j) => `<tr class="${r.f ? 'mt-clk' : ''} ${j ? '' : 'mt-gfirst'} ${focusCls(r.f)}" ${rowAttrs(r)}>
       ${j ? '' : blockHead(b.head, b.note, b.rows.length)}<th class="mt-r"${labelTip ? ` data-tip="${esc(r.label)}"` : ''}>${esc(r.label)}</th>${cells(r)}</tr>`).join('')).join('');
     const head = (k) => `<th colspan="3" class="mt-mix-side ${k ? '' : 'mt-gsep'}"><i class="mt-c${k}"></i>${esc(sideLabel(k))}</th>`;
     const leadRow = `<tr class="mt-lead${leadAtEnd ? ' mt-lead-end' : ''}"><th class="mt-r" colspan="2">${lead.label}${m.perHead() ? ' (por persona)' : ''}</th>${lead.cells}</tr>`;
@@ -133,8 +148,8 @@ export const createCommon = (m, ch, ui) => {
   // cada lado (persona frente a empresa: la media por persona del equipo, model.js heads) y qué parte es de lo suyo,
   // con una barra a la misma escala en los dos. Sin verde ni rojo: recibir una cosa u otra no es mejor ni peor, es el
   // contexto para leer lo demás. rowsDef: los bloques y filas de la tabla dinámica de Qué entra cada mes.
-  const mixCmp = (rowsDef, A, lead = 'Recibidas') => {
-    const T = bySide(A), H = heads();
+  const mixCmp = (rowsDef, A0, lead = 'Recibidas') => {
+    const A = wide(A0, rowsDef.map((r) => r.f)), T = bySide(A), H = heads();
     const cells = (test, label) => [0, 1].map((k) => {
       const c = test ? T[k].filter(test).length : T[k].length, sh = T[k].length ? c / T[k].length : 0, n = c / H[k];
       return `<td class="mt-num ${k ? 'mt-msep' : 'mt-gsep'}">${H[k] > 1 ? dec(n) : num(n)}</td><td class="mt-num mt-mix-p">${pct(sh)}</td>
@@ -163,14 +178,14 @@ export const createCommon = (m, ch, ui) => {
   // Tabla dinámica de calidad: bloques de filas (cada fila, [nombre, prueba, filtro]) por grupos de columnas (cada una,
   // [nombre, valor de stats, formato, mejor, nota, marca de calidad para el clic]), con el total al final. En ocre, lo
   // que va claramente peor que el total, con al menos MIN_ISSUES issues.
-  const qualityPivot = (A, blocks, groups, first = '', st = stats) => {
-    const defs = groups.flatMap(([, d]) => d), firsts = new Set(groups.map(([, d]) => d[0])), tot = st(A);
+  const qualityPivot = (A0, blocks, groups, first = '', st = stats) => {
+    const A = wide(A0, blocks.flatMap(([, , rowsB]) => rowsB.map(([, , f]) => f))), defs = groups.flatMap(([, d]) => d), firsts = new Set(groups.map(([, d]) => d[0])), tot = st(A);
     const worse = (s, d, v) => s.n >= MIN_ISSUES && clearlyWorse(v, d[1](tot), d[3]);
     const cells = (s, f, isTot) => defs.map((d) => {
       const v = d[1](s), bad = !isTot && worse(s, d, v), click = d[5] != null ? (f ? `data-f2="${f}|q:${d[5]}"` : `data-f="q:${d[5]}"`) : '';
       return `<td class="mt-num ${firsts.has(d) ? 'mt-gsep' : ''} ${bad ? 'mt-worse' : ''} ${click ? 'mt-clkc' : ''}" ${click} ${bad ? `data-tip="${esc(`Peor que el total: ${d[2](d[1](tot))}`)}"` : ''}>${v == null ? '—' : d[2](v)}</td>`;
     }).join('');
-    const body = blocks.map(([head, note, rowsB]) => rowsB.filter(([, t]) => A.some(t)).map(([label, t, f], j, arr) => `<tr class="${j ? '' : 'mt-gfirst'} ${selRow(f) ? 'mt-sel' : ''}">
+    const body = blocks.map(([head, note, rowsB]) => rowsB.filter(([, t]) => A.some(t)).map(([label, t, f], j, arr) => `<tr class="${j ? '' : 'mt-gfirst'} ${focusCls(f)}">
       ${j ? '' : blockHead(head, note, arr.length)}<th class="mt-r ${f ? 'mt-clk' : ''}" ${f ? `data-f="${f}"` : ''}>${esc(label)}</th>${cells(st(A.filter(t)), f)}</tr>`).join('')).join('');
     return `<div class="mt-tablewrap"><table class="mt-mx mt-qpivot"><colgroup><col style="width:10%"><col style="width:13%">${'<col>'.repeat(defs.length)}</colgroup><thead>
       <tr class="mt-cgrp"><th colspan="2"></th>${groups.map(([g, d]) => `<th colspan="${d.length}">${g}</th>`).join('')}</tr>
@@ -196,7 +211,7 @@ export const createCommon = (m, ch, ui) => {
   // lo abierto ahora de cada una. Son filtros: salen con los demás y se quitan con ellos.
   const filterPicks = () => `${systemPicker('mt-seg mt-seg-sm')}${prioPicker(m.today(false, 'pr').filter((i) => m.OPEN[i]), 'mt-seg mt-seg-sm')}`;
 
-  return { m, ch, ui, name, noK, prioPicker, filterPicks, noTheme, REQ, slaPct, monthsIn, heads, sideLabel, selRow, monthRows, prioRows, asRows, monthBody, sideRows,
+  return { m, ch, ui, name, wide, focusCls, noK, prioPicker, filterPicks, noTheme, REQ, slaPct, monthsIn, heads, sideLabel, selRow, monthRows, prioRows, asRows, monthBody, sideRows,
     late, old, escd, solved, resAt, startAt, shareOf, grid, ask, section, SLICE, cell, table, slices, cardsOf, CARD_ROWS, days, topRows,
     volume, teamNames, headsNote, sideTable, mixCmp, pairTable, spreadHead, spreadRow, spreadWho, spreadCell, qualityPivot };
 };

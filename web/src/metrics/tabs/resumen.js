@@ -103,7 +103,8 @@ export const resumenTab = (t) => {
       kpiCo('Uso de la IA', of('ia'), opt((v) => pct(v, 1)), o({ better: 'high', note: 'De lo recibido en el mes, lo que tiene alguna marca de IA (en TAGS o en las notas).' })));
     // debajo, lo abierto (lo de la corona) de cada prioridad, en barras horizontales (comparando, una por lado); un clic
     // en una filtra toda la página por esa prioridad
-    const ks = CO(), per = m.PRIOS.map((p) => [m.DIMS.pr.label(p), ks.map((k) => P[k].filter((i) => C.pr[i] === p).length), p]);
+    // con la prioridad elegida, las demás siguen (apagadas): lo de la corona con lo que solo deja fuera ese filtro
+    const ks = CO(), PW = P.map((l) => m.widen(l, ['pr'], { now: true, keep: (i) => OPEN[i] && C.rep[i] < S.d1 })), per = m.PRIOS.map((p) => [m.DIMS.pr.label(p), ks.map((k) => PW[k].filter((i) => C.pr[i] === p).length), p]);
     const max = Math.max(1, ...per.flatMap(([, v]) => v));
     const prio = `<div class="mt-hb mt-lm-prio">${per.map(([label, v, p]) => `<div class="mt-hb-row mt-clk${m.anySel('pr') && !m.isSel('pr', p) ? ' mt-off' : ''}" data-f="pr:${p}" data-tip="${esc(`${label}: ${v.map(num).join(' · ')} abiertas
 Clic para filtrar toda la página por esta prioridad.`)}"><span class="mt-hb-x">${esc(label)}</span>
@@ -189,7 +190,7 @@ Clic para filtrar toda la página por esta prioridad.`)}"><span class="mt-hb-x">
 
   // Junto a la corona, en su propia tarjeta y de lo mismo que ella (P: lo abierto ahora que se abrió hasta el final del
   // periodo): lo que conviene vigilar (tabs/backlog.js, watchBox; un clic filtra), sin las escaladas ni las mal
-  // escaladas (están en Resolución y escalados). Comparando, de cada lado.
+  // escaladas (están en Escalados). Comparando, de cada lado.
   const WATCH_DROP = ['es:1', MISROUTED_FILTER];
   const watchCard = (P) => {
     const ks = CO();

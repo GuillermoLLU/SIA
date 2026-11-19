@@ -232,11 +232,15 @@ test('Módulos con personas: qué toca cada uno, sin las fichas', () => {
   assert.doesNotMatch(html, /Quién lleva cada módulo|no compara empresas/);
 });
 
-test('Resolución no compara empresas; con personas, módulo a módulo y la media frente a sus mismos módulos', () => {
+test('Resolución compara empresas (sin «¿Qué módulos tardan más?»); con personas, módulo a módulo y la media frente a sus mismos módulos', () => {
   const m = createModel(data()), ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
   m.S.sides = [{ company: 0 }, { company: 1 }]; m.refilter();
   let h = tabs.render('resolucion', m.rows());
-  assert.match(h, /no compara empresas/);
+  // Indra frente a T-Systems: los dos lados, sin los módulos ni «por persona»
+  assert.doesNotMatch(h, /no compara empresas|Qué módulos tardan más|Módulo a módulo|por persona/);
+  assert.match(h, /class="mt-kpi mt-kpi-co/);
+  assert.match(h, /<h3[^>]*>Cuánto tardan<\/h3>/);
+  assert.doesNotMatch(h, /undefined|NaN/);
   h = tabs.render('escalados', m.rows());
   assert.match(h, /no compara: se ve solo Indra/);
   assert.match(h, /Malos escalados/);
@@ -272,12 +276,12 @@ test('SLA y calidad: tramos de paso a En curso que caen en los plazos y marcas d
   assert.doesNotMatch(html, /undefined|NaN/);
 });
 
-test('SLA y calidad comparando: entre empresas, por prioridad y con el mismo trabajo, sin turnos; con personas, sin módulos', () => {
+test('SLA y calidad comparando: entre empresas, por prioridad y con el mismo trabajo, sin turnos, tarjetas ni «¿Dónde?»; con personas, sin módulos', () => {
   const m = createModel(data()), ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
   m.S.sides = [{ company: 0 }, { company: 1 }]; m.refilter();
   let h = tabs.render('sla', m.rows());
   assert.match(h, /Dentro del SLA, con el mismo trabajo/);
-  assert.match(h, /Módulo a módulo/);
+  assert.doesNotMatch(h, /Módulo a módulo|¿Dónde\?/);
   assert.doesNotMatch(h, /Por turno y día de entrada|Tarjeta|>Título sin descripción<|undefined|NaN/);   // la columna, no la nota
   m.S.sides = [{ people: new Set([1]) }, { company: 0 }]; m.refilter();   // ANA frente a Indra
   h = tabs.render('sla', m.rows());
@@ -296,7 +300,7 @@ test('IA: uso de cada incidencia por sus marcas (con fallo manda sobre revisada 
   assert.doesNotMatch(html, /undefined|NaN/);
 });
 
-test('IA comparando: entre empresas, en qué trabajo (sin turnos ni tarjetas) y personas según su uso; con personas, módulo a módulo', () => {
+test('IA comparando: entre empresas, en qué trabajo (sin turnos, tarjetas, personas ni nada de módulos); con personas, módulo a módulo', () => {
   const d = data();
   d.cols.fl[0] = 2048 | 4096; d.cols.fl[1] = 2048 | 64;
   const m = createModel(d), ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
@@ -304,8 +308,9 @@ test('IA comparando: entre empresas, en qué trabajo (sin turnos ni tarjetas) y 
   let h = tabs.render('ia', m.rows());
   assert.match(h, /En qué trabajo/);
   for (const block of ['Prioridad', 'Tipo de servicio', 'Escalado']) assert.match(h, new RegExp(`<th class="mt-gl"[^>]*>${block}`));
-  assert.match(h, /Personas según su uso/);
-  assert.doesNotMatch(h, /Turno|Tarjeta|Media con IA|Módulo a módulo|undefined|NaN/);
+  assert.doesNotMatch(h, /Personas según su uso|¿Quién la usa\?/);
+  assert.doesNotMatch(h, /[Mm]ódulo/);   // ni una referencia a los módulos
+  assert.doesNotMatch(h, /Turno|Tarjeta|Media con IA|undefined|NaN/);
   m.S.sides = [{ people: new Set([1]) }, { company: 0 }]; m.refilter();   // ANA frente a Indra
   h = tabs.render('ia', m.rows());
   assert.match(h, /Módulo a módulo/);
@@ -436,4 +441,12 @@ test('Módulos y focos en Equipo: dos mapas de calor de lo resuelto, técnico ×
   // en las demás vistas, Módulos y focos de siempre
   assert.doesNotMatch(tabs.render('modulos', m.rows(), { face: 'tecnicas' }), /Resueltas por técnico/);
   assert.doesNotMatch(html, /undefined|NaN/);
+});
+
+test('Uso de la IA, de un solo lado: en «¿Dónde?», solo los módulos (sin temas) y sin «¿Qué se repite?» ni «¿Quién la usa?»', () => {
+  const m = createModel(data()); m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const ui = { exp: {}, sort: {} }, h = createTabs(m, createCharts(m, ui), ui).render('ia', m.rows());
+  assert.match(h, /class="mt-sc-title">Módulos</);
+  assert.doesNotMatch(h, /class="mt-sc-title">(Temas|Resoluciones)</);
+  assert.doesNotMatch(h, /¿Qué se repite\?|¿Quién la usa\?|class="mt-sc-title">Personas</);
 });

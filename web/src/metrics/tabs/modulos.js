@@ -4,12 +4,13 @@
 // metrics-view.js, data-mod-mode), como en SLAs: Histórico (de partida), lo recibido en el periodo; Actual, lo abierto
 // ahora, se abriera cuando se abriera, con los mismos cuadros. Y a su lado, la criticidad.
 import { esc } from '../../ui/html.js';
+import { periodLabel } from '../period.js';
 import { num, pct } from '../format.js';
 import { OWNERS_SHARE } from '../rules.js';
 import { centreExtra as centreExtraOf, problemExtra as problemExtraOf, owners as ownersOf } from '../focus.js';
 
 export const modulosTab = (t) => {
-  const { m, ch, ui, name, grid, ask, noK, noTheme, topRows, mixCmp, solved } = t;
+  const { m, ch, ui, name, grid, section, noK, noTheme, topRows, mixCmp, solved } = t;
   const { S, PRIOS, CMP, OPEN, isSel } = m;
   const { card, heat, scorecard } = ch;
   // la ficha de los módulos: bloques de columnas (charts.js, scorecard)
@@ -36,19 +37,24 @@ export const modulosTab = (t) => {
   };
 
   // arriba, Actual o Histórico (la prioridad, en la barra de arriba, para todas las pestañas: tabs/common.js)
-  const modes = (now) => `<div class="mt-seg mt-seg-sm" role="group" aria-label="Qué módulos y focos">${[['now', 'Actual', 'Lo que sigue abierto, a fecha de la última carga: no depende del periodo.'], ['past', 'Histórico', 'Lo recibido en el periodo.']]
+  const modes = (now) => `<div class="mt-seg mt-seg-sm" role="group" aria-label="Qué módulos y focos">${[['now', 'Abiertas ahora', 'Lo que sigue abierto, a fecha de la última carga: no depende de las fechas de arriba.'], ['past', 'Del periodo', `Lo recibido en las fechas de arriba: ${periodLabel(m)}.`]]
     .map(([k, l, tip]) => { const a = (k === 'now') === now; return `<button class="mt-seg-b ${a ? 'mt-on' : ''}" data-mod-mode="${k}" aria-pressed="${a}" data-tip="${esc(tip)}">${l}</button>`; }).join('')}</div>`;
   const picks = () => `<div class="mt-hoy-picks">${modes(!!ui.modNow)}</div>`;
   // Módulos y focos de un solo lado; note: un aviso arriba; rowsOf: lo que cuenta (sin el filtro de una dimensión)
   const modulesView = (A, note = '', rowsOf = m.rows) => {
     const team = !S.sides[0].people;
-    return grid(picks(), ask('modulos'), note,
-      card('', scorecard('ce', CE_GROUPS, { id: 'md-ce', rows: rowsOf('ce'), skip: noK, refLabel: 'Todos los centros', extra: centreExtra, title: 'Centros' }), { span: 's12' }),
+    // sin la pregunta de arriba; en secciones: Foco en módulos (Prioridad × Módulo, arriba del todo; los módulos, quién
+    // lleva cada uno y Tema × Módulo), Foco en centros (los centros y Centro × Módulo) y Foco en problemas
+    return grid(picks(), note,
+      section('Foco en módulos'),
+      card('', heat('pr', 'mo', 4, 14, { rows: rowsOf(), skipR: noK, skipC: noK, orderR: PRIOS, title: true }), { span: 's12' }),
       card('', scorecard('mo', MOD_GROUPS, { id: 'md-mo', rows: rowsOf('mo'), skip: noK, refLabel: 'Todos los módulos', title: 'Módulos' }), { span: 's12' }),
       team ? card('Quién lleva cada módulo', owners(A), { span: 's12', sub: `${ui.modNow ? 'De lo abierto ahora' : 'De lo recibido en el periodo'} con responsable: cuántas personas tocan cada módulo, cuántas llevan entre todas el 80 % y quién lleva más. Clic en un módulo o en una persona para filtrar.` }) : '',
-      card('', heat('ce', 'mo', 18, 14, { rows: rowsOf(), skipR: noK, skipC: noK, title: true }), { span: 's12' }),
       card('', heat('tp', 'mo', 16, 14, { rows: rowsOf(), skipR: noTheme, skipC: noK, title: true }), { span: 's12' }),
-      card('', heat('pr', 'mo', 4, 14, { rows: rowsOf(), skipR: noK, skipC: noK, orderR: PRIOS, title: true }), { span: 's12' }),
+      section('Foco en centros'),
+      card('', scorecard('ce', CE_GROUPS, { id: 'md-ce', rows: rowsOf('ce'), skip: noK, refLabel: 'Todos los centros', extra: centreExtra, title: 'Centros' }), { span: 's12' }),
+      card('', heat('ce', 'mo', 18, 14, { rows: rowsOf(), skipR: noK, skipC: noK, title: true }), { span: 's12' }),
+      section('Foco en problemas'),
       card('', scorecard('tp', PB_GROUPS, { id: 'md-pb', rows: rowsOf('tp'), refLabel: 'Todos los problemas', extra: problemExtra, title: 'Problemas', top: 14, child: { dim: 'de', top: 8, noun: 'problemas' } }), { span: 's12' }));
   };
 
@@ -57,16 +63,17 @@ export const modulosTab = (t) => {
   const openNow = (view) => {
     const { d0, d1 } = S;
     m.setPeriod(m.MIN_D, m.END_D); m.refilter();
+    S.wideKeep = (i) => OPEN[i];   // al centrarse en una fila, lo que vuelve también es lo abierto (model.js, widen)
     try {
       const rowsOf = (dim) => m.rows(dim).filter((i) => OPEN[i]);
       return view(rowsOf(), rowsOf);
-    } finally { m.setPeriod(d0, d1); m.refilter(); }
+    } finally { S.wideKeep = null; m.setPeriod(d0, d1); m.refilter(); }
   };
   const render = (A, rowsOf) => {
     if (CMP() && !m.perHead()) return m.alone(() => modulesView(rowsOf(), `<p class="mt-note">Esta pestaña no compara empresas: cada una recibe trabajo distinto. Se ve solo ${esc(name(0))}.</p>`, rowsOf));
     if (CMP()) {
       const rowsDef = [{ head: 'Módulo' }, ...topRows('mo', A, 12), { head: 'Centro' }, ...topRows('ce', A, 8), { head: 'Tema', note: 'El principal del título.' }, ...topRows('tp', A, 8)];
-      return grid(picks(), ask('modulos'), card('Qué toca cada uno', mixCmp(rowsDef, A, 'Incidencias'),
+      return grid(picks(), card('Qué toca cada uno', mixCmp(rowsDef, A, 'Incidencias'),
         { span: 's12', sub: `En qué se ha especializado cada uno: sus incidencias de cada módulo, centro y tema y qué parte son de lo suyo${m.perHead() && S.sides.some((x) => !x.people) ? '; las de la empresa, la media por persona de su equipo' : ''}. Clic en una fila para filtrar.` }));
     }
     return modulesView(A, '', rowsOf);
@@ -78,7 +85,7 @@ export const modulosTab = (t) => {
   const teamView = (A) => {
     const done = A.filter((i) => m.C.as[i] && solved(i));
     const tip = (what) => `De lo resuelto en el periodo, cuántas incidencias de cada ${what} ha resuelto cada técnico (el responsable al resolverla): cuanto más color, más resueltas. Los técnicos y los ${what === 'módulo' ? 'módulos' : 'centros'} con más volumen. Clic en una celda para filtrar.`;
-    return grid(ask('modulos'),
+    return grid(
       card('Resueltas por técnico y módulo', heat('as', 'mo', TEAM_PEOPLE, TEAM_MODULES, { rows: done, skipR: noK, skipC: noK, title: true }), { span: 's12', tip: tip('módulo') }),
       card('Resueltas por técnico y centro', heat('as', 'ce', TEAM_PEOPLE, TEAM_CENTRES, { rows: done, skipR: noK, skipC: noK, title: true }), { span: 's12', tip: tip('centro') }));
   };

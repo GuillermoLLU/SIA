@@ -5,10 +5,11 @@
 //              hecho y si queda bien registrado. Las tablas, como las de Resolución: una fila por corte con su total al
 //              final y, en ocre, lo que va claramente peor que el total (rules.js, con al menos MIN_ISSUES issues).
 import { esc } from '../../ui/html.js';
+import { periodLabel } from '../period.js';
 import { num, dec, pct, dur, nice } from '../format.js';
 import { MIN_ISSUES, BETTER_MIN, clearlyWorse } from '../rules.js';
 import { personVsTeam, expectedSla } from '../peers.js';
-import { startBlocks, slaStats as slaStatsOf, slaPair as slaPairOf, commonModules } from '../sla.js';
+import { startBlocks, slaStats as slaStatsOf, slaPair as slaPairOf } from '../sla.js';
 import { WORSE_NOTE, MONTH_NOTE, opt, P1, optDur } from './common.js';
 import { SHEET_COLS, sheetBody } from '../sheet.js';
 import { afterDash } from './escalados.js';
@@ -39,7 +40,8 @@ export const slaTab = (t) => {
   const INI = m.DIMS.ini.label;
   // el interruptor Dentro ⇄ Fuera (ui.slaOut): los KPIs del SLA dan el % de dentro o el de fuera (el que falta para el
   // 100 %: empezadas tarde o sin empezar pasado el plazo), de las mismas incidencias; las tablas, igual
-  const OUT = () => !!ui.slaOut;
+  // los KPIs de SLA, siempre en «dentro del SLA» (ya sin el selector dentro / fuera)
+  const OUT = () => false;
   const io = (v) => (v == null ? null : OUT() ? 1 - v : v);
   const SLA_L = () => (OUT() ? 'Fuera de SLA' : 'Dentro del SLA');
   const prioL = (p) => `% ${PLURAL[DI.prio[p]] || nice(DI.prio[p])} ${OUT() ? 'fuera de plazo' : 'a tiempo'}`;
@@ -53,8 +55,9 @@ export const slaTab = (t) => {
   // dentro del plazo de esa prioridad, en verde. Clic en una celda filtra esa prioridad y ese tramo. Comparando, una
   // fila por lado (con personas, las issues de la empresa, por persona) y, en verde, quien empieza más a tiempo y antes
   // (con al menos BETTER_MIN issues cada uno).
-  const startTable = (list) => {
-    const cmp = CMP(), GROUPS = [['Pasan a En curso en…', [0, 1, 2, 3, 4, 5, 6]], [cmp ? 'Sin En curso' : 'Sin pasar a En curso', [7, 8]]];
+  // con una prioridad elegida, las demás siguen (apagadas): lo de la tabla con lo que solo deja fuera ese filtro
+  const startTable = (list0) => {
+    const list = m.widen(list0, ['pr']), cmp = CMP(), GROUPS = [['Pasan a En curso en…', [0, 1, 2, 3, 4, 5, 6]], [cmp ? 'Sin En curso' : 'Sin pasar a En curso', [7, 8]]];
     const P = cmp ? bySide(list).slice(0, 2) : [list], H = heads();
     const { blocks, max } = startBlocks(m, list, P);
     const cells = (x, last) => GROUPS.map(([, ks]) => ks.map((k, j) => {
@@ -67,7 +70,7 @@ export const slaTab = (t) => {
     const vol = (x, v) => (H[x.k] > 1 ? dec(v / H[x.k]) : num(v));
     const body = blocks.map((pair, b) => pair.map((x) => {
       const last = b === blocks.length - 1, o = pair[1 - x.k];
-      return `<tr class="${spreadRow(x, last, cmp)}">${spreadHead(x, pair.length, cmp)}<td class="mt-total mt-num">${vol(x, x.n)}</td>
+      return `<tr class="${spreadRow(x, last, cmp)} ${t.focusCls(x.f)}">${spreadHead(x, pair.length, cmp)}<td class="mt-total mt-num">${vol(x, x.n)}</td>
         <td class="mt-total mt-num ${better(x, o, (y) => y.s.sla, (y) => slaPct(y.s)) ? 'mt-better' : ''}"><b>${slaPct(x.s)}</b></td><td class="mt-total mt-num">${vol(x, x.s.slaKo)}</td>
         <td class="mt-total mt-num ${better(x, o, (y) => y.s.ip, (y) => optDur(y.s.ip), true) ? 'mt-better' : ''}">${optDur(x.s.ip)}</td>${cells(x, last)}</tr>`;
     }).join('')).join('');
@@ -103,7 +106,7 @@ export const slaTab = (t) => {
         kpi('Media hasta En curso', dur(s.ip), 'de la apertura al primer paso'), kpiF('Reabiertas', s.n ? P1(s.reop) : '—', 'volvieron de Resuelta a abierta', KF.reop),
         kpiF('Devueltas a cola', s.n ? P1(s.bounce) : '—', s.n ? `${num(Math.round(s.bounce * s.n))} pasaron de En curso a Asignada` : 'pasaron de En curso a Asignada', KF.bounce)),
       section('¿Empezamos a tiempo?'),
-      card('Cuándo pasan a En curso', startTable(rowsOf('ini')), { span: 's12', sub: 'Por prioridad: el SLA de inicio y cómo se reparte (cada fila suma el 100 %) lo que tarda en pasar a En curso; en verde, los tramos dentro del plazo de esa prioridad. Clic en una celda para filtrar.' }),
+      card('Cuándo pasan a En curso', startTable(rowsOf('ini')), { span: 's12', sub: 'Por prioridad: el SLA de inicio y cómo se reparte (cada fila suma el 100 %) lo que tarda en pasar a En curso; en verde, los tramos dentro del plazo de esa prioridad. Clic en el nombre de una fila para filtrar.' }),
       card('Mes a mes', monthPivot(A, SLA_COLS, slaStats), { span: 's12', sub: `${MONTH_NOTE} ${WORSE_NOTE} Clic en un mes para filtrar.` }),
       card('Por turno y día de entrada', qualityPivot(A, [['Turno', 'Por la hora de apertura.', [0, 1, 2].map((k) => [m.DIMS.tu.label(k), (i) => m.DIMS.tu.get(i) === k, `tu:${k}`])],
         ['Días', '', [0, 1].map((k) => [m.DIMS.we.label(k), (i) => m.DIMS.we.get(i) === k, `we:${k}`])]],
@@ -113,8 +116,8 @@ export const slaTab = (t) => {
       section('¿Queda bien hecho y bien registrado?'),
       card('Por prioridad y tarjeta', qualityPivot(A, [['Prioridad', '', prioRows()], ['Tarjeta', 'Una PRIO cuenta también en su SGA o SISU.', CARD_ROWS()],
         ['Escalado', '', [['Sin escalar', (i) => !escd(i), 'es:0'], ['Escaladas', escd, 'es:1']]]], QUALITY_COLS),
-        { span: 's12', sub: `Trabajo: lo que vuelve atrás. Registro: lo que falta o no se movió en Remedy. ${WORSE_NOTE} Clic en una cifra para ver esas incidencias.` }),
-      card('Mes a mes', monthPivot(A, QUALITY_COLS), { span: 's12', sub: `${MONTH_NOTE} ${WORSE_NOTE} Clic en un mes para filtrar.` }),
+        { span: 's12', sub: `Trabajo: lo que vuelve atrás. Registro: lo que falta o no se movió en Remedy. ${WORSE_NOTE} Clic en el nombre de una fila para filtrar.` }),
+      // sin un segundo «Mes a mes» (el de la calidad): el de los SLAs, arriba, basta
       section('¿Dónde?'),
       card('', scorecard('mo', [['Volumen', ['n']], ['Empezar a tiempo', ['sla', 'slaKo', 'ip']], ['Trabajo', ['reop', 'bounce']], ['Registro', ['noIpDone', 'escNoPend', 'noCat', 'noDesc']]],
         { id: 'sq-mo', rows: rowsOf('mo'), skip: noK, refLabel: 'Todos los módulos', title: 'Módulos' }), { span: 's12' }),
@@ -158,19 +161,16 @@ export const slaTab = (t) => {
       ? [...byPrio, sameWork(A), reop, bounce]
       : [fig(SLA_L(), (s) => io(s.sla), (v) => pct(v), OUT() ? 'low' : 'high', OUT() ? 'Empezadas tarde o sin empezar pasado el plazo, de todas las prioridades.' : 'Todas las prioridades.'), ...byPrio, sameWork(A),
         fig('Hasta En curso', (s) => s.ip, dur, 'low', 'Media de la apertura al primer paso a En curso.'), reop, bounce];
-    const common = () => commonModules(m, A, T, BETTER_MIN).map((x) => [m.DIMS.mo.label(x.k), (i) => C.mo[i] === x.k, `mo:${x.k}`]);
     return grid(ask('sla'), note,
       kpis(...kp.filter(Boolean)),
       section('¿Empezamos a tiempo?'),
-      card('Cuándo pasan a En curso', startTable(rowsOf('ini')), { span: 's12', sub: `Por prioridad, una fila por cada uno: el SLA de inicio y cómo se reparte (cada fila suma el 100 %) lo que tarda en pasar a En curso; en verde, los tramos dentro del plazo. ${greenNote}${perNote}${pp ? ' Cuenta a la persona responsable actual de la incidencia.' : ''} Clic en una celda para filtrar.` }),
+      card('Cuándo pasan a En curso', startTable(rowsOf('ini')), { span: 's12', sub: `Por prioridad, una fila por cada uno: el SLA de inicio y cómo se reparte (cada fila suma el 100 %) lo que tarda en pasar a En curso; en verde, los tramos dentro del plazo. ${greenNote}${perNote}${pp ? ' Cuenta a la persona responsable actual de la incidencia.' : ''} Clic en el nombre de una fila para filtrar.` }),
       card('Mes a mes', pairTable('Mes de apertura', [PAIR_VOL, ...PAIR_SLA, ...(pp ? qualityDefs(false).filter((d) => ['Cerradas sin En curso', 'Escaladas sin Pendiente'].includes(d[0])) : [])], pairRows(A, months, 'Total'), BY_N),
         { span: 's12', sub: `${MONTH_NOTE} ${greenNote}${perNote} Clic en un mes para filtrar.` }),
       section('¿Queda bien hecho y bien registrado?'),
       card('Por prioridad', pairTable('Prioridad', qualityDefs(co), pairRows(A, prioRows()), BY_N),
         { span: 's12', sub: `Trabajo: reabiertas y devueltas a cola. Registro: lo que falta o no se movió en Remedy.${co ? ' Sin «Título sin descripción»: se detecta con el diccionario de problemas de Indra, hecho con sus títulos.' : ''} ${greenNote} Clic en una fila para filtrar.` }),
-      co ? section('¿Dónde?') : '',
-      co ? card('Módulo a módulo', pairTable('Módulo', [PAIR_VOL, ...PAIR_SLA, qualityDefs(true)[0], qualityDefs(true)[2]], pairRows(A, common()), BY_N),
-        { span: 's12', sub: `Los 15 módulos con más incidencias de los que tienen al menos ${BETTER_MIN} cada uno. ${greenNote} Clic en un módulo para filtrar.` }) : '',
+      // comparando con T-Systems (co), sin «¿Dónde?» (los módulos): cada empresa recibe trabajo distinto
       sheetCard(A));
   };
 
@@ -194,6 +194,8 @@ export const slaTab = (t) => {
       ['Plazo', (mm, i) => slaLabel(mm.C.pr[i]).split(' · ')[1]], ['Situación', (mm, i) => SITUATION[stateOf(i)]], ['Para el plazo', (mm, i) => sign(i), 'num', (mm, i) => left(i)], shared('Antigüedad')];
     ui.slaSheet = { list, cols };   // lo que exporta el botón (metrics-view.js)
     const whose = CMP() ? ` Comparando, de ${esc(name(CO()[0]))}.` : '';
+    // ya no se ve: se exporta desde los tres puntos (Exportar sábana a CSV); solo con ui.showSheet (los tests)
+    if (!ui.showSheet) return '';
     return card('Lo que más prisa corre', sheetBody(m, list, { ui, id: 'sla-sheet', expanded: ui.exp['sla-sheet'], more: ch.more, empty: 'Nada fuera de SLA ni sin empezar con estos filtros.', cols }),
       { span: 's12', sub: `Lo fuera de SLA y lo que sigue sin empezar: primero lo sin empezar, de lo que menos plazo le queda (o más lleva fuera de él) a lo que más; al final, lo empezado tarde.${whose} Exportar a CSV las descarga todas, con su enlace a Remedy.` });
   };
@@ -203,20 +205,16 @@ export const slaTab = (t) => {
   const openNow = (view, note) => {
     const { d0, d1 } = S;
     m.setPeriod(m.MIN_D, m.END_D); m.refilter();
+    S.wideKeep = (i) => OPEN[i];   // al centrarse en una fila, lo que vuelve también es lo abierto (model.js, widen)
     try {
       const rowsOf = (dim) => m.rows(dim).filter((i) => OPEN[i]);
       return view(rowsOf(), note, rowsOf);
-    } finally { m.setPeriod(d0, d1); m.refilter(); }
+    } finally { S.wideKeep = null; m.setPeriod(d0, d1); m.refilter(); }
   };
 
-  const modes = (now) => `<div class="mt-evo-picks"><div class="mt-seg mt-seg-sm" role="group" aria-label="Qué SLAs">${[['now', 'Actual', 'Lo que sigue abierto, a fecha de la última carga: no depende del periodo.'], ['past', 'Histórico', 'Lo recibido en el periodo.']]
-    .map(([k, l, tip]) => { const a = (k === 'now') === now; return `<button class="mt-seg-b ${a ? 'mt-on' : ''}" data-sla-mode="${k}" aria-pressed="${a}" data-tip="${esc(tip)}">${l}</button>`; }).join('')}</div>${sides()}</div>`;
-  // y a su derecha, el interruptor Dentro ⇄ Fuera de los KPIs (no filtra): clic en un lado, ese; en la palanca, el otro
-  // (metrics-view.js, data-sla-side)
-  const sides = () => {
-    const cur = OUT() ? 'out' : 'in', lab = (k, l) => `<span class="${cur === k ? 'mt-on' : ''}" data-sla-side="${k}">${l}</span>`;
-    return `<div class="mt-slasw mt-${cur}" role="switch" aria-checked="${cur === 'out'}" aria-label="KPIs fuera de SLA" tabindex="0" data-tip="${esc('Los KPIs de SLA: el % empezado dentro de su plazo o el % fuera (empezadas tarde o sin empezar pasado el plazo). No filtra.')}">${lab('in', 'Dentro de SLA')}<i data-sla-side="${cur === 'out' ? 'in' : 'out'}"></i>${lab('out', 'Fuera de SLA')}</div>`;
-  };
+  // como en Escalados: el selector solo, a lo ancho de la rejilla (sin envoltorio, que lo encogía a una columna)
+  const modes = (now) => `<div class="mt-seg mt-seg-sm" role="group" aria-label="Qué SLAs">${[['now', 'Abiertas ahora', 'Lo que sigue abierto, a fecha de la última carga: no depende de las fechas de arriba.'], ['past', 'Del periodo', `Lo recibido en las fechas de arriba: ${periodLabel(m)}.`]]
+    .map(([k, l, tip]) => { const a = (k === 'now') === now; return `<button class="mt-seg-b ${a ? 'mt-on' : ''}" data-sla-mode="${k}" aria-pressed="${a}" data-tip="${esc(tip)}">${l}</button>`; }).join('')}</div>`;
   return (A) => {
     const now = !!ui.slaNow, pick = modes(now), view = CMP() ? slaCmp : slaView;
     return now ? openNow(view, pick) : view(A, pick);

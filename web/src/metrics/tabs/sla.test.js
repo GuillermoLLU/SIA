@@ -22,7 +22,7 @@ test('SLAs, en Histórico (de partida): tras las cifras de arriba, ¿Empezamos a
 
 test('SLAs: Actual y Histórico, con los mismos cuadros; Actual, de lo abierto ahora (sea cual sea el periodo), y su sábana', () => {
   const m = createModel(data()); m.S.sides = [{ company: 0 }, null]; m.refilter();
-  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  const ui = { exp: {}, sort: {}, showSheet: true }, tabs = createTabs(m, createCharts(m, ui), ui);
   const titles = (h) => [...h.matchAll(/<h3>([^<]*)<\/h3>|class="mt-sc-title">([^<]*)</g)].map((x) => x[1] || x[2]);
   const kpi = (h, l) => h.match(new RegExp(`<div class="mt-kpi-l">${l}</div><div class="mt-kpi-v">([^<]*)<`))?.[1];
   const past = tabs.render('sla', m.rows());
@@ -83,28 +83,54 @@ test('SLAs: los KPIs se pinchan para filtrar sus incidencias (y se marcan al fil
   }
 });
 
-test('SLAs: el interruptor Dentro ⇄ Fuera, a la derecha de Actual / Histórico, cambia el % de los KPIs (el real, sin filtrar) y nada más', () => {
-  for (const sides of [[{ company: 0 }, null], [{ people: new Set([1]) }, { company: 0 }]]) {
-    const m = createModel(data()); m.S.sides = sides; m.refilter();
-    const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
-    const top = (h) => h.slice(h.indexOf('mt-kpis'), h.indexOf('<h2 class="mt-sec">')), rest = (h) => h.slice(h.indexOf('<h2 class="mt-sec">'));
-    const val = (h, l) => h.match(new RegExp(`<div class="mt-kpi-l"[^>]*>${l}</div><div class="mt-kpi-v[^"]*">([^<]*)<`))?.[1];
-    const inH = tabs.render('sla', m.rows());
-    assert.ok(inH.indexOf('mt-slasw') > inH.indexOf('data-sla-mode="past"'));
-    assert.match(inH, /<div class="mt-slasw mt-in" role="switch" aria-checked="false"[^>]*>.*?<i data-sla-side="out">/);
-    const rows = m.rows().length;
-    ui.slaOut = true;
-    const outH = tabs.render('sla', m.rows());
-    assert.equal(m.rows().length, rows); assert.deepEqual(Object.keys(m.S.f), []);   // no filtra
-    assert.match(outH, /<div class="mt-slasw mt-out" role="switch" aria-checked="true"[^>]*>.*?<i data-sla-side="in">/);
-    assert.equal(rest(outH), rest(inH).replace('mt-slasw', 'mt-slasw'));   // las tablas, igual
-    assert.ok(top(outH).includes('>% Críticas fuera de plazo<') && !top(outH).includes('a tiempo<'), JSON.stringify(sides));
-    if (!sides[1]) {
-      // Indra: la crítica, a tiempo (100 % dentro, 0 % fuera); todas, el complemento
-      assert.equal(val(inH, '% Críticas a tiempo'), '100 %'); assert.equal(val(outH, '% Críticas fuera de plazo'), '0 %');
-      const d = parseInt(val(inH, 'Dentro del SLA'), 10), f = parseInt(val(outH, 'Fuera de SLA'), 10);
-      assert.equal(d + f, 100);
-    }
-    assert.doesNotMatch(outH, /undefined|NaN/);
+test('SLAs: sin el interruptor Dentro ⇄ Fuera; los KPIs, siempre en «dentro del SLA»', () => {
+  const m = createModel(data()); m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const ui = { exp: {}, sort: {}, slaOut: true }, html = createTabs(m, createCharts(m, ui), ui).render('sla', m.rows());
+  assert.doesNotMatch(html, /mt-slasw|data-sla-side/);
+  assert.match(html, /<div class="mt-kpi-l">Dentro del SLA<\/div>/);
+  assert.doesNotMatch(html, /<div class="mt-kpi-l">Fuera de SLA<\/div>/);
+});
+
+test('SLA y calidad: un solo «Mes a mes» y, sin la sábana a la vista, lo que exporta (los tres puntos)', () => {
+  const m = createModel(data()); m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui), html = tabs.render('slaq', m.rows());
+  assert.equal((html.match(/>Mes a mes<\/h3>/g) || []).length, 1);
+  assert.doesNotMatch(html, /Lo que más prisa corre/);
+  assert.ok(Array.isArray(ui.slaSheet.list) && ui.slaSheet.cols.length);
+});
+
+test('en la vista (live), las explicaciones de cada pestaña, en tooltips; en los informes, a la vista', () => {
+  const m = createModel(data()); m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  for (const tab of ['sla', 'resolucion', 'entrada', 'tiempos', 'cliente', 'turnos']) {
+    const live = tabs.render(tab, m.rows(), { live: true });
+    assert.doesNotMatch(live, /class="mt-sub"|<p class="mt-ask"><b>[^<]*<\/b><span>/, tab);
+    assert.match(live, /<h3 data-tip="[^"]+">|<section class="mt-card[^"]*" data-tip="[^"]+">/, tab);
   }
+  assert.match(tabs.render('sla', m.rows(), { live: true }), /<h3 data-tip="Por prioridad: el SLA de inicio[^"]*">Cuándo pasan a En curso<\/h3>/);
+  assert.match(tabs.render('sla', m.rows()), /<p class="mt-sub">Por prioridad: el SLA de inicio/);   // sin live (informes), debajo
+  assert.equal(ui.subTips, undefined);   // solo mientras se pinta
+});
+
+test('SLA y calidad (en la vista): las tablas solo filtran por su cabecera de fila, no por sus cifras', () => {
+  for (const sides of [[{ company: 0 }, null], [{ company: 0 }, { company: 1 }]]) {
+    const m = createModel(data()); m.S.sides = sides; m.refilter();
+    const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui), html = tabs.render('slaq', m.rows(), { live: true });
+    assert.doesNotMatch(html, /<td(?![^>]*class="[^"]*\bmt-clk\b)[^>]*data-f2?="/);   // ninguna cifra filtra
+    assert.doesNotMatch(html, /<tr[^>]*data-f2?="/);                                  // ni las filas enteras
+    assert.match(html, /<(th|td) class="(mt-r mt-clk|mt-clk[^"]*)"[^>]*data-f="(month|pr):\d+"/);   // sí su nombre
+    assert.match(tabs.render('slaq', m.rows()), /<td[^>]*data-f2?="/);               // en el informe, como siempre
+  }
+});
+
+test('Cuándo pasan a En curso: con una prioridad elegida, las demás siguen (apagadas) y la elegida, destacada', () => {
+  const m = createModel(data()); m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  const rowsOf = (h) => { const a = h.indexOf('>Cuándo pasan a En curso</h3>'), c = h.slice(a, h.indexOf('</section>', a));
+    return [...c.matchAll(/<tr class="([^"]*)"><th class="mt-r[^"]*"[^>]*data-f="pr:(\d+)"/g)].map((x) => [Number(x[2]), x[1].includes('mt-sel') ? 'sel' : x[1].includes('mt-off') ? 'off' : '']); };
+  const before = rowsOf(tabs.render('slaq', m.rows(), { live: true }));
+  assert.ok(before.length > 1 && before.every(([, c]) => c === ''));
+  const pr = before[0][0];
+  m.toggle('pr', pr); m.refilter();
+  assert.deepEqual(rowsOf(tabs.render('slaq', m.rows(), { live: true })), before.map(([p]) => [p, p === pr ? 'sel' : 'off']));
 });

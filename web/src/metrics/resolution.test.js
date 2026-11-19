@@ -73,13 +73,17 @@ test('la variación frente a la media: más tiempo, en rojo y con +; menos, en v
   assert.equal(variation(10, null), null);
 });
 
-test('elegir proyectos: se añaden y se quitan, hasta quedarse sin ninguno, sin pasar del máximo', () => {
-  assert.deepEqual(toggleProject([1, 2], 3), [1, 2, 3]);
-  assert.deepEqual(toggleProject([1, 2], 1), [2]);
-  assert.deepEqual(toggleProject([2], 2), []);
-  assert.deepEqual(toggleProject([], 2), [2]);
+test('elegir proyectos: clic, solo ese (otra vez, quitarlo); con Ctrl, se añaden y se quitan, sin pasar del máximo', () => {
+  assert.deepEqual(toggleProject([1], 3), [3]);              // otro: se cambia a ese
+  assert.deepEqual(toggleProject([3], 3), []);               // el mismo: se quita
+  assert.deepEqual(toggleProject([1, 2], 1), [2]);           // uno de varios: se quita ese
+  assert.deepEqual(toggleProject([1, 2], 3, true), [1, 2, 3]);
+  assert.deepEqual(toggleProject([1, 2], 1, true), [2]);
+  assert.deepEqual(toggleProject([2], 2, true), []);
+  assert.deepEqual(toggleProject([], 2, true), [2]);
   const full = Array.from({ length: JIRA_MAX }, (_, i) => i + 1);
-  assert.deepEqual(toggleProject(full, 99), full);
+  assert.deepEqual(toggleProject(full, 99, true), full);
+  assert.deepEqual(toggleProject(full, 99), [99]);
 });
 
 const model = (d = data(), sides = [{ company: 0 }, { company: 1 }]) => { const m = createModel(d); m.S.sides = sides; m.refilter(); return m; };

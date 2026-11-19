@@ -100,6 +100,11 @@ export const backlogParts = (t, { card: cardOf = null } = {}) => {
     .map(([label, sits, tip]) => ({ label, tip, test: (i) => sits.includes(m.DIMS.sit.get(i)), f: sits.map((k) => `sit:${k}`).join('|') }));
   const single = (now, aside = '', watch = true, { simple = false } = {}) => {
     const A = now, inA = (i) => SIDE[i] < 2;
+    // al centrarse en una fila, lo que vuelve es también lo abierto de ahora (model.js, widen)
+    m.S.wideKeep = (i) => OPEN[i] && inA(i); m.S.wideNow = true;
+    try { return singleOf(A, inA, aside, watch, simple); } finally { m.S.wideKeep = null; m.S.wideNow = false; }
+  };
+  const singleOf = (A, inA, aside, watch, simple) => {
     const op = A.filter((i) => OPEN[i] && inA(i));
     // lo pendiente: su situación y, aparte, lo que hay que vigilar
     // solo las situaciones que hay (una sin ninguna issue no aporta y quita sitio)

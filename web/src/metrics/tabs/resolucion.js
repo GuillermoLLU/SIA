@@ -32,16 +32,17 @@ const RES_MONTH = [
 const durOf = (s) => dur(s.v);
 const RES_VOL = ['Resueltas', (s) => s.vol, (v, s) => (s.H > 1 ? dec(v) : num(v)), null, ''];
 const RES_PAIR = [
-  ['Media', (s) => (s.resolved ? s.avg : null), dur, 'low', 'De la apertura a la resolución.'],
+  ['MTTR', (s) => (s.resolved ? s.avg : null), dur, 'low', 'De la apertura a la resolución, de media.'],
   ['En < 24 h', (s) => (s.resolved ? s.d1 : null), (v) => pct(v), 'high', 'De las resueltas, las resueltas en menos de 24 horas.'],
 ];
 
 export const resolucionTab = (t) => {
-  const { m, ch, ui, name, grid, ask, section, noK, selRow, monthRows, prioRows, monthBody, escd, solved, table, cardsOf, volume, teamNames, headsNote, pairTable, spreadHead, spreadRow, spreadWho, spreadCell } = t;
+  const { m, ch, ui, name, grid, ask, section, noK, wide, focusCls, monthRows, prioRows, monthBody, escd, solved, table, cardsOf, volume, teamNames, headsNote, pairTable, spreadHead, spreadRow, spreadWho, spreadCell } = t;
   const { S, CMP, isSel, stats, bySide } = m;
   const { card, kpi, kpis, kpiCo, scorecard } = ch;
-  const ttrTable = (list) => {
-    const R = list.filter(solved), cmp = CMP(), P = cmp ? bySide(R).slice(0, 2) : [R];
+  // con una fila elegida (escalado o no), las demás siguen (apagadas)
+  const ttrTable = (list0) => {
+    const list = m.widen(list0, ['es', 'pr']), R = list.filter(solved), cmp = CMP(), P = cmp ? bySide(R).slice(0, 2) : [R];
     const { blocks, max } = ttrBlocks(m, list, P);
     const share = (x, v) => v / (x.n || 1), sum = (x, ks) => ks.reduce((a, k) => a + x.c[k], 0);
     const best = (x, o, ks, better) => cmp && bestOf(x, o, ks, better);
@@ -51,11 +52,11 @@ export const resolucionTab = (t) => {
       + `<td class="mt-total mt-ttr-sub ${best(x, o, ks, better) ? 'mt-better' : ''}" data-tip="${esc(`${x.label}${spreadWho(x, cmp)} · ${g.toLowerCase()}\n${num(sum(x, ks))} de ${num(x.n)}`)}">${pct(share(x, sum(x, ks)))}</td>`).join('');
     const body = blocks.map((pair, b) => pair.map((x, k) => {
       const last = b === blocks.length - 1;
-      return `<tr class="${spreadRow(x, last, cmp)}">${spreadHead(x, pair.length, cmp)}<td class="mt-total mt-num">${num(x.n)}</td><td class="mt-total mt-num"><b>${avgOf(x.s)}</b></td>${cellsOf(x, pair[1 - k] || x, last)}</tr>`;
+      return `<tr class="${spreadRow(x, last, cmp)} ${focusCls(x.f)}">${spreadHead(x, pair.length, cmp)}<td class="mt-total mt-num">${num(x.n)}</td><td class="mt-total mt-num"><b>${avgOf(x.s)}</b></td>${cellsOf(x, pair[1 - k] || x, last)}</tr>`;
     }).join('')).join('');
     return `<div class="mt-tablewrap"><table class="mt-hm mt-ttr"><colgroup>${cmp ? '<col style="width:10%"><col style="width:11%">' : '<col style="width:14%">'}<col style="width:7%"><col style="width:8%">${TTR_GROUPS.map(([, ks]) => '<col>'.repeat(ks.length) + '<col class="mt-ttr-subc">').join('')}</colgroup><thead>
       <tr class="mt-cgrp"><th colspan="${cmp ? 4 : 3}"></th>${TTR_GROUPS.map(([g, ks]) => `<th colspan="${ks.length + 1}">${g}</th>`).join('')}</tr>
-      <tr><th colspan="${cmp ? 2 : 1}"></th><th class="mt-num">Resueltas</th><th class="mt-num" data-tip="De la apertura a la resolución.">Media</th>${TTR_GROUPS.map(([, ks]) => ks.map((k, j) => `<th class="${j ? '' : 'mt-gsep'}">${m.DIMS.tb.label(k)}</th>`).join('') + '<th class="mt-ttr-sub">Total</th>').join('')}</tr></thead>
+      <tr><th colspan="${cmp ? 2 : 1}"></th><th class="mt-num">Resueltas</th><th class="mt-num" data-tip="De la apertura a la resolución, de media.">MTTR</th>${TTR_GROUPS.map(([, ks]) => ks.map((k, j) => `<th class="${j ? '' : 'mt-gsep'}">${m.DIMS.tb.label(k)}</th>`).join('') + '<th class="mt-ttr-sub">Total</th>').join('')}</tr></thead>
       <tbody>${body}</tbody></table></div>`;
   };
   const resMonthly = (A) => {
@@ -70,8 +71,9 @@ export const resolucionTab = (t) => {
     return `<div class="mt-res-month">${table('Mes de apertura', defs.map((d) => [d[0], d[5]]), `${body}<tr class="mt-tot"><td>Total</td>${cells(tot, true)}</tr>`, RES_MONTH.map(([g, d]) => [g, d.length]))}</div>`;
   };
   // en qué se va el tiempo: por prioridad, escalada o no y tarjeta, la media y su reparto entre estados
-  const timeTable = (A) => {
-    const R = A.filter(solved);
+  const timeTable = (A0) => {
+    // centrarse en una fila sin que desaparezcan las demás (prioridad, escalado, tarjeta)
+    const A = wide(A0, ['pr:0', 'es:0', 'tj:0']), R = A.filter(solved);
     const blocks = [['Prioridad', '', prioRows()],
       ['Escalado', '', [['Sin escalar', (i) => !escd(i), 'es:0'], ['Escaladas', escd, 'es:1']]],
       ['Tarjeta', 'Una PRIO cuenta también en su SGA o SISU.', CARDS.map((c, k) => [c, (i) => cardsOf(i).includes(k), `tj:${k}`])]];
@@ -80,11 +82,11 @@ export const resolucionTab = (t) => {
       return `<td class="mt-num">${num(s.resolved)}</td><td class="mt-num"><b>${avgOf(s)}</b></td>${STATES.map((_, k) => `<td class="mt-num">${optDur(s.resolved ? s.rt[k] / s.resolved : null)}</td>`).join('')}
         <td class="mt-tbar">${s.resolved ? `<div class="mt-hbar">${s.rt.map((v, k) => `<i class="mt-time${k}" style="width:${(v / tot * 100).toFixed(1)}%" data-tip="${esc(`${STATES[k][0]}: ${pct(v / tot, 1)} del tiempo`)}"></i>`).join('')}</div>` : ''}</td>`;
     };
-    const body = blocks.map(([head, note, rowsB]) => rowsB.filter(([, x]) => R.some(x)).map(([label, x, f], j, arr) => `<tr class="mt-clk ${j ? '' : 'mt-gfirst'} ${selRow(f) ? 'mt-sel' : ''}" data-f="${f}">
+    const body = blocks.map(([head, note, rowsB]) => rowsB.filter(([, x]) => R.some(x)).map(([label, x, f], j, arr) => `<tr class="mt-clk ${j ? '' : 'mt-gfirst'} ${focusCls(f)}" data-f="${f}">
       ${j ? '' : blockHead(head, note, arr.length)}<th class="mt-r">${esc(label)}</th>${cells(R.filter(x))}</tr>`).join('')).join('');
     return `<div class="mt-legend">${STATES.map(([l, x], k) => `<span data-tip="${esc(x)}"><i class="mt-time${k}"></i>${l}</span>`).join('')}</div>
       <div class="mt-tablewrap"><table class="mt-mx mt-restime"><colgroup><col style="width:10%"><col style="width:12%"><col style="width:7%"><col style="width:8%">${'<col style="width:8%">'.repeat(5)}<col></colgroup>
-      <thead><tr><th colspan="2"></th><th class="mt-num">Resueltas</th><th class="mt-num" data-tip="De la apertura a la resolución.">Media</th>${STATES.map(([l, x]) => `<th class="mt-num" data-tip="${esc(`${x} Media por resuelta.`)}">${l}</th>`).join('')}<th>Reparto del tiempo</th></tr></thead>
+      <thead><tr><th colspan="2"></th><th class="mt-num">Resueltas</th><th class="mt-num" data-tip="De la apertura a la resolución, de media.">MTTR</th>${STATES.map(([l, x]) => `<th class="mt-num" data-tip="${esc(`${x} Media por resuelta.`)}">${l}</th>`).join('')}<th>Reparto del tiempo</th></tr></thead>
       <tbody>${body}<tr class="mt-lead mt-lead-end"><th class="mt-r" colspan="2">Todas las resueltas</th>${cells(R)}</tr></tbody></table></div>`;
   };
   // --- Resolución, comparando personas: una persona frente a su equipo (ella incluida: model.js heads) o frente a
@@ -106,8 +108,8 @@ export const resolucionTab = (t) => {
       ['Escaladas', (s) => (s.resolved ? s.vend : null), (v) => pct(v), null, 'De las resueltas, las que han estado en Pendiente de un tercero.']], rows);
   };
   const resMonthlyCmp = (A) => {
-    const T = bySide(A.filter(solved));
-    const rows = monthRows().map(([label, x, f]) => ({ label, x: resPair(T.map((l) => l.filter(x))), cls: `mt-clk ${selRow(f) ? 'mt-sel' : ''}`, attrs: `data-f="${f}"` }));
+    const T = bySide(wide(A, ['month:0']).filter(solved));
+    const rows = monthRows().map(([label, x, f]) => ({ label, x: resPair(T.map((l) => l.filter(x))), cls: `mt-clk ${focusCls(f)}`, attrs: `data-f="${f}"` }));
     rows.push({ label: 'Total', x: resPair(T), cls: 'mt-tot' });
     return pairTable('Mes de apertura', [RES_VOL, ...RES_PAIR,
       ['Más de 168 h', (s) => (s.resolved ? s.w7 : null), (v) => pct(v), 'low', 'De las resueltas, las que tardaron más de 168 h.'],
@@ -127,12 +129,14 @@ export const resolucionTab = (t) => {
       note: `Lo que tardaría ${COMPANIES[S.sides[tm].company]} con los mismos módulos que ${name(p)}: la media del equipo en cada módulo, con el peso que ese módulo tiene en lo suyo.` });
   };
   const resolutionCmp = (A) => {
-    const T = bySide(A), R = T.map((l) => l.filter(solved)), ST = T.map(stats), team = S.sides.some((x) => !x.people), each = team ? ' por persona' : '';
+    const T = bySide(A), R = T.map((l) => l.filter(solved)), ST = T.map(stats), team = m.perHead() && S.sides.some((x) => !x.people), each = team ? ' por persona' : '';
+    // empresa frente a empresa (Indra frente a T-Systems): sin «¿Qué módulos tardan más?» (cada una recibe trabajo distinto)
+    const companies = !m.perHead();
     const part = (f) => ST.map((s) => ({ n: s.resolved, v: s.resolved ? f(s) : null }));
     const wait = ST.map((s) => { const x = s.rt.reduce((a, b) => a + b, 0); return { n: s.resolved, v: x ? s.rt[3] / x : null }; });
     const esc1 = R.map((l) => ({ n: l.length, v: l.length ? l.filter(escd).length / l.length : null }));
     const P = (s) => opt(pct)(s.v), names = teamNames();
-    return grid(ask('resolucion'),
+    return grid(ask('resolucion', false),
       kpis(kpiCo(`Resueltas${each}`, volume(R), team ? (s) => dec(s.v) : (s) => num(s.v), { val: (s) => s.v, note: `de lo recibido en el periodo${team ? headsNote() : ''}`, names }),
         kpiCo('Media de resolución', part((s) => s.avg), durOf, { val: (s) => s.v, better: 'low', note: 'De la apertura a la resolución.' }),
         sameModules(A) || '',
@@ -144,12 +148,12 @@ export const resolucionTab = (t) => {
       section('¿Cuánto tardamos?'),
       card('Cuánto tardan', ttrTable(m.rows('tb')), { span: 's12', sub: 'Lo resuelto de cada uno, sin escalar, escalado y todo, repartido según lo que tardó (cada fila suma el 100 %). En verde, quien resuelve más en menos de 24 h y menos en más de 168 h. Clic en una celda para filtrar.' }),
       card('Mes a mes', resMonthlyCmp(A), { span: 's12', sub: `${MONTH_NOTE} En verde, quien va mejor (con al menos ${BETTER_MIN} resueltas cada uno).${m.perHead() && S.sides.some((x) => !x.people) ? ' Las resueltas de la empresa, la media por persona de su equipo.' : ''} Clic en un mes para filtrar.` }),
-      section('¿Qué módulos tardan más?'),
-      card('Módulo a módulo', resModulesCmp(A), { span: 's12', sub: `Los 15 módulos con más resueltas de ${esc(name(S.sides[0].people || !S.sides[1].people ? 0 : 1))}; cada uno, frente al otro en el mismo módulo. En verde, quien va mejor (con al menos ${BETTER_MIN} resueltas cada uno). Clic en un módulo para filtrar.` }));
+      companies ? '' : section('¿Qué módulos tardan más?'),
+      companies ? '' : card('Módulo a módulo', resModulesCmp(A), { span: 's12', sub: `Los 15 módulos con más resueltas de ${esc(name(S.sides[0].people || !S.sides[1].people ? 0 : 1))}; cada uno, frente al otro en el mismo módulo. En verde, quien va mejor (con al menos ${BETTER_MIN} resueltas cada uno). Clic en un módulo para filtrar.` }));
   };
   const resolutionView = (A, note = '') => {
     const s = stats(A), R = A.filter(solved), rtTot = s.rt.reduce((a, b) => a + b, 0) || 1, on = s.resolved > 0;
-    return grid(ask('resolucion'), note,
+    return grid(ask('resolucion', false), note,
       kpis(kpi('Resueltas', num(s.resolved), `de ${num(s.n)} recibidas`), kpi('Media de resolución', avgOf(s), 'de la apertura a la resolución'),
         kpi('En < 24 h', on ? pct(s.d1) : '—', 'de las resueltas'), kpi('De 24 a 168 h', on ? pct(s.d7) : '—', 'de las resueltas'),
         kpi('De 168 a 360 h', on ? pct(s.d15) : '—', 'de las resueltas'), kpi('La que más tardó', on ? dur(s.mx) : '—', 'la resuelta más lenta'), kpi('Escaladas', on ? pct(R.filter(escd).length / R.length) : '—', 'de las resueltas, en Pendiente de un tercero en algún momento'),
@@ -165,7 +169,7 @@ export const resolucionTab = (t) => {
   };
 
   return (A) => {
-    if (CMP() && !m.perHead()) return m.alone((A1) => resolutionView(A1, `<p class="mt-note">Esta pestaña no compara empresas: cada una recibe trabajo distinto. Se ve solo ${esc(name(0))}.</p>`));
+    // comparando (también Indra frente a T-Systems), los dos lados; entre empresas, sin los módulos
     if (CMP()) return resolutionCmp(A);
     return resolutionView(A);
   };

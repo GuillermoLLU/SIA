@@ -28,10 +28,15 @@ export const createCharts = (m, ui) => {
   // o.tip: la explicación, al pasar el ratón por el título en vez de debajo. o.go: { tab, label, attrs } la tarjeta entera
   // lleva a esa pestaña (metrics-view.js, data-go; attrs, lo demás que se lleva: data-period…); lo de dentro que se
   // pincha (filtros, selectores) sigue haciendo lo suyo.
+  // En la pestaña (ui.subTips; tabs.js, live), la explicación de debajo (o.sub) pasa al tooltip del título (sin título,
+  // al de la tarjeta); en los informes, a la vista.
+  const plain = (h) => String(h).replace(/<[^>]+>/g, '').replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
   const card = (t, body, o = {}) => {
+    if (ui.subTips && o.sub) o = { ...o, tip: [o.tip, plain(o.sub)].filter(Boolean).join('\n'), sub: '' };
     const go = o.go ? ` data-go="${o.go.tab}"${o.go.attrs ? ` ${o.go.attrs}` : ''} role="button" tabindex="0" data-tip="${esc(`Clic para abrir ${o.go.label}.`)}"` : '';
     const head = t ? `<h3${o.tip ? ` data-tip="${esc(o.tip)}"` : ''}>${t}</h3>` : '';
-    return `<section class="mt-card ${o.span ? `mt-${o.span}` : ''} ${t ? '' : 'mt-flush'}${o.go ? ' mt-go-card' : ''}"${go}>${head}${o.sub ? `<p class="mt-sub">${o.sub}</p>` : ''}${body}</section>`;
+    const own = !t && !o.go && o.tip ? ` data-tip="${esc(o.tip)}"` : '';
+    return `<section class="mt-card ${o.span ? `mt-${o.span}` : ''} ${t ? '' : 'mt-flush'}${o.go ? ' mt-go-card' : ''}"${go}${own}>${head}${o.sub ? `<p class="mt-sub">${o.sub}</p>` : ''}${body}</section>`;
   };
   const legend = () => `<div class="mt-legend">${CO().map((k) => `<span><i class="mt-c${k}"></i>${esc(name(k))}</span>`).join('')}</div>`;
   // attrs: atributos de más (p. ej., para pinchar la cifra: con cls mt-clk y un data-…)
@@ -110,7 +115,7 @@ export const createCharts = (m, ui) => {
     n: ['Incidencias', null, (s) => s.n, 'Incidencias recibidas en el periodo y su parte del total.'],
     dl: ['90 días', null, (s) => (s.tr.prev ? (s.tr.now - s.tr.prev) / s.tr.prev : 0), 'Últimos 90 días de la foto frente a los 90 anteriores.'],
     sla: ['En SLA', 'high', (s) => s.sla, 'Empezadas (paso a En curso) dentro del plazo de su prioridad.'],
-    avg: ['Media resol.', 'low', (s) => s.avg, 'Tiempo medio de la apertura a la resolución.'],
+    avg: ['MTTR', 'low', (s) => s.avg, 'Tiempo medio de la apertura a la resolución.'],
     d1: ['En < 24 h', 'high', (s) => s.d1, 'De las resueltas, las resueltas en menos de 24 horas.'],
     reop: ['Reabiertas', 'low', (s) => s.reop, 'Volvieron de Resuelta a abierta.'],
     crit: ['Críticas', null, (s) => s.crit, 'Parte de prioridad crítica.'],
@@ -209,7 +214,7 @@ export const createCharts = (m, ui) => {
 
   // Mapa de calor entre dos dimensiones (los valores más frecuentes de cada una). Clic en una celda = filtrar por ambas.
   const heat = (rd, cd, nr, nc, o = {}) => {
-    const dr = DIMS[rd], dc = DIMS[cd], list = o.rows || rows(), keys = (d, i) => (d.multi ? d.get(i) : [d.get(i)]);
+    const dr = DIMS[rd], dc = DIMS[cd], list = m.widen(o.rows || rows(), [rd, cd]), keys = (d, i) => (d.multi ? d.get(i) : [d.get(i)]);
     const R = group(rd, list).filter((x) => !(o.skipR && o.skipR(x.k))).slice(0, nr), Cc = group(cd, list).filter((x) => !(o.skipC && o.skipC(x.k))).slice(0, nc);
     if (!R.length || !Cc.length) return empty;
     if (o.orderR) R.sort((x, y) => o.orderR.indexOf(x.k) - o.orderR.indexOf(y.k));
@@ -217,22 +222,32 @@ export const createCharts = (m, ui) => {
     const { mt, max } = heatCounts(R, Cc, list, (i) => keys(dr, i), (i) => keys(dc, i), SIDE);
     const cell = (t, r, c) => {
       const v = t[0] + t[1] + t[2], a = shadeSoft(v, max);
-      return `<td class="${a > HOT ? 'mt-hot' : ''}" style="--mt-a:${a}%" data-f2="${rd}:${R[r].k}|${cd}:${Cc[c].k}" data-tip="${esc(`${dr.label(R[r].k)} × ${dc.label(Cc[c].k)}\n${num(v)} incidencias\n${CO().map((k) => `${name(k)}: ${num(t[k])}`).join(' · ')}`)}">${v || ''}</td>`;
+      return `<td class="${a > HOT ? 'mt-hot' : ''} ${focusCls(`${rd}:${R[r].k}|${cd}:${Cc[c].k}`)}" style="--mt-a:${a}%" data-f2="${rd}:${R[r].k}|${cd}:${Cc[c].k}" data-tip="${esc(`${dr.label(R[r].k)} × ${dc.label(Cc[c].k)}\n${num(v)} incidencias\n${CO().map((k) => `${name(k)}: ${num(t[k])}`).join(' · ')}`)}">${v || ''}</td>`;
     };
     // cabeceras en horizontal; si son muchas (módulos, centros…), columnas iguales y el nombre cortado con «…» (entero al pasar el ratón)
     const v = 'mt-h', wide = Cc.length > 6;
     const cg = wide ? `<colgroup><col style="width:22%">${'<col>'.repeat(Cc.length)}<col style="width:6%"></colgroup>` : '';
     // o.title: el título, dentro de la tabla, en la esquina de la fila de cabecera («Centro × Módulo»)
     const corner = o.title ? `<th class="mt-hm-title">${esc(DIMS[rd].name.split(' ')[0])}<i>×</i>${esc(dc.name.split(' ')[0])}</th>` : '<th></th>';
-    return `<div class="mt-tablewrap"><table class="mt-hm ${wide ? 'mt-hwide' : ''} ${o.title ? 'mt-hm-titled' : ''}">${cg}<thead><tr>${corner}${Cc.map((c) => `<th class="${v}" data-tip="${esc(dc.label(c.k))}">${esc(dc.label(c.k))}</th>`).join('')}<th class="${v}">Total</th></tr></thead><tbody>
-      ${R.map((r, i) => `<tr><th class="mt-r" title="${esc(dr.label(r.k))}">${esc(dr.label(r.k))}</th>${mt[i].map((t, j) => cell(t, i, j)).join('')}<td class="mt-mut mt-total">${num(r.n)}</td></tr>`).join('')}</tbody></table></div>`;
+    return `<div class="mt-tablewrap"><table class="mt-hm ${wide ? 'mt-hwide' : ''} ${o.title ? 'mt-hm-titled' : ''}">${cg}<thead><tr>${corner}${Cc.map((c) => `<th class="${v} mt-clk ${focusCls(`${cd}:${c.k}`)}" data-f="${cd}:${c.k}" data-tip="${esc(`${dc.label(c.k)}
+Clic para filtrar.`)}">${esc(dc.label(c.k))}</th>`).join('')}<th class="${v}">Total</th></tr></thead><tbody>
+      ${R.map((r, i) => `<tr><th class="mt-r mt-clk ${focusCls(`${rd}:${r.k}`)}" data-f="${rd}:${r.k}" title="${esc(dr.label(r.k))}">${esc(dr.label(r.k))}</th>${mt[i].map((t, j) => cell(t, i, j)).join('')}<td class="mt-mut mt-total">${num(r.n)}</td></tr>`).join('')}</tbody></table></div>`;
   };
 
   // Tabla de recuentos para cuadrar cuentas: filas y columnas son condiciones ({ label, test, f }); una
   // fila { head } abre un grupo. Cada celda, cuántas de `list` cumplen las dos; el color, dentro de su
   // grupo. o.total: columna Total; o.share: columna % (de o.of, por defecto todo `list`); o.foot: fila
   // { label, test } de totales. Clic en una celda o fila con `f` = filtrar.
-  const matrix = (rowsDef, cols, list, o = {}) => {
+  // centrarse sin que desaparezca lo demás (model.js, widen): las dimensiones de los filtros de filas y columnas
+  const dimsOf = (fs) => [...new Set(fs.filter(Boolean).flatMap((f) => f.split('|').map((x) => x.split(':')[0])))];
+  const focusCls = (f) => {
+    if (!f) return '';
+    // solo cuentan las dimensiones con filtro: una celda de la fila elegida, aunque su columna no lo esté, va destacada
+    const keys = f.split('|').map((x) => x.split(':')).filter(([d]) => anySel(d));
+    return !keys.length ? '' : keys.every(([d, k]) => isSel(d, +k)) ? 'mt-sel' : 'mt-off';
+  };
+  const matrix = (rowsDef, cols, list0, o = {}) => {
+    const list = m.widen(list0, dimsOf([...rowsDef.map((r) => r.f), ...cols.map((c) => c.f)]));
     const R = rowsDef.filter((r) => !r.head), ri = new Map(R.map((r, j) => [r, j]));
     const all = o.foot ? [...R, o.foot] : R, { cnt, rt } = matrixCounts(all, cols, list, SIDE);
     const tot = (t) => t[0] + t[1] + t[2], of = o.of ?? list.length;
@@ -257,7 +272,7 @@ ${num(tot(t))} issues; MTTR: lo que llevan abiertas, de media` : tip(r.label || 
     const row = (r, b, first) => {
       const j = ri.get(r), lab = `<th class="mt-r" ${r.tip ? `data-tip="${esc(r.tip)}"` : `title="${esc(r.label)}"`} ${filt(r)}>${esc(r.label)}</th>`;
       const gl = !grouped ? lab : !b.head ? lab.replace('<th ', `<th ${span} `) : (first ? blockHead(b.head, b.note, b.rows.length) : '') + lab;
-      return `<tr class="${first ? 'mt-gfirst' : ''}">${gl}${cols.map((c, k) => cell(r, j, c, k)).join('')}${tail(rt[j], r)}</tr>`;
+      return `<tr class="${first ? 'mt-gfirst' : ''} ${focusCls(r.f)}">${gl}${cols.map((c, k) => cell(r, j, c, k)).join('')}${tail(rt[j], r)}</tr>`;
     };
     const fj = all.length - 1;
     // el total: arriba (footTop) encabeza la tabla y lo de debajo es su desglose; abajo, la cierra
@@ -287,7 +302,8 @@ ${num(tot(t))} issues; MTTR: lo que llevan abiertas, de media` : tip(r.label || 
   const split = (names, list) => `<div class="mt-legend">${names.map((n, j) => `<span><i class="mt-part${j}"></i>${n}</span>`).join('')}</div>`
     + list.map((r) => {
       const t = r.v.reduce((a, b) => a + b, 0);
-      return `<div class="mt-split"><span class="mt-split-l">${r.k != null && CMP() ? `<i class="mt-sw mt-c${r.k}"></i>` : ''}${esc(r.label)}</span><span class="mt-hbar mt-split-b">${t ? r.v.map((v, j) => `<i class="mt-part${j}" style="width:${v / t * 100}%" data-tip="${esc(`${r.label}${r.k != null && CMP() ? ` · ${name(r.k)}` : ''}\n${names[j]}: ${num(v)} (${pct(v / t)})`)}">${v / t >= 0.08 ? pct(v / t) : ''}</i>`).join('') : ''}</span><span class="mt-split-n">${num(t)}</span></div>`;
+      // r.f: clic para filtrar (como los demás filtros: la elegida, destacada; las demás, apagadas)
+      return `<div class="mt-split${r.f ? ` mt-clk ${focusCls(r.f)}` : ''}"${r.f ? ` data-f="${r.f}"` : ''}><span class="mt-split-l">${r.k != null && CMP() ? `<i class="mt-sw mt-c${r.k}"></i>` : ''}${esc(r.label)}</span><span class="mt-hbar mt-split-b">${t ? r.v.map((v, j) => `<i class="mt-part${j}" style="width:${v / t * 100}%" data-tip="${esc(`${r.label}${r.k != null && CMP() ? ` · ${name(r.k)}` : ''}\n${names[j]}: ${num(v)} (${pct(v / t)})`)}">${v / t >= 0.08 ? pct(v / t) : ''}</i>`).join('') : ''}</span><span class="mt-split-n">${num(t)}</span></div>`;
     }).join('');
 
   // Corona circular: partes de un todo (parts: [{ label, v, cls, f?, tip? }], en el orden en que se leen, desde arriba y
@@ -297,7 +313,7 @@ ${num(tot(t))} issues; MTTR: lo que llevan abiertas, de media` : tip(r.label || 
     const total = parts.reduce((a, p) => a + p.v, 0), on = parts.filter((p) => p.v > 0), GAP = on.length > 1 ? 0.8 : 0;
     let at = 0;
     const arcs = on.map((p) => {
-      const len = (p.v / total) * 100, arc = `<circle class="mt-dn-${p.cls}${p.f ? ' mt-clk' : ''}" cx="60" cy="60" r="46" pathLength="100" stroke-dasharray="${Math.max(len - GAP, 0.01).toFixed(2)} ${(100 - len + GAP).toFixed(2)}" stroke-dashoffset="${(-at).toFixed(2)}" ${p.f ? `data-f${p.f.includes('|') ? '2' : ''}="${p.f}"` : ''} data-tip="${esc(`${p.label}: ${num(p.v)} (${pct(p.v / total, 1)})${p.tip ? `\n${p.tip}` : ''}`)}"/>`;
+      const len = (p.v / total) * 100, arc = `<circle class="mt-dn-${p.cls}${p.f ? ` mt-clk ${focusCls(p.f)}` : ''}" cx="60" cy="60" r="46" pathLength="100" stroke-dasharray="${Math.max(len - GAP, 0.01).toFixed(2)} ${(100 - len + GAP).toFixed(2)}" stroke-dashoffset="${(-at).toFixed(2)}" ${p.f ? `data-f${p.f.includes('|') ? '2' : ''}="${p.f}"` : ''} data-tip="${esc(`${p.label}: ${num(p.v)} (${pct(p.v / total, 1)})${p.tip ? `\n${p.tip}` : ''}`)}"/>`;
       at += len;
       return arc;
     }).join('');
