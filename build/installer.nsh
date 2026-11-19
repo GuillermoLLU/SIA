@@ -372,11 +372,17 @@ Function SiaFinish
   StrCpy $0 ""
   StrCpy $2 "0"
   ${If} $SiaState != "ok"
+    ; si Copilot CLI tampoco se ha podido descargar, también la conexión
+    StrCpy $4 ""
+    ${If} $SiaFirst == "1"
+    ${AndIf} $3 == "descarga"
+      StrCpy $4 ", revisa la conexión"
+    ${EndIf}
     ${If} "${SIA_CERTS_URL}" != ""
-      StrCpy $0 "Instálalos con la guía y pulsa «Volver a comprobar»."
+      StrCpy $0 "Instálalos con la guía$4 y pulsa «Volver a comprobar»."
       StrCpy $2 "1"
     ${Else}
-      StrCpy $0 "Pide a soporte la guía, instálalos y pulsa «Volver a comprobar»."
+      StrCpy $0 "Pide a soporte la guía, instálalos$4 y pulsa «Volver a comprobar»."
     ${EndIf}
   ${ElseIf} $SiaFirst == "1"
   ${AndIf} $SiaCopilot != "ok"
