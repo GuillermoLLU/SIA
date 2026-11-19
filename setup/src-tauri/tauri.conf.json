@@ -4,11 +4,12 @@
   "version": "0.1.0",
   "identifier": "com.itx.sia.setup",
   "build": {
-    "frontendDist": "../maqueta"
+    "frontendDist": "../ui"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
-      { "title": "SIA", "width": 900, "height": 700, "resizable": false, "center": true }
+      { "label": "main", "title": "SIA", "width": 760, "height": 500, "resizable": false, "maximizable": false, "decorations": false, "center": true }
     ],
     "security": { "csp": null }
   },
