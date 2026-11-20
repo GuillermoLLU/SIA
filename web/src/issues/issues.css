@@ -494,6 +494,44 @@
 .tr-seg i { display: inline-flex; width: 16px; height: 16px; }
 .tr-seg svg { width: 100%; height: 100%; }
 .iss-act-form [data-transfer-pane][hidden] { display: none; }
+/* Dividir la issue (split.js): a pantalla completa, como el detalle de un ticket de Escalar. Arriba,
+   Cancelar, el título centrado y «Mismos datos…»; la original a la izquierda y la nueva a la derecha,
+   con sus datos iguales y lo que dice el centro ocupando el resto del alto; abajo, «Actualizar y generar». */
+.iss-act-form.sp { width: calc(100vw - 32px); height: calc(100vh - 32px); gap: 0; padding: 0; }
+.iss-act-form.sp > header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; padding: 14px 22px; border-bottom: 1px solid var(--border); }
+.iss-act-form.sp > header > .lab-btn { justify-self: start; }
+.iss-act-form.sp > header > span { justify-self: end; margin: 0; }
+.sp-cols { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; }
+.sp-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0; padding: 18px 22px; }
+.sp-col.new { border-left: 1px solid var(--border); background: color-mix(in srgb, var(--bg) 35%, var(--surface)); }
+.sp-col h4 { display: flex; align-items: baseline; gap: 8px; margin: 0; font-size: 12px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }
+.sp-col h4 small { margin-left: auto; font-family: var(--font-mono); font-size: 11.5px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--text-low); }
+.sp-ttl { width: 100%; padding: 8px 10px; font: inherit; font-size: 13px; font-weight: 600; color: var(--text); background: var(--surface); border: 1px solid var(--border); outline: none; }
+.sp-ttl:focus, .sp-desc:focus { border-color: var(--accent); }
+.sp-facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 0; }
+.sp-facts > div { min-width: 0; padding: 6px 9px; background: var(--surface); border: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
+.sp-facts .wide { grid-column: span 3; }
+.sp-facts dt { font-size: 10.5px; color: var(--text-low); }
+.sp-facts dd { margin: 1px 0 0; font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sp-facts .k-sev.CRITICAL dd { color: var(--iss-crit); }
+.sp-facts .k-sev.HIGH dd { color: var(--iss-high); }
+.sp-facts .k-origin dd { color: var(--accent); }
+.sp-facts .k-origin.sisu dd { color: var(--iss-sisu); }
+.sp-lbl { font-size: 12px; font-weight: 600; }
+.sp-desc-box { position: relative; flex: 1; min-height: 160px; display: flex; }
+.sp-desc { flex: 1; width: 100%; padding: 10px 12px; font: inherit; font-size: 13px; line-height: 1.55; color: var(--text); background: var(--surface); border: 1px solid var(--border); outline: none; resize: none; }
+/* la nueva, vacía: el borde a trazos y, en el centro, qué va ahí (desaparece al escribir o pegar) */
+.sp-col.new .sp-desc:placeholder-shown { border-style: dashed; }
+.sp-empty { position: absolute; inset: 0; display: grid; place-content: center; gap: 4px; margin: 0; padding: 20px; font-size: 12.5px; text-align: center; color: var(--text-low); pointer-events: none; }
+.sp-empty b { font-size: 13px; color: var(--text); }
+.sp-desc:not(:placeholder-shown) + .sp-empty { display: none; }
+.iss-act-form.sp > footer { align-items: center; padding: 12px 22px; border-top: 1px solid var(--border); }
+.sp-hint { margin-right: auto; font-size: 12px; color: var(--text-low); }
+@media (max-width: 860px) {
+  .sp-cols { grid-template-columns: 1fr; overflow-y: auto; }
+  .sp-col.new { border-left: 0; border-top: 1px solid var(--border); }
+  .sp-desc-box { min-height: 220px; }
+}
 /* Resolver: cinco pasos, uno a la vista. El modal tiene siempre el mismo tamaño y no se
    desplaza: lo que no cabe se desplaza dentro de su campo (o del borrador). */
 .rv { width: min(1120px, 100vw - 32px); height: min(800px, 100vh - 32px); gap: 0; padding: 0; }

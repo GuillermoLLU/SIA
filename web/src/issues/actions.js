@@ -45,6 +45,11 @@ export const ACTIONS = {
   warroom: {
     label: 'Abrir WAR-ROOM',
   },
+  // la ventana es propia (split.js): una issue que trae dos problemas, en dos; la nueva, con sus mismos
+  // datos y lo del segundo problema
+  split: {
+    label: 'Dividir la issue',
+  },
   // la ventana es propia (transfer.js): a un compañero o a otro equipo, con su motivo
   transfer: {
     label: 'Traspasar',
@@ -84,12 +89,14 @@ export const CENTRE_ACTIONS = ['call', 'contact'];
 
 // Qué se puede hacer con una issue: pendiente de un tercero, reclamarle respuesta; si no, resolverla,
 // escalarla, hablar con el centro y, solo si es crítica, abrir un WAR-ROOM (en una alta o menos no
-// aplica nunca). Traspasarla o devolverla a la cola, solo si es de uno (cogida en SIA): la base no
+// aplica nunca). Dividirla en dos (si trae dos problemas), solo si es de uno y no espera a un tercero.
+// Traspasarla o devolverla a la cola, solo si es de uno (cogida en SIA): la base no
 // mueve una issue que no tienes. Traspasar no mira el tope de en curso. Una escalada que no es mía se
 // reasigna (también a mí, p. ej., la de un compañero de vacaciones).
 export const actionsFor = (issue, mine) => [
   ...(issue.status === 'PENDING' ? ['chase', ...(mine ? [] : ['reassign'])] : ['resolve', 'escalate', ...CENTRE_ACTIONS]),
   ...(issue.status !== 'PENDING' && issue.priority === 'CRITICAL' ? ['warroom'] : []),
+  ...(mine && issue.status !== 'PENDING' ? ['split'] : []),
   ...(mine ? ['transfer'] : []),
   ...(mine && issue.status !== 'PENDING' ? ['release'] : []),
 ];
