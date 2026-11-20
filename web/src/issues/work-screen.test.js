@@ -83,7 +83,8 @@ test('la cabecera de la issue: volver al panel, el título en una línea con su 
   assert.match(html, /data-more aria-expanded="false" aria-controls="iss-more-menu">Otras acciones<svg/);
   const menu = html.match(/<div class="iss-more-menu" id="iss-more-menu" hidden>([\s\S]*?)<\/div><\/div>/)[1];
   assert.deepEqual([...menu.matchAll(/<b>([^<]+)<\/b>/g)].map((m) => m[1]), ['Llamada', 'Contactar con el centro', 'Abrir WAR-ROOM', 'Dividir la issue', 'Traspasar', 'Devolver a la cola'], 'el resto, en «Otras acciones»');
-  assert.match(menu, /Escribirle tus dudas como nota pública<\/small><\/button><hr><button type="button" data-act="warroom">[\s\S]*<b>Abrir WAR-ROOM<\/b><\/button><hr><button type="button" data-act="split">[\s\S]*<b>Dividir la issue<\/b><small>Si trae dos problemas: el segundo, a otra issue<\/small><\/button><hr><button type="button" data-act="transfer">/, 'hablar con el centro, el WAR-ROOM, dividirla y soltarla, separados por una línea');
+  assert.match(menu, /<b>Contactar con el centro<\/b><\/button><hr><button type="button" data-act="warroom">[\s\S]*<b>Abrir WAR-ROOM<\/b><\/button><hr><button type="button" data-act="split">[\s\S]*<b>Dividir la issue<\/b><\/button><hr><button type="button" data-act="transfer">/, 'hablar con el centro, el WAR-ROOM, dividirla y soltarla, separados por una línea');
+  assert.doesNotMatch(menu, /<small>/, 'solo el nombre de cada una, sin más texto');
   assert.match(menu, /data-release>/);
   assert.doesNotMatch(html, /Mi mesa|iss-state/);
   const notMine = workScreen({ issue: issue({ priority: 'CRITICAL' }), sameCenter: [], now, mine: false });
@@ -91,7 +92,7 @@ test('la cabecera de la issue: volver al panel, el título en una línea con su 
   assert.match(notMine, /data-act="call">[\s\S]*data-act="contact">[\s\S]*<\/button><hr><button type="button" data-act="warroom">[\s\S]*<\/button><\/div><\/div>/, 'sin la línea de soltarla');
   const high = workScreen({ issue: issue({ priority: 'HIGH' }), sameCenter: [], now, mine: true });
   assert.doesNotMatch(high, /data-act="warroom"/, 'una alta, sin WAR-ROOM');
-  assert.match(high, /Escribirle tus dudas como nota pública<\/small><\/button><hr><button type="button" data-act="split">[\s\S]*<\/button><hr><button type="button" data-act="transfer">/, 'y sin su grupo: del centro a dividirla y soltarla');
+  assert.match(high, /<b>Contactar con el centro<\/b><\/button><hr><button type="button" data-act="split">[\s\S]*<\/button><hr><button type="button" data-act="transfer">/, 'y sin su grupo: del centro a dividirla y soltarla');
 });
 
 test('una issue pendiente de un tercero: en lugar del chat, reclamarle y traspasar, grandes', () => {
