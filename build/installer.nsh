@@ -94,6 +94,20 @@ Var SiaOldDir
     StrCpy $R8 `$R8 "$SiaOldDir.sia-old-*"`
   ${EndIf}
   ExecShell "" "$SYSDIR\cmd.exe" `/c for /d %d in ($R8) do rmdir /s /q "%d"` SW_HIDE
+  ; El desinstalador con la ventana de SIA (setup/src-tauri/src/desinstalador.rs), que npm run
+  ; dist:win genera antes: Windows lo abre desde «Aplicaciones instaladas» y él usa por debajo el
+  ; de siempre. En silencio (/S), al actualizar, pasa la orden tal cual al de siempre.
+  ; QuietUninstallString sigue siendo el de siempre. Sin él no se genera el instalador.
+  !if /FileExists "${BUILD_RESOURCES_DIR}\Desinstalar SIA.exe"
+    File "/oname=$INSTDIR\Desinstalar SIA.exe" "${BUILD_RESOURCES_DIR}\Desinstalar SIA.exe"
+    ${If} $installMode == "all"
+      WriteRegStr SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY}" UninstallString '"$INSTDIR\Desinstalar SIA.exe" /allusers'
+    ${Else}
+      WriteRegStr SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY}" UninstallString '"$INSTDIR\Desinstalar SIA.exe" /currentuser'
+    ${EndIf}
+  !else
+    !error "Falta build\Desinstalar SIA.exe: lo genera npm run dist:win (setup/scripts/desinstalador.mjs)"
+  !endif
 !macroend
 
 ; La bienvenida, con lo mínimo: el texto de serie habla de «computadora» y pide
@@ -465,7 +479,7 @@ Function SiaFinish
     ${ElseIf} $SiaCopilot == "unknown"
       StrCpy $0 "Pulsa «Volver a comprobar» o sigue sin él."
     ${ElseIf} $SiaCopilotCode != ""
-      StrCpy $0 "Pulsa «Volver a comprobar». Si sigue, pide ayuda a soporte (código $SiaCopilotCode)."
+      StrCpy $0 "Vuelve a comprobar o pide ayuda a soporte (código $SiaCopilotCode)."
     ${Else}
       StrCpy $0 "Pulsa «Volver a comprobar» y, si sigue, pide ayuda a soporte."
     ${EndIf}
@@ -664,5 +678,34 @@ Function SiaChecksLeave
     MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "$0" IDOK +2
     Abort
   ${EndIf}
+FunctionEnd
+!endif
+
+; El desinstalador, con el aspecto de SIA Setup en lo que deja el asistente de
+; Windows: el lateral blanco con su nombre (build/sidebar.bmp, en package.json),
+; textos mínimos y «Desinstalar» en lugar de «Siguiente». Desinstala igual que
+; siempre, y SIA lo cierra el propio desinstalador.
+!macro customUnWelcomePage
+  !define MUI_WELCOMEPAGE_TITLE "Desinstalar SIA"
+  !define MUI_WELCOMEPAGE_TEXT "Se quitará SIA de este equipo. Tu configuración y tus datos se conservan.$\r$\n$\r$\nSi SIA está abierto, se cerrará."
+  !define MUI_PAGE_CUSTOMFUNCTION_SHOW un.SiaUnWelcomeShow
+  !insertmacro MUI_UNPAGE_WELCOME
+  ; la cabecera de la página siguiente, la del progreso
+  !define MUI_PAGE_HEADER_TEXT "Desinstalando SIA"
+  !define MUI_PAGE_HEADER_SUBTEXT " "
+  !define MUI_INSTFILESPAGE_FINISHHEADER_TEXT "SIA desinstalado"
+  !define MUI_INSTFILESPAGE_FINISHHEADER_SUBTEXT " "
+!macroend
+
+; El final: va justo antes de su página
+!macro customUninstallPage
+  !define MUI_FINISHPAGE_TITLE "SIA desinstalado"
+  !define MUI_FINISHPAGE_TEXT "Puedes volver a instalarlo cuando quieras con su instalador."
+!macroend
+
+!ifdef BUILD_UNINSTALLER
+Function un.SiaUnWelcomeShow
+  GetDlgItem $0 $HWNDPARENT 1
+  SendMessage $0 0x000C 0 "STR:Desinstalar"   ; WM_SETTEXT: aquí no está WinMessages.nsh
 FunctionEnd
 !endif

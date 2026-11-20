@@ -1,0 +1,181 @@
+:root {
+  /* el tema claro de SIA (web/src/style.css) */
+  --bg: #f7f7f7;
+  --surface: #ffffff;
+  --border: #e3e3e3;
+  --text: #000000;
+  --text-low: #757575;
+  --accent: #000000;
+  --focus: #0170e9;
+  --danger: #c93b3a;
+  --success: #178329;
+  --warning: #b65321;
+  --font-ui: "Helvetica Now Text SW10", "Helvetica Neue", Helvetica, Arial, "Noto Sans", sans-serif;
+  --motion-state: .2s linear;
+  --ease-step: cubic-bezier(.22, 1, .36, 1);
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
+body { overflow: hidden; font-family: var(--font-ui); color: var(--text); background: var(--surface); user-select: none; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* ── La ventana ──────────────────────────────────────────────────────── */
+/* la ventana ocupa todo: el marco, la sombra y las esquinas los pone el sistema */
+.win { position: relative; display: flex; flex-direction: column; height: 100%; overflow: hidden; background: var(--surface); }
+.win.closing { animation: win-out .25s ease both; }
+@keyframes win-out { to { opacity: 0; transform: scale(.97); } }
+
+.tb { flex: none; display: flex; align-items: center; height: 36px; padding: 0 0 0 16px; font-size: 12px; color: var(--text-low); user-select: none; }
+.tb-title { display: flex; align-items: center; gap: 8px; }
+.tb-title b { font-size: 13px; font-weight: 700; letter-spacing: .06em; color: var(--text); }
+.tb-ctl { display: flex; margin-left: auto; }
+.tb-ctl button { display: grid; place-items: center; width: 46px; height: 36px; background: none; border: 0; color: var(--text); cursor: pointer; transition: background var(--motion-state); }
+.tb-ctl button:hover { background: rgba(0, 0, 0, .06); }
+.tb-ctl [data-close]:hover { color: #fff; background: #c42b1c; }
+.tb-ctl svg { width: 10px; height: 10px; }
+.tb-lights { display: none; gap: 8px; margin-right: 14px; }
+.tb-lights button { width: 12px; height: 12px; padding: 0; border: 0; border-radius: 50%; cursor: pointer; }
+.tb-lights button:nth-child(1) { background: #ff5f57; }
+.tb-lights button:nth-child(2) { background: #febc2e; }
+.tb-lights button:nth-child(3) { background: #d0d0d0; cursor: default; }
+/* en Mac, los semáforos a la izquierda y el título centrado */
+.win[data-os="mac"] .tb { justify-content: center; padding: 0 16px; }
+.win[data-os="mac"] .tb-lights { display: flex; position: absolute; left: 14px; }
+.win[data-os="mac"] .tb-ctl { display: none; }
+
+/* El indicador de pasos, como el de Resolver: el actual en negro, los hechos con ✓ verde */
+.steps { flex: none; display: flex; align-items: center; margin: 0; padding: 14px 40px 18px; list-style: none; border-bottom: 1px solid var(--border); }
+.steps li { display: flex; flex: 1 1 auto; align-items: center; gap: 10px; min-width: 0; font-size: 13px; color: var(--text-low); }
+.steps li:last-child { flex: none; }
+.steps li::after { content: ''; flex: 1; height: 1px; margin: 0 14px; background: var(--border); transition: background .3s ease; }
+.steps li:last-child::after { display: none; }
+.steps i { flex: none; display: grid; place-items: center; width: 28px; height: 28px; font-size: 12px; font-style: normal; font-weight: 650; color: var(--text-low); border: 1.5px solid var(--border); border-radius: 50%; transition: background var(--motion-state), color var(--motion-state), border-color var(--motion-state); }
+.steps span { white-space: nowrap; font-weight: 500; transition: color var(--motion-state); }
+.steps li[aria-current] { color: var(--text); }
+.steps li[aria-current] i { color: var(--surface); background: var(--accent); border-color: var(--accent); }
+.steps li.done { color: var(--text); }
+.steps li.done i { font-size: 0; color: var(--surface); background: var(--success); border-color: var(--success); }
+.steps li.done i::before { content: '✓'; font-size: 13px; }
+.steps li.done::after { background: var(--success); }
+/* un paso ya hecho al que se puede volver */
+.steps li.can-go { cursor: pointer; }
+.steps li.can-go:hover span { text-decoration: underline; text-underline-offset: 3px; }
+.steps li.can-go:hover i { filter: brightness(1.12); }
+
+/* Los pasos: el nuevo entra por un lado mientras el anterior sale por el otro */
+.stage { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+.step { position: absolute; inset: 0; display: flex; flex-direction: column; padding: 28px 40px 0; }
+.step.in-fwd { animation: in-fwd .6s var(--ease-step) both; }
+.step.in-back { animation: in-back .6s var(--ease-step) both; }
+.step.out-fwd { animation: out-fwd .6s var(--ease-step) both; pointer-events: none; }
+.step.out-back { animation: out-back .6s var(--ease-step) both; pointer-events: none; }
+@keyframes in-fwd { from { transform: translateX(calc(100% + 40px)); } }
+@keyframes in-back { from { transform: translateX(calc(-100% - 40px)); } }
+@keyframes out-fwd { to { transform: translateX(calc(-100% - 40px)); } }
+@keyframes out-back { to { transform: translateX(calc(100% + 40px)); } }
+.cap { margin: 0 0 18px; font-size: 16px; font-weight: 650; }
+
+/* Bienvenida */
+.hello { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding-bottom: 28px; text-align: center; }
+.hello-mark { font-size: 64px; line-height: 1; font-weight: 700; letter-spacing: .08em; animation: rise .8s var(--ease-step) both; }
+.hello-ver { font-size: 13px; color: var(--text-low); animation: rise .8s var(--ease-step) .1s both; }
+.hello-ver em { font-style: normal; color: var(--text); font-weight: 600; }
+/* lo que conviene saber antes de seguir: texto, sin recuadro; el aviso, en su color */
+.hello-note { margin: 18px 0 0; font-size: 13px; line-height: 20px; color: var(--text-low); animation: rise .8s var(--ease-step) .2s both; }
+.hello-note b { font-weight: 500; color: var(--text); }
+.hello-note.warn { margin-top: 10px; font-weight: 500; color: var(--warning); }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+
+/* Comprobaciones */
+.cks { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; border: 1px solid var(--border); }
+.ck { display: flex; align-items: center; gap: 14px; min-height: 64px; padding: 12px 16px; animation: rise .5s var(--ease-step) both; }
+.ck + .ck { border-top: 1px solid var(--border); }
+.ck:nth-child(2) { animation-delay: .08s; }
+.ck-ic { flex: none; position: relative; display: grid; place-items: center; width: 28px; height: 28px; font-size: 14px; font-style: normal; font-weight: 700; color: var(--surface); border: 1.5px solid var(--border); border-radius: 50%; transition: background .25s ease, border-color .25s ease; }
+.ck[data-state="run"] .ck-ic { border-color: var(--border); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+.ck[data-state="ok"] .ck-ic { background: var(--success); border-color: var(--success); animation: pop .35s var(--ease-step); }
+.ck[data-state="ok"] .ck-ic::before { content: '✓'; }
+.ck[data-state="warn"] .ck-ic { background: var(--danger); border-color: var(--danger); animation: pop .35s var(--ease-step); }
+.ck[data-state="warn"] .ck-ic::before { content: '!'; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pop { from { transform: scale(.6); } }
+.ck-txt { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ck-txt b { font-size: 14px; font-weight: 600; }
+.ck-sub { font-size: 12.5px; color: var(--text-low); animation: fade .3s ease both; }
+.ck[data-state="warn"] .ck-sub { color: var(--danger); }
+.ck[data-state="unk"] .ck-ic { background: var(--warning); border-color: var(--warning); animation: pop .35s var(--ease-step); }
+.ck[data-state="unk"] .ck-ic::before { content: "!"; }
+.ck[data-state="unk"] .ck-sub { color: var(--warning); }
+.ck-act { flex: none; display: flex; align-items: center; gap: 8px; animation: fade .3s ease both; }
+@keyframes fade { from { opacity: 0; } }
+.cks-foot { margin-top: 14px; font-size: 12.5px; color: var(--text-low); animation: fade .3s ease both; }
+
+/* Carpeta */
+.dir { display: flex; align-items: center; gap: 12px; height: 48px; padding: 0 6px 0 14px; background: var(--bg); border: 1px solid var(--border); }
+.dir svg { flex: none; width: 18px; height: 18px; color: var(--text-low); }
+.dir code { flex: 1; min-width: 0; overflow: hidden; font: 13px/1 var(--font-ui); white-space: nowrap; text-overflow: ellipsis; }
+.dir code.changed { animation: fade .4s ease both; }
+.dir-hint { margin-top: 10px; font-size: 12.5px; color: var(--text-low); }
+
+/* Instalando */
+.prog { margin-top: 36px; }
+.prog-top { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; font-size: 13px; }
+.prog-top span { color: var(--text-low); }
+.prog-top b { font-size: 28px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.prog-bar { position: relative; height: 4px; overflow: hidden; background: var(--border); }
+.prog-bar i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--accent); }
+/* un brillo que recorre la barra: aunque un tramo tarde, se ve que sigue vivo */
+.prog-bar i::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .55), transparent); transform: translateX(-100%); animation: shine 1.4s ease-in-out infinite; }
+@keyframes shine { to { transform: translateX(100%); } }
+.prog-now { margin-top: 12px; font-size: 12.5px; color: var(--text-low); }
+.prog-now span { display: inline-block; animation: fade .3s ease both; }
+.prog-now .prog-err { color: var(--danger); }
+/* debajo de un aviso o un error: su código, «Copiar el error» y «Ver el registro», discretos */
+.cks-help { margin: 0; }
+.cks-code { display: flex; align-items: center; justify-content: inherit; gap: 14px; margin: 6px 0 0; font-size: 12px; color: var(--text-low); }
+.cks-code span { letter-spacing: .02em; }
+.cks-code .btn.link, .end-avisos .btn.link { font-size: 12px; }
+.prog-now .cks-code { margin-top: 8px; }
+.hello .cks-code { justify-content: center; }
+/* en «Listo», si se siguió con algo sin comprobar */
+.end-avisos { display: flex; align-items: center; gap: 14px; margin: 14px 0 0; font-size: 12px; color: var(--warning); animation: rise .6s var(--ease-step) .8s both; }
+
+/* Listo */
+.end { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding-bottom: 28px; text-align: center; }
+.end svg { width: 72px; height: 72px; }
+.end circle { fill: none; stroke: var(--success); stroke-width: 3; stroke-dasharray: 220; stroke-dashoffset: 220; animation: draw .7s ease forwards; }
+.end path { fill: none; stroke: var(--success); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 60; stroke-dashoffset: 60; animation: draw .4s ease .55s forwards; }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+.end b { font-size: 16px; line-height: 20px; font-weight: 500; letter-spacing: .4px; text-transform: uppercase; animation: rise .6s var(--ease-step) .5s both; }
+.end span { font-size: 13px; color: var(--text-low); animation: rise .6s var(--ease-step) .6s both; }
+.end label { display: inline-flex; align-items: center; gap: 8px; margin-top: 16px; font-size: 13.5px; cursor: pointer; animation: rise .6s var(--ease-step) .7s both; }
+.end input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+
+/* El pie: Atrás a la izquierda; Cancelar y el botón que nombra el paso siguiente a la derecha */
+.foot { flex: none; display: flex; align-items: center; gap: 12px; padding: 16px 40px 22px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; height: 44px; padding: 0 24px; font-size: 13px; line-height: 20px; letter-spacing: .02em; text-transform: uppercase; background: none; border: 1px solid var(--border); cursor: pointer; transition: background var(--motion-state), color var(--motion-state), border-color var(--motion-state), opacity var(--motion-state); }
+.btn:hover { border-color: var(--accent); }
+.btn svg { width: 16px; height: 16px; }
+.btn.primary { color: var(--surface); background: var(--accent); border-color: var(--accent); }
+.btn.primary:hover { background: #333; }
+.btn:disabled { cursor: default; opacity: .35; }
+.btn.primary:disabled:hover { background: var(--accent); }
+.btn.sm { height: 32px; padding: 0 14px; font-size: 12px; }
+.btn.link { height: auto; padding: 0; text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--focus); border: 0; text-decoration: underline; text-underline-offset: 3px; }
+.btn.link:hover { color: #0157b5; }
+/* quién hace SIA, discreto: pequeño, en la esquina de abajo a la izquierda */
+.brand { flex: none; height: 18px; width: auto; margin-right: auto; opacity: .85; user-select: none; }
+
+/* Confirmar al salir */
+.veil { position: absolute; inset: 0; z-index: 10; display: grid; place-items: center; background: rgba(0, 0, 0, .28); animation: fade .2s ease both; }
+.ask { width: 360px; padding: 24px; background: var(--surface); box-shadow: 0 14px 40px rgba(0, 0, 0, .2); animation: rise .3s var(--ease-step) both; }
+.ask b { display: block; font-size: 16px; font-weight: 650; }
+.ask p { margin: 8px 0 22px; font-size: 13px; color: var(--text-low); white-space: pre-line; }
+.ask div { display: flex; justify-content: flex-end; gap: 10px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition: none !important; }
+  .ck[data-state="run"] .ck-ic { animation: spin 1.6s linear infinite !important; }
+}

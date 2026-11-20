@@ -1,0 +1,5 @@
+node_modules/
+src-tauri/target/
+src-tauri/gen/
+# lo que se instala: lo deja scripts/empaquetar.mjs al empaquetar
+src-tauri/payload/

@@ -43,7 +43,7 @@ sistema. `vpn.probeHost` es un nombre interno del cliente que solo resuelve a
 una dirección privada dentro de su red. SIA comprueba las dos cosas en dos
 sitios:
 
-- en el instalador de Windows, en la página «Comprobaciones previas», los
+- en el instalador (SIA Setup, `setup/`), en el paso «Comprobaciones», los
   certificados: sin ellos no deja seguir (si no se pueden comprobar, avisa y
   deja seguir con confirmación). En la primera instalación comprueba también
   Copilot CLI y que tenga una sesión iniciada;
@@ -123,7 +123,8 @@ Todo esto, carpeta a carpeta y con cómo se comunican, en
 | `npm test` | Las pruebas de dominio (segundos) |
 | `cd web && npx vite build` | Compila la web |
 | `npm run test:platform` / `test:rls` | Pruebas de la base en Docker (cuando se toca SQL) |
-| `npm run dist` / `dist:win` | Empaquetar la app (macOS / Windows) |
+| `npm run dist:setup` / `dist:setup:mac` | El instalador que se entrega, SIA Setup (Windows / macOS): `dist-app/SIA Instalador <versión>.exe` o `.dmg`. Necesita Rust y, una vez, `npm install` en `setup/` |
+| `npm run dist` / `dist:win` | Solo empaquetar la app (macOS / Windows); `dist:win` genera también `Desinstalar SIA.exe` |
 
 La app va empaquetada en `app.asar`, de solo lectura; las piezas nativas (motor
 de embeddings, imágenes) quedan fuera, en `app.asar.unpacked`. `build.files`

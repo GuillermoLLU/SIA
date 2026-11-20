@@ -21,11 +21,12 @@ setlocal EnableExtensions
 
 rem El PATH del instalador es el de cuando se abrió: se le suma el de ahora,
 rem que trae lo que WinGet acaba de instalar (con sus %VARIABLES% expandidas).
-set "UPATH="
-set "MPATH="
-for /f "skip=2 tokens=2,*" %%a in ('reg query HKCU\Environment /v Path 2^>nul') do set "UPATH=%%b"
-for /f "skip=2 tokens=2,*" %%a in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do set "MPATH=%%b"
-call set "PATH=%PATH%;%UPATH%;%MPATH%"
+rem Se vuelve a leer después de instalar: la primera vez, WinGet añade al PATH
+rem del usuario su carpeta de enlaces mientras instala. SIA_USER_ENV, el entorno
+rem del usuario en el registro, solo lo cambian las pruebas.
+if not defined SIA_USER_ENV set "SIA_USER_ENV=HKCU\Environment"
+set "PATH0=%PATH%"
+call :readpath
 rem Copilot usa antes un token de estas variables que su sesión: fuera, para
 rem iniciar la sesión guardada, la que usará SIA.
 set "COPILOT_GITHUB_TOKEN="
@@ -97,6 +98,15 @@ rem cualquier pregunta. Con call: si winget fuese un .cmd, sin él no se volver�
 call winget install --id GitHub.Copilot --exact --scope user --source winget --silent --accept-source-agreements --accept-package-agreements >nul 2>nul
 cmd /c exit /b %ERRORLEVEL%
 set "CODE=%=ExitCode%"
+call :readpath
+exit /b 0
+
+:readpath
+set "UPATH="
+set "MPATH="
+for /f "skip=2 tokens=2,*" %%a in ('reg query "%SIA_USER_ENV%" /v Path 2^>nul') do set "UPATH=%%b"
+for /f "skip=2 tokens=2,*" %%a in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do set "MPATH=%%b"
+call set "PATH=%PATH0%;%UPATH%;%MPATH%"
 exit /b 0
 
 rem Está si se encuentra y contesta a --version. Se busca como lo haría Windows:
