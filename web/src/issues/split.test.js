@@ -12,6 +12,7 @@ test('splitForm: a pantalla completa, la original a la izquierda con su texto y 
   const [keep, fresh] = html.split('<section').slice(1);
   assert.match(keep, /<h4>Original <small>INC1<\/small><\/h4>/);
   assert.match(keep, /name="keepTitle" value="Etiquetas &lt;en blanco&gt; y voz"/);
+  assert.match(keep, /<div class="sp-row"><input class="sp-ttl" name="keepTitle"[^>]*\/><dl class="sp-facts">[\s\S]*?<\/dl><\/div>/, 'el título a la izquierda y sus datos, en la misma fila');
   assert.match(keep, /<textarea class="sp-desc" id="sp-keep-desc" name="keepDesc" placeholder=" " spellcheck="false">Uno: la impresora.\n\nDos: el picking &lt;por voz&gt;.<\/textarea>/, 'lo que dice el centro, tal cual (escapado), para cortar de ahí');
   assert.doesNotMatch(keep, /sp-empty/);
   assert.match(fresh, /<h4>Nueva <small>INC por generar<\/small><\/h4>/);

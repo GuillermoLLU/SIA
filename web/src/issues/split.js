@@ -16,14 +16,14 @@ const factsHtml = (i) => `<dl class="sp-facts">
         ${fact('Criticidad', esc(SEVERITY_ES[i.priority] || i.priority || '—'), `k-sev ${esc(i.priority || '')}`)}
       </dl>`;
 
-// Una columna: la original (keep) o la nueva (new), con su título, sus datos y lo que dice el centro.
+// Una columna: la original (keep) o la nueva (new), con su título y sus datos en una fila (el título a
+// la izquierda) y lo que dice el centro.
 // La nueva empieza sin descripción: un aviso en su sitio mientras está vacía (issues.css).
 const column = (i, side) => {
   const keep = side === 'keep';
   return `<section class="sp-col${keep ? '' : ' new'}" aria-label="${keep ? 'La issue original' : 'La issue nueva'}">
       <h4>${keep ? 'Original' : 'Nueva'} <small>${keep ? esc(i.id) : 'INC por generar'}</small></h4>
-      <input class="sp-ttl" name="${side}Title" value="${esc(i.text || '')}" aria-label="Título de la ${keep ? 'original' : 'nueva'}" autocomplete="off" />
-      ${factsHtml(i)}
+      <div class="sp-row"><input class="sp-ttl" name="${side}Title" value="${esc(i.text || '')}" aria-label="Título de la ${keep ? 'original' : 'nueva'}" autocomplete="off" />${factsHtml(i)}</div>
       <label class="sp-lbl" for="sp-${side}-desc">Lo que dice el centro</label>
       <div class="sp-desc-box">
         <textarea class="sp-desc" id="sp-${side}-desc" name="${side}Desc" placeholder=" " spellcheck="false">${keep ? esc(i.notes || '') : ''}</textarea>
