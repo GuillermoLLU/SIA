@@ -465,7 +465,7 @@ Function SiaFinish
     ${ElseIf} $SiaCopilot == "unknown"
       StrCpy $0 "Pulsa «Volver a comprobar» o sigue sin él."
     ${ElseIf} $SiaCopilotCode != ""
-      StrCpy $0 "Pulsa «Volver a comprobar». Si sigue, pide ayuda a soporte (código $SiaCopilotCode)."
+      StrCpy $0 "Vuelve a comprobar o pide ayuda a soporte (código $SiaCopilotCode)."
     ${Else}
       StrCpy $0 "Pulsa «Volver a comprobar» y, si sigue, pide ayuda a soporte."
     ${EndIf}

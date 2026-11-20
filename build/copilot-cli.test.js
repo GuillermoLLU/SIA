@@ -19,7 +19,7 @@ const fakes = () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sia-copilot-'));
   fs.writeFileSync(path.join(dir, 'copilot.cmd'), '@echo off\r\nif exist "%~dp0instalado" (echo GitHub Copilot CLI 9.9.9. & exit /b 0)\r\nexit /b 1\r\n');
   fs.mkdirSync(path.join(dir, 'Packages', 'Microsoft.DesktopAppInstaller_8wekyb3d8bbwe', 'LocalState', 'DiagOutputDir'), { recursive: true });
-  fs.writeFileSync(path.join(dir, 'winget.cmd'), '@echo off\r\necho %* >> "%~dp0winget-args"\r\nif "%1"=="source" (if defined FAKE_SOURCE_LOG echo LogHr 80072EE7 > "%LOCALAPPDATA%\\Packages\\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\\LocalState\\DiagOutputDir\\WinGet-prueba.log")\r\nif "%1"=="source" exit /b %FAKE_SOURCE%\r\nif "%1"=="uninstall" (type nul > "%~dp0limpio" & exit /b 0)\r\nif exist "%~dp0limpio" (type nul > "%~dp0instalado" & exit /b 0)\r\nif "%FAKE_WINGET%"=="0" (type nul > "%~dp0instalado" & exit /b 0)\r\nexit /b %FAKE_WINGET%\r\n');
+  fs.writeFileSync(path.join(dir, 'winget.cmd'), '@echo off\r\necho %* >> "%~dp0winget-args"\r\nif defined FAKE_LINKS if "%1"=="install" (mkdir "%~dp0links" & (echo @echo GitHub Copilot CLI 9.9.9.)> "%~dp0links\\copilot.cmd" & reg add "%SIA_USER_ENV%" /v Path /t REG_EXPAND_SZ /d "%~dp0links" /f >nul & exit /b 0)\r\nif "%1"=="source" (if defined FAKE_SOURCE_LOG echo LogHr 80072EE7 > "%LOCALAPPDATA%\\Packages\\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\\LocalState\\DiagOutputDir\\WinGet-prueba.log")\r\nif "%1"=="source" exit /b %FAKE_SOURCE%\r\nif "%1"=="uninstall" (type nul > "%~dp0limpio" & exit /b 0)\r\nif exist "%~dp0limpio" (type nul > "%~dp0instalado" & exit /b 0)\r\nif "%FAKE_WINGET%"=="0" (type nul > "%~dp0instalado" & exit /b 0)\r\nexit /b %FAKE_WINGET%\r\n');
   return dir;
 };
 // en Windows la variable puede venir como PATH o Path: una sola, con los de mentira delante
@@ -68,6 +68,21 @@ test('los fallos de WinGet: política, descarga y cualquier otro con su código'
   assert.equal(run(fakes(), { install: true, winget: hresult('8A150008') }), 'SIA-COPILOT:descarga');
   assert.equal(run(fakes(), { install: true, winget: hresult('8A150045') }), 'SIA-COPILOT:descarga');
   assert.equal(run(fakes(), { install: true, winget: hresult('8A150011') }), 'SIA-COPILOT:error:8A150011');
+});
+
+// La primera vez, WinGet deja Copilot en su carpeta de enlaces y la añade al PATH del usuario
+// mientras instala: el PATH con el que empezó el script no la tiene (el aviso falso de Fran, con
+// el código 00000000). Su entorno, en una clave de prueba del registro que se borra al acabar.
+test('tras instalar vuelve a leer el PATH del usuario: Copilot en una carpeta nueva responde', { skip }, () => {
+  const dir = fakes();
+  fs.rmSync(path.join(dir, 'copilot.cmd'));
+  const key = `HKCU\\Software\\SIA-pruebas-${path.basename(dir)}`;
+  const env = { ...withoutPath, Path: `${dir};${process.env.SystemRoot}\\System32`, FAKE_WINGET: '0', FAKE_SOURCE: '0', FAKE_LINKS: '1', SIA_USER_ENV: key, LOCALAPPDATA: dir };
+  try {
+    assert.equal(execFileSync('cmd.exe', ['/d', '/c', SCRIPT, '-Install'], { env, encoding: 'utf8' }).trim(), 'SIA-COPILOT:ok');
+  } finally {
+    execFileSync('reg', ['delete', key, '/f'], { stdio: 'ignore' });
+  }
 });
 
 test('un registro roto de Copilot (8A150054): lo desinstala y lo vuelve a instalar, una vez', { skip }, () => {
