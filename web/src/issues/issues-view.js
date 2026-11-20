@@ -364,7 +364,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   const saveSplit = (form) => {
     const { missing } = readSplit(Object.fromEntries(new FormData(form)));
     const err = form.querySelector('.iss-act-err');
-    if (missing) { err.textContent = `Falta ${missing}.`; err.hidden = false; return; }
+    if (missing) { err.textContent = `Falta: ${missing}.`; err.hidden = false; return; }
     closeAction();
     toast?.(splitNotice(opened));
   };

@@ -59,8 +59,8 @@ export const releaseDialogHtml = (id, text) => `<div class="iss-dlg-issue"><span
 
 // La cabecera: a la vista, Resolver (la principal) y Escalar; el resto de sus acciones
 // (actions.js actionsFor), en «Otras acciones»: un menú bajo el botón con lo de hablar con el
-// centro, abrir un WAR-ROOM, dividirla en dos y, separado, lo de soltarla (traspasar o devolver). Lo abre y cierra
-// issues-view.js.
+// centro, abrir un WAR-ROOM, dividirla en dos y lo de soltarla (traspasar o devolver), cada grupo
+// separado por una línea. Lo abre y cierra issues-view.js.
 const MAIN = ['resolve', 'escalate'];
 const ACTION_BUTTON = {
   resolve: '<button class="lab-btn primary" data-act="resolve">Resolver</button>',
