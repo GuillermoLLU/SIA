@@ -20,18 +20,16 @@ test('splitForm: a pantalla completa, la original a la izquierda con su texto y 
   assert.match(html, /<button type="submit" class="lab-btn primary" disabled>Actualizar y generar<\/button>/, 'apagado hasta que la nueva tenga lo suyo');
 });
 
-test('splitForm: los datos de la original, iguales en las dos columnas', () => {
+test('splitForm: el centro y la criticidad de la original, iguales en las dos columnas (el resto también es igual, y no se enseña)', () => {
   const html = splitForm(issue({ priority: 'CRITICAL', sisu: true, status: 'IN_PROGRESS' }));
   const dls = html.match(/<dl class="sp-facts">[\s\S]*?<\/dl>/g);
   assert.equal(dls.length, 2);
   assert.equal(dls[0], dls[1]);
-  const labels = [...dls[0].matchAll(/<dt>([^<]+)<\/dt>/g)].map((m) => m[1]);
-  assert.deepEqual(labels, ['Centro', 'Criticidad', 'Origen', 'Estado', 'Grupo', 'Categoría']);
+  assert.deepEqual([...dls[0].matchAll(/<dt>([^<]+)<\/dt>/g)].map((m) => m[1]), ['Centro', 'Criticidad']);
+  assert.match(dls[0], /<div><dt>Centro<\/dt><dd><span class="iss-code">100533<\/span><\/dd><\/div>/);
   assert.match(dls[0], /<div class="k-sev CRITICAL"><dt>Criticidad<\/dt><dd>Crítica<\/dd><\/div>/);
-  assert.match(dls[0], /<div class="k-origin sisu"><dt>Origen<\/dt><dd>SISU<\/dd><\/div>/);
-  assert.match(dls[0], /<dt>Estado<\/dt><dd>En curso<\/dd>/);
-  assert.match(dls[0], /<div class="wide"><dt>Categoría<\/dt><dd>ECOM › SGA<\/dd><\/div>/);
-  assert.match(splitForm(issue({ center: '', group: '', category: '', notes: '' })), /<dt>Centro<\/dt><dd><span class="iss-code">—<\/span><\/dd>[\s\S]*<dt>Grupo<\/dt><dd>—<\/dd>[\s\S]*id="sp-keep-desc" name="keepDesc" placeholder=" " spellcheck="false"><\/textarea>/, 'sin dato, la raya');
+  assert.doesNotMatch(html, /Origen|Estado|Grupo|Categoría|SISU|En curso|AYS SOPORTE|ECOM › SGA/);
+  assert.match(splitForm(issue({ center: '', priority: '', notes: '' })), /<dt>Centro<\/dt><dd><span class="iss-code">—<\/span><\/dd>[\s\S]*<dt>Criticidad<\/dt><dd>—<\/dd>[\s\S]*id="sp-keep-desc" name="keepDesc" placeholder=" " spellcheck="false"><\/textarea>/, 'sin dato, la raya');
 });
 
 test('readSplit: las dos con título y con lo que dice el centro; si no, lo primero que falta', () => {

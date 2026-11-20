@@ -6,18 +6,14 @@
 // «Actualizar y generar», de momento, solo lo avisa: cuando conectemos SIGLO, actualizará la
 // original en Remedy y creará la nueva.
 import { esc } from '../ui/html.js';
-import { STATUS_ES, SEVERITY_ES } from './format.js';
-import { originOf } from './origin.js';
+import { SEVERITY_ES } from './format.js';
 
-// Lo que la nueva hereda tal cual de la original (en las dos columnas, igual)
+// Lo que la nueva hereda tal cual de la original, a la vista en las dos columnas: el centro y la
+// criticidad (el origen, el estado, el grupo y la categoría también son los mismos, y no se enseñan)
 const fact = (label, value, cls = '') => `<div${cls ? ` class="${cls}"` : ''}><dt>${label}</dt><dd>${value}</dd></div>`;
 const factsHtml = (i) => `<dl class="sp-facts">
         ${fact('Centro', `<span class="iss-code">${esc(i.center || '—')}</span>`)}
         ${fact('Criticidad', esc(SEVERITY_ES[i.priority] || i.priority || '—'), `k-sev ${esc(i.priority || '')}`)}
-        ${fact('Origen', originOf(i), `k-origin${i.sisu ? ' sisu' : ''}`)}
-        ${fact('Estado', esc(STATUS_ES[i.status] || i.status || '—'))}
-        ${fact('Grupo', esc(i.group || '—'))}
-        ${fact('Categoría', esc(i.category || '—'), 'wide')}
       </dl>`;
 
 // Una columna: la original (keep) o la nueva (new), con su título, sus datos y lo que dice el centro.
