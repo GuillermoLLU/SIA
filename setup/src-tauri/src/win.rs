@@ -141,14 +141,14 @@ pub fn matar(pid: u32) {
 fn nsis_listo(p: &Paquete) -> Result<(PathBuf, bool), String> {
     if let Some(dir) = crate::prueba("SIA_SETUP_PAYLOAD") {
         let nsis = Path::new(&dir).join(&p.archivo);
-        return if nsis.exists() { Ok((nsis, false)) } else { Err("No se encuentra el instalador de SIA.".into()) };
+        return if nsis.exists() { Ok((nsis, false)) } else { Err("INS-405 · No se encuentra el instalador de SIA.".into()) };
     }
     #[cfg(embebido)]
     {
         let dir = std::env::temp_dir().join("sia-setup");
         std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
         let nsis = dir.join(format!("sia-{}.exe", p.version));
-        std::fs::write(&nsis, NSIS).map_err(|e| format!("No se pudo preparar la instalación: {e}"))?;
+        std::fs::write(&nsis, NSIS).map_err(|e| format!("INS-402 · No se pudo preparar la instalación: {e}"))?;
         Ok((nsis, true))
     }
     #[cfg(not(embebido))]
@@ -237,8 +237,8 @@ pub async fn instalar(app: AppHandle, p: Paquete, carpeta: String, actualizar: b
     if borrar {
         let _ = std::fs::remove_file(&nsis);
     }
-    let codigo = res.map_err(|e| format!("No se pudo lanzar la instalación: {e}"))?.code().unwrap_or(-1);
-    if codigo == 0 { Ok(0) } else { Err(format!("La instalación no ha terminado (código {codigo}).")) }
+    let codigo = res.map_err(|e| format!("INS-403 · No se pudo lanzar la instalación: {e}"))?.code().unwrap_or(-1);
+    if codigo == 0 { Ok(0) } else { Err(format!("INS-401 · La instalación no ha terminado (código {codigo}).")) }
 }
 
 pub fn abrir_sia(carpeta: &str) -> std::io::Result<()> {

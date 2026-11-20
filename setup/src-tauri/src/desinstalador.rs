@@ -114,8 +114,8 @@ pub async fn desinstalar(app: AppHandle, abierto: bool) -> Result<(), String> {
             let _ = std::fs::remove_dir(self::carpeta());
             Ok(())
         }
-        Ok(c) => Err(format!("No se ha podido desinstalar (código {c}).")),
-        Err(e) => Err(format!("No se pudo lanzar la desinstalación: {e}")),
+        Ok(c) => Err(format!("INS-501 · No se ha podido desinstalar (código {c}).")),
+        Err(e) => Err(format!("INS-502 · No se pudo lanzar la desinstalación: {e}")),
     }
 }
 

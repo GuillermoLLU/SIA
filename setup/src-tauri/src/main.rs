@@ -29,7 +29,8 @@ use tauri_plugin_dialog::DialogExt;
 // src-tauri/payload/ antes de compilar y build.rs activa `embebido`.
 #[cfg(embebido)]
 const PAQUETE: &str = include_str!("../payload/paquete.json");
-const SIN_PAQUETE: &str = "No se encuentra lo que hay que instalar.";
+// Los errores llevan delante su código del catálogo (ui/errores.js): «INS-xxx · …»
+const SIN_PAQUETE: &str = "INS-405 · No se encuentra lo que hay que instalar.";
 
 // Solo en las compilaciones de desarrollo, para probar: otro paquete (SIA_SETUP_PAYLOAD, una
 // carpeta con paquete.json y lo que instala), otro copilot-cli (SIA_SETUP_COPILOT_CLI) o un tiempo
@@ -88,6 +89,10 @@ struct Estado {
     carpeta: String,
     certs: Certs,
     guia_gestor: &'static str,
+    // para «Copiar el error» (ui/errores.js): qué SIA Setup, en qué sistema y dónde está su registro
+    version_setup: String,
+    sistema_operativo: String,
+    registro: String,
 }
 
 #[derive(Serialize, Clone)]
@@ -156,6 +161,9 @@ static INSTALANDO: AtomicBool = AtomicBool::new(false);
 
 #[tauri::command]
 fn estado(app: AppHandle, registro: tauri::State<'_, Registro>) -> Result<Estado, String> {
+    let version_setup = app.package_info().version.to_string();
+    let sistema_operativo = so::sistema_operativo();
+    let ruta = |registro: &Registro| registro.ruta().map(|r| r.to_string_lossy().into_owned()).unwrap_or_default();
     #[cfg(desinstalador)]
     {
         // desinstalar: lo que hay en la carpeta de SIA, sin paquete
@@ -163,9 +171,7 @@ fn estado(app: AppHandle, registro: tauri::State<'_, Registro>) -> Result<Estado
         let version = so::instalado().map(|i| i.version).unwrap_or_default();
         let abierto = so::sia_abierto();
         registro.anotar(&format!(
-            "Desinstalar SIA {} · {}\nSIA {version} en {carpeta}{}",
-            app.package_info().version,
-            so::sistema_operativo(),
+            "Desinstalar SIA {version_setup} · {sistema_operativo}\nSIA {version} en {carpeta}{}",
             if abierto { " · SIA abierto" } else { "" },
         ));
         return Ok(Estado {
@@ -178,17 +184,18 @@ fn estado(app: AppHandle, registro: tauri::State<'_, Registro>) -> Result<Estado
             carpeta,
             certs: Certs::default(),
             guia_gestor: so::GUIA_GESTOR,
+            registro: ruta(&registro),
+            version_setup,
+            sistema_operativo,
         });
     }
     #[allow(unreachable_code)]
-    let p = paquete()?;
+    let p = paquete().inspect_err(|e| registro.anotar(&format!("SIA Setup {version_setup} · {sistema_operativo}\nError al abrir: {e}")))?;
     let instalado = so::instalado();
     let abierto = so::sia_abierto();
     registro.anotar(&format!(
-        "SIA Setup {} · SIA {} · {}\n{}{}",
-        app.package_info().version,
+        "SIA Setup {version_setup} · SIA {} · {sistema_operativo}\n{}{}",
         p.version,
-        so::sistema_operativo(),
         match &instalado {
             Some(i) => format!("Actualización desde la {} en {}", i.version, i.carpeta),
             None => "Primera instalación".into(),
@@ -205,6 +212,9 @@ fn estado(app: AppHandle, registro: tauri::State<'_, Registro>) -> Result<Estado
         carpeta: so::carpeta_propuesta(),
         certs: p.certs,
         guia_gestor: so::GUIA_GESTOR,
+        registro: ruta(&registro),
+        version_setup,
+        sistema_operativo,
     })
 }
 
@@ -402,6 +412,7 @@ fn main() {
     desinstalador::antes_de_abrir();
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .manage(EnCurso::default())
         .manage(Registro::default())
         .on_window_event(|window, event| {

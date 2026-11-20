@@ -141,14 +141,14 @@ pub async fn login(cli: &Path, max: Duration, seguir: impl Fn() -> bool) -> (Str
 fn app_lista(p: &Paquete) -> Result<(PathBuf, bool), String> {
     if let Some(dir) = crate::prueba("SIA_SETUP_PAYLOAD") {
         let zip = Path::new(&dir).join(&p.archivo);
-        return if zip.exists() { Ok((zip, false)) } else { Err("No se encuentra SIA.".into()) };
+        return if zip.exists() { Ok((zip, false)) } else { Err("INS-405 · No se encuentra SIA.".into()) };
     }
     #[cfg(embebido)]
     {
         let dir = std::env::temp_dir().join("sia-setup");
         std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
         let zip = dir.join(format!("sia-{}.zip", p.version));
-        std::fs::write(&zip, APP).map_err(|e| format!("No se pudo preparar la instalación: {e}"))?;
+        std::fs::write(&zip, APP).map_err(|e| format!("INS-402 · No se pudo preparar la instalación: {e}"))?;
         Ok((zip, true))
     }
     #[cfg(not(embebido))]
@@ -172,7 +172,7 @@ fn cerrar_sia() {
 pub async fn instalar(app: AppHandle, p: Paquete, carpeta: String, actualizar: bool) -> Result<i32, String> {
     let (zip, borrar) = app_lista(&p)?;
     let destino = PathBuf::from(&carpeta);
-    let padre = destino.parent().ok_or("La carpeta no es válida.")?.to_path_buf();
+    let padre = destino.parent().ok_or("INS-404 · La carpeta no es válida.")?.to_path_buf();
     let total = p.bytes.max(1) as f64;
     let emitir = |pct: u32, fase: &'static str| {
         let _ = app.emit("progreso", Progreso { pct, fase });
@@ -182,7 +182,7 @@ pub async fn instalar(app: AppHandle, p: Paquete, carpeta: String, actualizar: b
     }
     if actualizar || destino.exists() {
         emitir(5, "quitando");
-        std::fs::remove_dir_all(&destino).map_err(|e| format!("No se pudo quitar la versión anterior: {e}"))?;
+        std::fs::remove_dir_all(&destino).map_err(|e| format!("INS-404 · No se pudo quitar la versión anterior: {e}"))?;
     }
     emitir(15, "copiando");
     let hecho = Arc::new(AtomicBool::new(false));
@@ -207,13 +207,13 @@ pub async fn instalar(app: AppHandle, p: Paquete, carpeta: String, actualizar: b
     if borrar {
         let _ = std::fs::remove_file(&zip);
     }
-    let codigo = res.map_err(|e| format!("No se pudo copiar SIA: {e}"))?.code().unwrap_or(-1);
+    let codigo = res.map_err(|e| format!("INS-403 · No se pudo copiar SIA: {e}"))?.code().unwrap_or(-1);
     if codigo != 0 {
-        return Err(format!("No se pudo copiar SIA en {} (código {codigo}).", destino.display()));
+        return Err(format!("INS-404 · No se pudo copiar SIA en {} (código {codigo}).", destino.display()));
     }
     let copiado = destino.with_file_name("SIA.app");
     if copiado != destino {
-        std::fs::rename(&copiado, &destino).map_err(|e| e.to_string())?;
+        std::fs::rename(&copiado, &destino).map_err(|e| format!("INS-404 · No se pudo copiar SIA: {e}"))?;
     }
     emitir(97, "terminando");
     Ok(0)

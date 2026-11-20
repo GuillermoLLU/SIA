@@ -63,6 +63,7 @@ const VIEWS = {
       <b>${S.mode === 'update' ? 'SIA actualizado' : 'SIA instalado'}</b>
       <span>Versión ${esc(S.version)}</span>
       <label><input type="checkbox" data-launch checked> Abrir SIA</label>
+      ${S.avisos?.length ? `<p class="end-avisos">Con avisos: ${S.avisos.map((a) => esc(a.codigo)).join(' · ')}<button class="btn link" data-copy>Copiar el resumen</button></p>` : ''}
     </div>`,
   bye: () => `
     <div class="hello">
@@ -138,9 +139,13 @@ function renderFoot() {
 }
 
 const ENTER = {
+  done(el) {
+    const b = $('[data-copy]', el);
+    if (b) b.onclick = () => copiar(b, S.avisos.map((a) => `${a.codigo} · ${ERRORES[a.codigo]}${a.detalle ? ` (${a.detalle})` : ''}: se siguió sin comprobarlo`), S.avisos.map((a) => a.codigo).join(', '));
+  },
   checks() {
     // como el NSIS: cada vez que se entra en la página se comprueba todo de nuevo
-    Object.assign(K, { certs: 'ok', missing: '', certsOk: false, copilot: 'ok', code: '', copilotOk: false, session: 'ok', who: '', sessionOk: false });
+    Object.assign(K, { certs: 'ok', missing: '', certsOk: false, copilot: 'ok', code: '', copilotOk: false, session: 'ok', who: '', sessionOk: false, raro: {} });
     later(refresh, 50);
   },
   folder(el) {
@@ -185,8 +190,9 @@ async function avanzar(el, orden, inicial) {
     paint(100, 'terminando');
     later(() => go(cur + 1), 500);
   } catch (err) {
-    now.innerHTML = `<span class="prog-err">${esc(err)}</span> <button class="btn link" data-log>Ver el registro</button>`;
-    $('[data-log]', now).onclick = verRegistro;
+    const { codigo, texto } = leerError(err);
+    now.innerHTML = `<span class="prog-err">${esc(texto)}</span>${pieError(codigo)}`;
+    conPieError(now, codigo, texto);
     next.hidden = false; next.disabled = false; next.textContent = 'Reintentar';
     next.onclick = () => { next.onclick = onNext; go(cur); };
   } finally {
@@ -203,7 +209,7 @@ async function avanzar(el, orden, inicial) {
 // con confirmación; lo que falta, no.
 const ROW = { certs: 'Certificados del cliente', copilot: 'Copilot CLI', session: 'Sesión de Copilot' };
 const rows = () => [...(hasCerts() ? ['certs'] : []), ...(S.mode === 'install' ? ['copilot', 'session'] : [])];
-const K = { run: 0, step: 'done' };
+const K = { run: 0, step: 'done', raro: {} };
 
 const check = (paso) => invoke('comprobar', { paso }).catch(() => ({ respuesta: '', tarde: false }));
 const rowEl = (id) => $(`.step[data-step="checks"]:not(.out-fwd):not(.out-back) [data-ck="${id}"]`);
@@ -238,6 +244,7 @@ async function refresh() {
       K.missing = respuesta.slice(11); K.certs = 'missing';
       setRow('certs', 'warn', `Faltan: ${K.missing}`);
     } else {
+      raro('certs', respuesta, ['SIA-ERROR']);
       setRow('certs', 'unk', 'No se han podido comprobar');
     }
   }
@@ -249,10 +256,24 @@ async function refresh() {
 function readCopilot({ respuesta, tarde }, installing) {
   K.copilot = installing && tarde ? 'tiempo' : 'unknown';   // no termina de instalarse: casi siempre, la red
   K.code = '';
+  K.resp = respuesta;
   if (respuesta.startsWith('SIA-COPILOT:')) {
     K.copilot = respuesta.slice(12);
     if (K.copilot.startsWith('error:')) { K.code = K.copilot.slice(6); K.copilot = 'error'; }
   }
+}
+
+// Una respuesta que no conocemos (ni vacía ni de las previstas): INS-900, con ella tal cual
+function raro(id, respuesta, previstas = []) {
+  K.raro[id] = respuesta && !previstas.includes(respuesta) ? respuesta : '';
+}
+
+// El código de la fila que avisa (ui/errores.js) y el detalle que ayuda a soporte
+function codigoDe(id) {
+  if (K.raro[id]) return { codigo: 'INS-900', detalle: K.raro[id] };
+  if (id === 'certs') return K.certs === 'missing' ? { codigo: 'INS-101', detalle: K.missing } : { codigo: 'INS-102', detalle: '' };
+  if (id === 'copilot') return { codigo: CODIGO_COPILOT[K.copilot] || 'INS-206', detalle: K.code ? `${GESTOR()} ${K.code}` : '' };
+  return { codigo: K.session === 'sin-sesion' ? 'INS-301' : 'INS-302', detalle: '' };
 }
 
 const COPILOT_TEXT = {
@@ -278,7 +299,8 @@ async function copilotStart(run) {
   }
   if (K.copilot === 'ok') K.copilotOk = true;
   const [state, sub] = COPILOT_TEXT[K.copilot] || ['unk', 'No se ha podido comprobar'];
-  if (!COPILOT_TEXT[K.copilot]) K.copilot = 'unknown';
+  if (!COPILOT_TEXT[K.copilot]) { K.copilot = 'unknown'; raro('copilot', K.resp); }
+  else raro('copilot', '');
   setRow('copilot', state, typeof sub === 'function' ? sub() : sub);
   await sessionStart(run);
 }
@@ -304,6 +326,7 @@ async function sessionStart(run) {
     setRow('session', 'warn', 'Falta iniciar sesión');
   } else {
     K.session = 'unknown';
+    raro('session', respuesta);
     setRow('session', 'unk', 'No se ha podido comprobar');
   }
   finish();
@@ -345,15 +368,17 @@ function finish() {
     else { help = 'Inicia sesión con tu cuenta de Inditex.'; kind = 'login'; }
   }
   const foot = $('.step[data-step="checks"]:not(.out-fwd):not(.out-back) [data-cks-foot]');
+  const sub = rowEl(at)?.querySelector('.ck-sub')?.textContent || '';
+  const { codigo, detalle } = at ? codigoDe(at) : {};
   if (foot) {
-    foot.textContent = help;
-    // con un aviso, el registro, para pasárselo a quien ayude
+    foot.innerHTML = '';
+    // con un aviso, su código, para copiarlo, y el registro, para pasárselo a quien ayude
     if (help) {
-      foot.insertAdjacentHTML('beforeend', ' <button class="btn link" data-log>Ver el registro</button>');
-      $('[data-log]', foot).onclick = verRegistro;
+      foot.innerHTML = `<p class="cks-help">${esc(help)}</p>${pieError(codigo)}`;
+      conPieError(foot, codigo, `${ERRORES[codigo]}${detalle ? ` (${detalle})` : ''}`);
     }
   }
-  if (help) anotar(`Aviso en ${ROW[at]}: ${rowEl(at)?.querySelector('.ck-sub')?.textContent || ''} · ${help}`);
+  if (help) anotar(`Aviso ${codigo} en ${ROW[at]}: ${sub}${detalle && !sub.includes(detalle) ? ` (${detalle})` : ''} · ${help}`);
   const act = at && rowEl(at) && $('.ck-act', rowEl(at));
   if (act) {
     act.innerHTML = (kind === 'guide' ? '<button class="btn link" data-guide>Abrir la guía ↗</button>' : '')
@@ -400,8 +425,17 @@ async function onNext() {
   }
   if (id === 'checks') {
     if (!canGoOn()) return;
+    S.avisos = [];
     const warn = unknownsText();
-    if (warn) { ask('¿Seguir sin comprobarlo?', warn, 'Seguir', () => { anotar(`Sigue sin comprobarlo: ${warn}`); go(cur + 1); }); return; }
+    if (warn) {
+      ask('¿Seguir sin comprobarlo?', warn, 'Seguir', () => {
+        // lo que se deja sin comprobar sale resumido en «Listo», con sus códigos
+        S.avisos = rows().filter((id) => rowEl(id)?.dataset.state === 'unk').map((id) => ({ ...codigoDe(id), fila: ROW[id] }));
+        anotar(`Sigue sin comprobarlo: ${S.avisos.map((a) => a.codigo).join(', ')}`);
+        go(cur + 1);
+      });
+      return;
+    }
   }
   go(cur + 1);
 }
@@ -427,6 +461,39 @@ $('[data-leave]').onclick = () => { $('[data-veil]').hidden = true; onLeave?.();
 
 function verRegistro() { invoke('abrir_registro').catch(() => {}); }
 
+// ── Errores: su código, «Copiar el error» y el registro (ui/errores.js) ──────
+// Debajo de un aviso o un error: «Código INS-xxx · Copiar el error · Ver el registro»
+const pieError = (codigo) => `<p class="cks-code"><span>Código ${esc(codigo)}</span><button class="btn link" data-copy>Copiar el error</button><button class="btn link" data-log>Ver el registro</button></p>`;
+function conPieError(el, codigo, texto) {
+  $('[data-copy]', el).onclick = (e) => copiar(e.currentTarget, [`${codigo} · ${texto}`], codigo);
+  $('[data-log]', el).onclick = verRegistro;
+}
+
+// Lo que se pega para el equipo: qué SIA Setup, en qué sistema, qué estaba haciendo, el error o
+// los avisos, cuándo y dónde está el registro
+function textoError(lineas) {
+  const que = { install: 'primera instalación', update: `actualización desde la ${S.instalado?.version}`, uninstall: 'desinstalación' }[S.mode] || '';
+  const ahora = new Date().toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return [`SIA Setup ${S.version_setup || ''} · ${S.sistema_operativo || ''} · ${que}`, ...lineas, `${ahora} · Registro: ${S.registro || ''}`].join('\n');
+}
+
+async function copiar(boton, lineas, codigos) {
+  const texto = textoError(lineas);
+  // con Tauri, su portapapeles (el del navegador pide permiso en WebView2 y se queda esperando);
+  // en la maqueta, el del navegador o, sin permiso (file://), a la antigua
+  const tauri = window.__TAURI__.clipboardManager;
+  try {
+    await (tauri ? tauri.writeText(texto) : navigator.clipboard.writeText(texto));
+  } catch {
+    const t = Object.assign(document.createElement('textarea'), { value: texto });
+    document.body.append(t); t.select(); document.execCommand('copy'); t.remove();
+  }
+  anotar(`Se copia el error ${codigos}`);
+  const antes = boton.textContent;
+  boton.textContent = 'Copiado ✓';
+  setTimeout(() => { boton.textContent = antes; }, 2000);
+}
+
 async function closeWin() {
   anotar(`Se cierra en el paso ${cur + 1}: ${title(flow[cur])}`);
   stopTimers();
@@ -435,8 +502,23 @@ async function closeWin() {
   setTimeout(() => appWin.close(), reduced() ? 0 : 250);
 }
 
+// Si ni siquiera se puede abrir (falta lo que hay que instalar), lo dice con su código
+function sinArrancar(err) {
+  const { codigo, texto } = leerError(err);
+  S = { mode: '' };
+  stepsEl.hidden = true; next.hidden = true;
+  stage.innerHTML = `<section class="step"><div class="hello"><div class="hello-mark">SIA</div><p class="hello-note warn">${esc(texto)}</p>${pieError(codigo)}</div></section>`;
+  conPieError(stage, codigo, texto);
+}
+
 (async () => {
-  S = await invoke('estado');
+  try {
+    S = await invoke('estado');
+  } catch (err) {
+    sinArrancar(err);
+    return;
+  }
+  S.avisos = [];
   S.mode = S.modo === 'desinstalar' ? 'uninstall' : S.instalado ? 'update' : 'install';
   if (S.instalado) S.carpeta = S.instalado.carpeta;
   $('.win').dataset.os = S.sistema;

@@ -25,6 +25,7 @@
     'cert-descarga': { certs: 'SIA-FALTAN:ITX Root CA', copilot: 'SIA-COPILOT:falta', 'copilot-install': 'SIA-COPILOT:descarga' },
     'sin-sesion': { session: 'SIA-SESION:sin-sesion' },
     'sesion-unk': { session: '' },
+    'copilot-raro': { copilot: 'SIA-COPILOT:quien-sabe' },
   }[esc] || {};
   const BIEN = { certs: 'SIA-OK', copilot: 'SIA-COPILOT:ok', 'copilot-install': 'SIA-COPILOT:ok', session: 'SIA-SESION:ok:tecnico-itx', login: '' };
   const TARDA = { certs: 1200, copilot: 1100, 'copilot-install': 3200, session: 700, login: 3000 };
@@ -50,6 +51,8 @@
     for (;;) {
       const k = Math.min(1, (performance.now() - t0) / total), pct = Math.round(99 * k);
       emit('progreso', { pct, fase: fases.filter(([at]) => pct >= at).pop()[1] });
+      // como lo devuelve Rust: con su código delante
+      if (esc === 'instala-falla' && k > 0.6) throw 'INS-401 · La instalación no ha terminado (código 2).';
       if (k >= 1) break;
       await wait(400);
     }
@@ -61,6 +64,7 @@
     for (;;) {
       const k = Math.min(1, (performance.now() - t0) / total), pct = Math.round(5 + 92 * k);
       emit('progreso', { pct, fase: abierto && k < 0.15 ? 'cerrando' : 'borrando' });
+      if (esc === 'desinstala-falla' && k > 0.5) throw 'INS-501 · No se ha podido desinstalar (código 2).';
       if (k >= 1) break;
       await wait(400);
     }
@@ -69,13 +73,15 @@
   const RUTAS = mac ? ['/Applications/SIA.app', '/Users/tecnico/Applications/SIA.app'] : ['C:\\Users\\tecnico\\AppData\\Local\\Programs\\SIA', 'D:\\Herramientas\\SIA'];
   let ruta = 0;
   const ORDENES = {
-    estado: async () => ({
+    estado: async () => (esc === 'sin-paquete' ? Promise.reject('INS-405 · No se encuentra lo que hay que instalar.') : {
       modo: uninstall ? 'desinstalar' : 'instalar',
       sistema: mac ? 'mac' : 'win', version: uninstall ? '1.1.0' : '1.2.0', bytes: 447660845,
       instalado: update || uninstall ? { version: '1.1.0', carpeta: RUTAS[0] } : null,
       abierto: (update || uninstall) && q.get('abierto') === '1', carpeta: RUTAS[0],
       certs: { guia: 'https://lde.docs.inditex.dev/lde/latest/tooling/security/import-certificates.html#2-import-the-certificates', requeridos: ['ITX Root CA'] },
       guia_gestor: mac ? 'https://brew.sh/es/' : 'https://learn.microsoft.com/es-es/windows/package-manager/winget/#install-winget',
+      version_setup: '1.2.0', sistema_operativo: mac ? 'macOS 15.1' : 'Windows 11 25H2 (compilación 26200)',
+      registro: mac ? '/Users/tecnico/Library/Logs/SIA Setup/instalacion-20261120-093012.log' : 'C:\Users\tecnico\AppData\Local\SIA Setup\registros\instalacion-20261120-093012.log',
     }),
     anotar: async () => {},
     abrir_registro: async () => aviso('Se abriría el registro de la instalación'),

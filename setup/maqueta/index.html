@@ -31,6 +31,7 @@ body { display: flex; flex-direction: column; align-items: center; justify-conte
   <b>Maqueta</b>
   <label>Escenario <fieldset data-mock="modo"><button data-v="install" aria-pressed="true">Primera instalación</button><button data-v="update">Actualización</button><button data-v="uninstall">Desinstalación</button></fieldset></label>
   <label data-only="update uninstall"><input type="checkbox" data-abierto> SIA abierto</label>
+  <label data-only="uninstall"><input type="checkbox" data-falla> Falla la desinstalación (INS-501)</label>
   <label>Sistema <fieldset data-mock="sistema"><button data-v="win" aria-pressed="true">Windows</button><button data-v="mac" data-sistema-mac>Mac</button></fieldset></label>
   <label>Comprobaciones
     <select data-escenario>
@@ -53,6 +54,11 @@ body { display: flex; flex-direction: column; align-items: center; justify-conte
         <option value="sin-sesion" data-solo="install">Sin sesión: «Iniciar sesión»</option>
         <option value="sesion-unk" data-solo="install">No se puede comprobar</option>
       </optgroup>
+      <optgroup label="Errores">
+        <option value="copilot-raro" data-solo="install">Una respuesta que no conocemos (INS-900)</option>
+        <option value="instala-falla" data-solo="install update">Falla la instalación (INS-401)</option>
+        <option value="sin-paquete" data-solo="install update">Falta lo que hay que instalar (INS-405)</option>
+      </optgroup>
     </select>
   </label>
   <button class="mock-reset" data-reset>Empezar de nuevo</button>
@@ -73,9 +79,9 @@ function load() {
   // en Mac no hay desinstalador: SIA se lleva a la Papelera
   $$('[data-sistema-mac]').forEach((x) => { x.hidden = S.modo === 'uninstall'; });
   if (S.modo === 'uninstall' && S.sistema === 'mac') $('[data-mock=sistema] [data-v=win]').click();
-  $$('[data-solo]').forEach((o) => { o.disabled = o.dataset.solo !== S.modo; });
+  $$('[data-solo]').forEach((o) => { o.disabled = !o.dataset.solo.split(' ').includes(S.modo); });
   if ($('[data-escenario]').selectedOptions[0]?.disabled) { $('[data-escenario]').value = 'ok'; S.escenario = 'ok'; }
-  const q = new URLSearchParams({ escenario: S.escenario, modo: S.modo, sistema: S.sistema, abierto: S.abierto ? '1' : '0' });
+  const q = new URLSearchParams({ escenario: S.modo === 'uninstall' && S.falla ? 'desinstala-falla' : S.escenario, modo: S.modo, sistema: S.sistema, abierto: S.abierto ? '1' : '0' });
   frame.src = `ventana.html?${q}`;
 }
 for (const fs of $$('[data-mock]')) {
@@ -88,6 +94,7 @@ for (const fs of $$('[data-mock]')) {
 }
 $('[data-escenario]').onchange = (e) => { S.escenario = e.target.value; load(); };
 $('[data-abierto]').onchange = (e) => { S.abierto = e.target.checked; load(); };
+$('[data-falla]').onchange = (e) => { S.falla = e.target.checked; load(); };
 $('[data-reset]').onclick = load;
 let toastT;
 const toast = (t) => { $('[data-toast]').textContent = `(maqueta) ${t}`; clearTimeout(toastT); toastT = setTimeout(() => { $('[data-toast]').textContent = ''; }, 3000); };

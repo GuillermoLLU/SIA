@@ -1,12 +1,13 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "La ventana del instalador: moverla, minimizarla y cerrarla.",
+  "description": "La ventana del instalador: moverla, minimizarla y cerrarla, y copiar el error al portapapeles.",
   "windows": ["main"],
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",
     "core:window:allow-minimize",
-    "core:window:allow-close"
+    "core:window:allow-close",
+    "clipboard-manager:allow-write-text"
   ]
 }
