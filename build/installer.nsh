@@ -666,3 +666,32 @@ Function SiaChecksLeave
   ${EndIf}
 FunctionEnd
 !endif
+
+; El desinstalador, con el aspecto de SIA Setup en lo que deja el asistente de
+; Windows: el lateral blanco con su nombre (build/sidebar.bmp, en package.json),
+; textos mínimos y «Desinstalar» en lugar de «Siguiente». Desinstala igual que
+; siempre, y SIA lo cierra el propio desinstalador.
+!macro customUnWelcomePage
+  !define MUI_WELCOMEPAGE_TITLE "Desinstalar SIA"
+  !define MUI_WELCOMEPAGE_TEXT "Se quitará SIA de este equipo. Tu configuración y tus datos se conservan.$\r$\n$\r$\nSi SIA está abierto, se cerrará."
+  !define MUI_PAGE_CUSTOMFUNCTION_SHOW un.SiaUnWelcomeShow
+  !insertmacro MUI_UNPAGE_WELCOME
+  ; la cabecera de la página siguiente, la del progreso
+  !define MUI_PAGE_HEADER_TEXT "Desinstalando SIA"
+  !define MUI_PAGE_HEADER_SUBTEXT " "
+  !define MUI_INSTFILESPAGE_FINISHHEADER_TEXT "SIA desinstalado"
+  !define MUI_INSTFILESPAGE_FINISHHEADER_SUBTEXT " "
+!macroend
+
+; El final: va justo antes de su página
+!macro customUninstallPage
+  !define MUI_FINISHPAGE_TITLE "SIA desinstalado"
+  !define MUI_FINISHPAGE_TEXT "Puedes volver a instalarlo cuando quieras con su instalador."
+!macroend
+
+!ifdef BUILD_UNINSTALLER
+Function un.SiaUnWelcomeShow
+  GetDlgItem $0 $HWNDPARENT 1
+  SendMessage $0 0x000C 0 "STR:Desinstalar"   ; WM_SETTEXT: aquí no está WinMessages.nsh
+FunctionEnd
+!endif
