@@ -351,7 +351,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     // Escape: con la lista del selector abierta la cierra; si no, cierra el modal
     offEscape = onEscape(() => (openPicker(root) ? closePickers(root) : closeAction()));
   };
-  // Dividir la issue (#152): a pantalla completa, la original a la izquierda, con lo que dice el centro
+  // Dividir la issue (#152): en una ventana grande, la original a la izquierda, con lo que dice el centro
   // listo para cortar lo del segundo problema, y la nueva a la derecha (split.js)
   const openSplit = () => {
     root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${splitForm(issue)}</div>`);

@@ -1,5 +1,5 @@
 // Dividir una issue que trae dos problemas (#152), desde «Otras acciones»: dominio y HTML, sin E/S
-// (lo cablea issues-view.js). La ventana va a pantalla completa, como el detalle de un ticket de
+// (lo cablea issues-view.js). Una ventana grande, con la cabecera del detalle de un ticket de
 // Escalar: a la izquierda la issue tal cual y a la derecha la nueva, con sus mismos datos. Solo se
 // reparte lo que dice el centro: lo del segundo problema se corta de la original y se pega en la
 // nueva, y las dos se pueden reescribir (y retocar su título).
