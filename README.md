@@ -17,7 +17,8 @@ equipo. Una instancia por cliente.
 
 1. **Node 22.19+** (trae el SQLite de las Métricas y los certificados del sistema, para la VPN) y el CLI de
    Copilot (`npm i -g @github/copilot`). La sesión de Copilot se inicia desde SIA
-   (Configuración → Proveedores IA).
+   (Configuración → Proveedores IA). Para la app instalada, el instalador de
+   Windows lo instala si falta, con WinGet y sin administrador.
 2. Una **cuenta de la instancia** (te la da un administrador en Configuración → Equipo).
 3. Arrancar:
 
@@ -44,7 +45,8 @@ sitios:
 
 - en el instalador de Windows, en la página «Comprobaciones previas», los
   certificados: sin ellos no deja seguir (si no se pueden comprobar, avisa y
-  deja seguir con confirmación);
+  deja seguir con confirmación). En la primera instalación comprueba también
+  Copilot CLI y que tenga una sesión iniciada;
 - en la app, al pulsar la S: si falta algo, en lugar del formulario sale un
   aviso corto (qué falta y la guía) con «Reintentar», que vuelve a
   comprobar de verdad, relee los certificados del sistema y deja pasar al
