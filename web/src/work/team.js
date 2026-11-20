@@ -36,10 +36,15 @@ const COLS = {
     `De las que ha resuelto, el % que pasó a En curso dentro del plazo de su prioridad: ${slaText()}.`],
   tatt: ['Tatt medio', (s) => dur(s.ip), (s) => s.ip, 'low', 'Tiempo medio desde que se abre la incidencia hasta que pasa a En curso por primera vez, de las que han empezado (como en las Métricas del servicio).'],
   tan: ['Tan medio', (s) => dur(tan(s)), tan, 'low', 'De las que ha resuelto, tiempo medio de análisis: la suma de los tramos En curso, sin las esperas en Pendiente.'],
-  avg: ['TTR medio', (s) => dur(s.avg), (s) => s.avg, 'low', 'Tiempo medio de resolución (TTR): desde que se abre la incidencia hasta que se resuelve, en horas y días naturales.'],
+  avg: ['MTTR', (s) => dur(s.avg), (s) => s.avg, 'low', 'Tiempo medio de resolución (TTR): desde que se abre la incidencia hasta que se resuelve, en horas y días naturales.'],
   reop: ['Reabiertas', (s) => pct(s.reop, 1), (s) => s.reop, 'low', '% de incidencias que se reabrieron después de resolverse.'],
   ...shiftCols(),
+  // la aportación neta por turno (per-shift.js, anpt): una sola cifra para evaluar a cada uno
+  anpt: ['ANPT', (s) => (s.shift?.anpt == null ? '—' : dec(s.shift.anpt)), (s) => s.shift?.anpt ?? null, 'high',
+    'Aportación neta por turno: (0,6 × resueltas aprobadas + 0,3 × escaladas a proveedor + 0,1 × pasadas a pendiente de cliente − 0,6 × reabiertas) / turnos trabajados. Una resuelta auditada cuenta 1 si aprobó (nota final ≥ 3) y 0 si no; sin auditar, 0,5 (las notas de calidad aún no llegan a SIA: hoy, todas 0,5). Cada paso es de quien lo hizo; los turnos, como en RPT.'],
   iqa: ['%IQA', () => '—', () => null, 'high', 'De las auditadas, el % con calidad 3 o 4 (sobre 4: la nota mínima de técnica, proceso y comunicación). Pendiente: la nota del agente de calidad (tarea #55) aún no llega a SIA.'],
+  // %IQA2: de las suspensas en la primera revisión de calidad, las aprobadas en la segunda (también sin datos aún)
+  iqa2: ['%IQA2', () => '—', () => null, 'high', 'De las incidencias suspensas en calidad la primera vez, el % aprobado en la segunda revisión. Pendiente: las notas del agente de calidad (tarea #55) aún no llegan a SIA.'],
   ia: ['Con IA', (s) => (s.resolved ? pct(s.ia / s.resolved, 1) : '—'), (s) => (s.resolved ? s.ia / s.resolved : null), null, 'De las que ha resuelto, el % en el que intervino la IA (marcas en TAGS o en las notas).'],
 };
 
@@ -117,7 +122,8 @@ export const teamPanel = (m, ch, ui) => {
   const PRIO = { CRITICAL: 'Críticas', HIGH: 'Altas', MEDIUM: 'Medias', LOW: 'Bajas' };
   const cols = { ...COLS };
   for (const p of m.PRIOS) cols[`p${p}`] = [PRIO[m.DI.prio[p]], (s) => num(s.prio[p]), (s) => s.prio[p], null, `Incidencias de prioridad ${m.slaLabel(p)}.`];
-  const order = ['n', 'open', ...m.PRIOS.map((p) => `p${p}`), 'sla', 'tatt', 'tan', 'avg', 'reop', 'r', 're', 'rb', 'v', 've', 'vb', 'c', 'ce', 'cb', 'iqa', 'ia'];
+  // tras Incidencias, el ANPT y lo de por turno (RPT, EPPT, PCPT), la calidad (%IQA, %IQA2) y la IA; luego, lo demás
+  const order = ['n', 'anpt', 'r', 're', 'rb', 'v', 've', 'vb', 'c', 'ce', 'cb', 'iqa', 'iqa2', 'ia', 'open', ...m.PRIOS.map((p) => `p${p}`), 'sla', 'tatt', 'tan', 'avg', 'reop'];
 
   // Pendientes: todo lo que el equipo tiene sin resolver (caiga o no en sus búsquedas de Remedy) y lo
   // que espera en sus búsquedas (SGA y SISU) sin asignar o asignado a otros; de las issues abiertas en el periodo.
@@ -229,7 +235,7 @@ export const teamPanel = (m, ch, ui) => {
   const groups = chosen ? [...doers].map(([k, o]) => ({ k, rows: [...o.worked], solved: o.solved })) : m.group('as', m.rows(), true).filter((x) => x.k);
   const people = groups.map((x) => ({ ...statsOf(x.rows, x.solved), k: x.k, shift: counts && perTurn(counts.get(x.k)) }));
   ST[k0] = { ...ST[k0], shift: counts && teamPerTurn(counts) };
-  const [sortCol, dir] = ui.sort.team || ['n', -1];
+  const [sortCol, dir] = ui.sort.team || ['anpt', -1];   // de partida, por el ANPT, de más a menos
   // al ordenar por un % o una media, quien tiene pocas issues va al final: su cifra dice poco
   const key = (r) => cols[sortCol][2](r) ?? -Infinity, rated = !!cols[sortCol][3], few = (r) => (rated && r.n < MIN ? 1 : 0);
   people.sort((a, b) => few(a) - few(b) || (key(a) - key(b)) * dir || b.n - a.n);
@@ -257,7 +263,10 @@ export const teamPanel = (m, ch, ui) => {
   // Una persona frente a la media del equipo (ui.vsTeam): su fila, la media por persona del equipo y la diferencia, en
   // verde si es mejor y en rojo si es peor. La media, de todas las personas con incidencias; los % y las medias, solo de
   // quien tiene al menos MIN (con menos dicen poco), salvo que no haya nadie así.
-  const me = who != null && ui.vsTeam ? people.find((p) => p.k === who) : null;
+  // En la pestaña, también con un técnico marcado en la tabla (uno solo: con dos, se comparan entre ellos), encima de
+  // ella, que sigue para poder marcar otro; en el informe (ui.vsTeam), en vez de la tabla.
+  const meK = ui.vsTeam ? who : cmp.length === 1 ? cmp[0].k : null;
+  const me = meK != null ? people.find((p) => p.k === meK) : null;
   const vsTeam = () => {
     const kind = (c) => (['sla', 'reop', 'ia'].includes(c) ? 'pct' : ['tatt', 'tan', 'avg'].includes(c) ? 'dur' : 'dec');
     const show = (c, v) => (v == null ? '—' : kind(c) === 'pct' ? pct(v, c === 'sla' ? 0 : 1) : kind(c) === 'dur' ? dur(v) : dec(v));
@@ -277,7 +286,7 @@ export const teamPanel = (m, ch, ui) => {
       return `<td class="mt-num"><b class="mt-diff ${cls}">${delta(c, d)}</b></td>`;
     };
     return `<div class="mt-tablewrap"><table class="wk-team"><thead><tr><th></th>${order.map((c) => `<th class="mt-num" data-tip="${esc(cols[c][4])}">${cols[c][0]}</th>`).join('')}</tr></thead>
-      <tbody><tr><td><i class="mt-sw mt-c${k0}"></i>${esc(m.DIMS.as.label(who))}</td>${order.map((c) => cell(me, c)).join('')}</tr>
+      <tbody><tr><td><i class="mt-sw mt-c${k0}"></i>${esc(m.DIMS.as.label(me.k))}</td>${order.map((c) => cell(me, c)).join('')}</tr>
       <tr class="mt-grp"><td>Media del equipo</td>${order.map((c) => `<td class="mt-num">${show(c, avg[c])}</td>`).join('')}</tr>
       <tr><td>Diferencia</td>${order.map(diff).join('')}</tr></tbody></table></div>`;
   };
@@ -297,8 +306,8 @@ export const teamPanel = (m, ch, ui) => {
   return `<div class="wk-panel">
     ${filter}<div class="wk-blocks">${activity}${volume}${backlog}${sla}${times}${quality}${ia}</div>
     <div class="mt-grid">
-    ${me ? card(`${esc(m.DIMS.as.label(who))} frente a la media del equipo`, vsTeam(), { span: 's12', sub: `La media por persona del equipo (${num(people.length)} ${people.length === 1 ? 'persona' : 'personas'} con incidencias en el periodo); los porcentajes y las medias, de quien tiene al menos ${MIN}. En verde, mejor que la media; en rojo, peor.` })
-      : card('El equipo, persona a persona', table, { span: 's12', sub: `${counts ? '' : 'Faltan los turnos de lo resuelto, escalado y pendiente de cliente (RPT, EPPT, PCPT): reinicia SIA para que el bridge los calcule.'}${tableSub}` })}
+    ${me ? card(`${esc(m.DIMS.as.label(me.k))} frente a la media del equipo`, vsTeam(), { span: 's12', sub: `La media por persona del equipo (${num(people.length)} ${people.length === 1 ? 'persona' : 'personas'} con incidencias en el periodo); los porcentajes y las medias, de quien tiene al menos ${MIN}. En verde, mejor que la media; en rojo, peor.` }) : ''}
+    ${me && ui.vsTeam ? '' : card('El equipo, persona a persona', table, { span: 's12', sub: `${counts ? '' : 'Faltan los turnos de lo resuelto, escalado y pendiente de cliente (RPT, EPPT, PCPT): reinicia SIA para que el bridge los calcule.'}${tableSub}` })}
     </div>
     ${ui.noSheet || !ui.showSheet ? '' : `<div class="wk-sheet">${card('Sábana de incidencias', sheetBody(m, teamIssues(m, ui), { ui, id: 'team-sheet', expanded: ui.exp['team-sheet'], more: ch.more, empty: 'Ninguna incidencia con estos filtros.', cols: TEAM_SHEET_COLS }), { span: 's12', sub: `Las incidencias del panel, abiertas o cerradas: ${chosen ? 'con algún paso en los días elegidos' : 'creadas en el periodo'}${who == null ? '' : ', del técnico elegido'}. Exportar a CSV las descarga todas, con su enlace a Remedy, para abrirlas en Excel.` })}</div>`}
   </div>`;

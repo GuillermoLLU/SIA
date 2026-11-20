@@ -18,6 +18,7 @@ import { turnosTab } from './tabs/turnos.js';
 import { pendingTab } from './tabs/pending.js';
 import { clienteTab } from './tabs/cliente.js';
 import { tiemposTab } from './tabs/tiempos.js';
+import { rendimientoTab } from './tabs/rendimiento.js';
 
 export { TABS } from './tabs/common.js';
 
@@ -35,7 +36,7 @@ export const createTabs = (m, ch, ui) => {
   const t = createCommon(m, ch, ui);
   const VIEWS = { resumen: resumenTab(t), hoy: hoyTab(t), historico: historicoTab(t), entrada: entradaTab(t), modulos: modulosTab(t),
     resolucion: resolucionTab(t), tiempos: tiemposTab(t), cliente: clienteTab(t), escalados: escaladosTab(t), sla: slaTab(t), calidad: pendingTab(t, 'calidad'),
-    ia: iaTab(t), turnos: turnosTab(t) };
+    ia: iaTab(t), turnos: turnosTab(t), rendimiento: rendimientoTab(t) };
   // Las que van juntas (Servicio), una debajo de otra: SLA y calidad (SLAs y Calidad)
   VIEWS.slaq = (A, opts) => VIEWS.sla(A, opts) + VIEWS.calidad(A, opts);
   // Backlog: lo de Foto de hoy sin su corona (la del Resumen)

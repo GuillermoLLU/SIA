@@ -19,7 +19,7 @@ export const TABS = [['resumen', 'Resumen'], ['hoy', 'Foto de hoy'], ['escalados
   ['entrada', 'Entrantes'], ['tiempos', 'Análisis tiempos'], ['calidad', 'Calidad'], ['ia', 'Uso de la IA'], ['historico', 'Histórico'],
   ['sla', 'SLAs'], ['modulos', 'Módulos y focos'], ['resolucion', 'Resolución'], ['turnos', 'Turnos'],
   // juntas, como en la antigua Métricas del servicio (faces.js: Servicio; tabs.js)
-  ['slaq', 'SLA y calidad'], ['backlog', 'Backlog']];
+  ['slaq', 'SLA y calidad'], ['backlog', 'Backlog'], ['rendimiento', 'Rendimiento equipos']];
 export const QUESTIONS = {
   resumen: ['¿Cómo vamos?', 'De un vistazo: en qué estado está lo abierto ahora y, de lo recibido en el periodo, el MTTR, el %IQA y el uso de la IA. El detalle, en cada pestaña.'],
   hoy: ['¿Cómo está hoy?', 'Cómo está el backlog ahora: en qué estado, desde cuándo, de qué y qué conviene vigilar. Lo recibido en el periodo y cómo ha ido el backlog día a día, en el Histórico.'],

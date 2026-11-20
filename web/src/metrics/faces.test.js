@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { FACES, faceTabs, firstTab, faceFor, TAB_ALIAS, JOINED, HIDDEN, routeTo } from './faces.js';
+import { FACES, faceTabs, firstTab, faceFor, TAB_ALIAS, JOINED, HIDDEN, routeTo, hasIncidentList, LIST_TABS } from './faces.js';
 import { TABS } from './tabs.js';
 
 const TEAM = { id: 'equipo', label: 'Equipo soporte' };
@@ -17,9 +17,9 @@ test('cada vista, con sus pestañas y sus nombres', () => {
   assert.deepEqual(faceTabs('servicio', TEAM).map(([, l]) => l), ['Resumen', 'Backlog', 'Entrantes', 'Módulos y focos', 'Resolución', 'Escalados',
     'SLA y calidad', 'Uso de la IA', 'Turnos']);   // sin Equipo soporte: está en Equipo
   assert.deepEqual(keys('servicio'), ['resumen', 'backlog', 'entrada', 'modulos', 'resolucion', 'escalados', 'slaq', 'ia', 'turnos']);
-  assert.deepEqual(faceTabs('equipo', TEAM).map(([, l]) => l), ['Equipo soporte', 'Calidad', 'Módulos y focos', 'Turnos']);
+  assert.deepEqual(faceTabs('equipo', TEAM).map(([, l]) => l), ['Equipo soporte', 'Rendimiento equipos', 'Calidad','Módulos y focos', 'Turnos']);
   assert.deepEqual(faceTabs('tecnicas', TEAM).map(([, l]) => l), ['Resumen', 'Backlog', 'Entrantes', 'Escalados', 'Módulos y focos',
-    'Pendiente de cliente', 'Análisis tiempos', 'Calidad', 'Uso de la IA']);
+    'Pendiente de cliente', 'Análisis tiempos', 'Calidad', 'Uso de la IA', 'Rendimiento equipos']);
   // SLA y calidad: SLAs y Calidad (Uso de la IA, aparte)
   assert.deepEqual(JOINED.slaq, ['sla', 'calidad']);
   assert.deepEqual(Object.keys(JOINED), ['slaq']);   // Resolución y Escalados, cada una en su pestaña
@@ -37,9 +37,9 @@ test('ninguna pestaña se queda sin vista, salvo el Histórico; Foto de hoy, par
   assert.deepEqual(FACES.filter((f) => f.tabs.includes('ia')).map((f) => f.id), ['servicio', 'tecnicas']);
 });
 
-test('cada vista empieza por su primera pestaña; sin Equipo soporte, Equipo empieza por Calidad', () => {
+test('cada vista empieza por su primera pestaña; sin Equipo soporte, Equipo empieza por Rendimiento equipos', () => {
   assert.deepEqual(FACES.map((f) => firstTab(f.id, TEAM)), ['resumen', 'equipo', 'resumen']);
-  assert.equal(firstTab('equipo'), 'calidad');
+  assert.equal(firstTab('equipo'), 'rendimiento');
   assert.equal(firstTab('nada', TEAM), null);
   assert.ok(!faceTabs('servicio').some(([k]) => k === 'equipo'));   // sin Equipo soporte, Servicio sin su pestaña
 });
@@ -63,4 +63,12 @@ test('a dónde lleva un enlace: Foto de hoy, a Backlog; las que van juntas, a la
   assert.deepEqual(routeTo('ia', 'servicio'), ['servicio', 'ia']);                 // Uso de la IA, aparte
   assert.deepEqual(routeTo('calidad', 'equipo'), ['equipo', 'calidad']);
   assert.deepEqual(routeTo('turnos', 'equipo'), ['equipo', 'turnos']);
+});
+
+test('«Descargar lista de incidencias»: en Servicio, en Resumen, Backlog, Módulos y focos, Escalados, SLA y calidad y Uso de la IA; en Equipo, en todas menos Turnos', () => {
+  assert.deepEqual(FACES.find((f) => f.id === 'servicio').tabs.filter((k) => hasIncidentList('servicio', k)), ['resumen', 'backlog', 'modulos', 'escalados', 'slaq', 'ia']);
+  assert.deepEqual(FACES.find((f) => f.id === 'equipo').tabs.filter((k) => !hasIncidentList('equipo', k)), ['turnos']);
+  for (const [face, tabs] of Object.entries(LIST_TABS)) for (const k of tabs) assert.ok(FACES.find((f) => f.id === face).tabs.includes(k), `${face} · ${k}`);
+  assert.equal(hasIncidentList('servicio', 'turnos'), false);
+  assert.equal(hasIncidentList(null, 'resumen'), false);
 });

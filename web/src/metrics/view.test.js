@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createModel } from './model.js';
 import { data } from './fixture.js';
-import { COLORS, defaultColors, freeColor, dayOf, coverage, freeCompany, withoutSide, togglePerson, filterKey } from './view.js';
+import { COLORS, defaultColors, freeColor, dayOf, coverage, freeCompany, withoutSide, togglePerson, filterKey, pickSys, teamPeopleOf, sidesOfPeople } from './view.js';
 
 test('colores: los dos de partida y el primero libre', () => {
   assert.deepEqual(defaultColors(), [COLORS[0][0], COLORS[1][0]]);
@@ -102,4 +102,25 @@ test('Filtros con Ctrl: en un selector, clic deja solo esa y Ctrl+clic la suma o
   pickBoth(g, [['sit', 1], ['age', 0]], true); assert.deepEqual([[...g.sit], [...g.age]], [[2], [1]]);          // y se quitan
   const h = {}; pickBoth(h, [['sit', 1], ['sit', 2]]); assert.deepEqual([...h.sit], [1, 2]);       // dos de la misma (Asignada)
   pickBoth(h, [['sit', 1], ['sit', 2]]); assert.deepEqual(h, {});
+});
+
+test('pickSys: el selector SISU / SGA de la corona (clic, solo ese; otra vez, los dos; Ctrl+clic, compararlos)', () => {
+  const S = { f: {} }, ui = {};
+  pickSys(S, ui, 0, false); assert.deepEqual([...S.f.ss], [0]);
+  pickSys(S, ui, 1, false); assert.deepEqual([...S.f.ss], [1]);   // el otro: cambiar a él
+  pickSys(S, ui, 1, false); assert.equal(S.f.ss, undefined);      // otra vez: los dos
+  pickSys(S, ui, 0, true); assert.equal(ui.ssCmp, true); assert.equal(S.f.ss, undefined);   // Ctrl: compararlos, con los dos
+  pickSys(S, ui, 0, false); assert.equal(ui.ssCmp, false); assert.deepEqual([...S.f.ss], [0]);   // comparando, un clic: solo ese
+  pickSys(S, ui, 1, true); pickSys(S, ui, 1, true); assert.equal(ui.ssCmp, false); assert.equal(S.f.ss, undefined);   // Ctrl otra vez: dejar de comparar
+});
+
+test('Equipo soporte y el selector de Indra y técnicos: a quién mira su tabla según los lados, y al revés', () => {
+  assert.deepEqual(teamPeopleOf([{ company: 0 }, null]), []);                              // Indra: todo el equipo
+  assert.deepEqual(teamPeopleOf([{ people: new Set([7]) }, null]), [7]);
+  assert.deepEqual(teamPeopleOf([{ people: new Set([7]) }, { people: new Set([9]) }]), [7, 9]);   // uno frente a otro
+  assert.deepEqual(teamPeopleOf([{ people: new Set([7, 8, 5]) }, { company: 0 }]), [7, 8]);     // como mucho dos
+  assert.deepEqual(sidesOfPeople([]), [{ company: 0 }, null]);
+  assert.deepEqual(sidesOfPeople([7]), [{ people: new Set([7]) }, null]);
+  assert.deepEqual(sidesOfPeople([7, 9]), [{ people: new Set([7]) }, { people: new Set([9]) }]);
+  for (const c of [[], [7], [7, 9]]) assert.deepEqual(teamPeopleOf(sidesOfPeople(c)), c);
 });

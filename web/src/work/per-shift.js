@@ -5,9 +5,16 @@
 //
 // Una sesión cuenta entera en el periodo si termina dentro de él, y sus pasos con ella. Un paso es entrante si la issue se
 // abrió en el turno en que se actuó: las 8 h que terminan con la última acción de la sesión, o la sesión si dura más.
+import { REOPENED } from '../metrics/model.js';
+
 const TURN = 8 * 60;
 export const KINDS = ['r', 'v', 'c'];   // el tipo de cada paso de cols.sp, por su índice
-const empty = () => ({ turns: 0, r: [0, 0], v: [0, 0], c: [0, 0] });
+// q: sus resueltas pesadas por la calidad (auditada y aprobada, nota final ≥ 3: 1; auditada y suspensa: 0; sin
+// auditar: 0,5); ro: sus resueltas que se reabrieron. Para el ANPT (anpt).
+const empty = () => ({ turns: 0, r: [0, 0], v: [0, 0], c: [0, 0], q: 0, ro: 0 });
+// la nota final de calidad de una issue (1–4; sin auditar, null). Aún no llega a SIA (tarea #55): cuando llegue, en cols.iqa.
+const gradeOf = (C, i) => (C.iqa?.[i] > 0 ? C.iqa[i] : null);
+export const approvedWeight = (grade) => (grade == null ? 0.5 : grade >= 3 ? 1 : 0);
 
 // la sesión de una persona en un instante
 export const sessionAt = (sessions = [], t) => sessions.find(([from, to]) => from <= t && t <= to);
@@ -29,17 +36,21 @@ export const shiftCounts = (m, [d0, d1], keep = () => true) => {
       if (data.company[p] !== own) continue;
       const s = sessionAt(data.sessions[p], t);
       if (!s || !inside(s)) continue;
-      const entered = C.rep[i] >= Math.min(s[0], s[1] - TURN) && C.rep[i] <= s[1];
-      of(p)[KINDS[kind]][entered ? 0 : 1]++;
+      const entered = C.rep[i] >= Math.min(s[0], s[1] - TURN) && C.rep[i] <= s[1], o = of(p);
+      o[KINDS[kind]][entered ? 0 : 1]++;
+      if (kind === 0) { o.q += approvedWeight(gradeOf(C, i)); if ((C.fl?.[i] ?? 0) & REOPENED) o.ro++; }
     }
   }
   return out;
 };
 
 // Las cifras por turno de unos recuentos (de una persona o la suma del equipo): cada paso entre los turnos.
+// ANPT, la aportación neta por turno: (0,6 × resueltas aprobadas + 0,3 × escaladas a proveedor + 0,1 × pasadas a
+// pendiente de cliente − 0,6 × reabiertas) / turnos, con las resueltas pesadas por su calidad (q).
+export const anpt = (o) => (o?.turns ? (0.6 * o.q + 0.3 * (o.v[0] + o.v[1]) + 0.1 * (o.c[0] + o.c[1]) - 0.6 * o.ro) / o.turns : null);
 export const perTurn = (o) => {
   const turns = o?.turns || 0, f = (v) => (turns ? v / turns : null);
-  const row = { turns };
+  const row = { turns, anpt: anpt(o) };
   for (const k of KINDS) { const [e, b] = o ? o[k] : [0, 0]; row[k] = f(e + b); row[`${k}e`] = f(e); row[`${k}b`] = f(b); }
   return row;
 };
@@ -48,7 +59,7 @@ export const perTurn = (o) => {
 export const teamPerTurn = (counts) => {
   const sum = empty();
   for (const o of counts.values()) {
-    sum.turns += o.turns;
+    sum.turns += o.turns; sum.q += o.q; sum.ro += o.ro;
     for (const k of KINDS) { sum[k][0] += o[k][0]; sum[k][1] += o[k][1]; }
   }
   return perTurn(sum);

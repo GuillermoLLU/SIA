@@ -39,6 +39,14 @@ test('Resumen: la corona (lo abierto ahora que se abrió hasta el final del peri
     assert.match(ring(h2), new RegExp(`data-ring-sys="${1 - k}" aria-pressed="false"`));
     delete m.S.f.ss; m.refilter();
   }
+  // Ctrl+clic (ui.ssCmp): una corona por sistema, SISU y SGA, con lo abierto de cada uno
+  const t2 = setup([{ company: 0 }, null]); t2.ui = { exp: {}, sort: {}, ssCmp: true };
+  const tabs2 = createTabs(t2.m, createCharts(t2.m, t2.ui), t2.ui), hc = ring(tabs2.render('resumen', t2.m.rows()));
+  assert.match(hc, /mt-dn-sys mt-dn-sys-cmp/);
+  assert.match(hc, /<div class="mt-dn mt-dn-cmp">/);
+  assert.match(hc, /<figcaption>SISU<\/figcaption>[\s\S]*<figcaption>SGA<\/figcaption>/);
+  const sums = [...hc.matchAll(/<tr class="mt-dn-sum"[^>]*><th>Incidencias<\/th>(.*?)<\/tr>/g)][0][1].match(/<b>(\d+)<\/b>/g).map((x) => Number(x.replace(/\D/g, '')));
+  assert.deepEqual(sums, [0, 1].map((k) => open0.filter((i) => m.DIMS.ss.get(i) === k).length));
   assert.match(html, /<h3 data-tip="Lo abierto ahora que se abrió hasta el final del periodo elegido \(también antes de él\), por su estado\.">En qué estado está<\/h3><div/);
   // la corona no filtra: la tarjeta entera lleva a Backlog
   assert.doesNotMatch(ring(html), /data-f2?="sit:/);
@@ -359,4 +367,16 @@ test('Resumen, mes a mes: debajo de la corona, un mes por fila y la media del a�
   assert.equal((cmp.match(/<td class="mt-mm-side"><i class="mt-sw mt-c1"><\/i>T-Systems<\/td>/g) || []).length, 4);
   assert.equal((cmp.match(/<tr class="mt-mm-s0">/g) || []).length, 3);
   assert.match(cmp, /<th>Mes<\/th><th><\/th>/);
+});
+
+test('la corona, con el IDMTTR de sus abiertas: la suma de (edad − MTTR) / N, con el MTTR y N del conjunto (resueltas + abiertas)', async () => {
+  const { mttrOf, hoursOf } = await import('../resolution.js');
+  const { signedDur } = await import('../format.js');
+  const { m, tabs } = setup([{ company: 0 }, null]);
+  const html = tabs.render('resumen', m.rows()), at = html.indexOf('>En qué estado está</h3>'), ring = html.slice(at, html.indexOf('</section>', at));
+  const all = m.today().filter((i) => m.SIDE[i] === 0), open = all.filter((i) => m.OPEN[i] && m.C.rep[i] < m.S.d1), base = mttrOf(m, all);
+  const v = open.reduce((a, i) => a + (hoursOf(m, i) - base.mttr) / base.n, 0);
+  assert.match(ring, new RegExp(`<tr class="mt-dn-idm" data-tip="IDMTTR, el impacto en el MTTR[^"]*"><th>IDMTTR</th><td class="mt-num"><b class="mt-diff (good|bad)?">${signedDur(v).replace('+', '[+]')}</b><small>en el MTTR</small></td></tr>`));
+  assert.doesNotMatch(html.slice(html.indexOf('el último mes del periodo')), /IDMTTR/);   // ya no en el último mes
+  assert.match(tabs.render('backlog', m.rows()), /<tr class="mt-dn-idm"/);                  // también en la de Backlog
 });

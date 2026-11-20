@@ -15,9 +15,13 @@ const twoYears = () => {
 };
 const apply = (m, k) => { m.setPeriod(...presetRange(m, k)); return periodLabel(m); };
 
-test('las fechas rápidas: este mes, el pasado, los últimos 3 meses, el año fiscal y todo; y cuál es la de ahora', () => {
+test('las fechas rápidas: esta semana, este mes, el pasado, los últimos 3 meses, el año fiscal y todo; y cuál es la de ahora', () => {
   const m = twoYears();
-  assert.deepEqual(PRESETS.map(([k, l]) => [k, l]), [['month', 'Este mes'], ['prev', 'Mes pasado'], ['3m', 'Últimos 3 meses'], ['fy', 'Año fiscal'], ['all', 'Todo']]);
+  assert.deepEqual(PRESETS.map(([k, l]) => [k, l]), [['week', 'Esta semana'], ['month', 'Este mes'], ['prev', 'Mes pasado'], ['3m', 'Últimos 3 meses'], ['fy', 'Año fiscal'], ['all', 'Todo']]);
+  // esta semana: del lunes a la foto (el 11 de marzo de 2026 es miércoles)
+  assert.equal(apply(m, 'week'), '09/03/2026 – 11/03/2026');
+  assert.equal(presetOf(m), 'week');
+  assert.equal(rangeLabel(m, prevRange(m)), '06/03/2026 – 08/03/2026');   // el periodo anterior: los mismos días justo antes
   assert.equal(apply(m, 'month'), '01/03/2026 – 11/03/2026');
   assert.equal(presetOf(m), 'month');
   assert.equal(apply(m, 'prev'), '01/02/2026 – 28/02/2026');
@@ -50,8 +54,8 @@ test('el periodo anterior: los mismos días del mes de antes, los meses enteros 
 test('los periodos que se comparan: el actual, el anterior, las fechas rápidas y cada mes, del más reciente', () => {
   const m = twoYears(); m.setPeriod(...presetRange(m, 'month'));
   const o = cmpOptions(m);
-  assert.deepEqual(o.slice(0, 6).map(([k, l]) => [k, l]), [['cur', 'Periodo actual'], ['prev', 'Periodo anterior'], ['p:month', 'Este mes'], ['p:prev', 'Mes pasado'], ['p:3m', 'Últimos 3 meses'], ['p:fy', 'Año fiscal']]);
-  assert.deepEqual(o.slice(6, 8).map(([k, l]) => [k, l]), [['m:14', 'mar 2026'], ['m:13', 'feb 2026']]);
+  assert.deepEqual(o.slice(0, 7).map(([k, l]) => [k, l]), [['cur', 'Periodo actual'], ['prev', 'Periodo anterior'], ['p:week', 'Esta semana'], ['p:month', 'Este mes'], ['p:prev', 'Mes pasado'], ['p:3m', 'Últimos 3 meses'], ['p:fy', 'Año fiscal']]);
+  assert.deepEqual(o.slice(7, 9).map(([k, l]) => [k, l]), [['m:14', 'mar 2026'], ['m:13', 'feb 2026']]);
   assert.equal(o.at(-1)[0], 'm:0');
   assert.equal(rangeLabel(m, cmpRange(m, 'm:13')), '01/02/2026 – 28/02/2026');
   assert.equal(rangeLabel(m, cmpRange(m, 'cur')), periodLabel(m));

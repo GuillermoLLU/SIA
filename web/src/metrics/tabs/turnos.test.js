@@ -6,6 +6,7 @@ import { createTabs } from '../tabs.js';
 import { createCommon } from './common.js';
 import { evolutionOf } from './evolucion.js';
 import { data } from '../fixture.js';
+import { dur } from '../format.js';
 
 const render = (shifts, d = data()) => {
   d.cols.sV[1] = [3];   // la 1 (de T-Systems, la mañana del día 1), a proveedor en su turno
@@ -83,4 +84,80 @@ test('Turnos: «Qué se queda para el turno siguiente» y «Prioridad por turno�
   m.toggle('tu', 0); m.refilter();
   const after = cut(tabs.render('turnos', m.rows()), '¿Qué se queda para el turno siguiente?');
   assert.deepEqual([...after.matchAll(/<div class="mt-split mt-clk ([^"]*)" data-f="(tu:\d)">/g)].map((x) => [x[2], x[1].trim()]), [['tu:0', 'mt-sel'], ['tu:1', 'mt-off'], ['tu:2', 'mt-off']]);
+});
+
+test('Turnos: arriba, el selector de SISU o SGA; solo con SISU, sus turnos (mañana de 7 a 15 y tarde de 14 a 22, de lunes a viernes)', () => {
+  const m = createModel(data()); m.refilter();
+  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  const all = tabs.render('turnos', m.rows());
+  assert.match(all, /aria-label="SISU o SGA"><button class="mt-seg-b " data-ring-sys="0"[^>]*>SISU<\/button><button class="mt-seg-b " data-ring-sys="1"[^>]*>SGA<\/button>/);
+  assert.match(all, /Entran de noche/);                      // los dos: los tres turnos de 24 h
+  m.S.f.ss = new Set([0]); m.refilter();
+  const sisu = tabs.render('turnos', m.rows());
+  assert.match(sisu, /data-ring-sys="0" aria-pressed="true"/);
+  assert.match(sisu, /Entran de mañana/);
+  assert.match(sisu, /Entran de tarde/);
+  assert.doesNotMatch(sisu, /Entran de noche/);
+  assert.match(sisu, /Entran fuera de turno/);
+  assert.match(sisu, /Media de resolución/);
+  assert.match(sisu, /data-f="ts:0"[^>]*><td>Mañana <span class="mt-mut">· 7 a 15 h<\/span>/);
+  assert.match(sisu, /data-f="ts:1"[^>]*><td>Tarde <span class="mt-mut">· 14 a 22 h<\/span>/);
+  assert.doesNotMatch(sisu, /Fin de semana<\/td>/);           // sin filas de fin de semana: pasan al lunes
+  // con SGA, otra vez los tres turnos
+  m.S.f.ss = new Set([1]); m.refilter();
+  assert.match(tabs.render('turnos', m.rows()), /Entran de noche/);
+});
+
+test('Turnos: «Entran en fin de semana», con los turnos de 24 h; con SISU, no (lo del fin de semana pasa al lunes)', () => {
+  const m = createModel(data()); m.refilter();
+  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  assert.match(tabs.render('turnos', m.rows()), /Entran en fin de semana/);
+  m.S.f.ss = new Set([0]); m.refilter();
+  assert.doesNotMatch(tabs.render('turnos', m.rows()), /Entran en fin de semana/);
+});
+
+test('Turnos con SGA (los turnos de 24 h): también la media hasta En curso y la de resolución, en tiempo natural', () => {
+  const m = createModel(data()); m.S.f.ss = new Set([1]); m.refilter();
+  const ui = { exp: {}, sort: {} }, html = createTabs(m, createCharts(m, ui), ui).render('turnos', m.rows());
+  const kpi = (l) => html.match(new RegExp(`<div class="mt-kpi-l">${l}</div><div class="mt-kpi-v">([^<]*)<`))?.[1];
+  const st = m.stats(m.rows().filter((i) => m.SIDE[i] === 0));
+  assert.ok(kpi('Media hasta En curso') != null && kpi('Media de resolución') != null);
+  if (st.ip != null) assert.equal(kpi('Media hasta En curso'), dur(st.ip));
+  if (st.resolved) assert.equal(kpi('Media de resolución'), dur(st.avg));
+});
+
+test('Turnos con SGA (o los dos): el selector de entre semana o fin de semana, que filtra; con SISU, no sale', () => {
+  const m = createModel(data()); m.refilter();
+  const ui = { exp: {}, sort: {} }, tabs = createTabs(m, createCharts(m, ui), ui);
+  const sel = (h) => h.match(/aria-label="Entre semana o fin de semana">([\s\S]*?)<\/div>/)?.[1];
+  const both = tabs.render('turnos', m.rows());
+  assert.match(sel(both), /data-only="we:0" aria-pressed="false"[^>]*>Entre semana<\/button>/);
+  assert.match(sel(both), /data-only="we:1" aria-pressed="false"[^>]*>Fin de semana<\/button>/);
+  m.S.f.ss = new Set([1]); m.S.f.we = new Set([1]); m.refilter();
+  const sga = tabs.render('turnos', m.rows());
+  assert.match(sel(sga), /data-only="we:1" aria-pressed="true"/);
+  assert.ok(m.rows().every((i) => m.DIMS.we.get(i) === 1));   // filtra: solo lo del fin de semana
+  m.S.f = { ss: new Set([0]) }; m.refilter();
+  assert.equal(sel(tabs.render('turnos', m.rows())), undefined);   // con SISU, no
+});
+
+test('Turnos: Ctrl+clic en SISU o SGA, compararlos, solo entre semana, cada uno con sus turnos', () => {
+  const m = createModel(data()); m.refilter();
+  const ui = { exp: {}, sort: {}, ssCmp: true }, html = createTabs(m, createCharts(m, ui), ui).render('turnos', m.rows());
+  assert.match(html, /mt-dn-sys-cmp" role="group" aria-label="SISU o SGA"><button class="mt-seg-b mt-on" data-ring-sys="0"/);   // los dos, marcados
+  assert.match(html, /Comparando SISU y SGA, solo entre semana/);
+  assert.doesNotMatch(html, /aria-label="Entre semana o fin de semana"/);   // sin el selector de días
+  for (const l of ['Entran por día laborable', 'Empezadas dentro del SLA', 'Empezadas en su turno', 'Resueltas en su turno', 'Media hasta En curso', 'Media de resolución']) {
+    assert.match(html, new RegExp(`<div class="mt-kpi-l">${l}</div>\\s*<div class="mt-kpi-s"><i class="mt-c0"></i><span>SISU</span>[\\s\\S]*?<span>SGA</span>`), l);
+  }
+  // la tabla: los dos turnos de SISU y los tres de SGA
+  const t = html.slice(html.indexOf('>Turno a turno</h3>'));
+  assert.match(t, /SISU · de lunes a viernes[\s\S]*Mañana <span class="mt-mut">· 7 a 15 h[\s\S]*Tarde <span class="mt-mut">· 14 a 22 h[\s\S]*SGA · turnos de lunes a viernes[\s\S]*Noche/);
+  // el día en 24 horas: los dos en una sola gráfica, con sus seis líneas
+  const d24 = html.slice(html.indexOf('>El día en 24 horas</h3>'), html.indexOf('>¿Qué se queda para el turno siguiente?</h3>'));
+  assert.equal((d24.match(/<svg /g) || []).length, 1);
+  for (const l of ['SISU · entran', 'SISU · se empiezan', 'SISU · se resuelven', 'SGA · entran', 'SGA · se empiezan', 'SGA · se resuelven']) assert.ok(d24.includes(`</i>${l}</span>`), l);
+  // y, comparando personas o empresas, no (cada lado, lo suyo)
+  m.S.sides = [{ company: 0 }, { company: 1 }]; m.refilter();
+  assert.doesNotMatch(createTabs(m, createCharts(m, ui), ui).render('turnos', m.rows()), /Comparando SISU y SGA/);
 });

@@ -9,6 +9,7 @@
 //          (PREVIOUS) y no cuenta en la media.
 //   Tesc   creación del más antiguo de sus tickets, también los Discarded → resolución del Jira de solución final.
 //          Abierta en Remedy y sin solución final aún (algún Jira suyo sin resolver): → ahora, el escalado sigue en marcha.
+//          Resuelta en Remedy, para en su resolución: aunque el Jira siga abierto o se resuelva después.
 //   Tcr    resolución del Jira de solución final → resolución en Remedy. Si Remedy se cerró antes (early), no hay.
 //   Tesc-r resolución del Jira de solución final → ahora; solo las que siguen abiertas en Remedy.
 // Jira de solución final: el último resuelto de sus tickets que no está Discarded (ni cancelado). Si la issue sigue
@@ -44,8 +45,9 @@ export const escalationOf = (i, tickets, now) => {
   const first = Math.min(...mine.map((t) => t.created));
   // abierta y con un Jira suyo sin resolver: el escalado sigue, Tesc hasta ahora; sin solución final, sin Tesc-r
   if (i.open && (!final || valid.some((t) => t.resolved < 0))) return { ...out, tesc: Math.max(now - first, 0) };
-  if (!final) return { ...out, jiraOpen: !i.open };
-  out.tesc = Math.max(final.resolved - first, 0);
+  // cerrada en Remedy: el escalado para ahí, aunque su Jira siga abierto (jiraOpen) o se resuelva después (early)
+  if (!final) return { ...out, jiraOpen: !i.open, tesc: closed ? Math.max(i.resolved - first, 0) : -1 };
+  out.tesc = Math.max((closed ? Math.min(final.resolved, i.resolved) : final.resolved) - first, 0);
   if (closed) {
     if (i.resolved >= final.resolved) out.tcr = i.resolved - final.resolved;
     else out.early = true;

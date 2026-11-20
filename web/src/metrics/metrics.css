@@ -91,6 +91,8 @@
 .mt-dn-sys { margin: 0 0 8px; }
 /* el botón de las fechas, en una vista de «Abiertas ahora»: no aplica */
 .mt-period-off { opacity: .45; }
+/* Equipo soporte: de la barra de arriba, solo las fechas (comunes a todas las pestañas de Equipo) */
+.mt-fbar.mt-fbar-team > :not(.mt-period):not([data-vs]):not([data-export-sheet]) { display: none !important; }   /* Equipo soporte: las fechas, el selector de Indra y técnicos y «Descargar incidencias» */
 /* Malos escalados: los cambios de equipo a la izquierda y sus incidencias, con scroll, a la derecha */
 .mt-bad { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 .mt-bad-list { max-height: 320px; overflow: auto; border: 1px solid var(--mt-line); }
@@ -346,6 +348,10 @@
 .mt-dot { fill: var(--mt-l); }
 .mt-legend i.mt-key { width: 16px; height: 0; margin-right: 6px; vertical-align: middle; border-top: 2.5px solid var(--mt-l); }
 .mt-legend i.mt-key.mt-l-rs0, .mt-legend i.mt-key.mt-l-rs1 { border-top-style: dashed; }
+/* comparando SISU y SGA en una sola (Turnos): lo que entra, de puntos, con el color de cada uno */
+.mt-l-in0 { --mt-l: var(--mt-c0); } .mt-l-in1 { --mt-l: var(--mt-c1); }
+.mt-line.mt-l-in0, .mt-line.mt-l-in1 { stroke: var(--mt-l); stroke-dasharray: 1.5 3.5; stroke-linecap: round; }
+.mt-legend i.mt-key.mt-l-in0, .mt-legend i.mt-key.mt-l-in1 { border-top-style: dotted; }
 /* cambios de turno en los mapas día × hora */
 /* tablas para cuadrar (matrix): números a la derecha, grupos con su título y la fila de total marcada */
 .mt-view .mt-mx td { text-align: right; padding-right: 9px; }
@@ -645,6 +651,20 @@
 .mt-dn-sw { display: inline-block; width: 10px; height: 10px; margin-right: 8px; vertical-align: -1px; border-radius: 2px; }
 i.mt-dn-asig { background: var(--mt-dn-asig); } i.mt-dn-prov { background: var(--mt-dn-prov); } i.mt-dn-cli { background: var(--mt-dn-cli); }
 i.mt-dn-curso { background: var(--mt-dn-curso); } i.mt-dn-otro { background: var(--mt-dn-otro); }
+/* Rendimiento equipos: lo resuelto en la corona */
+.mt-donut .mt-dn-res { stroke: var(--mt-good); } i.mt-dn-res { background: var(--mt-good); }
+.mt-rd-top { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.mt-rd-top .mt-dn-sys { margin: 0; }
+.mt-rd-hours { font-size: 12px; color: var(--mt-low); }
+.mt-split.mt-rd-times { grid-template-columns: 150px 1fr 76px; }
+/* la gráfica de la mediana: la raya de la mediana del TTR (las medianas de los tramos no la suman) */
+.mt-split-b.mt-rd-med { position: relative; overflow: visible; }
+.mt-rd-mark { position: absolute; top: -4px; bottom: -4px; width: 0; border-left: 2px dashed var(--text); transform: translateX(-1px); }
+.mt-rd-key { display: inline-block; width: 0; height: 12px; margin-right: 6px; vertical-align: middle; border-left: 2px dashed var(--text); }
+.mt-part4 { background: color-mix(in srgb, #8a63b8 72%, var(--mt-card)); }   /* Tpc: la espera al cliente, de otro color que lo nuestro */
+/* comparando: las sin escalar de los dos lados juntas y, aparte, las escaladas, cada parte con su nombre encima */
+.mt-rd-kind { margin: 4px 0 2px; font-size: 12px; font-weight: 650; color: var(--mt-low); }
+.mt-rd-kind.mt-rd-gap { margin-top: 12px; }
 .mt-dn-legend tr.mt-dn-head th { padding-bottom: 3px; font-size: 12px; font-weight: 600; text-align: right; }
 /* Resumen, ¿Cómo está el backlog ahora?: cada reparto, de un solo lado, en filas con su cifra, su parte de lo
    pendiente y una barra con esa parte (en el color del lado); en la evolución, la franja de cada día para su nota */
@@ -844,35 +864,6 @@ i.mt-pq0 { background: var(--mt-pq0); } i.mt-pq1 { background: var(--mt-pq1); } 
 /* Análisis tiempos, problemas comunes: la barra de cuántas, y los módulos, que no ensanchen la tabla */
 .mt-pc-times td.mt-blist-bar { width: 18%; min-width: 90px; }
 .mt-pc-times td:last-child { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* Exportar informe (#15, metrics-modals.js): el desplegable, lo que contiene el informe elegido y, si las pide, las fechas */
-.mt-rep-tabs { display: flex; gap: 2px; margin: -6px 0 2px; border-bottom: 1px solid var(--mt-line); }
-.mt-rep-tab { margin-bottom: -1px; padding: 7px 12px; font: inherit; font-size: 13px; color: var(--mt-low); background: none; border: 0; border-bottom: 2px solid transparent; cursor: pointer; }
-.mt-rep-tab:hover { color: var(--text); }
-.mt-rep-tab[aria-selected="true"] { color: var(--text); font-weight: 600; border-bottom-color: var(--accent); }
-.mt-rep-systems { display: flex; align-items: center; gap: 16px; margin: 0; padding: 0; border: 0; font-size: 13px; color: var(--text); }
-.mt-rep-systems legend { float: left; margin-right: 4px; padding: 0; font-size: 12px; font-weight: 600; color: var(--mt-low); }
-.mt-rep-systems label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
-.mt-rep-field { display: grid; gap: 6px; font-size: 12px; font-weight: 600; color: var(--mt-low); }
-.mt-rep-field select { height: 32px; padding: 0 8px; font: inherit; font-size: 13px; font-weight: 400; color: var(--text); background: var(--mt-card); border: 1px solid var(--mt-line); }
-.mt-rep-about { margin: -4px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--text); }
-.mt-rep-when { color: var(--mt-low); }
-.mt-rep-systems[hidden], .mt-rep-field[hidden] { display: none; }
-.mt-rep-params { flex-wrap: wrap; row-gap: 8px; }
-/* comparar un periodo con otro: la casilla y, marcada, los dos periodos */
-.mt-rep-period { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--mt-low); }
-.mt-rep-period[hidden] { display: none; }
-.mt-rep-period select, .mt-rep-period input { font-weight: 400; font-size: 13px; }
-.mt-rep-period select { height: 32px; padding: 0 8px; font-family: inherit; color: var(--text); background: var(--mt-card); border: 1px solid var(--mt-line); }
-.mt-rep-cmp { display: grid; gap: 8px; font-size: 13px; color: var(--text); }
-.mt-rep-cmp[hidden], .mt-rep-cmp-pick[hidden] { display: none; }
-.mt-rep-check { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; cursor: pointer; }
-.mt-rep-cmp-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-left: 22px; }
-.mt-rep-cmp-side { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.mt-rep-cmp-dates { display: inline-flex; align-items: center; gap: 4px; }
-.mt-rep-cmp-dates[hidden] { display: none; }
-.mt-rep-cmp-dates input { height: 32px; padding: 0 6px; font: inherit; color: var(--text); background: var(--mt-card); border: 1px solid var(--mt-line); }
-.mt-rep-cmp-pick select { height: 32px; padding: 0 8px; font: inherit; color: var(--text); background: var(--mt-card); border: 1px solid var(--mt-line); }
-.mt-rep-cmp-pick .mt-modal-hint { flex-basis: 100%; margin: 0; }
 /* Estado de SLAs (informe): el detalle de cada parámetro, sus cortes de dos en dos */
 .mt-sla-dets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 22px; }
 .mt-sla-dets h4 { margin: 0 0 8px; font-size: 13px; }
@@ -887,6 +878,12 @@ i.mt-pq0 { background: var(--mt-pq0); } i.mt-pq1 { background: var(--mt-pq1); } 
 .mt-hb-ref { position: absolute; top: -3px; bottom: -3px; border-left: 2px dashed var(--mt-low); z-index: 1; }
 .mt-hb-key { display: inline-block; width: 0; height: 12px; margin-right: 6px; vertical-align: middle; border-left: 2px dashed var(--mt-low); }
 .mt-hb-v { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+/* las barras que filtran, como los demás filtros: la elegida (o las elegidas, con Ctrl+clic), destacada; las demás, apagadas */
+.mt-hb-row.mt-clk { padding: 2px 6px; margin: 0 -6px; border-radius: 4px; }
+.mt-hb-row.mt-clk:hover { background: var(--mt-soft); }
+.mt-hb-row.mt-sel { background: var(--mt-sel); box-shadow: inset 3px 0 0 var(--accent); font-weight: 650; color: var(--text); }
+.mt-hb-row.mt-sel .mt-hb-track i { filter: saturate(1.25); }
+.mt-hb-row.mt-off { opacity: .4; } .mt-hb-row.mt-off:hover { opacity: .75; }
 /* columnas por mes: una (o una por lado) con su cifra encima */
 .mt-vb { display: flex; align-items: stretch; gap: 8px; height: 160px; }
 .mt-vb-col { flex: 1; display: grid; grid-template-rows: 1fr auto; min-width: 0; max-width: 90px; text-align: center; }
@@ -895,22 +892,17 @@ i.mt-pq0 { background: var(--mt-pq0); } i.mt-pq1 { background: var(--mt-pq1); } 
 .mt-vb-bars small { font-size: 10px; white-space: nowrap; }
 .mt-vb-bars i { display: block; width: 100%; min-height: 1px; border-radius: 2px 2px 0 0; }
 .mt-vb-x { padding-top: 4px; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* las listas de casillas de Módulos y focos: dos columnas, cada una con su cabecera, su buscador y su lista desplazable */
-.mt-modal.mt-modal-report { width: min(680px, 100%); }
-.mt-rep-picks { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
-.mt-rep-picks[hidden] { display: none; }
-.mt-rep-pick { display: grid; align-content: start; gap: 6px; min-width: 0; }
-.mt-rep-pick-head { display: flex; align-items: baseline; gap: 8px; font-size: 12.5px; color: var(--text); }
-.mt-rep-pick-head span { flex: 1; font-size: 12px; }
-.mt-rep-pick-q { padding: 5px 6px; font: inherit; font-size: 12.5px; color: var(--text); background: var(--mt-card); border: 1px solid var(--mt-line); }
-.mt-rep-pick-list { max-height: 170px; overflow: auto; padding: 4px 6px; border: 1px solid var(--mt-line); background: var(--mt-card); }
-.mt-rep-pick-list label { display: flex; align-items: center; gap: 6px; padding: 2px 0; font-size: 12.5px; color: var(--text); cursor: pointer; }
-.mt-rep-pick-list label[hidden] { display: none; }
-.mt-rep-pick-list label span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mt-rep-pick-list label small { color: var(--mt-low); font-variant-numeric: tabular-nums; }
-/* La vista previa del informe (print.js, previewReport): la hoja, blanca y del ancho de un A4 apaisado, sobre un fondo
+/* La vista previa del informe (print.js, previewTabs): la hoja, blanca y del ancho de un A4 apaisado, sobre un fondo
    gris; se desplaza la ventana, no la hoja */
 .mt-modal.mt-modal-preview { width: min(1180px, 100%); max-height: 92vh; }
+/* «Exportar PDF» de una pestaña: las pestañas que lleva el informe y «Añadir pestaña…» (print.js, previewTabs) */
+.mt-preview-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 10px 18px; border-bottom: 1px solid var(--mt-line); }
+.mt-preview-tabs-l { font-size: 12.5px; color: var(--mt-low); margin-right: 2px; }
+.mt-preview-add { height: 28px; padding: 0 8px; font: inherit; font-size: 12.5px; color: var(--text); background: var(--mt-card); border: 1px dashed var(--mt-line); border-radius: 6px; cursor: pointer; }
+.mt-preview-add:hover, .mt-preview-add:focus-visible { border-color: var(--accent); outline: none; }
+/* los botones de la barra de filtros: «Descargar incidencias» y «Exportar PDF» */
+.mt-export-tab { white-space: nowrap; }
+.mt-export-tab[hidden] { display: none; }
 .mt-preview-body { min-height: 0; padding: 18px; overflow: auto; background: color-mix(in srgb, var(--text) 12%, var(--surface)); }
 /* la hoja: un A4 apaisado (297 mm) con sus márgenes de 10 mm; el marco, el ancho útil (277 mm), como al imprimir */
 .mt-preview-page { width: 297mm; margin: 0 auto; padding: 10mm; box-sizing: border-box; background: #fff; box-shadow: 0 2px 12px rgba(0, 0, 0, .18); }

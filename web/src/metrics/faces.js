@@ -23,12 +23,22 @@ export const FACES = [
   { id: 'servicio', label: 'Servicio', tsys: true, note: 'El estado del servicio y frente a T-Systems',
     tabs: ['resumen', 'backlog', 'entrada', 'modulos', 'resolucion', 'escalados', 'slaq', 'ia', 'turnos'] },   // Equipo soporte, solo en Equipo
   { id: 'equipo', label: 'Equipo', tsys: false, note: 'Qué hace cada técnico',
-    tabs: [TEAM_TAB, 'calidad', 'modulos', 'turnos'] },
+    tabs: [TEAM_TAB, 'rendimiento', 'calidad', 'modulos', 'turnos'] },
   { id: 'tecnicas', label: 'Técnicas', tsys: false, note: 'Por qué pasa: escalados, módulos, esperas',
-    tabs: ['resumen', 'backlog', 'entrada', 'escalados', 'modulos', 'cliente', 'tiempos', 'calidad', 'ia'] },
+    tabs: ['resumen', 'backlog', 'entrada', 'escalados', 'modulos', 'cliente', 'tiempos', 'calidad', 'ia', 'rendimiento'] },   // Rendimiento equipos, con la mediana (tabs/rendimiento.js)
 ].map((f) => ({ ...f, icon: ICONS[f.id] }));
 
 export const faceOf = (id) => FACES.find((f) => f.id === id) || null;
+
+// «Descargar lista de incidencias» (los tres puntos; metrics-view.js, exportSheet): en qué pestañas de cada vista. En
+// Servicio, todas menos Entrantes, Resolución y Turnos; en Equipo, todas menos Turnos (Equipo soporte, con la suya); en
+// Técnicas, las que tenían su sábana.
+export const LIST_TABS = {
+  servicio: ['resumen', 'backlog', 'modulos', 'escalados', 'slaq', 'ia'],
+  equipo: [TEAM_TAB, 'rendimiento', 'calidad', 'modulos'],
+  tecnicas: ['backlog', 'escalados', 'cliente', 'tiempos'],
+};
+export const hasIncidentList = (face, tab) => !!LIST_TABS[face]?.includes(tab);
 
 // Pestañas que ya no van solas: Foto de hoy, partida entre el Resumen (la corona) y Backlog (lo demás). Un enlace a
 // ella, a Backlog. El Histórico ya no está en ninguna vista.

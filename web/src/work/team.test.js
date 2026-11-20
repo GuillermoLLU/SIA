@@ -80,7 +80,7 @@ test('por turno: RPT, EPPT y PCPT (con sus e y b) y %IQA, por persona y del equi
   assert.equal(ana[at('%IQA')], '—');   // sin la nota del agente de calidad
 });
 
-test('Tatt, Tan y TTR medios, por persona y del equipo; el Tan, solo de las resueltas', () => {
+test('Tatt, Tan y MTTR, por persona y del equipo; el Tan, solo de las resueltas', () => {
   const d = data();
   d.cols.tI = d.cols.as.map((a) => (a === 1 ? 30 : 150));
   d.cols.res[0] = -1; d.cols.tI[0] = 9999;   // una de ANA sin resolver: su tiempo En curso no cuenta en el Tan
@@ -89,7 +89,7 @@ test('Tatt, Tan y TTR medios, por persona y del equipo; el Tan, solo de las resu
   const h = teamPanel(m, createCharts(m, ui), ui);
   const heads = [...h.matchAll(/data-sort="team:[^"]+"[^>]*>([^<]+)</g)].map((x) => x[1].replace(/ [↓↑]$/, ''));
   for (const c of ['Resolución media', 'Resueltas por día', 'En menos de 24 h', 'Devueltas', 'Sin explicar']) assert.ok(!heads.includes(c), c);
-  const times = (name) => { const c = [...rowOf(h, name).matchAll(/<td class="mt-num">([^<]*)</g)].map((x) => x[1]); return ['Tatt medio', 'Tan medio', 'TTR medio'].map((k) => c[heads.indexOf(k)]); };
+  const times = (name) => { const c = [...rowOf(h, name).matchAll(/<td class="mt-num">([^<]*)</g)].map((x) => x[1]); return ['Tatt medio', 'Tan medio', 'MTTR'].map((k) => c[heads.indexOf(k)]); };
   assert.deepEqual(times('ANA'), [dur(5), dur(30), dur(60)]);
   assert.deepEqual(times('PEPE'), [dur(300), dur(150), dur(7000)]);
   assert.deepEqual(times('Equipo Indra'), [dur((5 + 300) / 2), dur((9 * 30 + 10 * 150) / 19), dur((9 * 60 + 10 * 7000) / 19)]);
@@ -317,7 +317,8 @@ test('comparar técnicos: con dos, solo sus filas y la diferencia de A frente a 
 test('comparar técnicos: con uno, toda la tabla, el elegido marcado y cómo elegir el otro; quien no tiene fila no cuenta', () => {
   const m = createModel(data()), ui = { exp: {}, sort: {}, showSheet: true, charts: new Set(), cmp: [1] };
   m.S.sides = [{ company: 0 }, null]; m.refilter();
-  const h = teamPanel(m, createCharts(m, ui), ui), table = h.slice(h.indexOf('<table class="wk-team'));
+  // (encima, él frente a la media del equipo: su tabla, la primera)
+  const h = teamPanel(m, createCharts(m, ui), ui), table = h.slice(h.indexOf('<table class="wk-team wk-picking'));
   assert.match(table, /^<table class="wk-team wk-picking">/);   // el resto, en segundo plano
   assert.match(rowOf(table, 'ANA'), /wk-cmp/);
   assert.doesNotMatch(rowOf(table, 'PEPE'), /wk-cmp/);
@@ -325,7 +326,8 @@ test('comparar técnicos: con uno, toda la tabla, el elegido marcado y cómo ele
   assert.match(h, /Pincha otro técnico para compararlo con <b>ANA<\/b>/);
   ui.cmp = [1, 3];   // LUIS es de T-Systems: no tiene fila, así que no se compara
   const h2 = teamPanel(m, createCharts(m, ui), ui);
-  assert.doesNotMatch(h2, /Diferencia/);
+  assert.doesNotMatch(h2, /wk-diff/);   // sin la diferencia entre los dos: queda ANA sola (frente a la media del equipo)
+  assert.match(h2, /<h3>ANA frente a la media del equipo<\/h3>/);
   assert.match(h2, /compararlo con <b>ANA<\/b>/);
 });
 
@@ -360,4 +362,27 @@ test('Equipo soporte: la sábana ya no se ve (se exporta desde los tres puntos d
   const m = createModel(data()), ui = { exp: {}, sort: {}, charts: new Set() };
   m.S.sides = [{ company: 0 }, null]; m.setPeriod(0, 3 * 1440); m.refilter();
   assert.doesNotMatch(teamPanel(m, createCharts(m, ui), ui), /Sábana de incidencias|data-export/);
+});
+
+test('El equipo, persona a persona: tras Incidencias, el ANPT, RPT y lo de su derecha (EPPT, PCPT, %IQA, %IQA2, IA); luego, lo demás', () => {
+  const m = createModel(data()), ui = { exp: {}, sort: {}, charts: new Set() };
+  m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const h = teamPanel(m, createCharts(m, ui), ui), at = h.indexOf('El equipo, persona a persona');
+  const heads = [...h.slice(at).matchAll(/<th class="mt-num[^"]*" data-sort="team:(\w+)"/g)].map((x) => x[1]);
+  assert.deepEqual(heads.slice(0, 15), ['n', 'anpt', 'r', 're', 'rb', 'v', 've', 'vb', 'c', 'ce', 'cb', 'iqa', 'iqa2', 'ia', 'open']);
+  assert.match(h.slice(at), /<th class="mt-num mt-srt" data-sort="team:anpt"[^>]*>ANPT ↓<\/th>/);   // de partida, por el ANPT
+  assert.match(h.slice(at), /data-tip="De las incidencias suspensas en calidad la primera vez, el % aprobado en la segunda revisión[^"]*">%IQA2</);
+});
+
+test('en la pestaña, con un técnico marcado: él frente a la media del equipo, encima de la tabla (que sigue para marcar otro); con dos, entre ellos', () => {
+  const m = createModel(data());
+  m.S.sides = [{ company: 0 }, null]; m.refilter();
+  const panel = (cmp) => { const ui = { exp: {}, sort: {}, charts: new Set(), cmp, person: cmp[0] ?? null }; return teamPanel(m, createCharts(m, ui), ui); };
+  const one = panel([1]);
+  const a = one.indexOf('<h3>ANA frente a la media del equipo</h3>'), b = one.indexOf('El equipo, persona a persona');
+  assert.ok(a >= 0 && b > a);
+  assert.match(one.slice(a, b), /Media del equipo/);
+  assert.doesNotMatch(panel([]), /frente a la media del equipo/);   // sin nadie marcado, solo la tabla
+  const ks = [...new Set(m.rows().map((i) => m.C.as[i]).filter(Boolean))];
+  if (ks.length > 1) assert.doesNotMatch(panel(ks.slice(0, 2)), /frente a la media del equipo/);   // dos: se comparan entre ellos
 });

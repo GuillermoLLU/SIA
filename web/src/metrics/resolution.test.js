@@ -40,9 +40,12 @@ test('los tiempos de las escaladas: THesc y Tesc, de las que los tienen; un tick
   assert.deepEqual(t.tsr, { n: 2, avg: 60 });   // Tesc-r, de las que lo tienen
   assert.deepEqual(t.total, { n: 3, avg: (300 + 400 + 300) / 3 });
   assert.deepEqual(escalationTimes(m, []), { n: 0, the: { n: 0, avg: null }, tes: { n: 0, avg: null }, tsr: { n: 0, avg: null }, total: { n: 0, avg: null }, jiraOpen: 0 });
-  // cerrada con su Jira aún abierto: su Tesc, desde que se creó el Jira (apertura + THesc) hasta la última carga
+  // cerrada con su Jira aún abierto: su Tesc, desde que se creó el Jira (apertura + THesc) hasta la resolución en
+  // Remedy, no hasta la última carga (y no cuenta como Jira aún abierto: su Tesc ya no corre)
   const open = escalationTimes({ SNAP: 1000, C: { rep: [100, 0], res: [200, 10], the: [50, 5], tes: [-1, -1], fl: [524288, 0] } }, [0, 1]);
-  assert.deepEqual([open.tes, open.jiraOpen], [{ n: 1, avg: 1000 - 100 - 50 }, 1]);
+  assert.deepEqual([open.tes, open.jiraOpen], [{ n: 1, avg: 200 - 100 - 50 }, 0]);
+  // resuelta en Remedy con el Jira resuelto después: su Tesc, también hasta la resolución en Remedy
+  assert.deepEqual(escalationTimes({ C: { rep: [0], res: [300], the: [60], tes: [500], fl: [0] } }, [0]).tes, { n: 1, avg: 240 });
   // abierta en Remedy: el total, hasta la última carga; con el Jira sin resolver, también su Tesc; resuelto, el suyo
   const live = escalationTimes({ SNAP: 1000, OPEN: [1, 1, 1], C: { rep: [100, 200, 300], res: [-1, -1, -1], the: [50, 20, -1], tes: [-1, 30, -1], fl: [0, 0, 0] } }, [0, 1, 2]);
   assert.deepEqual(live.total, { n: 3, avg: (900 + 800 + 700) / 3 });

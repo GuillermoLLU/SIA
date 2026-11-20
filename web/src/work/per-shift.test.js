@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { shiftCounts, perTurn, teamPerTurn, sessionAt } from './per-shift.js';
+import { shiftCounts, perTurn, teamPerTurn, sessionAt, anpt, approvedWeight } from './per-shift.js';
 
 const H = 60;
-const model = ({ rep, sp, sessions, company = [2, 0, 0, 1] }) => ({
-  N: rep.length, S: { sides: [{ company: 0 }, null] }, C: { rep, sp }, data: { sessions, company },
+const model = ({ rep, sp, sessions, fl, company = [2, 0, 0, 1] }) => ({
+  N: rep.length, S: { sides: [{ company: 0 }, null] }, C: { rep, sp, fl }, data: { sessions, company },
 });
 
 test('los pasos son de quien los hizo y cuentan con su sesión; entrante, si la incidencia se abrió en las 8 h que acaban con ella', () => {
@@ -59,4 +59,20 @@ test('la sesión de un instante; sin sesiones del bridge (de antes), nada', () =
   assert.deepEqual(sessionAt([[0, 5, 1], [10, 20, 1]], 12), [10, 20, 1]);
   assert.equal(sessionAt([[0, 5, 1]], 7), undefined);
   assert.equal(shiftCounts(model({ rep: [0], sp: [[]], sessions: undefined }), [0, 1e6]), null);
+});
+
+test('ANPT: (0,6 × resueltas aprobadas + 0,3 × escaladas a proveedor + 0,1 × pendientes de cliente − 0,6 × reabiertas) / turnos', () => {
+  // la calidad de una resuelta: auditada y aprobada (nota ≥ 3), 1; auditada y suspensa, 0; sin auditar, 0,5
+  assert.deepEqual([null, 1, 2, 3, 4].map(approvedWeight), [0.5, 0, 0, 1, 1]);
+  const o = { turns: 2, q: 3, ro: 1, r: [3, 1], v: [1, 1], c: [2, 0] };
+  assert.equal(anpt(o), (0.6 * 3 + 0.3 * 2 + 0.1 * 2 - 0.6 * 1) / 2);
+  assert.equal(anpt({ ...o, turns: 0 }), null);
+  assert.equal(perTurn(o).anpt, anpt(o));
+  // de los pasos: sin notas aún, cada resuelta, 0,5; la reabierta, a quien la resolvió
+  const sessions = [[], [[10 * H, 20 * H, 1]], [], []];
+  const m = model({ rep: [13 * H, 5 * H, 13 * H, 13 * H], fl: [512, 0, 0, 0], sp: [[[0, 15 * H, 1]], [[0, 16 * H, 1]], [[1, 17 * H, 1]], [[2, 18 * H, 1]]], sessions });
+  const ana = shiftCounts(m, [0, 100 * H]).get(1);
+  assert.deepEqual([ana.q, ana.ro], [1, 1]);
+  assert.equal(perTurn(ana).anpt, (0.6 * 1 + 0.3 * 1 + 0.1 * 1 - 0.6 * 1) / 1);
+  assert.equal(teamPerTurn(new Map([[1, ana]])).anpt, perTurn(ana).anpt);
 });

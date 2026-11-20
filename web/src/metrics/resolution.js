@@ -29,15 +29,19 @@ export const idmttrOf = (m, all, list) => {
 export const jiraPending = (m, i) => (m.C.tes?.[i] ?? -1) < 0 && (m.C.the?.[i] ?? -1) >= 0 && !!(m.C.fl?.[i] & JIRA_OPEN || m.OPEN?.[i]);
 // El Tesc de una escalada en Escalados: hasta que se resuelve su Jira de solución (tes) o, con el Jira aún sin resolver
 // (jiraPending), desde que se creó (la apertura más THesc) hasta la última carga. Sin Jira, -1.
+// Resuelta en Remedy, el Tesc para ahí: aunque su Jira siga abierto o se resuelva después.
 export const tescOf = (m, i) => {
   const { C } = m, tes = C.tes?.[i] ?? -1;
-  if (tes >= 0) return tes;
-  return jiraPending(m, i) ? Math.max(m.SNAP - C.rep[i] - C.the[i], 0) : -1;
+  const v = tes >= 0 ? tes : jiraPending(m, i) ? Math.max(m.SNAP - C.rep[i] - C.the[i], 0) : -1;
+  return v >= 0 && !m.OPEN?.[i] && C.res[i] >= 0 ? Math.min(v, Math.max(C.res[i] - C.rep[i] - Math.max(C.the?.[i] ?? 0, 0), 0)) : v;
 };
+// con su Jira aún sin resolver y abierta en Remedy: su Tesc sigue contando, hasta la última carga
+const tescRunning = (m, i) => jiraPending(m, i) && !!m.OPEN?.[i];
 
 // Los tiempos medios de unas escaladas: n, THesc y Tesc (cada uno, de las que lo tienen con sus tickets Jira, y cuántas
 // son; un ticket previo a la apertura no cuenta), el tiempo total (hoursOf: de la apertura a la resolución o, abierta,
-// hasta la última carga) y jiraOpen: cuántas tienen su Jira aún sin resolver (su Tesc, hasta la última carga: tescOf).
+// hasta la última carga) y jiraOpen: cuántas, abiertas en Remedy, tienen su Jira aún sin resolver (su Tesc, hasta la
+// última carga: tescOf; las ya resueltas en Remedy, no: su Tesc para en la resolución).
 export const JIRA_MAX = 8;   // los proyectos que se comparan, como mucho, a la vez
 
 // La comparativa de proyectos Jira. rows: lo escalado y resuelto a Jira; picked: los elegidos (de partida, ninguno: solo
@@ -72,7 +76,7 @@ export const escalationTimes = (m, list) => {
     const v = list.map(value).filter((x) => x >= 0);
     return { n: v.length, avg: v.length ? v.reduce((a, b) => a + b, 0) / v.length : null };
   };
-  return { n: list.length, the: meanOf((i) => C.the?.[i] ?? -1), tes: meanOf((i) => tescOf(m, i)), tsr: meanOf((i) => C.tsr?.[i] ?? -1), total: meanOf((i) => hoursOf(m, i) ?? -1), jiraOpen: list.filter((i) => jiraPending(m, i)).length };
+  return { n: list.length, the: meanOf((i) => C.the?.[i] ?? -1), tes: meanOf((i) => tescOf(m, i)), tsr: meanOf((i) => C.tsr?.[i] ?? -1), total: meanOf((i) => hoursOf(m, i) ?? -1), jiraOpen: list.filter((i) => tescRunning(m, i)).length };
 };
 // cuántas de cada lado (por persona, comparando con personas): H, el divisor de cada lado
 export const perHead = (m) => [0, 1].map((k) => (m.perHead() ? m.heads(k).size || 1 : 1));

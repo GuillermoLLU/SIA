@@ -28,10 +28,16 @@ export const sinceOldestOpen = (m, company) => {
   for (let i = 0; i < m.N; i++) if (m.OPEN[i] && m.TEAM[i] === company && m.C.rep[i] < min) min = m.C.rep[i];
   return min === Infinity ? null : [Math.floor(min / DAY) * DAY, m.END_D];
 };
-// Las fechas rápidas: [clave, nombre, rango [d0, d1)]. Este mes y el pasado, enteros (el de la foto, hasta ella); los
+// Las fechas rápidas: [clave, nombre, rango [d0, d1)]. Esta semana, de su lunes a la foto; este mes y el pasado, enteros (el de la foto, hasta ella); los
 // últimos 3 meses, del día 1 del antepasado a la foto; el año fiscal, del 1 de febrero (model.js, START_D); y todo lo
 // cargado. setPeriod los limita a lo cargado.
+// Esta semana: del lunes de la semana de la foto (en UTC, como las demás fechas) a la foto.
+export const thisWeek = (m) => {
+  const last = Math.floor((m.END_D - 1) / DAY) * DAY, back = (new Date(m.BASE + last * 6e4).getUTCDay() + 6) % 7;
+  return [last - back * DAY, m.END_D];
+};
 export const PRESETS = [
+  ['week', 'Esta semana', thisWeek],
   ['month', 'Este mes', (m) => wholeMonth(m, m.LASTM)],
   ['prev', 'Mes pasado', (m) => wholeMonth(m, m.LASTM - 1)],
   ['3m', 'Últimos 3 meses', (m) => [m.minuteOf(m.LASTM - 2), m.END_D]],

@@ -24,7 +24,11 @@
 //           vt/vp/vk ticket de tercero: tipo, proyecto Jira (de ITSMECOM, con su equipo asignado en Jira) y clave · vn su texto tal cual (VENDORTICKETNUMBER) · th temas · su título
 //           de problema (themes.js): las formas de escribir lo mismo, juntas; dict.problem, la más escrita
 //           fr primera actuación · ip primer paso a En curso (minutos desde la apertura; -1 no hay)
-//           tA/tI/tPc/tPv/tPo minutos en cola, en curso y pendiente del centro, de un tercero u otros
+//           tA/tI/tPc/tPv/tPo minutos en cola, en curso y pendiente del centro, de un tercero u otros · tAw/tIw/tPcw/tPvw/tPow
+//           lo mismo, solo lo de dentro del horario de atención de SISU (hours.js: de lunes a viernes, de 7 a 22 h)
+//           fa primera atención: el primer paso a En curso o la primera nota [SITUACION INICIAL] (minutos desde la
+//           apertura; -1 aún no; remedy.js, firstAttention) · aPv/aPc tras ella, en Pendiente de proveedor y de cliente
+//           (aPvw/aPcw, en el horario de SISU; afterAttention)
 //           nb devoluciones a la cola · np pendientes · rz resolución repetida (4 veces o más; 0 si no)
 //           eR/eV/eC los días (desde el 1 de enero de start) en que pasó a Resuelta, a Pendiente de proveedor y a
 //           Pendiente de cliente, una vez por día (lo atendido cada día: remedy.js, statusHistory events)
@@ -49,10 +53,11 @@ import { sessionsOf } from './sessions.js';
 import { THEME_NAMES, problemKey } from './themes.js';
 import { PENDING, OPEN_STATES } from './states.js';
 import { escalationOf } from './escalation.js';
+import { workMinutes } from './hours.js';
 import { key } from './text.js';
 
 export const GROUP = 'AYS SOPORTE';
-export const FORMAT = 17;
+export const FORMAT = 20;
 // el proyecto Jira con muchos equipos: a quién se escala, su equipo (vp: «ITSMECOM · N2 Courier Support»)
 export const TEAM_PROJECT = 'ITSMECOM';
 
@@ -83,7 +88,7 @@ const dictionary = () => {
 };
 
 const COLS = ['id', 'rep', 'res', 'lm', 'st', 'rs', 'pr', 'sv', 'as', 'ce', 'op', 'mo', 'k3', 'sc', 'fl', 'vt', 'vp', 'vk', 'vn',
-  'fr', 'ip', 'tA', 'tI', 'tPc', 'tPv', 'tPo', 'nb', 'np', 'nC', 'pc', 'th', 'su', 'de', 'eR', 'eV', 'eC', 'sR', 'sV', 'sC'];
+  'fr', 'ip', 'tA', 'tI', 'tPc', 'tAw', 'tIw', 'tPcw', 'tPvw', 'tPow', 'fa', 'aPv', 'aPc', 'aPvw', 'aPcw', 'tPv', 'tPo', 'nb', 'np', 'nC', 'pc', 'th', 'su', 'de', 'eR', 'eV', 'eC', 'sR', 'sV', 'sC'];
 // los días (desde el 1 de enero de start) de cada evento de una issue, sin repetir: una vez por issue, tipo y día
 const daysOf = (mins) => [...new Set(mins.filter((t) => t >= 0).map((t) => Math.floor(t / 1440)))];
 // y de cada turno de 8 h desde las 7:00 (mañana de 7 a 15, tarde de 15 a 23 y noche de 23 a 7: web shifts.js, slotOf)
@@ -108,9 +113,29 @@ export const centreNames = (pairs) => {
   });
 };
 
+// lo de cada estado (los tramos de statusHistory, spans) dentro del horario de atención de SISU (hours.js)
+const W_COLS = { queue: 'tAw', work: 'tIw', client: 'tPcw', vendor: 'tPvw', other: 'tPow' };
+const hoursOf = (dow0) => (spans) => {
+  const out = { tAw: 0, tIw: 0, tPcw: 0, tPvw: 0, tPow: 0 };
+  for (const [a, b, kind] of spans) out[W_COLS[kind]] += workMinutes(a, b, dow0);
+  return out;
+};
+
+// Tras la primera atención (from: el minuto; Infinity, aún sin atender), lo que pasa en Pendiente de proveedor (aPv) y
+// de cliente (aPc), en tiempo natural y en el horario de SISU (aPvw, aPcw): los tiempos de Rendimiento equipos (Tesc y Tpc).
+export const afterAttention = (spans, from, dow0) => {
+  const out = { aPv: 0, aPc: 0, aPvw: 0, aPcw: 0 };
+  for (const [a, b, kind] of spans) {
+    if (kind !== 'vendor' && kind !== 'client') continue;
+    const x = Math.max(a, from), k = kind === 'vendor' ? 'aPv' : 'aPc';
+    if (b > x) { out[k] += b - x; out[`${k}w`] += workMinutes(x, b, dow0); }
+  }
+  return out;
+};
+
 // start: el año de la primera issue del grupo.
 export const createDataset = ({ start }) => {
-  const base = Date.UTC(start, 0, 1);
+  const base = Date.UTC(start, 0, 1), dow0 = new Date(base).getUTCDay(), inHours = hoursOf(dow0);
   const D = Object.fromEntries(['status', 'reason', 'prio', 'svc', 'person', 'centre', 'op', 'module', 'cat', 'vtype', 'vproj', 'vkey', 'vtext', 'vhops', 'resol', 'problem'].map((k) => [k, dictionary()]));
   const cols = Object.fromEntries(COLS.map((c) => [c, []]));
   const resolutions = [], resolutionCount = new Map(), resolvers = new Map();
@@ -145,7 +170,7 @@ export const createDataset = ({ start }) => {
       id: i.id, rep: i.reported, res: i.resolved, lm: i.modified, st: D.status.id(i.status), rs: D.reason.id(i.reason), pr: D.prio.id(i.priority),
       sv: D.svc.id(i.service), as: D.person.id(i.assignee), ce: 0 /* en build: centreNames */, op: D.op.id(i.operation), mo: D.module.id(i.module),
       k3: D.cat.id(i.category), sc: i.scope, fl: i.flags, vt: D.vtype.id(i.vendor.type), vp: D.vproj.id(i.vendor.project), vk: D.vkey.id(i.vendor.key), vn: D.vtext.id(i.vendorText),
-      fr: i.first, ip: i.start, tA: i.time.queue, tI: i.time.work, tPc: i.time.client, tPv: i.time.vendor, tPo: i.time.other,
+      fr: i.first, ip: i.start, tA: i.time.queue, tI: i.time.work, ...inHours(i.spans), fa: i.attention, ...afterAttention(i.spans, i.attention >= 0 ? i.reported + i.attention : Infinity, dow0), tPc: i.time.client, tPv: i.time.vendor, tPo: i.time.other,
       nb: i.bounces, np: i.pendings, nC: i.clientPendings, pc: i.common, th: i.themes, su: own(i.title), de,
       eR: daysOf(i.events.resolved), eV: daysOf(i.events.vendor), eC: daysOf(i.events.client),
       sR: slotsOf(i.events.resolved), sV: slotsOf(i.events.vendor), sC: slotsOf(i.events.client),

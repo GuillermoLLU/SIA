@@ -32,6 +32,12 @@ const DEFAULT_DAYS = 15;
 
 export const mountWorkView = (root, { api, onManage, toast }) => {
   let m = null, ch = null, generated = null, calendar = false, panel = null, onPage = 'team', drag = null;
+  // ext: dentro de Métricas (vista Equipo), las fechas de su barra de arriba, comunes a todas sus pestañas ([d0, d1]).
+  // Con ellas, sin el selector de fechas propio.
+  let ext = null, applied = '';
+  // y a quién se mira, del selector de Indra y técnicos de esa barra (people: los técnicos marcados, ui.cmp); al marcar
+  // en la tabla, se le avisa (onPeople) para que el selector diga lo mismo
+  let onPeople = null, wanted = null;   // wanted: los del selector, a aplicar al pintar (tras cargar los datos)
   root.classList.add('wk-view');
   const ui = { exp: {}, sort: {}, charts: new Set(), range: null, actSeries: null };   // charts: los bloques con su gráfica desplegada
   const $ = (s) => root.querySelector(s);
@@ -50,12 +56,14 @@ export const mountWorkView = (root, { api, onManage, toast }) => {
   const render = () => {
     const { S } = m;
     S.sides = [{ company: 0 }, null];   // el equipo de Indra
+    if (ext && ext.join(':') !== applied) { m.setPeriod(...ext); ui.range = null; applied = ext.join(':'); }
+    if (wanted) { ui.cmp = wanted; ui.person = wanted[0] ?? null; wanted = null; }
     m.refilter();
     $('[data-period]').textContent = periodLabel(m);
     $('[data-coverage]').textContent = coverage(m);
     $('[data-cal]').hidden = !calendar;
     // las conclusiones aún no dependen del periodo: sin selector
-    $('.mt-period').hidden = onPage === 'conclusions';
+    $('.mt-period').hidden = onPage === 'conclusions' || !!ext;
     $('[data-main]').innerHTML = onPage === 'conclusions' ? conclusionsPanel() : teamPanel(m, ch, ui);
   };
 
@@ -103,7 +111,7 @@ export const mountWorkView = (root, { api, onManage, toast }) => {
     if (e.target.closest('[data-export]')) return exportSheet();
     if (e.target.closest('[data-calendar]')) { calendar = !calendar; if (calendar) panel.open(); return render(); }
     if (calendar && !pressedInPop() && !e.target.closest('.mt-pop')) { calendar = false; render(); }
-    if (e.target.closest('[data-person-clear], [data-cmp-clear]')) { ui.cmp = []; ui.person = null; return render(); }
+    if (e.target.closest('[data-person-clear], [data-cmp-clear]')) { ui.cmp = []; ui.person = null; onPeople?.(ui.cmp); return render(); }
     if (e.target.closest('[data-range-clear]')) return applyRange({ period: ui.range.base, range: null });
     const series = e.target.closest('[data-act-series]');
     if (series) { const k = series.dataset.actSeries; ui.actSeries = ui.actSeries === k ? null : k; return render(); }
@@ -129,6 +137,7 @@ export const mountWorkView = (root, { api, onManage, toast }) => {
     // marca o desmarca; el panel, con los datos del primero marcado (A)
     ui.cmp = compareTech(ui.cmp, k);
     ui.person = ui.cmp[0] ?? null;
+    onPeople?.(ui.cmp);
     render();
   });
 
@@ -141,6 +150,10 @@ export const mountWorkView = (root, { api, onManage, toast }) => {
 
   // Al abrir: los datos de las Métricas; si no han cambiado, se queda como estaba.
   return {
+    period: (p) => { ext = p; if (!p) applied = ''; },   // las fechas de la barra de Métricas (vista Equipo)
+    // los técnicos del selector de esa barra (como mucho dos: se comparan) y a quién avisar al marcarlos en la tabla
+    people: (cmp) => { wanted = cmp.slice(0, 2); },
+    onPeople: (fn) => { onPeople = fn; },
     exportSheet: () => m && exportSheet(),   // desde los tres puntos de Métricas: la sábana ya no se ve en el panel
     show: async () => {
       try {
@@ -148,6 +161,7 @@ export const mountWorkView = (root, { api, onManage, toast }) => {
         if (!data) { m = null; root.innerHTML = `${page('')}<div class="mt-empty"><b>Aún no hay datos</b><span>Se cargan desde Métricas: con «Cargar datos» la primera vez, o con un CSV de Remedy.</span></div></div>`; return; }
         if (data.meta.generated !== generated) {
           generated = data.meta.generated;
+          applied = '';   // modelo nuevo: otra vez las fechas de la barra de Métricas
           ui.person = null;   // los índices de las personas cambian con los datos
           ui.cmp = [];
           ui.range = null;

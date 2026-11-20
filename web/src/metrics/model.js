@@ -4,6 +4,7 @@
 import { MONTHS, DOWS, nice, title, dur } from './format.js';
 import { SHIFTS, SHIFT_HOURS, DAYS, slotOf, weekendOf, typeOf, slotsIn, carry, shiftWork } from './shifts.js';
 import { IA_MARKS, IA_NAMES, iaKind } from './ia.js';
+import { SISU_SHIFTS, SISU_SHIFT_HOURS, shiftOf as sisuShiftOf } from './sisu-shifts.js';
 
 export const COMPANIES = ['Indra', 'T-Systems', 'Sin asignar / fuera'];
 // ámbitos (server/metrics/remedy.js, SCOPE): los filtros de Remedy con los que el equipo de Indra ve su backlog
@@ -17,7 +18,8 @@ const PRIO = 2, NO_RESOLUTION = 32768;
 export const REOPENED = 512;
 // escalada (#48): ha estado en Pendiente con motivo Third Party Vendor Action Reqd, tenga o no ticket
 export const THIRD_PARTY = 131072;
-// cerrada en Remedy con su Jira aún abierto: sin Tesc (server/metrics/escalation.js, jiraOpen)
+// cerrada en Remedy con su Jira aún abierto (server/metrics/escalation.js, jiraOpen): su Tesc, hasta la resolución en
+// Remedy (resolution.js, tescOf)
 export const JIRA_OPEN = 524288;
 export const isEscalated = (C, i) => (C.fl[i] & THIRD_PARTY) !== 0;
 // mal escalada: algún Jira suyo se descartó o pasó de un equipo a otro (server/metrics/escalation.js, misrouted)
@@ -151,6 +153,8 @@ export const createModel = (data) => {
     mx: { name: 'Mal escalada', get: (i) => (C.fl[i] & MISROUTED ? 1 : 0), label: (k) => (k ? 'Mal escalada (Jira descartado o de un equipo a otro)' : 'No mal escalada') },
     tu: { name: 'Turno', get: (i) => STYPE[i] % 3, label: (k) => `${SHIFTS[k]} (${SHIFT_HOURS[k]})` },
     we: { name: 'Días', get: (i) => (STYPE[i] < 3 ? 0 : 1), label: (k) => DAYS[k] },
+    // el turno de SISU que la recibe (sisu-shifts.js: mañana o tarde, de lunes a viernes; lo de fuera de turno, en el siguiente)
+    ts: { name: 'Turno (SISU)', get: (i) => sisuShiftOf({ clock }, C.rep[i]).k, label: (k) => `${SISU_SHIFTS[k]} (${SISU_SHIFT_HOURS[k]})` },
     age: { name: 'Antigüedad', get: (i) => AGE_LIMITS.findIndex((l) => SNAP - C.rep[i] < l), label: (k) => AGE_NAMES[k] },
     tb: { name: 'Tiempo de resolución', get: (i) => TB[i], label: (k) => TTR_NAMES[k] },
     de: { name: 'Problema', get: (i) => C.de[i], label: (k) => DI.problem[k] || '(título sin descripción del problema)' },

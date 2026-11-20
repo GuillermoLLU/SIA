@@ -2,19 +2,29 @@
 // SISU o SGA arriba del todo. Lo recibido en el periodo, por preguntas, está en el Histórico (historico.js); la corona
 // (stateCard) la comparte el Resumen (resumen.js).
 import { esc } from '../../ui/html.js';
-import { num, pct, dur, nice } from '../format.js';
+import { num, pct, dur, nice, signedDur } from '../format.js';
 import { ages, meanAge } from '../backlog.js';
 import { whoHas } from '../today.js';
 import { sheetOf, sheetBody, SHEET_COLS } from '../sheet.js';
 import { afterDash } from './escalados.js';
 import { backlogParts } from './backlog.js';
 import { evolutionOf } from './evolucion.js';
-import { mttrOf } from '../resolution.js';
+import { mttrOf, idmttr, hoursOf } from '../resolution.js';
 import { MTTR_TARGET, monthTrend } from '../rules.js';
 
 // Las columnas de la sábana de Foto de hoy: las de siempre, con el título del guion en adelante y el estado sin su motivo
 const HOY_COLS = SHEET_COLS.map((c) => (c[0] === 'Título' ? ['Título', (mm, i) => afterDash(mm.C.su[i])]
   : c[0] === 'Estado' ? ['Estado', (mm, i) => nice(mm.DI.status[mm.C.st[i]])] : c));
+
+// El selector SISU / SGA (la corona y Rendimiento equipos): el filtro de toda la página (S.f.ss; sin él, los dos marcados).
+// Clic, solo ese; otra vez, los dos; Ctrl+clic, compararlos (ui.ssCmp; view.js, pickSys), salvo comparando empresas o personas
+export const sysCmpOf = (m, ui) => !!ui?.ssCmp && !m.CMP();
+export const ofSysOf = (m, l, k) => l.filter((i) => m.DIMS.ss.get(i) === k);
+export const sysBarOf = (m, ui) => {
+  const cmp = sysCmpOf(m, ui), on = m.S.f.ss?.size ? [...m.S.f.ss] : [0, 1], L = m.DIMS.ss.label;
+  const tip = (k) => `${on.length === 1 && on[0] === k && !cmp ? 'Clic para ver los dos' : `Clic para ver solo ${L(k)}`}; Ctrl+clic para ${cmp ? 'dejar de comparar' : 'comparar SISU y SGA'}.`;
+  return `<div class="mt-seg mt-seg-sm mt-dn-sys${cmp ? ' mt-dn-sys-cmp' : ''}" role="group" aria-label="SISU o SGA">${[0, 1].map((k) => `<button class="mt-seg-b ${on.includes(k) ? 'mt-on' : ''}" data-ring-sys="${k}" aria-pressed="${on.includes(k)}" data-tip="${esc(tip(k))}">${L(k)}</button>`).join('')}</div>`;
+};
 
 // En qué estado está: el backlog ahora, en una corona (lo primero de Foto de hoy y del Resumen): lo abierto (en el
 // centro), repartido por su estado, con las situaciones de la pestaña Backlog (model.js, SITUATIONS): Asignada (sin tocar
@@ -33,16 +43,30 @@ export const stateCard = (t) => {
   ].map(([cls, label, sits, tip]) => ({ cls, label, sits, tip, f: sits.map((k) => `sit:${k}`).join('|') }));
   // (lo sin técnico de las búsquedas del equipo ya es de Indra: model.js, SEARCH_OWNER)
   // pick: un clic en un estado filtra
-  // el selector SISU / SGA de la corona: el filtro de toda la página (S.f.ss; sin él, los dos marcados)
-  const sysBar = () => {
-    const on = m.S.f.ss?.size ? [...m.S.f.ss] : [0, 1];
-    return `<div class="mt-seg mt-seg-sm mt-dn-sys" role="group" aria-label="SISU o SGA">${[0, 1].map((k) => `<button class="mt-seg-b ${on.includes(k) ? 'mt-on' : ''}" data-ring-sys="${k}" aria-pressed="${on.includes(k)}" data-tip="Clic para ${on.includes(k) ? 'quitarlo' : 'añadirlo'} (siempre queda uno).">${DIMS.ss.label(k)}</button>`).join('')}</div>`;
+  // el selector SISU / SGA de la corona: el filtro de toda la página (S.f.ss; sin él, los dos marcados). Clic, solo ese;
+  // otra vez, los dos; Ctrl+clic, una corona por sistema (t.ui.ssCmp; view.js, pickSys), salvo comparando empresas o personas
+  const sysCmp = () => sysCmpOf(m, t.ui);
+  const sysBar = () => sysBarOf(m, t.ui);
+  const ofSys = (l, k) => ofSysOf(m, l, k);
+  // IDMTTR de lo abierto de la corona (idm): cuánto suben (o bajan) el MTTR del conjunto (lo cargado, resueltas con su TTR
+  // y abiertas con su edad; resolution.js, mttrOf) las abiertas que se ven: la suma de (su edad − MTTR) / N
+  const IDMTTR_NOTE = 'IDMTTR, el impacto en el MTTR de estas incidencias abiertas: la suma de (su edad − MTTR) / N, con el MTTR del conjunto = (TTR de las resueltas + edad de las abiertas) / N y N = resueltas + abiertas (todo lo cargado, con los filtros de arriba). Positivo, lo suben; negativo, lo bajan.';
+  // all: el conjunto de ese lado (o de ese sistema)
+  const idmOf = (open, all) => {
+    const base = mttrOf(m, all), v = open.map((i) => idmttr(hoursOf(m, i), base)).filter((x) => x != null);
+    return v.length ? v.reduce((a, b) => a + b, 0) : null;
   };
-  const haveNow = (P0, pick = true) => {
+  const haveNow = (P0, pick = true, idm = false) => {
     // centrarse en un estado sin que los demás desaparezcan: lo de cada lado, con lo que solo deja fuera el filtro de
     // situación (model.js, widen); el elegido, destacado, y los demás, apagados
-    const P = pick ? P0.map((l) => m.widen(l, ['sit'], { now: true, keep: (i) => m.OPEN[i] && m.C.rep[i] < m.S.d1 })) : P0;
-    const ks = CO(), one = ks.length === 1;
+    const wideOf = (l) => (pick ? m.widen(l, ['sit'], { now: true, keep: (i) => m.OPEN[i] && m.C.rep[i] < m.S.d1 }) : l);
+    // comparando SISU y SGA (sysCmp): los dos «lados» son los dos sistemas del único lado que se mira
+    const split = sysCmp(), base = CO()[0], today = () => m.bySide(m.today());
+    const P = split ? [0, 1].map((k) => ofSys(wideOf(P0[base]), k)) : P0.map(wideOf);
+    const open = split ? [0, 1].map((k) => ofSys(P0[base], k)) : P0;
+    const allOf = (k) => (split ? ofSys(today()[base], k) : today()[k]);
+    const name = split ? DIMS.ss.label : t.name;
+    const ks = split ? [0, 1] : CO(), one = ks.length === 1;
     const total = (k) => P[k].length, share = (v, k) => (total(k) ? pct(v / total(k)) : '—');
     const count = P.map((l) => PARTS.map((p) => l.filter((i) => p.sits.includes(DIMS.sit.get(i))).length));
     const shown = PARTS.filter((p, j) => p.cls !== 'otro' || ks.some((k) => count[k][j]));
@@ -51,7 +75,9 @@ export const stateCard = (t) => {
     const head = one ? '' : `<tr class="mt-dn-head"><th></th>${ks.map((k) => `<th class="mt-num">${esc(name(k))}</th>`).join('')}</tr>`;
     const row = (p) => `<tr${pick ? ` class="mt-clk ${t.focusCls(p.f)}" data-f${p.f.includes('|') ? '2' : ''}="${p.f}"` : ''} data-tip="${esc(p.tip)}"><th><i class="mt-dn-sw mt-dn-${p.cls}"></i>${p.label}</th>${ks.map((k) => `<td class="mt-num"><b>${num(at(p, k))}</b><small>${share(at(p, k), k)}</small></td>`).join('')}</tr>`;
     const sum = `<tr class="mt-dn-sum" data-tip="Lo abierto ahora, se abriera cuando se abriera."><th>Incidencias</th>${ks.map((k) => `<td class="mt-num"><b>${num(total(k))}</b><small>ahora</small></td>`).join('')}</tr>`;
-    return `<div class="mt-dn ${one ? '' : 'mt-dn-cmp'}"><div class="mt-dn-rings">${rings}</div><table class="mt-dn-legend">${head}${shown.map(row).join('')}${sum}</table></div>`;
+    const idmRow = idm ? `<tr class="mt-dn-idm" data-tip="${esc(IDMTTR_NOTE)}"><th>IDMTTR</th>${ks.map((k) => { const v = idmOf(open[k], allOf(k));
+      return `<td class="mt-num"><b class="mt-diff ${v > 0 ? 'bad' : v < 0 ? 'good' : ''}">${v == null ? '—' : signedDur(v)}</b><small>en el MTTR</small></td>`; }).join('')}</tr>` : '';
+    return `<div class="mt-dn ${one ? '' : 'mt-dn-cmp'}"><div class="mt-dn-rings">${rings}</div><table class="mt-dn-legend">${head}${shown.map(row).join('')}${sum}${idmRow}</table></div>`;
   };
   // links: filtrado por Pendiente (proveedor), un enlace a Escalados, en Activas y sin ese filtro, que allí sobra
   // (Activas ya es lo escalado y abierto) y vaciaría Histórico (metrics-view.js, data-esc-now y data-rm); el Resumen, sin
@@ -64,7 +90,7 @@ export const stateCard = (t) => {
     const about = upTo ? `Lo abierto ahora que se abrió hasta el final del periodo elegido (también antes de él), por su estado.${pick ? ' Clic en uno para filtrar.' : ''}`
       : 'Lo abierto, por su estado. Clic en uno para filtrar.';
     const none = upTo && P.every((l) => !l.length);
-    return ch.card('En qué estado está', (upTo ? sysBar() : '') + (none ? '<p class="mt-none-open">Sin incidencias abiertas</p>' : haveNow(P, pick)) + toEscalated, { span: CMP() ? 's12' : 's4', ...(upTo ? { tip: about } : { sub: about }), go });
+    return ch.card('En qué estado está', (upTo ? sysBar() : '') + (none ? '<p class="mt-none-open">Sin incidencias abiertas</p>' : haveNow(P, pick, upTo)) + toEscalated, { span: CMP() ? 's12' : 's4', ...(upTo ? { tip: about } : { sub: about }), go });
   };
 };
 

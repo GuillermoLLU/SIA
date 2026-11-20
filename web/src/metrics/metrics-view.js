@@ -14,11 +14,10 @@ import { num } from './format.js';
 import { createModel, COMPANIES } from './model.js';
 import { createCharts } from './charts.js';
 import { createTabs } from './tabs.js';
-import { FACES, faceOf, faceTabs, firstTab, routeTo } from './faces.js';
-import { periodLabel, presetRange, cmpOptions, rangeLabel } from './period.js';
-import { DAY } from './rules.js';
-import { reportBounds, reportHead, reportName, withDates, sidesOf, systemsFilter, PICKS, pickedFilter, pickedText, withShifts, shiftsFilter } from './report.js';
-import { exportPdf, previewReport } from './print.js';
+import { FACES, faceOf, faceTabs, firstTab, routeTo, hasIncidentList } from './faces.js';
+import { periodLabel, presetRange, cmpName } from './period.js';
+import { tabReportTitle, tabReportHead } from './tab-report.js';
+import { previewTabs } from './print.js';
 import { companyPick, presetPick, comparePop, pickCompany, pickPreset } from './quick-bar.js';
 import { mountPeriodPanel } from './period-panel.js';
 import { attachTip } from './tip.js';
@@ -29,10 +28,9 @@ import { mountMetricsModals } from './metrics-modals.js';
 import { progressCover } from './progress-cover.js';
 import { isNetWarning } from '../ui/net-warning.js';
 import { netWarningHtml, shake } from '../ui/net-warning-view.js';
-import { COLORS, defaultColors, freeColor, dayOf, coverage, freeCompany, withoutSide, togglePerson, filterKey, anyFilter, clearFilters, pickOnly, pickBoth } from './view.js';
+import { COLORS, defaultColors, freeColor, dayOf, coverage, freeCompany, withoutSide, togglePerson, filterKey, anyFilter, clearFilters, pickOnly, pickBoth, pickSys, teamPeopleOf, sidesOfPeople } from './view.js';
 import { sheetOf, sheetCsv, sheetFile } from './sheet.js';
 import { downloadText } from './download.js';
-import { teamPanel } from '../work/team.js';
 import { pressStartedIn } from '../ui/dom.js';
 
 const SEARCH_MS = 250;
@@ -58,6 +56,8 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
   // si la vista deja mirar o comparar con T-Systems; la pestaña Backlog, nunca (solo Indra y sin comparar nada: render)
   // NO_TSYS_TABS: sin T-Systems (solo Indra o personas de Indra); NO_CMP_TABS: además, sin comparar nada
   const NO_TSYS_TABS = ['backlog', 'modulos', 'escalados'], NO_CMP_TABS = ['backlog'];
+  // NO_PICKS_TABS: sin los selectores de arriba de SISU o SGA y de la criticidad (prioridad), en cualquier vista
+  const NO_PICKS_TABS = ['rendimiento', 'calidad', 'modulos', 'turnos'];
   const tsys = () => faceOf(face)?.tsys !== false && !NO_TSYS_TABS.includes(tab);
   // open: el desplegable abierto ('calendar', 'side0' o 'side1'); who: lo escrito en el buscador de
   // personas; searching: la búsqueda abierta
@@ -74,10 +74,11 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
   });
 
   const loadButton = () => `<button class="mt-load ${loading ? 'mt-busy' : ''}" data-update ${loading ? 'disabled' : ''}>${loading ? 'Actualizando…' : m ? LOAD : FIRST_LOAD}</button>`;
-  // Los tres puntos: lo que se hace pocas veces (exportar un informe, cargar un CSV, construir la consulta). Sin nada
-  // encima de la vista. Sin datos (withClear: false), no hay informe que exportar ni histórico que borrar.
+  // Los tres puntos: lo que se hace pocas veces (cargar un CSV, construir la consulta, borrar el histórico). Sin nada
+  // encima de la vista. Sin datos (withClear: false), no hay histórico que borrar. Los informes y la lista de incidencias,
+  // con los botones de la barra de filtros («Exportar PDF», exportTab; «Descargar incidencias», exportSheet).
   const moreMenu = (withClear = true) => `<div class="mt-menu"><button class="mt-btn mt-icon-btn mt-more" data-more aria-haspopup="menu" aria-expanded="false" aria-label="Más opciones" title="Más opciones"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
-    <div class="mt-pop mt-menu-pop" data-more-pop role="menu" hidden>${withClear ? '<button role="menuitem" data-open-report>Exportar informe…</button><button role="menuitem" data-export-sheet hidden>Exportar sábana a CSV</button>' : ''}<button role="menuitem" data-open-csv>Cargar CSV…</button><button role="menuitem" data-open-sql>Construir SQL…</button>${withClear ? '<button role="menuitem" class="mt-danger-item" data-clear>Eliminar histórico…</button>' : ''}</div></div>`;
+    <div class="mt-pop mt-menu-pop" data-more-pop role="menu" hidden>${withClear ? '' : ''}<button role="menuitem" data-open-csv>Cargar CSV…</button><button role="menuitem" data-open-sql>Construir SQL…</button>${withClear ? '<button role="menuitem" class="mt-danger-item" data-clear>Eliminar histórico…</button>' : ''}</div></div>`;
   const setMenu = (on) => {
     const pop = $('[data-more-pop]');
     if (!pop) return;
@@ -119,6 +120,8 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
         <div class="mt-chips" data-chips></div>
         <div class="mt-find"><input type="search" data-q placeholder="Título o INC…" hidden><span class="mt-count" data-count></span>
           <button class="mt-search" data-search title="Buscar en el título o por número">${SEARCH_ICON}</button></div>
+        <button class="mt-btn mt-export-tab" data-export-sheet hidden data-tip="Descarga en CSV la lista de incidencias de lo que se ve en esta pestaña, con sus fechas, filtros y lo que se compara.">Descargar incidencias</button>
+        <button class="mt-btn mt-export-tab" data-export-tab data-tip="Exporta esta pestaña a PDF tal como se ve (con sus fechas, filtros y lo que se compara). En la vista previa puedes añadir otras pestañas, con los mismos filtros.">Exportar PDF</button>
       </div>
       <nav class="mt-tabs">${faceTabs(face, team).map(([k, l]) => `<button data-tab="${k}">${l}</button>`).join('')}</nav>
       <div class="mt-main" data-main></div>
@@ -205,20 +208,36 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     renderPeriod();
     renderSides();
     $('[data-qco]').innerHTML = tsys() ? companyPick(m) : '';
-    $('[data-picks]').innerHTML = face === 'servicio' ? '' : tabs.picks();   // SISU o SGA y la prioridad: en Servicio, no (la corona lleva su SISU / SGA)
+    // SISU o SGA y la prioridad: en Servicio y en NO_PICKS_TABS, no (la corona y Rendimiento equipos llevan su SISU / SGA;
+    // la prioridad se filtra pinchando en sus barras o filas)
+    $('[data-picks]').innerHTML = face === 'servicio' || NO_PICKS_TABS.includes(tab) ? '' : tabs.picks();
     $('[data-cmp]').innerHTML = NO_CMP_TABS.includes(tab) ? '' : comparePop(m, ui, tsys());
     $('[data-q]').hidden = !(searching || S.q);
     $('[data-count]').innerHTML = `<b>${num(A.length)}</b> incidencias`;
     root.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('mt-on', b.dataset.tab === tab));
     // la pestaña del equipo va por su cuenta: sin los filtros de arriba, que no le afectan
     const onTeam = tab === team?.id;
-    // la sábana ya no se ve en ninguna pestaña: en las que la tenían, se exporta desde los tres puntos
+    // «Descargar incidencias» (la barra de filtros), en las pestañas de cada vista que la llevan (faces.js, LIST_TABS)
     const sheetItem = $('[data-export-sheet]');
-    if (sheetItem) sheetItem.hidden = !(onTeam || SHEET_TABS.includes(tab));
-    for (const s of ['.mt-fbar', '[data-main]']) $(s).style.display = onTeam ? 'none' : '';
+    if (sheetItem) sheetItem.hidden = !hasIncidentList(face, tab);
+    // en Equipo soporte, de la barra de arriba solo las fechas y el selector de Indra y técnicos, comunes a todas las
+    // pestañas de Equipo (lo demás no le afecta)
+    $('.mt-fbar').classList.toggle('mt-fbar-team', onTeam);
+    $('[data-main]').style.display = onTeam ? 'none' : '';
     if (teamHost) teamHost.hidden = !onTeam;
     if (onTeam) {
-      teamView ||= team.mount(teamHost);
+      if (!teamView) {
+        teamView = team.mount(teamHost);
+        // marcar técnicos en su tabla cambia el selector de arriba (y lo que se ve en las demás pestañas de Equipo)
+        teamView.onPeople?.((cmp) => {
+          const had = !!S.sides[1];
+          S.sides = sidesOfPeople(cmp);
+          if (S.sides[1] && !had) colors[1] = freeColor(colors[0]);
+          m.refilter(); renderSides();
+        });
+      }
+      teamView.period?.([S.d0, S.d1]);
+      teamView.people?.(teamPeopleOf(S.sides));
       teamView.show();
       return;
     }
@@ -390,128 +409,46 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     }
   };
 
-  // La sábana, a CSV (de la pestaña en la que se está): lo que pasa ahora los filtros y los lados, entero, descargado como
-  // fichero (sheet.js). Ya no se ve en las pestañas: se exporta desde los tres puntos (Exportar sábana a CSV), solo en
-  // las que la tenían (SHEET_TABS; Equipo soporte, la suya: work-view.js).
-  const SHEET_TABS = ['backlog', 'escalados', 'cliente', 'tiempos', 'sla', 'slaq'];
+  // «Descargar incidencias» (un botón de la barra de filtros, junto a «Exportar PDF»; en qué pestañas: faces.js, LIST_TABS): las incidencias de lo que se
+  // ve en la pestaña, con los filtros, los lados y el periodo de arriba, a CSV (sheet.js), de la más antigua a la más
+  // reciente. Backlog, lo abierto ahora (su sábana); Escalados, lo escalado (Activas o Histórico); Pendiente de cliente y
+  // Análisis tiempos, su sábana; en Actual (nowMode), lo abierto ahora; si no, lo recibido en el periodo. Equipo soporte,
+  // la suya (work-view.js).
   const exportSheet = () => {
-    // la sábana de la pestaña: la de Escalados o la de Pendiente de cliente, con sus columnas; si no, lo abierto ahora
-    const own = { escalados: [ui.escSheet, 'incidencias-escaladas'], slaq: [ui.slaSheet, 'sin-empezar-sla'], cliente: [ui.cliSheet, 'pendientes-de-cliente'], tiempos: [ui.timesSheet, 'incidencias-tiempos'], sla: [ui.slaSheet, 'sin-empezar-sla'], backlog: [ui.hoySheet, 'incidencias-abiertas'] }[tab];
-    const list = own ? own[0].list : sheetOf(m);
-    if (!list.length) return;
-    const file = own ? sheetFile(m, own[1]) : sheetFile(m);
-    downloadText(file, sheetCsv(m, list, own?.[0].cols), 'text/csv;charset=utf-8');
-    toast?.(`Exportadas ${num(list.length)} incidencias a ${file}.`);
+    const own = { escalados: [ui.escSheet, 'incidencias-escaladas'], cliente: [ui.cliSheet, 'pendientes-de-cliente'], tiempos: [ui.timesSheet, 'incidencias-tiempos'], backlog: [ui.hoySheet, 'incidencias-abiertas'] }[tab];
+    const list = own?.[0]?.list ?? (nowMode() ? sheetOf(m) : [...m.rows()].sort((a, b) => m.C.rep[a] - m.C.rep[b]));
+    if (!list.length) { toast?.('No hay incidencias con estos filtros.'); return; }
+    const file = sheetFile(m, own?.[0] ? own[1] : `incidencias-${tab}`);
+    downloadText(file, sheetCsv(m, list, own?.[0]?.cols), 'text/csv;charset=utf-8');
+    toast?.(`Descargadas ${num(list.length)} incidencias en ${file}.`);
   };
 
-  // Exportar informe (#15): la ventana para elegir el informe (metrics-modals.js, report) y, al aceptar, el informe
-  // impreso a PDF (print.js) o en la vista previa. Lo que lleva cada uno (report.js, REPORTS):
-  //   Backlog actual       Foto de hoy, que ya lleva la corona del Resumen, con la sábana entera
-  //   Resumen básico       el Resumen sin la corona y lo que la pestaña Histórico no repite
-  //   Análisis de tiempos  la pestaña, Actual o Histórico, con los dos desgloses (módulo y centro); la sábana, entera en
-  //                        Actual y las que más tardaron en Histórico (todas, ahí, pueden ser miles)
-  //   Módulos y focos      la pestaña, Actual o Histórico; comparando con T-Systems, una parte de cada empresa (la
-  //                        pestaña no compara empresas: enseñaría solo la primera)
-  // Con fechas, el periodo de arriba se cambia solo para pintarlo y vuelve a ser el de antes; la comparación de periodos
-  // del Resumen («Comparar») no va, es relativa al periodo de arriba. Lo que se mira, el de la pestaña elegida (solo
-  // Indra o Indra frente a T-Systems: AUDIENCES); SGA y SISU, las casillas; los demás filtros, los de arriba. Con la
-  // vista previa, «Cambiar opciones» vuelve a abrir la ventana con lo que se había elegido (initial).
-  const exportReport = (initial) => {
+  // «Exportar PDF» de la pestaña (la barra de filtros): su vista previa (print.js, previewTabs), con la pestaña que se mira
+  // y las demás de la vista que se añadan, todas como se ven ahora (las mismas fechas, lados, filtros y modos), cada una en
+  // hojas propias; la cabecera, con todo eso (tab-report.js). Equipo soporte, no (va por su cuenta).
+  const exportTab = () => {
     if (!m) return;
-    const { S, BASE, DIMS, data: { meta } } = m, iso = (min) => new Date(BASE + min * 6e4).toISOString().slice(0, 10);
-    // la última carga, en el reloj de quien mira: «12/11/2026 09:30»
-    const two = (n) => String(n).padStart(2, '0'), at = new Date(meta.generated);
-    const asOf = `${two(at.getDate())}/${two(at.getMonth() + 1)}/${at.getFullYear()} ${two(at.getHours())}:${two(at.getMinutes())}`;
-    // el cuerpo de cada informe, con lo de arriba ya puesto para él (A: lo que se mira; now: lo abierto ahora)
-    const BODY = {
-      // en los informes, nunca la sábana de incidencias
-      backlog: (A) => tabs.render('hoy', A, { inReport: true }),
-      history: (A) => tabs.render('resumen', A, { state: false }) + tabs.render('historico', A, { inReport: true }),
-      tiempos: (A) => tabs.render('tiempos', A, { inReport: true }),
-      modulos: (A) => tabs.render('modulos', A),   // solo de Indra (report.js, reportsOf)
-      escalados: (A) => tabs.render('escalados', A, { inReport: true }),
-      turnos: (A) => tabs.render('turnos', A),   // con el filtro de turno de sus casillas (S.f.tu)
-      // Estado de SLAs: lo del periodo y las incidencias; con el MTTR, lo de Análisis tiempos (en qué se va el tiempo y
-      // por módulo, de lo resuelto del periodo); Atendidas en SLA; y la calidad, por técnico, y el uso de la IA, por día
-      slas: (A, audience, person, params) => tabs.render('resumen', A, { slas: params })
-        // frente a T-Systems, sin el desglose por módulo (no trabajamos con los mismos)
-        + (params.includes('mttr') ? tabs.render('tiempos', A, { parts: audience === 'ts' ? ['times'] : ['times', 'mo'] }) : '')
-        + tabs.render('resumen', A, { slas: params, part: 'sla' })
-        + tabs.render('resumen', A, { slas: params, part: 'people' }),
-      // el panel de Equipo soporte (work/team.js), con su propio estado: de partida, sin días elegidos ni gráficas
-      // desplegadas y con la sábana entera; person, el técnico (null, todo el equipo), frente a la media del equipo
-      equipo: (A, audience, person) => {
-        const tui = { exp: { 'team-sheet': true }, sort: {}, charts: new Set(), range: null, actSeries: null, person, vsTeam: true, noSheet: true };
-        return teamPanel(m, createCharts(m, tui), tui);
-      },
-    };
-    // las listas de casillas de los informes, las de cada pestaña: los módulos y centros con incidencias de lo cargado
-    // de Indra (TEAM 0; con lo de sus búsquedas sin técnico) o, frente a T-Systems, de cualquiera de las dos (TEAM 0 o
-    // 1); de más a menos. Lo de otros (almacenes, el grupo compartido) no se lista. Sin módulo o sin centro (clave 0)
-    // tampoco: entra solo con todo marcado
-    const ofTeams = (teams) => { const out = []; for (let i = 0; i < m.N; i++) if (teams.includes(m.TEAM[i])) out.push(i); return out; };
-    const listsOf = (rows) => Object.fromEntries(PICKS.map(([dim]) => [dim, m.group(dim, rows).filter((g) => g.k).map((g) => [g.k, DIMS[dim].label(g.k), g.n])]));
-    const lists = { indra: listsOf(ofTeams([0])), ts: listsOf(ofTeams([0, 1])) };
-    // los periodos que se pueden comparar (los de «Comparar» del Resumen, con datos), con su rango de ahora: «Periodo
-    // actual» es el de arriba antes de cambiarlo para el informe
-    const periodsNow = cmpOptions(m).filter(([, , r]) => r);
-    // los técnicos de Indra (Equipo soporte), por su nombre
-    const people = m.group('as', ofTeams([0])).filter((g) => g.k).map((g) => [g.k, DIMS.as.label(g.k)])
-      .sort((a, b) => a[1].localeCompare(b[1], 'es'));
-    modals.report({
-      current: { range: [S.d0, S.d1], from: iso(S.d0), to: iso(S.d1 - DAY), asOf },
-      bounds: reportBounds(m), base: BASE, lists, people, periods: periodsNow.map(([k, l, r]) => [k, l, iso(r[0]), iso(r[1] - DAY)]), initial,
-      onExport: ({ key, mode, audience, systems, picks, person, params, shifts, cmp, range, preview, choice }) => {
-        // lo de arriba se cambia solo para pintar el informe y vuelve a ser lo de antes: los lados (los de la pestaña),
-        // el filtro de SGA o SISU (el de las casillas), el periodo (con fechas), la comparación de periodos, las sábanas
-        // enteras y lo que eligen las pestañas (Actual o Histórico, desglose; en Escalados, sin proyectos elegidos ni el
-        // filtro de las Sin Jira). Equipo soporte, como su pestaña, sin los filtros ni la búsqueda de arriba
-        const dated = withDates(key, mode), now = !dated, team = key === 'equipo';
-        const keep = { d: [S.d0, S.d1], sides: S.sides, f: { ...S.f }, q: S.q, exp: { ...ui.exp },
-          ui: { resCmp: ui.resCmp, timesNow: ui.timesNow, timesBy: ui.timesBy, modNow: ui.modNow, escNow: ui.escNow, jiraPick: ui.jiraPick, escNoJira: ui.escNoJira } };
-        let body, cover, names, cos, filters, cmpText = '';
-        try {
-          S.sides = sidesOf(audience);
-          if (team) { S.f = {}; S.q = ''; }
-          // los filtros que eligen las casillas: SGA o SISU y, con sus listas, módulos y centros (todo marcado, sin filtro)
-          const set = (dim, f) => { if (f) S.f[dim] = f; else delete S.f[dim]; };
-          set('ss', systemsFilter(systems));
-          if (withShifts(key)) set('tu', shiftsFilter(shifts));
-          for (const [dim, keys] of Object.entries(picks)) set(dim, pickedFilter(lists[audience][dim].map(([k]) => k), keys));
-          if (dated) { m.setPeriod(range[0], range[1]); ui.resCmp = null; }
-          Object.assign(ui, { timesNow: now, timesBy: 'mo', modNow: now, escNow: now, jiraPick: [], escNoJira: false });
-          ui.exp = { ...ui.exp, 'res-sheet': true, 'times-sheet': now, 'esc-sheet': true, 'esc-bad': true };
-          m.refilter();
-          // comparando dos periodos, arriba del todo (con los filtros del informe; de un técnico, lo suyo)
-          // cada periodo, con su nombre o, personalizado, por sus fechas
-          const periodOf = (s) => ({ label: cmp[s].label ?? rangeLabel(m, cmp[s].range), range: cmp[s].range });
-          const top = cmp ? tabs.render('resumen', m.rows(), { vsPeriod: { a: periodOf('a'), b: periodOf('b'), person } }) : '';
-          body = top + BODY[key](m.rows(), audience, person, params);
-          cmpText = cmp ? `${periodOf('a').label} frente a ${periodOf('b').label}` : '';
-          cover = coverage(m);
-          names = m.NAMES(); cos = m.CO();
-          // los filtros de arriba con que sale (los de las casillas van aparte, cada uno en su fila)
-          filters = [...Object.keys(S.f).filter((dim) => dim !== 'ss' && !(dim in picks) && !(dim === 'tu' && withShifts(key))).flatMap((dim) => [...S.f[dim]].map((k) => `${DIMS[dim].name}: ${DIMS[dim].label(k)}`)), ...(S.q ? [`Búsqueda: ${S.q}`] : [])];
-        } finally {
-          S.sides = keep.sides;
-          S.f = keep.f;
-          S.q = keep.q;
-          if (dated) m.setPeriod(...keep.d);
-          Object.assign(ui, keep.ui);
-          ui.exp = keep.exp;
-          m.refilter();
-        }
-        const who = person == null ? '' : DIMS.as.label(person);
-        const parts = {
-          title: reportName(key, range, BASE, { mode, asOf: at.getTime(), audience, systems, person: who }),
-          head: reportHead({ key, mode, range, base: BASE, asOf, sides: cos.map((k) => names[k]), systems, filters, person: who, params, shifts, periods: cmpText,
-            picks: PICKS.filter(([dim]) => dim in picks).map(([dim, label]) => [label, pickedText(lists[audience][dim].map(([k]) => k), picks[dim], DIMS[dim].label)]).filter(([, v]) => v), coverage: cover, generatedAt: new Date() }),
-          body, sideStyle: root.getAttribute('style') || '',
-        };
-        if (preview) previewReport(parts, { onBack: () => exportReport(choice), toast });
-        else exportPdf(parts, { toast });
-      },
-    });
+    const options = faceTabs(face, null), labelOf = (k) => options.find(([o]) => o === k)?.[1] ?? k;
+    const picked = options.some(([k]) => k === tab) ? [tab] : [options[0][0]];
+    const faceName = faceOf(face)?.label || '';
+    previewTabs({ options, picked, partsOf: (keys) => {
+      const { S, DIMS } = m, A = m.rows(), names = m.NAMES(), cos = m.CO(), period = periodLabel(m);
+      const body = keys.map((k, j) => `<h2 class="mt-rep-tab${j ? ' mt-rep-break' : ''}">${esc(labelOf(k))}</h2>${tabs.render(k, A, { face })}`).join('');
+      const filters = [...Object.keys(S.f).flatMap((dim) => [...S.f[dim]].map((k) => `${DIMS[dim].name}: ${DIMS[dim].label(k)}`)), ...(S.q ? [`Búsqueda: ${S.q}`] : [])];
+      // SISU frente a SGA, solo si alguna de las pestañas lo pinta (la corona, Rendimiento equipos y Turnos)
+      const ssCmp = ui.ssCmp && !m.CMP() && keys.some((k) => ['resumen', 'backlog', 'rendimiento', 'turnos'].includes(k));
+      const periods = ui.resCmp?.a && ui.resCmp?.b ? [cmpName(m, ui.resCmp.a), cmpName(m, ui.resCmp.b)] : null;
+      const compare = ssCmp ? `${DIMS.ss.label(0)} frente a ${DIMS.ss.label(1)}` : periods ? periods.join(' frente a ') : '';
+      // el título: qué se compara (SISU y SGA, dos lados o dos periodos) o qué se mira (con un solo sistema elegido, ese;
+      // si no, lo de arriba: la empresa o la persona, y su sistema)
+      const sys = S.f.ss?.size === 1 ? DIMS.ss.label([...S.f.ss][0]) : '';
+      const versus = ssCmp ? [DIMS.ss.label(0), DIMS.ss.label(1)] : cos.length > 1 ? cos.map((k) => names[k]) : periods;
+      const subject = S.sides[cos[0]]?.people ? `${names[cos[0]]}${sys ? ` (${sys})` : ''}` : sys || names[cos[0]];
+      const labels = keys.map(labelOf), title = tabReportTitle({ tabs: labels, versus, subject });
+      return { title,
+        head: tabReportHead({ title, face: faceName, tabs: labels, period, sides: cos.map((k) => names[k]), compare, filters, coverage: coverage(m) }),
+        body, sideStyle: root.getAttribute('style') || '' };
+    } }, { toast });
   };
 
   const pressedInPop = pressStartedIn(root, (t) => !!t.closest('.mt-pop'));
@@ -519,10 +456,10 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     // con datos, actualizar; sin datos, la primera carga con el periodo que se elige
     if (e.target.closest('[data-update]')) return m ? update() : modals.firstLoad();
     if (e.target.closest('[data-more]')) return setMenu($('[data-more-pop]')?.hidden === true);
-    const item = e.target.closest('[data-open-report],[data-export-sheet],[data-open-csv],[data-open-sql],[data-clear]');
+    if (e.target.closest('[data-export-tab]')) return exportTab();
+    const item = e.target.closest('[data-export-sheet],[data-open-csv],[data-open-sql],[data-clear]');
     if (item) {
       setMenu(false);
-      if (item.hasAttribute('data-open-report')) return exportReport();
       if (item.hasAttribute('data-export-sheet')) return tab === team?.id ? teamView?.exportSheet() : exportSheet();
       if (item.hasAttribute('data-open-csv')) return modals.csv();
       if (item.hasAttribute('data-clear')) return modals.clear();
@@ -625,12 +562,18 @@ export const mountMetricsView = (root, { api, toast, team = null }) => {
     else if (d.escNojira != null) { ui.escNoJira = !ui.escNoJira; if (ui.escNoJira) ui.jiraPick = []; }   // y filtrar por las Sin Jira (sin proyecto)
     // un selector: solo ese valor de la dimensión («dim:clave») o, sin clave («dim:»), todos (sin filtro)
     // con Ctrl (o Cmd), sumarlo o quitarlo (view.js, pickOnly)
-    else if (d.ringSys != null) {   // la corona: SISU / SGA, el filtro de toda la página; cada uno se pone o se quita (siempre queda uno; los dos, sin filtro)
-      const k = Number(d.ringSys), on = S.f.ss?.size ? [...S.f.ss] : [0, 1];
-      const next = on.includes(k) ? (on.length > 1 ? on.filter((x) => x !== k) : on) : [...on, k];
-      if (next.length === 2) delete S.f.ss; else S.f.ss = new Set(next);
+    // la corona: SISU / SGA, el filtro de toda la página (clic, solo ese; otra vez, los dos); Ctrl+clic, compararlos (view.js, pickSys)
+    else if (d.ringSys != null) {
+      pickSys(S, ui, Number(d.ringSys), e.ctrlKey || e.metaKey);
+      // Turnos: con solo SISU o comparando SISU y SGA (solo entre semana), sin el filtro de entre semana o fin de semana
+      if (tab === 'turnos' && (ui.ssCmp || (S.f.ss?.size === 1 && S.f.ss.has(0)))) delete S.f.we;
     }
-    else if (d.only != null) { const [dim, k] = d.only.split(':'); pickOnly(S.f, dim, k === '' ? null : Number(k), e.ctrlKey || e.metaKey); }
+    else if (d.only != null) {
+      const [dim, k] = d.only.split(':');
+      pickOnly(S.f, dim, k === '' ? null : Number(k), e.ctrlKey || e.metaKey);
+      // Turnos: con solo SISU, sin el filtro de entre semana o fin de semana (no sale: lo del fin de semana pasa al lunes)
+      if (tab === 'turnos' && dim === 'ss' && S.f.ss?.size === 1 && S.f.ss.has(0)) delete S.f.we;
+    }
     else if (d.rm) { const [dim, k] = filterKey(d.rm); S.f[dim].delete(k); }
     else if (d.resetFilters != null) { clearFilters(S, ui); const q = $('[data-q]'); q.value = ''; searching = false; }   // «Quitar filtros»
     else if (d.exp) ui.exp[d.exp] = !ui.exp[d.exp];

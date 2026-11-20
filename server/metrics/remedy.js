@@ -174,6 +174,15 @@ const tagFlags = (tags) => (tags.has('SISUINC') ? FLAG.SISU : 0) | (tags.has('PR
   | ([...tags].some((t) => t.startsWith('IA_SOLVED')) ? FLAG.IA_SOLVED : 0) | (tags.has('IA_FAIL') || tags.has('HITL_IA_FAIL') ? FLAG.IA_FAIL_TAG : 0)
   | (tags.has('DB2_LOCK') ? FLAG.DB2_LOCK : 0);
 
+// La primera atención (minutos desde la apertura; -1, aún no): lo primero entre el primer paso a En curso (start) y la
+// primera nota [SITUACION INICIAL] (con o sin tilde) de después de abrirse. notes: [[instante, texto]] (minutos).
+const FIRST_NOTE = /^\s*\[SITUACI[OÓ]N INICIAL\]/i;
+export const firstAttention = (start, notes, reported) => {
+  let t = start >= 0 ? start : Infinity;
+  for (const [at, text] of notes) if (at >= reported && FIRST_NOTE.test(text || '')) t = Math.min(t, at - reported);
+  return t === Infinity ? -1 : t;
+};
+
 // La fila entera → la issue medida. `base`: milisegundos del 1 de enero del primer año de los datos.
 export const readIssue = (r, base) => {
   const at = (s) => minutesSince(base, s);
@@ -198,6 +207,7 @@ export const readIssue = (r, base) => {
     vendor: vendorOf(r.VENDORTICKETNUMBER), vendorText: r.VENDORTICKETNUMBER.trim(),
     jira: jiraKeys(r.VENDORTICKETNUMBER, r.WORKLOG_DETAIL),
     first: h.first, start: h.start, time: h.time, bounces: h.bounces, pendings: h.pendings,
+    attention: firstAttention(h.start, entries(r.WORKLOG_DETAIL).map((e) => [at(e.at), e.text]), reported),
     // las veces que pasó a Pendiente de cliente (los rebotes, si son 2 o más) y las notas que se leen como públicas
     // (pending-reason.js), con su motivo: [instante, autor, motivo]; de quién son se sabe al montar los datos
     clientPendings: h.events.client.length,

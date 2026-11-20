@@ -30,12 +30,12 @@ test('ligada a un ticket previo: ni se mide ni es mal escalada', () => {
   assert.deepEqual(escalationOf(issue({ open: false, resolved: 1500 }), [{ created: 700, resolved: 3000, status: 'Cerrado' }], NOW), { ...NONE, thesc: PREVIOUS });
 });
 
-test('cerrada en Remedy antes que su Jira: Tesc sí, Tcr no', () => {
-  assert.deepEqual(escalationOf(issue({ open: false, resolved: 1500 }), [{ created: 1100, resolved: 3000, status: 'Cerrado' }], NOW), { ...NONE, thesc: 100, tesc: 1900, early: true });
+test('cerrada en Remedy antes que su Jira: Tesc hasta la resolución en Remedy (no hasta la del Jira), Tcr no', () => {
+  assert.deepEqual(escalationOf(issue({ open: false, resolved: 1500 }), [{ created: 1100, resolved: 3000, status: 'Cerrado' }], NOW), { ...NONE, thesc: 100, tesc: 400, early: true });
 });
 
-test('cerrada con su Jira sin resolver: no es mal escalada, es cerrada con el Jira abierto', () => {
-  assert.deepEqual(escalationOf(issue({ open: false, resolved: 1500 }), [{ created: 1100, resolved: -1, status: 'En Cartera' }], NOW), { ...NONE, thesc: 100, jiraOpen: true });
+test('cerrada con su Jira sin resolver: no es mal escalada, es cerrada con el Jira abierto; su Tesc, hasta la resolución en Remedy', () => {
+  assert.deepEqual(escalationOf(issue({ open: false, resolved: 1500 }), [{ created: 1100, resolved: -1, status: 'En Cartera' }], NOW), { ...NONE, thesc: 100, tesc: 400, jiraOpen: true });
 });
 
 test('Tesc-r: de la solución final a ahora, solo si sigue abierta en Remedy', () => {
@@ -80,10 +80,10 @@ test('Abierta y con un Jira suyo aún sin resolver: Tesc hasta ahora y sin Tesc-
   assert.equal(escalationOf(issue({ open: false, resolved: 4500 }), tickets, NOW).tcr, 500);
 });
 
-test('Abierta y con todos sus Jira sin resolver: Tesc hasta ahora y sin Tesc-r; cerrada así, sin Tesc y con el Jira abierto', () => {
+test('Abierta y con todos sus Jira sin resolver: Tesc hasta ahora y sin Tesc-r; cerrada así, Tesc hasta el cierre y con el Jira abierto', () => {
   const open = [{ created: 1100, resolved: -1, status: 'Backlog' }];
   const e = escalationOf(issue(), open, NOW);
   assert.equal(e.tesc, NOW - 1100); assert.equal(e.tescr, -1); assert.equal(e.jiraOpen, false);
   const c = escalationOf(issue({ open: false, resolved: 5000 }), open, NOW);
-  assert.equal(c.tesc, -1); assert.equal(c.jiraOpen, true);
+  assert.equal(c.tesc, 5000 - 1100); assert.equal(c.jiraOpen, true);
 });

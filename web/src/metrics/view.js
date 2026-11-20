@@ -30,6 +30,11 @@ export const togglePerson = (sides, k, p) => {
   return set.size ? { people: set } : freeCompany(sides[1 - k]);
 };
 
+// Equipo soporte (work-view.js) y el selector de Indra y técnicos de la barra de arriba: a quién mira su tabla (los técnicos
+// marcados, como mucho dos: se comparan) según los lados, y los lados según los marcados en la tabla (ninguno: Indra)
+export const teamPeopleOf = (sides) => [...(sides[0]?.people || []), ...(sides[1]?.people || [])].slice(0, 2);
+export const sidesOfPeople = (cmp) => (!cmp.length ? [{ company: 0 }, null] : [{ people: new Set([cmp[0]]) }, cmp[1] != null ? { people: new Set([cmp[1]]) } : null]);
+
 // el periodo entre dos meses marcados, en cualquier orden
 
 // «dim:clave» → [dim, clave]
@@ -53,6 +58,16 @@ export const pickBoth = (f, keys, multi = false) => {
   if (keys.every(has) && (multi || keys.every(([dim]) => f[dim].size === keys.filter(([d]) => d === dim).length))) return off();
   if (multi) { for (const [dim, k] of keys) (f[dim] || (f[dim] = new Set())).add(k); return; }
   for (const dim of new Set(keys.map(([d]) => d))) f[dim] = new Set(keys.filter(([d]) => d === dim).map(([, k]) => k));
+};
+// El selector SISU / SGA de la corona (hoy.js, sysBar): clic, solo ese (el filtro de toda la página, S.f.ss); clic en el
+// otro, cambiar a él; otra vez en el único elegido, los dos (sin filtro). Ctrl+clic: compararlos (ui.ssCmp, una corona por
+// sistema, con los dos dentro), o dejar de compararlos.
+export const pickSys = (S, ui, k, ctrl) => {
+  const was = !ui.ssCmp && S.f.ss?.size === 1 && S.f.ss.has(k);
+  delete S.f.ss;
+  if (ctrl) { ui.ssCmp = !ui.ssCmp; return; }
+  ui.ssCmp = false;
+  if (!was) S.f.ss = new Set([k]);
 };
 // si una opción de un selector está marcada (k null: «todos», sin filtro)
 export const isPicked = (f, dim, k) => (k == null ? !f[dim]?.size : !!f[dim]?.has(k));
