@@ -15,9 +15,10 @@ use win as so;
 use serde::{Deserialize, Serialize};
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tauri_plugin_dialog::DialogExt;
 
 // Lo que se instala (el NSIS de SIA en Windows, SIA.app comprimido en Mac) y lo que ocupa SIA
@@ -146,14 +147,17 @@ fn limpiar(dir: &Path) {
     }
 }
 
+// Mientras instala, la ventana no se cierra (ni con Alt+F4): cortar el NSIS a medias deja SIA roto
+static INSTALANDO: AtomicBool = AtomicBool::new(false);
+
 #[tauri::command]
-fn estado(registro: tauri::State<'_, Registro>) -> Result<Estado, String> {
+fn estado(app: AppHandle, registro: tauri::State<'_, Registro>) -> Result<Estado, String> {
     let p = paquete()?;
     let instalado = so::instalado();
     let abierto = so::sia_abierto();
     registro.anotar(&format!(
         "SIA Setup {} · SIA {} · {}\n{}{}",
-        env!("CARGO_PKG_VERSION"),
+        app.package_info().version,
         p.version,
         so::sistema_operativo(),
         match &instalado {
@@ -324,7 +328,9 @@ async fn instalar(app: AppHandle, registro: tauri::State<'_, Registro>, carpeta:
     let actualizar = so::instalado().is_some();
     registro.anotar(&format!("{} SIA {} en {carpeta}", if actualizar { "Actualizando" } else { "Instalando" }, p.version));
     let inicio = Instant::now();
+    INSTALANDO.store(true, Ordering::SeqCst);
     let res = so::instalar(app, p, carpeta, actualizar).await;
+    INSTALANDO.store(false, Ordering::SeqCst);
     registro.anotar(&match &res {
         Ok(_) => format!("Instalado en {:.1} s", inicio.elapsed().as_secs_f32()),
         Err(e) => format!("Error al instalar, a los {:.1} s: {e}", inicio.elapsed().as_secs_f32()),
@@ -343,6 +349,14 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .manage(EnCurso::default())
         .manage(Registro::default())
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if INSTALANDO.load(Ordering::SeqCst) {
+                    api.prevent_close();
+                    window.state::<Registro>().anotar("Se intenta cerrar mientras instala: sigue");
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             estado,
             anotar,

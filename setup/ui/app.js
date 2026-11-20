@@ -358,6 +358,7 @@ function unknownsText() {
 // ── Botones de la ventana ────────────────────────────────────────────────
 async function onNext() {
   const id = flow[cur];
+  if (id === 'install') return;   // instalando no hay botón: termina sola
   if (id === 'done') {
     if ($('[data-launch]').checked) await invoke('abrir_sia', { carpeta: S.carpeta }).catch(() => {});
     closeWin();
