@@ -12,10 +12,14 @@ const FOLDER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strok
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
-const TITLE = { welcome: 'Bienvenida', checks: 'Comprobaciones', folder: 'Carpeta', install: () => (S.mode === 'update' ? 'Actualización' : 'Instalación'), done: 'Listo' };
+// Los pasos: instalar o actualizar (welcome… done) y desinstalar (bye, remove, gone)
+const TITLE = { welcome: 'Bienvenida', checks: 'Comprobaciones', folder: 'Carpeta', install: () => (S.mode === 'update' ? 'Actualización' : 'Instalación'), done: 'Listo', bye: 'Desinstalar', remove: 'Desinstalación', gone: 'Listo' };
 const title = (id) => (typeof TITLE[id] === 'function' ? TITLE[id]() : TITLE[id]);
-const FASE = { cerrando: 'Cerrando SIA', quitando: 'Quitando la versión anterior', preparando: 'Preparando', copiando: 'Copiando archivos', terminando: 'Terminando' };
-const CAP = { cerrando: 15, quitando: 15, preparando: 45, copiando: 97, terminando: 99 };   // hasta dónde llega cada fase (src-tauri: instalar)
+const FASE = { cerrando: 'Cerrando SIA', quitando: 'Quitando la versión anterior', borrando: 'Quitando SIA', preparando: 'Preparando', copiando: 'Copiando archivos', terminando: 'Terminando' };
+// hasta dónde llega cada fase (src-tauri: instalar y desinstalar)
+const CAP = { cerrando: 15, quitando: 15, borrando: 97, preparando: 45, copiando: 97, terminando: 99 };
+const WORKING = ['install', 'remove'];   // pasos sin botón: terminan solos
+const ENDS = ['done', 'gone'];
 
 // S: lo que dice Rust al abrir (estado) más lo que elige la persona
 let S, flow, cur, timers = [], busy = false;
@@ -34,7 +38,7 @@ const VIEWS = {
     <div class="hello">
       <div class="hello-mark">SIA</div>
       <div class="hello-ver">${S.mode === 'update' ? `${esc(S.instalado.version)} → <em>${esc(S.version)}</em>` : `Versión ${esc(S.version)}`}</div>
-      ${S.mode === 'update' && S.abierto ? '<div class="hello-note">SIA está abierto: se cerrará para actualizarlo.</div>' : ''}
+      ${S.mode === 'update' && S.abierto ? '<p class="hello-note warn">SIA está abierto: se cerrará para actualizarlo.</p>' : ''}
     </div>`,
   checks: () => `
     <h2 class="cap">Comprobaciones</h2>
@@ -60,11 +64,31 @@ const VIEWS = {
       <span>Versión ${esc(S.version)}</span>
       <label><input type="checkbox" data-launch checked> Abrir SIA</label>
     </div>`,
+  bye: () => `
+    <div class="hello">
+      <div class="hello-mark">SIA</div>
+      <div class="hello-ver">Versión ${esc(S.version)}</div>
+      <p class="hello-note"><b>Se quitará SIA de este equipo.</b><br>Tu configuración y tus datos se conservan.</p>
+      ${S.abierto ? '<p class="hello-note warn">SIA está abierto: se cerrará.</p>' : ''}
+    </div>`,
+  remove: () => `
+    <h2 class="cap">Desinstalando</h2>
+    <div class="prog">
+      <div class="prog-top"><span>SIA ${esc(S.version)}</span><b data-pct>0 %</b></div>
+      <div class="prog-bar"><i data-bar></i></div>
+      <div class="prog-now" data-now></div>
+    </div>`,
+  gone: () => `
+    <div class="end">
+      <svg viewBox="0 0 76 76" aria-hidden="true"><circle cx="38" cy="38" r="34"/><path d="M24 39l10 10 19-21"/></svg>
+      <b>SIA desinstalado</b>
+      <span>Puedes volver a instalarlo cuando quieras.</span>
+    </div>`,
 };
 
 // Sin «Atrás» ni «Cancelar» (para salir, la X): se vuelve pulsando un paso ya hecho del indicador,
 // como en Resolver. No mientras comprueba ni una vez empezada la instalación.
-const canGoBack = () => !busy && !['install', 'done'].includes(flow[cur]) && !(flow[cur] === 'checks' && K.step !== 'done');
+const canGoBack = () => !busy && ![...WORKING, ...ENDS].includes(flow[cur]) && !(flow[cur] === 'checks' && K.step !== 'done');
 function renderSteps() {
   const open = canGoBack();
   stepsEl.innerHTML = flow.map((id, i) => {
@@ -105,9 +129,10 @@ function go(i) {
 function renderFoot() {
   const id = flow[cur], nid = flow[cur + 1];
   renderSteps();
-  next.hidden = id === 'install';
+  next.hidden = WORKING.includes(id);
   next.disabled = id === 'checks' && !canGoOn();
-  next.innerHTML = id === 'done' ? 'Terminar'
+  next.innerHTML = ENDS.includes(id) ? 'Terminar'
+    : nid === 'remove' ? 'Desinstalar'
     : nid === 'install' ? (S.mode === 'update' ? 'Actualizar' : 'Instalar')
     : `${title(nid)}${NEXT_ARROW}`;
 }
@@ -128,39 +153,48 @@ const ENTER = {
       code.textContent = dir; code.classList.add('changed');
     };
   },
-  async install(el) {
-    const bar = $('[data-bar]', el), pct = $('[data-pct]', el), now = $('[data-now]', el);
-    let shown = '', top = 0, cap = 0;
-    const paint = (p, fase) => {
-      top = Math.max(top, p);   // nunca hacia atrás
-      bar.style.width = `${top}%`; pct.textContent = `${Math.floor(top)} %`;
-      if (CAP[fase]) cap = CAP[fase];
-      const label = FASE[fase] || fase;
-      if (label && label !== shown) { shown = label; now.innerHTML = `<span>${esc(label)}</span>`; }
-    };
-    paint(0, S.mode === 'update' ? (S.abierto ? 'cerrando' : 'quitando') : 'preparando');
-    const off = await listen('progreso', (e) => paint(e.payload.pct, e.payload.fase));
-    // en los tramos lentos (el antivirus revisando, la versión anterior borrándose) la barra sigue
-    // avanzando poco a poco dentro de su fase, sin pasarse de ella
-    const creep = setInterval(() => { if (top < cap - 0.5) paint(top + 0.06, ''); }, 250);
-    timers.push(creep);
-    busy = true;
-    try {
-      await invoke('instalar', { carpeta: S.carpeta });
-      paint(100, 'terminando');
-      later(() => go(cur + 1), 500);
-    } catch (err) {
-      now.innerHTML = `<span class="prog-err">${esc(err)}</span> <button class="btn link" data-log>Ver el registro</button>`;
-      $('[data-log]', now).onclick = verRegistro;
-      next.hidden = false; next.disabled = false; next.textContent = 'Reintentar';
-      next.onclick = () => { next.onclick = onNext; go(cur); };
-    } finally {
-      busy = false;
-      clearInterval(creep);
-      off();
-    }
+  install(el) {
+    return avanzar(el, () => invoke('instalar', { carpeta: S.carpeta }), S.mode === 'update' ? (S.abierto ? 'cerrando' : 'quitando') : 'preparando');
+  },
+  remove(el) {
+    return avanzar(el, () => invoke('desinstalar'), S.abierto ? 'cerrando' : 'borrando');
   },
 };
+
+// La barra de instalar o desinstalar, con las fases que manda Rust (evento progreso). Al acabar,
+// el paso siguiente; si falla, el error con el registro y «Reintentar».
+async function avanzar(el, orden, inicial) {
+  const bar = $('[data-bar]', el), pct = $('[data-pct]', el), now = $('[data-now]', el);
+  let shown = '', top = 0, cap = 0;
+  const paint = (p, fase) => {
+    top = Math.max(top, p);   // nunca hacia atrás
+    bar.style.width = `${top}%`; pct.textContent = `${Math.floor(top)} %`;
+    if (CAP[fase]) cap = CAP[fase];
+    const label = FASE[fase] || fase;
+    if (label && label !== shown) { shown = label; now.innerHTML = `<span>${esc(label)}</span>`; }
+  };
+  paint(0, inicial);
+  const off = await listen('progreso', (e) => paint(e.payload.pct, e.payload.fase));
+  // en los tramos lentos (el antivirus revisando, la versión anterior borrándose) la barra sigue
+  // avanzando poco a poco dentro de su fase, sin pasarse de ella
+  const creep = setInterval(() => { if (top < cap - 0.5) paint(top + 0.06, ''); }, 250);
+  timers.push(creep);
+  busy = true;
+  try {
+    await orden();
+    paint(100, 'terminando');
+    later(() => go(cur + 1), 500);
+  } catch (err) {
+    now.innerHTML = `<span class="prog-err">${esc(err)}</span> <button class="btn link" data-log>Ver el registro</button>`;
+    $('[data-log]', now).onclick = verRegistro;
+    next.hidden = false; next.disabled = false; next.textContent = 'Reintentar';
+    next.onclick = () => { next.onclick = onNext; go(cur); };
+  } finally {
+    busy = false;
+    clearInterval(creep);
+    off();
+  }
+}
 
 // ── Comprobaciones previas ───────────────────────────────────────────────
 // Certificados del cliente (si sia-instance.json exige alguno) y, en la primera instalación,
@@ -358,9 +392,9 @@ function unknownsText() {
 // ── Botones de la ventana ────────────────────────────────────────────────
 async function onNext() {
   const id = flow[cur];
-  if (id === 'install') return;   // instalando no hay botón: termina sola
-  if (id === 'done') {
-    if ($('[data-launch]').checked) await invoke('abrir_sia', { carpeta: S.carpeta }).catch(() => {});
+  if (WORKING.includes(id)) return;   // instalando o desinstalando no hay botón: termina solo
+  if (ENDS.includes(id)) {
+    if ($('[data-launch]')?.checked) await invoke('abrir_sia', { carpeta: S.carpeta }).catch(() => {});
     closeWin();
     return;
   }
@@ -373,7 +407,7 @@ async function onNext() {
 }
 next.onclick = onNext;
 $$('[data-min]').forEach((b) => { b.onclick = () => appWin.minimize(); });
-$$('[data-close]').forEach((b) => { b.onclick = () => (busy ? null : flow[cur] === 'done' ? closeWin() : askLeave()); });
+$$('[data-close]').forEach((b) => { b.onclick = () => (busy ? null : ENDS.includes(flow[cur]) ? closeWin() : askLeave()); });
 
 let onLeave = null;
 function ask(head, text, ok, fn, stay = 'Volver') {
@@ -385,7 +419,9 @@ function ask(head, text, ok, fn, stay = 'Volver') {
   $('[data-veil]').hidden = false;
   $('[data-stay]').focus();
 }
-const askLeave = () => ask('¿Salir de la instalación?', S.mode === 'update' ? `Se queda la versión ${S.instalado.version}.` : 'SIA no quedará instalado.', 'Salir', closeWin, 'Seguir');
+const askLeave = () => (S.mode === 'uninstall'
+  ? ask('¿Salir sin desinstalar?', 'SIA seguirá instalado.', 'Salir', closeWin, 'Seguir')
+  : ask('¿Salir de la instalación?', S.mode === 'update' ? `Se queda la versión ${S.instalado.version}.` : 'SIA no quedará instalado.', 'Salir', closeWin, 'Seguir'));
 $('[data-stay]').onclick = () => { $('[data-veil]').hidden = true; };
 $('[data-leave]').onclick = () => { $('[data-veil]').hidden = true; onLeave?.(); };
 
@@ -401,14 +437,16 @@ async function closeWin() {
 
 (async () => {
   S = await invoke('estado');
-  S.mode = S.instalado ? 'update' : 'install';
+  S.mode = S.modo === 'desinstalar' ? 'uninstall' : S.instalado ? 'update' : 'install';
   if (S.instalado) S.carpeta = S.instalado.carpeta;
   $('.win').dataset.os = S.sistema;
-  $('[data-tb-title]').textContent = S.mode === 'update' ? 'Actualización' : 'Instalación';
+  $('[data-tb-title]').textContent = { install: 'Instalación', update: 'Actualización', uninstall: 'Desinstalación' }[S.mode];
   // solo los pasos que tocan (TC-02 de la #143): al actualizar, las comprobaciones solo si hay
-  // certificados que mirar, y sin carpeta
-  flow = S.mode === 'update'
-    ? ['welcome', ...(hasCerts() ? ['checks'] : []), 'install', 'done']
-    : ['welcome', 'checks', 'folder', 'install', 'done'];
+  // certificados que mirar, y sin carpeta; «Desinstalar SIA.exe», los suyos
+  flow = {
+    uninstall: ['bye', 'remove', 'gone'],
+    update: ['welcome', ...(hasCerts() ? ['checks'] : []), 'install', 'done'],
+    install: ['welcome', 'checks', 'folder', 'install', 'done'],
+  }[S.mode];
   go(0);
 })();

@@ -29,9 +29,9 @@ body { display: flex; flex-direction: column; align-items: center; justify-conte
 
 <div class="mock" aria-label="Controles de la maqueta">
   <b>Maqueta</b>
-  <label>Escenario <fieldset data-mock="modo"><button data-v="install" aria-pressed="true">Primera instalación</button><button data-v="update">Actualización</button></fieldset></label>
-  <label data-only="update"><input type="checkbox" data-abierto> SIA abierto</label>
-  <label>Sistema <fieldset data-mock="sistema"><button data-v="win" aria-pressed="true">Windows</button><button data-v="mac">Mac</button></fieldset></label>
+  <label>Escenario <fieldset data-mock="modo"><button data-v="install" aria-pressed="true">Primera instalación</button><button data-v="update">Actualización</button><button data-v="uninstall">Desinstalación</button></fieldset></label>
+  <label data-only="update uninstall"><input type="checkbox" data-abierto> SIA abierto</label>
+  <label>Sistema <fieldset data-mock="sistema"><button data-v="win" aria-pressed="true">Windows</button><button data-v="mac" data-sistema-mac>Mac</button></fieldset></label>
   <label>Comprobaciones
     <select data-escenario>
       <option value="ok">Todo bien</option>
@@ -67,7 +67,12 @@ const S = { modo: 'install', sistema: 'win', abierto: false, escenario: 'ok' };
 const frame = $('[data-frame]');
 // cada cambio vuelve a abrir la ventana desde el principio, con su escenario
 function load() {
-  $$('[data-only]').forEach((x) => { x.hidden = x.dataset.only !== S.modo; });
+  $$('[data-only]').forEach((x) => { x.hidden = !x.dataset.only.split(' ').includes(S.modo); });
+  // al desinstalar no hay comprobaciones: el selector, fuera
+  $('[data-escenario]').closest('label').hidden = S.modo === 'uninstall';
+  // en Mac no hay desinstalador: SIA se lleva a la Papelera
+  $$('[data-sistema-mac]').forEach((x) => { x.hidden = S.modo === 'uninstall'; });
+  if (S.modo === 'uninstall' && S.sistema === 'mac') $('[data-mock=sistema] [data-v=win]').click();
   $$('[data-solo]').forEach((o) => { o.disabled = o.dataset.solo !== S.modo; });
   if ($('[data-escenario]').selectedOptions[0]?.disabled) { $('[data-escenario]').value = 'ok'; S.escenario = 'ok'; }
   const q = new URLSearchParams({ escenario: S.escenario, modo: S.modo, sistema: S.sistema, abierto: S.abierto ? '1' : '0' });

@@ -5,7 +5,8 @@
 // sesión», lo que fallaba sale bien: se ve cómo se resuelve.
 (() => {
   const q = new URLSearchParams(location.search);
-  const esc = q.get('escenario') || 'ok', update = q.get('modo') === 'update', mac = q.get('sistema') === 'mac';
+  const esc = q.get('escenario') || 'ok', modo = q.get('modo'), mac = q.get('sistema') === 'mac';
+  const update = modo === 'update', uninstall = modo === 'uninstall';   // uninstall: «Desinstalar SIA.exe»
   const aviso = (t) => parent.postMessage({ sia: 'aviso', texto: t }, '*');
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const veces = {};
@@ -54,13 +55,25 @@
     }
   };
 
+  // la desinstalación, como la manda desinstalar en desinstalador.rs: según se vacía la carpeta
+  const desinstalar = async () => {
+    const total = 4500, t0 = performance.now(), abierto = q.get('abierto') === '1';
+    for (;;) {
+      const k = Math.min(1, (performance.now() - t0) / total), pct = Math.round(5 + 92 * k);
+      emit('progreso', { pct, fase: abierto && k < 0.15 ? 'cerrando' : 'borrando' });
+      if (k >= 1) break;
+      await wait(400);
+    }
+  };
+
   const RUTAS = mac ? ['/Applications/SIA.app', '/Users/tecnico/Applications/SIA.app'] : ['C:\\Users\\tecnico\\AppData\\Local\\Programs\\SIA', 'D:\\Herramientas\\SIA'];
   let ruta = 0;
   const ORDENES = {
     estado: async () => ({
-      sistema: mac ? 'mac' : 'win', version: '1.2.0', bytes: 447660845,
-      instalado: update ? { version: '1.1.0', carpeta: RUTAS[0] } : null,
-      abierto: update && q.get('abierto') === '1', carpeta: RUTAS[0],
+      modo: uninstall ? 'desinstalar' : 'instalar',
+      sistema: mac ? 'mac' : 'win', version: uninstall ? '1.1.0' : '1.2.0', bytes: 447660845,
+      instalado: update || uninstall ? { version: '1.1.0', carpeta: RUTAS[0] } : null,
+      abierto: (update || uninstall) && q.get('abierto') === '1', carpeta: RUTAS[0],
       certs: { guia: 'https://lde.docs.inditex.dev/lde/latest/tooling/security/import-certificates.html#2-import-the-certificates', requeridos: ['ITX Root CA'] },
       guia_gestor: mac ? 'https://brew.sh/es/' : 'https://learn.microsoft.com/es-es/windows/package-manager/winget/#install-winget',
     }),
@@ -70,6 +83,7 @@
     cortar: async () => {},
     elegir_carpeta: async () => RUTAS[(ruta = (ruta + 1) % 2)],
     instalar,
+    desinstalar,
     abrir_sia: async () => aviso('Se abriría SIA 1.2.0'),
     abrir_guia: async ({ url }) => aviso(`Se abriría en el navegador ${url}`),
   };

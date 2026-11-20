@@ -82,7 +82,10 @@ button { font: inherit; color: inherit; }
 .hello-mark { font-size: 64px; line-height: 1; font-weight: 700; letter-spacing: .08em; animation: rise .8s var(--ease-step) both; }
 .hello-ver { font-size: 13px; color: var(--text-low); animation: rise .8s var(--ease-step) .1s both; }
 .hello-ver em { font-style: normal; color: var(--text); font-weight: 600; }
-.hello-note { margin-top: 14px; padding: 8px 14px; font-size: 13px; color: var(--text); background: var(--bg); border: 1px solid var(--border); animation: rise .8s var(--ease-step) .2s both; }
+/* lo que conviene saber antes de seguir: texto, sin recuadro; el aviso, en su color */
+.hello-note { margin: 18px 0 0; font-size: 13px; line-height: 20px; color: var(--text-low); animation: rise .8s var(--ease-step) .2s both; }
+.hello-note b { font-weight: 500; color: var(--text); }
+.hello-note.warn { margin-top: 10px; font-weight: 500; color: var(--warning); }
 @keyframes rise { from { opacity: 0; transform: translateY(10px); } }
 
 /* Comprobaciones */

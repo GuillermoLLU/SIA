@@ -11,6 +11,8 @@ use mac as so;
 mod win;
 #[cfg(windows)]
 use win as so;
+#[cfg(all(windows, desinstalador))]
+mod desinstalador;
 
 use serde::{Deserialize, Serialize};
 use std::io::Write;
@@ -77,6 +79,7 @@ struct Instalado {
 
 #[derive(Serialize)]
 struct Estado {
+    modo: &'static str, // instalar | desinstalar
     sistema: &'static str,
     version: String,
     bytes: u64,
@@ -118,7 +121,8 @@ impl Registro {
         if abierto.is_none() {
             let dir = so::carpeta_registros();
             limpiar(&dir);
-            let ruta = dir.join(format!("instalacion-{}.log", chrono::Local::now().format("%Y%m%d-%H%M%S")));
+            let que = if cfg!(desinstalador) { "desinstalacion" } else { "instalacion" };
+            let ruta = dir.join(format!("{que}-{}.log", chrono::Local::now().format("%Y%m%d-%H%M%S")));
             if let Ok(f) = std::fs::create_dir_all(&dir).and_then(|_| std::fs::File::create(&ruta)) {
                 *abierto = Some((ruta, f));
             }
@@ -152,6 +156,31 @@ static INSTALANDO: AtomicBool = AtomicBool::new(false);
 
 #[tauri::command]
 fn estado(app: AppHandle, registro: tauri::State<'_, Registro>) -> Result<Estado, String> {
+    #[cfg(desinstalador)]
+    {
+        // desinstalar: lo que hay en la carpeta de SIA, sin paquete
+        let carpeta = desinstalador::carpeta().to_string_lossy().into_owned();
+        let version = so::instalado().map(|i| i.version).unwrap_or_default();
+        let abierto = so::sia_abierto();
+        registro.anotar(&format!(
+            "Desinstalar SIA {} · {}\nSIA {version} en {carpeta}{}",
+            app.package_info().version,
+            so::sistema_operativo(),
+            if abierto { " · SIA abierto" } else { "" },
+        ));
+        return Ok(Estado {
+            modo: "desinstalar",
+            sistema: so::SISTEMA,
+            version: version.clone(),
+            bytes: tamano(Path::new(&carpeta)),
+            instalado: Some(Instalado { version, carpeta: carpeta.clone() }),
+            abierto,
+            carpeta,
+            certs: Certs::default(),
+            guia_gestor: so::GUIA_GESTOR,
+        });
+    }
+    #[allow(unreachable_code)]
     let p = paquete()?;
     let instalado = so::instalado();
     let abierto = so::sia_abierto();
@@ -167,6 +196,7 @@ fn estado(app: AppHandle, registro: tauri::State<'_, Registro>) -> Result<Estado
         if abierto { " · SIA abierto" } else { "" },
     ));
     Ok(Estado {
+        modo: "instalar",
         sistema: so::SISTEMA,
         version: p.version,
         bytes: p.bytes,
@@ -344,7 +374,32 @@ fn abrir_sia(registro: tauri::State<'_, Registro>, carpeta: String) -> Result<()
     so::abrir_sia(&carpeta).map_err(|e| e.to_string())
 }
 
+// Solo en «Desinstalar SIA.exe» (desinstalador.rs)
+#[tauri::command]
+async fn desinstalar(app: AppHandle, registro: tauri::State<'_, Registro>) -> Result<(), String> {
+    #[cfg(desinstalador)]
+    {
+        registro.anotar("Desinstalando SIA");
+        let inicio = Instant::now();
+        INSTALANDO.store(true, Ordering::SeqCst);
+        let res = desinstalador::desinstalar(app, so::sia_abierto()).await;
+        INSTALANDO.store(false, Ordering::SeqCst);
+        registro.anotar(&match &res {
+            Ok(_) => format!("Desinstalado en {:.1} s", inicio.elapsed().as_secs_f32()),
+            Err(e) => format!("Error al desinstalar, a los {:.1} s: {e}", inicio.elapsed().as_secs_f32()),
+        });
+        res
+    }
+    #[cfg(not(desinstalador))]
+    {
+        let _ = (app, registro);
+        Err("Esto no es el desinstalador.".into())
+    }
+}
+
 fn main() {
+    #[cfg(desinstalador)]
+    desinstalador::antes_de_abrir();
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(EnCurso::default())
@@ -366,8 +421,15 @@ fn main() {
             abrir_sia,
             comprobar,
             cortar,
-            abrir_guia
+            abrir_guia,
+            desinstalar
         ])
-        .run(tauri::generate_context!())
-        .expect("no se pudo abrir SIA Setup");
+        .build(tauri::generate_context!())
+        .expect("no se pudo abrir SIA Setup")
+        .run(|_, event| {
+            if let tauri::RunEvent::Exit = event {
+                #[cfg(desinstalador)]
+                desinstalador::al_salir();
+            }
+        });
 }

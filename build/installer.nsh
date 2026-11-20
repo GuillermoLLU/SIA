@@ -94,6 +94,18 @@ Var SiaOldDir
     StrCpy $R8 `$R8 "$SiaOldDir.sia-old-*"`
   ${EndIf}
   ExecShell "" "$SYSDIR\cmd.exe" `/c for /d %d in ($R8) do rmdir /s /q "%d"` SW_HIDE
+  ; El desinstalador con la ventana de SIA (setup/src-tauri/src/desinstalador.rs), si se ha
+  ; generado antes (npm run dist:setup): Windows lo abre desde «Aplicaciones instaladas» y él
+  ; usa por debajo el de siempre. En silencio (/S), al actualizar, pasa la orden tal cual al de
+  ; siempre. QuietUninstallString sigue siendo el de siempre.
+  !if /FileExists "${BUILD_RESOURCES_DIR}\Desinstalar SIA.exe"
+    File "/oname=$INSTDIR\Desinstalar SIA.exe" "${BUILD_RESOURCES_DIR}\Desinstalar SIA.exe"
+    ${If} $installMode == "all"
+      WriteRegStr SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY}" UninstallString '"$INSTDIR\Desinstalar SIA.exe" /allusers'
+    ${Else}
+      WriteRegStr SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY}" UninstallString '"$INSTDIR\Desinstalar SIA.exe" /currentuser'
+    ${EndIf}
+  !endif
 !macroend
 
 ; La bienvenida, con lo mínimo: el texto de serie habla de «computadora» y pide
