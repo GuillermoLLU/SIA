@@ -22,6 +22,7 @@ import { createEscalator } from './escalate-view.js';
 import { DESTINATIONS, OPEN_TICKETS } from './escalate-mock.js';
 import { callForm, callReady, callNote, suggestedPhone } from './call.js';
 import { transferForm, reassignForm, readTransfer, transferNote } from './transfer.js';
+import { splitForm, readSplit, splitNotice } from './split.js';
 import { TEAMS } from './transfer-mock.js';
 import { createIncoming } from './incoming-view.js';
 import { incomingCardHtml } from './incoming.js';
@@ -333,6 +334,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     if (key === 'warroom') return toast?.('Abrir WAR-ROOM aún no está disponible: llegará más adelante.');
     closeAction();
     if (key === 'resolve') return resolver.open(opened, issue?.link || null, closeAction);
+    if (key === 'split') return openSplit();
     // Escape: con la lista del selector abierta la cierra; si no, cierra la ventana
     if (key === 'escalate') return escalator.open(issue, issue?.link || null, () => (openPicker(root) ? closePickers(root) : closeAction()));
     // traspasar: solo a quien tiene el conocimiento de su origen (SGA, SISU)
@@ -348,6 +350,23 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     root.querySelector(first)?.focus();
     // Escape: con la lista del selector abierta la cierra; si no, cierra el modal
     offEscape = onEscape(() => (openPicker(root) ? closePickers(root) : closeAction()));
+  };
+  // Dividir la issue (#152): en una ventana grande, la original a la izquierda, con lo que dice el centro
+  // listo para cortar lo del segundo problema, y la nueva a la derecha (split.js)
+  const openSplit = () => {
+    root.insertAdjacentHTML('beforeend', `<div class="iss-modal">${splitForm(issue)}</div>`);
+    const desc = root.querySelector('#sp-keep-desc');
+    desc?.focus({ preventScroll: true });
+    desc?.setSelectionRange(0, 0);
+    offEscape = onEscape(closeAction);
+  };
+  // «Actualizar y generar»: de momento, solo el aviso (splitNotice)
+  const saveSplit = (form) => {
+    const { missing } = readSplit(Object.fromEntries(new FormData(form)));
+    const err = form.querySelector('.iss-act-err');
+    if (missing) { err.textContent = `Falta: ${missing}.`; err.hidden = false; return; }
+    closeAction();
+    toast?.(splitNotice(opened));
   };
   // Reasignar un escalado de otro (#136), desde Seguimiento · Equipo o al abrirlo: a quien tiene el
   // conocimiento de su origen, sin su dueño, con la ventana de Traspasar solo a un compañero
@@ -389,6 +408,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
       return;
     }
     if (key === 'transfer' || key === 'reassign') { form.querySelector('[type=submit]').disabled = !!readTransfer(values, TEAMS).missing; return; }
+    if (key === 'split') { form.querySelector('[type=submit]').disabled = !!readSplit(values).missing; form.querySelector('.iss-act-err').hidden = true; return; }
     form.querySelector('[type=submit]').disabled = !isComplete(key, values);
   };
   root.addEventListener('input', (e) => {
@@ -404,6 +424,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     if (key === 'call') return saveCall(form, e.submitter?.value === 'answered');
     if (key === 'transfer') return saveTransfer(form);
     if (key === 'reassign') return reassign(form);
+    if (key === 'split') return saveSplit(form);
     const raw = Object.fromEntries(new FormData(form));
     const { missing, values } = readAction(key, raw);
     const err = form.querySelector('.iss-act-err');
