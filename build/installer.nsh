@@ -94,10 +94,10 @@ Var SiaOldDir
     StrCpy $R8 `$R8 "$SiaOldDir.sia-old-*"`
   ${EndIf}
   ExecShell "" "$SYSDIR\cmd.exe" `/c for /d %d in ($R8) do rmdir /s /q "%d"` SW_HIDE
-  ; El desinstalador con la ventana de SIA (setup/src-tauri/src/desinstalador.rs), si se ha
-  ; generado antes (npm run dist:setup): Windows lo abre desde «Aplicaciones instaladas» y él
-  ; usa por debajo el de siempre. En silencio (/S), al actualizar, pasa la orden tal cual al de
-  ; siempre. QuietUninstallString sigue siendo el de siempre.
+  ; El desinstalador con la ventana de SIA (setup/src-tauri/src/desinstalador.rs), que npm run
+  ; dist:win genera antes: Windows lo abre desde «Aplicaciones instaladas» y él usa por debajo el
+  ; de siempre. En silencio (/S), al actualizar, pasa la orden tal cual al de siempre.
+  ; QuietUninstallString sigue siendo el de siempre. Sin él no se genera el instalador.
   !if /FileExists "${BUILD_RESOURCES_DIR}\Desinstalar SIA.exe"
     File "/oname=$INSTDIR\Desinstalar SIA.exe" "${BUILD_RESOURCES_DIR}\Desinstalar SIA.exe"
     ${If} $installMode == "all"
@@ -105,6 +105,8 @@ Var SiaOldDir
     ${Else}
       WriteRegStr SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY}" UninstallString '"$INSTDIR\Desinstalar SIA.exe" /currentuser'
     ${EndIf}
+  !else
+    !error "Falta build\Desinstalar SIA.exe: lo genera npm run dist:win (setup/scripts/desinstalador.mjs)"
   !endif
 !macroend
 

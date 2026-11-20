@@ -1,8 +1,9 @@
 name: build-windows
 
-# Construye el instalador .exe de SIA en una máquina Windows de GitHub.
-# Se lanza a mano (workflow_dispatch) o al publicar un tag v* (y entonces
-# adjunta el .exe a la release).
+# Construye el instalador de SIA (SIA Setup, «SIA Instalador <versión>.exe») en una
+# máquina Windows de GitHub: npm run dist:setup genera «Desinstalar SIA.exe», el
+# instalador NSIS que lo lleva dentro y SIA Setup con él (setup/). Se lanza a mano
+# (workflow_dispatch) o al publicar un tag v* (y entonces lo adjunta a la release).
 on:
   workflow_dispatch:
   push:
@@ -21,6 +22,13 @@ jobs:
         with:
           node-version: 22
 
+      # SIA Setup es Tauri: Rust, con lo compilado guardado entre ejecuciones
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: setup/src-tauri
+
       - name: Instalar dependencias
         run: npm install
 
@@ -28,18 +36,22 @@ jobs:
         run: npm install
         working-directory: web
 
+      - name: Instalar dependencias de SIA Setup
+        run: npm install
+        working-directory: setup
+
       - name: Construir instalador
-        run: npm run dist:win
+        run: npm run dist:setup
 
       - name: Adjuntar a la release (si es un tag)
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist-app/*.exe
+          files: dist-app/SIA Instalador *.exe
 
       - name: Guardar artefacto (lanzamiento manual)
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         uses: actions/upload-artifact@v4
         with:
           name: SIA-windows
-          path: dist-app/*.exe
+          path: dist-app/SIA Instalador *.exe
