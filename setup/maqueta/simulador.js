@@ -62,13 +62,16 @@
       instalado: update ? { version: '1.1.0', carpeta: RUTAS[0] } : null,
       abierto: update && q.get('abierto') === '1', carpeta: RUTAS[0],
       certs: { guia: 'https://lde.docs.inditex.dev/lde/latest/tooling/security/import-certificates.html#2-import-the-certificates', requeridos: ['ITX Root CA'] },
+      guia_gestor: mac ? 'https://brew.sh/es/' : 'https://learn.microsoft.com/es-es/windows/package-manager/winget/#install-winget',
     }),
+    anotar: async () => {},
+    abrir_registro: async () => aviso('Se abriría el registro de la instalación'),
     comprobar,
     cortar: async () => {},
     elegir_carpeta: async () => RUTAS[(ruta = (ruta + 1) % 2)],
     instalar,
     abrir_sia: async () => aviso('Se abriría SIA 1.2.0'),
-    abrir_guia: async () => aviso('Se abriría la guía de certificados en el navegador'),
+    abrir_guia: async ({ url }) => aviso(`Se abriría en el navegador ${url}`),
   };
 
   window.__TAURI__ = {

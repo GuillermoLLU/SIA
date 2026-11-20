@@ -22,8 +22,12 @@ let S, flow, cur, timers = [], busy = false;
 const later = (fn, ms) => timers.push(setTimeout(fn, ms));
 const stopTimers = () => { timers.forEach(clearTimeout); timers = []; };
 const hasCerts = () => S.certs.requeridos.length > 0;
+const mac = () => S.sistema === 'mac';
+const GESTOR = () => (mac() ? 'Homebrew' : 'WinGet');   // con qué se instala Copilot CLI
+// Que conste en el registro de la instalación (src-tauri: Registro)
+const anotar = (texto) => invoke('anotar', { texto }).catch(() => {});
 
-const stage = $('.stage'), stepsEl = $('.steps'), next = $('[data-next]'), back = $('[data-back]'), cancel = $('[data-cancel]');
+const stage = $('.stage'), stepsEl = $('.steps'), next = $('[data-next]');
 
 const VIEWS = {
   welcome: () => `
@@ -58,10 +62,19 @@ const VIEWS = {
     </div>`,
 };
 
+// Sin «Atrás» ni «Cancelar» (para salir, la X): se vuelve pulsando un paso ya hecho del indicador,
+// como en Resolver. No mientras comprueba ni una vez empezada la instalación.
+const canGoBack = () => !busy && !['install', 'done'].includes(flow[cur]) && !(flow[cur] === 'checks' && K.step !== 'done');
 function renderSteps() {
-  stepsEl.innerHTML = flow.map((id, i) => `<li${i === cur ? ' aria-current="step"' : ''}${i < cur ? ' class="done"' : ''}><i>${i + 1}</i><span>${title(id)}</span></li>`).join('');
+  const open = canGoBack();
+  stepsEl.innerHTML = flow.map((id, i) => {
+    const back = open && i < cur;
+    return `<li${i === cur ? ' aria-current="step"' : ''}${i < cur ? ` class="done${back ? ' can-go' : ''}"` : ''}${back ? ` data-go="${i}" role="button" tabindex="0" aria-label="Volver a ${title(id)}"` : ''}><i>${i + 1}</i><span>${title(id)}</span></li>`;
+  }).join('');
   stepsEl.setAttribute('aria-label', `Paso ${cur + 1} de ${flow.length}`);
 }
+stepsEl.addEventListener('click', (e) => { const li = e.target.closest('[data-go]'); if (li && canGoBack()) go(Number(li.dataset.go)); });
+stepsEl.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.dataset.go) { e.preventDefault(); e.target.click(); } });
 
 // El paso nuevo entra por un lado mientras el anterior sale por el otro, como en Resolver
 function slide(prevEl, el, fwd) {
@@ -81,20 +94,17 @@ function go(i) {
   K.run++;   // lo que siga llegando de unas comprobaciones anteriores ya no se pinta
   cur = i;
   const id = flow[cur], el = document.createElement('section');
+  anotar(`Paso ${cur + 1} de ${flow.length}: ${title(id)}`);
   el.className = 'step'; el.dataset.step = id; el.innerHTML = VIEWS[id]();
   stage.append(el);
   slide(prevEl, el, prev == null || i > prev);
-  renderSteps();
   renderFoot();
   ENTER[id]?.(el);
 }
 
 function renderFoot() {
-  const id = flow[cur], nid = flow[cur + 1], checking = id === 'checks' && K.step !== 'done';
-  back.hidden = cur === 0 || id === 'install' || id === 'done';
-  back.disabled = checking;
-  $('[data-spacer]').hidden = !back.hidden;
-  cancel.hidden = id === 'install' || id === 'done';
+  const id = flow[cur], nid = flow[cur + 1];
+  renderSteps();
   next.hidden = id === 'install';
   next.disabled = id === 'checks' && !canGoOn();
   next.innerHTML = id === 'done' ? 'Terminar'
@@ -140,10 +150,10 @@ const ENTER = {
       paint(100, 'terminando');
       later(() => go(cur + 1), 500);
     } catch (err) {
-      now.innerHTML = `<span class="prog-err">${esc(err)}</span>`;
+      now.innerHTML = `<span class="prog-err">${esc(err)}</span> <button class="btn link" data-log>Ver el registro</button>`;
+      $('[data-log]', now).onclick = verRegistro;
       next.hidden = false; next.disabled = false; next.textContent = 'Reintentar';
       next.onclick = () => { next.onclick = onNext; go(cur); };
-      cancel.hidden = false;
     } finally {
       busy = false;
       clearInterval(creep);
@@ -213,7 +223,7 @@ function readCopilot({ respuesta, tarde }, installing) {
 
 const COPILOT_TEXT = {
   ok: ['ok', 'Instalado'],
-  'sin-winget': ['warn', 'Falta WinGet para instalarlo'],
+  'sin-winget': ['warn', () => `Falta ${GESTOR()} para instalarlo`],
   politica: ['warn', 'El equipo no permite instalarlo'],
   descarga: ['warn', 'No se ha podido descargar'],
   tiempo: ['warn', 'No termina de instalarse'],
@@ -228,14 +238,14 @@ async function copilotStart(run) {
   readCopilot(await check('copilot'), false);
   if (run !== K.run) return;
   if (K.copilot === 'falta') {
-    setRow('copilot', 'run', 'Instalando con WinGet…');
+    setRow('copilot', 'run', `Instalando con ${GESTOR()}…`);
     readCopilot(await check('copilot-install'), true);
     if (run !== K.run) return;
   }
   if (K.copilot === 'ok') K.copilotOk = true;
   const [state, sub] = COPILOT_TEXT[K.copilot] || ['unk', 'No se ha podido comprobar'];
   if (!COPILOT_TEXT[K.copilot]) K.copilot = 'unknown';
-  setRow('copilot', state, sub);
+  setRow('copilot', state, typeof sub === 'function' ? sub() : sub);
   await sessionStart(run);
 }
 
@@ -288,11 +298,12 @@ function finish() {
     else help = `Pide a soporte la guía, instálalos${conn} y pulsa «Volver a comprobar».`;
   } else if (S.mode === 'install' && K.copilot !== 'ok') {
     at = 'copilot';
-    help = K.copilot === 'sin-winget' ? 'Instala «Instalador de aplicación» desde Microsoft Store y pulsa «Volver a comprobar».'
+    if (K.copilot === 'sin-winget') kind = 'guide';
+    help = K.copilot === 'sin-winget' ? (mac() ? 'Instala Homebrew con su guía y pulsa «Volver a comprobar».' : 'Actívalo o instálalo con la guía de Microsoft y pulsa «Volver a comprobar».')
       : K.copilot === 'politica' ? 'Pide a soporte que lo instale y pulsa «Volver a comprobar».'
       : dl === 'descarga' ? 'Revisa la conexión y la VPN y pulsa «Volver a comprobar».'
       : K.copilot === 'unknown' ? 'Pulsa «Volver a comprobar» o sigue sin él.'
-      : K.code ? `Pulsa «Volver a comprobar». Si sigue, pide ayuda a soporte (código ${K.code}).`
+      : K.code ? `Vuelve a comprobar o pide ayuda a soporte (código ${K.code}).`
       : 'Pulsa «Volver a comprobar» y, si sigue, pide ayuda a soporte.';
   } else if (S.mode === 'install' && K.session !== 'ok') {
     at = 'session';
@@ -300,13 +311,22 @@ function finish() {
     else { help = 'Inicia sesión con tu cuenta de Inditex.'; kind = 'login'; }
   }
   const foot = $('.step[data-step="checks"]:not(.out-fwd):not(.out-back) [data-cks-foot]');
-  if (foot) foot.textContent = help;
+  if (foot) {
+    foot.textContent = help;
+    // con un aviso, el registro, para pasárselo a quien ayude
+    if (help) {
+      foot.insertAdjacentHTML('beforeend', ' <button class="btn link" data-log>Ver el registro</button>');
+      $('[data-log]', foot).onclick = verRegistro;
+    }
+  }
+  if (help) anotar(`Aviso en ${ROW[at]}: ${rowEl(at)?.querySelector('.ck-sub')?.textContent || ''} · ${help}`);
   const act = at && rowEl(at) && $('.ck-act', rowEl(at));
   if (act) {
     act.innerHTML = (kind === 'guide' ? '<button class="btn link" data-guide>Abrir la guía ↗</button>' : '')
       + (kind === 'login' ? '<button class="btn sm primary" data-login>Iniciar sesión ↗</button>' : '')
       + (kind === 'login' ? '' : '<button class="btn sm" data-recheck>Volver a comprobar</button>');   // tras iniciar sesión se comprueba sola
-    $('[data-guide]', act)?.addEventListener('click', () => invoke('abrir_guia', { url: S.certs.guia }).catch(() => {}));
+    const guia = at === 'certs' ? S.certs.guia : S.guia_gestor;
+    $('[data-guide]', act)?.addEventListener('click', () => invoke('abrir_guia', { url: guia }).catch(() => {}));
     $('[data-login]', act)?.addEventListener('click', login);
     $('[data-recheck]', act)?.addEventListener('click', refresh);
   }
@@ -346,13 +366,11 @@ async function onNext() {
   if (id === 'checks') {
     if (!canGoOn()) return;
     const warn = unknownsText();
-    if (warn) { ask('¿Seguir sin comprobarlo?', warn, 'Seguir', () => go(cur + 1)); return; }
+    if (warn) { ask('¿Seguir sin comprobarlo?', warn, 'Seguir', () => { anotar(`Sigue sin comprobarlo: ${warn}`); go(cur + 1); }); return; }
   }
   go(cur + 1);
 }
 next.onclick = onNext;
-back.onclick = () => go(cur - 1);
-cancel.onclick = () => askLeave();
 $$('[data-min]').forEach((b) => { b.onclick = () => appWin.minimize(); });
 $$('[data-close]').forEach((b) => { b.onclick = () => (busy ? null : flow[cur] === 'done' ? closeWin() : askLeave()); });
 
@@ -370,7 +388,10 @@ const askLeave = () => ask('¿Salir de la instalación?', S.mode === 'update' ? 
 $('[data-stay]').onclick = () => { $('[data-veil]').hidden = true; };
 $('[data-leave]').onclick = () => { $('[data-veil]').hidden = true; onLeave?.(); };
 
+function verRegistro() { invoke('abrir_registro').catch(() => {}); }
+
 async function closeWin() {
+  anotar(`Se cierra en el paso ${cur + 1}: ${title(flow[cur])}`);
   stopTimers();
   await invoke('cortar').catch(() => {});
   $('.win').classList.add('closing');

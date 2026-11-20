@@ -59,6 +59,10 @@ button { font: inherit; color: inherit; }
 .steps li.done i { font-size: 0; color: var(--surface); background: var(--success); border-color: var(--success); }
 .steps li.done i::before { content: '✓'; font-size: 13px; }
 .steps li.done::after { background: var(--success); }
+/* un paso ya hecho al que se puede volver */
+.steps li.can-go { cursor: pointer; }
+.steps li.can-go:hover span { text-decoration: underline; text-underline-offset: 3px; }
+.steps li.can-go:hover i { filter: brightness(1.12); }
 
 /* Los pasos: el nuevo entra por un lado mientras el anterior sale por el otro */
 .stage { position: relative; flex: 1; min-height: 0; overflow: hidden; }
@@ -127,6 +131,7 @@ button { font: inherit; color: inherit; }
 .prog-now { margin-top: 12px; font-size: 12.5px; color: var(--text-low); }
 .prog-now span { display: inline-block; animation: fade .3s ease both; }
 .prog-now .prog-err { color: var(--danger); }
+.cks-foot .btn.link, .prog-now .btn.link { margin-left: 6px; font-size: 12.5px; }
 
 /* Listo */
 .end { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding-bottom: 28px; text-align: center; }
@@ -151,14 +156,8 @@ button { font: inherit; color: inherit; }
 .btn.sm { height: 32px; padding: 0 14px; font-size: 12px; }
 .btn.link { height: auto; padding: 0; text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--focus); border: 0; text-decoration: underline; text-underline-offset: 3px; }
 .btn.link:hover { color: #0157b5; }
-.back { display: inline-flex; align-items: center; gap: 8px; margin-right: auto; padding: 0 8px 0 0; font-size: 13.5px; color: var(--text-low); background: none; border: 0; cursor: pointer; transition: color var(--motion-state); }
-.back:hover { color: var(--text); }
-.back svg { width: 16px; height: 16px; }
-.quiet { padding: 0 6px; font-size: 13px; color: var(--text-low); background: none; border: 0; cursor: pointer; transition: color var(--motion-state); }
-.quiet:hover { color: var(--text); }
-.foot .spacer { margin-right: auto; }
 /* quién hace SIA, discreto: pequeño, en la esquina de abajo a la izquierda */
-.brand { flex: none; height: 18px; width: auto; margin-right: 28px; opacity: .85; user-select: none; }
+.brand { flex: none; height: 18px; width: auto; margin-right: auto; opacity: .85; user-select: none; }
 
 /* Confirmar al salir */
 .veil { position: absolute; inset: 0; z-index: 10; display: grid; place-items: center; background: rgba(0, 0, 0, .28); animation: fade .2s ease both; }

@@ -16,7 +16,6 @@
   "bundle": {
     "active": false,
     "publisher": "Indra Group",
-    "copyright": "Indra Group",
-    "icon": ["icons/icon.ico", "icons/icon.png"]
+    "icon": ["icons/icon.ico", "icons/icon.icns", "icons/icon.png"]
   }
 }
