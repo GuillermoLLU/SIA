@@ -29,6 +29,9 @@
     </div>
   </div>
 </div>
+<!-- Sin Tauri, en la maqueta (setup/maqueta): el simulador hace de Rust. En SIA Setup, Tauri ya
+     está antes de que corra nada, y no se carga. -->
+<script>window.__TAURI__ || document.write('<script src="../maqueta/simulador.js"><\/script>')</script>
 <script src="errores.js"></script>
 <script src="app.js"></script>
 </body>

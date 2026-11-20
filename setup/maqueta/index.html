@@ -82,7 +82,7 @@ function load() {
   $$('[data-solo]').forEach((o) => { o.disabled = !o.dataset.solo.split(' ').includes(S.modo); });
   if ($('[data-escenario]').selectedOptions[0]?.disabled) { $('[data-escenario]').value = 'ok'; S.escenario = 'ok'; }
   const q = new URLSearchParams({ escenario: S.modo === 'uninstall' && S.falla ? 'desinstala-falla' : S.escenario, modo: S.modo, sistema: S.sistema, abierto: S.abierto ? '1' : '0' });
-  frame.src = `ventana.html?${q}`;
+  frame.src = `../ui/index.html?${q}`;
 }
 for (const fs of $$('[data-mock]')) {
   fs.onclick = (e) => {
