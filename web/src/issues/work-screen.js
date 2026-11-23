@@ -1,29 +1,28 @@
 // La pantalla de trabajo de una issue. A la izquierda, en pestañas: el
-// detalle de la issue (por defecto), las notas de trabajo de Remedy, las
-// relacionadas y su histórico en SIA (por dónde ha pasado y las notas
-// internas del equipo). A la derecha, sus datos clave y debajo la resolución
-// asistida por IA (issue-chat.js), que vive mientras la issue esté abierta.
+// detalle de la issue (por defecto), sus notas (las de Remedy y las del equipo
+// en SIA, con sus movimientos, en una sola conversación: notes-html.js) y las
+// relacionadas. A la derecha, sus datos clave (un cuadro que se pliega
+// a una línea de resumen cuando arranca el chat) y debajo la resolución
+// asistida por IA (issue-chat.js), que vive mientras la issue esté abierta y
+// se puede ampliar a toda la pantalla de trabajo.
 // Las parecidas, por conectar: solo su hueco.
-import { esc } from '../ui/html.js';
-import { STATUS_ES, SEVERITY_ES, when, whenIso, whenLabel, newestFirst, age, pendingSince, stillInfo, escalatedLabel } from './format.js';
+import { esc, svg } from '../ui/html.js';
+import { STATUS_ES, SEVERITY_ES, when, whenIso, whenLabel, newestFirst, age, pendingSince, stillInfo, escalatedLabel, statusInfo } from './format.js';
 import { item } from './parts.js';
-import { actionsFor } from './actions.js';
+import { waitHtml } from '../ui/wait.js';
+import { ACTIONS, actionsFor, CENTRE_ACTIONS } from './actions.js';
+import { notesPanelHtml, notesTab, notesCountOf, PHONE } from './notes-html.js';
 
 const WORK_TABS = [
   { key: 'detail', label: 'Detalle' },
-  { key: 'remedy', label: 'Seguimiento' },
-  { key: 'trail', label: 'Notas internas' },
+  { key: 'notes', label: 'Seguimiento' },
   { key: 'related', label: 'Relacionadas' },
 ];
 
-// El histórico en SIA: lo que da el bridge en `timeline` (movimientos y notas,
-// de la más antigua a la más nueva), pintado al revés, lo reciente arriba. Va
-// aparte para poder refrescarlo al añadir o editar una nota.
-export const trailTab = (n) => `${WORK_TABS.find((t) => t.key === 'trail').label}${n ? `<span>${n}</span>` : ''}`;
-// Las notas de trabajo de Remedy (worklog de la foto): quién, cuándo y qué,
-// la más reciente arriba y abierta; el resto, plegadas con su primera línea,
-// y se abren al pulsar la tarjeta. Sin la columna en la foto (cargada antes
-// de leerla), se pide un CSV nuevo.
+// Las notas de trabajo de Remedy (worklog de la foto) en tarjetas: quién,
+// cuándo y qué, la más reciente arriba y abierta; el resto, plegadas con su
+// primera línea. La usa el panel del Backlog (en la issue van en Notas). Sin la
+// columna en la foto (cargada antes de leerla), se pide un CSV nuevo.
 export const firstLine = (text) => { const l = String(text).trim().split('\n')[0]; return l.length > 90 ? `${l.slice(0, 90)}…` : l; };
 export const worklogHtml = (worklog, now = new Date()) => {
   if (!worklog) return '<p class="iss-empty">La foto cargada no trae las notas de Remedy: carga un CSV nuevo de la consulta.</p>';
@@ -34,40 +33,15 @@ export const worklogHtml = (worklog, now = new Date()) => {
     </details>`).join('')}</div>`;
 };
 
-// Quién: un avatar con sus iniciales (sin nombre, un interrogante).
-const initials = (name) => (name || '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('') || '?';
-const avatar = (name) => `<span class="iss-avatar${name ? '' : ' unknown'}" aria-hidden="true">${esc(initials(name))}</span>`;
-const who = (name) => `<b>${esc(name || 'Alguien')}</b>`;
-
-// Cada entrada del feed: avatar, cabecera (quién hizo qué, y la hora) y, si
-// lo hay, el texto (la nota o el motivo del traspaso) como comentario.
-const DID = {
-  claimed: (t) => `${who(t.by)} cogió la incidencia`,
-  released: (t) => `${who(t.by)} devolvió la incidencia a la cola`,
-  transferred: (t) => `${who(t.by)} traspasó la incidencia a ${who(t.to)}`,
-  assigned: (t) => `${who(t.by)} asignó la incidencia a ${who(t.to)} desde el Backlog`,
-  note: (t) => `${who(t.by)} escribió una nota`,
+// Su estado ahora (Asignada, En curso, Pendiente…), el primero de sus datos: desde cuándo y,
+// si está pendiente, a quién espera (y entonces, para que quepa, sin «desde el»).
+const statusBox = (i) => {
+  const s = statusInfo(i);
+  return `<div class="k-status"><span>Estado</span><b>${esc(s.label)}</b><small>${s.waitsFor ? `${esc(s.waitsFor)} · ` : 'desde el '}${when(s.since)}</small></div>`;
 };
-// Una nota la edita quien la escribió, durante las 24 h siguientes (la misma
-// regla que el bridge, server/issues/notes.js; aquí solo decide si se enseña el botón).
-export const EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
-export const canEditNote = (t, meId, now) => t.type === 'note' && !!meId && t.byId === meId && now.getTime() - new Date(t.at).getTime() <= EDIT_WINDOW_MS;
 
-const trailItem = (t, meId, now) => `<li class="iss-feed-item" data-entry="${t.type === 'note' ? esc(String(t.id)) : ''}">${avatar(t.by)}<div class="iss-feed-body">
-      <header><span class="iss-feed-did">${(DID[t.type] || ((x) => esc(x.type)))(t)}</span>${canEditNote(t, meId, now) ? `<button type="button" class="iss-feed-edit" data-edit-note="${esc(String(t.id))}">Editar</button>` : ''}${t.edited ? `<small>editada ${whenLabel(t.edited, now)}</small>` : ''}<time>${whenLabel(t.at, now)}</time></header>
-      ${t.text ? `<div class="iss-feed-text" data-note-text>${t.type === 'transferred' ? '<span class="iss-feed-label">Motivo</span>' : ''}${esc(t.text)}</div>` : ''}
-    </div></li>`;
-
-// El editor de una nota, en el sitio de su texto: Intro guarda, Escape cancela.
-export const noteEditorHtml = (text) => `<form class="iss-note-edit" data-note-edit novalidate>
-    <textarea name="note" rows="3" aria-label="Editar la nota">${esc(text)}</textarea>
-    <footer><button type="button" class="lab-btn" data-edit-cancel>Cancelar</button><button type="submit" class="lab-btn primary">Guardar</button></footer>
-  </form>`;
-// Lo más reciente arriba; cada entrada con su cuándo («HOY 13:05» o «22/10 12:06»).
-// meId: quién mira, para ofrecer «Editar» solo en sus notas recientes.
-export const trailHtml = (timeline = [], now = new Date(), meId = null) => (timeline.length
-  ? `<ol class="iss-trail-list">${newestFirst(timeline).map((t) => trailItem(t, meId, now)).join('')}</ol>`
-  : '<p class="iss-empty">Nadie la ha movido ni anotado en SIA todavía.</p>');
+const CHEVRON = '<svg class="iss-keys-chev" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
+const EXPAND = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>';
 
 // El arranque de la resolución asistida: solo el botón; si no se puede, el
 // motivo debajo y el botón apagado.
@@ -76,32 +50,51 @@ export const assistHtml = (error = null) => `<div class="ai-start">
     ${error ? `<p class="ai-start-hint">${esc(error)}</p>` : ''}
   </div>`;
 
-// En el campo de nota, Intro envía; Mayús+Intro salta de línea.
-export const sendsNote = (e) => e.key === 'Enter' && !e.shiftKey;
-
-// Escribir una nota interna, al pie del histórico. Enviar se enciende con texto.
-const SEND = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>';
-export const noteFormHtml = () => `<form class="iss-note-form" data-note-form novalidate>
-    <textarea name="note" rows="1" placeholder="Escribe una nota interna para el equipo…" aria-label="Nota interna"></textarea>
-    <button type="submit" class="iss-send" aria-label="Enviar" title="Enviar (Intro)" disabled>${SEND}</button>
-  </form>`;
+// …y, pulsado, el aviso de que el agente arranca (ui/wait.js), en su sitio
+export const assistWaitHtml = () => `<div class="ai-start">${waitHtml('Iniciando agente…', { hidden: false })}</div>`;
 
 // El cuerpo del diálogo de confirmación al devolver a la cola.
 export const releaseDialogHtml = (id, text) => `<div class="iss-dlg-issue"><span class="iss-dlg-code">${esc(id)}</span><span class="iss-dlg-text">${esc(text || '')}</span></div>
   <p class="iss-dlg-p">Volverá a la cola y podrá cogerla cualquier compañero.</p>`;
 
-// Los botones de las acciones (actions.js actionsFor): la primera, la principal
+// La cabecera: a la vista, Resolver (la principal) y Escalar; el resto de sus acciones
+// (actions.js actionsFor), en «Otras acciones»: un menú bajo el botón con lo de hablar con el
+// centro, abrir un WAR-ROOM, dividirla en dos y lo de soltarla (traspasar o devolver), cada grupo
+// separado por una línea. Lo abre y cierra issues-view.js.
+const MAIN = ['resolve', 'escalate'];
 const ACTION_BUTTON = {
   resolve: '<button class="lab-btn primary" data-act="resolve">Resolver</button>',
   escalate: '<button class="lab-btn" data-act="escalate">Escalar</button>',
-  transfer: '<button class="lab-btn" data-act="transfer">Traspasar</button>',
-  release: '<button class="lab-btn" data-release>Devolver a la cola</button>',
+};
+const icon = (paths) => svg(paths, { width: 2, hidden: true });
+const HANDOFF_PATHS = '<path d="M17 3l4 4-4 4"/><path d="M3 7h18"/><path d="M7 21l-4-4 4-4"/><path d="M21 17H3"/>';
+// cada una con su nombre (el de actions.js; devolver no es una ventana, sino el diálogo de confirmar) y su
+// icono, sin más texto: el nombre ya dice qué hace
+const MORE_ITEM = {
+  call: { label: ACTIONS.call.label, icon: PHONE },
+  contact: { label: ACTIONS.contact.label, icon: icon('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>') },
+  warroom: { label: ACTIONS.warroom.label, icon: icon('<path d="M7 18v-6a5 5 0 1 1 10 0v6"/><path d="M5 21a1 1 0 0 1-1-1v-1a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v1a1 1 0 0 1-1 1z"/><path d="M21 12h1"/><path d="M18.5 4.5 18 5"/><path d="M2 12h1"/><path d="M12 2v1"/><path d="m4.929 4.929.707.707"/><path d="M12 12v6"/>') },
+  split: { label: ACTIONS.split.label, icon: icon('<path d="M16 3h5v5"/><path d="M8 3H3v5"/><path d="M12 22v-8.3a4 4 0 0 0-1.172-2.872L3 3"/><path d="m15 9 6-6"/>') },
+  transfer: { label: ACTIONS.transfer.label, icon: icon(HANDOFF_PATHS) },
+  release: { label: 'Devolver a la cola', icon: icon('<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>') },
+};
+const CHEV = icon('<path d="M6 9l6 6 6-6"/>');
+const moreItem = (key) => { const m = MORE_ITEM[key]; return `<button type="button" ${key === 'release' ? 'data-release' : `data-act="${key}"`}>${m.icon}<b>${m.label}</b></button>`; };
+// en grupos, separados por una línea: hablar con el centro, el WAR-ROOM, dividirla y soltarla
+const MORE_GROUPS = [CENTRE_ACTIONS, ['warroom'], ['split'], ['transfer', 'release']];
+const moreMenu = (keys) => {
+  const groups = MORE_GROUPS.map((g) => keys.filter((k) => g.includes(k))).filter((g) => g.length);
+  return `<div class="iss-more"><button type="button" class="lab-btn" data-more aria-expanded="false" aria-controls="iss-more-menu">Otras acciones${CHEV}</button><div class="iss-more-menu" id="iss-more-menu" hidden>${groups.map((g) => g.map(moreItem).join('')).join('<hr>')}</div></div>`;
+};
+const headerActions = (i, mine) => {
+  const acts = actionsFor(i, mine);
+  return `${acts.filter((k) => MAIN.includes(k)).map((k) => ACTION_BUTTON[k]).join('')}${moreMenu(acts.filter((k) => !MAIN.includes(k)))}`;
 };
 
 // Pendiente de un tercero no hay nada que resolver con la IA: en lugar del chat, sus dos acciones,
 // grandes (y fuera de la cabecera, para no repetirlas)
 const BELL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>';
-const HANDOFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3l4 4-4 4"/><path d="M3 7h18"/><path d="M7 21l-4-4 4-4"/><path d="M21 17H3"/></svg>';
+const HANDOFF = svg(HANDOFF_PATHS, { width: 1.6, hidden: true });
 // En la cabecera, donde irían Resolver y compañía: que ya está escalada, a quién y desde cuándo
 const escalatedTag = (i) => `<span class="iss-escalated" title="Pendiente de un tercero: resolver, escalar o devolverla no tiene sentido hasta que responda">${BELL}<b>${esc(escalatedLabel(i))}</b><span>desde el ${when(pendingSince(i))}</span></span>`;
 // Sus acciones (actionsFor), grandes. En «Reclamar», a modo de aviso, los días que lleva parada
@@ -109,6 +102,8 @@ const escalatedTag = (i) => `<span class="iss-escalated" title="Pendiente de un 
 const BIG_ACTION = {
   chase: (i, now) => { const s = stillInfo(i, now); return `<button class="iss-big-act primary" data-act="chase">${BELL}<span>Reclamar respuesta</span><em class="iss-big-still ${s.level}">${s.label} sin moverse</em></button>`; },
   transfer: () => `<button class="iss-big-act" data-act="transfer">${HANDOFF}<span>Traspasar</span></button>`,
+  // la de otra persona, en el sitio de Traspasar: reasignarla (también a mí, a mi mesa)
+  reassign: () => `<button class="iss-big-act" data-act="reassign">${HANDOFF}<span>${ACTIONS.reassign.label}</span></button>`,
 };
 const pendingActs = (i, now, mine) => `<aside class="iss-card iss-pending-acts" aria-label="Qué hacer con ella">
       ${actionsFor(i, mine).map((key) => BIG_ACTION[key](i, now)).join('')}
@@ -118,13 +113,13 @@ export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, meI
   <header class="iss-work-h">
     <button class="lab-btn primary" data-back>Volver al panel</button>
     <h2 title="${esc(i.text)}">${esc(i.text)}</h2>
-    <div class="iss-actions">${i.status === 'PENDING' ? escalatedTag(i) : actionsFor(i, mine).map((key) => ACTION_BUTTON[key]).join('')}</div>
+    <div class="iss-actions">${i.status === 'PENDING' ? `${escalatedTag(i)}${moreMenu(CENTRE_ACTIONS)}` : headerActions(i, mine)}</div>
   </header>
 
   <div class="iss-work">
     <section class="iss-card iss-work-main">
       <div class="iss-wtabs" role="tablist">
-        ${WORK_TABS.map((t) => `<button role="tab" data-wtab="${t.key}" aria-selected="${t.key === tab}">${t.key === 'trail' ? trailTab(timeline.length) : t.label}${t.key === 'related' && sameCenter.length ? `<span>${sameCenter.length}</span>` : ''}${t.key === 'remedy' && i.worklog?.length ? `<span>${i.worklog.length}</span>` : ''}</button>`).join('')}
+        ${WORK_TABS.map((t) => `<button role="tab" data-wtab="${t.key}" aria-selected="${t.key === tab}">${t.key === 'notes' ? notesTab(notesCountOf({ worklog: i.worklog, timeline })) : t.label}${t.key === 'related' && sameCenter.length ? `<span>${sameCenter.length}</span>` : ''}</button>`).join('')}
       </div>
 
       <div class="iss-wpanel" data-wpanel="detail"${tab === 'detail' ? '' : ' hidden'}>
@@ -148,15 +143,8 @@ export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, meI
         </div>
       </div>
 
-      <div class="iss-wpanel" data-wpanel="remedy"${tab === 'remedy' ? '' : ' hidden'}>
-        <p class="iss-trail-hint">Lo que se ha ido anotando en Remedy sobre esta incidencia</p>
-        ${worklogHtml(i.worklog, now)}
-      </div>
-
-      <div class="iss-wpanel iss-trail-panel" data-wpanel="trail"${tab === 'trail' ? '' : ' hidden'}>
-        <p class="iss-trail-hint">Por quién ha pasado esta incidencia y las notas internas del equipo</p>
-        <div class="iss-trail-scroll" data-trail>${trailHtml(timeline, now, meId)}</div>
-        ${noteFormHtml()}
+      <div class="iss-wpanel nt-panel" data-wpanel="notes"${tab === 'notes' ? '' : ' hidden'}>
+        ${notesPanelHtml({ worklog: i.worklog, timeline, meId, now })}
       </div>
       <div class="iss-wpanel" data-wpanel="related"${tab === 'related' ? '' : ' hidden'}>
         ${i.related ? `<h4 class="iss-sub">Enlazadas en Remedy</h4><p class="iss-linked">${i.related.split('|').map((x) => `<span>${esc(x.trim())}</span>`).join('')}</p>` : ''}
@@ -170,6 +158,13 @@ export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, meI
 
     <div class="iss-side">
     <section class="iss-card iss-keys" aria-label="Datos clave">
+      <button type="button" class="iss-keys-toggle" data-keys-toggle aria-expanded="true" title="Plegar o desplegar los datos">
+        <span class="iss-keys-title">Datos de la issue</span>
+        <span class="iss-keys-sum"><span><i>Crit.</i><b class="k-sev ${esc(i.priority)}">${esc(SEVERITY_ES[i.priority] || i.priority)}</b></span><span><i>Origen</i><b class="k-origin${i.sisu ? ' sisu' : ''}">${i.sisu ? 'SISU' : 'SGA'}</b></span><span><i>Centro</i><b class="iss-code">${esc(i.center || '—')}</b></span><span><i>Remedy</i><b>${esc(i.id)}</b></span></span>
+        ${CHEVRON}
+      </button>
+      <div class="iss-keys-fold"><div class="iss-keys-grid">
+      ${statusBox(i)}
       <div class="k-sev ${esc(i.priority)}"><span>Criticidad</span><b>${esc(SEVERITY_ES[i.priority] || i.priority)}</b><small>${i.prio ? 'priorizada por negocio' : '&nbsp;'}</small></div>
       <div class="k-origin${i.sisu ? ' sisu' : ''}"><span>Origen</span><b>${i.sisu ? 'SISU' : 'SGA'}</b><small>&nbsp;</small></div>
       <div class="k-center"><span>Centro</span><b class="iss-code">${esc(i.center || '—')}</b><small>&nbsp;</small></div>
@@ -178,8 +173,10 @@ export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, meI
       <div class="k-claimed"><span>Asignada</span><b>${i.claimedBy?.at ? whenIso(i.claimedBy.at) : '—'}</b><small>${i.claimedBy ? `en SIA, ${esc(i.claimedBy.name)}` : 'nadie la ha cogido en SIA'}</small></div>
       <div class="k-open"><span>Abierta</span><b>${age(i.reported, now)}</b><small>desde que se creó</small></div>
       <div class="k-moved"><span>Último movimiento</span><b>${i.modified ? `hace ${age(i.modified, now)}` : '—'}</b><small>${when(i.modified)}</small></div>
+      </div></div>
     </section>
     ${i.status === 'PENDING' ? pendingActs(i, now, mine) : `<aside class="iss-card iss-chat" aria-label="Resolución asistida por IA">
+      <button type="button" class="iss-chat-expand" data-chat-expand title="Ampliar el chat" aria-label="Ampliar el chat">${EXPAND}</button>
       <div class="iss-chat-body"></div>
     </aside>`}
     </div>

@@ -90,6 +90,12 @@ asignar o traspasar, solo se puede elegir a quien lo tiene, y la base lo vuelve 
 comprobar (`platform.require_origin`, que rechaza con «Esa persona no tiene el
 conocimiento de SGA.»).
 
+Desde Issues, una persona puede **pasar a su mesa** una issue que tiene otra (o nadie en
+SIA), por ejemplo la escalada de un compañero de vacaciones: pasa a su mesa como
+cogida, en el histórico queda de quién la tomó (`taken`) y en las métricas cuenta
+como recibida para ella y como entregada para quien la tenía
+(`platform_take_issue`; también exige el conocimiento de su origen).
+
 Desde el Backlog se **asigna** una issue a alguien del equipo de Issues: pasa a
 su mesa como cogida y en el histórico queda «asignada» por quien lo hizo
 (`platform_assign_issue`). La **prioridad** de una issue es la etiqueta PRIO

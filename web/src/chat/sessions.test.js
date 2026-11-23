@@ -1,57 +1,42 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { chatSessions, chromeVisible, nextActive, isImageName, fileExt, toAsset, missingAssets, reconcile } from './sessions.js';
+import { chatSessions, nextActive, uploadUrl, reconcile } from './sessions.js';
 
-const local = (o) => ({ id: 1, remoteId: 's1', passive: false, linkLost: false, launched: true, assets: [], ...o });
-
-test('chatSessions: fuera los chats de incidencias; la barra solo con un chat real', () => {
-  assert.deepEqual(chatSessions([{ id: 'a' }, { id: 'b', issue: 'INC1' }]).map((r) => r.id), ['a']);
-  assert.equal(chromeVisible([{ launched: false, passive: false }]), false);
-  assert.equal(chromeVisible([{ launched: true }]), true);
-  assert.equal(chromeVisible([{ passive: true }]), true);
+test('chatSessions: los de una issue no cuentan en el Chat; nextActive: la última', () => {
+  assert.deepEqual(chatSessions([{ id: 's1' }, { id: 's2', issue: 'INC1' }]), [{ id: 's1' }]);
+  assert.deepEqual(chatSessions(null), []);
   assert.equal(nextActive([1, 2, 3]), 3);
   assert.equal(nextActive([]), null);
 });
 
-test('adjuntos: imagen por extensión, URL del bridge y los que faltan', () => {
-  assert.equal(isImageName('foto.JPG'), true);
-  assert.equal(isImageName('log.txt'), false);
-  assert.equal(fileExt('a.tar.gz'), 'GZ');
-  assert.equal(fileExt('sinext'), 'SINEX');
-  assert.deepEqual(toAsset({ name: 'a b.png', absPath: '/x' }, '/api'), { name: 'a b.png', absPath: '/x', url: '/api/uploads/a%20b.png', isImage: true });
-  assert.deepEqual(missingAssets([{ name: 'a' }], [{ name: 'a' }, { name: 'b' }]).map((a) => a.name), ['b']);
+test('uploadUrl: la URL del adjunto en el bridge, con el nombre escapado', () => {
+  assert.equal(uploadUrl('http://localhost:1', '1-foto ok.png'), 'http://localhost:1/uploads/1-foto%20ok.png');
 });
 
-test('reconcile: el chat ya no está en el bridge', () => {
-  const { actions } = reconcile([local({ passive: true }), local({ id: 2, remoteId: 's2', linkLost: true }), local({ id: 3, remoteId: 's3' })], []);
-  assert.deepEqual(actions, [{ id: 1, do: 'remove' }, { id: 2, do: 'dead' }, { id: 3, do: 'keep' }]);
+const local = (extra) => ({ id: 1, remoteId: 's1', launched: true, passive: false, linkLost: false, ...extra });
+
+test('reconcile: lo que hay que hacer con cada sesión según la lista del bridge', () => {
+  // viva y enganchada: nada
+  assert.deepEqual(reconcile([local()], [{ id: 's1', attached: true }]).actions, [{ id: 1, do: 'keep' }]);
+  // perdimos el socket y está libre: volver solo; si la tiene otro, pasiva
+  assert.deepEqual(reconcile([local({ linkLost: true })], [{ id: 's1', attached: false }]).actions, [{ id: 1, do: 'reattach' }]);
+  assert.deepEqual(reconcile([local({ linkLost: true })], [{ id: 's1', attached: true }]).actions, [{ id: 1, do: 'passive' }]);
+  // ya no está en el bridge: pasiva fuera, con el socket perdido muerta, enganchada se deja (su exit la cierra)
+  assert.deepEqual(reconcile([local({ passive: true })], []).actions, [{ id: 1, do: 'remove' }]);
+  assert.deepEqual(reconcile([local({ linkLost: true })], []).actions, [{ id: 1, do: 'dead' }]);
+  assert.deepEqual(reconcile([local()], []).actions, [{ id: 1, do: 'keep' }]);
+  // la portada no representa un chat
+  assert.deepEqual(reconcile([{ id: 9, remoteId: null, launched: false }], []).actions, []);
 });
 
-test('reconcile: perdido el socket, vuelve solo si está libre o queda pasivo si lo tiene otro', () => {
-  const { actions } = reconcile([local({ linkLost: true }), local({ id: 2, remoteId: 's2', linkLost: true })],
-    [{ id: 's1', attached: false }, { id: 's2', attached: true }]);
-  assert.deepEqual(actions.map((a) => a.do), ['reattach', 'passive']);
-});
-
-test('reconcile: los adjuntos nuevos del otro dispositivo llegan', () => {
-  const { actions } = reconcile([local({ passive: true, assets: [{ name: 'a' }] })], [{ id: 's1', assets: [{ name: 'a' }, { name: 'b' }] }]);
-  assert.deepEqual(actions, [{ id: 1, do: 'keep', assets: [{ name: 'b' }] }]);
-});
-
-test('reconcile: los chats nuevos de otro dispositivo se crean, salvo con un lanzamiento a medias', () => {
-  const r = reconcile([local({ remoteId: null, launched: false })], [{ id: 's9' }, { id: 'i1', issue: 'INC1' }]);
-  assert.deepEqual(r.create.map((x) => x.id), ['s9']);
+test('reconcile: los chats remotos que aquí faltan se crean como pasivos, salvo con uno a medio abrir o cerrado aquí', () => {
+  const r = reconcile([local()], [{ id: 's1', attached: true }, { id: 's2', attached: true }, { id: 's3', issue: 'INC1' }]);
+  assert.deepEqual(r.create.map((x) => x.id), ['s2']); // el de la issue no cuenta
   assert.equal(r.hold, false);
-  const held = reconcile([local({ remoteId: null, launched: true })], [{ id: 's9' }]);
-  assert.deepEqual([held.create, held.hold], [[], true]);
-});
-
-test('reconcile: un chat cerrado aquí que el bridge aún lista no vuelve como pasivo; los ya muertos se olvidan', () => {
-  const r = reconcile([local({ remoteId: null, launched: false })], [{ id: 's1' }, { id: 's9' }], new Set(['s1', 's0']));
-  assert.deepEqual(r.create.map((x) => x.id), ['s9']);
-  assert.deepEqual([...r.killed], ['s1'], 's0 ya no está en el bridge');
-  // cerrado aquí pero aún con sesión local (el exit no ha llegado): sigue en actions
-  const still = reconcile([local({ remoteId: 's1' })], [{ id: 's1' }], new Set(['s1']));
-  assert.deepEqual(still.actions.map((a) => a.do), ['keep']);
-  assert.deepEqual(still.create, []);
+  const opening = reconcile([{ id: 2, remoteId: null, launched: true, passive: false }], [{ id: 's9' }]);
+  assert.equal(opening.hold, true);
+  assert.deepEqual(opening.create, []);
+  const closed = reconcile([], [{ id: 's1' }, { id: 's2' }], new Set(['s1', 'gone']));
+  assert.deepEqual(closed.create.map((x) => x.id), ['s2']);
+  assert.deepEqual([...closed.killed], ['s1']); // los que ya murieron del todo salen de la lista
 });

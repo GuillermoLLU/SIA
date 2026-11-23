@@ -7,6 +7,7 @@
 // notas, ticket, ámbito, operación) van públicas para probarse una a una.
 import { readTitle } from './themes.js';
 import { entries } from '../shared/remedy-entries.js';
+import { jiraKey } from '../shared/jira.js';
 import { fold, norm, key, toCode } from './text.js';
 import { OPEN_STATES, DONE_STATES, CANCELLED, PENDING } from './states.js';
 import { isPublicNote, reasonOf } from './pending-reason.js';
@@ -60,14 +61,14 @@ export const operationOf = (tier2) => {
 const VENDOR_TYPES = new Set(['TEC', 'OPE', 'DFT', 'IOP', 'MAE', 'TGW', 'KNAPP', 'JIRA', 'SGE', 'MI']);
 const VPREFIX = /^\s*([A-Za-z]{2,6})\s*:/;
 const IGNORED_PREFIX = /^\s*(?:ITD|ITS)\s*:\s*/i;
-const JIRA = /\b([A-Z][A-Z0-9]{2,12})-(\d{1,7})\b/;
+const JIRA = /\b([A-Z][A-Z0-9]{2,12})-(\d{1,7})\b/;   // para buscarlas todas (jiraKeys); la primera, jiraKey (shared/jira.js)
 export const vendorOf = (text) => {
   let v = (text || '').trim();
   while (IGNORED_PREFIX.test(v)) v = v.replace(IGNORED_PREFIX, '');
-  const prefix = VPREFIX.exec(v), jira = JIRA.exec(v);
+  const prefix = VPREFIX.exec(v), jira = jiraKey(v);
   let type = prefix ? prefix[1].toUpperCase() : jira ? 'JIRA' : v ? 'OTRO' : '';
   if (type && !VENDOR_TYPES.has(type)) type = 'OTRO';
-  return { type, project: jira ? jira[1] : '', key: jira ? `${jira[1]}-${jira[2]}` : '' };
+  return { type, project: jira?.project || '', key: jira?.key || '' };
 };
 
 // Todos los tickets Jira de una issue: las claves del «Vendor Ticket Number» (puede llevar varias) y las de las

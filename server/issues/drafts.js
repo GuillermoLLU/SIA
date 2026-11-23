@@ -1,4 +1,4 @@
-// Los borradores de Resolver (E/S): en la BBDD local de SIA, un SQLite
+// Los borradores de Resolver y de Escalar (E/S): en la BBDD local de SIA, un SQLite
 // (node:sqlite, como el repositorio de Métricas) en <dir>/borradores.sqlite de
 // este ordenador. Uno por persona e issue, con sus imágenes (numeradas: en el
 // texto van como [imagenN]); no sale de aquí.
@@ -9,7 +9,11 @@ const SCHEMA = `
   CREATE TABLE IF NOT EXISTS resolve_drafts (user_id TEXT NOT NULL, issue_id TEXT NOT NULL, at TEXT NOT NULL,
     note TEXT, what TEXT, how TEXT, prevent TEXT, PRIMARY KEY (user_id, issue_id));
   CREATE TABLE IF NOT EXISTS resolve_draft_images (user_id TEXT NOT NULL, issue_id TEXT NOT NULL, n INTEGER NOT NULL,
-    name TEXT NOT NULL, type TEXT, data BLOB NOT NULL, PRIMARY KEY (user_id, issue_id, n));`;
+    name TEXT NOT NULL, type TEXT, data BLOB NOT NULL, PRIMARY KEY (user_id, issue_id, n));
+  CREATE TABLE IF NOT EXISTS escalate_drafts (user_id TEXT NOT NULL, issue_id TEXT NOT NULL, at TEXT NOT NULL,
+    fields TEXT NOT NULL, PRIMARY KEY (user_id, issue_id));`;
+// El de Escalar va en su tabla, con lo escrito en un JSON (cleanEscalate, escalate.js): sin
+// imágenes. Una BBDD de antes la crea al abrirse (IF NOT EXISTS).
 // v2: el idioma de la nota externa; v3: el paso en el que se quedó; v4: las imágenes,
 // varias y numeradas, en su tabla (el adjunto único de antes pasa a ser la 1)
 const COLS = [...FIELDS, 'lang', 'step'];
@@ -44,6 +48,9 @@ export const createResolveDrafts = ({ DatabaseSync, file, fs, now = () => new Da
   const dropImage = db.prepare('DELETE FROM resolve_draft_images WHERE user_id = ? AND issue_id = ? AND n = ?');
   const drop = db.prepare('DELETE FROM resolve_drafts WHERE user_id = ? AND issue_id = ?');
   const dropImages = db.prepare('DELETE FROM resolve_draft_images WHERE user_id = ? AND issue_id = ?');
+  const getEsc = db.prepare('SELECT at, fields FROM escalate_drafts WHERE user_id = ? AND issue_id = ?');
+  const setEsc = db.prepare('INSERT OR REPLACE INTO escalate_drafts (user_id, issue_id, at, fields) VALUES (?, ?, ?, ?)');
+  const dropEsc = db.prepare('DELETE FROM escalate_drafts WHERE user_id = ? AND issue_id = ?');
 
   return {
     // → { at, note, what, how, prevent, lang, step, images: [{ n, name, type, size }] } | null
@@ -79,6 +86,11 @@ export const createResolveDrafts = ({ DatabaseSync, file, fs, now = () => new Da
       return at;
     },
     drop: (user, issue) => { drop.run(user, issue); dropImages.run(user, issue); },
+    // Escalar → { at, ...fields } | null
+    getEscalate: (user, issue) => { const r = getEsc.get(user, issue); return r ? { at: r.at, ...JSON.parse(r.fields) } : null; },
+    // fields: cleanEscalate(…) → at
+    setEscalate(user, issue, fields) { const at = stamp(); setEsc.run(user, issue, at, JSON.stringify(fields)); return at; },
+    dropEscalate: (user, issue) => { dropEsc.run(user, issue); },
     close: () => db.close(),
   };
 };

@@ -1,15 +1,16 @@
 // El histórico de una issue en SIA (dominio, sin E/S): sus movimientos (cogida,
-// devuelta a la cola, traspasada) y las notas internas del equipo, en una sola
+// devuelta a la cola, traspasada) y las notas del equipo, en una sola
 // lista por orden de tiempo. Lo que la base devuelve en platform_issue_events y
 // platform_issue_notes, unido para que la pantalla lo pinte de una vez.
 //
-//   movimiento → { at, type: 'claimed' | 'released' | 'transferred', by, from, to, text? }
-//   nota       → { at, type: 'note', id, kind: 'note' | 'transfer', by, byId, text, edited }
+//   movimiento → { at, type: 'claimed' | 'released' | 'transferred' | 'assigned' | 'taken', by, from, to, text? }
+//   nota       → { at, type: 'note', id, kind: 'note' | 'transfer', by, byId, text, edited,
+//                  visibility: 'private' | 'internal' | 'public', tag (ANALISIS, CALLOK… o null) }
 // El motivo de un traspaso (la nota 'transfer' escrita en el mismo instante por
 // la misma persona) va dentro del movimiento como `text`: una sola entrada.
 
 const event = (e) => ({ at: e.happened_at, type: e.action, by: e.actor_name ?? null, from: e.from_name ?? null, to: e.to_name ?? null });
-const note = (n) => ({ at: n.created_at, type: 'note', id: n.id, kind: n.kind || 'note', by: n.author_name ?? null, byId: n.author_id ?? null, text: n.body, edited: n.edited_at ?? null });
+const note = (n) => ({ at: n.created_at, type: 'note', id: n.id, kind: n.kind || 'note', by: n.author_name ?? null, byId: n.author_id ?? null, text: n.body, edited: n.edited_at ?? null, visibility: n.visibility || 'internal', tag: n.tag ?? null });
 const moment = (x) => `${x.by}|${new Date(x.at).getTime()}`;
 
 export const timeline = (events = [], notes = []) => {

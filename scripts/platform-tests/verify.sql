@@ -16,7 +16,7 @@ expected (proname) as (values
   ('platform_list_audit'), ('platform_issue_claims'), ('platform_claim_next_issue'), ('platform_release_issue'), ('platform_my_issue_events'), ('platform_issue_teammates'),
   ('platform_transfer_issue'), ('platform_issue_events'), ('platform_issue_notes'), ('platform_add_issue_note'), ('platform_edit_issue_note'), ('platform_my_transfers'),
   ('platform_list_rules'), ('platform_save_rule'), ('platform_delete_rule'),
-  ('platform_assign_issue')
+  ('platform_assign_issue'), ('platform_take_issue')
 ),
 tables as (
   select c.relname, c.relrowsecurity
@@ -44,9 +44,9 @@ checks (orden, comprobacion, ok, detalle) as (
     not has_schema_privilege('anon', 'platform', 'usage') and not has_schema_privilege('authenticated', 'platform', 'usage'),
     'usage: anon=' || has_schema_privilege('anon', 'platform', 'usage') || ', authenticated=' || has_schema_privilege('authenticated', 'platform', 'usage')
   union all
-  select 6, 'Las 32 funciones de la API existen',
-    (select count(*) from api where proname in (select proname from expected)) = 32,
-    coalesce((select 'faltan: ' || string_agg(e.proname, ', ') from expected e where e.proname not in (select proname from api)), '32 de 32')
+  select 6, 'Las 33 funciones de la API existen',
+    (select count(*) from api where proname in (select proname from expected)) = 33,
+    coalesce((select 'faltan: ' || string_agg(e.proname, ', ') from expected e where e.proname not in (select proname from api)), '33 de 33')
   union all
   select 7, 'Todas son SECURITY DEFINER',
     not exists (select 1 from api where not prosecdef),
@@ -95,13 +95,21 @@ checks (orden, comprobacion, ok, detalle) as (
       || (select count(*) from api where proname in ('platform_update_user', 'platform_save_role') and pg_get_function_arguments(oid) like '%p_rule%')::text || ' de 2 · versiones antiguas aún presentes: '
       || (select count(*) from api where proname in ('platform_update_user', 'platform_save_role') and pg_get_function_arguments(oid) not like '%p_rule%')::text
   union all
-  select 17, 'Asignar y traspasar comprueban el origen: una sola firma de cada, con p_origin',
-    (select count(*) from api where proname in ('platform_assign_issue', 'platform_transfer_issue')) = 2
-      and (select count(*) from api where proname in ('platform_assign_issue', 'platform_transfer_issue') and pg_get_function_arguments(oid) like '%p_origin%') = 2
+  select 17, 'Asignar, traspasar y quedársela comprueban el origen: una sola firma de cada, con p_origin',
+    (select count(*) from api where proname in ('platform_assign_issue', 'platform_transfer_issue', 'platform_take_issue')) = 3
+      and (select count(*) from api where proname in ('platform_assign_issue', 'platform_transfer_issue', 'platform_take_issue') and pg_get_function_arguments(oid) like '%p_origin%') = 3
       and exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'platform' and p.proname = 'require_origin'),
-    'firmas: ' || (select count(*) from api where proname in ('platform_assign_issue', 'platform_transfer_issue'))::text || ' (2 esperadas) · con p_origin: '
-      || (select count(*) from api where proname in ('platform_assign_issue', 'platform_transfer_issue') and pg_get_function_arguments(oid) like '%p_origin%')::text || ' · platform.require_origin: '
+    'firmas: ' || (select count(*) from api where proname in ('platform_assign_issue', 'platform_transfer_issue', 'platform_take_issue'))::text || ' (3 esperadas) · con p_origin: '
+      || (select count(*) from api where proname in ('platform_assign_issue', 'platform_transfer_issue', 'platform_take_issue') and pg_get_function_arguments(oid) like '%p_origin%')::text || ' · platform.require_origin: '
       || case when exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'platform' and p.proname = 'require_origin') then 'sí' else 'falta' end
+  union all
+  select 18, 'Las notas llevan visibilidad y etiqueta: una sola firma de añadir, con p_visibility',
+    (select count(*) from information_schema.columns where table_schema = 'platform' and table_name = 'issue_notes' and column_name in ('visibility', 'tag')) = 2
+      and (select count(*) from api where proname = 'platform_add_issue_note') = 1
+      and exists (select 1 from api where proname = 'platform_add_issue_note' and pg_get_function_arguments(oid) like '%p_visibility%'),
+    'columnas: ' || (select count(*) from information_schema.columns where table_schema = 'platform' and table_name = 'issue_notes' and column_name in ('visibility', 'tag'))::text || ' de 2 · firmas de añadir: '
+      || (select count(*) from api where proname = 'platform_add_issue_note')::text || ' (1 esperada) · con p_visibility: '
+      || (select count(*) from api where proname = 'platform_add_issue_note' and pg_get_function_arguments(oid) like '%p_visibility%')::text
 )
 select orden as "#", case when ok then 'OK' else 'FALLO' end as estado, comprobacion, detalle
 from checks order by orden;

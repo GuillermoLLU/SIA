@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveForm, resolveBlocked, resumeStep, stepMissing, imagesDock, sectionImages, noteQuality, noteMeter, FULL, summaryHtml, phasesHtml, closePhasesHtml, reportHtml, localShort } from './resolve-form.js';
+import { resolveForm, resolveBlocked, resumeStep, stepMissing, imagesDock, sectionImages, noteMeter, summaryHtml, phasesHtml, closePhasesHtml, reportHtml, localShort } from './resolve-form.js';
 import { imageTag } from './tag-editor.js';
 // lo que manda el bridge al abrir Resolver
 import { resolveDraft } from '../../../server/issues/resolve.js';
@@ -14,7 +14,7 @@ test('dos bloques separados, con su ayuda, y lo de Remedy ya puesto y escapado, 
   assert.match(html, /<b>Nota interna de resolución<\/b><\/div>/);   // sin marca: no estaba en Remedy
   assert.doesNotMatch(html, /Solo la ve el equipo|detalle técnico/);
   assert.match(html, /<section class="rv-step" data-rstep="2" hidden>\s*<div class="rv-cap"><b>¿Qué ha ocurrido\?<\/b><\/div>/);
-  assert.match(html, /<div class="rv-cap rv-cap-center" data-gen-cap hidden><b data-gen-title><\/b><em data-gen-state hidden><\/em><\/div>[\s\S]*<div class="rv-gen" data-gen>\s*<section class="rv-gen-sum"><h4>Lo que has escrito<\/h4><ol data-summary><\/ol><\/section>\s*<section class="rv-gen-opts">\s*<h4 class="rv-gen-title">Preparar el informe<\/h4>[\s\S]*<fieldset class="iss-lang">[\s\S]*<input type="file" multiple data-extra \/>[\s\S]*<div class="rv-loader" data-loader hidden>\s*<h4 class="rv-loader-title" data-loader-title>Redactando el informe<\/h4>[\s\S]*<ol class="rv-phases" data-phases><\/ol>[\s\S]*<div class="rv-review" data-review hidden><\/div>/);   // el idioma y los archivos, antes de generar
+  assert.match(html, /<div class="rv-cap rv-cap-center" data-gen-cap hidden><b data-gen-title><\/b><em data-gen-state hidden><\/em><\/div>[\s\S]*<div class="rv-gen" data-gen>\s*<section class="rv-gen-sum"><h4>Lo que has escrito<\/h4><ol data-summary><\/ol><\/section>\s*<section class="rv-gen-opts">\s*<h4 class="rv-gen-title">Preparar el informe<\/h4>[\s\S]*<fieldset class="iss-lang">[\s\S]*<input type="file" multiple data-extra \/>[\s\S]*<div class="ld" data-loader hidden>\s*<h4 class="ld-title" data-loader-title>Redactando el informe<\/h4>[\s\S]*<ol class="ld-phases" data-phases><\/ol>[\s\S]*<div class="rv-review" data-review hidden><\/div>/);   // el idioma y los archivos, antes de generar
   assert.doesNotMatch(html, /Lo reciben el centro|sin preocuparte del formato/);
   assert.match(html, /<div class="rv-ed" contenteditable="plaintext-only" id="iss-f-what" data-ed="what" role="textbox" aria-multiline="true">Cola &lt;llena&gt;<\/div><input type="hidden" name="what" value="Cola &lt;llena&gt;" \/><div class="rv-meter" data-meter="what"/);   // con su barra
   assert.match(html, /data-rstep="3" hidden>\s*<div class="rv-cap"><b>¿Cómo se ha resuelto\?<\/b><\/div>[\s\S]*data-rstep="4" hidden>\s*<div class="rv-cap"><b>¿Qué se hará para que no se repita\?<\/b><\/div>/);
@@ -130,16 +130,8 @@ test('el muelle de imágenes: miniatura si la hay, [imagenN] para el texto, quit
   assert.equal(localShort(new Date(2026, 0, 5, 7, 3).toISOString()), '05/01 07:03');
 });
 
-test('cuánto cuenta la nota: la barra se llena con lo escrito, sin contar las imágenes', () => {
-  assert.deepEqual(noteQuality(''), { pct: 0, label: 'Sin escribir', level: 'low' });
-  // cada pregunta al centro cuenta hasta 250: la misma escala, más corta
-  assert.deepEqual(noteQuality('x'.repeat(250), FULL.what), { pct: 100, label: 'Completa', level: 'ok' });
-  assert.deepEqual([noteQuality('x'.repeat(30), FULL.how).label, noteQuality('x'.repeat(100), FULL.how).label, noteQuality('x'.repeat(200), FULL.how).label], ['Muy corta', 'Corta', 'Bien']);
+test('la barra de la nota: se llena con lo escrito (quality.js), del color de su nivel', () => {
   assert.match(noteMeter('x'.repeat(125), 'what'), /data-meter="what" data-level="good"[^>]*><div class="rv-meter-bar"><i style="width:50%">/);
-  assert.deepEqual(noteQuality('Relanzada [imagen1]'), { pct: 2, label: 'Muy corta', level: 'low' });
-  assert.deepEqual([noteQuality('x'.repeat(100)).label, noteQuality('x'.repeat(100)).level], ['Corta', 'mid']);
-  assert.deepEqual(noteQuality('x'.repeat(200)), { pct: 50, label: 'Bien', level: 'good' });
-  assert.deepEqual(noteQuality('x'.repeat(900)), { pct: 100, label: 'Completa', level: 'ok' });
   assert.equal(noteMeter('x'.repeat(200)), '<div class="rv-meter" data-meter="note" data-level="good" aria-hidden="true"><div class="rv-meter-bar"><i style="width:50%"></i></div><span>Bien</span></div>');
   // en el paso 1, bajo el campo, con lo que haya guardado
   const html = resolveForm('INC1', resolveDraft({ priority: 'HIGH', category: 'x', worklog: ALL }), { at: new Date().toISOString(), note: 'x'.repeat(200) });

@@ -1,9 +1,9 @@
 # SIA
 
 La plataforma de soporte con IA del equipo. Una aplicación local donde cada
-persona abre chats con Claude, Copilot o Codex **ya conectados al conocimiento
-del equipo**, trabaja las **issues** del servicio desde su mesa y sigue las
-**métricas** del equipo. Una instancia por cliente.
+persona abre chats con Copilot **ya conectados al conocimiento del equipo**,
+trabaja las **issues** del servicio desde su mesa y sigue las **métricas** del
+equipo. Una instancia por cliente.
 
 | Quiero… | Dónde |
 |---|---|
@@ -15,8 +15,10 @@ del equipo**, trabaja las **issues** del servicio desde su mesa y sigue las
 
 ## Empezar
 
-1. **Node 22.19+** (trae el SQLite de las Métricas y los certificados del sistema, para la VPN) y los CLIs que vayas a usar, con sesión iniciada: `claude`,
-   `copilot` o `codex`. Los que no estén instalados salen apagados.
+1. **Node 22.19+** (trae el SQLite de las Métricas y los certificados del sistema, para la VPN) y el CLI de
+   Copilot (`npm i -g @github/copilot`). La sesión de Copilot se inicia desde SIA
+   (Configuración → Proveedores IA). Para la app instalada, el instalador de
+   Windows lo instala si falta, con WinGet y sin administrador.
 2. Una **cuenta de la instancia** (te la da un administrador en Configuración → Equipo).
 3. Arrancar:
 
@@ -41,9 +43,10 @@ sistema. `vpn.probeHost` es un nombre interno del cliente que solo resuelve a
 una dirección privada dentro de su red. SIA comprueba las dos cosas en dos
 sitios:
 
-- en el instalador de Windows, en la página «Comprobaciones previas», los
+- en el instalador (SIA Setup, `setup/`), en el paso «Comprobaciones», los
   certificados: sin ellos no deja seguir (si no se pueden comprobar, avisa y
-  deja seguir con confirmación);
+  deja seguir con confirmación). En la primera instalación comprueba también
+  Copilot CLI y que tenga una sesión iniciada;
 - en la app, al pulsar la S: si falta algo, en lugar del formulario sale un
   aviso corto (qué falta y la guía) con «Reintentar», que vuelve a
   comprobar de verdad, relee los certificados del sistema y deja pasar al
@@ -98,11 +101,12 @@ gh pr create --base develop
 
 ## Cómo está montada
 
-- **`web/`** — la interfaz (Vite + xterm.js). `src/main.js` solo arranca;
-  cada vista vive en su carpeta de `src/`.
-- **`server/`** — el bridge local: la API HTTP, los chats por WebSocket (un
-  PTY por sesión) y la conexión con las bases. `index.js` solo monta las piezas
-  y `router.js` las encamina.
+- **`web/`** — la interfaz (Vite). `src/main.js` solo arranca; cada vista vive
+  en su carpeta de `src/`. El chat es una conversación limpia (`src/chat/conversation/`).
+- **`server/`** — el bridge local: la API HTTP, los chats por WebSocket (una
+  sesión de Copilot por chat, hablando con su CLI por el protocolo de su SDK) y
+  la conexión con las bases. `index.js` solo monta las piezas y `router.js` las
+  encamina.
 - **`mcp/`** — el servidor MCP `knowledge`: el RAG que usan los chats.
 - **Dos proyectos Supabase por instancia**: la **base de la instancia**
   (personas, roles, qué ve cada una; `sia-instance.json`) y la **base de
@@ -120,10 +124,11 @@ Todo esto, carpeta a carpeta y con cómo se comunican, en
 | `npm test` | Las pruebas de dominio (segundos) |
 | `cd web && npx vite build` | Compila la web |
 | `npm run test:platform` / `test:rls` | Pruebas de la base en Docker (cuando se toca SQL) |
-| `npm run dist` / `dist:win` | Empaquetar la app (macOS / Windows) |
+| `npm run dist:setup` / `dist:setup:mac` | El instalador que se entrega, SIA Setup (Windows / macOS): `dist-app/SIA Instalador <versión>.exe` o `.dmg`. Necesita Rust y, una vez, `npm install` en `setup/` |
+| `npm run dist` / `dist:win` | Solo empaquetar la app (macOS / Windows); `dist:win` genera también `Desinstalar SIA.exe` |
 
-La app va empaquetada en `app.asar`, de solo lectura; las piezas nativas (terminal,
-motor de embeddings, imágenes) quedan fuera, en `app.asar.unpacked`. `build.files`
+La app va empaquetada en `app.asar`, de solo lectura; las piezas nativas (motor
+de embeddings, imágenes) quedan fuera, en `app.asar.unpacked`. `build.files`
 en `package.json` deja fuera de las dependencias los mapas de código, TypeScript,
 las versiones de navegador del motor de embeddings y de Azure y los binarios de otras
 plataformas. Si una dependencia nueva falla solo en la app instalada, mira primero

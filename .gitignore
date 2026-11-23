@@ -28,3 +28,5 @@ nohup.out
 .claude/
 .idea/
 .mcp.json
+# Desinstalar SIA.exe: lo genera setup/scripts/desinstalador.mjs
+build/Desinstalar SIA.exe

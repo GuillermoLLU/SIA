@@ -1,6 +1,6 @@
-// SIA: el bridge local. Sirve la web, la API y, por WebSocket, los chats:
-// cada conexión es una sesión y el bridge lanza el CLI elegido (Claude,
-// Copilot o Codex) en un PTY que se vuelca al navegador. Aquí solo se montan
+// SIA: el bridge local. Sirve la API y, por WebSocket, los chats: cada
+// conexión es una sesión y el bridge lanza Copilot por el protocolo de su SDK
+// (chats/) y le vuelca la conversación al navegador. Aquí solo se montan
 // las piezas (cada funcionalidad vive en su carpeta) y se arrancan los
 // servidores; nada ocurre al importar: startBridge() lo pone todo en marcha.
 //
@@ -8,7 +8,6 @@
 //   import { startBridge } ...      (la app Electron: electron/main.js)
 
 import { WebSocketServer, WebSocket as WSClient } from 'ws';
-import * as pty from 'node-pty';
 import { createClient } from '@supabase/supabase-js';
 import { fetch as undiciFetch, Agent as UndiciAgent } from 'undici';
 import os from 'node:os';
@@ -56,8 +55,10 @@ import { updatesRoutes } from './updates/routes.js';
 import { createIssuesSource } from './issues/source.js';
 import { createIssuesService } from './issues/service.js';
 import { issuesRoutes } from './issues/routes.js';
+import { createJiraWatch } from './issues/jira-watch.js';
+import { createJiraMock } from './issues/jira-mock.js';
 import { createBacklogService } from './backlog/service.js';
-import { createWsAuth } from './terminal/ws-auth.js';
+import { createWsAuth } from './chats/ws-auth.js';
 import { backlogRoutes } from './backlog/routes.js';
 import { DatabaseSync } from 'node:sqlite';
 import { createMetricsStore } from './metrics/store.js';
@@ -65,7 +66,9 @@ import { createRepository } from './metrics/repository.js';
 import { metricsRoutes } from './metrics/routes.js';
 import { createSnowflake } from './metrics/snowflake.js';
 import { createJira } from './metrics/jira.js';
-import { createTerminalBridge } from './terminal/bridge.js';
+import { createChatBridge } from './chats/bridge.js';
+import { createCopilotAuth } from './providers/copilot-auth.js';
+import { providersRoutes } from './providers/routes.js';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url))); // sia/
 
@@ -93,7 +96,7 @@ export const startBridge = async ({ env = process.env } = {}) => {
   const workspace = createWorkspace({ root: ROOT, dir: env.SIA_WORKSPACE || path.join(home, '.sia', 'workspace') });
   fs.rmSync(workspace.uploadsDir, { recursive: true, force: true }); // los adjuntos son por arranque
   fs.mkdirSync(workspace.uploadsDir, { recursive: true });
-  const launchers = createLaunchers({ workspace: workspace.dir, codexHome: env.CODEX_HOME || path.join(home, '.codex'), mcpServer: path.join(ROOT, 'mcp', 'index.js'), isWin, env });
+  const launchers = createLaunchers({ workspace: workspace.dir, mcpServer: path.join(ROOT, 'mcp', 'index.js'), isWin, env });
   const config = createConfigStore(path.join(home, '.sia', 'config.json'));
   const lock = createLock({ config });
 
@@ -131,16 +134,22 @@ export const startBridge = async ({ env = process.env } = {}) => {
   try { drafts = createResolveDrafts({ DatabaseSync, file: path.join(workspace.issuesDir, 'borradores.sqlite'), fs }); }
   catch (e) { console.warn(`[sia] no se pudo abrir la BBDD de borradores de Resolver: ${e.message}`); }
   const issuesSource = createIssuesSource(workspace.issuesDir); // la foto, una sola para Issues y Backlog
-  const issues = createIssuesService({ source: issuesSource, platform, drafts });
+  // los Jira de los escalados del equipo, cada media hora (de momento, un Jira de prueba)
+  const jiraWatch = createJiraWatch({ source: issuesSource, jira: createJiraMock({ file: path.join(workspace.issuesDir, 'jira-prueba.json'), fs }), log: console.warn });
+  jiraWatch.start();
+  const issues = createIssuesService({ source: issuesSource, platform, drafts, jira: jiraWatch, jiraUrl: () => config.read().jira?.baseUrl || '' });
   const backlog = createBacklogService({ source: issuesSource, platform });
   const wsAuth = createWsAuth({ auth, isLoopback });   // quién entra por el socket de los chats
-  const bridge = createTerminalBridge({
-    pty, launchers, workspace, lock, skillSync, issues, skillsOf, allowed: wsAuth.allowed,
-    // SHELL_SESSIONS_DISABLE quita el aviso «Restored session…» de macOS. cleanEnv
-    // poda el entorno heredado y userEnv pone encima las credenciales personales,
-    // leídas frescas en cada sesión: ese orden importa.
-    env: () => ({ ...cleanEnv({ ...env, SHELL_SESSIONS_DISABLE: '1' }), ...userEnv(config.read()) }),
+  // la cuenta de Copilot (Configuración → Proveedores IA): la suya, sin ninguna clave de GitHub en el entorno;
+  // al iniciarla, los chats que la esperaban siguen
+  const copilotAuth = createCopilotAuth({ spec: launchers.spec, env: () => cleanEnv({ ...env }), onLogin: () => bridge.authRestored() });
+  const bridge = createChatBridge({
+    launchers, workspace, lock, skillSync, issues, skillsOf, allowed: wsAuth.allowed,
+    // cleanEnv poda el entorno heredado y userEnv pone encima las credenciales
+    // personales, leídas frescas en cada sesión: ese orden importa.
+    env: () => ({ ...cleanEnv({ ...env }), ...userEnv(config.read()) }),
     accessibleProjects: base.accessibleProjects, currentBase: base.current,
+    copilotStatus: () => copilotAuth.status(),
   });
 
   const http_ = { json, readBody };
@@ -153,6 +162,7 @@ export const startBridge = async ({ env = process.env } = {}) => {
     auth: authRoutes(auth, { ...http_, onSession: assigned.login, onLogout: assigned.clear, platform, preflight }),
     lock: lockRoutes(lock, http_),
     config: configRoutes(config, { ...http_, version }),
+    providers: providersRoutes(copilotAuth, http_),
     users: usersRoutes(users, { ...http_, syncKeys, assignKnowledge: (jwt, userId, ids) => knowledge.setProjects(jwt, userId, ids), refreshProfile: (token) => auth.refreshProfile(token) }),
     knowledge: knowledgeRoutes(knowledge, { ...http_, syncKeys, onChange: (who) => assigned.reload(who.token) }),
     issues: issuesRoutes(issues, http_),
@@ -187,7 +197,7 @@ export const startBridge = async ({ env = process.env } = {}) => {
   const wss = new WebSocketServer({ host: HOST, port: ports.ws, verifyClient: (info, cb) => { wsAuth.sessionOk(info.req).then((ok) => cb(ok, 401, 'Inicia sesión.')); } });
   wss.on('error', inUse(ports.ws));
   bridge.attach(wss);
-  console.log(`[sia] terminal bridge listening on ws://localhost:${ports.ws}`);
+  console.log(`[sia] chats en ws://localhost:${ports.ws}`);
   return ports;
 };
 

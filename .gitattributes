@@ -1,0 +1,4 @@
+# Los scripts de cmd, con CRLF en cualquier equipo: con LF, cmd falla con etiquetas y saltos.
+*.cmd text eol=crlf
+# Los de sh, con LF en cualquier equipo: con CRLF, sh no los entiende.
+*.sh text eol=lf

@@ -9,7 +9,7 @@ const issue = (id, o = {}) => ({ id, center: '100', text: id, priority: 'HIGH', 
 const ISSUES = [issue('INC1'), issue('INC2', { prio: true }), issue('INC3', { assignee: 'ANA LOPEZ GARCIA', status: 'PENDING' })];
 const WHO = { user: { id: 'u-ana', name: 'Ana López' }, accessToken: 'jwt' };
 
-const setup = (claims = [], { issues = ISSUES, broken, transfers = [], rules = [], who = WHO } = {}) => {
+const setup = (claims = [], { issues = ISSUES, broken, transfers = [], rules = [], who = WHO, jira, jiraUrl } = {}) => {
   const calls = [];
   const platform = {
     rpc: async (jwt, fn, args) => {
@@ -44,8 +44,11 @@ const setup = (claims = [], { issues = ISSUES, broken, transfers = [], rules = [
     getImage: (u, i, n) => store.get(`${u}/${i}`)?.images.find((im) => im.n === n) ?? null,
     dropImage: (u, i, n) => { const d = store.get(`${u}/${i}`); if (d) d.images = d.images.filter((im) => im.n !== n); return 'at'; },
     drop: (u, i) => { store.delete(`${u}/${i}`); },
+    getEscalate: (u, i) => store.get(`esc:${u}/${i}`) ?? null,
+    setEscalate: (u, i, f) => { store.set(`esc:${u}/${i}`, f); return 'at'; },
+    dropEscalate: (u, i) => { store.delete(`esc:${u}/${i}`); },
   };
-  const route = issuesRoutes(createIssuesService({ source, platform, drafts: broken === undefined ? drafts : broken, now: () => new Date('2026-10-04T12:00:00Z') }), { json: (res, status, body) => Object.assign(res, { status, body }), readBody: async (req) => req.body || {} });
+  const route = issuesRoutes(createIssuesService({ source, platform, drafts: broken === undefined ? drafts : broken, jira, jiraUrl, now: () => new Date('2026-10-04T12:00:00Z') }), { json: (res, status, body) => Object.assign(res, { status, body }), readBody: async (req) => req.body || {} });
   const call = async (method, path, body, query = '') => {
     const res = {}, req = { method, body, setEncoding() {}, resume() {}, [Symbol.asyncIterator]: async function* () { yield body; } };
     await route(req, res, path, who, new URLSearchParams(query)); return res;
@@ -125,12 +128,28 @@ test('traspasar: a la base con el compañero, el motivo limpio y el origen de la
   assert.equal(loads.n, 0);
 });
 
+test('GET /search: por su número, sea de quien sea, con quién la tiene en SIA; con menos de cuatro cifras, nada', async () => {
+  const issues = [issue('INC000027680016'), issue('INC000027680871')];
+  const { call } = setup([{ issue_id: 'INC000027680016', user_id: 'u-luis', user_name: 'Luis', claimed_at: '2026-10-04T09:00:00Z' }], { issues });
+  const { status, body } = await call('GET', ['search'], undefined, 'q=0016');
+  assert.equal(status, 200);
+  assert.deepEqual(body.results.map((r) => [r.id, r.holder]), [['INC000027680016', 'Luis']], 'una que no es mía también');
+  assert.deepEqual((await call('GET', ['search'], undefined, 'q=276')).body, { results: [] });
+  assert.deepEqual((await call('GET', ['search'])).body, { results: [] });
+});
+
 test('notas: añadir devuelve el id; vacía, 400; el histórico, aparte', async () => {
   const { call, calls } = setup();
   assert.deepEqual((await call('POST', ['INC1', 'notes'], { body: ' El centro confirma. ' })).body, { id: 9 });
-  assert.deepEqual(calls.at(-1), ['platform_add_issue_note', { p_issue: 'INC1', p_body: 'El centro confirma.' }]);
+  assert.deepEqual(calls.at(-1), ['platform_add_issue_note', { p_issue: 'INC1', p_body: 'El centro confirma.', p_visibility: 'internal', p_tag: null }]);
+  await call('POST', ['INC1', 'notes'], { body: 'Os escribimos.', visibility: 'public', tag: 'ESCALADO' });
+  assert.deepEqual(calls.at(-1), ['platform_add_issue_note', { p_issue: 'INC1', p_body: 'Os escribimos.', p_visibility: 'public', p_tag: 'ESCALADO' }]);
+  const n = calls.length;
   assert.equal((await call('POST', ['INC1', 'notes'], { body: '   ' })).status, 400);
   assert.equal((await call('POST', ['INC1', 'notes'], {})).status, 400);
+  assert.equal((await call('POST', ['INC1', 'notes'], { body: 'x', visibility: 'secreta' })).status, 400);
+  assert.equal((await call('POST', ['INC1', 'notes'], { body: 'x', tag: 'OTRA' })).status, 400);
+  assert.equal(calls.length, n, 'lo que no vale no llega a la base');
   const { body } = await call('GET', ['INC1', 'timeline']);
   assert.deepEqual(body.timeline.map((t) => t.type), ['note', 'note', 'note', 'claimed']);
   assert.deepEqual((await call('GET', ['INC2', 'timeline'])).body, { timeline: [] });
@@ -162,6 +181,12 @@ test('ids raros: 404; devolver: a la base, sin leer la foto', async () => {
   assert.equal(loads.n, 0);
 });
 
+test('asignármela: a la base, con el origen de la foto (la base comprueba que lo conozco)', async () => {
+  const { call, calls } = setup();
+  assert.deepEqual((await call('POST', ['INC1', 'take'])).body, { ok: true });
+  assert.deepEqual(calls.at(-1), ['platform_take_issue', { p_issue: 'INC1', p_origin: 'SGA' }]);
+});
+
 test('GET /teammates: el equipo de Incidencias sin mí, sin leer la foto; un fallo de la base, con su estado', async () => {
   const { call, loads } = setup();
   assert.deepEqual((await call('GET', ['teammates'])).body, { teammates: [{ id: 'u-luis', name: 'Luis' }] });
@@ -169,6 +194,29 @@ test('GET /teammates: el equipo de Incidencias sin mí, sin leer la foto; un fal
   const broken = issuesRoutes({ desk: async () => { throw Object.assign(new Error('sin red'), { status: 503 }); } }, { json: (res, status, body) => Object.assign(res, { status, body }), readBody: async () => ({}) });
   const res = {}; await broken({ method: 'GET' }, res, [], WHO);
   assert.deepEqual([res.status, res.body], [503, { error: 'sin red' }]);
+});
+
+test('GET /: los escalados del equipo, de todos, con el estado de su Jira y cuándo se miró', async () => {
+  const issues = [...ISSUES, issue('INC4', { status: 'PENDING', vendorTicket: 'TEC: SISUPAC-9211', assignee: 'LUIS PEREZ' }), issue('INC5', { status: 'PENDING', vendorTicket: 'SISUPAC-9300' })];
+  const jira = { states: () => new Map([['SISUPAC-9300', { state: 'resolved', at: '2026-10-04 08:00' }]]), checkedAt: () => '2026-10-04T10:30:00.000Z', check: async () => {} };
+  const { body } = await setup([{ issue_id: 'INC5', user_id: 'u-luis', user_name: 'Luis' }], { issues, jira, jiraUrl: () => 'https://jira.ejemplo' }).call('GET', []);
+  assert.equal(body.escalations.checkedAt, '2026-10-04T10:30:00.000Z');
+  assert.deepEqual(body.escalations.items.map((e) => [e.id, e.owner, e.mine, e.jira.key, e.jira.state]),
+    [['INC5', 'Luis', false, 'SISUPAC-9300', 'resolved'], ['INC4', 'LUIS PEREZ', false, 'SISUPAC-9211', 'open']]);
+  assert.equal(body.escalations.items[0].jira.url, 'https://jira.ejemplo/browse/SISUPAC-9300');
+});
+
+test('GET /: sin vigía de Jira, los escalados salen abiertos y sin mirar', async () => {
+  const { body } = await setup([], { issues: [issue('INC4', { status: 'PENDING', vendorTicket: 'SISUPAC-1' })] }).call('GET', []);
+  assert.deepEqual(body.escalations, { checkedAt: null, items: [body.escalations.items[0]] });
+  assert.equal(body.escalations.items[0].jira.state, 'open');
+});
+
+test('POST /escalations/check: mira los Jira ahora y dice cuándo', async () => {
+  let checks = 0;
+  const jira = { states: () => new Map(), checkedAt: () => (checks ? '2026-10-04T12:00:00.000Z' : null), check: async () => { checks++; } };
+  const { body } = await setup([], { jira }).call('POST', ['escalations', 'check'], {});
+  assert.deepEqual([checks, body], [1, { checkedAt: '2026-10-04T12:00:00.000Z' }]);
 });
 
 test('POST /csv: carga el cuerpo con el nombre del fichero; sin nombre .csv, 400', async () => {
@@ -183,9 +231,9 @@ test('POST /csv: carga el cuerpo con el nombre del fichero; sin nombre .csv, 400
 // Resolver: INC4 es mía (responsable en Remedy), abierta y con todas las notas;
 // INC5, mía pero ya resuelta; INC1, de nadie; INC6, mía pero sin diagnóstico.
 const note = (tag) => ({ at: '2026-10-28 10:00', who: 'ANA', text: `[${tag}] hecho` });
-const NOTES = ['SITUACION INICIAL', 'ANTECEDENTES', 'ANALISIS', 'DIAGNOSTICO'].map(note);
+const NOTES = ['SITUACION INICIAL', 'RECURRENCIA', 'ANTECEDENTES', 'ANALISIS', 'DIAGNOSTICO'].map(note);
 const ANA = { assignee: 'ANA LOPEZ GARCIA', category: 'ECOM', worklog: NOTES };
-const RES = [...ISSUES, issue('INC4', { ...ANA, status: 'IN_PROGRESS' }), issue('INC5', { ...ANA, status: 'RESOLVED' }), issue('INC6', { ...ANA, worklog: NOTES.slice(0, 3) })];
+const RES = [...ISSUES, issue('INC4', { ...ANA, status: 'IN_PROGRESS' }), issue('INC5', { ...ANA, status: 'RESOLVED' }), issue('INC6', { ...ANA, worklog: NOTES.slice(0, -1) })];
 const SEND = { note: 'Se relanza', what: 'Se paró', how: 'Se relanzó', prevent: 'Corrección pedida', lang: 'es' };
 const b64 = Buffer.from('hola').toString('base64');
 
@@ -266,6 +314,40 @@ test('confirmar Resolver: lo comprueba todo otra vez y, si cumple, borra el borr
   assert.notEqual((await call('GET', ['INC4', 'resolve'])).body.draft, null);   // nada de eso borra el borrador
   assert.deepEqual((await call('POST', ['INC4', 'resolve'], SEND)).body, { ok: true, sent: false });
   assert.equal((await call('GET', ['INC4', 'resolve'])).body.draft, null);
+});
+
+// Escalar: INC10 (crítica) sin mayor incidente; INC7, crítica y con él; INC5, Resuelta (por la causa raíz);
+// INC3, Pendiente; INC6 sin [DIAGNOSTICO], que no se pide.
+const MAJOR = { at: '2026-10-28 10:40', who: 'ANA', text: '[MAJOR INCIDENT] No' };
+const ESC_ISSUES = [...RES, issue('INC7', { ...ANA, priority: 'CRITICAL', worklog: [...NOTES, MAJOR] }), issue('INC8', { ...ANA, priority: 'LOW', worklog: NOTES.slice(0, -1) }), issue('INC10', { ...ANA, priority: 'CRITICAL' }), issue('INC9', { ...ANA, status: 'RESOLVED', worklog: [...NOTES, MAJOR] })];
+const ESC = { mode: 'escalate', dest: 'sisupac', reason: 'Timeouts', step: '4' };
+
+test('abrir Escalar: las notas que pide y las que faltan; el borrador va y vuelve, y se borra al escalar', async () => {
+  const { call } = setup([], { issues: ESC_ISSUES });
+  assert.deepEqual((await call('GET', ['INC10', 'escalate'])).body.check.missing, ['¿Es mayor incidente?']);
+  assert.deepEqual((await call('GET', ['INC4', 'escalate'])).body.check.missing, []);   // alta: ya no lo pide
+  assert.deepEqual((await call('GET', ['INC8', 'escalate'])).body.check.missing, []);   // baja y sin diagnóstico: vale
+  assert.equal((await call('GET', ['INC8', 'escalate'])).body.check.analysis.text, 'hecho');
+  assert.equal((await call('POST', ['INC10', 'escalate'], ESC)).status, 409);
+  assert.deepEqual((await call('PUT', ['INC7', 'escalate', 'draft'], ESC)).body, { at: 'at' });
+  assert.deepEqual((await call('GET', ['INC7', 'escalate'])).body.draft, { mode: 'escalate', dest: 'sisupac', destOther: '', linked: '', linkedOther: '', reason: 'Timeouts', jiraPriority: '', sent: '', mins: '', comment: '', step: 4 });
+  assert.equal((await call('GET', ['INC7', 'resolve'])).body.draft, null);   // el de Resolver es otro
+  assert.equal((await call('PUT', ['INC7', 'escalate', 'draft'], { step: '9' })).status, 400);
+  assert.equal((await call('POST', ['INC7', 'escalate'], { ...ESC, reason: ' ' })).status, 400);
+  assert.deepEqual((await call('POST', ['INC7', 'escalate'], ESC)).body, { ok: true, sent: false });
+  assert.equal((await call('GET', ['INC7', 'escalate'])).body.draft, null);
+  assert.deepEqual((await call('POST', ['INC9', 'escalate'], ESC)).body, { ok: true, sent: false });   // Resuelta: por la causa raíz
+});
+
+test('Escalar y su borrador, solo en una issue mía que no espere ya a un tercero', async () => {
+  const { call } = setup([], { issues: ESC_ISSUES });
+  for (const [method, path] of [['GET', ['IDX', 'escalate']], ['POST', ['IDX', 'escalate']], ['PUT', ['IDX', 'escalate', 'draft']]]) {
+    for (const [id, status] of [['INC999', 404], ['INC1', 403]]) {
+      assert.equal((await call(method, path.map((x) => (x === 'IDX' ? id : x)), ESC)).status, status);
+    }
+  }
+  const pending = setup([], { issues: [...ESC_ISSUES.filter((i) => i.id !== 'INC3'), issue('INC3', { ...ANA, status: 'PENDING' })] });
+  assert.deepEqual([(await pending.call('GET', ['INC3', 'escalate'])).status, (await pending.call('GET', ['INC3', 'escalate'])).body.error], [409, 'Esta issue ya espera a un tercero o está cerrada.']);
 });
 
 

@@ -15,7 +15,7 @@ const ROOT = path.join(HERE, '..');
 app.setName('SIA');
 
 // Las apps GUI de macOS arrancan con un PATH mínimo (sin /opt/homebrew/bin…),
-// y sin él no se encuentran `claude`/`copilot`/`gh`. Recuperamos el PATH real
+// y sin él no se encuentran `copilot` ni `gh`. Recuperamos el PATH real
 // de la shell de login del usuario antes de arrancar el bridge.
 const fixPath = () => {
   if (os.platform() === 'win32') return;

@@ -61,6 +61,22 @@ test('una BBDD de antes del idioma y del paso se migra sin perder lo guardado', 
   createResolveDrafts({ DatabaseSync, file, fs }).close();   // la segunda vez no vuelve a migrar
 });
 
+test('el de Escalar: por persona e issue, aparte del de Resolver, y se recupera al volver a abrir', () => {
+  const { file, drafts } = open();
+  const ESC = { mode: 'escalate', dest: 'sisupac', reason: 'r', step: 3 };
+  assert.equal(drafts.getEscalate('u1', 'INC1'), null);
+  drafts.setText('u1', 'INC1', TEXT);
+  assert.equal(drafts.setEscalate('u1', 'INC1', ESC), '2026-10-28T15:20:01.000Z');
+  drafts.close();
+  const again = createResolveDrafts({ DatabaseSync, file, fs });
+  assert.deepEqual(again.getEscalate('u1', 'INC1'), { at: '2026-10-28T15:20:01.000Z', ...ESC });
+  assert.equal(again.getEscalate('u2', 'INC1'), null);
+  again.dropEscalate('u1', 'INC1');
+  assert.equal(again.getEscalate('u1', 'INC1'), null);
+  assert.equal(again.get('u1', 'INC1').note, 'n');   // el de Resolver sigue
+  again.close();
+});
+
 test('quitar una imagen que no hay no crea un borrador ni le cambia la fecha', () => {
   const { drafts } = open();
   assert.equal(drafts.dropImage('u1', 'INC1', 1), null);

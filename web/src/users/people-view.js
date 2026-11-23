@@ -7,12 +7,13 @@
 // datos van por users-api.js y knowledge-api.js y las reglas las pone la base.
 import './people.css';
 import { strongPassword } from './password.js';
-import { initials, knOf, filterChips, listRows, validFilter, roleName as roleNameOf, ruleOf, toggled, personDraft, draftWithRole, draftWithView, draftWithRule, personPatch, hasChanges } from './people.js';
+import { knOf, filterChips, listRows, validFilter, roleName as roleNameOf, ruleOf, toggled, personDraft, draftWithRole, draftWithView, draftWithRule, personPatch, hasChanges } from './people.js';
 import { viewBoxes, ruleOptions as ruleOptionsOf } from './parts.js';
 import { mountRolesView } from './roles-view.js';
 import { esc, svg } from '../ui/html.js';
 import { pickerHtml, pickClick } from '../ui/picker.js';
 import { ago } from '../ui/time.js';
+import { initials } from '../ui/initials.js';
 
 const DB_ICON = svg('<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>', { width: 1.6 });
 const copyText = async (text, input, toast) => {

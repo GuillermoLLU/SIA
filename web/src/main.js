@@ -2,6 +2,7 @@
 // vistas. Cada funcionalidad vive en su carpeta (chat/, lock/, skills/, settings/,
 // lab/, links/, issues/, backlog/, users/, projects/, work/, metrics/).
 import './style.css';
+import './ui/loader.css';
 import logoUrl from './logo.png';
 import { createApi } from './ui/api.js';
 import { createDialogs } from './ui/dialog.js';
@@ -16,12 +17,13 @@ import { startIntro, reveal, revealDesk } from './app/intro.js';
 import { createAuthSession } from './auth/session.js';
 import { ensureLogin } from './auth/login-view.js';
 import { wireLogout } from './auth/logout-button.js';
-import { paintCachedTheme, createThemeController } from './theme/apply.js';
+import { paintCachedTheme, mountTheme } from './theme/apply.js';
 import { createLockGate } from './lock/gate.js';
 import { mountLockControls } from './lock/controls.js';
 import { mountChatView } from './chat/chat-view.js';
 import { mountPalette } from './skills/palette-view.js';
 import { mountSettings } from './settings/settings-view.js';
+import { mountProviders } from './settings/providers-view.js';
 import { mountLabView } from './lab/lab-view.js';
 import { mountLinksDirectory } from './links/links-directory.js';
 import { mountProjectsPanel } from './projects/projects-panel.js';
@@ -79,21 +81,22 @@ const dialogs = createDialogs($('dialog-overlay'));
 const toast = createToast($('toast'));
 let chat = null;
 let palette = null;
-const theme = createThemeController({
-  toggleEl: $('theme-toggle'),
-  onTerm: (term) => chat?.setTermTheme(term),
-});
+mountTheme({ toggleEl: $('theme-toggle') });
+// Copilot sin sesión iniciada (la tarjeta del chat): a Configuración → Proveedores IA
+const openProviders = () => settings.open('proveedores');
 chat = mountChatView({
-  api, apiBase, wsUrl, dialogs, theme: theme.current, me: user.name,
-  mac: /Mac/i.test(navigator.platform || navigator.userAgent || ''),
+  api, apiBase, wsUrl, dialogs, me: user.name,
   gate: gate.open, onSkills: (list) => palette.setSkills(list),
   // la portada solo marca el arranque si es lo primero que se ve
   onFirstScreen: (first) => { if (firstView(user) === 'chat') reveal(first); },
+  onLogin: openProviders,
+  onPalette: () => palette.toggle(),
 });
 palette = mountPalette({ chat });
 
 /* ── Configuración ─────────────────────────────────────────────── */
 const settings = mountSettings({ api });
+mountProviders({ api, settings, toast, dialogs }); // la cuenta de Copilot
 wireLogout($('settings-session'), { session });
 const linksDirectory = mountLinksDirectory({ api, dialogs, settings });
 
@@ -142,7 +145,7 @@ settings.onPane((name) => { if (name === 'priorizacion') { settings.setFull(true
 const PANELS = [
   { name: 'issues', mount: (el) => mountIssuesView(el, {
     api: createIssuesApi(api), me: user, toast, dialogs,
-    openChat: (host, issue) => mountIssueChat(host, { issue, wsUrl, loadProjects: chat.loadProjects, makeTerminal: chat.makeTerminal }),
+    openChat: (host, issue) => mountIssueChat(host, { issue, wsUrl, loadProjects: chat.loadProjects, api, dialogs, fileUrl: chat.fileUrl, onLogin: openProviders }),
   }) },
   { name: 'backlog', mount: (el) => mountBacklogView(el, { api: createBacklogApi(api), toast }) },
   // Métricas: Equipo soporte es una de sus pestañas, con su propio periodo y sus filtros
@@ -163,7 +166,7 @@ const views = createViews({
   views: { chat: $('view-chat'), lab: $('view-lab'), none: $('view-none'), ...Object.fromEntries(PANELS.map((p) => [p.name, p.view])) },
   dock, topbar,
   panels: Object.fromEntries(PANELS.map((p) => [p.name, p.ui])),
-  onShow: { chat: () => { chat.refitActive(); chat.focusActive(); } },
+  onShow: { chat: () => chat.focusActive() },
 });
 $('nav-chat').addEventListener('click', () => views.go('chat'));
 for (const btn of Object.values(dock)) btn.hidden = true;
