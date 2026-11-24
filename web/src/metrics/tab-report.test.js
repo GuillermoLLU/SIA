@@ -26,7 +26,7 @@ test('«Exportar PDF» de una pestaña: la cabecera, con lo que se mira, lo que 
   assert.match(one, /<dt>Filtros<\/dt><dd>Ninguno<\/dd>/);
   assert.match(one, /<dt>Generado<\/dt><dd>20\/11\/2026 09:05<\/dd>/);
   const two = tabReportHead({ face: 'Equipo', tabs: ['Rendimiento equipos', 'Turnos'], period: 'p', sides: ['ANA', 'LUIS'], compare: 'SISU frente a SGA', filters: ['Prioridad: Alta', 'Búsqueda: <x>'], generatedAt: at });
-  assert.match(two, /<dt>Pestañas<\/dt><dd>Rendimiento equipos, Turnos<\/dd>/);
+  assert.match(two, /<dt>Pestañas<\/dt><dd>1. Rendimiento equipos, 2. Turnos<\/dd>/);
   assert.match(two, /<dt>Comparando<\/dt><dd>ANA frente a LUIS<\/dd>/);
   assert.match(two, /<dt>Comparando<\/dt><dd>SISU frente a SGA<\/dd>/);
   assert.match(two, /<dd>Prioridad: Alta · Búsqueda: &lt;x&gt;<\/dd>/);   // escapado
@@ -39,4 +39,10 @@ test('«Exportar PDF»: todas las pestañas de todas las vistas se pintan para e
     const html = tabs.render(k, m.rows(), { face: f.id });
     assert.ok(html.length > 100 && !/undefined|NaN/.test(html.replace(/data-tip="[^"]*"/g, '')), `${f.id} · ${k}`);
   }
+});
+
+test('la cabecera: con varias pestañas, numeradas en el orden en que salen', () => {
+  const at = new Date(2026, 10, 20, 9, 0);
+  assert.match(tabReportHead({ face: 'Servicio', tabs: ['Módulos y focos', 'Backlog', 'Resumen'], period: 'p', generatedAt: at }), /<dt>Pestañas<\/dt><dd>1\. Módulos y focos, 2\. Backlog, 3\. Resumen<\/dd>/);
+  assert.match(tabReportHead({ face: 'Servicio', tabs: ['Resumen'], period: 'p', generatedAt: at }), /<dt>Pestaña<\/dt><dd>Resumen<\/dd>/);
 });

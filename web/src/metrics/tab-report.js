@@ -25,7 +25,8 @@ export const tabReportTitle = ({ tabs, versus = null, subject = '' }) => {
 export const tabReportHead = ({ title, face, tabs, period, sides = [], compare = '', filters = [], coverage = '', generatedAt = new Date() }) => {
   const rows = [
     ['Vista', face],
-    [tabs.length > 1 ? 'Pestañas' : 'Pestaña', tabs.join(', ')],
+    // con varias, numeradas en el orden en que salen («1. Resumen, 2. Backlog»)
+    [tabs.length > 1 ? 'Pestañas' : 'Pestaña', tabs.length > 1 ? tabs.map((t, i) => `${i + 1}. ${t}`).join(', ') : tabs.join('')],
     ['Periodo', period],
     [sides.length > 1 ? 'Comparando' : 'Se mira', sides.join(' frente a ')],
     ...(compare ? [['Comparando', compare]] : []),

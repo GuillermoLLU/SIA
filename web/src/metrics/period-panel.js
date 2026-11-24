@@ -9,7 +9,8 @@ import { periodPanel, pickMonth, wholeMonth, pickDay, shiftYear, sideDay } from 
 // frente al periodo de ahora).
 export const mountPeriodPanel = (el, { model, onPick, head = null, onPreset = () => {}, onMonth = () => false }) => {
   let shown = { from: 0, to: 0 };   // el mes que enseña cada lado
-  const paint = () => { el.innerHTML = (head ? `<div class="mt-cal-presets">${head()}</div>` : '') + periodPanel(model(), shown); };
+  // las fechas rápidas, en la fila de «Periodo» (period.js, periodPanel), para no ocupar una fila más
+  const paint = () => { el.innerHTML = periodPanel(model(), shown, head ? head() : ''); };
   // cada lado enseña el mes de su extremo
   const follow = () => { const m = model(); shown = { from: m.monthAt(sideDay(m, 'from')), to: m.monthAt(sideDay(m, 'to')) }; };
   const open = () => { follow(); paint(); };

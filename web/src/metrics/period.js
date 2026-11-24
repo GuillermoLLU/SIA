@@ -44,24 +44,23 @@ export const PRESETS = [
   ['fy', 'Año fiscal', (m) => [m.START_D, m.END_D]],
   ['all', 'Todo', (m) => [m.MIN_D, m.END_D]],
 ];
+// Las que se ofrecen como fechas rápidas (quick-bar.js, presetPick): sin «Este mes» ni «Mes pasado», que se eligen en el
+// calendario (doble clic en un mes) y siguen en PRESETS para comparar periodos (cmpOptions).
+export const QUICK_PRESETS = PRESETS.filter(([k]) => k !== 'month' && k !== 'prev');
 export const presetRange = (m, key) => PRESETS.find(([k]) => k === key)?.[2](m) || null;
 // la fecha rápida que coincide con el periodo de ahora (la primera, si coinciden varias), o null
 export const presetOf = (m) => {
   const clamp = ([a, b]) => [Math.max(m.MIN_D, a), Math.min(m.END_D, b)];
   return PRESETS.find(([, , f]) => { const [a, b] = clamp(f(m)); return a === m.S.d0 && b === m.S.d1; })?.[0] ?? null;
 };
-// El periodo anterior, para comparar uno con otro (sin pasar de lo cargado). Si el periodo empieza un día 1, los mismos
-// meses de antes y los mismos días (del 1 al 8 de noviembre → del 1 al 8 de octubre; octubre entero → septiembre
-// entero; de agosto a octubre → de mayo a julio); si no, los mismos días justo antes. [d0, d1), o null si no hay datos.
+// El periodo anterior, para comparar uno con otro (sin pasar de lo cargado): los mismos días justo antes (del 1 de
+// septiembre al 10 de noviembre, 71 días → del 22 de junio al 31 de agosto). Si son meses enteros, los mismos meses de
+// antes (octubre entero → septiembre entero; de agosto a octubre → de mayo a julio), que por días se desplazarían uno
+// (los meses no duran lo mismo). [d0, d1), o null si no hay datos.
 export const prevRange = (m) => {
-  const { d0, d1 } = m.S, k0 = m.monthAt(d0);
-  let a, b;
-  if (m.minuteOf(k0) === d0) {
-    const k1 = m.monthAt(d1 - 1), s = k1 - k0 + 1;
-    a = m.minuteOf(k0 - s);
-    b = d1 === m.minuteOf(k1 + 1) ? m.minuteOf(k0) : Math.min(m.minuteOf(k1 - s) + (d1 - m.minuteOf(k1)), m.minuteOf(k1 - s + 1));
-  } else { a = d0 - (d1 - d0); b = d0; }
-  a = Math.max(a, m.MIN_D);
+  const { d0, d1 } = m.S, k0 = m.monthAt(d0), k1 = m.monthAt(d1 - 1);
+  const whole = m.minuteOf(k0) === d0 && d1 === m.minuteOf(k1 + 1);
+  const a = Math.max(whole ? m.minuteOf(k0 - (k1 - k0 + 1)) : d0 - (d1 - d0), m.MIN_D), b = d0;
   return a < b ? [a, b] : null;
 };
 // «01/10/2026 – 08/10/2026» de un rango [d0, d1)
@@ -141,7 +140,8 @@ export const sideHtml = (m, side, k) => {
 
 // El panel: cabecera con el periodo y los dos lados (cada elección se aplica al momento). shown: el mes que enseña
 // cada lado ({ from, to }).
-export const periodPanel = (m, shown) => `<div class="mt-cal-head">
-    <span class="mt-pp-title">Periodo</span><b>${periodSummary(m)}</b>
+// extra: lo que va a la derecha de «Periodo», en su misma fila (las fechas rápidas de Métricas)
+export const periodPanel = (m, shown, extra = '') => `<div class="mt-cal-head">
+    <span class="mt-pp-title">Periodo</span><b>${periodSummary(m)}</b>${extra ? `<div class="mt-cal-presets">${extra}</div>` : ''}
   </div>
   <div class="mt-pp">${sideHtml(m, 'from', shown.from)}${sideHtml(m, 'to', shown.to)}</div>`;

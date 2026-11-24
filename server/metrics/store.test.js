@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { createMetricsStore } from './store.js';
+import { copyName } from './publish.js';
 import { createRepository } from './repository.js';
 import { REQUIRED, FORMAT } from './dataset.js';
 import { FIRST_LOAD } from './query.js';
@@ -49,7 +50,7 @@ test('la primera actualización, con el repositorio vacío: todo desde FIRST_LOA
     snapshot: undefined, first: undefined, last: undefined, generated: '2026-10-14T08:00:00.000Z', jira: { at: null, tickets: 0, message: '' } });
   assert.deepEqual(counts, { inserted: 1, updated: 0, unchanged: 0, kept: 0 });
   assert.deepEqual((await open(dir).store.load()).cols.id, [7]);
-  assert.deepEqual(fs.readdirSync(dir).filter((f) => !/-(wal|shm)$/.test(f)).sort(), ['datos.json', 'incidencias.sqlite']);   // sin los -wal y -shm de SQLite
+  assert.deepEqual(fs.readdirSync(dir).filter((f) => !/-(wal|shm)$/.test(f)).sort(), [copyName(), 'incidencias.sqlite']);   // sin los -wal y -shm de SQLite
   clean(dir);
 });
 
@@ -188,14 +189,17 @@ test('unos datos que no son los de la consulta: 400 y no entra nada', async () =
   clean(dir);
 });
 
-test('datos.json es una copia: si falta, se recalcula desde el repositorio', async () => {
-  const dir = tmp();
+test('la copia es una copia: si falta o es de otro formato, se recalcula desde el repositorio y se guarda', async () => {
+  const dir = tmp(), copy = path.join(dir, copyName());
   await open(dir, fakeSource([ISSUE])).store.update();
-  fs.rmSync(path.join(dir, 'datos.json'));
+  fs.rmSync(copy);
   const data = await open(dir).store.load();
   assert.deepEqual([data.cols.id, data.meta.format], [[7], FORMAT]);
-  fs.writeFileSync(path.join(dir, 'datos.json'), JSON.stringify({ meta: { format: 1 }, cols: {} }));
+  // lo recalculado se guarda: el siguiente arranque ya no recalcula
+  assert.equal(JSON.parse(fs.readFileSync(copy, 'utf8')).meta.format, FORMAT);
+  fs.writeFileSync(copy, JSON.stringify({ meta: { format: 1 }, cols: {} }));
   assert.deepEqual((await open(dir).store.load()).cols.id, [7]);
+  assert.equal(JSON.parse(fs.readFileSync(copy, 'utf8')).meta.format, FORMAT);
   clean(dir);
 });
 
@@ -347,6 +351,6 @@ test('borrar el histórico: la base y su copia quedan vacías; Snowflake no se t
   assert.equal(repo.count(), 0);
   assert.equal(repo.jiraTickets().size, 0);
   assert.equal(await store.load(), null);
-  assert.equal(fs.existsSync(path.join(dir, 'datos.json')), false);
+  assert.equal(fs.existsSync(path.join(dir, copyName())), false);
   clean(dir);
 });

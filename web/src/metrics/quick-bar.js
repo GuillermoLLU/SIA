@@ -9,7 +9,7 @@
 // m: el modelo (model.js); ui: el estado de la vista.
 import { esc } from '../ui/html.js';
 import { COMPANIES } from './model.js';
-import { PRESETS, presetOf, cmpName } from './period.js';
+import { QUICK_PRESETS, presetOf, cmpName } from './period.js';
 
 const CTRL = 'Ctrl+clic: compararla con la elegida.';
 const seg = (label, items) => `<div class="mt-seg mt-seg-sm" role="group" aria-label="${label}">${items.map(([attr, l, cls, on, tip]) => `<button class="mt-seg-b ${cls}" ${attr} aria-pressed="${on}"${tip ? ` data-tip="${esc(tip)}"` : ''}>${l}</button>`).join('')}</div>`;
@@ -32,7 +32,7 @@ export const companyPick = (m) => {
 // las fechas rápidas: la de ahora, marcada; la comparada (Ctrl+clic), marcada con el color del otro lado
 export const presetPick = (m, ui) => {
   const now = presetOf(m), vs = compareMode(m, ui) === 'periods' && ui.resCmp.a === 'cur' && ui.resCmp.b.startsWith('p:') ? ui.resCmp.b.slice(2) : null;
-  return seg('Fechas rápidas', PRESETS.map(([k, l]) => [`data-preset="${k}"`, l, now === k ? 'mt-on' : vs === k ? 'mt-on mt-qb' : '', now === k || vs === k,
+  return seg('Fechas rápidas', QUICK_PRESETS.map(([k, l]) => [`data-preset="${k}"`, l, now === k ? 'mt-on' : vs === k ? 'mt-on mt-qb' : '', now === k || vs === k,
     vs === k ? 'Comparada con el periodo de arriba (en el Resumen). Ctrl+clic: dejar de comparar.' : now === k ? '' : `Clic: este periodo. ${CTRL.replace('la elegida', 'el periodo de ahora (en el Resumen)')}`]));
 };
 

@@ -149,7 +149,7 @@ const PANELS = [
   }) },
   { name: 'backlog', mount: (el) => mountBacklogView(el, { api: createBacklogApi(api), toast }) },
   // Métricas: Equipo soporte es una de sus pestañas, con su propio periodo y sus filtros
-  { name: 'metrics', mount: (el) => mountMetricsView(el, { api: createMetricsApi(api), toast, team: {
+  { name: 'metrics', mount: (el) => mountMetricsView(el, { api: createMetricsApi(api), toast, setTitle: (t) => topbar.setTitle(t), team: {
     id: 'equipo', label: 'Equipo soporte',
     mount: (host) => mountWorkView(host, { api: createMetricsApi(api), toast }),
   } }) },

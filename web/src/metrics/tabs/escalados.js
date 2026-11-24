@@ -113,7 +113,7 @@ export const escaladosTab = (t) => {
   // inReport: para el informe Escalados (report.js): sin la pregunta, el selector Activas / Histórico ni la comparativa de
   // proyectos (se elige pinchando); la tabla de lo escalado, con sus tres desgloses uno tras otro
   const view = (A, note = '', inReport = false) => {
-    const now = !!ui.escNow;
+    const now = !ui.periodOnly && !!ui.escNow;   // en Servicio (ui.periodOnly), solo lo del periodo, sin selector
     const keep = now ? (i) => OPEN[i] && escd(i) : (i) => solved(i) && escd(i);
     const pool = (skip) => (now ? m.today(false, skip) : skip ? m.rows(skip) : A);
     const cmp = jiraComparison(m, pool('vp').filter((i) => keep(i) && !noK(m.C.vp[i])), ui.jiraPick);
@@ -156,7 +156,7 @@ export const escaladosTab = (t) => {
         n: now ? ['Activas', `Escaladas activas y su parte del total escalado${of}.`] : ['Resueltas', `Escaladas resueltas y su parte del total escalado${of}.`] }),
       { span: 's12', sub: `Lo escalado y ${what}, ${what1}${inReport ? '' : ' Clic en una fila para filtrar.'}` });
     const top = inReport ? [note, bySit, timesKpis(list, A, base, now, noJira), byNoJira, ...BY.map((b) => table(b))]
-      : [ask('escalados', false), modes(now), note, bySit, timesKpis(list, A, base, now, noJira), byNoJira, jiraCompare(cmp, now), table(by, byPick)];
+      : [ask('escalados', false), ui.periodOnly ? '' : modes(now), note, bySit, timesKpis(list, A, base, now, noJira), byNoJira, jiraCompare(cmp, now), table(by, byPick)];
     // Malos escalados, en la pestaña: a la izquierda, cada cambio de equipo (original → final) y cuántas, que filtra toda la
     // página al pincharlo (los que no cambiaron de equipo: descartados en Jira o aún sin dato, juntos); a la derecha, sus
     // incidencias (id y resumen), en una lista con scroll

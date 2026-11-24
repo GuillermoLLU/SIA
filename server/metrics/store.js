@@ -1,8 +1,8 @@
 // Los datos de las Métricas de este ordenador. Cada actualización pide a
 // Snowflake las incidencias nuevas o cambiadas desde la última (query.js), las
 // suma al repositorio local de incidencias (repository.js, SQLite) y de él se
-// calculan las métricas (publish.js); el cálculo se guarda en <dir>/datos.json para
-// abrir la vista al instante. Nada de esto sale de aquí ni va a la base. Antes de calcular,
+// calculan las métricas (publish.js); el cálculo se guarda en <dir>/datos-f<formato>.json
+// para abrir la vista al instante. Nada de esto sale de aquí ni va a la base. Antes de calcular,
 // se piden a Jira los tickets escalados que aún no se tienen o seguían sin resolver
 // (jira.js), para los tiempos de escalado; si Jira no responde o no está configurado,
 // el informe sale igual con lo que ya había y meta.jira dice por qué.
@@ -16,7 +16,7 @@ const secs = (from, to) => `${((to - from) / 1000).toFixed(1).replace('.', ',')}
 const num = (n) => n.toLocaleString('es-ES');
 
 // source: { rows(sql, binds, { onConnect, onTotal }) } (snowflake.js), las filas de la consulta una a una. jira:
-// { tickets(keys, { onBatch }) } (jira.js); sin él, no se pide nada a Jira. fs: el sistema de ficheros (datos.json),
+// { tickets(keys, { onBatch }) } (jira.js); sin él, no se pide nada a Jira. fs: el sistema de ficheros (la copia),
 // now: el reloj, log: dónde se apunta cuánto tardó cada fase (el registro del bridge).
 export const createMetricsStore = (dir, { repo, source, jira = null, fs, now = () => new Date(), log = () => {} }) => {
   const publisher = createPublisher({ repo, dir, fs, now });
@@ -64,12 +64,14 @@ export const createMetricsStore = (dir, { repo, source, jira = null, fs, now = (
     return data;
   };
 
-  // datos.json es una copia: si falta o es de otro formato, se recalcula desde el repositorio.
+  // La copia es eso, una copia: si falta o es de otro formato, se recalcula desde el repositorio y se guarda, para que
+  // solo tarde la primera vez (y no en cada arranque). Si no se puede guardar, se sigue con lo calculado.
   const load = async () => {
     if (cache === undefined) {
       cache = publisher.read();
       if (!cache) {
         try { cache = await publisher.compute('repositorio local'); } catch { cache = null; }
+        if (cache) try { publisher.save(cache); } catch { /* sin disco: la próxima vez se vuelve a calcular */ }
       }
     }
     return cache;

@@ -106,6 +106,6 @@ escribirla en Remedy desde el Backlog cuando haya acceso).
 
 - Configuración personal (Jira, GitHub, tema, sesión guardada, PIN del
   candado): `~/.sia/config.json`, solo en esa máquina.
-- Los datos de Métricas (`datos.json`) y la foto de Issues (`foto.json`): cada
+- Los datos de Métricas (`datos-f<formato>.json`) y la foto de Issues (`foto.json`): cada
   uno se carga desde su vista con el CSV de la consulta de Remedy (puede ser
   el mismo fichero); en el workspace de esa máquina, no salen de ella.

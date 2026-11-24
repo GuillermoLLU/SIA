@@ -4,7 +4,7 @@ import { createModel } from './model.js';
 import { createCharts } from './charts.js';
 import { createTabs } from './tabs.js';
 import { data } from './fixture.js';
-import { PRESETS, presetRange, presetOf, prevRange, rangeLabel, periodLabel, cmpOptions, cmpRange } from './period.js';
+import { PRESETS, QUICK_PRESETS, presetRange, presetOf, prevRange, rangeLabel, periodLabel, cmpOptions, cmpRange } from './period.js';
 import { companyPick, presetPick, comparePop, pickCompany, pickPreset } from './quick-bar.js';
 
 // dos años cargados, con la foto el 11 de marzo de 2026 (como twoYears de period.test.js)
@@ -37,10 +37,12 @@ test('las fechas rápidas: esta semana, este mes, el pasado, los últimos 3 mese
   assert.equal(presetOf(m), null);
 });
 
-test('el periodo anterior: los mismos días del mes de antes, los meses enteros de antes o los días justo antes', () => {
+test('el periodo anterior: los mismos días justo antes; con meses enteros, los meses enteros de antes', () => {
   const m = twoYears();
-  m.setPeriod(...presetRange(m, 'month'));   // del 1 al 11 de marzo
-  assert.equal(rangeLabel(m, prevRange(m)), '01/02/2026 – 11/02/2026');
+  m.setPeriod(...presetRange(m, 'month'));   // del 1 al 11 de marzo (hasta la última carga): los 11 días de antes
+  assert.equal(rangeLabel(m, prevRange(m)), '18/02/2026 – 28/02/2026');
+  m.setPeriod(m.minuteOf(12, 1), m.minuteOf(14, 11));   // del 1 de enero al 10 de marzo, 69 días: los 69 de antes
+  assert.equal(rangeLabel(m, prevRange(m)), '24/10/2025 – 31/12/2025');
   m.setPeriod(...presetRange(m, 'prev'));    // febrero entero
   assert.equal(rangeLabel(m, prevRange(m)), '01/01/2026 – 31/01/2026');
   m.setPeriod(m.minuteOf(12), m.minuteOf(14));   // enero y febrero
@@ -71,8 +73,10 @@ test('Resumen: fechas rápidas y «Comparar», en modo comparar: sin comparar, u
   // pestaña, ya no
   const bar = () => companyPick(m) + presetPick(m, ui) + comparePop(m, ui);
   assert.doesNotMatch(html, /data-preset|data-res-pop/);
-  for (const [k] of PRESETS) assert.match(bar(), new RegExp(`data-preset="${k}"`));
-  assert.match(bar(), /data-preset="month" aria-pressed="true"/);   // de partida, este mes
+  // las fechas rápidas que se ofrecen: sin «Este mes» ni «Mes pasado» (se eligen en el calendario)
+  for (const [k] of QUICK_PRESETS) assert.match(bar(), new RegExp(`data-preset="${k}"`));
+  assert.deepEqual(QUICK_PRESETS.map(([k]) => k), ['week', '3m', 'fy', 'all']);
+  assert.doesNotMatch(bar(), /data-preset="(month|prev)"/);
   // «Comparar», sin comparar: el botón solo, sin × ni ventana; su tooltip dice cómo se compara
   assert.match(comparePop(m, ui), /^<div class="mt-res-cmp"><button class="mt-btn " data-res-pop aria-pressed="false" data-tip="Compara lo que tienes marcado con lo siguiente que elijas: otra fecha rápida o un mes del calendario, o la otra empresa\.[^"]*">Comparar<\/button><\/div>$/);
   assert.doesNotMatch(bar(), /data-res-clear|data-res-popup|<select|data-res-apply/);
@@ -122,7 +126,7 @@ test('Resumen: fechas rápidas y «Comparar», en modo comparar: sin comparar, u
   // el actual frente al anterior: el actual, lo de arriba (de partida, este mes: del 1 al 11 de marzo, frente a los mismos
   // días de febrero)
   ui.resCmp = { a: 'cur', b: 'prev' };
-  assert.match(report(), /frente a Periodo anterior \(01\/02\/2026 – 11\/02\/2026\)/);
+  assert.match(report(), /frente a Periodo anterior \(18\/02\/2026 – 28\/02\/2026\)/);   // los 11 días justo antes
   // el mismo periodo frente a T-Systems (el otro lado): manda sobre la de periodos
   m.S.sides[1] = { company: 1 }; m.refilter();
   html = tabs.render('resumen', m.rows());
@@ -141,7 +145,7 @@ test('la barra de arriba: Indra | T-Systems y las fechas rápidas; Ctrl+clic en 
   // de partida: Indra y este mes, marcados
   assert.deepEqual(btn(companyPick(m), 'data-qco="0"'), ['mt-on', 'true']);
   assert.deepEqual(btn(companyPick(m), 'data-qco="1"'), ['', 'false']);
-  assert.deepEqual(btn(presetPick(m, ui), 'data-preset="month"'), ['mt-on', 'true']);
+  assert.doesNotMatch(presetPick(m, ui), /data-preset="month"/);   // este mes ya no es una fecha rápida
   // Ctrl+clic en T-Systems: Indra frente a T-Systems (T-Systems, con el color del otro lado); otra vez, deja de comparar
   assert.equal(pickCompany(m, ui, 1, true, ops), true);
   assert.deepEqual(m.S.sides, [{ company: 0 }, { company: 1 }]);
@@ -160,8 +164,7 @@ test('la barra de arriba: Indra | T-Systems y las fechas rápidas; Ctrl+clic en 
   assert.equal(pickPreset(m, ui, 'prev', true, presetRange(m, 'prev'), ops), true);
   assert.deepEqual(ui.resCmp, { a: 'cur', b: 'p:prev' });
   assert.equal(m.S.sides[1], null);
-  assert.deepEqual(btn(presetPick(m, ui), 'data-preset="prev"'), ['mt-on mt-qb', 'true']);
-  assert.deepEqual(btn(presetPick(m, ui), 'data-preset="month"'), ['mt-on', 'true']);
+  assert.doesNotMatch(presetPick(m, ui), /data-preset="(month|prev)"/);   // sin sus botones: la comparación, en «Comparar»
   assert.match(comparePop(m, ui), /Comparar: <b>Periodo actual vs Mes pasado<\/b>/);
   assert.equal(pickPreset(m, ui, 'prev', true, presetRange(m, 'prev'), ops), true);
   assert.equal(ui.resCmp, null);

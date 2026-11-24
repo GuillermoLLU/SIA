@@ -39,7 +39,8 @@ export const modulosTab = (t) => {
   // arriba, Actual o Histórico (la prioridad, en la barra de arriba, para todas las pestañas: tabs/common.js)
   const modes = (now) => `<div class="mt-seg mt-seg-sm" role="group" aria-label="Qué módulos y focos">${[['now', 'Abiertas ahora', 'Lo que sigue abierto, a fecha de la última carga: no depende de las fechas de arriba.'], ['past', 'Del periodo', `Lo recibido en las fechas de arriba: ${periodLabel(m)}.`]]
     .map(([k, l, tip]) => { const a = (k === 'now') === now; return `<button class="mt-seg-b ${a ? 'mt-on' : ''}" data-mod-mode="${k}" aria-pressed="${a}" data-tip="${esc(tip)}">${l}</button>`; }).join('')}</div>`;
-  const picks = () => `<div class="mt-hoy-picks">${modes(!!ui.modNow)}</div>`;
+  // sin selector en Servicio y Equipo (ui.periodOnly: metrics-view.js): solo lo de las fechas de arriba
+  const picks = () => (ui.periodOnly ? '' : `<div class="mt-hoy-picks">${modes(!!ui.modNow)}</div>`);
   // Módulos y focos de un solo lado; note: un aviso arriba; rowsOf: lo que cuenta (sin el filtro de una dimensión)
   const modulesView = (A, note = '', rowsOf = m.rows) => {
     const team = !S.sides[0].people;

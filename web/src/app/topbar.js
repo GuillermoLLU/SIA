@@ -60,6 +60,8 @@ export const mountTopbar = (host, { name, chat, settings, lock, hasChat = true }
     titleEl.classList.add('in');
   };
   return {
+    // title: otro nombre en el centro de la barra, sin cambiar de vista (Métricas: el de la vista que se mira)
+    setTitle: (title) => swapTitle(title),
     // view: la vista que se enseña; title: su nombre, en el centro de la barra; from: en el Chat,
     // { icon, title, go } de la vista de la que se vino (el botón lleva de vuelta allí)
     show: (view, title = '', from = null) => {

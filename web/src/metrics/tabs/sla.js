@@ -216,7 +216,8 @@ export const slaTab = (t) => {
   const modes = (now) => `<div class="mt-seg mt-seg-sm" role="group" aria-label="Qué SLAs">${[['now', 'Abiertas ahora', 'Lo que sigue abierto, a fecha de la última carga: no depende de las fechas de arriba.'], ['past', 'Del periodo', `Lo recibido en las fechas de arriba: ${periodLabel(m)}.`]]
     .map(([k, l, tip]) => { const a = (k === 'now') === now; return `<button class="mt-seg-b ${a ? 'mt-on' : ''}" data-sla-mode="${k}" aria-pressed="${a}" data-tip="${esc(tip)}">${l}</button>`; }).join('')}</div>`;
   return (A) => {
-    const now = !!ui.slaNow, pick = modes(now), view = CMP() ? slaCmp : slaView;
+    // sin selector en Servicio (ui.periodOnly: metrics-view.js): solo lo de las fechas de arriba
+    const now = !ui.periodOnly && !!ui.slaNow, pick = ui.periodOnly ? '' : modes(now), view = CMP() ? slaCmp : slaView;
     return now ? openNow(view, pick) : view(A, pick);
   };
 };
