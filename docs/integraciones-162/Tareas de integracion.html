@@ -1,0 +1,715 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tareas de integración</title>
+<style>
+  :root { --bg: #E3E2DA; --ink: #003F50; --gray: #696A61; --line: #c9c8bf; --card: #fff;
+    --R: #1f6fd1; --J: #2E7D4F; --A: #c0392b; --S: #B8860B; --ok: #2E7D4F; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.4 Arial, sans-serif; }
+  header { padding: 28px 40px 0; }
+  .kick { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--gray); }
+  h1 { font-weight: 400; font-size: 38px; margin: 4px 0 6px; }
+  .sub { font-size: 19px; color: var(--gray); max-width: 1150px; margin: 0; }
+  .sub b { color: var(--ink); }
+  /* leyenda en horizontal */
+  .ley { display: grid; grid-template-columns: 2.6fr 1fr; gap: 12px; margin: 18px 40px 0; }
+  .ley > div { background: #fff; border-top: 5px solid; padding: 10px 14px; }
+  .ley h4 { margin: 0 0 6px; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; }
+  .ley .its { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 14px; }
+  .ley .its span.it { white-space: nowrap; }
+  .regla { margin: 12px 40px 0; background: #fff; border-left: 6px solid var(--ink); padding: 12px 18px; font-size: 17px; }
+  .board { display: grid; grid-template-columns: repeat(5, minmax(220px, 1fr)); gap: 14px; padding: 22px 40px 10px; align-items: start; }
+  .ola { background: #f3f2ec; border-top: 6px solid var(--ink); padding: 12px 12px 14px; position: relative; }
+  .ola h2 { margin: 0; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; }
+  .ola .cuando { font-size: 14px; color: var(--gray); margin: 3px 0 10px; min-height: 38px; }
+  .ola.o0 { border-color: #8a8a80; } .ola.o1 { border-color: var(--A); } .ola.o2 { border-color: var(--R); } .ola.o3 { border-color: var(--line); opacity: .85; }
+  .ola.o2 { grid-column: span 2; display: grid; grid-template-columns: 1fr 1fr; column-gap: 10px; align-content: start; } .ola.o2 > h2, .ola.o2 > .cuando { grid-column: 1 / -1; }
+  .ola:not(:last-child)::after { content: '→'; position: absolute; right: -14px; top: 6px; font-size: 20px; color: var(--gray); }
+  .t { background: #fff; padding: 10px 12px; margin-top: 8px; cursor: pointer; border: 2px solid transparent; }
+  .t:hover { border-color: var(--ink); }
+  .vista { background: #e4ebf3; padding: 8px 10px 10px; margin-top: 10px; border-left: 4px solid var(--ink); }
+  .vista > h3 { margin: 0; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink); }
+  .vista .fila { display: grid; gap: 8px; align-items: stretch; } .vista .fila .t { margin-top: 6px; }
+  .vista.ancha { grid-column: 1 / -1; }
+  .t .n { font: 700 12px Arial; color: var(--gray); }
+  .t .gh { float: right; font: 12px Arial; color: var(--gray); }
+  .t .ti { font-size: 16px; font-weight: 700; margin: 2px 0 6px; }
+  .tag { display: inline-block; color: #fff; font: 700 10.5px Arial; letter-spacing: .06em; padding: 2px 6px; margin-left: 4px; vertical-align: 1px; }
+  .tag.blq { background: var(--A); } .tag.ana { background: var(--S); }
+  .chip { display: inline-block; font: 700 11px Arial; color: #fff; padding: 2px 6px; margin: 0 3px 3px 0; min-width: 26px; text-align: center; }
+  .cR { background: var(--R); } .cJ { background: var(--J); }
+  .none { font-size: 12px; color: var(--gray); }
+  .val { float: right; font-size: 15px; margin-left: 6px; }
+  .val.si { color: var(--ok); } .val.no { color: var(--A); }
+  .pri { font-size: 12px; color: var(--gray); margin-top: 4px; }
+  .pri b { color: var(--A); }
+  /* modal */
+  #modal { position: fixed; inset: 0; background: #0008; display: none; align-items: flex-start; justify-content: center; padding: 40px 16px; overflow-y: auto; z-index: 10; }
+  #modal.on { display: flex; }
+  #det { background: #fff; width: min(1100px, 100%); padding: 22px 26px 20px; border-top: 8px solid var(--ink); position: relative; }
+  #det h3 { margin: 0 0 4px; font-size: 28px; font-weight: 400; padding-right: 40px; }
+  #det .x { position: absolute; right: 14px; top: 12px; border: 0; background: none; font-size: 26px; cursor: pointer; color: var(--gray); }
+  #det .meta { color: var(--gray); font-size: 15px; margin-bottom: 8px; }
+  #det .cols { display: grid; grid-template-columns: 1.3fr 1fr; gap: 26px; }
+  #det .lab { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--gray); margin: 12px 0 4px; }
+  #det p { margin: 0; font-size: 17px; }
+  #det ul { margin: 0; padding-left: 20px; font-size: 16px; }
+  #det .hecho { background: #eef6f0; border-left: 5px solid var(--ok); padding: 8px 12px; margin-top: 4px; }
+  #det .prueba { background: #f3f2ec; border-left: 5px solid var(--ink); padding: 8px 12px; margin-top: 4px; }
+  #det code { background: #f3f2ec; padding: 2px 6px; font-size: 14px; display: inline-block; margin: 2px 4px 2px 0; }
+  #det .btns { margin-top: 16px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  #det .nav { margin-left: auto; display: flex; gap: 8px; }
+  button { font: 15px Arial; border: 1px solid var(--line); background: #fff; color: var(--ink); padding: 7px 14px; cursor: pointer; }
+  button.si.on { background: var(--ok); color: #fff; border-color: var(--ok); }
+  button.no.on { background: var(--A); color: #fff; border-color: var(--A); }
+  textarea { width: 100%; min-height: 60px; font: 15px Arial; border: 1px dashed var(--line); padding: 8px 10px; margin-top: 10px; background: #fcfcfa; }
+  .abajo { display: grid; grid-template-columns: 1fr; gap: 14px; padding: 6px 40px 20px; }
+  .caja { background: #fff; padding: 16px 20px; }
+  .caja h3 { margin: 0 0 8px; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--gray); }
+  .caja ol, .caja ul { margin: 0; padding-left: 20px; font-size: 16px; }
+  .caja li { margin: 5px 0; }
+  .caja small { display: block; color: var(--gray); font-size: 14px; }
+  .filtro { margin: 14px 40px 0; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .filtro button { font-weight: 700; border: 2px solid var(--A); color: var(--A); padding: 9px 18px; }
+  .filtro button.on { background: var(--A); color: #fff; }
+  .filtro span { color: var(--gray); font-size: 15px; }
+  body.integ .t:not(.int) { display: none; }
+  body.integ .ola.vacia { display: none; }
+  body.integ .board { grid-template-columns: repeat(var(--cols, 5), minmax(220px, 1fr)); }
+  .t.int { box-shadow: inset 4px 0 0 var(--A); }
+  #det .ojo { background: #fdecea; border-left: 5px solid var(--A); padding: 8px 12px; margin-top: 4px; }
+  .bar { padding: 0 40px 30px; display: flex; gap: 10px; align-items: center; color: var(--gray); font-size: 14px; }
+  @media (max-width: 1100px) { .board { grid-template-columns: 1fr 1fr; } .ola::after { display: none; } .abajo, #det .cols, .ley { grid-template-columns: 1fr; } }
+  @media (max-width: 640px) { .ola.o2 { grid-column: auto; grid-template-columns: 1fr; } .vista .fila { grid-template-columns: 1fr !important; } header, .board, .abajo, .bar { padding-left: 16px; padding-right: 16px; } .board { grid-template-columns: 1fr; } .regla, .ley { margin-left: 16px; margin-right: 16px; } }
+  a.gh-l { color: inherit; text-decoration: none; border-bottom: 1px dotted var(--gray); }
+  a.gh-l small { color: var(--gray); font-size: .85em; }
+  a.gh-l:hover { color: var(--R); border-bottom-color: var(--R); }
+  a.tk-l { color: inherit; text-decoration: none; border-bottom: 1px dotted var(--gray); cursor: pointer; }
+  a.tk-l:hover { color: var(--R); border-bottom-color: var(--R); }
+  .t .ghs { font-size: 12px; color: var(--gray); margin: -2px 0 6px; line-height: 1.5; }
+</style>
+</head>
+<body>
+<header>
+  <div class="kick">Integraciones · revisado con el equipo el 26/11/2026</div>
+  <h1>Tareas de integración</h1>
+  <p class="sub">Solo lo que SIA lee y escribe en <b>Remedy</b> y en <b>Jira</b>. <b>Pulsar una tarea</b> permite ver qué incluye, dónde se toca, cuándo está hecha y cómo se prueba.</p>
+</header>
+<div class="ley" id="ley"></div>
+<div class="regla"><b>22 tareas de integración</b>: 13 de Remedy, 3 de Jira, 3 de las dos y 3 para prepararlas. Cada tarea describe solo lo que SIA lee o escribe en Remedy y en Jira, en el orden del flujo; la pantalla que la usa se indica en «Lo usa».</div>
+<div class="board" id="board"></div>
+<div class="abajo">
+  <div class="caja"><h3>Fuera</h3><ul>
+    <li><b>Teams / war room:</b> sin integración. Si hace falta, un enlace.</li>
+  </ul></div>
+</div>
+<div id="modal"><div id="det"></div></div>
+<script>
+const P = { R1: 'Leer la cola', R2: 'Leer una incidencia', R3: 'Cambiar responsable o grupo', R4: 'Cambiar estado', R5: 'Escribir una nota', R6: 'Adjuntar', R7: 'Editar campos', R8: 'Crear incidencia', R9: 'Relacionar', R10: 'Leer catálogos', J1: 'Buscar abiertos de un proyecto', J2: 'Leer un Jira', J3: 'Comentar', J4: 'Crear un Jira', R11: 'Buscar incidencias' };
+const OLAS = [
+  { k: 'o0', t: 'Preparar', c: 'Análisis y credencial.' },
+  { k: 'o1', t: 'Conexiones', c: 'Jira, ya. Remedy, cuando haya acceso.' },
+  { k: 'o2', t: 'Cada pantalla, en el orden del flujo', c: 'Agrupadas por vista: lo de Remedy y lo de Jira de una misma vista, juntos. Lo que solo lee, en cuanto haya conexión. Lo que escribe en Remedy, cuando esté la escritura. Comentar y crear en Jira, tras el MVP.' },
+  { k: 'o3', t: 'Después del MVP', c: '' },
+]
+const SIM = 'En el entorno de desarrollo; lo real, con incidencias de prueba en Remedy.';
+// { o: ola, n, t: título, q: qué incluye, p: piezas, f: dónde se toca, d: depende de, pr: prioridad, b: bloquea, a: análisis, gh, h: hecho cuando, pb: cómo se prueba }
+const T = [
+ {
+  "o": 0,
+  "n": "0.5",
+  "t": "Credencial de Remedy en Configuración (como la de Jira)",
+  "x": "Aún no hay acceso a Remedy. Será un servicio REST: usuario y contraseña que devuelven un token, que SIA guarda en local hasta que caduque.",
+  "q": "Jira ya está en Configuración: la URL del servidor del cliente y el token de cada técnico, que es nominal. Para Remedy, lo mismo: su URL y el token de cada técnico cuando se disponga del acceso.",
+  "p": [],
+  "f": [
+   "web/src/settings/credentials.js",
+   "settings-view.js",
+   "server/config/config.js"
+  ],
+  "d": "que se facilite el acceso (externo)",
+  "pr": "Media",
+  "h": [
+   "Remedy se configura igual que Jira: su URL y el token de cada técnico, guardados en su equipo"
+  ],
+  "pb": "En el entorno de desarrollo, en Configuración.",
+  "ep": "Integración con Remedy"
+ },
+ {
+  "o": 0,
+  "n": "0.6",
+  "t": "Mapa de campos y estados de Remedy",
+  "a": true,
+  "b": "Bloquea Remedy: lectura y Remedy: escritura",
+  "x": "Aún no hay acceso a Remedy. Hasta entonces no se puede cerrar.",
+  "q": "Con el acceso a Remedy, con el equipo: qué datos y estados usa cada pieza (R1–R11) y qué permite cambiar (el grupo, el texto de la resolución, la categoría, la descripción, unir incidencias) y buscar (incidencias cerradas, de otros grupos, por el ticket del proveedor).",
+  "p": [],
+  "f": [
+   "La descripción de la épica de Remedy, con los datos y estados de cada pieza (R1–R11). No lleva código."
+  ],
+  "d": "—",
+  "pr": "Crítica",
+  "h": [
+   "Cada pieza R1–R11 tiene sus campos y sus valores",
+   "Validado por el equipo"
+  ],
+  "pb": "Revisión con el equipo.",
+  "ep": "Integración con Remedy"
+ },
+ {
+  "o": 0,
+  "n": "0.7",
+  "t": "Datos de Jira para escalar",
+  "a": true,
+  "b": "Bloquea Jira: escalar",
+  "q": "Qué datos lleva el Jira al crearlo: las etiquetas (calculadas desde la categoría de la incidencia; el sistema afectado y la llamada a N3 los indica el técnico), la prioridad según la criticidad, el proyecto de destino y la versión.",
+  "p": [],
+  "f": [
+   "Un documento con las reglas de etiquetas, prioridad, proyecto y versión, y la tabla maestra adjunta. No lleva código."
+  ],
+  "d": "—",
+  "pr": "Crítica",
+  "h": [
+   "Las reglas de etiquetas, prioridad, proyecto y versión están escritas y validadas por el equipo"
+  ],
+  "pb": "Revisión con el equipo.",
+  "ep": "Integración con Jira"
+ },
+ {
+  "o": 1,
+  "n": "1.1",
+  "t": "Cliente de Jira",
+  "q": "Buscar los Jira abiertos de un proyecto, leer, comentar y crear, con el token de cada técnico (ya en Configuración). Leer, desde el primer día; comentar y crear, preparados pero sin enviar nada hasta entregar el MVP. Comprueba que el token del técnico tiene acceso al proyecto de escalado y permiso para editar. Sustituye al Jira de prueba.",
+  "p": [
+   "J1",
+   "J2",
+   "J3",
+   "J4"
+  ],
+  "f": [
+   "server/shared/jira.js",
+   "server/issues/jira-mock.js → real",
+   "jira-watch.js"
+  ],
+  "d": "—",
+  "pr": "Crítica",
+  "h": [
+   "Buscar y leer funcionan con el token de un técnico",
+   "SIA avisa si el token no tiene acceso al proyecto de escalado o no puede editar",
+   "Comentar y crear no envían nada hasta el MVP",
+   "Si Jira falla, SIA avisa con un mensaje claro"
+  ],
+  "pb": "Contra el Jira real, solo lectura.",
+  "ep": "Integración con Jira"
+ },
+ {
+  "o": 1,
+  "n": "1.2",
+  "t": "Remedy: lectura",
+  "b": "Bloquea Remedy: escritura y las pantallas que solo leen",
+  "x": "Aún no hay acceso a Remedy.",
+  "q": "Leer la cola del grupo y una incidencia entera (campos, notas, historial y adjuntos) en una sola lectura, y buscar incidencias fuera de la cola: abiertas, o resueltas y cerradas, por centro, módulo y sistema, y por ticket del proveedor. Sustituye a la foto del CSV. Si Remedy no responde, SIA avisa. Un cambio hecho en Remedy por fuera de SIA se refleja.",
+  "p": [
+   "R1",
+   "R2",
+   "R11"
+  ],
+  "f": [
+   "server/issues/remedy/ (lectura)",
+   "source.js y snapshot.js (dejan el CSV)"
+  ],
+  "d": "Mapa de campos y estados de Remedy y la credencial (externo)",
+  "pr": "Crítica",
+  "h": [
+   "La cola, las incidencias y las búsquedas salen de Remedy",
+   "Con Remedy caído, SIA avisa"
+  ],
+  "pb": "Contra el Remedy real, solo lectura.",
+  "ep": "Integración con Remedy"
+ },
+ {
+  "o": 1,
+  "n": "1.3",
+  "t": "Remedy: escritura",
+  "b": "Bloquea las pantallas que escriben en Remedy",
+  "x": "Aún no hay acceso a Remedy.",
+  "q": "Escribir en Remedy: responsable o grupo, estado, notas (internas o públicas, con etiqueta), campos, adjuntos, crear y relacionar. Sustituye a los «sent: false».",
+  "p": [
+   "R3",
+   "R4",
+   "R5",
+   "R6",
+   "R7",
+   "R8",
+   "R9",
+   "R10"
+  ],
+  "f": [
+   "server/issues/remedy/ (escritura)"
+  ],
+  "d": "Remedy: lectura",
+  "pr": "Crítica",
+  "h": [
+   "Cada escritura llega a Remedy",
+   "Si Remedy rechaza la escritura, SIA avisa y no deja la incidencia a medias"
+  ],
+  "pb": "Con incidencias de prueba en Remedy.",
+  "ep": "Integración con Remedy"
+ },
+ {
+  "o": 2,
+  "n": "3.1",
+  "t": "Remedy: asignar y devolver",
+  "q": "Escribir en Remedy el responsable y el estado al asignarse una issue (antes, comprobar en Remedy que sigue libre; si no, tomar la siguiente), devolver a la cola, asignar desde el Backlog y reasignar; y la etiqueta PRIO. Lo usa: la Mesa y el Backlog.",
+  "p": [
+   "R3",
+   "R4",
+   "R7"
+  ],
+  "f": [
+   "server/issues/assign.js (nuevo)"
+  ],
+  "d": "Remedy: escritura",
+  "pr": "Alta",
+  "h": [
+   "Responsable, estado y PRIO quedan en Remedy",
+   "Si Remedy rechaza la escritura, SIA avisa y no deja la incidencia a medias"
+  ],
+  "pb": "En el entorno de desarrollo; lo real, con incidencias de prueba en Remedy.",
+  "ep": "Integración con Remedy",
+  "v": "Mesa y Backlog"
+ },
+ {
+  "o": 2,
+  "n": "3.9",
+  "t": "Remedy: corregir módulo y centro",
+  "x": "Por confirmar que el acceso permite cambiar el módulo y el centro.",
+  "q": "Cambiar en Remedy el módulo o el centro de la incidencia y dejar la nota [ISSUE-ACTUALIZADA]. Lo usa: el chat de la issue.",
+  "p": [
+   "R7",
+   "R5"
+  ],
+  "f": [
+   "server/issues/remedy/",
+   "el chat de la issue"
+  ],
+  "d": "Remedy: escritura",
+  "pr": "Media",
+  "h": [
+   "Módulo o centro y nota quedan en Remedy",
+   "Si Remedy rechaza la escritura, SIA avisa y no deja la incidencia a medias"
+  ],
+  "pb": "En el entorno de desarrollo; lo real, con incidencias de prueba en Remedy.",
+  "ep": "Integración con Remedy",
+  "v": "Pantalla de la issue"
+ },
+ {
+  "o": 2,
+  "n": "3.8",
+  "t": "Remedy: relacionar",
+  "x": "Por confirmar que el acceso permite unir incidencias.",
+  "q": "Relacionar en Remedy una incidencia hija con su padre y leer esa relación. Lo usa: la recurrencia y Resolver.",
+  "p": [
+   "R9",
+   "R2"
+  ],
+  "f": [
+   "server/issues/remedy/"
+  ],
+  "d": "Remedy: escritura",
+  "pr": "Baja",
+  "h": [
+   "La relación queda en Remedy"
+  ],
+  "pb": "En el entorno de desarrollo; lo real, con incidencias de prueba en Remedy.",
+  "ep": "Integración con Remedy",
+  "v": "Pantalla de la issue"
+ },
+ {
+  "o": 2,
+  "n": "3.2a",
+  "t": "Remedy: notas",
+  "q": "Escribir notas internas y públicas con su etiqueta, incluidas las de llamada (CALLOK/CALLKO), y pasar a Pendiente de cliente al contactar con el centro. Lo usa: el chat de la issue, Seguimiento, Llamada y Contactar.",
+  "p": [
+   "R5",
+   "R4"
+  ],
+  "f": [
+   "server/issues/notes.js"
+  ],
+  "d": "Remedy: escritura",
+  "pr": "Alta",
+  "h": [
+   "Cada nota llega con su visibilidad y su etiqueta",
+   "Si Remedy rechaza la escritura, SIA avisa y no deja la incidencia a medias"
+  ],
+  "pb": "En el entorno de desarrollo; lo real, con incidencias de prueba en Remedy.",
+  "ep": "Integración con Remedy",
+  "v": "Pantalla de la issue"
+ },
+ {
+  "o": 2,
+  "n": "3.12",
+  "t": "Remedy: notas nuevas",
+  "q": "Leer periódicamente las notas de las incidencias del técnico para saber cuáles son nuevas desde la última lectura. Lo usa: la Mesa y la pantalla de la issue (notas públicas del centro).",
+  "p": [
+   "R2"
+  ],
+  "f": [
+   "server/issues/remedy/ (lectura)"
+  ],
+  "d": "Remedy: lectura",
+  "pr": "Media",
+  "h": [
+   "SIA sabe qué notas son nuevas sin recargar a mano",
+   "Una nota ya leída no vuelve a contar como nueva"
+  ],
+  "pb": "En el entorno de desarrollo; lo real, con incidencias de prueba en Remedy.",
+  "ep": "Integración con Remedy",
+  "v": "Pantalla de la issue"
+ },
+ {
+  "o": 2,
+  "n": "3.6",
+  "t": "Remedy: dividir",
+  "x": "Por confirmar que el acceso permite editar el título y la descripción.",
+  "q": "Editar el título y la descripción de la original, crear la nueva incidencia con sus datos y dejar en la original la nota con su número. Lo usa: Dividir.",
+  "p": [
+   "R7",
+   "R8",
+   "R5"
+  ],
+  "f": [
+   "server/issues/split.js (nuevo)"
+  ],
+  "d": "Remedy: escritura",
+  "pr": "Media",
+  "h": [
+   "La original editada y la nueva creada en Remedy",
+   "Si Remedy rechaza la escritura, SIA avisa y no deja la incidencia a medias"
+  ],
+  "pb": "En el entorno de desarrollo; lo real, con incidencias de prueba en Remedy.",
+  "ep": "Integración con Remedy",
+  "v": "Dividir"
+ },
+ {
+  "o": 2,
+  "n": "3.7",
+  "t": "Remedy: major incident",
+  "q": "Cambiar el estado, dejar la nota de major incident y, si procede, cambiar el responsable. Lo usa: declarar major incident.",
+  "p": [
+   "R4",
+   "R5",
+   "R3"
+  ],
+  "f": [
+   "server/issues/major.js (nuevo)"
+  ],
+  "d": "Remedy: escritura",
+  "pr": "Media",
+  "h": [
+   "Estado, nota y responsable quedan en Remedy",
+   "Si Remedy rechaza la escritura, SIA avisa y no deja la incidencia a medias"
+  ],
+  "pb": "En el entorno de desarrollo; lo real, con incidencias de prueba en Remedy.",
+  "ep": "Integración con Remedy",
+  "v": "Major incident"
+ },
+ {
+  "o": 2,
+  "n": "3.3",
+  "t": "Remedy: resolver",
+  "x": "Por confirmar que el acceso permite escribir el texto de la resolución y la categoría.",
+  "q": "Escribir la resolución: nota, mensaje al centro, categoría de la lista, informe adjunto y estado Resuelta. Lo usa: Resolver.",
+  "p": [
+   "R2",
+   "R5",
+   "R10",
+   "R7",
+   "R6",
+   "R4"
+  ],
+  "f": [
+   "server/issues/resolve.js"
+  ],
+  "d": "Remedy: escritura",
+  "pr": "Alta",
+  "h": [
+   "La resolución completa queda en Remedy",
+   "Si Remedy rechaza la escritura, SIA avisa y no deja la incidencia a medias"
+  ],
+  "pb": "En el entorno de desarrollo; lo real, con incidencias de prueba en Remedy.",
+  "ep": "Integración con Remedy",
+  "v": "Resolver"
+ },
+ {
+  "o": 2,
+  "n": "3.13",
+  "t": "Remedy y Jira: recurrencia en Jira",
+  "q": "Leer los Jira abiertos de un proyecto con su detalle (estado, prioridad, último movimiento, descripción y último comentario), comprobar una clave escrita a mano y buscar en Remedy las incidencias que llevan cada clave en el ticket del proveedor. Solo lee. Lo usa: Escalar.",
+  "p": [
+   "J1",
+   "J2",
+   "R11"
+  ],
+  "f": [
+   "server/issues/escalate.js"
+  ],
+  "d": "Cliente de Jira y Remedy: lectura",
+  "pr": "Alta",
+  "h": [
+   "Se leen los Jira abiertos del proyecto con su detalle",
+   "Cada Jira trae las incidencias de Remedy que esperan a él"
+  ],
+  "pb": "Con un proyecto de Jira real, solo lectura.",
+  "ep": "Integración con Remedy y Integración con Jira",
+  "v": "Escalar"
+ },
+ {
+  "o": 2,
+  "n": "3.14",
+  "t": "Jira: escalar",
+  "q": "Comentar el Jira elegido con lo nuevo de la issue (actualizar escalado) o crear uno nuevo con los datos de la tarea Datos de Jira para escalar. Comentar y crear, tras el MVP. Lo usa: Escalar.",
+  "p": [
+   "J3",
+   "J4"
+  ],
+  "f": [
+   "server/issues/escalate.js"
+  ],
+  "d": "Cliente de Jira y Datos de Jira para escalar",
+  "pr": "Alta",
+  "h": [
+   "El comentario llega al Jira elegido",
+   "El Jira nuevo se crea con sus datos"
+  ],
+  "pb": "Con un proyecto de Jira de pruebas.",
+  "ep": "Integración con Jira",
+  "v": "Escalar"
+ },
+ {
+  "o": 2,
+  "n": "3.4",
+  "t": "Remedy: escalar",
+  "q": "Escribir la clave en el ticket del proveedor, la nota [NUEVO ESCALADO] o [ACTUALIZAR ESCALADO] y los adjuntos, y pasar a Pendiente con el motivo «acción de proveedor externo». Lo usa: Escalar.",
+  "p": [
+   "R7",
+   "R5",
+   "R6",
+   "R4"
+  ],
+  "f": [
+   "server/issues/escalate.js"
+  ],
+  "d": "Remedy: escritura y Jira: escalar",
+  "pr": "Alta",
+  "h": [
+   "Clave, nota y estado quedan en Remedy",
+   "Si Remedy rechaza la escritura, SIA avisa y no deja la incidencia a medias"
+  ],
+  "pb": "En el entorno de desarrollo; lo real, con incidencias de prueba en Remedy.",
+  "ep": "Integración con Remedy",
+  "v": "Escalar"
+ },
+ {
+  "o": 2,
+  "n": "2.1",
+  "t": "Jira: estado de los escalados",
+  "q": "Leer el estado real de los Jira de los escalados del equipo, al refrescar y cada 30 minutos, y detectar cuándo se resuelven. Lo usa: el Seguimiento de la Mesa.",
+  "p": [
+   "J2"
+  ],
+  "f": [
+   "server/issues/escalations.js",
+   "jira-watch.js"
+  ],
+  "d": "Cliente de Jira",
+  "pr": "Alta",
+  "h": [
+   "Cada escalado enseña el estado real de su Jira"
+  ],
+  "pb": "Con los escalados reales del equipo, solo lectura.",
+  "ep": "Integración con Jira",
+  "v": "Seguimiento de los escalados"
+ },
+ {
+  "o": 2,
+  "n": "3.15",
+  "t": "Remedy y Jira: Jira resuelto",
+  "q": "Cuando un Jira se resuelve: leer su comentario de cierre, escribir la nota [DIAGNOSTICO] en Remedy y resolver las incidencias que llevan ese Jira en el ticket del proveedor. Lo usa: el Seguimiento de la Mesa.",
+  "p": [
+   "J2",
+   "R11",
+   "R5",
+   "R4"
+  ],
+  "f": [
+   "server/issues/escalations.js",
+   "jira-watch.js"
+  ],
+  "d": "Jira: estado de los escalados, Remedy: lectura y Remedy: resolver",
+  "pr": "Alta",
+  "h": [
+   "La nota con el comentario de cierre queda en Remedy",
+   "Las incidencias de ese Jira quedan resueltas",
+   "Si Remedy rechaza la escritura, SIA avisa y no deja la incidencia a medias"
+  ],
+  "pb": "En el entorno de desarrollo; lo real, con incidencias de prueba en Remedy.",
+  "ep": "Integración con Remedy y Integración con Jira",
+  "v": "Seguimiento de los escalados"
+ },
+ {
+  "o": 2,
+  "n": "3.2b",
+  "t": "Remedy y Jira: llamada de un centro",
+  "q": "Al atender una llamada: nota en Remedy; reclamar (nota en Remedy y comentario en el Jira); subir la criticidad en Remedy; pasar a En curso. Lo usa: la llamada de un centro (reclamar y subir la criticidad).",
+  "p": [
+   "R5",
+   "R4",
+   "R7",
+   "J3"
+  ],
+  "f": [
+   "server/issues/incoming.js (nuevo)"
+  ],
+  "d": "Remedy: escritura y Remedy: notas (el comentario en el Jira, tras el MVP)",
+  "pr": "Alta",
+  "h": [
+   "Nota, criticidad y estado quedan en Remedy",
+   "El comentario llega al Jira"
+  ],
+  "pb": "En el entorno de desarrollo; lo real, con incidencias de prueba en Remedy.",
+  "ep": "Integración con Remedy y Integración con Jira",
+  "v": "Llamada de un centro"
+ },
+ {
+  "o": 2,
+  "n": "3.5",
+  "t": "Remedy: traspasar",
+  "x": "",
+  "q": "Cambiar el responsable o el grupo con su nota, y leer el catálogo de grupos de soporte. Lo usa: Traspasar.",
+  "p": [
+   "R3",
+   "R5",
+   "R10"
+  ],
+  "f": [
+   "server/issues/transfer.js (nuevo)"
+  ],
+  "d": "Remedy: escritura",
+  "pr": "Media",
+  "h": [
+   "Responsable o grupo y nota quedan en Remedy",
+   "Sin permiso para cambiar el grupo, SIA muestra el error de Remedy y propone traspasarla al responsable",
+   "Si Remedy rechaza la escritura, SIA avisa y no deja la incidencia a medias"
+  ],
+  "pb": "En el entorno de desarrollo; lo real, con incidencias de prueba en Remedy.",
+  "ep": "Integración con Remedy",
+  "v": "Traspasar"
+ },
+ {
+  "o": 3,
+  "n": "4.1",
+  "t": "Remedy: escalar a otro equipo",
+  "q": "Crear un ticket de Remedy para otro equipo y relacionarlo con la incidencia. Después del MVP.",
+  "p": [
+   "R8",
+   "R9"
+  ],
+  "f": [
+   "server/issues/escalate.js"
+  ],
+  "d": "Remedy: escalar",
+  "pr": "—",
+  "h": [
+   "El ticket queda creado y relacionado en Remedy"
+  ],
+  "pb": "En el entorno de desarrollo; lo real, con incidencias de prueba en Remedy.",
+  "ep": "Integración con Remedy"
+ }
+];
+const esInt = (t) => t.p.length > 0 || t.a || t.n === '0.5';
+// Las issues de GitHub y las tareas, con su nombre: nadie tiene que recordar números.
+// Al pasar el ratón, un resumen; al pulsar, se abre (la issue en GitHub, la tarea en su detalle).
+const TN = Object.fromEntries(T.map((t) => [t.n, t.t]));
+// full: en el detalle, «0.6 · Mapa de campos…»; en la tarjeta, solo el número con su nombre al pasar el ratón
+// Los nombres de otras tareas se pueden pulsar para abrir su detalle
+const TIT = T.map((t) => [t.t, t.n]).sort((x, y) => y[0].length - x[0].length);
+const esc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const RX = new RegExp(TIT.map(([x]) => esc(x)).join('|'), 'g');
+const link = (s) => String(s).replace(RX, (m) => `<a class="tk-l" data-ir-t="${TIT.find(([x]) => x === m)[1]}" title="Pulsa para ver el detalle">${m}</a>`);
+const KEY = 'tareas-integracion';
+let S = {}; try { S = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch {}
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} };
+const chip = (p) => `<span class="chip c${p[0]}" title="${P[p]}">${p}</span>`;
+let sel = null;
+document.getElementById('ley').innerHTML = [['R', 'Remedy'], ['J', 'Jira']].map(([k, t]) => `<div style="border-color:var(--${k})"><h4 style="color:var(--${k})">${t.split(' · ')[0]}</h4><div class="its">${Object.keys(P).filter((p) => p[0] === k).map((p) => `<span class="it">${chip(p)}${P[p]}</span>`).join('')}</div></div>`).join('');
+const card = (t) => {
+  const v = S['v' + t.n];
+  const dep = t.d.startsWith('—') ? '' : '· depende de ' + link(t.d);
+  return `<div class="t${esInt(t) ? ' int' : ''}" data-t="${t.n}">${v ? `<span class="val ${v}">${v === 'si' ? '✓' : '✗'}</span>` : ''}<div class="n">${t.b ? '<span class="tag blq">BLOQUEA</span>' : ''}${t.a ? '<span class="tag ana">ANÁLISIS</span>' : ''}</div><div class="ti">${t.t}</div><div class="ghs">Épica: ${t.ep}</div>${t.p.length ? t.p.map(chip).join('') : `<span class="none">${esInt(t) ? 'prepara la integración' : 'sin integración'}</span>`}<div class="pri">${t.pr === 'Crítica' ? '<b>Crítica</b>' : t.pr === '—' ? '' : 'Prioridad ' + t.pr.toLowerCase()} ${dep}</div></div>`;
+};
+// En la columna de pantallas, las tareas de una misma vista van juntas, en una fila y con el mismo fondo
+const vistas = (ts) => [...new Set(ts.map((t) => t.v))].map((v) => {
+  const g = ts.filter((t) => t.v === v), cols = g.length === 1 ? 1 : g.length === 3 ? 3 : 2;
+  return `<div class="vista${g.length > 1 ? ' ancha' : ''}"><h3>${v}</h3><div class="fila" style="grid-template-columns:repeat(${cols}, 1fr)">${g.map(card).join('')}</div></div>`;
+}).join('');
+const board = () => {
+  document.getElementById('board').innerHTML = OLAS.map((o, i) => {
+    const ts = T.filter((t) => t.o === i);
+    return `<div class="ola ${o.k}"><h2>${o.t}</h2><div class="cuando">${o.c}</div>${ts.some((t) => t.v) ? vistas(ts) : ts.map(card).join('')}</div>`;
+  }).join('');
+};
+const modal = () => {
+  const m = document.getElementById('modal'), d = document.getElementById('det');
+  const t = T.find((x) => x.n === sel);
+  m.classList.toggle('on', !!t);
+  document.body.style.overflow = t ? 'hidden' : '';
+  if (!t) return;
+  const v = S['v' + t.n], i = T.indexOf(t);
+  d.style.borderColor = getComputedStyle(document.querySelector(`.ola.${OLAS[t.o].k}`)).borderTopColor;
+  d.innerHTML = `<button class="x" data-cerrar title="Cerrar (Esc)">×</button><h3>${t.t}</h3>
+    <div class="meta">${OLAS[t.o].t}${t.v ? ' · ' + t.v : ''}${t.b ? ' · <b style="color:var(--A)">' + link(t.b) + '</b>' : ''} · Se crearía en la épica: ${t.ep}</div>
+    <div class="cols"><div>
+      <div class="lab">Qué incluye</div><p>${link(t.q)}</p>
+      ${t.x ? `<div class="lab" style="color:var(--A)">Ojo · pendiente del acceso a Remedy</div><div class="ojo">${link(t.x)}</div>` : ''}
+      <div class="lab">Hecho cuando</div><div class="hecho"><ul>${t.h.map((x) => `<li>${link(x)}</li>`).join('')}</ul></div>
+      <div class="lab">Cómo se prueba</div><div class="prueba">${t.pb}</div>
+    </div><div>
+      <div class="lab">Piezas</div>${t.p.length ? t.p.map((p) => `${chip(p)} ${P[p]}`).join('<br>') : '<span class="none">Ninguna: no es integración</span>'}
+      <div class="lab">${t.a ? 'Entregable' : 'Dónde se toca'}</div>${t.a ? t.f.map((f) => `<p>${link(f)}</p>`).join('') : t.f.map((f) => `<code>${f}</code>`).join('')}
+      <div class="lab">Depende de</div><p>${link(t.d)}</p>
+      <div class="lab">Prioridad</div><p>${t.pr}</p>
+    </div></div>
+    <div class="btns"><button class="si ${v === 'si' ? 'on' : ''}" data-v="si">✓ Vale</button><button class="no ${v === 'no' ? 'on' : ''}" data-v="no">✗ Cambiar</button>
+      <span class="nav"><button data-ir="${i - 1}" ${i ? '' : 'disabled'}>‹ Anterior</button><button data-ir="${i + 1}" ${i < T.length - 1 ? '' : 'disabled'}>Siguiente ›</button></span></div>
+    <textarea data-n="${t.n}" placeholder="Notas">${S['n' + t.n] || ''}</textarea>`;
+};
+const render = () => { board(); modal(); };
+document.addEventListener('click', (e) => {
+  if (e.target.closest('a.gh-l')) return;
+  const tl = e.target.closest('[data-ir-t]');
+  if (tl) { e.preventDefault(); sel = tl.dataset.irT; return render(); }
+  const c = e.target.closest('[data-t]');
+  if (c) { sel = c.dataset.t; return render(); }
+  if (e.target.id === 'modal' || e.target.closest('[data-cerrar]')) { sel = null; return render(); }
+  const b = e.target.closest('[data-v]');
+  if (b) { S['v' + sel] = S['v' + sel] === b.dataset.v ? '' : b.dataset.v; save(); return render(); }
+  const ir = e.target.closest('[data-ir]');
+  if (ir && T[+ir.dataset.ir]) { sel = T[+ir.dataset.ir].n; return render(); }
+});
+document.addEventListener('input', (e) => { if (e.target.dataset.n) { S['n' + e.target.dataset.n] = e.target.value; save(); } });
+document.addEventListener('keydown', (e) => {
+  if (!sel || e.target.tagName === 'TEXTAREA') return;
+  const i = T.findIndex((t) => t.n === sel);
+  if (e.key === 'Escape') { sel = null; render(); }
+  else if (e.key === 'ArrowRight' && T[i + 1]) { sel = T[i + 1].n; render(); }
+  else if (e.key === 'ArrowLeft' && T[i - 1]) { sel = T[i - 1].n; render(); }
+});
+render();
+</script>
+</body>
+</html>
