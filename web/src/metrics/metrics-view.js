@@ -9,23 +9,32 @@
 // valen para todas las pestañas: el periodo, la búsqueda y, con un clic en
 // cualquier barra, fila o celda, ese valor.
 import './metrics.css';
+import logoUrl from '../logo.png';
 import { esc, fold } from '../ui/html.js';
 import { num } from './format.js';
+import { DAY } from './rules.js';
 import { createModel, COMPANIES } from './model.js';
 import { createCharts } from './charts.js';
-import { createTabs, TABS } from './tabs.js';
-import { periodLabel } from './period.js';
+import { createTabs } from './tabs.js';
+import { FACES, faceOf, faceTabs, firstTab, routeTo, hasIncidentList } from './faces.js';
+import { periodLabel, presetRange, presetOf, PRESETS, prevRange, wholeMonth, rangeLabel } from './period.js';
+import { tabReportTitle, tabReportHead } from './tab-report.js';
+import { previewTabs } from './print.js';
+import { presetPick, pickPreset } from './quick-bar.js';
 import { mountPeriodPanel } from './period-panel.js';
 import { attachTip } from './tip.js';
+import { toggleProject } from './resolution.js';
+import { applyTableSorts, toggleTableSort } from './table-sort.js';
 import { PHASES, CSV_PHASES, CLEAR_PHASES } from './progress.js';
 import { mountMetricsModals } from './metrics-modals.js';
 import { progressCover } from './progress-cover.js';
 import { isNetWarning } from '../ui/net-warning.js';
 import { netWarningHtml, shake } from '../ui/net-warning-view.js';
-import { COLORS, defaultColors, freeColor, dayOf, coverage, freeCompany, withoutSide, togglePerson, filterKey } from './view.js';
+import { COLORS, defaultColors, freeColor, dayOf, coverage, withoutSide, togglePerson, filterKey, anyFilter, clearFilters, pickOnly, pickBoth, pickSys, teamPeopleOf, sidesOfPeople } from './view.js';
+import { sheetOf, sheetCsv, sheetFile } from './sheet.js';
+import { downloadText } from './download.js';
 import { pressStartedIn } from '../ui/dom.js';
 
-const SEARCH_MS = 250;
 const LOAD = 'Actualizar y generar informe';
 const FIRST_LOAD = 'Cargar datos';   // la primera vez, con la base local vacía
 const POLL_MS = 400;     // cada cuánto se pregunta al bridge por el avance de la actualización
@@ -33,16 +42,29 @@ const TICK_MS = 200;     // y cada cuánto se repinta (el porcentaje es de tiemp
 const FINISH_MS = 450;   // el 100 % a la vista un momento antes de abrir las métricas nuevas
 const svg = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const CALENDAR_ICON = svg('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>');
-const SEARCH_ICON = svg('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>');
 const CHEVRON = svg('<path d="m6 9 6 6 6-6"/>');
 
-export const mountMetricsView = (root, { api, toast }) => {
-  let m = null, tabs = null, tab = 'resumen', loading = false, panel = null;
+// team: una pestaña más, que es otra vista con sus propios datos, periodo y filtros (Equipo soporte): { id, label,
+// mount(host) → { show() } }. Se monta una vez, al abrirla; sus clics y su tarjeta se quedan en ella.
+// setTitle(texto): el título de la barra de arriba de SIA («Métricas», o «Métricas - Servicio» dentro de una vista).
+export const mountMetricsView = (root, { api, toast, setTitle = () => {}, team = null }) => {
+  const teamHost = team && Object.assign(document.createElement('div'), { hidden: true });
+  let teamView = null;
+  for (const type of ['click', 'mousemove']) teamHost?.addEventListener(type, (e) => e.stopPropagation());
+  let m = null, tabs = null, tab = 'resumen', loading = false, panel = null, vsPanel = null;
+  // face: la vista elegida en el menú de Métricas (faces.js: servicio, equipo, tecnicas); null, el menú
+  let face = null;
+  // si la vista deja mirar o comparar con T-Systems; la pestaña Backlog, nunca (solo Indra y sin comparar nada: render)
+  // NO_TSYS_TABS: sin T-Systems (solo Indra o personas de Indra); NO_CMP_TABS: además, sin comparar nada
+  const NO_TSYS_TABS = ['backlog', 'modulos', 'escalados'], NO_CMP_TABS = ['backlog'];
+  // NO_PICKS_TABS: sin los selectores de arriba de SISU o SGA y de la criticidad (prioridad), en cualquier vista
+  const NO_PICKS_TABS = ['rendimiento', 'calidad', 'modulos', 'turnos'];
+  const tsys = () => faceOf(face)?.tsys !== false && !NO_TSYS_TABS.includes(tab);
   // open: el desplegable abierto ('calendar', 'side0' o 'side1'); who: lo escrito en el buscador de
-  // personas; searching: la búsqueda abierta
-  let open = null, who = '', searching = false;
+  // personas
+  let open = null, who = '';
   let colors = defaultColors();   // el color de cada lado
-  const ui = { exp: {}, sort: {} };
+  const ui = { exp: {}, sort: {}, colSort: {} };
   const $ = (s) => root.querySelector(s);
   // Las ventanas de «Cargar CSV» y «Construir SQL»: al cargar, se vuelven a leer los datos y se abren como siempre.
   const modals = mountMetricsModals({
@@ -52,11 +74,12 @@ export const mountMetricsView = (root, { api, toast }) => {
     onClear: () => clearHistory(),
   });
 
-  const loadButton = () => `<button class="mt-load ${loading ? 'mt-busy' : ''}" data-update ${loading ? 'disabled' : ''}>${loading ? 'Actualizando…' : m ? LOAD : FIRST_LOAD}</button>`;
-  // Los tres puntos: lo que se hace pocas veces (cargar un CSV, construir la consulta). Sin nada encima de la vista.
-  // Sin datos (withClear: false), no hay histórico que borrar.
+  const loadButton = () => `<button class="mt-load ${loading ? 'mt-busy' : ''}" data-update ${loading ? 'disabled' : ''}${m ? ` title="${esc(`${coverage(m)} · ${m.data.meta.file}, actualizado el ${dayOf(m.data.meta.generated)}`)}"` : ''}>${loading ? 'Actualizando…' : m ? LOAD : FIRST_LOAD}</button>`;
+  // Los tres puntos: lo que se hace pocas veces (cargar un CSV, construir la consulta, borrar el histórico). Sin nada
+  // encima de la vista. Sin datos (withClear: false), no hay histórico que borrar. Los informes y la lista de incidencias,
+  // con los botones de la barra de filtros («Exportar PDF», exportTab; «Descargar incidencias», exportSheet).
   const moreMenu = (withClear = true) => `<div class="mt-menu"><button class="mt-btn mt-icon-btn mt-more" data-more aria-haspopup="menu" aria-expanded="false" aria-label="Más opciones" title="Más opciones"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
-    <div class="mt-pop mt-menu-pop" data-more-pop role="menu" hidden><button role="menuitem" data-open-csv>Cargar CSV…</button><button role="menuitem" data-open-sql>Construir SQL…</button>${withClear ? '<button role="menuitem" class="mt-danger-item" data-clear>Eliminar histórico…</button>' : ''}</div></div>`;
+    <div class="mt-pop mt-menu-pop" data-more-pop role="menu" hidden>${withClear ? '' : ''}<button role="menuitem" data-open-csv>Cargar CSV…</button><button role="menuitem" data-open-sql>Construir SQL…</button>${withClear ? '<button role="menuitem" class="mt-danger-item" data-clear>Eliminar histórico…</button>' : ''}</div></div>`;
   const setMenu = (on) => {
     const pop = $('[data-more-pop]');
     if (!pop) return;
@@ -67,75 +90,156 @@ export const mountMetricsView = (root, { api, toast }) => {
   const renderEmpty = () => {
     root.innerHTML = `<div class="mt-page mt-empty-page">
       <div class="mt-empty"><b>Aún no hay datos</b>
-        <span>Trae de Snowflake las incidencias de Remedy (con notas e historial) desde 2026, o carga un CSV de esa misma consulta. Se guardan en el repositorio local de este ordenador y de él salen las métricas; cada vez que actualices, solo llega lo nuevo y lo cambiado.</span>
+        <span>Trae de Snowflake las incidencias de Remedy (con notas e historial) desde 2025, para comparar con el año anterior, o carga un CSV de esa misma consulta. Se guardan en el repositorio local de este ordenador y de él salen las métricas; cada vez que actualices, solo llega lo nuevo y lo cambiado.</span>
         <div class="mt-empty-actions">${loadButton()}${moreMenu(false)}</div></div></div>`;
+  };
+
+  // El menú de Métricas: una caja por vista (faces.js), y nada más. Las fechas de los datos, actualizar y los tres
+  // puntos, dentro de cada vista (renderFrame).
+  const renderHub = () => {
+    setTitle('Métricas');
+    root.innerHTML = `<div class="mt-page">
+      <div class="mt-hub">${FACES.map((f) => `<button type="button" class="settings-box" data-face="${f.id}" title="${esc(f.note)}">${f.icon}<span>${f.label}</span></button>`).join('')}</div>
+    </div>`;
   };
 
   const sideSlot = (k) => `<div class="mt-period mt-slot" data-slot="${k}"><button class="mt-btn mt-icon-btn mt-side" data-side="${k}" aria-haspopup="true"><i class="mt-c${k}"></i><span data-side-name="${k}"></span>${CHEVRON}</button><button class="mt-btn mt-x" data-side-remove="${k}" title="Quitar de la comparación">×</button>
     <div class="mt-pop mt-who" data-side-pop="${k}" hidden><div data-side-companies="${k}"></div><input type="search" data-who-q placeholder="Buscar personas…"><div class="mt-who-list" data-side-list="${k}"></div></div></div>`;
 
   // Lo fijo de la vista (cabecera, comparación, filtros, pestañas); lo de dentro se repinta con cada cambio.
+  // Sin fila de cabecera, para dar más sitio al contenido: el nombre de la vista va en la barra de arriba de SIA
+  // («Métricas - Servicio»); se vuelve al menú con el botón de Métricas del dock. Actualizar y los tres puntos, a la
+  // derecha de «Exportar PDF»; hasta dónde llegan los datos, al pasar el ratón por actualizar.
   const renderFrame = () => {
-    const { meta } = m.data;
+    setTitle(`Métricas - ${faceOf(face).label}`);
     root.innerHTML = `<div class="mt-page">
-      <header class="mt-top">
-        <span class="mt-date" data-coverage title="${esc(`${meta.file}, actualizado el ${dayOf(meta.generated)}`)}"></span>
-        ${loadButton()}${moreMenu()}</header>
       <div class="mt-fbar">
-        ${sideSlot(0)}<span class="mt-vs" data-vs>frente a</span>${sideSlot(1)}<button class="mt-btn mt-add" data-side-add>+ Comparar</button>
+        ${sideSlot(0)}<button class="mt-btn mt-plus" data-side-add aria-haspopup="true">+</button><span class="mt-vs" data-vs>frente a</span>${sideSlot(1)}
         <div class="mt-period"><button class="mt-btn mt-icon-btn" data-calendar aria-haspopup="true">${CALENDAR_ICON}<span data-period></span></button><div class="mt-pop mt-cal" data-cal hidden></div></div>
+        <button class="mt-btn mt-plus" data-period-add aria-haspopup="true">+</button>
+        <div class="mt-period mt-slot" data-vslot hidden><span class="mt-vs">frente a</span><button class="mt-btn mt-icon-btn mt-side" data-vscal aria-haspopup="true">${CALENDAR_ICON}<span data-vs-period></span>${CHEVRON}</button><button class="mt-btn mt-x" data-vs-remove title="Quitar la comparación de fechas">×</button><div class="mt-pop mt-cal" data-vs-cal hidden></div></div>
+        <div class="mt-fpicks" data-picks></div>
         <div class="mt-chips" data-chips></div>
-        <div class="mt-find"><input type="search" data-q placeholder="Título o INC…" hidden><span class="mt-count" data-count></span>
-          <button class="mt-search" data-search title="Buscar en el título o por número">${SEARCH_ICON}</button></div>
+        <div class="mt-factions">
+        <div class="mt-find"><span class="mt-count" data-count></span></div>
+        <button class="mt-btn mt-export-tab" data-export-sheet hidden data-tip="Descarga en CSV la lista de incidencias de lo que se ve en esta pestaña, con sus fechas, filtros y lo que se compara.">Descargar incidencias</button>
+        <button class="mt-btn mt-export-tab" data-export-tab data-tip="Exporta esta pestaña a PDF tal como se ve (con sus fechas, filtros y lo que se compara). En la vista previa puedes añadir otras pestañas, con los mismos filtros.">Exportar PDF</button>
+        ${loadButton()}${moreMenu()}
+        </div>
       </div>
-      <nav class="mt-tabs">${TABS.map(([k, l]) => `<button data-tab="${k}">${l}</button>`).join('')}</nav>
+      <nav class="mt-tabs">${faceTabs(face, team).map(([k, l]) => `<button data-tab="${k}">${l}</button>`).join('')}</nav>
       <div class="mt-main" data-main></div>
     </div><div class="mt-tip" data-tip-box hidden></div>`;
+    if (teamHost) $('[data-main]').after(teamHost);
   };
 
   // Periodo: el botón dice qué fechas se miran; su panel (period-panel.js), la rejilla de meses y los campos Desde y
   // Hasta. Elegir en la rejilla lo aplica y lo cierra; una fecha, lo aplica y lo deja abierto.
+  // Las pestañas con «Abiertas ahora» (Módulos y focos, SLAs, Escalados, Análisis tiempos): ahí lo que se ve no depende
+  // de las fechas, así que el botón de las fechas se ve apagado y lo dice; elegir unas fechas pasa a la otra vista (la del
+  // periodo). NOW_MODE: pestaña → la marca de ui que dice si se mira lo abierto ahora.
+  const NOW_MODE = { modulos: 'modNow', sla: 'slaNow', slaq: 'slaNow', escalados: 'escNow', tiempos: 'timesNow' };
+  // En Servicio y en Equipo, solo lo de las fechas de arriba: sin «Abiertas ahora / Del periodo» (lo abierto ahora, en
+  // Backlog). ui.periodOnly quita el selector de esas pestañas (modulos.js, escalados.js, sla.js); en Técnicas se queda.
+  const periodOnly = () => {
+    ui.periodOnly = face === 'servicio' || face === 'equipo';
+    if (ui.periodOnly) for (const k of new Set(Object.values(NOW_MODE))) ui[k] = false;
+  };
+  const nowMode = () => !!NOW_MODE[tab] && !!ui[NOW_MODE[tab]] && !(tab === 'modulos' && face === 'equipo');
+  const toPeriod = () => { if (nowMode()) ui[NOW_MODE[tab]] = false; };
+  // El otro periodo (ui.vsPeriod: { key, range }): sus fechas rápidas, del periodo de ahora (el anterior, el mismo del año
+  // pasado) o fijas; «custom», unas elegidas en su calendario. Las que dependen del de arriba se recalculan al cambiarlo.
+  const yearAgo = ([a, b]) => { const back = (min) => { const d = new Date(m.BASE + min * 6e4); d.setUTCFullYear(d.getUTCFullYear() - 1); return (d.getTime() - m.BASE) / 6e4; }; return [back(a), back(b)]; };
+  const clampRange = (r) => { if (!r) return null; const a = Math.max(m.MIN_D, r[0]), b = Math.min(m.END_D, r[1]); return a < b ? [a, b] : null; };
+  // [clave, nombre (corto: caben en la fila de «Periodo»), qué es, rango]
+  const VS_OPTIONS = [['prev', 'Periodo anterior', 'Los mismos días justo antes (o los mismos meses, si el periodo empieza un día 1).', () => prevRange(m)],
+    ['ly', 'Hace un año', 'El mismo periodo, un año antes.', () => yearAgo([m.S.d0, m.S.d1])],
+    ['lm', 'Mes pasado', 'El mes anterior al de la última carga, entero.', () => wholeMonth(m, m.LASTM - 1)],
+    ['fy', 'Año fiscal (media)', 'Desde el 1 de febrero: sus incidencias, en su media para la duración del periodo de arriba.', () => [m.START_D, m.END_D]]];
+  const vsOpt = (k) => VS_OPTIONS.find(([x]) => x === k);
+  const vsRange = () => (ui.vsPeriod?.key === 'custom' ? ui.vsPeriod.range : clampRange(vsOpt(ui.vsPeriod?.key)?.[3]()));
+  const vsLabel = () => (ui.vsPeriod?.key === 'custom' ? (vsRange() ? rangeLabel(m, vsRange()) : '') : vsOpt(ui.vsPeriod?.key)?.[1] || '');
+  // el periodo de arriba, por su nombre si es una fecha rápida; si no, por sus fechas
+  const curLabel = () => PRESETS.find(([k]) => k === presetOf(m))?.[1] || periodLabel(m);
+  // su calendario: el de arriba, sobre una copia del modelo con sus propias fechas
+  const vsModel = () => {
+    const p = Object.create(m), r = vsRange() || [m.S.d0, m.S.d1];
+    p.S = { ...m.S, d0: r[0], d1: r[1], from: m.monthAt(r[0]), to: m.monthAt(r[1] - 1) };
+    p.setPeriod = (a, b) => { const d0 = Math.max(m.MIN_D, Math.min(a, m.END_D - DAY)), d1 = Math.min(m.END_D, Math.max(b, d0 + DAY)); ui.vsPeriod = { key: 'custom', range: [d0, d1] }; Object.assign(p.S, { d0, d1, from: m.monthAt(d0), to: m.monthAt(d1 - 1) }); };
+    return p;
+  };
+  const vsHead = () => `<div class="mt-seg mt-seg-sm" role="group" aria-label="Comparar con">${VS_OPTIONS.map(([k, l, tip, f]) => { const on = ui.vsPeriod?.key === k, ok = !!clampRange(f()); return `<button class="mt-seg-b ${on ? 'mt-on' : ''}" data-preset="${k}" aria-pressed="${on}" title="${esc(ok ? tip : 'Sin datos de ese periodo')}" ${ok ? '' : 'disabled'}>${l}</button>`; }).join('')}</div>`;
+  const renderVs = () => {
+    const on = !!ui.vsPeriod, noCmp = NO_CMP_TABS.includes(tab), plus = $('[data-period-add]');
+    $('[data-vslot]').hidden = !on;
+    plus.hidden = on || noCmp;
+    plus.disabled = !!m.S.sides[1] || !!ui.sideAdd;
+    plus.title = plus.disabled ? 'Quita antes la otra comparación' : 'Comparar con otro periodo';
+    if (on) $('[data-vs-period]').textContent = vsLabel() || 'sin datos';
+    $('[data-vs-cal]').hidden = open !== 'vscal';
+  };
   const renderPeriod = () => {
+    renderVs();
     $('[data-period]').textContent = periodLabel(m);
     $('[data-cal]').hidden = open !== 'calendar';
+    const b = $('[data-calendar]'), off = nowMode();
+    b.classList.toggle('mt-period-off', off);
+    if (off) b.dataset.tip = 'No aplica: aquí se ve lo abierto ahora, que no depende de las fechas. Elegir unas fechas pasa a ver lo del periodo.';
+    else delete b.dataset.tip;
   };
 
   // Cada lado: el botón dice qué es y lleva su color; la × lo quita (si hay dos). Su desplegable deja
   // elegir el color, una empresa o personas: las que tienen issues en lo que se ve, por empresa y de
   // más a menos, con un buscador. Cada clic en una persona la marca o desmarca y el desplegable sigue
   // abierto. Quien ya está en el otro lado no se puede marcar, ni la misma empresa a los dos lados.
+  // Comparar: «+» junto al primer lado abre el desplegable del segundo (ui.sideAdd: aún sin elegir; al elegir, se compara);
+  // «+» junto a las fechas, otro periodo (ui.vsPeriod). Una comparación cada vez: con una, el otro «+» se apaga.
   const renderSides = () => {
-    const { S, DIMS, data } = m, names = m.NAMES(), two = !!S.sides[1];
+    const { S, DIMS, data } = m, names = m.NAMES(), adding = !!ui.sideAdd && !S.sides[1], two = !!S.sides[1] || adding;
     colors.forEach((c, k) => root.style.setProperty(`--mt-base${k}`, c));
     $('[data-slot="1"]').hidden = !two;
     $('[data-vs]').hidden = !two;
-    $('[data-side-add]').hidden = two;
+    const plus = $('[data-side-add]'), noCmp = NO_CMP_TABS.includes(tab);
+    plus.hidden = two || noCmp;
+    plus.disabled = !!ui.vsPeriod;
+    plus.title = ui.vsPeriod ? 'Quita antes la comparación de fechas' : 'Comparar con otra empresa o con otras personas';
     for (const k of [0, 1]) {
-      const s = S.sides[k], other = S.sides[1 - k];
-      $(`[data-side-remove="${k}"]`).hidden = !two;
+      const s = S.sides[k] || (k === 1 && adding ? {} : null), other = S.sides[1 - k];
+      // la ×: en el segundo, mientras se elige o comparando; en el primero, solo comparando de verdad
+      $(`[data-side-remove="${k}"]`).hidden = k === 0 ? !S.sides[1] : !two;
       const pop = $(`[data-side-pop="${k}"]`);
       if (!s) { pop.hidden = true; continue; }
-      $(`[data-side-name="${k}"]`).textContent = names[k];
+      $(`[data-side-name="${k}"]`).textContent = S.sides[k] ? names[k] : 'Elige con qué…';
       $(`[data-side="${k}"]`).title = s.people?.size > 1 ? [...s.people].map((p) => DIMS.as.label(p)).join('\n') : '';
       pop.hidden = open !== `side${k}`;
       if (pop.hidden) continue;
       const taken = (c) => !other?.people && other?.company === c;
+      // Un técnico se compara con otro técnico o con Indra, nunca con T-Systems: con personas al otro lado, sin T-Systems
+      // ni sus personas; con T-Systems al otro lado, sin personas (vsPeople)
+      const vsPeople = !!other?.people, vsTsys = !other?.people && other?.company === 1;
+      const cos = (tsys() ? [0, 1] : [0]).filter((c) => !(vsPeople && c === 1));
       $(`[data-side-companies="${k}"]`).innerHTML = `<p class="mt-who-co">Color</p><div class="mt-colors">${COLORS.map(([c, n]) => `<button data-pick-color="${k}:${c}" class="${colors[k] === c ? 'mt-on' : ''}" style="--mt-swatch:${c}" title="${n}"></button>`).join('')}</div>
-        <p class="mt-who-co">Empresa</p><div class="mt-cos">${[0, 1, 2].map((c) => `<button data-pick-company="${k}:${c}" class="${!s.people && s.company === c ? 'mt-on' : ''}" ${taken(c) ? 'disabled title="Ya está en el otro lado"' : ''}>${COMPANIES[c]}</button>`).join('')}</div><p class="mt-who-co">Personas</p>`;
+        <p class="mt-who-co">Empresa</p><div class="mt-cos">${cos.map((c) => `<button data-pick-company="${k}:${c}" class="${!s.people && s.company === c ? 'mt-on' : ''}" ${taken(c) ? 'disabled title="Ya está en el otro lado"' : ''}>${COMPANIES[c]}</button>`).join('')}</div><p class="mt-who-co">Personas</p>`;
       const q = fold(who.trim()), mine = s.people || new Set(), theirs = other?.people || new Set();
       const all = m.group('as', m.pool()).filter((x) => x.k && (!q || fold(DIMS.as.label(x.k)).includes(q)));
-      const groups = [0, 1, 2].map((c) => [c, all.filter((x) => data.company[x.k] === c)]).filter(([, l]) => l.length);
+      const groups = vsTsys ? [] : (tsys() && !vsPeople ? [0, 1, 2] : [0]).map((c) => [c, all.filter((x) => data.company[x.k] === c)]).filter(([, l]) => l.length);
       $(`[data-side-list="${k}"]`).innerHTML = groups.map(([c, l]) => `<p class="mt-who-co mt-who-sub">${c === 2 ? 'Fuera de las dos empresas' : COMPANIES[c]}</p>
         ${l.map((x) => `<button data-pick-person="${k}:${x.k}" class="${mine.has(x.k) ? 'mt-on' : ''}" aria-pressed="${mine.has(x.k)}" ${theirs.has(x.k) ? 'disabled title="Ya está en el otro lado"' : ''}><i class="mt-check"></i><span>${esc(DIMS.as.label(x.k))}</span><small>${num(x.n)}</small></button>`).join('')}`).join('')
-        || '<p class="mt-mut">Nadie con ese nombre.</p>';
+        || `<p class="mt-mut">${vsTsys ? 'Frente a T-Systems no se compara con personas: elige Indra, o cambia el otro lado.' : 'Nadie con ese nombre.'}</p>`;
     }
   };
-  const closePops = () => { open = null; who = ''; };
+  // el otro lado: quitarlo (queda el primero) o poner en él una empresa, con un color libre si no estaba
+  const sideOps = {
+    off: () => { if (m.S.sides[1]) ({ sides: m.S.sides, colors } = withoutSide(m.S.sides, colors, 1)); },
+    add: (c) => { const had = !!m.S.sides[1]; m.S.sides[1] = { company: c }; if (!had) colors[1] = freeColor(colors[0]); },
+  };
+  const closePops = () => { if (open === 'side1' && ui.sideAdd && !m?.S.sides[1]) ui.sideAdd = false; open = null; who = ''; };
   const togglePop = (which) => {
     const was = open;
     closePops();
     if (was !== which) open = which;
     if (open === 'calendar') panel.open();
+    if (open === 'vscal') vsPanel.open();
     renderPeriod(); renderSides();
     const q = open?.startsWith('side') && $(`[data-side-pop="${open.slice(4)}"] [data-who-q]`);
     if (q) { q.value = ''; q.focus(); }
@@ -143,28 +247,94 @@ export const mountMetricsView = (root, { api, toast }) => {
 
   const render = () => {
     const { S, DIMS } = m;
+    // en Backlog no se compara nada (ni con otro lado ni con otro periodo): sin «Comparar» y, si se venía comparando, se quita
+    if (NO_CMP_TABS.includes(tab)) {
+      if (S.sides[1]) ({ sides: S.sides, colors } = withoutSide(S.sides, colors, 1));
+      ui.resCmp = null; ui.cmpPick = false; ui.sideAdd = false; ui.vsPeriod = null;
+    }
     m.refilter();
     const A = m.rows();
     const chips = Object.keys(S.f).flatMap((dim) => [...S.f[dim]].map((k) => `<span class="mt-chip">${DIMS[dim].name}: <b>${esc(DIMS[dim].label(k))}</b><button data-rm="${dim}:${k}" title="Quitar">×</button></span>`));
-    $('[data-chips]').innerHTML = chips.join('');
-    $('[data-coverage]').textContent = coverage(m);
+    // y, si hay algún filtro (aunque sea de una pestaña o la búsqueda), el botón que los quita todos
+    const reset = anyFilter(S, ui) ? '<button class="mt-reset" data-reset-filters data-tip="Quita todos los filtros, la búsqueda y los de cada pestaña. El periodo y lo que se compara se quedan.">Quitar filtros</button>' : '';
+    $('[data-chips]').innerHTML = chips.join('') + reset;
     renderPeriod();
     renderSides();
-    $('[data-q]').hidden = !(searching || S.q);
-    $('[data-count]').innerHTML = `<b>${num(A.length)}</b> issues`;
+    // SISU o SGA y la prioridad: en Servicio y en NO_PICKS_TABS, no (la corona y Rendimiento equipos llevan su SISU / SGA;
+    // la prioridad se filtra pinchando en sus barras o filas)
+    $('[data-picks]').innerHTML = face === 'servicio' || NO_PICKS_TABS.includes(tab) ? '' : tabs.picks();
+    $('[data-count]').innerHTML = `<b>${num(A.length)}</b> incidencias`;
     root.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('mt-on', b.dataset.tab === tab));
-    $('[data-main]').innerHTML = tabs.render(tab, A);
+    // la pestaña del equipo va por su cuenta: sin los filtros de arriba, que no le afectan
+    const onTeam = tab === team?.id;
+    // «Descargar incidencias» (la barra de filtros), en las pestañas de cada vista que la llevan (faces.js, LIST_TABS)
+    const sheetItem = $('[data-export-sheet]');
+    if (sheetItem) sheetItem.hidden = !hasIncidentList(face, tab);
+    // en Equipo soporte, de la barra de arriba solo las fechas y el selector de Indra y técnicos, comunes a todas las
+    // pestañas de Equipo (lo demás no le afecta)
+    $('.mt-fbar').classList.toggle('mt-fbar-team', onTeam);
+    $('[data-main]').style.display = onTeam ? 'none' : '';
+    if (teamHost) teamHost.hidden = !onTeam;
+    if (onTeam) {
+      if (!teamView) {
+        teamView = team.mount(teamHost);
+        // marcar técnicos en su tabla cambia el selector de arriba (y lo que se ve en las demás pestañas de Equipo)
+        teamView.onPeople?.((cmp) => {
+          const had = !!S.sides[1];
+          S.sides = sidesOfPeople(cmp);
+          if (S.sides[1] && !had) colors[1] = freeColor(colors[0]);
+          m.refilter(); renderSides();
+        });
+      }
+      teamView.period?.([S.d0, S.d1]);
+      teamView.people?.(teamPeopleOf(S.sides));
+      teamView.show();
+      return;
+    }
+    periodOnly();
+    $('[data-main]').innerHTML = vsCard(A) + tabs.render(tab, A, { face, live: true });   // la vista: alguna pestaña cambia con ella (Módulos y focos, en Equipo)
+    applyTableSorts($('[data-main]'), tab, ui.colSort);   // y el orden por columnas de cada tabla (table-sort.js)
   };
+
+  // comparando fechas: arriba de la pestaña, las cifras de los dos periodos y su diferencia (resumen.js, periodsCard)
+  const vsCard = (A) => (ui.vsPeriod && !m.CMP() ? tabs.render('resumen', A, { vsPeriod: { a: { label: curLabel(), range: [m.S.d0, m.S.d1] }, b: { label: vsLabel(), range: vsRange() } } }) : '');
 
   const start = (data) => {
     m = data ? createModel(data) : null;
-    m?.resetPeriod();   // de partida, el mes en curso
-    ui.exp = {}; ui.sort = {}; tab = 'resumen'; searching = false; closePops();
+    m?.resetPeriod();   // de partida, los meses en los que tenemos algo abierto (model.js)
+    ui.exp = {}; ui.sort = {}; ui.colSort = {}; ui.jiraPick = null; ui.resCmp = null; ui.cmpPick = false; ui.sideAdd = false; ui.vsPeriod = null; ui.cliFilter = null; tab = firstTab(face, team) || 'resumen'; closePops();
     if (!m) return renderEmpty();
     tabs = createTabs(m, createCharts(m, ui), ui);
+    if (face) openFrame(); else renderHub();
+  };
+  // Lo fijo de la vista elegida, su periodo y lo de dentro.
+  const openFrame = () => {
     renderFrame();
-    panel = mountPeriodPanel($('[data-cal]'), { model: () => m, onPick: (close) => { if (close) closePops(); render(); } });
+    // arriba del panel, las fechas rápidas: una lo aplica y lo cierra; con Ctrl (o Cmd), compara con el periodo de ahora
+    panel = mountPeriodPanel($('[data-cal]'), { model: () => m, onPick: (close) => { toPeriod(); if (close) closePops(); render(); },
+      head: () => presetPick(m, ui),
+      onPreset: (key) => { const r = presetRange(m, key); if (r && pickPreset(m, ui, key, false, r, sideOps)) { toPeriod(); closePops(); render(); } },
+      // comparando (ui.cmpPick), un mes: el periodo de ahora frente a ese mes
+      onMonth: (k) => { if (!ui.cmpPick) return false; sideOps.off(); ui.resCmp = { a: 'cur', b: `m:${k}` }; ui.cmpPick = false; closePops(); render(); return true; } });
+    vsPanel = mountPeriodPanel($('[data-vs-cal]'), { model: vsModel, onPick: (close) => { if (close) closePops(); render(); },
+      head: vsHead, onPreset: (key) => { ui.vsPeriod = { key }; closePops(); render(); } });
     render();
+  };
+  // En una vista sin T-Systems, lo que se mira es Indra o personas de Indra: si un lado no lo es, se quita (el
+  // primero vuelve a Indra).
+  // Devuelve si ha cambiado algo.
+  const onlyIndra = () => {
+    if (tsys()) return false;
+    const S = m.S, indra = (s) => !s || (s.people ? [...s.people].every((p) => m.data.company[p] === 0) : s.company === 0);
+    let changed = false;
+    if (!indra(S.sides[0])) { S.sides[0] = { company: 0 }; S.sides[1] = null; changed = true; }
+    if (!indra(S.sides[1])) { S.sides[1] = null; changed = true; }
+    return changed;
+  };
+  // Entrar en una vista del menú (to: en esa pestaña; si no, en su primera).
+  const enterFace = (id, to = null) => {
+    face = id; tab = to || firstTab(id, team); root.scrollTop = 0;
+    closePops(); onlyIndra(); openFrame();
   };
 
   // Mientras el servidor trabaja en algo largo (cargar un CSV), la misma capa con su avance que la actualización,
@@ -279,9 +449,10 @@ export const mountMetricsView = (root, { api, toast }) => {
       await new Promise((r) => setTimeout(r, FINISH_MS));
       loading = false;
       start(data);
-      toast?.(counts.inserted || counts.updated
+      const jira = data?.meta?.jira?.message ? ` Jira: ${data.meta.jira.message}` : '';
+      toast?.(`${counts.inserted || counts.updated
         ? `Informe actualizado: ${num(counts.inserted)} nuevas y ${num(counts.updated)} actualizadas.`
-        : 'Informe actualizado: sin cambios desde la última vez.');
+        : 'Informe actualizado: sin cambios desde la última vez.'}${jira}`);
     } catch (e) {
       loading = false;
       c.el.remove();
@@ -294,36 +465,99 @@ export const mountMetricsView = (root, { api, toast }) => {
     }
   };
 
+  // «Descargar incidencias» (un botón de la barra de filtros, junto a «Exportar PDF»; en qué pestañas: faces.js, LIST_TABS): las incidencias de lo que se
+  // ve en la pestaña, con los filtros, los lados y el periodo de arriba, a CSV (sheet.js), de la más antigua a la más
+  // reciente. Backlog, lo abierto ahora (su sábana); Escalados, lo escalado (Activas o Histórico); Pendiente de cliente y
+  // Análisis tiempos, su sábana; en Actual (nowMode), lo abierto ahora; si no, lo recibido en el periodo. Equipo soporte,
+  // la suya (work-view.js).
+  const exportSheet = () => {
+    const own = { escalados: [ui.escSheet, 'incidencias-escaladas'], cliente: [ui.cliSheet, 'pendientes-de-cliente'], tiempos: [ui.timesSheet, 'incidencias-tiempos'], backlog: [ui.hoySheet, 'incidencias-abiertas'] }[tab];
+    const list = own?.[0]?.list ?? (nowMode() ? sheetOf(m) : [...m.rows()].sort((a, b) => m.C.rep[a] - m.C.rep[b]));
+    if (!list.length) { toast?.('No hay incidencias con estos filtros.'); return; }
+    const file = sheetFile(m, own?.[0] ? own[1] : `incidencias-${tab}`);
+    downloadText(file, sheetCsv(m, list, own?.[0]?.cols), 'text/csv;charset=utf-8');
+    toast?.(`Descargadas ${num(list.length)} incidencias en ${file}.`);
+  };
+
+  // «Exportar PDF» de la pestaña (la barra de filtros): su vista previa (print.js, previewTabs), con la pestaña que se mira
+  // y las demás de la vista que se añadan, todas como se ven ahora (las mismas fechas, lados, filtros y modos), cada una en
+  // hojas propias; la cabecera, con todo eso (tab-report.js). Equipo soporte, no (va por su cuenta).
+  const exportTab = () => {
+    if (!m) return;
+    periodOnly();
+    const options = faceTabs(face, null), labelOf = (k) => options.find(([o]) => o === k)?.[1] ?? k;
+    const picked = options.some(([k]) => k === tab) ? [tab] : [options[0][0]];
+    const faceName = faceOf(face)?.label || '';
+    previewTabs({ options, picked, logo: logoUrl, partsOf: (keys) => {
+      const { S, DIMS } = m, A = m.rows(), names = m.NAMES(), cos = m.CO(), period = periodLabel(m);
+      // cada pestaña, con su número de orden si hay varias (el mismo que en la vista previa: print.js, previewTabs)
+      const body = vsCard(A) + keys.map((k, j) => `<h2 class="mt-rep-tab${j ? ' mt-rep-break' : ''}">${keys.length > 1 ? `${j + 1}. ` : ''}${esc(labelOf(k))}</h2>${tabs.render(k, A, { face })}`).join('');
+      const filters = [...Object.keys(S.f).flatMap((dim) => [...S.f[dim]].map((k) => `${DIMS[dim].name}: ${DIMS[dim].label(k)}`)), ...(S.q ? [`Búsqueda: ${S.q}`] : [])];
+      // SISU frente a SGA, solo si alguna de las pestañas lo pinta (la corona, Rendimiento equipos y Turnos)
+      const ssCmp = ui.ssCmp && !m.CMP() && keys.some((k) => ['resumen', 'backlog', 'rendimiento', 'turnos'].includes(k));
+      const periods = ui.vsPeriod && !m.CMP() ? [curLabel(), vsLabel()] : null;
+      const compare = ssCmp ? `${DIMS.ss.label(0)} frente a ${DIMS.ss.label(1)}` : periods ? periods.join(' frente a ') : '';
+      // el título: qué se compara (SISU y SGA, dos lados o dos periodos) o qué se mira (con un solo sistema elegido, ese;
+      // si no, lo de arriba: la empresa o la persona, y su sistema)
+      const sys = S.f.ss?.size === 1 ? DIMS.ss.label([...S.f.ss][0]) : '';
+      const versus = ssCmp ? [DIMS.ss.label(0), DIMS.ss.label(1)] : cos.length > 1 ? cos.map((k) => names[k]) : periods;
+      const subject = S.sides[cos[0]]?.people ? `${names[cos[0]]}${sys ? ` (${sys})` : ''}` : sys || names[cos[0]];
+      const labels = keys.map(labelOf), title = tabReportTitle({ tabs: labels, versus, subject });
+      return { title,
+        head: tabReportHead({ title, face: faceName, tabs: labels, period, sides: cos.map((k) => names[k]), compare, filters, coverage: coverage(m) }),
+        body, sideStyle: root.getAttribute('style') || '', logo: new URL(logoUrl, document.baseURI).href };   // absoluta: vale también en el PDF guardado desde otra carpeta
+    } }, { toast });
+  };
+
   const pressedInPop = pressStartedIn(root, (t) => !!t.closest('.mt-pop'));
   root.addEventListener('click', (e) => {
     // con datos, actualizar; sin datos, la primera carga con el periodo que se elige
     if (e.target.closest('[data-update]')) return m ? update() : modals.firstLoad();
     if (e.target.closest('[data-more]')) return setMenu($('[data-more-pop]')?.hidden === true);
-    const item = e.target.closest('[data-open-csv],[data-open-sql],[data-clear]');
+    if (e.target.closest('[data-export-tab]')) return exportTab();
+    const item = e.target.closest('[data-export-sheet],[data-open-csv],[data-open-sql],[data-clear]');
     if (item) {
       setMenu(false);
+      if (item.hasAttribute('data-export-sheet')) return tab === team?.id ? teamView?.exportSheet() : exportSheet();
       if (item.hasAttribute('data-open-csv')) return modals.csv();
       if (item.hasAttribute('data-clear')) return modals.clear();
       return modals.sql();
     }
     if (!e.target.closest('.mt-menu')) setMenu(false);
     if (!m || e.target.closest('a')) return;
+    const box = e.target.closest('[data-face]');
+    if (box) return enterFace(box.dataset.face);
+    if (e.target.closest('[data-export]')) return exportSheet();
     const { S } = m;
     // desplegables: abrir y cerrar, elegir; un clic fuera los cierra
     if (e.target.closest('[data-calendar]')) return togglePop('calendar');
     const side = e.target.closest('[data-side]');
     if (side) return togglePop(`side${side.dataset.side}`);
     const company = e.target.closest('[data-pick-company]');
-    if (company) { const [k, c] = company.dataset.pickCompany.split(':').map(Number); S.sides[k] = { company: c }; closePops(); return render(); }
-    if (e.target.closest('[data-side-add]')) {
-      S.sides[1] = freeCompany(S.sides[0]);
-      colors[1] = freeColor(colors[0]);
-      closePops();
-      return render();
+    if (company) {
+      const [k, c] = company.dataset.pickCompany.split(':').map(Number);
+      if (k === 1 && !S.sides[1]) colors[1] = freeColor(colors[0]);
+      S.sides[k] = { company: c }; ui.sideAdd = false; ui.vsPeriod = null;
+      closePops(); return render();
     }
+    if (e.target.closest('[data-side-add]')) {
+      if (ui.vsPeriod) return;
+      ui.sideAdd = true;
+      renderSides(); renderVs();
+      return togglePop('side1');
+    }
+    if (e.target.closest('[data-period-add]')) {
+      if (S.sides[1] || ui.sideAdd) return;
+      ui.vsPeriod = { key: VS_OPTIONS.find(([, , , f]) => clampRange(f()))?.[0] || 'fy' };
+      render();
+      return togglePop('vscal');
+    }
+    if (e.target.closest('[data-vscal]')) return togglePop('vscal');
+    if (e.target.closest('[data-vs-remove]')) { ui.vsPeriod = null; closePops(); return render(); }
     const remove = e.target.closest('[data-side-remove]');
     if (remove) {
-      ({ sides: S.sides, colors } = withoutSide(S.sides, colors, Number(remove.dataset.sideRemove)));
+      ui.sideAdd = false;
+      if (S.sides[1]) ({ sides: S.sides, colors } = withoutSide(S.sides, colors, Number(remove.dataset.sideRemove)));
       closePops();
       return render();
     }
@@ -332,64 +566,135 @@ export const mountMetricsView = (root, { api, toast }) => {
     const person = e.target.closest('[data-pick-person]');
     if (person) {
       const [k, p] = person.dataset.pickPerson.split(':').map(Number);
-      S.sides[k] = togglePerson(S.sides, k, p);
+      if (k === 1 && !S.sides[1]) colors[1] = freeColor(colors[0]);
+      S.sides[k] = togglePerson(S.sides, k, p); ui.sideAdd = false; ui.vsPeriod = null;
+      // un técnico frente a T-Systems no se compara: si el otro lado era T-Systems, se quita
+      const o = S.sides[1 - k];
+      if (S.sides[k]?.people && o && !o.people && o.company === 1) ({ sides: S.sides, colors } = withoutSide(S.sides, colors, 1 - k));
       return render();
     }
     if (open && !pressedInPop() && !e.target.closest('.mt-pop')) { closePops(); renderPeriod(); renderSides(); }
-    if (e.target.closest('[data-search]')) {
-      searching = !searching || !!S.q;
-      $('[data-q]').hidden = !searching;
-      if (searching) $('[data-q]').focus();
-      return;
-    }
-    const t = e.target.closest('[data-tab],[data-go],[data-rm],[data-exp],[data-sort],[data-f2],[data-f]');
+    const t = e.target.closest('[data-tab],[data-go],[data-rm],[data-exp],[data-sort],[data-evo],[data-evo-step],[data-qco],[data-cli-f],[data-times-mode],[data-times-by],[data-sla-mode],[data-mod-mode],[data-sla-side],[data-res-pop],[data-res-clear],[data-flk],[data-shk],[data-jc],[data-jc-clear],[data-esc-mode],[data-esc-nojira],[data-esc-by],[data-only],[data-reset-filters],[data-kf],[data-ring-sys],[data-f2],[data-f]');
+    // la cabecera de una columna: ordenar la tabla por ella (table-sort.js; las que ya filtran u ordenan van por su lado)
+    const colTh = !t && e.target.closest('th[data-colsort]');
+    if (colTh) { toggleTableSort(colTh, ui.colSort); render(); return; }
     if (!t) return;
     const d = t.dataset;
-    if (d.tab || d.go) { tab = d.tab || d.go; root.scrollTop = 0; }
+    let reframe = false;   // un enlace a una pestaña de otra vista: se cambia a esa vista
+    if (d.tab || d.go) {
+      const from = tab;
+      const [to, k] = routeTo(d.tab || d.go, face);
+      tab = k; root.scrollTop = 0;
+      if (to !== face) { face = to; onlyIndra(); reframe = true; } else if (onlyIndra()) m.refilter();   // Backlog: sin T-Systems
+      // Escalados se abre en Activas llegando desde Foto de hoy o desde el enlace de Pendiente (proveedor) de Resumen; si no,
+      // en Histórico. Dentro, se cambia con data-esc-mode.
+      if (tab === 'escalados' && from !== tab) { ui.escNow = from === 'resumen' || from === 'backlog' || d.escNow != null; ui.escNoJira = false; }
+      if (d.rm) { const [dim, k] = filterKey(d.rm); S.f[dim]?.delete(k); }   // un enlace que quita un filtro al ir (Resumen → Escalados)
+      // un enlace con fechas y vista (Resumen → Histórico): esas fechas arriba y esa vista de la evolución
+      if (d.period) { const [a, b] = d.period.split(':').map(Number); m.setPeriod(a, b); }
+      if (d.goEvo) ui.evo = d.goEvo;
+    }
+    else if (d.evo) ui.evo = d.evo;   // Histórico: la evolución del backlog o entrantes frente a atendidas
+    else if (d.evoStep) ui.evoStep = d.evoStep;   // la evolución del backlog: por días, semanas o meses
+    // La barra de arriba (quick-bar.js): la empresa y las fechas rápidas (con Ctrl, o Cmd, se comparan con lo elegido) y
+    // «Comparar»: abrir o cerrar su pop-up y aplicar lo elegido en él. Un periodo frente a otro (ui.resCmp, del Resumen)
+    // o el mismo frente a T-Systems (el otro lado: vale para todas las pestañas); son excluyentes
+    else if (d.timesMode) ui.timesNow = d.timesMode === 'now';   // Análisis tiempos: Actual o Histórico
+    else if (d.timesBy) ui.timesBy = d.timesBy;   // y su desglose, por módulo o por centro
+    else if (d.slaMode) ui.slaNow = d.slaMode === 'now';   // SLAs: Actual o Histórico
+    else if (d.modMode) ui.modNow = d.modMode === 'now';   // Módulos y focos: Actual o Histórico
+    else if (d.slaSide) ui.slaOut = d.slaSide === 'out';   // y si sus KPIs dan el % dentro o fuera del SLA
+    // Pendiente de cliente: filtrar su sábana por un KPI o un motivo (otra vez, o vacío, lo quita)
+    else if (d.cliF != null) ui.cliFilter = !d.cliF || ui.cliFilter === d.cliF ? null : d.cliF;
+    // la empresa: clic, mirarla; con Ctrl (o Cmd) o en el modo comparar, compararla con la marcada
+    else if (d.qco != null) { if (!pickCompany(m, ui, Number(d.qco), e.ctrlKey || e.metaKey || ui.cmpPick, sideOps)) return; ui.cmpPick = false; }
+    // «Comparar»: entrar en el modo comparar (o salir), con el calendario abierto para elegir con qué
+    else if (d.resPop != null) { ui.cmpPick = !ui.cmpPick; if (ui.cmpPick) { render(); return togglePop('calendar'); } }
+    // y su ×: quita la comparación, sea de periodos o de empresas, o cancela la elección
+    else if (d.resClear != null) { if (!ui.cmpPick) { if (S.sides[1]) ({ sides: S.sides, colors } = withoutSide(S.sides, colors, 1)); ui.resCmp = null; } ui.cmpPick = false; }
+    else if (d.flk) {   // y en estas, centrarse en una serie (otro clic, soltarla; Ctrl+clic, sumarla), como en los filtros
+      const f = ui.flowFocus || [], k = d.flk;
+      ui.flowFocus = e.ctrlKey || e.metaKey ? (f.includes(k) ? f.filter((x) => x !== k) : [...f, k]) : f.includes(k) ? f.filter((x) => x !== k) : [k];
+    }
+    // Turnos: clic, solo ese turno; con Ctrl (o Cmd), sumarlo o quitarlo (sin quedarse sin ninguno)
+    else if (d.shk != null) {
+      const k = Number(d.shk), cur = ui.shifts || [0, 1, 2];
+      // como los demás filtros: clic, solo ese (otro clic en el único elegido, todos otra vez); Ctrl+clic, sumarlo o quitarlo
+      if (!(e.ctrlKey || e.metaKey)) ui.shifts = cur.length === 1 && cur[0] === k ? [0, 1, 2] : [k];
+      else if (!cur.includes(k)) ui.shifts = [...cur, k].sort();
+      else if (cur.length > 1) ui.shifts = cur.filter((x) => x !== k);
+    }
+    else if (d.jc) { ui.jiraPick = toggleProject(ui.jiraShown, Number(d.jc), e.ctrlKey || e.metaKey); ui.escNoJira = false; }   // Escalados: los proyectos que se comparan y filtran
+    else if (d.jcClear != null) ui.jiraPick = [];
+    else if (d.escMode) ui.escNow = d.escMode === 'now';   // Escalados: Activas o Histórico
+    else if (d.escBy) ui.escBy = d.escBy;   // y su tabla, por proyecto Jira, módulo o centro
+    else if (d.escNojira != null) { ui.escNoJira = !ui.escNoJira; if (ui.escNoJira) ui.jiraPick = []; }   // y filtrar por las Sin Jira (sin proyecto)
+    // un selector: solo ese valor de la dimensión («dim:clave») o, sin clave («dim:»), todos (sin filtro)
+    // con Ctrl (o Cmd), sumarlo o quitarlo (view.js, pickOnly)
+    // la corona: SISU / SGA, el filtro de toda la página (clic, solo ese; otra vez, los dos); Ctrl+clic, compararlos (view.js, pickSys)
+    else if (d.ringSys != null) {
+      pickSys(S, ui, Number(d.ringSys), e.ctrlKey || e.metaKey);
+      // Turnos: con solo SISU o comparando SISU y SGA (solo entre semana), sin el filtro de entre semana o fin de semana
+      if (tab === 'turnos' && (ui.ssCmp || (S.f.ss?.size === 1 && S.f.ss.has(0)))) delete S.f.we;
+    }
+    else if (d.only != null) {
+      const [dim, k] = d.only.split(':');
+      pickOnly(S.f, dim, k === '' ? null : Number(k), e.ctrlKey || e.metaKey);
+      // Turnos: con solo SISU, sin el filtro de entre semana o fin de semana (no sale: lo del fin de semana pasa al lunes)
+      if (tab === 'turnos' && dim === 'ss' && S.f.ss?.size === 1 && S.f.ss.has(0)) delete S.f.we;
+    }
     else if (d.rm) { const [dim, k] = filterKey(d.rm); S.f[dim].delete(k); }
+    else if (d.resetFilters != null) clearFilters(S, ui);   // «Quitar filtros»
     else if (d.exp) ui.exp[d.exp] = !ui.exp[d.exp];
     else if (d.sort) { const [id, c] = d.sort.split(':'), cur = ui.sort[id]; ui.sort[id] = [c, cur && cur[0] === c ? -cur[1] : -1]; }
-    else if (d.f2) d.f2.split('|').forEach((x) => { const [dim, k] = filterKey(x); if (!m.isSel(dim, k)) m.toggle(dim, k); });
-    else if (d.f) { const [dim, k] = filterKey(d.f); m.toggle(dim, k); }
-    render();
+    // un KPI que filtra (SLAs): sus filtros, todos; si ya estaban todos, los quita
+    else if (d.kf) { const ks = d.kf.split('|').map(filterKey), all = ks.every(([dim, k]) => m.isSel(dim, k)); ks.forEach(([dim, k]) => { if (m.isSel(dim, k) === all) m.toggle(dim, k); }); }
+    else if (d.f2) pickBoth(S.f, d.f2.split('|').map(filterKey), e.ctrlKey || e.metaKey);   // con Ctrl, si ya estaba, quitarlo
+    // un filtro de una tabla, una corona, una barra…: clic, centrarse en ese (otro clic, soltarlo); Ctrl+clic, sumarlo o quitarlo
+    else if (d.f) { const [dim, k] = filterKey(d.f); pickOnly(S.f, dim, k, e.ctrlKey || e.metaKey); }
+    if (reframe) openFrame(); else render();
   });
-  let searchTimer;
+  // el buscador de personas de los desplegables de lo que se mira (sin buscador de incidencias: se quitó de Métricas)
   root.addEventListener('input', (e) => {
-    if (!m) return;
-    if (e.target.matches('[data-who-q]')) { who = e.target.value; renderSides(); return; }
-    if (!e.target.matches('[data-q]')) return;
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => { m.S.q = e.target.value; render(); }, SEARCH_MS);
+    if (m && e.target.matches('[data-who-q]')) { who = e.target.value; renderSides(); }
   });
 
   attachTip(root, () => m.NAMES());
-  // Escape: cierra el desplegable abierto; en la búsqueda, la borra y la cierra. Se escucha en todo
+  // Lo que se pincha sin ser un botón (un KPI o una tarjeta que lleva a su pestaña, un KPI que filtra): también con
+  // Intro o la barra espaciadora, como un botón.
+  root.addEventListener('keydown', (e) => {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches?.('[role="button"][tabindex]')) { e.preventDefault(); e.target.click(); }
+  });
+  // Escape: cierra el desplegable abierto. Se escucha en todo
   // el documento: al elegir un color el desplegable se repinta y el foco sale de la vista.
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && $('[data-more-pop]') && !$('[data-more-pop]').hidden) return setMenu(false);
     if (!m || root.hidden || e.key !== 'Escape') return;
+    if (ui.cmpPick) { ui.cmpPick = false; closePops(); render(); return; }   // el modo comparar: cancelarlo
     if (open) { closePops(); renderPeriod(); renderSides(); return; }
-    if (e.target.matches('[data-q]')) { e.target.value = ''; searching = false; m.S.q = ''; render(); }
-  });
-  root.addEventListener('focusout', (e) => {
-    if (m && e.target.matches('[data-q]') && !e.target.value && !e.relatedTarget?.closest('[data-search]')) { searching = false; e.target.hidden = true; }
   });
 
-  // Los datos guardados se leen una vez (aunque los pidan a la vez show y focus).
+  // Mientras se leen los datos (al entrar; si el servidor tiene que recalcularlos, hasta un minuto o más), la S de SIA
+  // latiendo con «Cargando métricas…», para que no parezca que la aplicación se ha quedado colgada. Solo si tarda: lo que llega al
+  // momento no parpadea. Lo que se pinte después (start) la sustituye.
+  const LOADER_MS = 200;
+  const loaderHtml = `<div class="mt-page mt-boot"><div class="mt-boot-box" role="status" aria-live="polite"><i class="mt-boot-logo" aria-hidden="true" style="--logo: url('${logoUrl}')"></i><span>Cargando métricas…</span></div></div>`;
+  // Los datos guardados se leen una vez, aunque se pidan a la vez.
   let reading = null;
-  const ready = () => (m ? Promise.resolve() : (reading ||= api.load().then(start).finally(() => { reading = null; })));
+  const ready = () => {
+    if (m) return Promise.resolve();
+    if (!reading) {
+      const wait = setTimeout(() => { if (!m) root.innerHTML = loaderHtml; }, LOADER_MS);
+      reading = api.load().then(start).finally(() => { clearTimeout(wait); reading = null; });
+    }
+    return reading;
+  };
   const failed = (e) => { root.innerHTML = `<div class="mt-page"><p class="mt-empty">No se pudieron cargar las métricas: ${esc(e.message)}</p></div>`; };
 
   return {
-    // Al abrir la vista: siempre el Resumen.
-    show: () => ready().then(() => { if (m && tab !== 'resumen') { tab = 'resumen'; render(); } }).catch(failed),
-    // Una persona frente al resto de su equipo (desde Equipo soporte).
-    focus: (person) => ready().then(() => {
-      if (!m) return;
-      m.S.sides = [{ people: new Set([person]) }, { company: m.data.company[person] }];
-      colors = defaultColors();
-      tab = 'resumen'; closePops();
-      render();
-    }).catch(failed),
+    // Al abrir la vista: siempre el menú, con una caja por vista.
+    show: () => ready().then(() => { if (m) { face = null; closePops(); renderHub(); } }).catch(failed),
+    // De vuelta de la gestión del equipo: la vista Equipo, en su pestaña.
+    showTeam: () => ready().then(() => { if (m) enterFace('equipo', team.id); }).catch(failed),
   };
 };

@@ -151,7 +151,7 @@ export const workScreen = ({ issue: i, sameCenter, timeline = [], now, mine, meI
         <h4 class="iss-sub">Del mismo centro <span class="iss-low">· ${sameCenter.length}</span></h4>
         ${sameCenter.length ? `<div class="iss-items">${sameCenter.map((x) => item(x, 'doing', now)).join('')}</div>` : '<p class="iss-empty">Ninguna otra abierta de este centro.</p>'}
         <h4 class="iss-sub">Parecidas <span class="iss-badge">Por conectar</span></h4>
-        <p class="iss-pending">Issues de otros centros con el mismo problema y cómo se resolvieron.</p>
+        <p class="iss-pending">Incidencias de otros centros con el mismo problema y cómo se resolvieron.</p>
       </div>
 
     </section>

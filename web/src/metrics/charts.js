@@ -6,12 +6,17 @@
 // A respecto a B (compare.js); data-cmp lleva lo que enseña
 // la tarjeta al pasar el ratón.
 import { esc } from '../ui/html.js';
-import { num, pct, dur } from './format.js';
+import { num, pct, dur, signedDur } from './format.js';
 import { compareFigure } from './compare.js';
+import { mttrOf } from './resolution.js';
 import { SHIFTS } from './shifts.js';
 import { MIN_ISSUES, DAY, clearlyWorse, trendDelta, shadeSoft, HOT } from './rules.js';
 import { blockHead, blocksOf } from './pieces.js';
 import { periodSeries, monthTicks, dayTicks, lineScale, dayScale, scorecardOrder, shownRows, heatCounts, matrixCounts, groupMax, LINE_MIN } from './plot.js';
+
+// La rejilla de una gráfica de W de ancho con márgenes L y R: tres líneas (0, la mitad y el máximo, en y) con su cifra
+// a la izquierda, en fmt.
+export const yGrid = ({ W, L, R }, y, max, fmt = num) => [0, 0.5, 1].map((p) => `<line x1="${L}" x2="${W - R}" y1="${y(max * p)}" y2="${y(max * p)}" class="mt-gridline"/><text x="${L - 6}" y="${y(max * p) + 4}" text-anchor="end" class="mt-axis">${fmt(max * p)}</text>`).join('');
 
 // ui: { exp: {id: true}, sort: {id: [columna, ±1]} }, lo que la persona ha desplegado y ordenado.
 export const createCharts = (m, ui) => {
@@ -20,9 +25,22 @@ export const createCharts = (m, ui) => {
 
   // sin título (t vacío), la tarjeta es solo su contenido, de borde a borde: p. ej. un mapa de calor que lleva el
   // título dentro y forma un bloque
-  const card = (t, body, o = {}) => `<section class="mt-card ${o.span ? `mt-${o.span}` : ''} ${t ? '' : 'mt-flush'}">${t ? `<h3>${t}</h3>` : ''}${o.sub ? `<p class="mt-sub">${o.sub}</p>` : ''}${body}</section>`;
+  // o.tip: la explicación, al pasar el ratón por el título en vez de debajo. o.go: { tab, label, attrs } la tarjeta entera
+  // lleva a esa pestaña (metrics-view.js, data-go; attrs, lo demás que se lleva: data-period…); lo de dentro que se
+  // pincha (filtros, selectores) sigue haciendo lo suyo.
+  // En la pestaña (ui.subTips; tabs.js, live), la explicación de debajo (o.sub) pasa al tooltip del título (sin título,
+  // al de la tarjeta); en los informes, a la vista.
+  const plain = (h) => String(h).replace(/<[^>]+>/g, '').replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+  const card = (t, body, o = {}) => {
+    if (ui.subTips && o.sub) o = { ...o, tip: [o.tip, plain(o.sub)].filter(Boolean).join('\n'), sub: '' };
+    const go = o.go ? ` data-go="${o.go.tab}"${o.go.attrs ? ` ${o.go.attrs}` : ''} role="button" tabindex="0" data-tip="${esc(`Clic para abrir ${o.go.label}.`)}"` : '';
+    const head = t ? `<h3${o.tip ? ` data-tip="${esc(o.tip)}"` : ''}>${t}</h3>` : '';
+    const own = !t && !o.go && o.tip ? ` data-tip="${esc(o.tip)}"` : '';
+    return `<section class="mt-card ${o.span ? `mt-${o.span}` : ''} ${t ? '' : 'mt-flush'}${o.go ? ' mt-go-card' : ''}"${go}${own}>${head}${o.sub ? `<p class="mt-sub">${o.sub}</p>` : ''}${body}</section>`;
+  };
   const legend = () => `<div class="mt-legend">${CO().map((k) => `<span><i class="mt-c${k}"></i>${esc(name(k))}</span>`).join('')}</div>`;
-  const kpi = (l, v, d = '', cls = '') => `<div class="mt-kpi ${cls}"><div class="mt-kpi-l">${l}</div><div class="mt-kpi-v">${v}</div><div class="mt-kpi-d">${d}</div></div>`;
+  // attrs: atributos de más (p. ej., para pinchar la cifra: con cls mt-clk y un data-…)
+  const kpi = (l, v, d = '', cls = '', attrs = '') => `<div class="mt-kpi ${cls}"${attrs ? ` ${attrs}` : ''}><div class="mt-kpi-l">${l}</div><div class="mt-kpi-v">${v}</div><div class="mt-kpi-d">${d}</div></div>`;
   const kpis = (...k) => `<div class="mt-kpis">${k.join('')}</div>`;
   const more = (id, total, top) => (total > top ? `<button class="mt-more" data-exp="${id}">${ui.exp[id] ? 'Ver menos' : `Ver todos (${num(total)})`}</button>` : '');
   const empty = '<p class="mt-mut mt-small">Sin datos con estos filtros.</p>';
@@ -36,12 +54,23 @@ export const createCharts = (m, ui) => {
   // segundo (en verde o rojo si tiene un sentido mejor; en puntos si es un %, que es lo que se lee al mirar los dos
   // valores) y debajo el valor de cada uno. La nota, al pasar el ratón.
   const kpiCo = (label, ST, fmt, o = {}) => {
-    if (!CMP()) { const k = CO()[0]; return kpi(label, fmt(ST[k]), o.note || '', `mt-t${k}`); }
+    // o.pair: comparar ST[0] con ST[1] aunque no se comparen lados (el Resumen: el periodo con el anterior). o.go:
+    // [pestaña, nombre], el KPI entero lleva a esa pestaña (metrics-view.js, data-go), y su nota lo dice
+    // o.pctSign: la diferencia de un porcentaje, con «%» en vez de «pts» (son puntos: 41 % frente a 53 %, «−12 %»).
+    // o.tip: la definición (o.note), al pasar el ratón por el KPI en vez de debajo. o.pick: el KPI se pincha para
+    // filtrar ({ attr: su data-…, on: si está filtrando }; quien lo pinta dice qué hace el clic)
+    const click = o.pick ? (o.pick.on ? 'Clic para quitar el filtro.' : 'Clic para ver solo estas.') : o.go ? `Clic para abrir ${o.go[1]}.` : '';
+    const tip = o.tip && o.note ? [o.note, click].filter(Boolean).join('\n') : o.go ? click : '';
+    const pickCls = o.pick || o.go ? ` mt-clk${o.pick?.on ? ' mt-on' : ''}` : '';
+    const attrs = [tip ? `data-tip="${esc(tip)}"` : '', o.pick ? `${o.pick.attr} role="button" tabindex="0" aria-pressed="${!!o.pick.on}"` : '',
+      o.go ? `data-go="${o.go[0]}" role="button" tabindex="0"` : ''].filter(Boolean).join(' ');
+    if (!CMP() && !o.pair) { const k = CO()[0]; return kpi(label, fmt(ST[k]), o.tip ? '' : o.note || '', `mt-t${k}${pickCls}`, attrs); }
     const f = compareFigure(ST[0], ST[1], fmt, o.val, o.better);
     const nm = (k) => o.names?.[k] || name(k);   // o.names: otro nombre para cada lado en esta cifra
-    const side = (k) => `<div class="mt-kpi-s"><i class="mt-c${k}"></i><span title="${esc(nm(k))}">${esc(nm(k))}</span><b>${ST[k].n ? fmt(ST[k]) : '—'}</b></div>`;
-    return `<div class="mt-kpi mt-kpi-co"><div class="mt-kpi-l" ${o.note ? `data-tip="${esc(o.note)}"` : ''}>${label}</div>
-      <div class="mt-kpi-v ${f ? `mt-diff ${f.cls}` : 'mt-mut'}">${f ? (f.pts || f.main) : '—'}</div>${side(0)}${side(1)}</div>`;
+    // o.side: cómo se ve la cifra de cada lado, si no como fmt (que es lo que se compara: solo el valor)
+    const side = (k) => `<div class="mt-kpi-s"><i class="mt-c${k}"></i><span title="${esc(nm(k))}">${esc(nm(k))}</span><b>${ST[k].n ? (o.side || fmt)(ST[k]) : '—'}</b></div>`;
+    return `<div class="mt-kpi mt-kpi-co${pickCls}"${attrs ? ` ${attrs}` : ''}><div class="mt-kpi-l" ${o.note && !o.tip ? `data-tip="${esc(o.note)}"` : ''}>${label}</div>
+      <div class="mt-kpi-v ${f ? `mt-diff ${f.cls}` : 'mt-mut'}">${f ? (o.pctSign && f.pts ? f.pts.replace(/ pts$/, ' %') : f.pts || f.main) : '—'}</div>${side(0)}${side(1)}</div>`;
   };
 
   // Líneas de evolución en el periodo que se mira, una por lado: por meses o, si es de un mes o menos, por días
@@ -56,7 +85,7 @@ export const createCharts = (m, ui) => {
     const subs = ticks.some((t) => t.sub);
     const W = 620, H = o.height || 190, L = o.left || 74, R = 12, T = 12, B = subs ? 38 : 26;
     const { max, x, y } = lineScale(per.flat(), n - 1, { W, H, L, R, T, B });
-    const grid = [0, 0.5, 1].map((p) => `<line x1="${L}" x2="${W - R}" y1="${y(max * p)}" y2="${y(max * p)}" class="mt-gridline"/><text x="${L - 6}" y="${y(max * p) + 4}" text-anchor="end" class="mt-axis">${fmt(max * p)}</text>`).join('');
+    const grid = yGrid({ W, L, R }, y, max, fmt);
     // el tramo bajo su punto y, debajo, el año (meses) o el mes (días) donde cambia (monthTicks, dayTicks)
     const xs = ticks.map(({ k, label, sub }) => `<text x="${x(k)}" y="${H - (subs ? 19 : 6)}" text-anchor="middle" class="mt-axis">${label}${last(k) ? '*' : ''}</text>`
       + (sub ? `<text x="${x(k)}" y="${H - 4}" text-anchor="middle" class="mt-axis">${sub}</text>` : '')).join('');
@@ -83,30 +112,30 @@ export const createCharts = (m, ui) => {
   // o.child: { dim, top, noun }: cada fila se despliega (▸) en sus valores de otra dimensión (los temas, en sus problemas),
   // ordenados igual; los o.child.top primeros y «Otros», para que sumen la fila.
   const SC = {
-    n: ['Issues', null, (s) => s.n, 'Issues recibidas en el periodo y su parte del total.'],
+    n: ['Incidencias', null, (s) => s.n, 'Incidencias recibidas en el periodo y su parte del total.'],
     dl: ['90 días', null, (s) => (s.tr.prev ? (s.tr.now - s.tr.prev) / s.tr.prev : 0), 'Últimos 90 días de la foto frente a los 90 anteriores.'],
     sla: ['En SLA', 'high', (s) => s.sla, 'Empezadas (paso a En curso) dentro del plazo de su prioridad.'],
-    avg: ['Media resol.', 'low', (s) => s.avg, 'Tiempo medio de la apertura a la resolución.'],
+    avg: ['MTTR', 'low', (s) => s.avg, 'Tiempo medio de la apertura a la resolución.'],
     d1: ['En < 24 h', 'high', (s) => s.d1, 'De las resueltas, las resueltas en menos de 24 horas.'],
     reop: ['Reabiertas', 'low', (s) => s.reop, 'Volvieron de Resuelta a abierta.'],
     crit: ['Críticas', null, (s) => s.crit, 'Parte de prioridad crítica.'],
-    vend: ['Escaladas', null, (s) => s.vend, 'Parte con ticket de tercero.'],
+    vend: ['Escaladas', null, (s) => s.vend, 'Parte que ha estado en Pendiente de un tercero.'],
     open: ['Pendientes', null, (s) => s.open, 'Lo recibido en el periodo que sigue sin resolver.'],
     // con o.extra: top, el valor de otra dimensión que más se repite ({ label, share }); mi, los major incidents
-    top: ['Lo que más falla', null, null, 'El módulo con más issues y su parte.'],
-    mi: ['Major inc.', null, (s) => s.mi, 'Issues con la etiqueta de major incident en sus notas de trabajo.'],
+    top: ['Lo que más falla', null, null, 'El módulo con más incidencias y su parte.'],
+    mi: ['Major inc.', null, (s) => s.mi, 'Incidencias con la etiqueta de major incident en sus notas de trabajo.'],
     // con o.extra: nce, en cuántos centros pasa; same, de las resueltas, la parte cerrada con el texto más usado
     nce: ['Centros', null, (s) => s.nce, 'En cuántos centros distintos ha pasado. En uno, es algo local; en muchos, del sistema.'],
     // Resolución: lo resuelto, cuánto tarda y en qué se le va el tiempo (de media por resuelta: model.js, stats rt)
-    d7: ['1 a 7 días', null, (s) => (s.resolved ? s.d7 : null), 'De las resueltas, las que tardaron de 1 a 7 días.'],
-    d15: ['7 a 15 días', 'low', (s) => (s.resolved ? s.d15 : null), 'De las resueltas, las que tardaron de 7 a 15 días.'],
+    d7: ['24 a 168 h', null, (s) => (s.resolved ? s.d7 : null), 'De las resueltas, las que tardaron de 24 a 168 h.'],
+    d15: ['168 a 360 h', 'low', (s) => (s.resolved ? s.d15 : null), 'De las resueltas, las que tardaron de 168 a 360 h.'],
     mx: ['Máximo', null, (s) => (s.resolved ? s.mx : null), 'Lo que tardó la resuelta más lenta.'],
-    w7: ['> 7 días', 'low', (s) => (s.resolved ? s.w7 : null), 'De las resueltas, las que tardaron más de 7 días.'],
+    w7: ['> 168 h', 'low', (s) => (s.resolved ? s.w7 : null), 'De las resueltas, las que tardaron más de 168 h.'],
     tq: ['En cola', 'low', (s) => (s.resolved ? s.rt[0] / s.resolved : null), 'Tiempo medio en Asignada.'],
     tc: ['Espera cliente', null, (s) => (s.resolved ? s.rt[2] / s.resolved : null), 'Tiempo medio en Pendiente del centro o del cliente.'],
     tv: ['Espera tercero', null, (s) => (s.resolved ? s.rt[3] / s.resolved : null), 'Tiempo medio en Pendiente de un tercero.'],
     // IA (con o.extra: tabs.js, iaView)
-    iaN: ['Issues', null, (s) => s.iaN, 'Con alguna marca de IA.'],
+    iaN: ['Incidencias', null, (s) => s.iaN, 'Con alguna marca de IA.'],
     iaShare: ['% de las suyas', null, (s) => s.iaShare, 'De lo recibido, lo que tiene alguna marca de IA.'],
     // el 5.º: sobre cuántas se marca si va peor (si no, sus issues)
     iaOk: ['Revisadas OK', 'high', (s) => s.iaOk, 'De las de IA, con revisión humana OK y sin fallo.', (s) => s.iaN],
@@ -115,7 +144,7 @@ export const createCharts = (m, ui) => {
     // con o.cell: la celda la pinta quien llama (el reparto de las de IA en una barra)
     iaMix: ['Reparto', null, null, 'Revisadas OK, con fallo y sin revisar.'],
     req: ['% peticiones', null, (s) => s.req, 'Tipo de servicio Petición de usuario.'],
-    rep: ['Resol. repetida', null, (s) => s.rep, 'Issues cuyo texto de resolución se ha usado 4 veces o más.'],
+    rep: ['Resol. repetida', null, (s) => s.rep, 'Incidencias cuyo texto de resolución se ha usado 4 veces o más.'],
     // SLA y calidad
     slaKo: ['Fuera de SLA', null, (s) => s.slaKo, 'Empezadas tarde y abiertas que siguen sin empezar pasado el plazo.'],
     ip: ['Hasta En curso', 'low', (s) => s.ip, 'Media de la apertura al primer paso a En curso.'],
@@ -124,9 +153,15 @@ export const createCharts = (m, ui) => {
     escNoPend: ['Esc. sin Pendiente', 'low', (s) => s.escNoPend, 'De las cerradas con ticket de tercero, las que nunca pasaron a Pendiente.'],
     noCat: ['Sin tipología', 'low', (s) => (s.n ? s.noCat : null), 'Sin categorización 3 de Remedy.'],
     noDesc: ['Sin descripción', 'low', (s) => (s.n ? s.noDesc : null), 'El título no dice cuál es el problema.'],
+    // Escalados (con o.extra: tabs/escalados.js, withTimes): los tiempos de escalado (resolution.js, escalationTimes) y el IDMTTR
+    the: ['THesc', 'low', (s) => s.esc?.the.avg ?? null, 'Media de la apertura al primer Jira.'],
+    tes: ['Tesc', 'low', (s) => s.esc?.tes.avg ?? null, 'Media del Jira más antiguo a la resolución del Jira de solución o, sin resolver, a la última carga.'],
+    tsr: ['Tesc-r', 'low', (s) => s.esc?.tsr.avg ?? null, 'Media de lo que lleva su Jira resuelto sin cerrarse en Remedy.'],
+    age: ['Antigüedad', 'low', (s) => s.esc?.total.avg ?? null, 'Media de la apertura a la última carga.'],
+    idm: ['IDMTTR', null, (s) => s.idm ?? null, 'Lo que mueve el MTTR del periodo: el MTTR con ellas menos el MTTR sin ellas.'],
     same: ['Mismo cierre', null, (s) => s.same, 'De las resueltas, la parte cerrada con el mismo texto de resolución (el más usado). Si es alta, se resuelve siempre igual: se puede automatizar o llevar a la IA.'],
   };
-  const SC_FMT = { sla: (v) => (v == null ? '—' : pct(v)), avg: dur, d1: (v) => pct(v), reop: (v) => pct(v, 1), crit: (v) => pct(v), vend: (v) => pct(v), open: num, mi: (v) => (v ? num(v) : ''), nce: num, same: pct, w7: (v) => pct(v), d7: (v) => pct(v), d15: (v) => pct(v), mx: dur, tq: dur, tc: dur, tv: dur, iaN: (v) => (v ? num(v) : ''), iaShare: (v) => (v ? pct(v, 1) : ''), iaOk: (v) => (v == null ? '' : pct(v)), iaFail: (v) => (v == null ? '' : pct(v)), iaUnrev: (v) => (v == null ? '' : pct(v)), req: (v) => pct(v), rep: (v) => pct(v), slaKo: num, ip: dur, bounce: (v) => pct(v, 1), noIpDone: (v) => pct(v, 1), escNoPend: (v) => pct(v, 1), noCat: (v) => pct(v, 1), noDesc: (v) => pct(v, 1) };
+  const SC_FMT = { sla: (v) => (v == null ? '—' : pct(v)), avg: dur, d1: (v) => pct(v), reop: (v) => pct(v, 1), crit: (v) => pct(v), vend: (v) => pct(v), open: num, mi: (v) => (v ? num(v) : ''), nce: num, same: pct, w7: (v) => pct(v), d7: (v) => pct(v), d15: (v) => pct(v), mx: dur, tq: dur, tc: dur, tv: dur, iaN: (v) => (v ? num(v) : ''), iaShare: (v) => (v ? pct(v, 1) : ''), iaOk: (v) => (v == null ? '' : pct(v)), iaFail: (v) => (v == null ? '' : pct(v)), iaUnrev: (v) => (v == null ? '' : pct(v)), req: (v) => pct(v), rep: (v) => pct(v), slaKo: num, ip: dur, bounce: (v) => pct(v, 1), noIpDone: (v) => pct(v, 1), escNoPend: (v) => pct(v, 1), noCat: (v) => pct(v, 1), noDesc: (v) => pct(v, 1), the: dur, tes: dur, tsr: dur, age: dur, idm: signedDur };
   const scorecard = (dim, groups, o = {}) => {
     const id = o.id || `sc-${dim}`, list = o.rows || rows(dim), cmp = CMP(), cols = groups.flatMap(([, c]) => c);
     const side = (l) => (cmp ? bySide(l)[0] : l), other = (l) => bySide(l)[1];
@@ -144,7 +179,7 @@ export const createCharts = (m, ui) => {
     // la barra, su parte real del total (el total, entera; «Resto», lo que suma)
     const cell = (c, r, isRef) => {
       if (c === 'n') return `<td><div class="mt-sc-vol"><em>${pct(r.n / T, 1)}</em><span class="mt-sc-bar"><i style="width:${(r.n / T * 100).toFixed(1)}%"></i></span><b>${num(r.n)}</b></div></td>`;
-      if (c === 'top') return `<td class="mt-sc-top">${r.top ? `<span data-tip="${esc(`${r.top.label}\n${pct(r.top.share, 1)} de sus issues`)}">${esc(r.top.label)}</span><em>${pct(r.top.share)}</em>` : ''}</td>`;
+      if (c === 'top') return `<td class="mt-sc-top">${r.top ? `<span data-tip="${esc(`${r.top.label}\n${pct(r.top.share, 1)} de sus incidencias`)}">${esc(r.top.label)}</span><em>${pct(r.top.share)}</em>` : ''}</td>`;
       if (o.cell?.[c]) return `<td class="mt-tbar">${o.cell[c](r)}</td>`;
       if (c === 'dl') return `<td class="mt-num" data-tip="${esc(`Últimos 90 días: ${num(r.tr.now)}\n90 anteriores: ${num(r.tr.prev)}`)}">${delta(r.tr)}</td>`;
       const v = SC[c][2](r), shown = v == null ? '—' : SC_FMT[c](v);
@@ -179,7 +214,7 @@ export const createCharts = (m, ui) => {
 
   // Mapa de calor entre dos dimensiones (los valores más frecuentes de cada una). Clic en una celda = filtrar por ambas.
   const heat = (rd, cd, nr, nc, o = {}) => {
-    const dr = DIMS[rd], dc = DIMS[cd], list = o.rows || rows(), keys = (d, i) => (d.multi ? d.get(i) : [d.get(i)]);
+    const dr = DIMS[rd], dc = DIMS[cd], list = m.widen(o.rows || rows(), [rd, cd]), keys = (d, i) => (d.multi ? d.get(i) : [d.get(i)]);
     const R = group(rd, list).filter((x) => !(o.skipR && o.skipR(x.k))).slice(0, nr), Cc = group(cd, list).filter((x) => !(o.skipC && o.skipC(x.k))).slice(0, nc);
     if (!R.length || !Cc.length) return empty;
     if (o.orderR) R.sort((x, y) => o.orderR.indexOf(x.k) - o.orderR.indexOf(y.k));
@@ -187,22 +222,32 @@ export const createCharts = (m, ui) => {
     const { mt, max } = heatCounts(R, Cc, list, (i) => keys(dr, i), (i) => keys(dc, i), SIDE);
     const cell = (t, r, c) => {
       const v = t[0] + t[1] + t[2], a = shadeSoft(v, max);
-      return `<td class="${a > HOT ? 'mt-hot' : ''}" style="--mt-a:${a}%" data-f2="${rd}:${R[r].k}|${cd}:${Cc[c].k}" data-tip="${esc(`${dr.label(R[r].k)} × ${dc.label(Cc[c].k)}\n${num(v)} issues\n${CO().map((k) => `${name(k)}: ${num(t[k])}`).join(' · ')}`)}">${v || ''}</td>`;
+      return `<td class="${a > HOT ? 'mt-hot' : ''} ${focusCls(`${rd}:${R[r].k}|${cd}:${Cc[c].k}`)}" style="--mt-a:${a}%" data-f2="${rd}:${R[r].k}|${cd}:${Cc[c].k}" data-tip="${esc(`${dr.label(R[r].k)} × ${dc.label(Cc[c].k)}\n${num(v)} incidencias\n${CO().map((k) => `${name(k)}: ${num(t[k])}`).join(' · ')}`)}">${v || ''}</td>`;
     };
     // cabeceras en horizontal; si son muchas (módulos, centros…), columnas iguales y el nombre cortado con «…» (entero al pasar el ratón)
     const v = 'mt-h', wide = Cc.length > 6;
     const cg = wide ? `<colgroup><col style="width:22%">${'<col>'.repeat(Cc.length)}<col style="width:6%"></colgroup>` : '';
     // o.title: el título, dentro de la tabla, en la esquina de la fila de cabecera («Centro × Módulo»)
     const corner = o.title ? `<th class="mt-hm-title">${esc(DIMS[rd].name.split(' ')[0])}<i>×</i>${esc(dc.name.split(' ')[0])}</th>` : '<th></th>';
-    return `<div class="mt-tablewrap"><table class="mt-hm ${wide ? 'mt-hwide' : ''} ${o.title ? 'mt-hm-titled' : ''}">${cg}<thead><tr>${corner}${Cc.map((c) => `<th class="${v}" data-tip="${esc(dc.label(c.k))}">${esc(dc.label(c.k))}</th>`).join('')}<th class="${v}">Total</th></tr></thead><tbody>
-      ${R.map((r, i) => `<tr><th class="mt-r" title="${esc(dr.label(r.k))}">${esc(dr.label(r.k))}</th>${mt[i].map((t, j) => cell(t, i, j)).join('')}<td class="mt-mut mt-total">${num(r.n)}</td></tr>`).join('')}</tbody></table></div>`;
+    return `<div class="mt-tablewrap"><table class="mt-hm ${wide ? 'mt-hwide' : ''} ${o.title ? 'mt-hm-titled' : ''}">${cg}<thead><tr>${corner}${Cc.map((c) => `<th class="${v} mt-clk ${focusCls(`${cd}:${c.k}`)}" data-f="${cd}:${c.k}" data-tip="${esc(`${dc.label(c.k)}
+Clic para filtrar.`)}">${esc(dc.label(c.k))}</th>`).join('')}<th class="${v}">Total</th></tr></thead><tbody>
+      ${R.map((r, i) => `<tr><th class="mt-r mt-clk ${focusCls(`${rd}:${r.k}`)}" data-f="${rd}:${r.k}" title="${esc(dr.label(r.k))}">${esc(dr.label(r.k))}</th>${mt[i].map((t, j) => cell(t, i, j)).join('')}<td class="mt-mut mt-total">${num(r.n)}</td></tr>`).join('')}</tbody></table></div>`;
   };
 
   // Tabla de recuentos para cuadrar cuentas: filas y columnas son condiciones ({ label, test, f }); una
   // fila { head } abre un grupo. Cada celda, cuántas de `list` cumplen las dos; el color, dentro de su
   // grupo. o.total: columna Total; o.share: columna % (de o.of, por defecto todo `list`); o.foot: fila
   // { label, test } de totales. Clic en una celda o fila con `f` = filtrar.
-  const matrix = (rowsDef, cols, list, o = {}) => {
+  // centrarse sin que desaparezca lo demás (model.js, widen): las dimensiones de los filtros de filas y columnas
+  const dimsOf = (fs) => [...new Set(fs.filter(Boolean).flatMap((f) => f.split('|').map((x) => x.split(':')[0])))];
+  const focusCls = (f) => {
+    if (!f) return '';
+    // solo cuentan las dimensiones con filtro: una celda de la fila elegida, aunque su columna no lo esté, va destacada
+    const keys = f.split('|').map((x) => x.split(':')).filter(([d]) => anySel(d));
+    return !keys.length ? '' : keys.every(([d, k]) => isSel(d, +k)) ? 'mt-sel' : 'mt-off';
+  };
+  const matrix = (rowsDef, cols, list0, o = {}) => {
+    const list = m.widen(list0, dimsOf([...rowsDef.map((r) => r.f), ...cols.map((c) => c.f)]));
     const R = rowsDef.filter((r) => !r.head), ri = new Map(R.map((r, j) => [r, j]));
     const all = o.foot ? [...R, o.foot] : R, { cnt, rt } = matrixCounts(all, cols, list, SIDE);
     const tot = (t) => t[0] + t[1] + t[2], of = o.of ?? list.length;
@@ -210,7 +255,7 @@ export const createCharts = (m, ui) => {
     const show = (t) => (!CMP() || (!t[0] && !t[1]) ? (tot(t) ? num(tot(t)) : '') : `${num(t[0])}<span class="mt-mut"> / ${num(t[1])}</span>`);
     const gmax = groupMax(rowsDef, cnt, (r) => ri.get(r));   // el máximo de cada bloque, para el color
     const tip = (label, t) => `${label}\n${num(tot(t))} issues${CMP() ? `\n${CO().map((k) => `${name(k)}: ${num(t[k])}`).join(' · ')}` : ''}`;
-    const filt = (r, c) => (r.f && c?.f ? `data-f2="${r.f}|${c.f}"` : r.f && !c ? `data-f="${r.f}"` : c?.f && !r.f ? `data-f="${c.f}"` : '');
+    const filt = (r, c) => (r.f && c?.f ? `data-f2="${r.f}|${c.f}"` : r.f && !c ? `data-f${r.f.includes('|') ? '2' : ''}="${r.f}"` : c?.f && !r.f ? `data-f="${c.f}"` : '');
     const cell = (r, j, c, k) => {
       const v = tot(cnt[j][k]), a = shadeSoft(v, gmax.get(r));
       return `<td class="mt-num ${a > HOT ? 'mt-hot' : ''}" style="--mt-a:${a}%" ${filt(r, c)} data-tip="${esc(tip(`${r.label} · ${c.label}`, cnt[j][k]))}">${show(cnt[j][k])}</td>`;
@@ -220,19 +265,22 @@ export const createCharts = (m, ui) => {
     // abarca todas sus filas (como en una tabla dinámica). Las filas antes del primero, sin bloque.
     const blocks = blocksOf(rowsDef);
     const grouped = blocks.some((b) => b.head), span = grouped ? 'colspan="2"' : '';
-    const tail = (t, r = {}) => `${o.total ? `<td class="mt-num mt-total" ${filt(r)} data-tip="${esc(tip(r.label || 'Total', t))}">${show(t)}</td>` : ''}${o.share ? `<td class="mt-num mt-mut">${pct(tot(t) / (of || 1), 1)}</td>` : ''}`;
+    // o.mttr: en vez del total, el MTTR de las de la fila (resolution.js, mttrOf: de las abiertas, lo que llevan abiertas)
+    const mttrCell = (test) => { const v = mttrOf(m, list.filter((i) => !test || test(i))).mttr; return v == null ? '—' : dur(v); };
+    const tail = (t, r = {}) => `${o.total ? `<td class="mt-num mt-total" ${filt(r)} data-tip="${esc(o.mttr ? `${r.label || 'Total'}
+${num(tot(t))} issues; MTTR: lo que llevan abiertas, de media` : tip(r.label || 'Total', t))}">${o.mttr ? mttrCell(r.test) : show(t)}</td>` : ''}${o.share ? `<td class="mt-num mt-mut">${pct(tot(t) / (of || 1), 1)}</td>` : ''}`;
     const row = (r, b, first) => {
       const j = ri.get(r), lab = `<th class="mt-r" ${r.tip ? `data-tip="${esc(r.tip)}"` : `title="${esc(r.label)}"`} ${filt(r)}>${esc(r.label)}</th>`;
       const gl = !grouped ? lab : !b.head ? lab.replace('<th ', `<th ${span} `) : (first ? blockHead(b.head, b.note, b.rows.length) : '') + lab;
-      return `<tr class="${first ? 'mt-gfirst' : ''}">${gl}${cols.map((c, k) => cell(r, j, c, k)).join('')}${tail(rt[j], r)}</tr>`;
+      return `<tr class="${first ? 'mt-gfirst' : ''} ${focusCls(r.f)}">${gl}${cols.map((c, k) => cell(r, j, c, k)).join('')}${tail(rt[j], r)}</tr>`;
     };
     const fj = all.length - 1;
     // el total: arriba (footTop) encabeza la tabla y lo de debajo es su desglose; abajo, la cierra
-    const foot = o.foot ? `<tr class="mt-lead ${o.footTop ? '' : 'mt-lead-end'}"><th class="mt-r" ${span}>${esc(o.foot.label)}</th>${cols.map((c, k) => `<td class="mt-num" ${filt({}, c)}>${show(cnt[fj][k])}</td>`).join('')}${tail(rt[fj])}</tr>` : '';
+    const foot = o.foot ? `<tr class="mt-lead ${o.footTop ? '' : 'mt-lead-end'}"><th class="mt-r" ${span}>${esc(o.foot.label)}</th>${cols.map((c, k) => `<td class="mt-num" ${filt({}, c)}>${show(cnt[fj][k])}</td>`).join('')}${tail(rt[fj], { test: o.foot.test })}</tr>` : '';
     const wide = cols.length > 8, widths = grouped ? [wide ? 12 : 15, wide ? 17 : 20] : [wide ? 20 : 27];
     const body = blocks.map((b) => b.rows.map((r, k) => row(r, b, k === 0)).join('')).join('');
     return `${CMP() ? `<p class="mt-small mt-mut">Cada celda: ${esc(name(0))} / ${esc(name(1))}.</p>` : ''}<div class="mt-tablewrap"><table class="mt-hm mt-mx"><colgroup>${widths.map((w) => `<col style="width:${w}%">`).join('')}${'<col>'.repeat(cols.length + (o.total ? 1 : 0) + (o.share ? 1 : 0))}</colgroup>
-      <thead><tr><th class="mt-corner" ${span}>${esc(o.corner || '')}</th>${cols.map((c) => `<th class="mt-h" ${c.tip ? `data-tip="${esc(c.tip)}"` : ''}>${esc(c.label)}</th>`).join('')}${o.total ? '<th class="mt-h">Total</th>' : ''}${o.share ? '<th class="mt-h">%</th>' : ''}</tr></thead><tbody>
+      <thead><tr><th class="mt-corner" ${span}>${esc(o.corner || '')}</th>${cols.map((c) => `<th class="mt-h" ${c.tip ? `data-tip="${esc(c.tip)}"` : ''}>${esc(c.label)}</th>`).join('')}${o.total ? `<th class="mt-h"${o.mttr ? ' data-tip="Lo que llevan abiertas, de media."' : ''}>${o.mttr ? 'MTTR' : 'Total'}</th>` : ''}${o.share ? '<th class="mt-h">%</th>' : ''}</tr></thead><tbody>
       ${o.footTop ? foot : ''}${body}${o.footTop ? '' : foot}</tbody></table></div>`;
   };
 
@@ -243,7 +291,7 @@ export const createCharts = (m, ui) => {
     const band = (from, to, k) => { const b = bandOf(from, to); return `<rect x="${b.x.toFixed(1)}" y="${T}" width="${b.width.toFixed(1)}" height="${H - T - B}" class="mt-band${k}"/>`; };
     const bands = band(0, 7, 2) + band(7, 15, 0) + band(15, 23, 1) + band(23, 24, 2)
       + [[3.5, 2], [11, 0], [19, 1]].map(([h, k]) => `<text x="${edge(h).toFixed(1)}" y="${T - 8}" text-anchor="middle" class="mt-axis">${SHIFTS[k]}</text>`).join('');
-    const grid = [0, 0.5, 1].map((p) => `<line x1="${L}" x2="${W - R}" y1="${y(max * p)}" y2="${y(max * p)}" class="mt-gridline"/><text x="${L - 6}" y="${y(max * p) + 4}" text-anchor="end" class="mt-axis">${fmt(max * p)}</text>`).join('');
+    const grid = yGrid({ W, L, R }, y, max, fmt);
     const xs = [0, 3, 6, 9, 12, 15, 18, 21].map((h) => `<text x="${x(h)}" y="${H - 6}" text-anchor="middle" class="mt-axis">${h} h</text>`).join('');
     const ser = series.map((s) => `<polyline class="mt-line ${s.cls}" points="${s.v.map((v, h) => `${x(h).toFixed(1)},${y(v).toFixed(1)}`).join(' ')}"/>`
       + s.v.map((v, h) => `<circle cx="${x(h).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3" class="mt-dot ${s.cls}" data-tip="${esc(`${s.label} · de ${h} a ${h + 1} h\n${fmt(v)}`)}"/>`).join('')).join('');
@@ -254,8 +302,25 @@ export const createCharts = (m, ui) => {
   const split = (names, list) => `<div class="mt-legend">${names.map((n, j) => `<span><i class="mt-part${j}"></i>${n}</span>`).join('')}</div>`
     + list.map((r) => {
       const t = r.v.reduce((a, b) => a + b, 0);
-      return `<div class="mt-split"><span class="mt-split-l">${r.k != null && CMP() ? `<i class="mt-sw mt-c${r.k}"></i>` : ''}${esc(r.label)}</span><span class="mt-hbar mt-split-b">${t ? r.v.map((v, j) => `<i class="mt-part${j}" style="width:${v / t * 100}%" data-tip="${esc(`${r.label}${r.k != null && CMP() ? ` · ${name(r.k)}` : ''}\n${names[j]}: ${num(v)} (${pct(v / t)})`)}">${v / t >= 0.08 ? pct(v / t) : ''}</i>`).join('') : ''}</span><span class="mt-split-n">${num(t)}</span></div>`;
+      // r.f: clic para filtrar (como los demás filtros: la elegida, destacada; las demás, apagadas)
+      return `<div class="mt-split${r.f ? ` mt-clk ${focusCls(r.f)}` : ''}"${r.f ? ` data-f="${r.f}"` : ''}><span class="mt-split-l">${r.k != null && CMP() ? `<i class="mt-sw mt-c${r.k}"></i>` : ''}${esc(r.label)}</span><span class="mt-hbar mt-split-b">${t ? r.v.map((v, j) => `<i class="mt-part${j}" style="width:${v / t * 100}%" data-tip="${esc(`${r.label}${r.k != null && CMP() ? ` · ${name(r.k)}` : ''}\n${names[j]}: ${num(v)} (${pct(v / t)})`)}">${v / t >= 0.08 ? pct(v / t) : ''}</i>`).join('') : ''}</span><span class="mt-split-n">${num(t)}</span></div>`;
     }).join('');
 
-  return { card, legend, kpi, kpis, kpiCo, diff, more, lines, heat, matrix, scorecard, day, split };
+  // Corona circular: partes de un todo (parts: [{ label, v, cls, f?, tip? }], en el orden en que se leen, desde arriba y
+  // en el sentido del reloj), con el total en el centro (center: [cifra, texto]). Entre tramos, 2 px del fondo; cada
+  // tramo, con su nota al pasar el ratón y, con f, clic para filtrar (con «|», por varias claves). Sin nada, un anillo vacío.
+  const donut = (parts, center, size = 116) => {
+    const total = parts.reduce((a, p) => a + p.v, 0), on = parts.filter((p) => p.v > 0), GAP = on.length > 1 ? 0.8 : 0;
+    let at = 0;
+    const arcs = on.map((p) => {
+      const len = (p.v / total) * 100, arc = `<circle class="mt-dn-${p.cls}${p.f ? ` mt-clk ${focusCls(p.f)}` : ''}" cx="60" cy="60" r="46" pathLength="100" stroke-dasharray="${Math.max(len - GAP, 0.01).toFixed(2)} ${(100 - len + GAP).toFixed(2)}" stroke-dashoffset="${(-at).toFixed(2)}" ${p.f ? `data-f${p.f.includes('|') ? '2' : ''}="${p.f}"` : ''} data-tip="${esc(`${p.label}: ${num(p.v)} (${pct(p.v / total, 1)})${p.tip ? `\n${p.tip}` : ''}`)}"/>`;
+      at += len;
+      return arc;
+    }).join('');
+    return `<svg class="mt-donut" viewBox="0 0 120 120" width="${size}" height="${size}" role="img" aria-label="${esc(`${center[1]}: ${center[0]}. ${parts.map((p) => `${p.label}: ${num(p.v)}`).join(', ')}`)}">
+      <circle class="mt-dn-track" cx="60" cy="60" r="46"/><g transform="rotate(-90 60 60)">${total ? arcs : ''}</g>
+      <text x="60" y="58" text-anchor="middle" class="mt-dn-n">${center[0]}</text><text x="60" y="74" text-anchor="middle" class="mt-dn-l">${esc(center[1])}</text></svg>`;
+  };
+
+  return { card, legend, kpi, kpis, kpiCo, diff, more, lines, heat, matrix, scorecard, day, split, donut };
 };

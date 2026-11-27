@@ -33,3 +33,4 @@ export const slaPair = (m, lists) => {
 // comparando empresas: los módulos con al menos `min` issues en cada lado, los `top` con más
 export const commonModules = (m, A, T, min, top = 15) => m.group('mo', A, true).filter((x) => x.k)
   .filter((x) => T.slice(0, 2).every((l) => l.filter((i) => m.C.mo[i] === x.k).length >= min)).slice(0, top);
+

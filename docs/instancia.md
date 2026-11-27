@@ -34,8 +34,8 @@ se vuelve a ejecutar su SQL (`node server/base/schema-sql.js`).
 
 ## Equipo, roles, vistas y reglas
 
-Cada persona ve las **vistas** que se le den: Chat, Issues, Backlog, Equipo soporte,
-Métricas, Enlaces rápidos, Laboratorio, Administración y Equipo
+Cada persona ve las **vistas** que se le den: Chat, Issues, Backlog,
+Métricas (con Equipo soporte como pestaña), Enlaces rápidos, Laboratorio, Administración y Equipo
 (`platform.users.views`; la lista, en `platform.known_views()`). El Chat también se
 puede quitar; sin él no se abren chats, salvo el de una issue, que va con Issues. La app
 se abre en la primera que tenga de Issues, Backlog y Métricas (el Chat es auxiliar: va
@@ -106,6 +106,6 @@ escribirla en Remedy desde el Backlog cuando haya acceso).
 
 - Configuración personal (Jira, GitHub, tema, sesión guardada, PIN del
   candado): `~/.sia/config.json`, solo en esa máquina.
-- Los datos de Métricas (`datos.json`) y la foto de Issues (`foto.json`): cada
+- Los datos de Métricas (`datos-f<formato>.json`) y la foto de Issues (`foto.json`): cada
   uno se carga desde su vista con el CSV de la consulta de Remedy (puede ser
   el mismo fichero); en el workspace de esa máquina, no salen de ella.

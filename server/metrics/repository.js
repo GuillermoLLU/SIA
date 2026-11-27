@@ -9,6 +9,11 @@
 //   worklog_entries  WORKLOG_DETAIL abierto: una nota por fila
 // Las dos últimas se rehacen con cada alta o cambio y sirven para consultar por fecha
 // (cambios de estado, actividad…) sin volver a leer los textos largos.
+//   jira_tickets     los tickets Jira de las issues (jira.js): creación, resolución y estado, en hora de Madrid;
+//                    moves, cuántas veces pasó de un equipo a otro (NULL: se pidió sin historial); hops, de cuál a cuál
+//                    (JSON; NULL: no se sabe); team, su equipo
+//                    asignado (NULL: se trajo antes de guardarlo); found 0, una
+//                    clave que Jira no conoce (no se vuelve a pedir); fetched, cuándo se pidió
 import path from 'node:path';
 import { decide, auditEvents, worklogEntries } from './incidents.js';
 
@@ -22,6 +27,7 @@ const SCHEMA = `
   CREATE INDEX IF NOT EXISTS audit_field_at ON audit_events (field, at);
   CREATE TABLE IF NOT EXISTS worklog_entries (incident TEXT NOT NULL, seq INTEGER NOT NULL, at TEXT, who TEXT, text TEXT, PRIMARY KEY (incident, seq));
   CREATE INDEX IF NOT EXISTS worklog_at ON worklog_entries (at);
+  CREATE TABLE IF NOT EXISTS jira_tickets (key TEXT PRIMARY KEY, created TEXT, resolved TEXT, status TEXT, found INTEGER NOT NULL, fetched TEXT, moves INTEGER);
   PRAGMA user_version = 1;`;
 
 // Las columnas que se consultan por rango o por grupo llevan índice.
@@ -36,6 +42,11 @@ export const createRepository = ({ DatabaseSync, file, fs, now = () => new Date(
   // incidencias en 9,8 s frente a 14–18 s). Deja junto al fichero sus -wal y -shm mientras está abierto.
   db.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA cache_size = -65536;');
   db.exec(SCHEMA);
+  // una base de antes de contar los cambios de equipo: la columna, vacía (esos tickets se vuelven a pedir si hace falta)
+  const jiraCols = db.prepare('PRAGMA table_info(jira_tickets)').all().map((c) => c.name);
+  if (!jiraCols.includes('moves')) db.exec('ALTER TABLE jira_tickets ADD COLUMN moves INTEGER');
+  if (!jiraCols.includes('team')) db.exec('ALTER TABLE jira_tickets ADD COLUMN team TEXT');
+  if (!jiraCols.includes('hops')) db.exec('ALTER TABLE jira_tickets ADD COLUMN hops TEXT');
 
   const columns = () => db.prepare('PRAGMA table_info(incidents)').all().map((c) => c.name);
 
@@ -136,6 +147,29 @@ export const createRepository = ({ DatabaseSync, file, fs, now = () => new Date(
     return { first: r.first ?? null, last: r.last ?? null };
   };
 
+  // Los tickets Jira guardados: Map clave → { created, resolved, status, found }.
+  const jiraTickets = () => new Map(db.prepare('SELECT * FROM jira_tickets').all().map((t) => [t.key, t]));
+  // Lo que se ha traído de Jira (found) y las claves que no conoce (missing), en una transacción.
+  const saveJira = ({ found, missing }) => {
+    const stamp = now().toISOString();
+    // pedido sin historial (moves NULL), se queda el que ya se sabía
+    const put = db.prepare(`INSERT INTO jira_tickets (key, created, resolved, status, found, fetched, moves, team, hops) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (key) DO UPDATE SET created = excluded.created, resolved = excluded.resolved, status = excluded.status, found = excluded.found,
+      fetched = excluded.fetched, moves = COALESCE(excluded.moves, jira_tickets.moves), team = COALESCE(excluded.team, jira_tickets.team), hops = COALESCE(excluded.hops, jira_tickets.hops)`);
+    db.exec('BEGIN');
+    try {
+      for (const t of found) put.run(t.key, t.created, t.resolved, t.status, 1, stamp, t.moves ?? null, t.team ?? null, t.hops ? JSON.stringify(t.hops) : null);
+      for (const k of missing) put.run(k, '', '', '', 0, stamp, null, null, null);
+      db.exec('COMMIT');
+    } catch (e) {
+      db.exec('ROLLBACK');
+      throw e;
+    }
+  };
+  // Cuándo se trajo de Jira por última vez (null: nunca).
+  const jiraFetched = () => db.prepare('SELECT MAX(fetched) AS at FROM jira_tickets').get().at ?? null;
+
+
   // Borra todas las incidencias con sus cambios y notas, y luego el WAL, para que el fichero no conserve lo borrado.
   // Por lotes (cada uno, una transacción) para poder enseñar el avance: onBatch(borradas, total). Entre lotes cede el
   // turno, para que siga atendiendo las consultas de avance.
@@ -161,8 +195,9 @@ export const createRepository = ({ DatabaseSync, file, fs, now = () => new Date(
       onBatch(done, total);
       await new Promise((resolve) => setImmediate(resolve));
     }
+    db.exec('DELETE FROM jira_tickets');   // los tickets de esas incidencias: sin ellas, no sirven
     db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
   };
 
-  return { begin, incidents, count, reportCount, firstYear, extremes, clearAll, close: () => db.close() };
+  return { begin, incidents, count, reportCount, firstYear, extremes, jiraTickets, saveJira, jiraFetched, clearAll, close: () => db.close() };
 };

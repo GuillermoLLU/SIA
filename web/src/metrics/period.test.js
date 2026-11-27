@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { periodLabel, daysLabel, periodSummary, sideDay, pickMonth, wholeMonth, pickDay, shiftYear, sideHtml, periodPanel } from './period.js';
+import { periodLabel, daysLabel, periodSummary, sideDay, lastDays, pickMonth, wholeMonth, pickDay, shiftYear, sideHtml, periodPanel } from './period.js';
 import { createModel } from './model.js';
 import { data } from './fixture.js';
 
@@ -26,13 +26,39 @@ test('el texto del periodo: siempre de qué fecha a qué fecha, y cuántos días
   assert.equal(daysLabel(m), '1 día');
 });
 
-test('el periodo de partida: el mes en curso entero, del día 1 a la foto', () => {
-  const m = twoYears();
+test('el periodo de partida: los meses en los que tenemos algo abierto, del de la abierta más antigua de Indra a la foto', () => {
+  // la 3, abierta y de Indra, se abrió el 11 de marzo: desde el 1 de marzo
+  const m = createModel(data());
   m.resetPeriod();
   assert.equal(periodLabel(m), '01/03/2026 – 11/03/2026');
+  // con dos años cargados, esa misma se abrió en marzo del año anterior: desde entonces
+  const two = twoYears();
+  two.resetPeriod();
+  assert.equal(periodLabel(two), '01/03/2025 – 11/03/2026');
+  // sin nada abierto: este mes
+  const d = data(); d.cols.st[2] = 1; d.cols.res[2] = d.cols.rep[2] + 10;
+  const none = createModel(d);
+  none.resetPeriod();
+  assert.equal(periodLabel(none), '01/03/2026 – 11/03/2026');
+  assert.equal(none.OPEN.reduce((a, b) => a + b, 0), 0);
+  // lo abierto de T-Systems no cuenta: la 3, de una persona de T-Systems, y sin nada más abierto, este mes
+  const t = data(); t.cols.rep[2] = 2000; t.cols.as[2] = 2;
+  const ts = createModel(t);
+  ts.resetPeriod();
+  assert.equal(ts.TEAM[2], 1);
+  assert.equal(periodLabel(ts), '01/03/2026 – 11/03/2026');
 });
 
-test('el rango se limita a lo cargado: ni antes del primer día con issues ni después de la foto', () => {
+test('los últimos días: contando el de la foto; con menos cargados, desde el primero', () => {
+  const m = model();
+  m.setPeriod(...lastDays(m, 15));
+  assert.equal(periodLabel(m), '25/02/2026 – 11/03/2026');
+  assert.equal(daysLabel(m), '15 días');
+  m.setPeriod(...lastDays(m, 1000));
+  assert.equal(m.S.d0, m.MIN_D);
+});
+
+test('el rango se limita a lo cargado: ni antes del primer día con incidencias ni después de la foto', () => {
   const m = model();
   m.setPeriod(at(0, 1) - 99999, at(5, 1));
   assert.deepEqual([m.S.d0, m.S.d1], [m.MIN_D, m.END_D]);
@@ -100,7 +126,7 @@ test('un lado: su fecha, su mes elegido sólido, el año con ‹ › y los meses
 
 test('un lado que enseña otro año: ese mes con borde, y el elegido sigue siendo el de su fecha', () => {
   const m = twoYears();
-  m.resetPeriod();                       // marzo de 2026
+  m.setPeriod(m.minuteOf(m.LASTM), m.END_D);   // marzo de 2026
   const html = sideHtml(m, 'from', 2);   // enseña marzo de 2025
   assert.match(html, /<b>2025<\/b>/);
   assert.deepEqual(withClass(html, 'month', 'mt-shown'), [2]);
@@ -118,4 +144,16 @@ test('el panel: cabecera con el periodo y los dos lados, con los meses a la izqu
   assert.match(html, /mt-side-body">\s*<div class="mt-mcol">[\s\S]*?mt-months[\s\S]*?<\/div>\s*<\/div>\s*<div class="mt-days">/);
   assert.match(html, /Desde[\s\S]*Hasta/);
   assert.doesNotMatch(html, /<input|data-last|data-month-all|Todo/);
+});
+
+test('Desde la más antigua que sigue abierta de una empresa (Equipo soporte, de partida): de su día a la foto; sin ninguna, null', async () => {
+  const { sinceOldestOpen } = await import('./period.js');
+  const { createModel } = await import('./model.js');
+  const { data } = await import('./fixture.js');
+  const m = createModel(data());
+  const open = [...Array(m.N).keys()].filter((i) => m.OPEN[i] && m.TEAM[i] === 0), first = Math.min(...open.map((i) => m.C.rep[i]));
+  assert.ok(open.length);
+  assert.deepEqual(sinceOldestOpen(m, 0), [Math.floor(first / 1440) * 1440, m.END_D]);
+  const d = data(); d.cols.st = d.cols.st.map(() => d.dict.status.indexOf('CLOSED'));
+  assert.equal(sinceOldestOpen(createModel(d), 0), null);
 });

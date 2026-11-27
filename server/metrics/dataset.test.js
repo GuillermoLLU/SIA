@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createDataset, checkColumns, REQUIRED } from './dataset.js';
+import { createDataset, checkColumns, REQUIRED, centreNames } from './dataset.js';
 import { THEME_NAMES } from './themes.js';
 
 const row = (o = {}) => ({ ...Object.fromEntries(REQUIRED.map((c) => [c, ''])),
@@ -26,6 +26,20 @@ test('solo el grupo, de cualquier año y sin avisos automáticos; textos en dicc
   assert.deepEqual(out.themes, THEME_NAMES);
 });
 
+test('los pasos y las sesiones, por técnico: por usuario o por nombre; las cuentas de sistema no son de nadie', () => {
+  const ds = createDataset({ start: 2026 });
+  const when = (h) => `2026-03-01 ${h}:00.000`;
+  ds.add(row({
+    AUDIT_DETAIL: [`${when('10:00')} - robot.siglo - Status: New → Assigned`, `${when('11:00')} - ANAL - Status: Assigned → Resolved`].join(' | '),
+    WORKLOG_DETAIL: `${when('12:00')} - ANA LOPEZ - una nota`,
+  }));
+  const out = ds.build({ file: 'x', generated: 'g' });
+  const start = Date.UTC(2026, 2, 1, 11, 0) - Date.UTC(2026, 0, 1);
+  assert.deepEqual(out.cols.sp, [[[0, start / 6e4, 1]]]);
+  assert.deepEqual(out.sessions[1], [[start / 6e4, start / 6e4 + 60, 1 / 8]]);   // 1 h y 2 acciones: su parte de 8 h
+  assert.deepEqual(out.sessions[0], []);
+});
+
 test('la primera y la última apertura, sin contar los avisos automáticos', () => {
   const ds = createDataset({ start: 2024 });
   ds.add(row({ REPORTEDDATE: '2025-06-01 00:00:00' }));
@@ -37,7 +51,7 @@ test('la primera y la última apertura, sin contar los avisos automáticos', () 
   assert.deepEqual([meta.first, meta.last], [at('2025-06-01T00:00:00'), at('2026-10-13T12:00:00')]);
 });
 
-test('el último cambio de cada issue, en minutos como la apertura', () => {
+test('el último cambio de cada incidencia, en minutos como la apertura', () => {
   const ds = createDataset({ start: 2026 });
   ds.add(row({ LASTMODIFIEDDATE: '2026-03-02 10:00:00' }));
   const { cols, meta } = ds.build({ file: 'x', generated: 'y' });
@@ -54,15 +68,15 @@ test('resoluciones repetidas: solo las usadas 4 veces o más', () => {
   assert.equal(dict.resol[1], 'reinicio #');
 });
 
-test('unos datos que no son los de la consulta, o sin issues del grupo: error con estado 400', () => {
-  assert.throws(() => checkColumns({ A: '1' }), (e) => e.status === 400 && /La consulta de issues no trae/.test(e.message));
+test('unos datos que no son los de la consulta, o sin incidencias del grupo: error con estado 400', () => {
+  assert.throws(() => checkColumns({ A: '1' }), (e) => e.status === 400 && /La consulta de incidencias no trae/.test(e.message));
   assert.doesNotThrow(() => checkColumns(row()));
   const ds = createDataset({ start: 2026 });
   ds.add(row({ ASSIGNEDGROUP: 'OTRO' }));
-  assert.throws(() => ds.build({ file: 'x', generated: 'y' }), (e) => e.status === 400 && /No hay issues del grupo AYS SOPORTE/.test(e.message));
+  assert.throws(() => ds.build({ file: 'x', generated: 'y' }), (e) => e.status === 400 && /No hay incidencias del grupo AYS SOPORTE/.test(e.message));
 });
 
-test('cada issue con su problema; se enseña la forma más escrita', () => {
+test('cada incidencia con su problema; se enseña la forma más escrita', () => {
   const ds = createDataset({ start: 2026 });
   const titles = ['100001 High X - Cancelar pedidos', '100001 High X - Cancelar pedido', '100001 High X - Cancelar pedidos', '100001 High X', '100001 High X - Otro'];
   titles.forEach((SUMMARY, n) => ds.add(row({ INCIDENTNUMBER: `INC00000000003${n}`, SUMMARY })));
@@ -77,4 +91,64 @@ test('add dice si la incidencia entra en el informe (la misma regla que reportCo
   assert.equal(ds.add(row({ INCIDENTNUMBER: 'INC000000000002', ASSIGNEDGROUP: 'OTRO GRUPO' })), false);
   assert.equal(ds.add(row({ INCIDENTNUMBER: 'INC000000000003', TAGS: 'AUTOTEC' })), false);
   assert.equal(ds.add(row({ INCIDENTNUMBER: 'INC000000000004', TAGS: 'SISUINC' })), true);
+});
+
+test('Pendiente de cliente: las veces que entró (nC) y nuestra última nota pública (pn) con su motivo (pm)', () => {
+  const ds = createDataset({ start: 2026 });
+  const when = (h) => `2026-03-01 ${h}:00.000`;
+  ds.add(row({
+    STATUS: 'PENDING',
+    AUDIT_DETAIL: [`${when('10:00')} - ANAL - Status_Reason:  → Client Action Required`, `${when('12:00')} - ANAL - Status_Reason: Client Action Required → `,
+      `${when('13:00')} - ANAL - Status_Reason:  → Client Action Required`].join(' | '),
+    WORKLOG_DETAIL: [`${when('10:05')} - ANA LOPEZ - ¿Nos podéis enviar una captura?`, `${when('10:30')} - ANA LOPEZ - [ANALISIS] interno`,
+      `${when('11:00')} - pepe.centro - Os la adjunto`, `${when('13:05')} - ANA LOPEZ - Aplicado el workaround: ¿podéis validar?`,
+      `${when('14:00')} - logsup.ia - Resumen de la IA`].join(' | '),
+  }));
+  ds.add(row({ INCIDENTNUMBER: 'INC000000000002', WORKLOG_DETAIL: `${when('09:00')} - pepe.centro - Hola` }));   // ninguna nuestra
+  const out = ds.build({ file: 'x', generated: 'g' });
+  const at = (h) => (Date.UTC(2026, 2, 1, Number(h.slice(0, 2)), Number(h.slice(3))) - Date.UTC(2026, 0, 1)) / 6e4;
+  assert.deepEqual(out.cols.nC, [2, 0]);
+  assert.deepEqual(out.cols.pn, [at('13:05'), -1]);   // la última de alguien del equipo; ni la interna, ni la del centro, ni la de la IA
+  assert.deepEqual(out.cols.pm, [2, 0]);              // validación de solución/workaround; sin nota pública
+  assert.equal(out.pendingReasons[2], 'Validación de solución/workaround');
+});
+
+test('el problema común de cada incidencia (pc), por el título y la descripción, con sus nombres', () => {
+  const ds = createDataset({ start: 2026 });
+  ds.add(row({ SUMMARY: '100711 High PAQUETERIA - Limpiar puesto paletizado', NOTES: 'Teléfono Contacto: 1\nHola' }));
+  ds.add(row({ INCIDENTNUMBER: 'INC000000000002', SUMMARY: 'Algo', NOTES: 'Contact Phone: 1\nHello' }));
+  const out = ds.build({ file: 'x', generated: 'g' });
+  assert.equal(out.problems[out.cols.pc[0]], 'Puesto de paletizado (limpiar o liberar)');
+  assert.equal(out.cols.pc[1], 0);
+  assert.equal(out.problems[0], 'Sin clasificar');
+});
+
+
+test('el centro: la categoría de producto 1 y, si ese centro tiene varias categorías 2, las dos seguidas', () => {
+  assert.deepEqual(centreNames([
+    ['NL - LELYSTAD PLATFORM', 'PRENDA COLGADA LELYSTAD'], ['NL - LELYSTAD PLATFORM', 'PAQUETERÍA LELYSTAD'],
+    ['NL - LELYSTAD PLATFORM', ''],                                         // sin categoría 2: solo la 1
+    ['ES13-ILLESCAS ECOM ZARA', 'ECOM ZARA ES13'], ['ES13-ILLESCAS ECOM ZARA', 'ECOM ZARA ES13'],   // una sola: solo la 1
+    ['USA -EASTON - XPO LOGISTICS', 'ECOM ZARA'], ['USA -EASTON - XPO LOGISTICS', 'ECOM Zara'],      // es la misma
+    ['ECOM MARCHAMALO', 'ECOM ZARA'], ['ECOM MARCHAMALO', 'ECOM ZARA SUR'], ['ECOM MARCHAMALO', 'ECOM ZARA SUR'],
+    ['ECOM MARCHAMALO', 'ECOM Zara SUR'],                                   // se escribe como más veces viene
+    ['', ''],
+  ]), [
+    'NL - LELYSTAD PLATFORM PRENDA COLGADA LELYSTAD', 'NL - LELYSTAD PLATFORM PAQUETERÍA LELYSTAD', 'NL - LELYSTAD PLATFORM',
+    'ES13-ILLESCAS ECOM ZARA', 'ES13-ILLESCAS ECOM ZARA',
+    'USA -EASTON - XPO LOGISTICS', 'USA -EASTON - XPO LOGISTICS',
+    'ECOM MARCHAMALO ECOM ZARA', 'ECOM MARCHAMALO ECOM ZARA SUR', 'ECOM MARCHAMALO ECOM ZARA SUR', 'ECOM MARCHAMALO ECOM ZARA SUR',
+    '',
+  ]);
+});
+
+test('el centro en el dataset: sin «AYS » y con la categoría 2 solo donde hace falta', () => {
+  const ds = createDataset({ start: 2026 });
+  ds.add(row({ PRODUCTCATEGORIZATIONTIER1: 'AYS MECO - PLATAFORMA LOGISTICA MECO', PRODUCTCATEGORIZATIONTIER2: 'PAQUETERÍA MECO' }));
+  ds.add(row({ INCIDENTNUMBER: 'INC000000000002', PRODUCTCATEGORIZATIONTIER1: 'AYS MECO - PLATAFORMA LOGISTICA MECO', PRODUCTCATEGORIZATIONTIER2: 'PRENDA COLGADA MECO' }));
+  ds.add(row({ INCIDENTNUMBER: 'INC000000000003', PRODUCTCATEGORIZATIONTIER1: 'AYS TOLEDO - LEFTIES', PRODUCTCATEGORIZATIONTIER2: 'PAQUETERIA TOLEDO' }));
+  ds.add(row({ INCIDENTNUMBER: 'INC000000000004' }));
+  const out = ds.build({ file: 'x', generated: 'g' });
+  assert.deepEqual(out.cols.ce.map((n) => out.dict.centre[n]),
+    ['MECO - PLATAFORMA LOGISTICA MECO PAQUETERÍA MECO', 'MECO - PLATAFORMA LOGISTICA MECO PRENDA COLGADA MECO', 'TOLEDO - LEFTIES', '']);
 });

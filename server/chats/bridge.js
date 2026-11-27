@@ -102,7 +102,7 @@ export const createChatBridge = ({ launchers, workspace, env, issues, accessible
         let issue = null;
         if (forIssue) {
           issue = isIssueId(msg.issue) ? issues.find(msg.issue) : null;
-          if (!issue) return send(ws, { type: 'error', message: 'Esa issue ya no está en la foto.' });
+          if (!issue) return send(ws, { type: 'error', message: 'Esa incidencia ya no está en la foto.' });
           const already = [...sessions.values()].find((x) => x.meta.issue === issue.id);
           if (already) { bind(already); send(ws, { type: 'started', sessionId: already.id }); return catchUp(ws, already); }
         }

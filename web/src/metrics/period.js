@@ -19,6 +19,66 @@ export const periodSummary = (m) => `${periodLabel(m)} · ${daysLabel(m)}`;
 
 // el fin de un mes, sin pasar de lo cargado (el mes en curso acaba el día de la foto)
 const monthEnd = (m, k) => Math.min(m.minuteOf(k + 1), m.END_D);
+// los últimos n días de lo cargado, con el de la foto (para m.setPeriod, que no pasa del primer día con issues)
+export const lastDays = (m, n) => [m.END_D - n * DAY, m.END_D];
+// Desde el día en que se abrió la incidencia más antigua que sigue abierta de una empresa (model.js, TEAM: con lo sin
+// técnico de sus búsquedas) hasta la foto; sin ninguna abierta, null.
+export const sinceOldestOpen = (m, company) => {
+  let min = Infinity;
+  for (let i = 0; i < m.N; i++) if (m.OPEN[i] && m.TEAM[i] === company && m.C.rep[i] < min) min = m.C.rep[i];
+  return min === Infinity ? null : [Math.floor(min / DAY) * DAY, m.END_D];
+};
+// Las fechas rápidas: [clave, nombre, rango [d0, d1)]. Esta semana, de su lunes a la foto; este mes y el pasado, enteros (el de la foto, hasta ella); los
+// últimos 3 meses, del día 1 del antepasado a la foto; el año fiscal, del 1 de febrero (model.js, START_D); y todo lo
+// cargado. setPeriod los limita a lo cargado.
+// Esta semana: del lunes de la semana de la foto (en UTC, como las demás fechas) a la foto.
+export const thisWeek = (m) => {
+  const last = Math.floor((m.END_D - 1) / DAY) * DAY, back = (new Date(m.BASE + last * 6e4).getUTCDay() + 6) % 7;
+  return [last - back * DAY, m.END_D];
+};
+export const PRESETS = [
+  ['week', 'Esta semana', thisWeek],
+  ['month', 'Este mes', (m) => wholeMonth(m, m.LASTM)],
+  ['prev', 'Mes pasado', (m) => wholeMonth(m, m.LASTM - 1)],
+  ['3m', 'Últimos 3 meses', (m) => [m.minuteOf(m.LASTM - 2), m.END_D]],
+  ['fy', 'Año fiscal', (m) => [m.START_D, m.END_D]],
+  ['all', 'Todo', (m) => [m.MIN_D, m.END_D]],
+];
+// Las que se ofrecen como fechas rápidas (quick-bar.js, presetPick): sin «Este mes» ni «Mes pasado», que se eligen en el
+// calendario (doble clic en un mes) y siguen en PRESETS para comparar periodos (cmpOptions).
+export const QUICK_PRESETS = PRESETS.filter(([k]) => k !== 'month' && k !== 'prev');
+export const presetRange = (m, key) => PRESETS.find(([k]) => k === key)?.[2](m) || null;
+// la fecha rápida que coincide con el periodo de ahora (la primera, si coinciden varias), o null
+export const presetOf = (m) => {
+  const clamp = ([a, b]) => [Math.max(m.MIN_D, a), Math.min(m.END_D, b)];
+  return PRESETS.find(([, , f]) => { const [a, b] = clamp(f(m)); return a === m.S.d0 && b === m.S.d1; })?.[0] ?? null;
+};
+// El periodo anterior, para comparar uno con otro (sin pasar de lo cargado): los mismos días justo antes (del 1 de
+// septiembre al 10 de noviembre, 71 días → del 22 de junio al 31 de agosto). Si son meses enteros, los mismos meses de
+// antes (octubre entero → septiembre entero; de agosto a octubre → de mayo a julio), que por días se desplazarían uno
+// (los meses no duran lo mismo). [d0, d1), o null si no hay datos.
+export const prevRange = (m) => {
+  const { d0, d1 } = m.S, k0 = m.monthAt(d0), k1 = m.monthAt(d1 - 1);
+  const whole = m.minuteOf(k0) === d0 && d1 === m.minuteOf(k1 + 1);
+  const a = Math.max(whole ? m.minuteOf(k0 - (k1 - k0 + 1)) : d0 - (d1 - d0), m.MIN_D), b = d0;
+  return a < b ? [a, b] : null;
+};
+// «01/10/2026 – 08/10/2026» de un rango [d0, d1)
+export const rangeLabel = (m, [a, b]) => `${dmy(m.BASE + a * 6e4)} – ${dmy(m.BASE + (b - 1) * 6e4)}`;
+
+// Los periodos que se pueden comparar uno con otro (el Resumen, «Comparar»): [clave, nombre, rango [d0, d1) o null].
+// El actual (el de arriba) y el anterior (prevRange), las fechas rápidas y cada mes cargado, del más reciente al más
+// antiguo. Cada rango, limitado a lo cargado; sin datos, null.
+export const cmpOptions = (m) => {
+  const clamp = (r) => { if (!r) return null; const a = Math.max(m.MIN_D, r[0]), b = Math.min(m.END_D, r[1]); return a < b ? [a, b] : null; };
+  const months = [];
+  for (let k = m.LASTM; k >= m.monthAt(m.MIN_D); k--) months.push([`m:${k}`, m.monthName(k), wholeMonth(m, k)]);
+  return [['cur', 'Periodo actual', [m.S.d0, m.S.d1]], ['prev', 'Periodo anterior', prevRange(m)],
+    ...PRESETS.filter(([k]) => k !== 'all').map(([k, l, f]) => [`p:${k}`, l, f(m)]), ...months].map(([k, l, r]) => [k, l, clamp(r)]);
+};
+export const cmpRange = (m, key) => cmpOptions(m).find(([k]) => k === key)?.[2] ?? null;
+export const cmpName = (m, key) => cmpOptions(m).find(([k]) => k === key)?.[1] ?? key;
+
 // el día (sus 00:00) de cada extremo del periodo
 export const sideDay = (m, side) => (side === 'from' ? m.S.d0 : m.S.d1 - DAY);
 
@@ -80,7 +140,8 @@ export const sideHtml = (m, side, k) => {
 
 // El panel: cabecera con el periodo y los dos lados (cada elección se aplica al momento). shown: el mes que enseña
 // cada lado ({ from, to }).
-export const periodPanel = (m, shown) => `<div class="mt-cal-head">
-    <span class="mt-pp-title">Periodo</span><b>${periodSummary(m)}</b>
+// extra: lo que va a la derecha de «Periodo», en su misma fila (las fechas rápidas de Métricas)
+export const periodPanel = (m, shown, extra = '') => `<div class="mt-cal-head">
+    <span class="mt-pp-title">Periodo</span><b>${periodSummary(m)}</b>${extra ? `<div class="mt-cal-presets">${extra}</div>` : ''}
   </div>
   <div class="mt-pp">${sideHtml(m, 'from', shown.from)}${sideHtml(m, 'to', shown.to)}</div>`;

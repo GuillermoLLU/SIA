@@ -17,7 +17,7 @@ export const byHour = (m, l, at) => { const v = new Array(24).fill(0); for (cons
 // fin de semana), cuándo se empieza; una fila por turno y lado (cos: los lados que se miran).
 export const carryRows = (m, T, cos) => {
   const carried = cos.map((k) => m.carry(T[k]));
-  return SHIFTS.flatMap((sn, j) => cos.map((k) => ({ label: sn, k, v: carried[cos.indexOf(k)][j].map((v, x) => v + carried[cos.indexOf(k)][j + 3][x]) })));
+  return SHIFTS.flatMap((sn, j) => cos.map((k) => ({ label: sn, k, f: `tu:${j}`, v: carried[cos.indexOf(k)][j].map((v, x) => v + carried[cos.indexOf(k)][j + 3][x]) })));
 };
 
 // El reloj semanal: cuántas issues por día de la semana (0 = lunes) y hora de un instante de cada una (at), y el máximo.

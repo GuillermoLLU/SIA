@@ -1,8 +1,10 @@
-// Vista «Equipo soporte» (vista work): un control rápido de la calidad del equipo y de
+// «Equipo soporte», una pestaña de Métricas: un control rápido de la calidad del equipo y de
 // cada persona (team.js). Con los datos de las Métricas, que se cargan desde
 // allí; se vuelven a leer al abrir la vista, por si se han actualizado desde
-// Snowflake. Es el equipo de Indra. Clic en una persona: se abre en Métricas frente
-// al resto de su equipo (openPerson).
+// Snowflake. Es el equipo de Indra. Clic en una persona: queda marcada y el panel pasa a sus
+// datos; clic en otra: la tabla las compara (team.js, compareTech); otro clic en una marcada, o «Quitar filtro»,
+// la desmarca. Si la persona también gestiona el equipo,
+// «Gestionar equipo» lleva a la gestión de personas (onManage).
 // Es una vista sobre el dominio de las Métricas: su modelo, sus piezas de pantalla (charts.js, period.js, tip.js) y
 // los estilos de esas piezas (metrics.css); lo suyo, en team.js y work.css.
 import '../metrics/metrics.css';
@@ -10,19 +12,34 @@ import './work.css';
 import { esc } from '../ui/html.js';
 import { createModel } from '../metrics/model.js';
 import { createCharts } from '../metrics/charts.js';
-import { periodLabel } from '../metrics/period.js';
+import { periodLabel, lastDays, sinceOldestOpen } from '../metrics/period.js';
 import { mountPeriodPanel } from '../metrics/period-panel.js';
 import { attachTip } from '../metrics/tip.js';
 import { coverage } from '../metrics/view.js';
-import { teamPanel } from './team.js';
+import { num } from '../metrics/format.js';
+import { sheetCsv, sheetFile } from '../metrics/sheet.js';
+import { downloadText } from '../metrics/download.js';
+import { teamPanel, conclusionsPanel, teamIssues, compareTech } from './team.js';
+import { TEAM_SHEET_COLS } from './team-sheet.js';
+import { pickDays } from './activity.js';
 import { pressStartedIn } from '../ui/dom.js';
 
 const CALENDAR_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>';
 
-export const mountWorkView = (root, { api, openPerson }) => {
-  let m = null, ch = null, generated = null, calendar = false, panel = null;
+// el periodo con el que abre la vista: desde la incidencia más antigua del equipo que sigue abierta; sin ninguna, los
+// últimos DEFAULT_DAYS días
+const DEFAULT_DAYS = 15;
+
+export const mountWorkView = (root, { api, onManage, toast }) => {
+  let m = null, ch = null, generated = null, calendar = false, panel = null, onPage = 'team', drag = null;
+  // ext: dentro de Métricas (vista Equipo), las fechas de su barra de arriba, comunes a todas sus pestañas ([d0, d1]).
+  // Con ellas, sin el selector de fechas propio.
+  let ext = null, applied = '';
+  // y a quién se mira, del selector de Indra y técnicos de esa barra (people: los técnicos marcados, ui.cmp); al marcar
+  // en la tabla, se le avisa (onPeople) para que el selector diga lo mismo
+  let onPeople = null, wanted = null;   // wanted: los del selector, a aplicar al pintar (tras cargar los datos)
   root.classList.add('wk-view');
-  const ui = { exp: {}, sort: {}, charts: new Set() };   // charts: los bloques con su gráfica desplegada
+  const ui = { exp: {}, sort: {}, charts: new Set(), range: null, actSeries: null };   // charts: los bloques con su gráfica desplegada
   const $ = (s) => root.querySelector(s);
 
   // cabecera: la fecha de los datos y, a la derecha, el periodo (si hay datos); el nombre de la
@@ -39,19 +56,69 @@ export const mountWorkView = (root, { api, openPerson }) => {
   const render = () => {
     const { S } = m;
     S.sides = [{ company: 0 }, null];   // el equipo de Indra
+    if (ext && ext.join(':') !== applied) { m.setPeriod(...ext); ui.range = null; applied = ext.join(':'); }
+    if (wanted) { ui.cmp = wanted; ui.person = wanted[0] ?? null; wanted = null; }
     m.refilter();
     $('[data-period]').textContent = periodLabel(m);
     $('[data-coverage]').textContent = coverage(m);
     $('[data-cal]').hidden = !calendar;
-    $('[data-main]').innerHTML = teamPanel(m, ch, ui);
+    // las conclusiones aún no dependen del periodo: sin selector
+    $('.mt-period').hidden = onPage === 'conclusions' || !!ext;
+    $('[data-main]').innerHTML = onPage === 'conclusions' ? conclusionsPanel() : teamPanel(m, ch, ui);
   };
 
 
+  // La sábana, a CSV: entera y con los filtros de ahora (sheet.js).
+  const exportSheet = () => {
+    const list = teamIssues(m, ui), file = sheetFile(m, 'incidencias-equipo');
+    if (!list.length) return;
+    downloadText(file, sheetCsv(m, list, TEAM_SHEET_COLS), 'text/csv;charset=utf-8');
+    toast?.(`Exportadas ${num(list.length)} incidencias a ${file}.`);
+  };
+
+  const applyRange = ({ period, range }) => { ui.range = range; m.setPeriod(...period); render(); };
+  // Elegir días en la actividad: mientras se arrastra solo se resalta; al soltar se aplica. Con Ctrl (o Cmd) se suma a lo elegido.
+  const dayAt = (e) => document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-act-day]');
+  const paintDrag = () => {
+    if (drag.multi) return;
+    const lo = Math.min(drag.from, drag.to), hi = Math.max(drag.from, drag.to);
+    for (const el of root.querySelectorAll('[data-act-day]')) { const d = Number(el.dataset.actDay); el.classList.toggle('wk-act-out', d < lo || d > hi); }
+  };
+  root.addEventListener('pointerdown', (e) => {
+    const day = e.button === 0 && e.target.closest('[data-act-day]');
+    if (!day || !m) return;
+    e.preventDefault();
+    drag = { from: Number(day.dataset.actDay), to: Number(day.dataset.actDay), multi: e.ctrlKey || e.metaKey };
+    paintDrag();
+  });
+  // en el documento: se puede soltar fuera de la gráfica, y la vista se monta una sola vez (main.js)
+  document.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const day = dayAt(e);
+    if (day) { drag.to = Number(day.dataset.actDay); paintDrag(); }
+  });
+  document.addEventListener('pointerup', () => {
+    if (!drag) return;
+    const { from, to, multi } = drag, { S } = m;
+    drag = null;
+    applyRange(pickDays(ui.range, [S.d0, S.d1], from, to, multi));
+  });
+
   const pressedInPop = pressStartedIn(root, (t) => !!t.closest('.mt-pop'));
   root.addEventListener('click', (e) => {
-    if (!m) return;
+    if (e.target.closest('[data-manage]')) return onManage();
+    if (!m || e.target.closest('a')) return;
+    if (e.target.closest('[data-export]')) return exportSheet();
     if (e.target.closest('[data-calendar]')) { calendar = !calendar; if (calendar) panel.open(); return render(); }
     if (calendar && !pressedInPop() && !e.target.closest('.mt-pop')) { calendar = false; render(); }
+    if (e.target.closest('[data-person-clear], [data-cmp-clear]')) { ui.cmp = []; ui.person = null; onPeople?.(ui.cmp); return render(); }
+    if (e.target.closest('[data-range-clear]')) return applyRange({ period: ui.range.base, range: null });
+    const series = e.target.closest('[data-act-series]');
+    if (series) { const k = series.dataset.actSeries; ui.actSeries = ui.actSeries === k ? null : k; return render(); }
+    const more = e.target.closest('[data-exp]');
+    if (more) { ui.exp[more.dataset.exp] = !ui.exp[more.dataset.exp]; return render(); }
+    const toPage = e.target.closest('[data-page]');
+    if (toPage) { onPage = toPage.dataset.page; return render(); }
     const chart = e.target.closest('[data-chart]');
     if (chart) {
       const id = chart.dataset.chart;
@@ -65,7 +132,13 @@ export const mountWorkView = (root, { api, openPerson }) => {
       return render();
     }
     const person = e.target.closest('[data-person]');
-    if (person) openPerson?.(Number(person.dataset.person));
+    if (!person) return;
+    const k = Number(person.dataset.person);
+    // marca o desmarca; el panel, con los datos del primero marcado (A)
+    ui.cmp = compareTech(ui.cmp, k);
+    ui.person = ui.cmp[0] ?? null;
+    onPeople?.(ui.cmp);
+    render();
   });
 
   // Escape cierra el panel del periodo. En el documento, no en la vista: al elegir una fecha se repinta y el foco se
@@ -77,18 +150,27 @@ export const mountWorkView = (root, { api, openPerson }) => {
 
   // Al abrir: los datos de las Métricas; si no han cambiado, se queda como estaba.
   return {
+    period: (p) => { ext = p; if (!p) applied = ''; },   // las fechas de la barra de Métricas (vista Equipo)
+    // los técnicos del selector de esa barra (como mucho dos: se comparan) y a quién avisar al marcarlos en la tabla
+    people: (cmp) => { wanted = cmp.slice(0, 2); },
+    onPeople: (fn) => { onPeople = fn; },
+    exportSheet: () => m && exportSheet(),   // desde los tres puntos de Métricas: la sábana ya no se ve en el panel
     show: async () => {
       try {
         const data = await api.load();
         if (!data) { m = null; root.innerHTML = `${page('')}<div class="mt-empty"><b>Aún no hay datos</b><span>Se cargan desde Métricas: con «Cargar datos» la primera vez, o con un CSV de Remedy.</span></div></div>`; return; }
         if (data.meta.generated !== generated) {
           generated = data.meta.generated;
+          applied = '';   // modelo nuevo: otra vez las fechas de la barra de Métricas
+          ui.person = null;   // los índices de las personas cambian con los datos
+          ui.cmp = [];
+          ui.range = null;
           m = createModel(data);
-          m.resetPeriod();   // de partida, el mes en curso
+          m.setPeriod(...(sinceOldestOpen(m, 0) || lastDays(m, DEFAULT_DAYS)));   // el equipo de Indra
           ch = createCharts(m, ui);
           renderFrame();
           // el panel del periodo (period-panel.js): elegir en la rejilla lo aplica y lo cierra; una fecha, lo deja abierto
-          panel = mountPeriodPanel($('[data-cal]'), { model: () => m, onPick: (close) => { if (close) calendar = false; render(); } });
+          panel = mountPeriodPanel($('[data-cal]'), { model: () => m, onPick: (close) => { if (close) calendar = false; ui.range = null; render(); } });
         }
         render();
       } catch (e) {

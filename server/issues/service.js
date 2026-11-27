@@ -55,13 +55,13 @@ export const createIssuesService = ({ source, platform, drafts, jira = NO_JIRA, 
   const mine = async ({ user, accessToken: jwt }, id, verb) => {
     const { issues, claims } = await snapshot(jwt);
     const issue = issues.find((i) => i.id === id);
-    if (!issue) throw fail('Esa issue ya no está en la foto.', 404);
-    if (!deskOf(issues, user, claims).some((i) => i.id === id)) throw fail(`Solo puedes ${verb} tus issues.`, 403);
+    if (!issue) throw fail('Esa incidencia ya no está en la foto.', 404);
+    if (!deskOf(issues, user, claims).some((i) => i.id === id)) throw fail(`Solo puedes ${verb} tus incidencias.`, 403);
     return issue;
   };
   const resolvable = async (who, id) => {
     const issue = await mine(who, id, 'resolver');
-    if (!OPEN.has(issue.status)) throw fail('Esta issue ya está resuelta o cerrada.', 409);
+    if (!OPEN.has(issue.status)) throw fail('Esta incidencia ya está resuelta o cerrada.', 409);
     return issue;
   };
   // Escalar, igual, en una que se trabaja o ya Resuelta (por la causa raíz)

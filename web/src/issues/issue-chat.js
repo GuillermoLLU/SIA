@@ -104,7 +104,7 @@ export const mountIssueChat = (host, { issue, wsUrl, loadProjects, api, dialogs,
       case 'auth-check': if (!m.ok) view?.feed({ items: [{ kind: 'text', id: `auth-${Date.now()}`, text: 'Copilot sigue sin sesión iniciada: inicia sesión en Configuración → Proveedores IA y vuelve a probar.' }] }); break;
       case 'exit':
       case 'gone':
-        ended('El chat de esta issue se ha cerrado.');
+        ended('El chat de esta incidencia se ha cerrado.');
         break;
       case 'error':
         ended(m.message || 'No se pudo abrir el chat.');

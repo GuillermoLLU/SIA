@@ -11,7 +11,7 @@ import { thirdOf } from './format.js';
 
 export const ACTIONS = {
   resolve: {
-    label: 'Resolver', title: 'Resolver la issue', ok: 'Resolver',
+    label: 'Resolver', title: 'Resolver la incidencia', ok: 'Resolver',
     // la nota interna y los tres puntos del mensaje al centro; el formulario
     // es propio (resolve-form.js), aquí solo lo que hace falta para enviarlo
     fields: [

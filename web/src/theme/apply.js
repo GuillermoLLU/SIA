@@ -33,6 +33,7 @@ export const mountTheme = ({ toggleEl }) => {
     const t = themeById(id);
     currentId = t.id;
     paintVars(root, t.ui);
+    root.dataset.mode = t.dark ? 'dark' : 'light';   // claro u oscuro, para lo que no sale de las variables (los colores de las gráficas)
     localStorage.setItem(THEME_KEY, t.id);
     localStorage.setItem(UI_KEY, JSON.stringify(t.ui));
     const next = t.dark ? 'Modo claro' : 'Modo oscuro';

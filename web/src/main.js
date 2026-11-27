@@ -8,11 +8,10 @@ import { createApi } from './ui/api.js';
 import { createDialogs } from './ui/dialog.js';
 import { createToast } from './ui/dom.js';
 import { bridgeFromQuery, discoverBridge } from './app/discover.js';
-import { canView, baseNav, firstView, showsDock, usesTopbar, hubBoxes, dockItems } from './app/nav.js';
+import { canView, baseNav, firstView, showsDock, usesTopbar, dockItems } from './app/nav.js';
 import { createViews } from './app/views.js';
 import { mountTopbar } from './app/topbar.js';
 import { mountDock } from './app/dock.js';
-import { mountHub } from './app/hub.js';
 import { createPermsWatch } from './app/perms.js';
 import { startIntro, reveal, revealDesk } from './app/intro.js';
 import { createAuthSession } from './auth/session.js';
@@ -134,14 +133,14 @@ mountProjectsPanel({ api, dialogs, toast, settings });
 // abre las métricas del equipo si también tiene esa vista.
 settings.showBox('equipo', canView(user, 'people'));
 const usersView = canView(user, 'people')
-  ? mountPeopleView($('settings-people'), { usersApi: createUsersApi(api), knowledgeApi: createKnowledgeApi(api), me: user, toast, dialogs, onMetrics: canView(user, 'work') ? () => { settings.close(); views.go('work'); } : undefined, onScreen: (sub) => settings.setFull(!!sub, sub?.back ?? null, sub?.parent ?? null) })   // la ficha, el alta y los roles, a todo el ancho; la lista, con los enlaces
+  ? mountPeopleView($('settings-people'), { usersApi: createUsersApi(api), knowledgeApi: createKnowledgeApi(api), me: user, toast, dialogs, onMetrics: canView(user, 'metrics') ? () => { settings.close(); views.go('metrics'); PANELS.find((p) => p.name === 'metrics').ui?.showTeam(); } : undefined, onScreen: (sub) => settings.setFull(!!sub, sub?.back ?? null, sub?.parent ?? null) })   // la ficha, el alta y los roles, a todo el ancho; la lista, con los enlaces
   : null;
 settings.onPane((name) => { if (name === 'equipo') { usersView.reset(); usersView.refresh(); } });
 // Priorización (backlog/): las reglas, en Configuración para quien tiene Backlog; a todo el ancho
 settings.showBox('priorizacion', canView(user, 'backlog'));
 const rulesView = canView(user, 'backlog') ? mountRulesView($('settings-rules'), { api: createBacklogApi(api), dialogs, toast, onChange: () => PANELS.find((p) => p.name === 'backlog')?.ui?.show?.() }) : null;
 settings.onPane((name) => { if (name === 'priorizacion') { settings.setFull(true); rulesView.refresh(); } });
-// Paneles (Issues, Backlog, Equipo soporte, Métricas): una vista cada uno, sin base. Si
+// Paneles (Issues, Backlog, Métricas): una vista cada uno, sin base. Si
 // el panel devuelve show(), se llama al abrirlo (Issues recarga su foto).
 const PANELS = [
   { name: 'issues', mount: (el) => mountIssuesView(el, {
@@ -149,10 +148,11 @@ const PANELS = [
     openChat: (host, issue) => mountIssueChat(host, { issue, wsUrl, loadProjects: chat.loadProjects, api, dialogs, fileUrl: chat.fileUrl, onLogin: openProviders }),
   }) },
   { name: 'backlog', mount: (el) => mountBacklogView(el, { api: createBacklogApi(api), toast }) },
-  // clic en una persona de Equipo soporte: se abre en Métricas frente al resto de su equipo
-  { name: 'work', mount: (el) => mountWorkView(el, { api: createMetricsApi(api),
-    openPerson: (person) => { PANELS.find((p) => p.name === 'metrics').ui?.focus(person); views.go('metrics'); } }) },
-  { name: 'metrics', mount: (el) => mountMetricsView(el, { api: createMetricsApi(api), toast }) },
+  // Métricas: Equipo soporte es una de sus pestañas, con su propio periodo y sus filtros
+  { name: 'metrics', mount: (el) => mountMetricsView(el, { api: createMetricsApi(api), toast, setTitle: (t) => topbar.setTitle(t), team: {
+    id: 'equipo', label: 'Equipo soporte',
+    mount: (host) => mountWorkView(host, { api: createMetricsApi(api), toast }),
+  } }) },
 ].map((p) => ({ ...p, view: $(`view-${p.name}`) }));
 for (const p of PANELS) p.ui = p.mount(p.view);
 
@@ -160,10 +160,10 @@ for (const p of PANELS) p.ui = p.mount(p.view);
 // de la IA. Sus botones pulsan los de la .sidebar, que siguen en la página (ocultos): el Chat,
 // el bloqueo y la Configuración.
 const topbar = mountTopbar(document.querySelector('.app'), { name: user.name, chat: $('nav-chat'), settings: $('settings-btn'), lock: $('lock-btn'), hasChat: canView(user, 'chat') });
-// El dock: la mesa, el Backlog y Métricas (sus dos caras detrás de un solo icono, app/hub.js)
-const dock = { issues: $('nav-issues'), backlog: $('nav-backlog'), hub: $('nav-metrics') };
+// El dock: la mesa, el Backlog y Métricas
+const dock = { issues: $('nav-issues'), backlog: $('nav-backlog'), metrics: $('nav-metrics') };
 const views = createViews({
-  views: { chat: $('view-chat'), lab: $('view-lab'), hub: $('view-hub'), ...Object.fromEntries(PANELS.map((p) => [p.name, p.view])) },
+  views: { chat: $('view-chat'), lab: $('view-lab'), none: $('view-none'), ...Object.fromEntries(PANELS.map((p) => [p.name, p.view])) },
   dock, topbar,
   panels: Object.fromEntries(PANELS.map((p) => [p.name, p.ui])),
   onShow: { chat: () => chat.focusActive() },
@@ -175,7 +175,6 @@ for (const d of dockItems(user)) {
   dock[d.key].hidden = false;
   dock[d.key].addEventListener('click', () => views.go(d.view));
 }
-mountHub($('view-hub'), { boxes: hubBoxes(user), go: views.go });
 // Las dos maquetas de la barra de arriba (nav.js usesTopbar) y, con un solo destino, sin dock
 document.body.classList.toggle('brand-nav', !usesTopbar(user));
 if (showsDock(user)) mountDock(document.querySelector('.sidebar'));

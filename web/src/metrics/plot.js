@@ -46,6 +46,37 @@ export const dayTicks = (m, n) => {
   return out;
 };
 
+// Los tramos de una gráfica de los n días del periodo (desde m.S.d0): cada día, cada semana (de lunes a domingo) o cada
+// mes ('day', 'week', 'month'). Cada uno, { from, to }: su primer y su último día (índices, incluidos); los de los
+// extremos pueden ser incompletos (el periodo empieza o acaba a mitad de semana o de mes).
+export const dayBuckets = (m, n, step = 'day', d0 = m.S.d0) => {
+  const date = (k) => new Date(m.BASE + (d0 + k * DAY) * 6e4);
+  // la semana: días desde 1970 (un jueves), corridos para que cambie en lunes
+  const keyOf = step === 'week' ? (d) => Math.floor((Math.round(d.getTime() / 864e5) + 3) / 7)
+    : step === 'month' ? (d) => d.getUTCFullYear() * 12 + d.getUTCMonth() : null;
+  if (!keyOf) return Array.from({ length: n }, (_, k) => ({ from: k, to: k }));
+  const out = [];
+  let key = null;
+  for (let k = 0; k < n; k++) {
+    const c = keyOf(date(k));
+    if (c !== key) { out.push({ from: k, to: k }); key = c; } else out[out.length - 1].to = k;
+  }
+  return out;
+};
+// Las marcas del eje de esos tramos (unas 12 como mucho): por días, las de dayTicks; por semanas, el día en que empieza
+// cada una y el mes cuando cambia; por meses, el mes y el año cuando cambia.
+export const bucketTicks = (m, bs, step = 'day') => {
+  if (step === 'day') return dayTicks(m, bs.length);
+  const s = Math.ceil(bs.length / 12), out = [];
+  let prev = -1;
+  for (let k = (bs.length - 1) % s; k < bs.length; k += s) {
+    const d = new Date(m.BASE + (m.S.d0 + bs[k].from * DAY) * 6e4);
+    if (step === 'week') { out.push({ k, label: String(d.getUTCDate()), sub: d.getUTCMonth() !== prev ? MONTHS[d.getUTCMonth()] : null }); prev = d.getUTCMonth(); }
+    else { out.push({ k, label: MONTHS[d.getUTCMonth()], sub: d.getUTCFullYear() !== prev ? String(d.getUTCFullYear()) : null }); prev = d.getUTCFullYear(); }
+  }
+  return out;
+};
+
 // La escala de una gráfica de n puntos en un dibujo de W×H con márgenes (L, R, T, B): el máximo con aire y dónde
 // cae cada punto (x) y cada valor (y).
 export const lineScale = (values, n, { W, H, L, R, T, B }) => {

@@ -62,7 +62,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   const kpi = (label, value, hint) => `<div class="iss-kpi" title="${hint}"><span>${label}</span><b>${value}</b><small>${hint}</small></div>`;
 
   // Cogidas por semana (SGA / SISU), lo medido en SIA: una fila por semana, la última arriba.
-  const weeksChart = (weeks) => `<div class="iss-weeks" role="img" aria-label="Issues cogidas por semana, últimas ${weeks.length} semanas">
+  const weeksChart = (weeks) => `<div class="iss-weeks" role="img" aria-label="Incidencias cogidas por semana, últimas ${weeks.length} semanas">
       ${weekBars(weeks).map(({ week, sga, sisu, total, sgaPct, sisuPct }) => `<div class="iss-week" title="Semana del ${week.slice(8)}/${week.slice(5, 7)}: ${total} (SGA ${sga}, SISU ${sisu})">
           <span>${+week.slice(8)}/${+week.slice(5, 7)}</span><div class="iss-week-bar"><i style="width:${sgaPct}%"></i><i class="sisu" style="width:${sisuPct}%"></i></div><small>${total || ''}</small></div>`).join('')}
     </div>`;
@@ -73,7 +73,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     onDesk = true;
     if (!data.taken) {
       root.innerHTML = `<div class="iss-page">
-        <div class="iss-none"><b>Aún no hay issues</b><span>De momento se cargan con el CSV de la consulta de Remedy (vale el mismo que el de Métricas); cuando SIA lea de Remedy, saldrán de ahí.</span>${loadButton('Cargar CSV')}</div></div>`;
+        <div class="iss-none"><b>Aún no hay incidencias</b><span>De momento se cargan con el CSV de la consulta de Remedy (vale el mismo que el de Métricas); cuando SIA lea de Remedy, saldrán de ahí.</span>${loadButton('Cargar CSV')}</div></div>`;
       return;
     }
     const { today, history, next } = data;
@@ -119,7 +119,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
         <section class="iss-card iss-hist">
           <div class="iss-card-h"><h3>Histórico semanal</h3><span class="iss-legend"><i></i>SGA <i class="sisu"></i>SISU</span></div>
           ${weeksChart(history.weeks)}
-          <p class="iss-foot">${used ? 'Medido con el uso de SIA.' : 'Se irá llenando con el uso de SIA: cada issue que cojas cuenta.'} Las resueltas se sumarán cuando se resuelva desde SIA.</p>
+          <p class="iss-foot">${used ? 'Medido con el uso de SIA.' : 'Se irá llenando con el uso de SIA: cada incidencia que cojas cuenta.'} Las resueltas se sumarán cuando se resuelva desde SIA.</p>
         </section>
         </aside>
       </div>
@@ -516,7 +516,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
     renderDesk();
     try {
       const { meta } = await api.upload(file);
-      toast?.(`Foto cargada: ${meta.issues} issues.`);
+      toast?.(`Foto cargada: ${meta.issues} incidencias.`);
     } catch (e) {
       failed(e.message);
     }
@@ -539,7 +539,7 @@ export const mountIssuesView = (root, { api, me, toast, openChat, dialogs }) => 
   }, REFRESH_MS);
 
   return {
-    show: () => showDesk().catch((err) => { root.innerHTML = `<div class="iss-page"><p class="iss-empty">No se pudieron cargar las issues: ${esc(err.message)}</p></div>`; }),
+    show: () => showDesk().catch((err) => { root.innerHTML = `<div class="iss-page"><p class="iss-empty">No se pudieron cargar las incidencias: ${esc(err.message)}</p></div>`; }),
     dispose: () => { resolver.dispose(); escalator.close(); chipDrag.dispose(); notes.dispose(); incoming.dispose(); clearInterval(refresher); window.removeEventListener('focus', picked); closeChat(); },
   };
 };

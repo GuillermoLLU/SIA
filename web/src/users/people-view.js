@@ -22,7 +22,7 @@ const copyText = async (text, input, toast) => {
 };
 // La contraseña con sus botones (una nueva y en el alta)
 const passwordField = (value, attr) => `<div class="pp-pw"><input class="settings-input" ${attr} value="${esc(value)}" aria-label="Contraseña" spellcheck="false" /><button type="button" class="lab-btn" data-pw-copy>Copiar</button><button type="button" class="lab-btn" data-pw-regen title="Generar otra" aria-label="Generar otra">↻</button></div>`;
-// Vive en Configuración → Equipo. onMetrics: si la persona también ve Equipo soporte, «Métricas equipo» abre sus métricas.
+// Vive en Configuración → Equipo. onMetrics: si la persona también ve Métricas, «Métricas equipo» abre Métricas en su pestaña Equipo soporte.
 // onScreen({ back, parent } | null): se ha entrado en una pantalla dentro de la caja (una ficha,
 // el alta, los roles): cómo se vuelve y de dónde; null al estar en la lista.
 export const mountPeopleView = (root, { usersApi, knowledgeApi, me, toast, dialogs, onMetrics, onScreen }) => {

@@ -25,9 +25,22 @@
   overflow-y: auto; color: var(--text);
 }
 .mt-page { padding: 0 28px 48px; }
+/* mientras se leen los datos al entrar: la S de SIA latiendo y «Cargando métricas…», en el centro. El logo es un PNG
+   negro: como máscara, pintado con el color del texto del tema (como en la pantalla de entrada, .lock-logo) */
+.mt-boot { display: flex; align-items: center; justify-content: center; min-height: calc(100vh - 120px); }
+.mt-boot-box { display: flex; flex-direction: column; align-items: center; gap: 14px; font-size: 14px; color: var(--mt-low); }
+.mt-boot-logo { width: 72px; height: 72px; background: var(--text); -webkit-mask: var(--logo) center / contain no-repeat; mask: var(--logo) center / contain no-repeat; animation: mt-boot-pulse 1.2s ease-in-out infinite; }
+@keyframes mt-boot-pulse { 50% { opacity: .35; transform: scale(.94); } }
+@media (prefers-reduced-motion: reduce) { .mt-boot-logo { animation: none; opacity: .6; } }
 .mt-top { display: flex; align-items: center; gap: 14px; padding: 22px 0 14px; }
 .mt-date { font-size: 13px; color: var(--mt-low); }
 .mt-top .mt-load { margin-left: auto; }
+/* El menú de Métricas: una caja por vista (faces.js), en el centro, como las de Configuración */
+/* el menú de Métricas: las vistas, una debajo de otra, en el centro de la pantalla */
+.mt-hub { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; min-height: calc(100vh - 80px); padding: 24px 0; animation: settings-in .25s ease; }
+.mt-hub .settings-box { width: 150px; height: 150px; gap: 12px; border-radius: 12px; }   /* cuadradas, con las esquinas redondeadas; lo que es cada una, al pasar el ratón */
+@media (prefers-reduced-motion: reduce) { .mt-hub { animation: none; } }
+/* En una vista: volver al menú y su nombre */
 .mt-load { display: inline-flex; align-items: center; height: 32px; padding: 0 14px; border: 0; font-family: inherit; font-size: 13px; font-weight: 600; color: var(--surface); background: var(--accent); cursor: pointer; white-space: nowrap; }
 .mt-load:hover { filter: brightness(1.08); }
 .mt-load.mt-busy { opacity: .6; cursor: progress; }
@@ -71,6 +84,41 @@
 .mt-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 70px 20px; text-align: center; font-size: 13px; color: var(--mt-low); }
 .mt-empty b { font-size: 15px; color: var(--text); }
 .mt-empty span { max-width: 460px; }
+/* La corona del Resumen sin nada abierto en el periodo */
+/* La tendencia frente al mes anterior (Resumen, Mes a mes) */
+.mt-view tr.mt-fy td { border-top: 1px solid var(--mt-line); }
+/* Mes a mes, comparando: cada mes, un bloque (raya marcada arriba) y el segundo lado, con un fondo suave */
+.mt-view tr.mt-mm-s0 td { border-top: 2px solid var(--mt-line); }
+.mt-view tr.mt-mm-s1 td:not(.mt-mm-mo) { background: var(--mt-soft); }
+.mt-view td.mt-mm-mo { vertical-align: middle; font-weight: 600; }
+.mt-stackcol { display: flex; flex-direction: column; gap: 16px; min-width: 0; } .mt-stackcol > .mt-card { flex: 0 0 auto; }
+.mt-mm-total { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 0 0 6px; font-size: 13px; color: var(--mt-low); } .mt-mm-total b { color: var(--text); } .mt-mm-total .mt-sw { margin-right: 5px; }
+.mt-dn-sys { margin: 0 0 8px; }
+/* el botón de las fechas, en una vista de «Abiertas ahora»: no aplica */
+.mt-period-off { opacity: .45; }
+/* Equipo soporte: de la barra de arriba, solo las fechas (comunes a todas las pestañas de Equipo) */
+.mt-fbar.mt-fbar-team > :not(.mt-period):not([data-vs]):not(.mt-factions) { display: none !important; }
+.mt-fbar.mt-fbar-team .mt-factions > :not([data-export-sheet]):not(.mt-load):not(.mt-menu) { display: none !important; }   /* Equipo soporte: las fechas, el selector de Indra y técnicos y «Descargar incidencias» */
+/* Malos escalados: los cambios de equipo a la izquierda y sus incidencias, con scroll, a la derecha */
+.mt-bad { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.mt-bad-list { max-height: 320px; overflow: auto; border: 1px solid var(--mt-line); }
+.mt-bad-list table { width: 100%; } .mt-bad-list thead th { position: sticky; top: 0; background: var(--surface); }
+.mt-bad-list tr.mt-sel td { font-weight: 650; } .mt-bad-list tr.mt-sel td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+.mt-bad-list tr.mt-off td { opacity: .45; } .mt-bad-list tr.mt-off:hover td { opacity: .8; }
+.mt-bad-list td.mt-subj { max-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; }
+@media (max-width: 1100px) { .mt-bad { grid-template-columns: 1fr; } }
+.mt-svg .mt-mm-off { opacity: .35; }
+.mt-svg .mt-mm-n { font-size: 13px; font-weight: 600; fill: var(--text); }
+.mt-svg .mt-mm-t { font-size: 12px; font-weight: 600; fill: var(--mt-low); } .mt-svg .mt-mm-t.good { fill: var(--mt-good); } .mt-svg .mt-mm-t.bad { fill: var(--mt-bad); }
+.mt-view td.mt-mm-side { white-space: nowrap; color: var(--mt-low); } .mt-view td.mt-mm-side .mt-sw { margin-right: 6px; }
+/* El Resumen, junto a la corona: A vigilar (comparando, un lado al lado del otro) y la antigüedad media */
+.mt-res-watch { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.mt-res-watch .mt-who-co { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; }
+.mt-card > .mt-st-watch { padding: 0; background: none; border: 0; box-shadow: none; } .mt-card > .mt-st-watch h4 { display: none; }
+.mt-res-age { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; min-height: 120px; }
+.mt-res-age b { font-size: 34px; font-weight: 650; line-height: 1.1; } .mt-res-age p { margin: 6px 0 0; font-size: 12px; color: var(--mt-low); }
+.mt-trend { margin-left: 3px; font-size: 10px; color: var(--mt-low); } .mt-trend.good { color: var(--mt-good); } .mt-trend.bad { color: var(--mt-bad); }
+.mt-none-open { margin: 0; padding: 48px 12px; text-align: center; font-size: 13px; color: var(--mt-low); }
 
 /* filtros: fijos arriba al hacer scroll */
 .mt-fbar { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 -28px; padding: 9px 28px; background: var(--bg); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
@@ -91,11 +139,14 @@
 /* periodo y lados: botón con icono y, al abrirlo, su desplegable */
 .mt-period { position: relative; }
 .mt-icon-btn { display: inline-flex; align-items: center; gap: 7px; height: 32px; }
-.mt-icon-btn svg, .mt-search svg { width: 16px; height: 16px; color: var(--mt-low); }
+.mt-icon-btn svg { width: 16px; height: 16px; color: var(--mt-low); }
 .mt-pop { position: absolute; top: calc(100% + 6px); left: 0; z-index: 10; padding: 12px; background: var(--surface); border: 1px solid var(--mt-line); box-shadow: 0 8px 24px rgba(0, 0, 0, .16); }
 .mt-cal { width: 820px; max-width: calc(100vw - 32px); padding: 16px; box-shadow: 0 12px 32px rgba(0, 0, 0, .14); }
 .mt-cal-head { display: flex; align-items: center; gap: 12px; padding-bottom: 12px; margin-bottom: 14px; border-bottom: 1px solid var(--mt-line); }
 .mt-cal-head b { font-size: 13px; color: var(--text); }
+/* Las fechas rápidas, arriba del panel del periodo (period-panel.js, head) */
+/* las fechas rápidas, a la derecha de «Periodo», en su misma fila */
+.mt-cal-presets { margin-left: auto; } .mt-cal-presets .mt-seg { flex-wrap: wrap; justify-content: flex-end; margin-bottom: 0; }
 .mt-pp-title { margin: 0; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--mt-low); }
 .mt-pp { display: grid; grid-template-columns: 1fr 1fr; }
 .mt-side { min-width: 0; }
@@ -144,13 +195,13 @@
 .mt-on > .mt-check { background: var(--accent); border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--surface); }
 /* búsqueda: la lupa junto al número de issues */
 .mt-find { display: flex; align-items: center; gap: 8px; margin-left: auto; }
-.mt-find input { width: 220px; height: 30px; padding: 0 8px; font: inherit; font-size: 13px; color: var(--text); background: var(--surface); border: 1px solid var(--mt-line); }
-.mt-search { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; background: none; border: 1px solid transparent; cursor: pointer; }
-.mt-search:hover { border-color: var(--mt-line); background: var(--surface); }
 .mt-chips { display: flex; flex: 1; flex-wrap: wrap; gap: 6px; }
 .mt-chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 6px 2px 10px; font-size: 12.5px; background: var(--mt-sel); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border)); }
 .mt-chip b { font-weight: 600; }
 .mt-chip button { padding: 0 3px; font-size: 14px; line-height: 1; color: var(--mt-low); background: none; border: 0; cursor: pointer; }
+/* «Quitar filtros», detrás de los chips */
+.mt-reset { padding: 2px 10px; font: inherit; font-size: 12.5px; color: var(--mt-low); background: none; border: 1px dashed var(--mt-line); cursor: pointer; }
+.mt-reset:hover { color: var(--text); border-color: var(--text); }
 .mt-btn { padding: 5px 11px; font: inherit; font-size: 13px; color: var(--text); background: var(--surface); border: 1px solid var(--mt-line); cursor: pointer; }
 .mt-btn:hover { background: var(--mt-soft); }
 .mt-count { font-size: 13px; color: var(--mt-low); white-space: nowrap; }
@@ -164,8 +215,9 @@
 
 /* rejilla y tarjetas */
 .mt-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; }
+.mt-grid + .mt-grid { margin-top: 16px; }   /* las pestañas que van juntas (SLA y calidad): una rejilla tras otra, con aire */
 .mt-card { grid-column: span 6; min-width: 0; padding: 16px 18px; background: var(--mt-card); border: 1px solid var(--mt-line); box-shadow: var(--mt-shadow); }
-.mt-s12 { grid-column: span 12; } .mt-s6 { grid-column: span 6; } .mt-s4 { grid-column: span 4; }
+.mt-s12 { grid-column: span 12; } .mt-s8 { grid-column: span 8; } .mt-s6 { grid-column: span 6; } .mt-s5 { grid-column: span 5; } .mt-s4 { grid-column: span 4; } .mt-s3 { grid-column: span 3; }
 .mt-card h3 { margin: 0 0 2px; font-size: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--mt-low); }
 .mt-sub { margin: 0 0 12px; font-size: 12.5px; color: var(--mt-low); }
 .mt-card h3 + :not(.mt-sub) { margin-top: 12px; }
@@ -235,6 +287,7 @@
 .mt-view table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .mt-view th, .mt-view td { padding: 6px 8px; text-align: left; vertical-align: middle; border-bottom: 1px solid var(--border); }
 .mt-view th { position: sticky; top: 0; font-size: 12px; font-weight: 600; color: var(--mt-low); white-space: nowrap; background: var(--mt-card); }
+.mt-view th.mt-colsort { cursor: pointer; user-select: none; } .mt-view th.mt-colsort:hover { color: var(--text); } .mt-srt-a { font-weight: 700; }
 .mt-view th[data-sort] { cursor: pointer; } .mt-view th[data-sort]:hover, .mt-view th.mt-srt { color: var(--text); }
 .mt-view .mt-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .mt-clk { cursor: pointer; } .mt-clk:hover td { background: var(--mt-soft); } .mt-sel td { background: var(--mt-sel); }
@@ -283,6 +336,7 @@
 .mt-go { flex: none; padding: 3px 8px; font: inherit; font-size: 12px; font-weight: 600; color: var(--accent); background: none; border: 1px solid transparent; cursor: pointer; }
 .mt-go:hover { border-color: var(--mt-line); background: var(--mt-soft); }
 .mt-gos { display: flex; flex: none; gap: 2px; }
+.mt-dn-go { margin: 10px 0 0; text-align: right; }
 .mt-figs { display: flex; flex-direction: column; }
 .mt-fig { display: grid; grid-template-columns: 1fr auto auto; align-items: baseline; gap: 10px; padding: 6px 0; border-top: 1px solid var(--border); }
 .mt-fig span { overflow: hidden; font-size: 13px; color: var(--mt-low); text-overflow: ellipsis; white-space: nowrap; }
@@ -298,6 +352,10 @@
 .mt-dot { fill: var(--mt-l); }
 .mt-legend i.mt-key { width: 16px; height: 0; margin-right: 6px; vertical-align: middle; border-top: 2.5px solid var(--mt-l); }
 .mt-legend i.mt-key.mt-l-rs0, .mt-legend i.mt-key.mt-l-rs1 { border-top-style: dashed; }
+/* comparando SISU y SGA en una sola (Turnos): lo que entra, de puntos, con el color de cada uno */
+.mt-l-in0 { --mt-l: var(--mt-c0); } .mt-l-in1 { --mt-l: var(--mt-c1); }
+.mt-line.mt-l-in0, .mt-line.mt-l-in1 { stroke: var(--mt-l); stroke-dasharray: 1.5 3.5; stroke-linecap: round; }
+.mt-legend i.mt-key.mt-l-in0, .mt-legend i.mt-key.mt-l-in1 { border-top-style: dotted; }
 /* cambios de turno en los mapas día × hora */
 /* tablas para cuadrar (matrix): números a la derecha, grupos con su título y la fila de total marcada */
 .mt-view .mt-mx td { text-align: right; padding-right: 9px; }
@@ -332,18 +390,33 @@
 .mt-part0 { background: var(--mt-c0); } .mt-part1 { background: color-mix(in srgb, var(--mt-c0) 62%, var(--mt-card)); }
 .mt-part2 { background: color-mix(in srgb, var(--mt-c0) 36%, var(--mt-card)); } .mt-part3 { background: var(--mt-c2); }
 
-@media (max-width: 1100px) { .mt-card, .mt-s6, .mt-s4 { grid-column: span 12; } .mt-trio { grid-template-columns: 1fr; } }
+@media (max-width: 1100px) { .mt-card, .mt-stackcol, .mt-s8, .mt-s6, .mt-s5, .mt-s4, .mt-s3 { grid-column: span 12; } .mt-trio { grid-template-columns: 1fr; } }
 
 /* Lo pendiente (Entrada y backlog): total · en qué punto están (barra que suma el total) · a vigilar · aparte */
 .mt-stock { grid-column: span 12; display: grid; grid-template-columns: minmax(150px, 1fr) minmax(0, 2.6fr) minmax(220px, 1.3fr) minmax(150px, 1fr); gap: 12px; }
 .mt-stock.mt-st-noapart { grid-template-columns: minmax(150px, 1fr) minmax(0, 2.6fr) minmax(220px, 1.3fr); }
+/* Pendiente de cliente: por módulo afectado y por centro */
+.mt-cli-g { width: 100%; table-layout: fixed; } .mt-cli-g th:first-child { width: 30%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Escalados: el selector de cómo se agrupa su tabla, encima de ella */
+.mt-esc-by { display: flex; align-items: center; gap: 10px; padding: 12px 14px 8px; font-size: 12.5px; color: var(--mt-low); }
+.mt-esc-by .mt-seg { grid-column: auto; } .mt-esc-by .mt-seg.mt-seg-sm { margin-bottom: 0; }
+/* Foto de hoy: arriba, SISU o SGA y la prioridad, en una fila */
+.mt-hoy-picks { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.mt-hoy-picks .mt-seg { grid-column: auto; }
+/* Los selectores comunes de la barra de arriba (SISU o SGA y prioridad: tabs/common.js, filterPicks) */
+.mt-fpicks { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; } .mt-fpicks .mt-seg { margin-bottom: 0; }
+/* sin el total (Foto de hoy: está en la corona), a la derecha de la corona */
+.mt-stock.mt-st-side { grid-column: span 8; align-self: stretch; }
+@media (max-width: 1100px) { .mt-stock.mt-st-side { grid-column: span 12; } }
+.mt-stock.mt-st-nototal { grid-template-columns: minmax(0, 2.6fr) minmax(220px, 1.3fr) minmax(150px, 1fr); }
+.mt-stock.mt-st-nototal.mt-st-noapart { grid-template-columns: minmax(0, 2.6fr) minmax(220px, 1.3fr); }
 .mt-st { padding: 14px 16px; background: var(--mt-card); border: 1px solid var(--mt-line); box-shadow: var(--mt-shadow); }
 .mt-st h4 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; margin: 0 0 10px; font-size: 12px; font-weight: 650; letter-spacing: .4px; text-transform: uppercase; color: var(--mt-low); }
 .mt-st h4 small { font-size: 11.5px; font-weight: 400; letter-spacing: 0; text-transform: none; }
 .mt-st p { margin: 6px 0 0; font-size: 12.5px; line-height: 1.4; color: var(--mt-low); }
 .mt-st-big { display: flex; align-items: baseline; gap: 8px; }
 .mt-st-big b { font-size: 34px; font-weight: 700; letter-spacing: -.5px; font-variant-numeric: tabular-nums; color: var(--text); }
-.mt-st-total { border-top: 3px solid var(--mt-c0); }
+.mt-st-total, .mt-st-age { border-top: 3px solid var(--mt-c0); }
 .mt-st-apart { border-top: 3px solid var(--mt-c2); background: var(--mt-soft); }
 .mt-st-apart p b { font-size: inherit; color: var(--text); }
 .mt-st-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
@@ -417,6 +490,13 @@
 .mt-card h3 small { margin-left: 8px; font-size: 12px; font-weight: 400; letter-spacing: 0; text-transform: none; }
 /* con algo marcado en una ficha, lo no marcado queda apagado (se puede seguir pulsando para añadirlo) */
 .mt-view .mt-sc tr.mt-off th, .mt-view .mt-sc tr.mt-off td { opacity: .42; }
+/* centrarse en una fila (o celda, o parte) sin que lo demás desaparezca: lo elegido, destacado; lo demás, apagado */
+.mt-view tr.mt-off > th, .mt-view tr.mt-off > td, .mt-view td.mt-off { opacity: .42; }
+.mt-view tr.mt-off:hover > th, .mt-view tr.mt-off:hover > td, .mt-view td.mt-off:hover { opacity: .8; }
+.mt-view tr.mt-sel > th.mt-r:first-of-type, .mt-view tr.mt-sel > td:first-child { box-shadow: inset 3px 0 0 var(--accent); font-weight: 650; }
+.mt-view td.mt-sel { outline: 2px solid var(--accent); outline-offset: -2px; }
+.mt-donut circle.mt-off { opacity: .3; }
+.mt-split.mt-off, .mt-view th.mt-off { opacity: .42; } .mt-split.mt-sel .mt-split-l, .mt-view th.mt-sel { font-weight: 650; color: var(--text); }
 .mt-view .mt-sc tr.mt-off:hover th, .mt-view .mt-sc tr.mt-off:hover td { opacity: .8; }
 .mt-view .mt-sc tr.mt-sel th.mt-r { background: var(--mt-sel); box-shadow: inset 3px 0 0 var(--accent); }
 /* ficha con filas que se despliegan (temas → problemas): ▸ despliega, la fila filtra; los hijos, sangrados y en un tono */
@@ -465,11 +545,6 @@
 /* Resolución (propuesta) */
 .mt-view table.mt-restime td.mt-tbar { padding-right: 14px; }
 .mt-view table.mt-restime td.mt-tbar .mt-hbar { height: 12px; margin: 0; }
-.mt-view table.mt-mixesc .mt-sc-vol em { flex: 0 0 38px; font-style: normal; text-align: right; }
-.mt-view table.mt-mixesc .mt-sc-vol .mt-bt { flex: 1; height: 10px; }
-.mt-view table.mt-mixesc, .mt-view table.mt-tickets { table-layout: fixed; }
-.mt-view table.mt-mixesc th.mt-r, .mt-view table.mt-tickets th.mt-r, .mt-view table.mt-tickets td.mt-mut { overflow: hidden; text-align: left; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
-.mt-view table.mt-mixesc .mt-gsep, .mt-view table.mt-tickets .mt-gsep { border-left: 1px solid var(--mt-line); }
 .mt-view td.mt-warnc { font-weight: 650; color: color-mix(in srgb, #c98a2b 70%, var(--text)); }
 .mt-view table.mt-restime thead th { white-space: normal; }
 /* Cuánto tardan: tabla de reparto por tramos, con el total de cada bloque */
@@ -531,6 +606,134 @@
 .mt-view table.mt-pair th.mt-gl small { display: block; margin-top: 4px; font-size: 11px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--mt-low); }
 .mt-view table.mt-pair tr.mt-gfirst > * { border-top: 3px solid var(--mt-line); }
 
+.mt-view .mt-card .mt-tablewrap + .mt-tablewrap { margin-top: 14px; }
+/* En qué se va el tiempo: las escaladas (pe1–2) y las que no (pp0–3), cada tramo de un color. Validados para
+   daltonismo los que se tocan en cada barra, con fondo claro y oscuro; ninguno es el verde ni el ocre de cumple y no
+   cumple; «otras esperas», en gris neutro. Entre tramos, 2 px del fondo; la cifra, en la tinta del texto */
+.mt-view { --mt-svc-pe1: #6250d6; --mt-svc-pe2: #e87ba4; --mt-svc-pp0: #2a78d6; --mt-svc-pp1: #1baf7a; --mt-svc-pp2: #eda100; --mt-svc-pp3: var(--mt-c2); }
+:root[data-mode="dark"] .mt-view { --mt-svc-pe1: #9085e9; --mt-svc-pe2: #d55181; --mt-svc-pp0: #3987e5; --mt-svc-pp1: #199e70; --mt-svc-pp2: #c98500; }
+.mt-svc-pe1 { background: var(--mt-svc-pe1); } .mt-svc-pe2 { background: var(--mt-svc-pe2); }
+.mt-svc-pp0 { background: var(--mt-svc-pp0); } .mt-svc-pp1 { background: var(--mt-svc-pp1); } .mt-svc-pp2 { background: var(--mt-svc-pp2); } .mt-svc-pp3 { background: var(--mt-svc-pp3); }
+.mt-svc-times { display: grid; gap: 22px; }
+.mt-svc-th { margin: 0 0 4px; font-size: 13px; }
+.mt-svc-row { display: grid; grid-template-columns: 110px minmax(0, 1fr); align-items: center; gap: 8px; margin-top: 2px; padding: 2px 0; }
+.mt-svc-row:hover { background: var(--mt-soft); }
+.mt-svc-who { overflow: hidden; font-size: 12.5px; color: var(--mt-low); text-overflow: ellipsis; white-space: nowrap; }
+/* --mt-at: la barra entera frente a la más larga (0–1); a la derecha queda sitio para su cifra */
+.mt-svc-track { --mt-svc-label: 84px; display: flex; align-items: center; gap: 6px; height: 22px; }
+.mt-svc-stack { display: flex; flex: none; gap: 2px; width: calc((100% - var(--mt-svc-label)) * var(--mt-at)); min-width: 2px; height: 20px; }
+.mt-svc-stack i { flex-basis: 0; min-width: 0; overflow: hidden; font-size: 11.5px; font-style: normal; font-weight: 600; line-height: 20px; text-align: center; white-space: nowrap; color: #fff; }
+.mt-svc-stack i:last-child { border-radius: 0 4px 4px 0; }
+.mt-svc-stack i.mt-svc-pp2 { color: #0b0b0b; } .mt-svc-stack i.mt-svc-pp3 { color: var(--text); }
+.mt-svc-track b { font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--text); }
+.mt-svc-track em { font-size: 12px; font-style: normal; color: var(--mt-low); }
+/* Resumen, ¿Qué tenemos?: lo pendiente en una corona (charts.js, donut), con los colores de cada situación en la barra
+   de la pestaña Backlog (.mt-sit*); cada parte lleva su cifra al lado */
+.mt-view { --mt-dn-asig: color-mix(in srgb, #c98a2b 78%, var(--text)); --mt-dn-prov: color-mix(in srgb, var(--mt-c0) 55%, var(--mt-card));
+  --mt-dn-cli: color-mix(in srgb, var(--mt-c0) 32%, var(--mt-card)); --mt-dn-curso: var(--mt-c0); --mt-dn-otro: var(--mt-c2); }
+.mt-dn { display: flex; align-items: center; gap: 18px; }
+.mt-dn.mt-dn-cmp { flex-direction: column; align-items: stretch; gap: 10px; }
+.mt-dn-rings { display: flex; justify-content: center; gap: 18px; }
+.mt-dn-fig { margin: 0; text-align: center; }
+.mt-dn-fig figcaption { margin-bottom: 4px; overflow: hidden; font-size: 12px; color: var(--mt-low); text-overflow: ellipsis; white-space: nowrap; }
+.mt-donut { display: block; flex: none; margin: 0 auto; }
+.mt-donut circle { fill: none; stroke-width: 14; }
+.mt-donut .mt-dn-track { stroke: var(--mt-track); }
+.mt-donut .mt-dn-asig { stroke: var(--mt-dn-asig); } .mt-donut .mt-dn-prov { stroke: var(--mt-dn-prov); } .mt-donut .mt-dn-cli { stroke: var(--mt-dn-cli); }
+.mt-donut .mt-dn-curso { stroke: var(--mt-dn-curso); } .mt-donut .mt-dn-otro { stroke: var(--mt-dn-otro); }
+.mt-donut circle[data-tip]:hover { stroke-width: 17; }
+.mt-dn-n { font-size: 22px; font-weight: 680; font-variant-numeric: tabular-nums; fill: var(--text); }
+.mt-dn-l { font-size: 10.5px; fill: var(--mt-low); }
+.mt-dn-legend { flex: 1; min-width: 0; border-collapse: collapse; font-size: 13px; }
+.mt-dn-legend th { padding: 5px 8px 5px 0; overflow: hidden; font-weight: 400; text-align: left; text-overflow: ellipsis; white-space: nowrap; color: var(--mt-low); }
+.mt-dn-legend td { padding: 5px 0 5px 10px; white-space: nowrap; }
+.mt-dn-legend td b { font-size: 15px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.mt-dn-legend td small { margin-left: 6px; font-size: 12px; color: var(--mt-low); }
+.mt-dn-legend tr + tr { border-top: 1px solid var(--border); }
+.mt-dn-legend tr.mt-clk { cursor: pointer; } .mt-dn-legend tr.mt-clk:hover th { color: var(--text); }
+.mt-dn-legend tr.mt-dn-sum th { padding-left: 18px; font-weight: 600; color: var(--text); }
+.mt-dn-sw { display: inline-block; width: 10px; height: 10px; margin-right: 8px; vertical-align: -1px; border-radius: 2px; }
+i.mt-dn-asig { background: var(--mt-dn-asig); } i.mt-dn-prov { background: var(--mt-dn-prov); } i.mt-dn-cli { background: var(--mt-dn-cli); }
+i.mt-dn-curso { background: var(--mt-dn-curso); } i.mt-dn-otro { background: var(--mt-dn-otro); }
+/* Rendimiento equipos: lo resuelto en la corona */
+.mt-donut .mt-dn-res { stroke: var(--mt-good); } i.mt-dn-res { background: var(--mt-good); }
+.mt-rd-top { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.mt-rd-top .mt-dn-sys { margin: 0; }
+.mt-rd-hours { font-size: 12px; color: var(--mt-low); }
+.mt-split.mt-rd-times { grid-template-columns: 150px 1fr 76px; }
+/* la gráfica de la mediana: la raya de la mediana del TTR (las medianas de los tramos no la suman) */
+.mt-split-b.mt-rd-med { position: relative; overflow: visible; }
+.mt-rd-mark { position: absolute; top: -4px; bottom: -4px; width: 0; border-left: 2px dashed var(--text); transform: translateX(-1px); }
+.mt-rd-key { display: inline-block; width: 0; height: 12px; margin-right: 6px; vertical-align: middle; border-left: 2px dashed var(--text); }
+.mt-part4 { background: color-mix(in srgb, #8a63b8 72%, var(--mt-card)); }   /* Tpc: la espera al cliente, de otro color que lo nuestro */
+/* comparando: las sin escalar de los dos lados juntas y, aparte, las escaladas, cada parte con su nombre encima */
+.mt-rd-kind { margin: 4px 0 2px; font-size: 12px; font-weight: 650; color: var(--mt-low); }
+.mt-rd-kind.mt-rd-gap { margin-top: 12px; }
+.mt-dn-legend tr.mt-dn-head th { padding-bottom: 3px; font-size: 12px; font-weight: 600; text-align: right; }
+/* Resumen, ¿Cómo está el backlog ahora?: cada reparto, de un solo lado, en filas con su cifra, su parte de lo
+   pendiente y una barra con esa parte (en el color del lado); en la evolución, la franja de cada día para su nota */
+.mt-blist { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+.mt-blist th { width: 42%; padding: 5px 8px 5px 0; overflow: hidden; font-weight: 400; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+.mt-blist td { padding: 5px 0 5px 8px; white-space: nowrap; }
+.mt-blist td.mt-num:first-of-type { width: 14%; font-weight: 600; font-variant-numeric: tabular-nums; }
+.mt-blist td.mt-num.mt-mut { width: 12%; }
+.mt-blist-bar i { display: block; height: 10px; min-width: 2px; border-radius: 0 3px 3px 0; }
+.mt-blist tr + tr { border-top: 1px solid var(--border); }
+.mt-blist tr.mt-clk { cursor: pointer; } .mt-blist tr.mt-clk:hover { background: var(--mt-soft); }
+.mt-blist tr.mt-sel { background: var(--mt-sel); }
+.mt-svg .mt-hit { fill: transparent; }
+.mt-svg .mt-hit:hover { fill: color-mix(in srgb, var(--text) 6%, transparent); }
+.mt-kpi.mt-clk { cursor: pointer; } .mt-kpi.mt-clk:hover { border-color: var(--mt-line); background: var(--mt-soft); }
+/* Una tarjeta que lleva a su pestaña (el Resumen): entera, con el borde al pasar el ratón */
+.mt-go-card { cursor: pointer; transition: border-color .15s ease; } .mt-go-card:hover { border-color: var(--accent); }
+.mt-go-card:focus-visible, .mt-kpi.mt-clk:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mt-kpi.mt-clk.mt-on, .mt-kpi.mt-clk.mt-on:hover { background: var(--mt-sel); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+/* en las tablas de dos lados, un nombre largo (un centro) se corta con «…»: entero, al pasar el ratón */
+.mt-view table.mt-mix2 th.mt-r { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Resumen: la baldosa cuadrada de la antigüedad media del backlog ahora (dos columnas) */
+.mt-s2 { grid-column: span 2; }
+@media (max-width: 1100px) { .mt-s2 { grid-column: span 6; } }
+.mt-tile { display: flex; flex-direction: column; min-width: 0; aspect-ratio: 1 / 1; padding: 14px 16px; }
+.mt-tile h3 { margin: 0; cursor: default; }
+.mt-tile-figs { display: flex; flex: 1; flex-direction: column; justify-content: center; gap: 10px; }
+.mt-tile-v b { display: block; font-size: 26px; font-weight: 650; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.mt-tile-v span { font-size: 12.5px; color: var(--mt-low); }
+/* Resumen: el selector de SISU o SGA, arriba del todo (pone o quita ese filtro) */
+.mt-seg { grid-column: span 12; justify-self: start; display: inline-flex; border: 1px solid var(--mt-line); background: var(--surface); }
+.mt-seg-b { padding: 6px 16px; font: inherit; font-size: 13px; font-weight: 600; color: var(--mt-low); background: none; border: 0; cursor: pointer; }
+.mt-seg-b + .mt-seg-b { border-left: 1px solid var(--mt-line); }
+.mt-seg-b:hover { color: var(--text); background: var(--mt-soft); }
+.mt-seg-b.mt-on { color: var(--text); background: var(--mt-sel); }
+/* Resumen, evolución del backlog en barras apiladas por prioridad (es un orden: un solo tono, de la crítica, la más
+   marcada y abajo, a la baja), del azul de la paleta de referencia (en claro, ninguno más claro que el paso 250; en
+   oscuro, al revés y ninguno más oscuro que el 600); sin prioridad, en gris. Entre tramos, 1 px del fondo a cada lado.
+   La tendencia, en tinta neutra discontinua */
+.mt-view { --mt-pq0: #0d366b; --mt-pq1: #256abf; --mt-pq2: #5598e7; --mt-pq3: #86b6ef; --mt-pq4: var(--mt-c2); }
+:root[data-mode="dark"] .mt-view { --mt-pq0: #cde2fb; --mt-pq1: #86b6ef; --mt-pq2: #3987e5; --mt-pq3: #184f95; }
+.mt-svg rect.mt-pq0, .mt-svg rect.mt-pq1, .mt-svg rect.mt-pq2, .mt-svg rect.mt-pq3, .mt-svg rect.mt-pq4 { stroke: var(--mt-card); stroke-width: 1; }
+.mt-pq0 { fill: var(--mt-pq0); } .mt-pq1 { fill: var(--mt-pq1); } .mt-pq2 { fill: var(--mt-pq2); } .mt-pq3 { fill: var(--mt-pq3); } .mt-pq4 { fill: var(--mt-pq4); }
+i.mt-pq0 { background: var(--mt-pq0); } i.mt-pq1 { background: var(--mt-pq1); } i.mt-pq2 { background: var(--mt-pq2); } i.mt-pq3 { background: var(--mt-pq3); } i.mt-pq4 { background: var(--mt-pq4); }
+.mt-trend { stroke: color-mix(in srgb, var(--text) 70%, transparent); stroke-width: 2; stroke-dasharray: 7 5; }
+.mt-legend i.mt-trend-key { width: 18px; height: 0; vertical-align: middle; border-top: 2px dashed color-mix(in srgb, var(--text) 70%, transparent); }
+/* Resumen, entrantes frente a atendidas: las barras con los colores de la corona (entrantes, el de Asignada; las
+   pendientes, los suyos) y las resueltas, en el del lado; el selector de la tarjeta, pequeño */
+.mt-svg rect.mt-dn-asig { fill: var(--mt-dn-asig); } .mt-svg rect.mt-dn-prov { fill: var(--mt-dn-prov); } .mt-svg rect.mt-dn-cli { fill: var(--mt-dn-cli); }
+.mt-svg rect.mt-fl-res { fill: var(--mt-c0); } i.mt-fl-res { background: var(--mt-c0); }
+.mt-seg.mt-seg-sm { margin-bottom: 10px; } .mt-seg-sm .mt-seg-b { padding: 4px 12px; font-size: 12.5px; }
+/* lo atendido del backlog, encima de lo atendido de las entrantes: en violeta (de la paleta de referencia), distinto de
+   los azules de la pila y del ocre de las entrantes; validado frente al tono que tiene debajo, con fondo claro y oscuro */
+.mt-view { --mt-fl-bkl: #6250d6; } :root[data-mode="dark"] .mt-view { --mt-fl-bkl: #9085e9; }
+.mt-svg rect.mt-fl-bkl { fill: var(--mt-fl-bkl); } i.mt-fl-bkl { background: var(--mt-fl-bkl); }
+/* Resumen, entrantes frente a atendidas: cada serie de lo atendido, en la leyenda, se enciende y se apaga con un clic */
+.mt-fl-tg { display: inline-flex; align-items: center; padding: 1px 6px; margin: -1px -6px; font: inherit; color: inherit; background: none; border: 1px solid transparent; cursor: pointer; }
+.mt-fl-tg:hover { border-color: var(--mt-line); background: var(--mt-soft); }
+.mt-fl-tg.mt-off { opacity: .45; } .mt-fl-tg.mt-sel { font-weight: 650; border-color: var(--accent); }
+.mt-svg rect.mt-off { opacity: .25; }
+.mt-fl-tg.mt-off i { background: transparent !important; outline: 1.5px solid var(--mt-line); outline-offset: -1.5px; }
+/* Resumen, la sábana de incidencias: la cuenta y el botón de exportar, encima de la tabla */
+.mt-sheet-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; font-size: 13px; }
+/* Turnos: el selector de turnos, con sus horas */
+.mt-seg-b small { opacity: .7; font-size: .85em; margin-left: 3px; }
 /* Los tres puntos (cargar CSV, construir SQL): discretos, junto a «Actualizar». */
 .mt-menu { position: relative; }
 .mt-more { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 32px; padding: 0; background: var(--surface); border-color: var(--mt-line); }
@@ -556,8 +759,8 @@
 .mt-modal-body { display: grid; gap: 14px; min-height: 0; padding: 18px; overflow: auto; }
 .mt-modal-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--mt-line); }
 .mt-modal-foot .mt-btn { height: 32px; padding: 0 14px; }
-.mt-modal-foot .mt-primary { color: var(--surface); background: var(--accent); border-color: var(--accent); }
-.mt-modal-foot .mt-primary:disabled { opacity: .45; cursor: default; }
+.mt-modal-foot .mt-primary, .mt-preview-add-foot .mt-primary { color: var(--surface); background: var(--accent); border-color: var(--accent); }
+.mt-modal-foot .mt-primary:disabled, .mt-preview-add-foot .mt-primary:disabled { opacity: .45; cursor: default; }
 .mt-modal-hint { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--mt-low); }
 .mt-modal-err { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--mt-bad); }
 
@@ -605,3 +808,153 @@
 /* Sin datos, el botón de cargar y su explicación, centrados en el alto de la vista. */
 .mt-empty-page { display: flex; flex-direction: column; height: 100%; min-height: 100%; }
 .mt-empty-page .mt-empty { flex: 1 1 auto; justify-content: center; }
+
+/* Escalados: los proyectos Jira que se eligen y sus tiempos, en barras horizontales frente a la media (en gris, con su línea) */
+/* todos los proyectos a la vista, sin scroll */
+.mt-jc-opts { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.mt-jc-opt { padding: 3px 9px; font: inherit; font-size: 12px; color: var(--mt-low); background: none; border: 1px solid var(--mt-line); cursor: pointer; }
+.mt-jc-opt b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.mt-jc-opt:hover:not(:disabled) { color: var(--text); background: var(--mt-soft); }
+.mt-jc-opt.mt-on { color: var(--text); background: var(--mt-sel); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.mt-jc-opt:disabled { opacity: .45; cursor: not-allowed; }
+.mt-jc-on { margin: 0 0 14px; font-size: 12.5px; color: var(--mt-low); }
+.mt-jc-clear { padding: 0; font: inherit; color: var(--accent); background: none; border: 0; cursor: pointer; }
+.mt-jc-clear:hover { text-decoration: underline; }
+.mt-jc-panels { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; }
+@media (max-width: 1100px) { .mt-jc-panels { grid-template-columns: 1fr; } }
+.mt-view .mt-jc-panel h4 { margin: 0 0 8px; font-size: 13px; font-weight: 600; }
+.mt-jc-row { display: grid; grid-template-columns: 120px minmax(0, 1fr) 46px 48px; align-items: center; gap: 8px; min-height: 28px; }
+.mt-jc-row:hover { background: var(--mt-soft); }
+.mt-jc-track { position: relative; display: flex; align-items: center; align-self: stretch; }
+.mt-jc-track i { display: block; height: 16px; min-width: 2px; border-radius: 0 4px 4px 0; }
+.mt-jc-global { background: var(--mt-c2); }
+.mt-jc-v { font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mt-jc-d { font-size: 12px; font-weight: 650; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mt-jc-line { position: absolute; top: 0; bottom: 0; border-left: 2px dashed var(--mt-low); pointer-events: none; }
+.mt-jc-x { overflow: hidden; font-size: 12px; line-height: 1.2; color: var(--mt-low); text-overflow: ellipsis; white-space: nowrap; }
+.mt-jc-gx { font-weight: 600; color: var(--text); }
+
+/* Resumen: las fechas que se miran, en su fila y fuera de las tarjetas; el botón abre el calendario de arriba */
+.mt-res-bar { grid-column: span 12; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; }
+.mt-res-vs { margin-left: 12px; }
+.mt-res-dates { padding: 4px 10px; font-size: 13px; }
+/* la evolución del backlog: sus selectores (qué se ve y cada cuánto), en una fila */
+.mt-evo-picks { display: flex; flex-wrap: wrap; gap: 8px; }
+.mt-evo-picks:empty { display: none; }
+/* SLAs: el interruptor Dentro ⇄ Fuera de los KPIs, a la derecha de Actual / Histórico */
+.mt-evo-picks:has(.mt-slasw) { grid-column: 1 / -1; flex-wrap: nowrap; align-items: center; gap: 14px; margin-bottom: 10px; } .mt-evo-picks:has(.mt-slasw) .mt-seg-sm { margin-bottom: 0; }
+.mt-slasw { flex: none; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--mt-low); user-select: none; }
+.mt-slasw span { cursor: pointer; } .mt-slasw span:hover, .mt-slasw span.mt-on { color: var(--text); }
+.mt-slasw i { position: relative; width: 28px; height: 16px; border-radius: 8px; cursor: pointer; background: color-mix(in srgb, var(--text) 22%, var(--surface)); transition: background .15s; }
+.mt-slasw i::after { content: ''; position: absolute; top: 2px; left: 8px; width: 12px; height: 12px; border-radius: 50%; background: var(--surface); transition: left .15s; }
+.mt-slasw.mt-in i { background: var(--mt-good); } .mt-slasw.mt-in i::after { left: 2px; }
+.mt-slasw.mt-out i { background: var(--mt-bad); } .mt-slasw.mt-out i::after { left: 14px; }
+/* Resumen: «Comparar» y su pop-up (qué comparar: sin comparar, un periodo frente a otro o frente a T-Systems) */
+.mt-res-cmp { position: relative; display: flex; margin-left: 12px; }
+.mt-res-cmp > .mt-x { margin-left: -1px; padding: 5px 9px; }
+.mt-res-cmp > .mt-btn.mt-on { border-color: var(--mt-base0, var(--mt-line)); }
+/* En el modo comparar: eligiendo con qué (quick-bar.js, comparePop) */
+.mt-res-cmp > .mt-btn.mt-picking { border-style: dashed; color: var(--accent); } .mt-res-cmp > .mt-btn.mt-picking small { color: var(--text-low); font-weight: 400; }
+/* el enlace de un KPI a su pestaña (Resumen: MTTR, %IQA, Uso de la IA), debajo y a la derecha, como el de la corona */
+.mt-kpi-go { margin: 8px -8px 0 0; text-align: right; }
+/* la barra de arriba: lo comparado (Ctrl+clic en una segunda empresa o fecha rápida), con el color del otro lado */
+.mt-seg-b.mt-qb { background: color-mix(in srgb, var(--mt-base1, var(--mt-low)) 22%, var(--surface)); border-color: var(--mt-base1, var(--mt-line)); color: var(--text); }
+.mt-fbar .mt-res-cmp { margin-left: 0; }
+/* Análisis tiempos, por módulo: una barra de su tiempo total (a la escala del que más), partida por estados */
+.mt-mo-times .mt-mo-cell { width: 26%; min-width: 120px; }
+.mt-mo-bar { display: flex; height: 12px; min-width: 2px; overflow: hidden; border-radius: 0 3px 3px 0; }
+.mt-mo-bar i { display: block; height: 100%; }
+.mt-mo-times th .mt-dn-sw { margin-right: 4px; }
+/* Análisis tiempos, problemas comunes: la barra de cuántas, y los módulos, que no ensanchen la tabla */
+.mt-pc-times td.mt-blist-bar { width: 18%; min-width: 90px; }
+.mt-pc-times td:last-child { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Estado de SLAs (informe): el detalle de cada parámetro, sus cortes de dos en dos */
+.mt-sla-dets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 22px; }
+.mt-sla-dets h4 { margin: 0 0 8px; font-size: 13px; }
+.mt-sla-panel { min-width: 0; break-inside: avoid; }
+.mt-sla-wide { grid-column: 1 / -1; }
+/* barras horizontales: nombre, barra (una por lado) con la línea de lo de todas, y la cifra */
+.mt-hb { display: grid; gap: 5px; }
+.mt-hb-row { display: grid; grid-template-columns: minmax(80px, 30%) 1fr auto; align-items: center; gap: 8px; font-size: 12px; }
+.mt-hb-x { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mt-hb-track { position: relative; display: grid; gap: 2px; padding: 2px 0; background: color-mix(in srgb, var(--mt-line) 25%, transparent); }
+.mt-hb-track i { display: block; height: 10px; min-width: 1px; border-radius: 0 2px 2px 0; }
+.mt-hb-ref { position: absolute; top: -3px; bottom: -3px; border-left: 2px dashed var(--mt-low); z-index: 1; }
+.mt-hb-key { display: inline-block; width: 0; height: 12px; margin-right: 6px; vertical-align: middle; border-left: 2px dashed var(--mt-low); }
+.mt-hb-v { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+/* las barras que filtran, como los demás filtros: la elegida (o las elegidas, con Ctrl+clic), destacada; las demás, apagadas */
+.mt-hb-row.mt-clk { padding: 2px 6px; margin: 0 -6px; border-radius: 4px; }
+.mt-hb-row.mt-clk:hover { background: var(--mt-soft); }
+.mt-hb-row.mt-sel { background: var(--mt-sel); box-shadow: inset 3px 0 0 var(--accent); font-weight: 650; color: var(--text); }
+.mt-hb-row.mt-sel .mt-hb-track i { filter: saturate(1.25); }
+.mt-hb-row.mt-off { opacity: .4; } .mt-hb-row.mt-off:hover { opacity: .75; }
+/* columnas por mes: una (o una por lado) con su cifra encima */
+.mt-vb { display: flex; align-items: stretch; gap: 8px; height: 160px; }
+.mt-vb-col { flex: 1; display: grid; grid-template-rows: 1fr auto; min-width: 0; max-width: 90px; text-align: center; }
+.mt-vb-bars { display: flex; align-items: flex-end; justify-content: center; gap: 3px; min-height: 0; border-bottom: 1px solid var(--mt-line); }
+.mt-vb-bars span { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; width: 42%; max-width: 30px; }
+.mt-vb-bars small { font-size: 10px; white-space: nowrap; }
+.mt-vb-bars i { display: block; width: 100%; min-height: 1px; border-radius: 2px 2px 0 0; }
+.mt-vb-x { padding-top: 4px; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* La vista previa del informe (print.js, previewTabs): la hoja, blanca y del ancho de un A4 apaisado, sobre un fondo
+   gris; se desplaza la ventana, no la hoja */
+/* la vista previa: siempre del mismo tamaño, también mientras se genera */
+.mt-modal.mt-modal-preview { width: min(1180px, 100%); height: 92vh; max-height: 92vh; }
+/* «Exportar PDF» de una pestaña: las pestañas que lleva el informe y «Añadir pestaña…» (print.js, previewTabs) */
+.mt-preview-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 10px 18px; border-bottom: 1px solid var(--mt-line); }
+.mt-preview-tabs-l { font-size: 12.5px; color: var(--mt-low); margin-right: 2px; }
+/* el «+» y su lista (la de SIA: .pick-list, style.css), con casillas y «Añadir» al pie */
+.mt-preview-tabs .pick.inline { min-width: 0; }
+.mt-preview-tabs .pick-list { min-width: 220px; }
+.mt-preview-tabs .pick-list li[role="option"] { display: flex; align-items: center; gap: 8px; }
+.mt-preview-tabs .pick-list li[aria-selected="true"] { font-weight: 400; color: var(--text); }
+.mt-preview-add-foot { position: sticky; bottom: -4px; padding: 8px 12px !important; background: var(--surface); border-top: 1px solid var(--border); cursor: default !important; }
+.mt-preview-add-foot:hover { background: var(--surface) !important; }
+.mt-preview-add-foot .mt-btn { width: 100%; justify-content: center; }
+/* ordenar las pestañas: se arrastran */
+.mt-chip-move { cursor: grab; }
+/* su número de orden */
+.mt-chip-n { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; width: 18px; height: 18px; padding: 0; font-size: 11px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; color: var(--surface); background: var(--accent); border-radius: 50%; }
+.mt-chip-move:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.mt-chip-drag { opacity: .45; }
+.mt-chip-over { box-shadow: 0 0 0 2px var(--accent); }
+/* los botones de la barra de filtros: «Descargar incidencias» y «Exportar PDF» */
+.mt-export-tab { white-space: nowrap; }
+.mt-export-tab[hidden] { display: none; }
+.mt-preview-body { position: relative; flex: 1 1 auto; min-height: 0; padding: 18px; overflow: auto; background: color-mix(in srgb, var(--text) 12%, var(--surface)); }
+/* la hoja: un A4 apaisado (297 mm) con sus márgenes de 10 mm; el marco, el ancho útil (277 mm), como al imprimir */
+.mt-preview-page { width: 297mm; margin: 0 auto; padding: 10mm; box-sizing: border-box; background: #fff; box-shadow: 0 2px 12px rgba(0, 0, 0, .18); }
+.mt-preview-sheet { display: block; width: 277mm; max-width: none; height: 794px; background: #fff; border: 0; }
+.mt-preview-loading { visibility: hidden; height: 0; }
+/* mientras se genera: el logo de SIA latiendo y «Generando vista previa…», en el centro, encima de la hoja */
+.mt-preview-wait { position: absolute; inset: 0; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; margin: 0; font-size: 14px; color: var(--mt-low); background: inherit; }
+.mt-preview-body:has(.mt-preview-wait) { overflow: hidden; }
+.mt-preview-body:has(.mt-preview-wait) .mt-preview-page { visibility: hidden; }
+
+/* La barra de filtros (fechas, lo que se mira, comparar, selectores, búsqueda y acciones): todos los controles a la misma
+   altura (32 px) y centrados en la fila, en todas las vistas y pestañas. Sin los márgenes que traen de otros sitios
+   (los grupos, el de debajo de .mt-seg-sm; los tres puntos, el de encima de .mt-more, la clase de «Ver todos») */
+.mt-fbar > * { align-self: center; }
+/* a la derecha, juntas (cuántas incidencias, descargar, exportar, actualizar y los tres puntos): si no caben, bajan juntas a la derecha */
+.mt-factions { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+.mt-factions .mt-find { margin-left: 0; }
+.mt-fbar .mt-seg { box-sizing: border-box; height: 32px; margin: 0; align-items: stretch; }
+.mt-fbar .mt-seg-b { display: inline-flex; align-items: center; height: auto; padding-top: 0; padding-bottom: 0; }
+.mt-fbar :is(.mt-btn, .mt-load, .mt-x) { box-sizing: border-box; height: 32px; }
+.mt-fbar .mt-btn { display: inline-flex; align-items: center; padding-top: 0; padding-bottom: 0; }
+.mt-fbar .mt-more { margin-top: 0; }
+.mt-fbar :is(.mt-menu, .mt-find, .mt-slot, .mt-period, .mt-res-cmp, .mt-fpicks, [data-qco], [data-cmp]) { display: flex; align-items: center; }
+.mt-fbar :is([data-qco], [data-cmp]):empty { display: none; }
+
+/* «+» para comparar (con otra empresa o personas, junto al primer lado; con otro periodo, junto a las fechas): cuadrado */
+.mt-plus { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; width: 32px; height: 32px; padding: 0; font-size: 18px; font-weight: 400; line-height: 1; color: var(--text); }
+.mt-fbar .mt-plus[hidden] { display: none; }
+.mt-fbar .mt-plus:disabled { opacity: .4; cursor: not-allowed; }
+.mt-fbar [data-vslot] { gap: 0; }
+.mt-fbar [data-vslot] > .mt-vs { margin-right: 10px; }
+.mt-fbar [data-vslot][hidden] { display: none; }
+/* los calendarios: las fechas rápidas, en la misma fila que «Periodo» y sus fechas, sin partirse */
+.mt-cal-head { flex-wrap: nowrap; }
+.mt-cal-head b { white-space: nowrap; }
+.mt-cal-presets .mt-seg { flex-wrap: nowrap; }
+.mt-cal-presets .mt-seg-b { white-space: nowrap; }

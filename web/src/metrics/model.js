@@ -1,16 +1,34 @@
 // Las Métricas en memoria (sin DOM): los datos que calcula el bridge
 // (server/metrics/dataset.js), lo que se deriva de cada issue, los filtros
 // y los indicadores de cualquier grupo de issues.
-import { MONTHS, DOWS, nice, title } from './format.js';
+import { MONTHS, DOWS, nice, title, dur } from './format.js';
 import { SHIFTS, SHIFT_HOURS, DAYS, slotOf, weekendOf, typeOf, slotsIn, carry, shiftWork } from './shifts.js';
 import { IA_MARKS, IA_NAMES, iaKind } from './ia.js';
+import { SISU_SHIFTS, SISU_SHIFT_HOURS, shiftOf as sisuShiftOf } from './sisu-shifts.js';
 
 export const COMPANIES = ['Indra', 'T-Systems', 'Sin asignar / fuera'];
 // ámbitos (server/metrics/remedy.js, SCOPE): los filtros de Remedy con los que el equipo de Indra ve su backlog
 export const SCOPE = { OUT: 0, SGA: 1, SISU: 2, REQUEST: 3 };
+// de quién son esas búsquedas: lo que cae en ellas (SGA, SISU o PRIO) y no tiene técnico es de Indra (TEAM): cuenta
+// en su lado en todas las pestañas, como en Equipo soporte
+export const SEARCH_OWNER = 0;
 // Marcas de una issue: los bits de server/metrics/remedy.js (FLAG). Las de IA, en ia.js.
 export const MAJOR = 256;
-const PRIO = 2, REOPENED = 512, NO_RESOLUTION = 32768;
+const PRIO = 2, NO_RESOLUTION = 32768;
+export const REOPENED = 512;
+// escalada (#48): ha estado en Pendiente con motivo Third Party Vendor Action Reqd, tenga o no ticket
+export const THIRD_PARTY = 131072;
+// cerrada en Remedy con su Jira aún abierto (server/metrics/escalation.js, jiraOpen): su Tesc, hasta la resolución en
+// Remedy (resolution.js, tescOf)
+export const JIRA_OPEN = 524288;
+export const isEscalated = (C, i) => (C.fl[i] & THIRD_PARTY) !== 0;
+// mal escalada: algún Jira suyo se descartó o pasó de un equipo a otro (server/metrics/escalation.js, misrouted)
+export const MISROUTED = 2097152, JIRA_DISCARDED = 4194304, JIRA_MOVED = 8388608;
+// SISU o SGA, por el módulo (como lo reparte el equipo): estos módulos son de SISU; el resto, de SGA. Es otra cosa que
+// las tarjetas (CARDS), que salen de los filtros de Remedy.
+const SISU_MODULES = new Set(['PACKING', 'ORDERS', 'DEVOLUCION PRODUCTO', 'SORTING', 'INBOUND', 'STOCK', 'WAVES', 'PERFORMANCE', 'PICKING', 'SISU',
+  'VIRTUALMG', 'ORDERTR']);
+const SYSTEMS = ['SISU', 'SGA'];
 // Tarjetas: como reconoce el equipo su trabajo. SGA y SISU, por los filtros de Remedy (ámbito); PRIO, por la
 // etiqueta de priorizada por negocio, que va además de su SGA o SISU. 3: sin tarjeta.
 export const CARDS = ['SGA', 'SISU', 'PRIO', 'Sin tarjeta'];
@@ -22,7 +40,7 @@ export const CARDS = ['SGA', 'SISU', 'PRIO', 'Sin tarjeta'];
 export const SITUATIONS = ['En curso', 'Sin tocar', 'Devuelta a Asignada', 'Espera tercero', 'Espera cliente', 'Espera otro motivo', 'Cerrada'];
 
 // Tramos de tiempo de resolución y de antigüedad (minutos).
-const TTR_NAMES = ['< 1 h', '1–4 h', '4–8 h', '8–24 h', '1–3 días', '3–7 días', '7–30 días', '> 30 días', 'Sin resolver'];
+const TTR_NAMES = ['< 1 h', '1–4 h', '4–8 h', '8–24 h', '24–72 h', '72–168 h', '168–720 h', '> 720 h', 'Sin resolver'];
 const TTR_LIMITS = [60, 240, 480, 1440, 4320, 10080, 43200, Infinity];
 // la antigüedad, en los tramos con que la mira el equipo
 const AGE_NAMES = ['1–5 días', '6–10 días', '11–15 días', '16–30 días', '> 30 días'];
@@ -30,7 +48,7 @@ const AGE_LIMITS = [6, 11, 16, 31, Infinity].map((d) => d * 1440);
 
 // SLA de inicio: de la apertura al primer paso a En curso, por prioridad.
 const SLA_MINUTES = { CRITICAL: 15, HIGH: 45, MEDIUM: 120, LOW: 480 };
-const slaDur = (m) => (m < 60 ? `${m} min` : `${m / 60} h`);
+const slaDur = dur;
 // «crítica 15 min, alta 45 min, media 2 h, baja 8 h», para los textos que explican el SLA
 export const slaText = () => Object.entries(SLA_MINUTES).map(([p, m]) => `${nice(p).toLowerCase()} ${slaDur(m)}`).join(', ');
 const SLA_NAMES = ['Dentro del SLA', 'Hasta el doble del SLA', 'Del doble a 5 veces el SLA', 'Más de 5 veces el SLA',
@@ -38,7 +56,7 @@ const SLA_NAMES = ['Dentro del SLA', 'Hasta el doble del SLA', 'Del doble a 5 ve
 
 // Cuándo pasa a En curso, en tramos que caen justo en los plazos del SLA (15 min, 45 min, 2 h y 8 h): lo dentro del
 // plazo de una prioridad son los tramos hasta el suyo. Sin pasar a En curso: abierta (sin empezar) o ya cerrada.
-const START_NAMES = ['≤ 15 min', '15–45 min', '45 min–2 h', '2–8 h', '8–24 h', '1–7 días', '> 7 días', 'Sin empezar', 'Cerrada sin En curso'];
+const START_NAMES = ['≤ 15 min', '15–45 min', '45 min–2 h', '2–8 h', '8–24 h', '24–168 h', '> 168 h', 'Sin empezar', 'Cerrada sin En curso'];
 export const START_LIMITS = [15, 45, 120, 480, 1440, 10080, Infinity];
 // Calidad del trabajo y del registro: lo que se marca de cada issue (puede tener varias o ninguna).
 const QUALITY_NAMES = ['Reabierta', 'Devuelta a cola', 'Cerrada sin pasar por En curso', 'Escalada sin pasar por Pendiente',
@@ -65,9 +83,12 @@ export const createModel = (data) => {
   const dayName = (min) => { const d = new Date(BASE + min * 6e4); return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}${LASTM >= 12 ? ` ${d.getUTCFullYear()}` : ''}`; };
   // Lo cargado, por días completos: del primer día con issues (MIN_D) al día de la foto, incluido (END_D, excluido).
   const MIN_D = Math.floor(meta.first / DAY) * DAY, END_D = (Math.floor(SNAP / DAY) + 1) * DAY;
-  // El periodo con el que abren las vistas (resetPeriod): el mes en curso (el de la foto) entero, del día 1, o del
-  // primer día con issues, hasta la foto.
-  const START_D = Math.max(MIN_D, minuteOf(LASTM));
+  // El año fiscal en curso (la fecha rápida «Año fiscal»: period.js): del 1 de febrero (el último que no pase del mes de
+  // la foto), o del primer día con issues, hasta la foto. Los meses k cuentan desde enero de meta.start.
+  const FISCAL_M = LASTM - (((LASTM - 1) % 12) + 12) % 12;
+  const START_D = Math.max(MIN_D, minuteOf(FISCAL_M));
+  // este mes, el de la foto, desde su día 1 (o lo primero cargado)
+  const MONTH_D = Math.max(MIN_D, minuteOf(LASTM));
   const CRIT = DI.prio.indexOf('CRITICAL');
   const SLA = DI.prio.map((p) => SLA_MINUTES[p] ?? -1);
   // las prioridades de más a menos urgente y su SLA de inicio («Crítica · 15 min»)
@@ -95,7 +116,8 @@ export const createModel = (data) => {
     TTR[i] = C.res[i] >= 0 ? Math.max(C.res[i] - C.rep[i], 0) : -1;
     TB[i] = TTR[i] < 0 ? 8 : TTR_LIMITS.findIndex((l) => TTR[i] < l);
     OPEN[i] = OPEN_ST.has(C.st[i]) ? 1 : 0;
-    TEAM[i] = data.company[C.as[i]];
+    // la empresa de su técnico; sin técnico, la de las búsquedas si cae en ellas (SEARCH_OWNER) y, si no, ninguna
+    TEAM[i] = C.as[i] || !(C.sc[i] === SCOPE.SGA || C.sc[i] === SCOPE.SISU || C.fl[i] & PRIO) ? data.company[C.as[i]] : SEARCH_OWNER;
   }
 
   // --- dimensiones: por las que se agrupa y se filtra
@@ -114,16 +136,30 @@ export const createModel = (data) => {
     vk: dictDim('Ticket Jira', 'vk', 'vkey', (s) => s || '(sin clave Jira)'),
     rz: dictDim('Resolución (texto)', 'rz', 'resol', (s) => s || '(texto único o vacío)'),
     dow: { name: 'Día de la semana', get: (i) => DOW[i], label: (k) => DOWS[k] },
+    // el mes en que se abrió (Backlog, Meses con incidencias abiertas: un clic en una barra filtra)
+    mes: { name: 'Mes de apertura', get: (i) => MONTH[i], label: (k) => monthName(k) },
     hour: { name: 'Hora', get: (i) => HOUR[i], label: (k) => `${k} h` },
     tj: { name: 'Tarjeta', multi: true, label: (k) => CARDS[k],
       get: (i) => { const o = []; if (C.sc[i] === SCOPE.SGA) o.push(0); if (C.sc[i] === SCOPE.SISU) o.push(1); if (C.fl[i] & PRIO) o.push(2); return o.length ? o : [3]; } },
     sit: { name: 'Situación', get: situation, label: (k) => SITUATIONS[k] },
-    es: { name: 'Escalada', get: (i) => (C.vt[i] ? 1 : 0), label: (k) => (k ? 'Con ticket de tercero' : 'Sin ticket de tercero') },
+    es: { name: 'Escalada', get: (i) => (isEscalated(C, i) ? 1 : 0), label: (k) => (k ? 'Escalada a un tercero' : 'Sin escalar') },
+    ss: { name: 'SISU o SGA', get: (i) => (SISU_MODULES.has(DI.module[C.mo[i]]) ? 0 : 1), label: (k) => SYSTEMS[k] },
+    // de un mal escalado, los equipos de Jira por los que pasó, del original al final (0: sin cambio de equipo o aún sin dato)
+    vh: { name: 'Equipo original → final', get: (i) => C.vh?.[i] ?? 0, label: (k) => DI.vhops?.[k] || '(sin cambio de equipo)' },
+    // un mal escalado, por qué: su cambio de equipo (> 0, el de vh); descartado en Jira, en su proyecto (−(proyecto + 2));
+    // sin dato aún de sus equipos (−1); 0, no es un mal escalado
+    mb: { name: 'Mal escalado', get: (i) => (!(C.fl[i] & MISROUTED) ? 0 : C.vh?.[i] > 0 ? C.vh[i] : C.fl[i] & JIRA_DISCARDED ? -(C.vp[i] + 2) : -1),
+      label: (k) => (k > 0 ? DI.vhops?.[k] || '' : k === -1 ? 'Cambió de equipo (sin dato aún de los equipos)' : k < -1 ? `Descartada en ${DI.vproj[-k - 2] || '(sin proyecto Jira)'}` : 'No es un mal escalado') },
+    mx: { name: 'Mal escalada', get: (i) => (C.fl[i] & MISROUTED ? 1 : 0), label: (k) => (k ? 'Mal escalada (Jira descartado o de un equipo a otro)' : 'No mal escalada') },
     tu: { name: 'Turno', get: (i) => STYPE[i] % 3, label: (k) => `${SHIFTS[k]} (${SHIFT_HOURS[k]})` },
     we: { name: 'Días', get: (i) => (STYPE[i] < 3 ? 0 : 1), label: (k) => DAYS[k] },
+    // el turno de SISU que la recibe (sisu-shifts.js: mañana o tarde, de lunes a viernes; lo de fuera de turno, en el siguiente)
+    ts: { name: 'Turno (SISU)', get: (i) => sisuShiftOf({ clock }, C.rep[i]).k, label: (k) => `${SISU_SHIFTS[k]} (${SISU_SHIFT_HOURS[k]})` },
     age: { name: 'Antigüedad', get: (i) => AGE_LIMITS.findIndex((l) => SNAP - C.rep[i] < l), label: (k) => AGE_NAMES[k] },
     tb: { name: 'Tiempo de resolución', get: (i) => TB[i], label: (k) => TTR_NAMES[k] },
     de: { name: 'Problema', get: (i) => C.de[i], label: (k) => DI.problem[k] || '(título sin descripción del problema)' },
+    // el problema común (server/metrics/problems.js: por el título y la descripción del centro; 0, sin clasificar)
+    pc: { name: 'Problema común', get: (i) => C.pc?.[i] ?? 0, label: (k) => data.problems?.[k] || 'Sin clasificar' },
     th: { name: 'Tema', multi: true, label: (k) => data.themes[k] || 'Sin tema detectado',
       get: (i) => { const t = C.th[i], o = []; if (!t) return [data.themes.length]; for (let j = 0; j < data.themes.length; j++) if (t >> j & 1) o.push(j); return o; } },
     // el primero de sus temas (van de más concreto a más general: «cancelar pedido» es Cancelar, no Pedidos), para
@@ -168,7 +204,14 @@ export const createModel = (data) => {
   };
   // un mes entero dentro del periodo y ya cerrado (el de la foto aún puede cambiar)
   const fullMonth = (k) => k < LASTM && minuteOf(k) >= S.d0 && minuteOf(k + 1) <= S.d1;
-  const resetPeriod = () => setPeriod(START_D, END_D);
+  // El periodo con el que abren las vistas (resetPeriod): los meses en los que tenemos algo abierto, del de la abierta más
+  // antigua de Indra (desde su día 1) a la foto; sin nada abierto, este mes.
+  const openFrom = () => {
+    let t = Infinity;
+    for (let i = 0; i < N; i++) if (OPEN[i] && TEAM[i] === 0 && C.rep[i] < t) t = C.rep[i];
+    return t === Infinity ? MONTH_D : Math.max(MIN_D, minuteOf(monthAt(t)));
+  };
+  const resetPeriod = () => setPeriod(openFrom(), END_D);
   const daily = () => S.d1 - S.d0 <= 31 * DAY;   // hasta un mes se ve día a día; más, mes a mes
   const inPeriod = (i) => C.rep[i] >= S.d0 && C.rep[i] < S.d1;
   const SIDE = new Uint8Array(N);
@@ -220,12 +263,33 @@ export const createModel = (data) => {
     for (let i = 0; i < N; i++) if (!(MASK[i] & ~OUT_SIDE)) out.push(i);
     return (CACHE.pool = out);
   };
+  // Centrarse en algo sin que lo demás desaparezca: list (lo que pasa los filtros: lo del periodo o, con now, lo de
+  // ahora, se abriera cuando se abriera) con lo que solo deja fuera el filtro de alguna de `dims` (las de las filas de
+  // una tabla), para que esas filas sigan y la elegida se destaque. Lo que se añade es del mismo «universo» que list:
+  // lo que dejan fuera los demás filtros sigue fuera, de los mismos lados y, con keep, lo que lo cumple (lo abierto…).
+  // Sin filtro en esas dimensiones, list tal cual.
+  // S.wideKeep / S.wideNow: los de partida mientras se pinta una vista de lo abierto ahora (tabs: openNow, Backlog)
+  const widen = (list, dims, { now = !!S.wideNow, keep = S.wideKeep || null } = {}) => {
+    let bits = 0;
+    for (const d of dims) { const a = ACTIVE.indexOf(d); if (a >= 0) bits |= 1 << a; }
+    if (!bits) return list;
+    let seen = now ? OUT_PERIOD : 0;
+    const sides = new Set(list.map((i) => SIDE[i])), inList = new Uint8Array(N);
+    if (!list.length) for (let k = 0; k < S.sides.length; k++) if (S.sides[k]) sides.add(k);
+    for (const i of list) { seen |= MASK[i]; inList[i] = 1; }
+    const out = [...list];
+    for (let i = 0; i < N; i++) {
+      if (inList[i] || !(MASK[i] & bits) || MASK[i] & ~(seen | bits) || !sides.has(SIDE[i]) || (keep && !keep(i))) continue;
+      out.push(i);
+    }
+    return out.length === list.length ? list : out.sort((a, b) => a - b);
+  };
   // la foto de hoy: las que pasan los filtros sea cual sea su mes de apertura; con anySide, también las de
-  // ningún lado (para lo que aún no tiene responsable)
-  const today = (anySide = false) => {
-    const key = anySide ? 'today*' : 'today';
+  // ningún lado (para lo que aún no tiene responsable); sin contar el filtro de la dimensión `skip`, si se indica
+  const today = (anySide = false, skip) => {
+    const a = ACTIVE.indexOf(skip), key = `${anySide ? 'today*' : 'today'}${a < 0 ? '' : `:${skip}`}`;
     if (CACHE[key]) return CACHE[key];
-    const allow = OUT_PERIOD | (anySide ? OUT_SIDE : 0), out = [];
+    const allow = OUT_PERIOD | (anySide ? OUT_SIDE : 0) | (a < 0 ? 0 : 1 << a), out = [];
     for (let i = 0; i < N; i++) if (!(MASK[i] & ~allow)) out.push(i);
     return (CACHE[key] = out);
   };
@@ -309,7 +373,7 @@ export const createModel = (data) => {
       if (!C.k3[i]) noCat++;
       if (!C.de[i]) noDesc++;
       if (C.pr[i] === CRIT) crit++;
-      if (C.vt[i]) vend++;
+      if (isEscalated(C, i)) vend++;
       if (C.fl[i] & REOPENED) reop++;
       if (C.nb[i]) bounce++;
       // SLA de inicio: iniciada a tiempo, tarde, sin iniciar y fuera de plazo, o cerrada sin pasar por En curso
@@ -344,8 +408,8 @@ export const createModel = (data) => {
   };
 
   return {
-    data, C, DI, N, BASE, SNAP, LASTM, SLA, PRIOS, CRIT, slaLabel, monthAt, monthName, minuteOf, dayName, fullMonth, MIN_D, END_D, setPeriod, resetPeriod, daily, inPeriod, MONTH, DOW, OPEN, TEAM, SIDE, DIMS, S, STYPE,
-    CMP, CO, NAMES, refilter, rows, pool, today, toggle, isSel, anySel, group, bySide, trend, stats, periodSlots, clock,
+    data, C, DI, N, BASE, SNAP, LASTM, SLA, PRIOS, CRIT, slaLabel, monthAt, monthName, minuteOf, dayName, fullMonth, MIN_D, END_D, START_D, setPeriod, resetPeriod, daily, inPeriod, MONTH, DOW, OPEN, TEAM, SIDE, DIMS, S, STYPE,
+    CMP, CO, NAMES, refilter, rows, pool, today, widen, toggle, isSel, anySel, group, bySide, trend, stats, periodSlots, clock,
     heads, perHead, alone, carry: (list) => carry(list, C, shiftType), shiftWork: (list) => shiftWork(list, C, (i) => OPEN[i], shiftType),
   };
 };
