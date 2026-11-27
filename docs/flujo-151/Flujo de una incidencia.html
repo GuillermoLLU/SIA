@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SIA - Flujo de una incidencia</title><style>/* Base de las presentaciones (estilo corporativo Minsait · Indra Group): 16:9, fondo arena, tinta azul
+   oscuro, Arial, una idea por diapositiva, logo arriba a la izquierda, línea vertical a la derecha y número
+   de página abajo. Se navega con ← → o espacio, F pantalla completa; se imprime a PDF 16:9 desde el navegador. */
+:root { --bg: #E3E2DA; --ink: #003F50; --dark: #002530; --gray: #696A61; --line: #6C929A; --muted: #ADAEA5;
+  --ok: #2E7D4F; --tk: #B8860B; --no: #B03A2E; --soft: #EDECE6; }
+* { box-sizing: border-box; }
+body { margin: 0; background: #bfc1bc; font-family: Arial, Helvetica, sans-serif; color: var(--ink); display: grid; place-items: center; min-height: 100vh; }
+.deck { width: min(100vw, 177.7778vh); aspect-ratio: 16 / 9; position: relative; background: var(--bg); overflow: hidden; box-shadow: 0 4px 30px #0002; container-type: inline-size; }
+.slide { position: absolute; inset: 0; display: none; background: var(--bg); }
+.slide.active { display: block; }
+.brand { position: absolute; top: 4.6%; left: 2.65%; width: 15.5%; height: 7.2%; object-fit: contain; object-position: left top; }
+.divider { position: absolute; left: 77.35%; top: 0; height: 90.5%; border-left: 1px solid var(--line); }
+.page { position: absolute; bottom: 4%; left: 2.65%; font-size: 1cqw; color: var(--gray); }
+.side { position: absolute; left: 79.5%; top: 20%; width: 17%; font-size: 1.15cqw; line-height: 1.45; color: var(--gray); }
+.side b { color: var(--ink); display: block; font-size: 1.3cqw; margin-bottom: .6cqw; }
+.content { position: absolute; left: 6%; top: 19%; width: 68%; height: 70%; }
+.kick { font-size: 1.05cqw; letter-spacing: .16em; text-transform: uppercase; color: var(--gray); margin-bottom: 1.2cqw; }
+h1 { font-weight: 400; letter-spacing: -.035em; font-size: 4.1cqw; line-height: 1.12; margin: 0; }
+h2 { font-weight: 400; font-size: 3.1cqw; margin: 0 0 2.4cqw; letter-spacing: -.02em; }
+.lead { font-size: 1.9cqw; line-height: 1.45; max-width: 95%; }
+.lead b { font-weight: 700; }
+.center-title { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 7%; }
+.center-title h1 { font-size: 4.4cqw; }
+.cover .content { top: 30%; }
+.cover .who { margin-top: 4cqw; font-size: 1.25cqw; color: var(--gray); line-height: 1.6; }
+.cover .who b { color: var(--ink); font-weight: 400; }
+/* bloques */
+.cards { display: grid; gap: 1.4cqw; }
+.cards.c3 { grid-template-columns: repeat(3, 1fr); } .cards.c4 { grid-template-columns: repeat(4, 1fr); } .cards.c2 { grid-template-columns: 1fr 1fr; }
+.card { background: #fff; border-left: .35cqw solid var(--ink); padding: 1.4cqw 1.6cqw; font-size: 1.3cqw; line-height: 1.4; color: var(--gray); }
+.card b { display: block; color: var(--ink); font-size: 1.55cqw; font-weight: 700; margin-bottom: .5cqw; }
+.num { font-size: 4.6cqw; color: var(--ink); line-height: 1; letter-spacing: -.03em; }
+.num small { font-size: 1.2cqw; color: var(--gray); letter-spacing: 0; display: block; margin-top: .7cqw; }
+.dot { display: inline-block; width: 1cqw; height: 1cqw; border-radius: 50%; margin-right: .6cqw; vertical-align: .05cqw; }
+.list { list-style: none; margin: 0; padding: 0; }
+.list li { font-size: 1.9cqw; padding: 1.1cqw 0; border-bottom: 1px solid var(--muted); display: flex; gap: 1.4cqw; align-items: baseline; }
+.list li .where { color: var(--gray); font-size: 1.3cqw; margin-left: auto; text-align: right; }
+.steps { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1cqw; margin-top: 2cqw; }
+.step { border-top: .35cqw solid var(--ink); padding-top: 1.2cqw; font-size: 1.3cqw; line-height: 1.4; color: var(--gray); }
+.step i { font-style: normal; font-size: 2.6cqw; color: var(--ink); display: block; margin-bottom: .6cqw; }
+.step b { color: var(--ink); display: block; font-size: 1.45cqw; margin-bottom: .4cqw; }
+/* decisiones */
+.dec { display: grid; gap: .7cqw; }
+.dec .d { display: grid; grid-template-columns: 3cqw 1fr 1.35fr 9cqw; gap: 1.2cqw; align-items: center; background: #fff; padding: .95cqw 1.3cqw; cursor: pointer; }
+.dec .n { font-size: 2cqw; color: var(--line); text-align: center; }
+.dec .q { font-size: 1.45cqw; color: var(--ink); font-weight: 700; }
+.dec .r { font-size: 1.2cqw; color: var(--gray); line-height: 1.35; }
+.dec .st { font-size: 1cqw; text-align: center; padding: .4cqw .6cqw; background: var(--soft); color: var(--gray); }
+.dec .d.yes { background: #eef5ef; } .dec .d.yes .st { background: var(--ok); color: #fff; }
+.dec .d.later { background: #f7f1e3; } .dec .d.later .st { background: var(--tk); color: #fff; }
+/* diagrama */
+.graph { width: 100%; height: 100%; overflow: visible; }
+.graph .node rect { stroke: var(--ink); stroke-width: 1.5; fill: #fff; }
+.graph .node text { font-family: Arial, Helvetica, sans-serif; font-weight: 600; fill: var(--ink); font-size: 15px; text-anchor: middle; dominant-baseline: middle; }
+.graph .node.primary rect { fill: var(--ink); } .graph .node.primary text { fill: #fff; }
+.graph .node.secondary rect { fill: var(--muted); stroke: var(--muted); }
+.graph .node.dash rect { stroke-dasharray: 5 4; }
+.graph .node { cursor: pointer; }
+.graph .edge { stroke: var(--ink); stroke-width: 1.6; fill: none; marker-end: url(#arrow); }
+.graph .edge.dash { stroke-dasharray: 5 4; }
+.graph .edge-label { font-size: 12px; fill: var(--gray); text-anchor: middle; font-style: italic; }
+.graph .sect { font-size: 11px; letter-spacing: .16em; fill: var(--gray); }
+dialog { border: 0; padding: 2cqw 2.4cqw; max-width: 46cqw; background: var(--bg); color: var(--ink); box-shadow: 0 10px 40px #0004; font-size: 1.35cqw; line-height: 1.5; }
+dialog h3 { margin: 0 0 .8cqw; font-weight: 400; font-size: 2cqw; }
+dialog::backdrop { background: #00253033; }
+/* navegación */
+.nav { position: fixed; bottom: 14px; right: 20px; display: flex; align-items: center; gap: 8px; }
+.nav button { border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 2px; padding: 8px 13px; cursor: pointer; font-size: 16px; }
+.nav span { font-size: 13px; color: var(--ink); min-width: 40px; text-align: center; }
+body.fullscreen .nav { opacity: .15; } body.fullscreen .nav:hover { opacity: 1; }
+@media print {
+  @page { size: 16in 9in; margin: 0; }
+  html, body { display: block; width: 16in; height: auto; background: white; }
+  .deck { width: 16in; height: auto; aspect-ratio: auto; box-shadow: none; overflow: visible; }
+  .slide { position: relative; width: 16in; height: 9in; display: block !important; page-break-after: always; }
+  .nav { display: none; }
+}
+
+/* Diapositiva ancha (diagramas completos y rejillas): sin línea vertical, a todo el ancho */
+.slide.wide .content { left: 3%; width: 94%; top: 14%; height: 80%; }
+.legend { display: flex; gap: 2cqw; font-size: 1cqw; color: var(--gray); margin: -.4cqw 0 .6cqw; flex-wrap: wrap; }
+.legend i { display: inline-block; width: .9cqw; height: .9cqw; border-radius: 50%; margin-right: .5cqw; vertical-align: -.05cqw; }
+svg.fullflow { width: 100%; height: 92%; display: block; }
+/* Tarjetas por fase */
+.grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: .9cqw; }
+.ph { background: #fff; padding: .8cqw 1cqw .9cqw; border: 1px solid #d6d5cc; }
+.ph.k-paso { background: #f1f2ef; } .ph.k-camino { background: #eaf1f6; } .ph.k-siempre { background: #f6f3ea; }
+.ph h3 { margin: 0 0 .5cqw; font-size: 1.15cqw; color: var(--ink); display: flex; gap: .6cqw; align-items: baseline; flex-wrap: wrap; font-weight: 700; }
+.ph h3 small { color: var(--line); font-size: .8cqw; letter-spacing: .1em; }
+.ph.k-paso h3 small { color: var(--dark); } .ph.k-camino h3 small { color: #1f6fd1; } .ph.k-siempre h3 small { color: #8a7a55; }
+.ph ul { list-style: none; margin: 0; padding: 0; }
+.ph li { display: grid; grid-template-columns: 4.6cqw 1fr 1cqw; gap: .5cqw; align-items: start; font-size: .92cqw; line-height: 1.28; padding: .3cqw 0; border-top: 1px solid #eceae2; color: var(--ink); }
+.ph li:first-child { border-top: 0; }
+.ph.wide { grid-column: span 2; } .ph.wide ul { display: grid; grid-template-columns: 1fr 1fr; column-gap: 1.2cqw; } .ph.wide li:nth-child(2) { border-top: 0; }
+.sys { font-size: .72cqw; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: .1cqw .3cqw; text-align: center; }
+.sys.r { background: #dff1f2; color: #0b7f88; } .sys.j { background: #e1ebf8; color: #1f5fb8; } .sys.s { background: #e9e4f6; color: #5a3fa8; } .sys.t { background: #e8eaeb; color: #5b6870; }
+:is(.ph, .sum) .st { display: inline-block; width: .85cqw; height: .85cqw; border-radius: 50%; margin-top: .2cqw; }
+:is(.ph, .sum) .st.ok { background: var(--ok); } :is(.ph, .sum) .st.no { background: var(--no); } :is(.ph, .sum) .st.out { background: #b9c1c6; } :is(.ph, .sum) .st.tk { background: var(--tk); }
+.sum { display: flex; gap: 2cqw; font-size: 1cqw; color: var(--gray); margin: 0 0 1cqw; }
+.sum span { display: inline-flex; align-items: center; gap: .5cqw; } .sum b { color: var(--ink); }
+</style></head><body>
+<main class="deck" id="deck">
+<section class="slide active wide"><img alt="Indra Group" class="brand" src="data:image/png;base64,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"><div class="page">1 / 1</div>
+  <div class="content">
+    <div class="kick">El flujo</div>
+    <div class="legend" style="margin-top:-.2cqw"><span>Estado de la incidencia:</span><span><i style="background:#ececec;border-radius:2px;outline:1px solid #a9a9a9"></i>Sin asignar</span><span><i style="background:#e6f0fb;border-radius:2px;outline:1px solid #8fb5e3"></i>En curso</span><span><i style="background:#fff3d6;border-radius:2px;outline:1px solid #e0b84f"></i>Pendiente</span><span><i style="background:#e2f3e7;border-radius:2px;outline:1px solid #7fc195"></i>Resuelta</span></div>
+    <svg id="flow" class="fullflow" viewBox="0 0 1000 470" preserveAspectRatio="xMidYMin meet"></svg>
+  </div>
+</section>
+</main>
+<div class="nav"><button id="prev" aria-label="Anterior">←</button><span id="count"></span><button id="next" aria-label="Siguiente">→</button><button id="fs" aria-label="Pantalla completa">⤢</button></div>
+<script>
+(() => {
+  const slides = [...document.querySelectorAll('.slide')];
+  let cur = Math.max(0, slides.findIndex((s) => s.classList.contains('active')));
+  const count = document.getElementById('count');
+  const go = (i) => { cur = Math.max(0, Math.min(slides.length - 1, i)); slides.forEach((s, k) => s.classList.toggle('active', k === cur)); count.textContent = `${cur + 1} / ${slides.length}`; history.replaceState(null, '', '#' + (cur + 1)); };
+  const fs = () => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen());
+  document.getElementById('prev').onclick = () => go(cur - 1);
+  document.getElementById('next').onclick = () => go(cur + 1);
+  document.getElementById('fs').onclick = fs;
+  document.addEventListener('fullscreenchange', () => document.body.classList.toggle('fullscreen', !!document.fullscreenElement));
+  document.addEventListener('keydown', (e) => {
+    if (e.target.closest('dialog, textarea, input')) return;
+    if (['ArrowRight', 'PageDown', ' '].includes(e.key)) { e.preventDefault(); go(cur + 1); }
+    if (['ArrowLeft', 'PageUp'].includes(e.key)) go(cur - 1);
+    if (e.key === 'Home') go(0);
+    if (e.key === 'End') go(slides.length - 1);
+    if (e.key.toLowerCase() === 'f') fs();
+  });
+  const n = parseInt(location.hash.slice(1), 10);
+  go(Number.isFinite(n) ? n - 1 : cur);
+})();
+
+
+(() => {
+const C = { r: '#00a7b3', j: '#1f6fd1', s: '#6b4fbb', t: '#9aa5ab' };
+const svg = document.getElementById('flow');
+const NS = 'http://www.w3.org/2000/svg';
+const el = (n, a, p = svg) => { const e = document.createElementNS(NS, n); for (const k in a) e.setAttribute(k, a[k]); p.appendChild(e); return e; };
+el('defs', {}).innerHTML = '<marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5b6870"/></marker>';
+const W = 128, H = 50;
+// nodo: x, y (esquina), título, subtítulo, integraciones, estilo
+const node = (x, y, t, sub = '', ints = [], kind = '') => {
+  const g = el('g', {});
+  const fill = kind === 'act' ? '#002532' : kind === 'state' ? '#eef7f8' : kind === 'side' ? '#f7f8fa' : '#ffffff';
+  const stroke = kind === 'act' ? '#002532' : kind === 'state' ? '#9fd8dc' : '#cfd6da';
+  el('rect', { x, y, width: W, height: H, rx: 7, fill, stroke, 'stroke-width': 1.2, ...(kind === 'new' ? { 'stroke-dasharray': '4 3' } : {}) }, g);
+  const tc = kind === 'act' ? '#fff' : '#002532', sc = kind === 'act' ? '#c9d6db' : '#6b7a81';
+  el('text', { x: x + 9, y: y + 18, 'font-size': 10.2, 'font-weight': 700, fill: tc }, g).textContent = t;
+  if (sub) el('text', { x: x + 9, y: y + 32, 'font-size': 7.6, fill: sc }, g).textContent = sub;
+  return { x, y, cx: x + W / 2, cy: y + H / 2, r: x + W, b: y + H, rect: g.firstChild, kind };
+};
+const line = (pts, dashed = false, label = '', lx, ly) => {
+  el('polyline', { points: pts.map((p) => p.join(',')).join(' '), fill: 'none', stroke: '#5b6870', 'stroke-width': 1.2, 'marker-end': 'url(#ar)', ...(dashed ? { 'stroke-dasharray': '4 3' } : {}) });
+  if (label) el('text', { x: lx, y: ly, 'font-size': 7.6, fill: '#6b7a81', 'font-style': 'italic' }).textContent = label;
+};
+const sect = (x, y, t) => { el('text', { x, y, 'font-size': 7.4, 'font-weight': 600, fill: '#00a7b3', 'letter-spacing': 1.2 }).textContent = t; };
+
+// Fila 1: el método, igual para todos
+sect(10, 12, 'LAS MISMAS NOTAS HASTA EL ANÁLISIS');
+const a = node(10, 20, 'Entra la incidencia', 'el centro la abre', ['r', 's']);
+const b = node(155, 20, 'Asignarme una issue', 'En curso · se abre el chat', ['r'], 'act');
+const c = node(300, 20, 'Situación inicial', 'módulo, centro y ¿uno o dos?', ['r']);
+const d = node(445, 20, 'Recurrencia', 'abiertas · la padre, la primera', ['r']);
+const e = node(590, 20, 'Antecedentes', 'cerradas · solo se citan', ['r']);
+const f = node(735, 20, 'Análisis', 'las evidencias, sin causa', ['r']);
+line([[a.r, a.cy], [b.x, b.cy]]); line([[b.r, b.cy], [c.x, c.cy]]); line([[c.r, c.cy], [d.x, d.cy]]); line([[d.r, d.cy], [e.x, e.cy]]); line([[e.r, e.cy], [f.x, f.cy]]);
+// Al abrirse y críticas
+const ab = el('g', {});
+el('rect', { x: 10, y: 100, width: 273, height: 62, rx: 7, fill: '#f7f8fa', stroke: '#e6e9ec' }, ab);
+el('text', { x: 22, y: 117, 'font-size': 7.4, 'font-weight': 600, fill: '#00a7b3', 'letter-spacing': 1.2 }, ab).textContent = 'AL ABRIRSE, EL CHAT REVISA LO YA HECHO';
+el('text', { x: 22, y: 134, 'font-size': 8.4, fill: '#1f2d33' }, ab).textContent = 'Fases de hace más de 1 día: se revisan con el técnico.';
+el('text', { x: 22, y: 149, 'font-size': 8.4, fill: '#1f2d33' }, ab).textContent = 'Reabierta [REAP]: análisis, diagnóstico y resolución.';
+line([[b.cx, b.b], [b.cx, 100]]);
+const m = node(300, 100, 'Major incident', 'críticas · bloqueante: el técnico', ['r']);
+const w = node(445, 100, 'War room', 'compañero del tema o aviso', ['r', 't']);
+line([[c.cx, c.b], [m.cx, m.y]]);
+line([[m.r, m.cy], [w.x, w.cy]], false, 'sí', m.r + 2, m.cy - 5);
+line([[w.cx, w.y], [d.cx, d.b]], true, '[SERVREST]', w.cx + 5, w.y - 10);
+el('text', { x: 300, y: 165, 'font-size': 7.6, fill: '#6b7a81' }).textContent = 'Si no es bloqueante, sigue a recurrencia';
+el('text', { x: 590, y: 88, 'font-size': 7.6, fill: '#6b7a81' }).textContent = 'Recurrencia y antecedentes dan el preanálisis:';
+el('text', { x: 590, y: 99, 'font-size': 7.6, fill: '#6b7a81' }).textContent = 'pistas que el análisis tiene que confirmar';
+// Decisión
+const dx = 940, dy = 45;
+el('polygon', { points: `${dx},${dy - 30} ${dx + 34},${dy} ${dx},${dy + 30} ${dx - 34},${dy}`, fill: '#fff', stroke: '#002532', 'stroke-width': 1.4 });
+el('text', { x: dx, y: dy + 3, 'font-size': 8, 'font-weight': 700, fill: '#002532', 'text-anchor': 'middle' }).textContent = '¿Y ahora?';
+line([[f.r, f.cy], [dx - 34, dy]]);
+// Ramas
+sect(10, 202, 'LA ACCIÓN QUE HAGA FALTA');
+const BY = 212;
+const p1 = node(10, BY, 'Pedir información', 'contactar con el centro', ['r']);
+const p2 = node(155, BY, 'Traspasar', 'compañero · equipo o TL de turno', ['r']);
+const p3 = node(300, BY, 'Dividir la issue', 'dos problemas · nota en la original', ['r']);
+line([[c.x + 8, c.b], [c.x + 8, 84], [291, 84], [291, p3.cy], [p3.x, p3.cy]], true, 'si son dos', 296, 200);
+const p4 = node(590, BY, 'Escalar', 'si hace falta otro equipo', ['r', 'j'], 'act');
+const p5 = node(866, BY, 'Resolver', 'si se conoce la causa', ['r'], 'act');
+const bus = 185;
+line([[dx, dy + 30], [dx, bus], [p1.cx, bus], [p1.cx, p1.y]]);
+[p2, p4].forEach((p) => line([[p.cx, bus], [p.cx, p.y]]));
+line([[p5.cx, bus], [p5.cx, p5.y]]);
+// Pedir información
+const q1 = node(10, 292, 'Pendiente (cliente)', 'responde: vuelve a su fase', ['r'], 'state');
+line([[p1.cx, p1.b], [q1.cx, q1.y]]);
+const q3 = node(300, 292, 'Original y nueva', 'título y descripción repartidos', ['r'], 'state');
+line([[p3.cx, p3.b], [q3.cx, q3.y]]);
+// Escalar
+const e1 = node(590, 292, 'Recurrencia en Jira', 'obligatoria · la padre primero', ['j']);
+line([[p4.cx, p4.b], [e1.cx, e1.y]]);
+const e2 = node(445, 372, 'Actualizar escalado', '[ACTUALIZAR ESCALADO]', ['j', 'r']);
+const e3 = node(590, 372, 'Nuevo escalado', 'etiquetas por detrás', ['j', 'r']);
+line([[e1.x + 30, e1.b], [e2.cx, e2.y]], false, 'sí', e1.x - 2, e1.b + 18);
+line([[e1.cx, e1.b], [e3.cx, e3.y]], false, 'no', e1.cx + 5, e1.b + 18);
+const e4 = node(728, 372, 'Pendiente', 'del proveedor · seguimiento', ['r', 'j'], 'state');
+line([[e3.r, e3.cy], [e4.x, e4.cy]]);
+line([[e2.cx, e2.b], [e2.cx, e2.b + 18], [e4.cx, e2.b + 18], [e4.cx, e4.b]]);
+// Resolver
+const r1 = node(866, 270, 'Diagnóstico', 'la causa, con pruebas', ['r']);
+line([[p5.cx, p5.b], [r1.cx, r1.y]]);
+line([[e4.cx, e4.y], [e4.cx, r1.cy], [r1.x, r1.cy]], true, 'Jira resuelto', e4.cx + 6, r1.cy - 6);
+const rc = node(866, 328, 'Categoría', 'obligatoria · de la lista', ['r'], 'new');
+const r2 = node(866, 386, 'Resolución', 'mensaje al centro · avisa de hijas', ['r'], 'state');
+// la flecha de diagnóstico a resuelta, a la derecha para no cruzar
+line([[r1.cx, r1.b], [rc.cx, rc.y]]);
+line([[rc.cx, rc.b], [r2.cx, r2.y]]);
+el('text', { x: rc.x - 4, y: rc.y - 4, 'font-size': 7.2, fill: '#6b7a81', 'text-anchor': 'end' }).textContent = 'habilitan Resolver';
+// El estado de la incidencia en Remedy, por colores (reunión del 23/11)
+// El estado de la incidencia: un recuadro de color detrás de los pasos que lo comparten (reunión del 23/11)
+const EST = { sin: ['#ececec', '#a9a9a9'], curso: ['#e3eefa', '#8fb5e3'], pend: ['#fdf0cf', '#e0b84f'], res: ['#ddf0e3', '#7fc195'] };
+const fondo = svg.querySelector('defs').nextSibling;
+const zona = (x, y, w, h, k) => { const [fill, stroke] = EST[k]; const r = document.createElementNS(NS, 'rect'); Object.entries({ x, y, width: w, height: h, rx: 12, fill, stroke, 'stroke-width': 1.2 }).forEach(([a, v]) => r.setAttribute(a, v)); svg.insertBefore(r, fondo); };
+// las cajas, en blanco encima de su estado (los botones oscuros se quedan como están)
+[a, c, d, e, f, m, w, p1, p2, p3, q1, q3, e1, e2, e3, e4, r1, rc, r2].forEach((n) => n.rect.setAttribute('fill', '#ffffff'));
+zona(4, 15, 140, 61, 'sin');                 // entra la incidencia
+zona(149, 15, 719, 61, 'curso');             // asignarme → análisis (¿y ahora? es una decisión: fuera)
+zona(294, 93, 285, 64, 'curso');             // major incident y war room
+zona(149, 205, 285, 144, 'curso');           // traspasar, dividir y sus dos
+zona(584, 205, 140, 144, 'curso');           // escalar y la recurrencia en Jira
+zona(861, 205, 138, 175, 'curso');           // resolver, diagnóstico y categoría
+zona(4, 205, 140, 144, 'pend');              // pedir información → pendiente (cliente)
+zona(439, 365, 419, 64, 'pend');             // actualizar o nuevo escalado → pendiente del proveedor
+zona(861, 383, 138, 59, 'res');              // resolución
+// Siempre
+el('text', { x: 724, y: 226, 'font-size': 7.4, fill: '#6b7a81' }).textContent = 'Por Jira: el 80-90 %.';
+el('text', { x: 724, y: 238, 'font-size': 7.4, fill: '#6b7a81' }).textContent = 'Ticket de Remedy a otro equipo:';
+el('text', { x: 724, y: 250, 'font-size': 7.4, fill: '#6b7a81' }).textContent = 'después del MVP.';
+const s = el('g', {});
+el('rect', { x: 10, y: 372, width: 418, height: 50, rx: 7, fill: '#f7f8fa', stroke: '#e6e9ec' }, s);
+el('text', { x: 22, y: 390, 'font-size': 7.4, 'font-weight': 600, fill: '#00a7b3', 'letter-spacing': 1.2 }, s).textContent = 'EN CUALQUIER MOMENTO';
+el('text', { x: 22, y: 410, 'font-size': 11.2, fill: '#4a565c' }, s).textContent = 'Notas · llamadas · traspasar · reclamar respuesta · devolver a la cola';
+
+})();
+
+
+
+</script></body></html>
