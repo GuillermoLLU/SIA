@@ -4,7 +4,6 @@ Material de definición, **no forma parte del producto**. El flujo de una incide
 
 - `Flujo de una incidencia.html`: el diagrama. Se abre en el navegador con doble clic.
 - `flujo.png`: el mismo diagrama en imagen.
-
-El detalle de cada fase se revisa con el equipo y se añadirá aquí.
+- `flujo-resolucion-asistida.md`: el detalle de cada fase, revisado con el equipo el 26/11/2026. Es la base para construir la skill de resolución asistida.
 
 Documento interno: no publicar fuera.
