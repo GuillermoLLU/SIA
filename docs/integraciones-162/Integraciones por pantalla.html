@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Integraciones por pantalla</title>
+<style>
+  :root { --bg: #E3E2DA; --ink: #003F50; --gray: #696A61; --line: #c9c8bf; --card: #fff;
+    --R: #1f6fd1; --J: #2E7D4F; --T: #6b4fbb; --S: #B8860B; --A: #c0392b; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Arial, Helvetica, sans-serif; color: var(--ink); background: var(--bg); min-height: 100vh; display: grid; grid-template-columns: 240px 1fr; }
+  aside { background: #fff; border-right: 1px solid var(--line); padding: 18px 0; overflow: auto; max-height: 100vh; position: sticky; top: 0; }
+  aside h1 { font-size: 15px; margin: 0 18px 4px; }
+  aside p { font-size: 12px; color: var(--gray); margin: 0 18px 12px; }
+  aside h2 { font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--gray); font-weight: 400; margin: 14px 18px 4px; }
+  aside button { display: flex; width: 100%; border: 0; background: none; text-align: left; padding: 7px 18px; font: 14px Arial; color: var(--ink); cursor: pointer; gap: 8px; }
+  aside button:hover { background: #f3f2ec; }
+  aside button.on { background: var(--ink); color: #fff; }
+  aside button.imp { color: var(--A); font-weight: 700; border-left: 4px solid var(--A); padding-left: 14px; }
+  aside button.imp.on { background: var(--A); color: #fff; }
+  .imp-kick { color: var(--A); }
+  .aviso { background: #fdecea; border-left: 6px solid var(--A); padding: 14px 20px; font-size: 19px; line-height: 1.4; margin-bottom: 18px; }
+  .llam { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0; }
+  .llam .caja { background: #fff; padding: 16px 20px; border-top: 5px solid var(--ink); }
+  .llam .caja.ok { border-color: var(--J); } .llam .caja.no { border-color: var(--A); }
+  .llam h3 { margin: 0 0 8px; font-size: 14px; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; }
+  .llam .ok h3 { color: var(--J); } .llam .no h3 { color: var(--A); }
+  .llam ul { margin: 0; padding-left: 20px; font-size: 18px; line-height: 1.45; }
+  .q.prop { border-left: 6px solid var(--A); }
+  .q small { display: block; font-size: 16px; color: var(--ink); margin-top: 4px; }
+  .q small::before { content: 'Propongo: '; font-weight: 700; }
+  ol.do small.det { display: block; color: var(--gray); font-size: 15px; margin-top: 2px; }
+  main { padding: 26px 40px 40px; max-width: 1300px; }
+  .top { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+  .top span { display: flex; gap: 8px; }
+  .top button, .bar button { font: 14px Arial; border: 1px solid var(--line); background: #fff; color: var(--ink); padding: 7px 14px; cursor: pointer; }
+  .top .home { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .kick { font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--gray); }
+  h2.t { font-size: 38px; font-weight: 400; margin: 4px 0 18px; letter-spacing: -.02em; }
+  .big { font-size: 22px; line-height: 1.45; max-width: 900px; margin: 0 0 24px; }
+  .nums { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 26px; }
+  .num { background: #fff; padding: 14px 22px; border-top: 5px solid var(--ink); min-width: 150px; }
+  .num b { display: block; font-size: 44px; }
+  .num span { font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--gray); }
+  .pieces { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .pc { background: #fff; border-top: 5px solid; padding: 12px 16px; }
+  .pc h3 { margin: 0 0 8px; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; }
+  .pc li { list-style: none; font-size: 16px; padding: 5px 0; border-top: 1px solid #eeede6; }
+  .pc li:first-child { border-top: 0; }
+  .pc ul { margin: 0; padding: 0; }
+  .chip { display: inline-block; font-size: 11px; font-weight: 700; color: #fff; padding: 2px 6px; margin-right: 6px; border-radius: 3px; vertical-align: 1px; }
+  .cR { background: var(--R); } .cJ { background: var(--J); } .cT { background: var(--T); } .cS { background: var(--S); }
+  .view { display: grid; grid-template-columns: 1.45fr 1fr; gap: 22px; align-items: start; }
+  .shot { position: relative; background: #fff; border: 1px solid var(--line); }
+  .shot img { display: block; width: 100%; }
+  .shot .ph { aspect-ratio: 16 / 10; display: grid; place-items: center; color: var(--gray); font-size: 18px; text-align: center; padding: 20px; background: repeating-linear-gradient(45deg, #f6f5f0, #f6f5f0 12px, #efede5 12px, #efede5 24px); }
+  .shot .ph b { display: block; font-size: 28px; color: var(--ink); }
+  /* La marca: un punto en el sitio exacto y, a su lado, el número (d: hacia dónde va el número) */
+  .mk { position: absolute; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; background: #d9342b; box-shadow: 0 0 0 2px #fff, 0 1px 3px #0006; }
+  .mk b { position: absolute; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: #d9342b; color: #fff; font: 700 12px/20px Arial; text-align: center; box-shadow: 0 0 0 2px #fff, 0 1px 4px #0005; }
+  .mk.d-tl b { right: 8px; bottom: 8px; } .mk.d-tr b { left: 8px; bottom: 8px; } .mk.d-bl b { right: 8px; top: 8px; } .mk.d-br b { left: 8px; top: 8px; }
+  .mk.d-l b { right: 12px; top: -6px; } .mk.d-r b { left: 12px; top: -6px; } .mk.d-t b { left: -6px; bottom: 12px; } .mk.d-b b { left: -6px; top: 12px; }
+  .shots { display: grid; gap: 12px; }
+  .shots[hidden] { display: none; }
+  .shot img { cursor: zoom-in; }
+  #zoom { position: fixed; inset: 0; background: #000c; display: none; place-items: center; z-index: 9; cursor: zoom-out; padding: 2vh 2vw; }
+  #zoom.on { display: grid; }
+  #zoom .shot { width: auto; display: inline-block; }
+  #zoom .shot img { width: auto; max-width: 96vw; max-height: 84vh; }
+  #zoom .mk { width: 12px; height: 12px; margin: -6px 0 0 -6px; }
+  #zoom .mk b { min-width: 26px; height: 26px; border-radius: 13px; font-size: 15px; line-height: 26px; }
+  .cap { font-size: 12px; color: var(--gray); padding: 6px 10px; }
+  ol.do { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  ol.do li { background: #fff; padding: 12px 16px; display: grid; grid-template-columns: 34px 1fr; gap: 10px; font-size: 19px; line-height: 1.35; }
+  ol.do li { cursor: zoom-in; } ol.do li:hover { outline: 2px solid var(--ink); }
+  ol.do li.sincap { cursor: default; } ol.do li.sincap:hover { outline: 0; } ol.do li.sincap > i { background: #8a8a80; }
+  ol.do .nuevo { font-size: 13px; color: var(--gray); margin-left: 6px; font-style: italic; }
+  #zoom .mk.foco { z-index: 2; animation: foco 1s ease-in-out infinite; }
+  #zoom .mk.foco b { min-width: 32px; height: 32px; border-radius: 16px; font-size: 18px; line-height: 32px; }
+  #zoom.con-foco .mk:not(.foco) { opacity: .35; }
+  #zoom .pie { color: #fff; font: 16px Arial; text-align: center; margin-top: 10px; }
+  @keyframes foco { 0%, 100% { box-shadow: 0 0 0 4px #fff, 0 0 0 8px #d9342b88; } 50% { box-shadow: 0 0 0 4px #fff, 0 0 0 18px #d9342b00; } }
+  ol.do li > i { font-style: normal; width: 28px; height: 28px; border-radius: 50%; background: #d9342b; color: #fff; font: 700 14px Arial; display: grid; place-items: center; }
+  ol.do .ps { margin-top: 6px; }
+  .none { background: #fff; padding: 18px 22px; font-size: 20px; color: var(--gray); }
+  table.res { max-width: 1100px; }
+  table.res td { vertical-align: top; font-size: 17px; }
+  table.res td:first-child { width: 330px; white-space: nowrap; }
+  table.res td b { font-weight: 400; }
+  table.res tr.sys td { font-size: 13px; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; padding-top: 18px; background: var(--bg); }
+  table.res .bt { display: inline-block; border: 1px solid var(--line); background: #faf9f5; padding: 3px 9px; margin: 2px 6px 2px 0; font-size: 15px; }
+  .ley { background: #fff; padding: 16px 20px; border-top: 4px solid var(--ink); display: grid; grid-template-columns: 1fr 1fr; column-gap: 24px; }
+  .vercap { margin-top: 12px; width: 100%; text-align: left; font: 15px Arial; color: var(--ink); background: #fff; border: 1px dashed var(--line); padding: 12px 16px; cursor: zoom-in; }
+  .vercap:hover { border-color: var(--ink); }
+  .ley h3, .ley .sy { grid-column: 1 / -1; }
+  .pie b { font-size: 18px; }
+  .pie-ps { margin-top: 8px; display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; font-size: 15px; }
+  .pie-ps .chip { margin-right: 4px; }
+  .ley h3 { margin: 0 0 8px; font-size: 14px; letter-spacing: .12em; text-transform: uppercase; color: var(--gray); font-weight: 400; }
+  .ley .sy { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; font-weight: 700; margin: 12px 0 4px; }
+  .ley div.it { display: grid; grid-template-columns: 50px 1fr; gap: 10px; padding: 8px 0; border-top: 1px solid #eeede6; font-size: 15px; line-height: 1.3; }
+  .ley div.it > .chip { align-self: start; justify-self: start; margin-top: 2px; }
+  .ley div.it small { display: block; color: var(--gray); font-size: 15px; line-height: 1.35; margin-top: 2px; }
+  .ley div.it b { font-size: 18px; }
+  .ley div.it > .chip { font-size: 14px; padding: 3px 8px; }
+  .q { background: #faf3e3; padding: 10px 16px; font-size: 17px; margin-top: 12px; }
+  .q::before { content: '? '; font-weight: 700; color: var(--S); }
+  textarea { width: 100%; margin-top: 14px; min-height: 60px; font: 15px Arial; border: 1px dashed var(--line); padding: 10px 12px; background: #fcfcfa; }
+  .bar { display: flex; gap: 10px; margin-top: 26px; align-items: center; font-size: 13px; color: var(--gray); }
+  table { border-collapse: collapse; background: #fff; width: 100%; font-size: 17px; }
+  td, th { padding: 10px 14px; border-top: 1px solid #eeede6; text-align: left; }
+  th { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--gray); font-weight: 400; }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .step { background: #fff; padding: 18px; border-top: 5px solid var(--ink); font-size: 18px; color: var(--gray); line-height: 1.4; }
+  .step i { font-style: normal; font-size: 36px; color: var(--ink); display: block; }
+  .step b { display: block; color: var(--ink); font-size: 21px; margin: 2px 0 4px; }
+  @media (max-width: 900px) { body { grid-template-columns: 1fr; } aside { position: static; max-height: none; } main { padding: 18px 16px; } .view, .pieces, .steps { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<aside id="side"></aside>
+<main id="main"></main>
+<div id="zoom"></div>
+<script>
+// Las piezas de integración: id → [sistema, nombre]
+const P = {
+  R1: ['R', 'Leer la cola'], R2: ['R', 'Leer una incidencia'], R3: ['R', 'Cambiar responsable o grupo'], R4: ['R', 'Cambiar estado'],
+  R5: ['R', 'Escribir una nota'], R6: ['R', 'Adjuntar'], R7: ['R', 'Editar campos'], R8: ['R', 'Crear incidencia'], R9: ['R', 'Relacionar'], R10: ['R', 'Leer catálogos'],
+  J1: ['J', 'Buscar abiertos de un proyecto'], J2: ['J', 'Leer un Jira'], J3: ['J', 'Comentar'], J4: ['J', 'Crear un Jira'],
+};
+// Teams (T1, abrir la war room) sale de la integración el 25/11: sin permisos extra del cliente. Si hace falta, un enlace.
+const SYS = { R: 'Remedy · #127', J: 'Jira · #161', T: 'Teams · #160' };
+// Qué hace cada pieza, en una línea (la leyenda de cada pantalla)
+const QUE = {
+  R1: 'Las incidencias del grupo, con filtros: abiertas, mías o por número', R2: 'Campos, notas, historial, relaciones y adjuntos',
+  R3: 'Asignar, reasignar, traspasar o devolver a la cola', R4: 'En curso, Pendiente o Resuelta, con su motivo',
+  R5: 'Interna o pública, con su etiqueta', R6: 'Un archivo (zip) en la incidencia',
+  R7: 'Título, descripción, módulo, centro, categoría, ticket del proveedor, criticidad o PRIO', R8: 'Una nueva, con los datos de otra',
+  R9: 'La hija, unida a su padre', R10: 'Los grupos de soporte y la lista de categorías',
+  J1: 'El técnico elige el proyecto y SIA enseña lo abierto', J2: 'Su estado y su detalle; comprobar una clave',
+  J3: 'Añadir un comentario al Jira', J4: 'Con proyecto, prioridad fija, etiquetas y versión',
+};
+// Capturas: { f: fichero en capturas/, m: [[n, x %, y %]] } — sin fichero, el hueco con su número.
+const V = [
+  { g: 'La mesa', id: 'mesa', t: 'Mesa de trabajo', what: 'Donde el técnico ve sus issues y coge la siguiente.', shots: [{ c: 'C01 · la mesa con todos los casos: en curso, una crítica, pendientes de proveedor y de centro, resuelta', f: 'M01-mesa-agente3.png', m: [[1, 2.6, 19, 'tl'], [2, 82.8, 31.9, 'l'], [3, 92, 10.8, 'l'], [4, 53.1, 23.1, 't'], [7, 82.8, 48.8, 'l']] }, { c: 'C02 · escalados del equipo', f: 'C02-mesa-escalados-equipo.png', m: [[4, 55.1, 23.1, 't'], [5, 73.4, 19.3, 'l']] }, { c: 'C02c · el botón «Reasignar», al pasar por la fila', f: 'C02c-reasignar-boton.png', m: [[5, 60.5, 22.0, 't'], [6, 62.1, 33.7, 'l']] }, { c: 'C02b · reasignar', f: 'C02b-reasignar.png', m: [[6, 36.4, 36.3, 'l']] }], do: [
+    ['Ver mis issues', ['R1']],
+    ['Coger la siguiente: queda a mi nombre y En curso', ['R3', 'R4']],
+    ['Refrescar con el botón de la fecha', ['R1']],
+    ['Ver el estado de los escalados del equipo', ['J2']],
+    ['«Refrescar» del Seguimiento <small class="det">si un Jira está resuelto, se resuelven sus incidencias</small>', ['J2', 'R5', 'R4']],
+    ['Reasignar un escalado <small class="det">te asignas el Remedy, no el Jira</small>', ['R3']],
+    ['Llamada de un centro <small class="det">ver «Llamadas entrantes»</small>', ['R1', 'R5']],
+  ] },
+  // Llamadas entrantes: un centro llama con un número, en cualquier estado. Decidido en la reunión del 25/11.
+  { g: 'La mesa', id: 'llamadas', imp: true, t: 'Llamadas entrantes', what: '<b>La incidencia puede estar en cualquier estado.</b> Nadie se queda una incidencia desde una llamada.',
+    shots: [
+      { c: 'L0 · buscar por número, en «Llamada de un centro»', f: 'L0-buscar.png', m: [[1, 73.8, 52.3, 'l']] },
+      { c: 'L1 · nueva: no la lleva nadie, solo la nota de apertura', f: 'L1-nueva.png', m: [[2, 17.6, 27.8, 'l'], [3, 51.3, 15.2, 'l'], [4, 86.9, 86.6, 'l']] },
+      { c: 'L2 · en curso, con trabajo hecho', f: 'L2-en-curso.png', m: [[2, 17.6, 27.8, 'l'], [3, 51.3, 15.2, 'l'], [4, 86.9, 86.6, 'l']] },
+      { c: 'L3 · pendiente del centro: dice «Pendiente», pero no de qué', f: 'L3-pendiente-centro.png', m: [[2, 17.6, 27.8, 'l'], [3, 51.3, 15.2, 'l'], [4, 86.9, 86.6, 'l']] },
+      { c: 'L4 · escalada (su Jira se ve en el Seguimiento)', f: 'L4-escalada.png', m: [[2, 17.6, 27.8, 'l'], [3, 51.3, 15.2, 'l'], [4, 86.9, 86.6, 'l']] },
+    ],
+    do: [
+      ['Buscar la incidencia por número, la lleve quien la lleve', ['R1']],
+      ['Ver su estado, quién la lleva, lo que dice el centro y las últimas notas <small class="det">una sola lectura</small>', ['R2']],
+      ['Ver las últimas notas <small class="det">la misma lectura</small>', ['R2']],
+      ['Guardar la llamada: teléfono y lo que se habló (texto libre)', ['R5']],
+    ],
+    casos: [
+      ['Nueva', 'solo la nota de apertura', 'Dar información o preguntar', 'Solo nota. No te la quedas: sería saltarse la cola', ['R5']],
+      ['En curso', 'tuya o de un compañero', 'Dar información, reclamar o preguntar', 'Nota de que han llamado', ['R5']],
+      ['Pendiente del centro', 'esperábamos al centro', 'Dar lo que faltaba', 'Nota con lo que trae y pasa a En curso', ['R5', 'R4']],
+      ['Pendiente de un escalado', 'Jira o ticket de otro equipo', 'Reclamar o preguntar', 'Reclamar: nota en Remedy y comentario en el Jira', ['R5', 'J3']],
+      ['Cualquiera', 'abierta', 'Subir la criticidad', 'Cualquier técnico la sube un nivel: media → alta, alta → crítica. Nunca bajar', ['R7']],
+    ],
+    falta: [
+      'Botón «Reclamar» en la llamada: nota en Remedy y comentario en el Jira',
+      'Botón «Subir criticidad» en la llamada',
+      'Pasar a En curso una pendiente del centro al dejar la nota',
+      'Decir de qué está pendiente: del centro o de un escalado',
+    ],
+  },
+  { g: 'La mesa', id: 'llamada', t: 'Llamar y contactar desde la issue', what: 'Hablar con el centro desde una incidencia que llevas.', shots: [{ c: 'C07 · Otras acciones', f: 'C07-otras-acciones.png', m: [[1, 83.3, 14.2, 'l'], [2, 83.3, 17.9, 'l']] }, { c: 'C12 · llamada', f: 'C12-llamada-v.png', m: [[1, 28.3, 37.9, 'l'], [1, 66.2, 72.4, 'b']] }, { c: 'C13 · contactar', f: 'C13-contactar-v.png', m: [[2, 66.4, 68.5, 'b']] }], do: [
+    ['Ver el teléfono y apuntar la llamada', ['R2', 'R5']],
+    ['Escribir al centro y dejarla Pendiente', ['R5', 'R4']],
+  ] },
+  { g: 'La mesa', id: 'backlog', t: 'Backlog', what: 'La cola del grupo. La usan el responsable y los TL.', shots: [{ c: 'C03 · la cola con priorizadas y una crítica, y su panel', f: 'M04-backlog-priorizada.png', m: [[1, 2.3, 23, 'tl'], [1, 93.3, 9.6, 'l'], [2, 94.8, 41.1, 'b'], [3, 51.8, 39.3, 'l']] }], do: [
+    ['Ver la cola del grupo', ['R1']],
+    ['Asignar a un compañero', ['R3']],
+    ['Priorizar (etiqueta PRIO)', ['R7']],
+  ] },
+  { g: 'Una issue', id: 'issue', t: 'Pantalla de la issue', what: 'Todo sobre una incidencia: datos y notas.', shots: [{ c: 'C05 · la issue', f: 'C05-issue.png', m: [[1, 2.6, 16.2, 'l'], [1, 63.3, 16.1, 'l'], [1, 73.6, 68.2, 'l']] }, { c: 'C06 · Seguimiento', f: 'C06-seguimiento.png', m: [[2, 8.3, 92.9, 't']] }, { c: 'C17 · reclamar respuesta (pendiente de proveedor)', f: 'C17-reclamar.png', m: [[3, 61.2, 63.5, 'b']] }], do: [
+    ['Ver la incidencia entera <small class="det">una sola lectura; el chat usa lo ya leído</small>', ['R2']],
+    ['Escribir una nota, interna o pública', ['R5']],
+    ['Reclamar respuesta: nota y comentario en el Jira', ['R5', 'J3']],
+    ['Subir la criticidad <small class="det">cualquier técnico, a petición del centro (llamada o nota pública); no es la etiqueta PRIO</small>', ['R7']],
+  ] },
+  { g: 'Una issue', id: 'resolver', t: 'Resolver', what: 'Dejar la incidencia resuelta, con su mensaje al centro. Se lee una vez; se escribe al preparar el informe y al pasar a Resuelta.', shots: [{ c: 'C05 · el botón', f: 'C05-issue.png', m: [[1, 84.3, 11.3, 'b']] }, { c: 'C08 · nota interna', f: 'C08-resolver-v.png', m: [[2, 6.3, 17.6, 'l'], [4, 84.4, 48.8, 't']] }, { c: 'C08b · informe', f: 'C08b-resolver-informe-v.png', m: [[2, 6.3, 19.3, 'l'], [3, 67.9, 19.3, 'l'], [4, 80.75, 38.8, 't'], [5, 77.5, 91.3, 'l']] }], do: [
+    ['Comprobar que están las notas <small class="det">la misma lectura de la incidencia</small>', ['R2']],
+    ['Nota de resolución y mensaje al centro', ['R5']],
+    ['Preparar informe: la categoría, de la lista <small class="det">aún no está en SIA: iría aquí</small>', ['R10', 'R7']],
+    ['Adjuntar el informe', ['R6']],
+    ['Pasar a Resuelta <small class="det">escribe todo lo acumulado</small>', ['R4']],
+  ] },
+  { g: 'Una issue', id: 'escalar', t: 'Escalar', what: 'Pasar el problema a otro equipo con un Jira. Por Remedy a otro equipo: después del MVP.', shots: [{ c: 'C05 · el botón', f: 'C05-issue.png', m: [[1, 88.5, 11.3, 'b']] }, { c: 'C09 · no hay ninguno del mismo problema', f: 'C09-escalar-coincidencias-v.png', m: [[1, 6.5, 11.7, 'l'], [3, 79.8, 91.3, 'l']] }, { c: 'C09b · hay uno del mismo problema', f: 'C09b-escalar-hay-uno-v.png', m: [[1, 6.75, 22.4, 'l'], [1, 87.1, 27.4, 'l']] }, { c: 'C09c · su detalle, sin salir de SIA', f: 'C09c-escalar-detalle-v.png', m: [[1, 6.5, 17.3, 'l']] }, { c: 'C09e · el comentario para ese Jira', f: 'C09e-escalar-comentario-v.png', m: [[2, 6.3, 10.4, 'l'], [2, 77.8, 91.3, 'l'], [4, 77.8, 89.4, 'tl'], [5, 77.8, 93.2, 'bl']] }, { c: 'C10 · a quién (el proyecto)', f: 'C10-escalar-a-quien-v.png', m: [[1, 6.5, 28.2, 'l']] }, { c: 'C10d · requisitos', f: 'C10d-escalar-requisitos-v.png', m: [[3, 6.3, 22.3, 'l']] }, { c: 'C10b · borrador y «Crear escalado»', f: 'C10b-escalar-resumen-v.png', m: [[3, 80.4, 91.3, 'l'], [4, 80.4, 89.4, 'tl'], [5, 80.4, 93.2, 'bl']] }], do: [
+    ['Elegir el proyecto y ver lo que ya hay abierto', ['J1', 'J2']],
+    ['Si ya existe: comentar en ese Jira <small class="det">y nota en Remedy con su número: «Actualizar escalado»</small>', ['J3', 'R5', 'R7']],
+    ['Si no: crear el Jira', ['J4']],
+    ['Rellenar el ticket del proveedor y dejar la nota', ['R7', 'R5']],
+    ['Pasar a Pendiente del proveedor', ['R4']],
+  ] },
+  { g: 'Otras acciones', id: 'traspasar', t: 'Traspasar', what: 'Pasar la incidencia a un compañero o a otro equipo.', shots: [{ c: 'C11 · desde la Mesa', f: 'C11-traspasar-desde-mesa.png', m: [[1, 75.2, 26.7, 'l']] }, { c: 'C11a · a un compañero', f: 'C11a-traspasar-companero.png', m: [[1, 37.1, 38.1, 'l']] }, { c: 'C11b · a otro equipo', f: 'C11b-traspasar-equipo.png', m: [[2, 56.6, 40, 'b']] }, { c: 'C11c · una escalada, desde Seguimiento → Mías (al pasar por la fila)', f: 'C11c-traspasar-escalada.png', m: [[3, 62.3, 33.7, 'l']] }, { c: 'C07 · Otras acciones', f: 'C07-otras-acciones.png', m: [[1, 83.3, 26.9, 'l']] }], do: [
+    ['A un compañero, con nota <small class="det">cambia el asignado</small>', ['R3', 'R5']],
+    ['A otro equipo; sin permiso, al TL de turno', ['R10', 'R3', 'R5']],
+    ['Traspasar una escalada, desde Seguimiento → Mías <small class="det">hoy sale solo si la cogiste en SIA; si es tuya por Remedy, no</small>', ['R3', 'R5']],
+  ] },
+  { g: 'Otras acciones', id: 'dividir', t: 'Dividir', what: 'Partir una incidencia que trae dos problemas.', shots: [{ c: 'C07 · Otras acciones', f: 'C07-otras-acciones.png', m: [[1, 83.3, 22.4, 'l']] }, { c: 'C14 · dividir', f: 'C14-dividir-v.png', m: [[1, 2.3, 17.4, 'l'], [2, 51.5, 17.4, 'l'], [3, 84.8, 89.5, 'l']] }], do: [
+    ['Recortar la original', ['R7']],
+    ['Crear la nueva <small class="det">va a la cola: la coge quien esté libre</small>', ['R8']],
+    ['Nota en la original con el número de la nueva', ['R5']],
+  ] },
+  { g: 'Otras acciones', id: 'warroom', t: 'Declarar major incident y devolver', what: 'Un problema que bloquea, y devolver a la cola. «Abrir WAR-ROOM» pasa a llamarse «Declarar major incident».', shots: [{ c: 'C07 · Otras acciones', f: 'C07-otras-acciones.png', m: [[3, 83.3, 26.9, 'l'], [4, 83.3, 30.6, 'l']] }, { c: 'C15 · en una crítica aparece «Abrir WAR-ROOM»', f: 'C15a-critica.png', m: [[1, 70.8, 22.2, 'l'], [2, 83.3, 22.4, 'l']] }, { c: 'C15b · hoy solo avisa: llegará más adelante', f: 'C15-warroom.png', m: [[2, 76.7, 96, 'l']] }, { c: 'C16 · devolver', f: 'C16-devolver-v.png', m: [[4, 64.1, 62.6, 'b']] }], do: [
+    ['Declarar major incident: cambia el estado y deja la nota', ['R4', 'R5']],
+    ['Abrir la war room <small class="det">fuera de la integración: si hace falta, un enlace</small>', []],
+    ['Pasarla al compañero que ya está en ella', ['R3']],
+    ['Devolver a la cola, con nota', ['R3', 'R5']],
+  ] },
+  { g: 'Lo demás', id: 'config', t: 'Configuración', what: 'Las credenciales de cada técnico.', shots: [{ c: 'C18 · configuración', f: 'C18-configuracion-v.png', m: [[1, 6.7, 16.9, 'tl']] }], do: [
+    ['Aquí irá la credencial de Remedy, como hoy la de Jira', ['R1']],
+  ], q: ['¿Cómo llamar a Remedy a nombre de cada técnico? <small>esperar a lo que nos den (token, SSO o client credentials). Nada que pida permisos extra al cliente.</small>'] },
+  { g: 'Lo demás', id: 'resto', t: 'Ya hecho o sin integración', what: 'Métricas del servicio y del equipo, Chat e Instalador.', shots: [], none: 'No necesitan nada nuevo. El Chat no es una integración: usa lo ya leído de Remedy.' },
+];
+const PAGES = ['inicio', ...V.map((v) => v.id), 'como', 'resumen'];
+// Resumen: qué botón de SIA dispara cada pieza (lo que hace el técnico, no la llamada)
+const DISPARA = {
+  R1: ['Abrir la Mesa o el Backlog', 'Refrescar', 'Asignar siguiente issue', 'Buscar en «Llamada de un centro»'],
+  R2: ['Abrir una issue', 'Abrir Resolver o Escalar', 'Abrir una llamada de un centro'],
+  R3: ['Asignar siguiente issue', 'Asignar (Backlog)', 'Reasignar', 'Traspasar', 'Traspasar una escalada', 'Devolver a la cola'],
+  R4: ['Asignar siguiente issue', 'Contactar con el centro', 'Llamada: el centro trae lo que faltaba', 'Crear o actualizar escalado', 'Resolver', 'Jira resuelto al refrescar', 'Declarar major incident'],
+  R5: ['Escribir una nota', 'Llamada', 'Contactar con el centro', 'Reclamar respuesta', 'Traspasar', 'Escalar', 'Resolver', 'Dividir', 'Declarar major incident', 'Reclamar desde la llamada'],
+  R6: ['Generar informe', 'Crear escalado con archivos'],
+  R7: ['Corregir módulo o centro', 'Dividir', 'Categoría al resolver', 'Ticket del proveedor al escalar', 'Priorizar (PRIO)', 'Subir criticidad'],
+  R8: ['Dividir · Actualizar y generar'],
+  R9: ['Recurrencia: unir la hija a su padre'],
+  R10: ['Traspasar a otro equipo', 'Elegir la categoría'],
+  J1: ['Abrir Escalar y elegir el proyecto'],
+  J2: ['Ver detalle', 'Comprobar una clave', 'Refrescar (y cada 30 min)'],
+  J3: ['Actualizar escalado', 'Reclamar respuesta', 'Reclamar desde la llamada'],
+  J4: ['Crear escalado'],
+};
+// Lo que salió el 25/11 que no es una integración: tareas de SIA
+const MEJORAS = [
+  ['Destacar las notas públicas nuevas (ya se distinguen, pero no llaman la atención)', 'Mesa y la issue'],
+  ['Aviso de lo que no se escala por aquí: «hazlo en Remedy» o «escalado externamente»', 'Escalar'],
+  ['«Abrir WAR-ROOM» pasa a «Declarar major incident»: cambia el estado, deja la nota y abre la war room', 'La issue'],
+  ['Barrita roja de alerta en un major incident, y aviso para todos de quién tiene una war room abierta', 'Toda la app'],
+  ['Traspasar una escalada que es tuya por Remedy (hoy el botón solo sale si la cogiste en SIA)', 'Mesa · Seguimiento'],
+  ['Selección múltiple al reasignar (más adelante)', 'Mesa · Seguimiento'],
+];
+const KEY = 'integraciones-v4';
+let S = {}; try { S = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch {}
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} };
+let cur = PAGES.includes(S.cur) ? S.cur : 'inicio';
+const chip = (id) => `<span class="chip c${P[id][0]}" title="${P[id][1]}">${id}</span>`;
+const name = (p) => p === 'inicio' ? 'Inicio' : p === 'como' ? 'Cómo y en qué orden' : p === 'resumen' ? 'Resumen: qué botón dispara cada pieza' : V.find((v) => v.id === p).t;
+const shot = (s) => s.f
+  ? `<div class="shot"><img src="capturas/${s.f}" alt="${s.c}">${(s.m || []).map(([n, x, y, d]) => `<span class="mk d-${d || 'tl'}" data-mk="${n}" style="left:${x}%;top:${y}%"><b>${n}</b></span>`).join('')}<div class="cap">${s.c}</div></div>`
+  : `<div class="shot"><div class="ph"><span><b>${s.c}</b>captura pendiente</span></div></div>`;
+// Las piezas de una pantalla, por sistema y en orden (R1, R2… R10)
+const leyenda = (v) => {
+  const ids = [...new Set((v.do || []).flatMap(([, ps]) => ps))].sort((a, b) => a[0].localeCompare(b[0]) || +a.slice(1) - +b.slice(1));
+  if (!ids.length) return '';
+  return `<div class="ley"><h3>Qué significa cada código en esta pantalla</h3>${['R', 'J'].map((k) => {
+    const xs = ids.filter((id) => id[0] === k);
+    return xs.length ? `<div class="sy" style="color:var(--${k})">${SYS[k]}</div>${xs.map((id) => `<div class="it">${chip(id)}<div><b>${P[id][1]}</b><small>${QUE[id]}</small></div></div>`).join('')}` : '';
+  }).join('')}</div>`;
+};
+const note = (id) => `<textarea data-n="${id}" placeholder="Notas">${S['n' + id] || ''}</textarea>`;
+
+const render = () => {
+  let h = '';
+  if (cur === 'inicio') {
+    const used = (k) => V.filter((v) => (v.do || []).some(([, ps]) => ps.some((p) => p[0] === k))).length;
+    h = `<div class="kick">#162 · Integraciones</div><h2 class="t">Qué necesita SIA de Remedy y Jira</h2>
+      <p class="big">Las pantallas de SIA repiten las mismas piezas. <b>Hecha una pieza, sirve en todas las pantallas que la usan.</b></p>
+      <div class="nums"><div class="num"><b>${V.length}</b><span>pantallas</span></div><div class="num"><b>${Object.keys(P).length}</b><span>piezas</span></div>
+      ${['R', 'J'].map((k) => `<div class="num" style="border-color:var(--${k})"><b>${Object.keys(P).filter((p) => p[0] === k).length}</b><span>${SYS[k]}</span></div>`).join('')}</div>
+      <div class="pieces">${['R', 'J'].map((k) => `<div class="pc" style="border-color:var(--${k})"><h3 style="color:var(--${k})">${SYS[k]}</h3><ul>${Object.keys(P).filter((p) => p[0] === k).map((p) => `<li>${chip(p)}${P[p][1]}</li>`).join('')}</ul></div>`).join('')}</div>`;
+  } else if (cur === 'resumen') {
+    h = `<div class="kick">Resumen</div><h2 class="t">Qué botón de SIA dispara cada pieza</h2>
+      <p class="big">Un mismo botón puede tocar varias piezas, y una pieza se usa desde varios botones.</p>
+      <table class="res"><tr><th>Pieza</th><th>La dispara, en SIA</th></tr>${['R', 'J'].map((k) => `<tr class="sys"><td colspan="2" style="color:var(--${k})">${SYS[k]}</td></tr>${Object.keys(P).filter((id) => id[0] === k).map((id) => `<tr><td>${chip(id)}<b>${P[id][1]}</b></td><td>${DISPARA[id].map((t) => `<span class="bt">${t}</span>`).join('')}</td></tr>`).join('')}`).join('')}</table>`;
+  } else if (cur === 'como') {
+    h = `<div class="kick">Cómo</div><h2 class="t">Empezamos por lo que ya se puede hacer</h2>
+      <div class="steps">
+        <div class="step"><i>1</i><b>Jira</b>Ya hay token de cada técnico. J1 a J4.</div>
+        <div class="step"><i>2</i><b>Remedy</b>En cuanto haya API y credencial. R1 a R10.</div>
+        <div class="step"><i>3</i><b>Teams</b>Fuera: nada que pida permisos extra al cliente. Si hace falta, un enlace.</div>
+      </div>
+      <h2 class="kick" style="margin-top:28px">Lo que salió el 25/11 y no es integración</h2>
+      <table class="res"><tr><th>Mejora</th><th>Dónde</th></tr>${MEJORAS.map(([t, d]) => `<tr><td>${t}</td><td>${d}</td></tr>`).join('')}</table>
+      <h2 class="kick" style="margin-top:28px">Dudas</h2>
+      ${V.flatMap((v) => (v.q || []).map((q) => `<div class="q">${q} <span style="color:var(--gray);font-size:14px">· ${v.t}</span></div>`)).join('')}
+      ${note('como')}`;
+  } else {
+    const v = V.find((x) => x.id === cur), i = V.indexOf(v);
+    h = `<div class="kick${v.imp ? ' imp-kick' : ''}">Pantalla ${i + 1} de ${V.length} · ${v.g}${v.imp ? ' · Decidido el 25/11' : ''}</div><h2 class="t">${v.t}</h2>
+      <div class="view"><div>${leyenda(v)}${v.shots.some((x) => x.f) ? `<button type="button" class="vercap" data-todas>Ver las capturas (${v.shots.filter((x) => x.f).length}) · o pulsa un paso de la lista</button>` : ''}<div class="shots" hidden>${v.shots.map(shot).join('')}</div></div><div>
+        ${v.imp ? `<div class="aviso">${v.what}</div><h2 class="kick" style="color:var(--J);font-weight:700">✓ Lo que SIA ya hace</h2>` : `<p class="big" style="font-size:19px;margin-bottom:14px">${v.what}</p>`}
+        ${v.do ? `<ol class="do">${v.do.map(([t, ps], k) => v.shots.some((x) => x.f && (x.m || []).some((m) => m[0] === k + 1))
+          ? `<li data-paso="${k + 1}" title="Ver dónde, en la captura"><i>${k + 1}</i><div>${t}<div class="ps">${ps.map(chip).join('')}</div></div></li>`
+          : `<li class="sincap" title="Aún no está en SIA: no hay captura"><i>${k + 1}</i><div>${t}<div class="ps">${ps.map(chip).join('')}<span class="nuevo">aún no está en SIA · sin captura</span></div></div></li>`).join('')}</ol>` : `<div class="none">${v.none}</div>`}
+        ${v.imp ? '' : (v.q || []).map((q) => `<div class="q">${q}</div>`).join('')}
+        ${v.imp ? '' : note(v.id)}
+      </div></div>`;
+    // Llamadas entrantes: cada caso, lo que falta y las preguntas, a todo lo ancho
+    if (v.imp) h += `<h2 class="kick imp-kick" style="margin-top:28px">Lo que puede pasar en una llamada · decidido el 25/11</h2>
+      <table><tr><th>La incidencia está</th><th>El centro llama para</th><th>Qué se hace</th><th>Hace falta</th></tr>
+        ${v.casos.map(([e, d, m, q, ps]) => `<tr><td><b>${e}</b><br><span style="color:var(--gray);font-size:15px">${d}</span></td><td>${m}</td><td>${q}</td><td>${ps.map(chip).join('')}</td></tr>`).join('')}</table>
+      <div class="llam"><div class="caja no" style="grid-column:1/-1"><h3>✗ Lo que falta</h3><ul>${v.falta.map((t) => `<li>${t}</li>`).join('')}</ul></div></div>
+      ${(v.q || []).length ? `<h2 class="kick imp-kick" style="margin-top:22px">Queda abierto, con lo que propongo</h2>${v.q.map((q) => `<div class="q prop">${q}</div>`).join('')}` : ''}
+      ${note(v.id)}`;
+  }
+  const k = PAGES.indexOf(cur), prev = PAGES[k - 1], next = PAGES[k + 1];
+  const top = cur === 'inicio' ? '' : `<div class="top"><button data-p="inicio" class="home">← Volver al inicio</button><span>${prev && prev !== 'inicio' ? `<button data-p="${prev}">‹ ${name(prev)}</button>` : ''}${next ? `<button data-p="${next}">${name(next)} ›</button>` : ''}</span></div>`;
+  document.getElementById('main').innerHTML = top + h + `<div class="bar"><button id="copy">Copiar notas</button><span id="msg"></span></div>`;
+  let g = '', s = '<h1>Integraciones por pantalla</h1><p>← → pasar · Esc: inicio · clic en una captura: ampliar</p>';
+  s += `<button data-p="inicio" class="${cur === 'inicio' ? 'on' : ''}">Inicio · las ${Object.keys(P).length} piezas</button>`;
+  V.forEach((v, i) => { if (v.g !== g) { g = v.g; s += `<h2>${g}</h2>`; } s += `<button data-p="${v.id}" class="${v.imp ? 'imp ' : ''}${cur === v.id ? 'on' : ''}">${i + 1}. ${v.imp ? '! ' : ''}${v.t}</button>`; });
+  s += `<h2>Para cerrar</h2><button data-p="como" class="${cur === 'como' ? 'on' : ''}">Cómo y en qué orden</button><button data-p="resumen" class="${cur === 'resumen' ? 'on' : ''}">Resumen: piezas y botones</button>`;
+  document.getElementById('side').innerHTML = s;
+  // La leyenda empieza a la altura del primer paso de la lista (la frase de la pantalla va encima de la lista)
+  const izq = document.querySelector('#main .view > div:first-child'), paso = document.querySelector('#main ol.do li, #main .none');
+  if (izq && paso) izq.style.paddingTop = `${Math.max(0, paso.getBoundingClientRect().top - izq.getBoundingClientRect().top)}px`;
+};
+const go = (p) => { cur = p; S.cur = p; save(); render(); window.scrollTo(0, 0); };
+const zoom = document.getElementById('zoom');
+// Un paso que sale en varias capturas: «1 de 2»; cada clic (o →) pasa a la siguiente y tras la última se cierra
+let ruta = null;   // { n, texto, shots, i }
+const cerrar = () => { zoom.classList.remove('on'); ruta = null; };
+const verPaso = () => {
+  const { n, texto, shots, i, piezas } = ruta;
+  const mas = shots.length > 1 ? ` · captura ${i + 1} de ${shots.length}${i < shots.length - 1 ? ' · clic: la siguiente' : ' · clic: cerrar'}` : ' · clic o Esc para cerrar';
+  zoom.innerHTML = `<div>${shots[i].outerHTML}<div class="pie"><b>${n ? `${n}. ` : ''}${texto}</b>${mas}${piezas ? `<div class="pie-ps">${piezas}</div>` : ''}</div></div>`;
+  zoom.querySelectorAll(`.mk[data-mk="${n}"]`).forEach((m) => m.classList.add('foco'));
+  zoom.classList.add('on'); zoom.classList.toggle('con-foco', !!n);
+};
+zoom.onclick = () => { if (ruta && ruta.i < ruta.shots.length - 1) { ruta.i += 1; return verPaso(); } cerrar(); };
+document.addEventListener('click', (e) => {
+  const im = e.target.closest('#main .shot img'); if (im) { ruta = null; zoom.innerHTML = im.parentElement.outerHTML; zoom.classList.remove('con-foco'); zoom.classList.add('on'); return; }
+  // un paso: la primera captura con su número, ampliada y con el número resaltado
+  if (e.target.closest('#main [data-todas]')) {
+    const shots = [...document.querySelectorAll('#main .shot')].filter((x) => x.querySelector('img'));
+    ruta = { n: '', texto: 'Las capturas de esta pantalla', shots, i: 0, piezas: '' };
+    return verPaso();
+  }
+  const li = e.target.closest('#main [data-paso]'); if (!li) return;
+  const n = li.dataset.paso, shots = [...document.querySelectorAll('#main .shot')].filter((x) => x.querySelector(`[data-mk="${n}"]`));
+  if (!shots.length) return;
+  const piezas = [...li.querySelectorAll('.chip')].map((c) => `${c.outerHTML} ${P[c.textContent][1]}`).join('');
+  ruta = { n, texto: li.querySelector('div').firstChild.textContent, shots, i: 0, piezas };
+  verPaso();
+});
+document.addEventListener('keydown', (e) => {
+  if (!zoom.classList.contains('on')) return;
+  if (e.key === 'Escape') cerrar();
+  else if (ruta && e.key === 'ArrowRight') { if (ruta.i < ruta.shots.length - 1) { ruta.i += 1; verPaso(); } }
+  else if (ruta && e.key === 'ArrowLeft') { if (ruta.i > 0) { ruta.i -= 1; verPaso(); } }
+  else return;
+  e.stopImmediatePropagation(); e.preventDefault();
+}, true);
+document.addEventListener('click', (e) => { const p = e.target.closest('[data-p]'); if (p) return go(p.dataset.p); if (e.target.id === 'copy') copy(); });
+document.addEventListener('input', (e) => { if (e.target.dataset.n) { S['n' + e.target.dataset.n] = e.target.value; save(); } });
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'TEXTAREA') return;
+  const k = PAGES.indexOf(cur);
+  if (e.key === 'Escape' || e.key === 'Home') go('inicio');
+  if (e.key === 'ArrowRight') go(PAGES[Math.min(PAGES.length - 1, k + 1)]);
+  if (e.key === 'ArrowLeft') go(PAGES[Math.max(0, k - 1)]);
+});
+const copy = async () => {
+  const out = ['# Reunión 24/11 · integraciones por pantalla', ''];
+  PAGES.forEach((p) => { if (S['n' + p]) out.push(`## ${name(p)}`, S['n' + p], ''); });
+  const msg = document.getElementById('msg');
+  try { await navigator.clipboard.writeText(out.join('\n')); msg.textContent = 'Copiado.'; } catch { msg.textContent = 'No se ha podido copiar.'; }
+};
+render();
+</script>
+</body>
+</html>
